@@ -1,0 +1,203 @@
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import Script from 'next/script';
+import { Toaster } from 'sonner';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
+import { BackToTop } from '@/components/BackToTop';
+import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  weight: ['400', '500', '600', '700']
+});
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover' as const,
+};
+
+export const metadata: Metadata = {
+  title: 'AllFantasy \u2014 AI Fantasy Sports Co-GM',
+  description: 'Real-time AI drafts, waivers, start/sit & rankings for NFL, NBA, MLB. Built for serious leagues.',
+  metadataBase: new URL('https://allfantasy.ai'),
+  alternates: {
+    canonical: 'https://allfantasy.ai/',
+  },
+  openGraph: {
+    title: "AllFantasy \u2014 Your League's Secret Weapon",
+    description: 'AI that actually understands modern fantasy. Join the waitlist.',
+    url: 'https://allfantasy.ai/',
+    siteName: 'AllFantasy',
+    type: 'website',
+    images: [{ url: '/og-image.jpg' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "AllFantasy \u2014 Your League's Secret Weapon",
+    description: 'AI that actually understands modern fantasy. Join the waitlist.',
+  },
+  icons: {
+    icon: [
+      { url: '/af-crest.png', type: 'image/png' },
+      { url: '/af-crest.jpg', type: 'image/jpeg' },
+    ],
+    apple: '/af-crest.png',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
+  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
+  const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
+
+  if (!gaMeasurementId) {
+    console.warn('[AllFantasy] Missing NEXT_PUBLIC_GA_MEASUREMENT_ID');
+  }
+  if (!metaPixelId) {
+    console.warn('[AllFantasy] Missing NEXT_PUBLIC_META_PIXEL_ID');
+  }
+
+  return (
+    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
+      <head>
+        <Script id="af-init-mode" strategy="beforeInteractive">
+          {`
+            try {
+              var m = localStorage.getItem('af_mode');
+              if (m === 'dark' || m === 'light' || m === 'legacy') {
+                document.documentElement.setAttribute('data-mode', m);
+              } else {
+                document.documentElement.setAttribute('data-mode', 'light');
+              }
+            } catch (e) {
+              document.documentElement.setAttribute('data-mode', 'light');
+            }
+          `}
+        </Script>
+
+        {gaMeasurementId && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="google-gtag" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){window.dataLayer.push(arguments);}
+                window.gtag = window.gtag || gtag;
+                gtag('js', new Date());
+                gtag('config', '${gaMeasurementId}', { send_page_view: true });
+                gtag('config', 'AW-17768764414');
+              `}
+            </Script>
+          </>
+        )}
+
+        <Script id="analytics-healthcheck" strategy="afterInteractive">
+          {`
+            (function() {
+              try {
+                var shouldDebug =
+                  window.location.search.indexOf('af_debug_analytics=1') !== -1 ||
+                  localStorage.getItem('af_debug_analytics') === '1';
+
+                if (!shouldDebug) return;
+
+                setTimeout(function() {
+                  var hasDataLayer = Array.isArray(window.dataLayer);
+                  var hasGtag = typeof window.gtag === 'function';
+
+                  console.group('[AF Analytics Health]');
+                  console.info('GA Measurement ID:', '${gaMeasurementId}');
+                  console.info('window.gtag ready:', hasGtag);
+                  console.info('window.dataLayer ready:', hasDataLayer);
+                  console.info('dataLayer length:', hasDataLayer ? window.dataLayer.length : 0);
+
+                  try {
+                    if (hasGtag) {
+                      window.gtag('event', 'af_analytics_healthcheck', {
+                        page_path: window.location.pathname,
+                        debug_mode: true,
+                      });
+                      console.info('Sent test event: af_analytics_healthcheck');
+                    } else {
+                      console.warn('gtag not ready; test event not sent');
+                    }
+                  } catch (err) {
+                    console.warn('Failed to send test event', err);
+                  }
+
+                  fetch('/api/analytics/debug', { cache: 'no-store' })
+                    .then(function(r){ return r.json(); })
+                    .then(function(data){ console.info('/api/analytics/debug =>', data); })
+                    .catch(function(err){ console.warn('Debug endpoint failed', err); })
+                    .finally(function(){ console.groupEnd(); });
+                }, 1500);
+              } catch (e) {
+                console.warn('[AF Analytics Health] init failed', e);
+              }
+            })();
+          `}
+        </Script>
+
+        {metaPixelId && (
+          <Script id="meta-pixel" strategy="afterInteractive">
+            {`
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', '${metaPixelId}');
+              fbq('track', 'PageView');
+            `}
+          </Script>
+        )}
+      </head>
+
+      <body
+        className={`${inter.variable} antialiased min-h-screen`}
+        style={{ background: 'var(--bg)', color: 'var(--text)' }}
+      >
+        {metaPixelId && (
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        )}
+
+        <div id="fb-root"></div>
+
+        <Script
+          src={`https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v25.0&appId=${fbAppId}`}
+          strategy="afterInteractive"
+          crossOrigin="anonymous"
+        />
+
+        <ThemeProvider>
+          {children}
+          <Toaster position="top-center" richColors closeButton />
+          <GlobalModeToggle />
+          <BackToTop />
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
