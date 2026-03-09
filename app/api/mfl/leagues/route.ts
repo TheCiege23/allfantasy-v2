@@ -13,6 +13,8 @@ async function getMFLConnection() {
   })
 }
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 export const GET = withApiUsage({ endpoint: "/api/mfl/leagues", tool: "MflLeagues" })(async (req: NextRequest) => {
   try {
     const connection = await getMFLConnection()

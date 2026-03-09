@@ -10,6 +10,7 @@ import {
   type Side,
 } from "@/lib/brackets/ncaamStructure"
 
+export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 function validateNodes(nodes: BracketNodeSeedSpec[]): string[] {

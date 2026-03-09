@@ -12,6 +12,8 @@ import {
   SleeperTransaction,
 } from '@/lib/sleeper-client';
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 export interface PortfolioPoint {
   date: string;
   tradeId: string;

@@ -5,6 +5,8 @@ import { getLiveADP, fetchFFCADP, fetchAllFFCFormats, FFCScoringFormat } from '@
 import { resolveSleeperIds } from '@/lib/sleeper/players-cache'
 import { findMultiADP, type ADPFormat } from '@/lib/multi-platform-adp'
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions as any) as { user?: { id?: string } } | null
