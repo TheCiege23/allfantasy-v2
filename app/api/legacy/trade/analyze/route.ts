@@ -1409,6 +1409,66 @@ YOUR GRADE MUST ALIGN WITH THESE VALUES. Adjust ±1 level for context, but DO NO
   )
 }
 
+
+type TradeProviderAudit = {
+  providers: {
+    openai: string
+    grok: string
+    deterministicEngine: string
+  }
+  sourceCoverage: {
+    fantasyCalcPlayers: number
+    newsItems: number
+    normalizedSignalCount: number | null
+    sourceWeighting: string[]
+    partialData: boolean
+  }
+  disagreements: string[]
+}
+
+function parseExternalIntelMeta(externalIntel: string): {
+  normalizedSignalCount: number | null
+  sourceWeighting: string[]
+  newsItems: number
+} {
+  if (!externalIntel) {
+    return { normalizedSignalCount: null, sourceWeighting: [], newsItems: 0 }
+  }
+
+  const normalizedMatch = externalIntel.match(/Normalized TradeIntelSignal count:\s*(\d+)/i)
+  const newsMatch = externalIntel.match(/News:\s*(\d+)\s*items/i)
+  const weightingMatch = externalIntel.match(/Source weighting:\s*(.+)/i)
+
+  const sourceWeighting = weightingMatch?.[1]
+    ? weightingMatch[1]
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : []
+
+  return {
+    normalizedSignalCount: normalizedMatch ? Number(normalizedMatch[1]) : null,
+    sourceWeighting,
+    newsItems: newsMatch ? Number(newsMatch[1]) : 0,
+  }
+}
+
+function buildTradeIntelReconciliationDirective(audit: TradeProviderAudit): string {
+  const weighting = audit.sourceCoverage.sourceWeighting.length
+    ? audit.sourceCoverage.sourceWeighting.join(' | ')
+    : 'none'
+  const disagreements = audit.disagreements.length ? audit.disagreements.join(' | ') : 'none'
+
+  return [
+    '--- INTELLIGENCE RECONCILIATION PROTOCOL ---',
+    `Provider roles: OpenAI=${audit.providers.openai}; Grok=${audit.providers.grok}; Deterministic=${audit.providers.deterministicEngine}.`,
+    `Source coverage: fantasyCalcPlayers=${audit.sourceCoverage.fantasyCalcPlayers}; newsItems=${audit.sourceCoverage.newsItems}; normalizedSignals=${audit.sourceCoverage.normalizedSignalCount ?? 'unknown'}; partialData=${audit.sourceCoverage.partialData}.`,
+    `Source weighting summary: ${weighting}.`,
+    `Disagreement flags: ${disagreements}.`,
+    'Decision rules: when deterministic + market + normalized intel align, increase conviction; when signals conflict, preserve verdict direction but reduce certainty and surface explicit risks/counter paths.',
+    '--- END INTELLIGENCE RECONCILIATION PROTOCOL ---',
+  ].join('\n')
+}
 export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: "LegacyTradeAnalyze" })(async (request: NextRequest) => {
   try {
     const auth = requireAuthOrOrigin(request)
@@ -2273,6 +2333,37 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       isSuperflex: /superflex|2qb/i.test(String(leagueType || '')),
     }).catch(() => '')
 
+    const externalIntelMeta = parseExternalIntelMeta(externalIntel)
+    const providerAudit: TradeProviderAudit = {
+      providers: {
+        openai: 'Final synthesis, recommendation framing, and user-facing decision language',
+        grok: 'Recent news scanning and sentiment extraction through fetchPlayerNewsFromGrok',
+        deterministicEngine: 'Trade balance + driver model + constraints as hard guardrails',
+      },
+      sourceCoverage: {
+        fantasyCalcPlayers: fantasyCalcMap.size,
+        newsItems: externalIntelMeta.newsItems,
+        normalizedSignalCount: externalIntelMeta.normalizedSignalCount,
+        sourceWeighting: externalIntelMeta.sourceWeighting,
+        partialData:
+          fantasyCalcMap.size === 0 ||
+          externalIntelMeta.normalizedSignalCount == null ||
+          externalIntelMeta.normalizedSignalCount === 0,
+      },
+      disagreements: [
+        ...(tradeDriverData?.riskFlags?.length
+          ? ['Driver engine surfaced risk flags that may temper market conviction']
+          : []),
+        ...(newsValueAdjustments.some((a) => a.sentiment === 'bearish' || a.sentiment === 'injury_concern')
+          ? ['Recent bearish/injury news may conflict with pure market valuation']
+          : []),
+        ...(!tradeDriverData?.hasBehaviorData
+          ? ['Behavior signal missing; manager-fit confidence reduced']
+          : []),
+      ],
+    }
+    const reconciliationDirective = buildTradeIntelReconciliationDirective(providerAudit)
+
     const userPrompt = buildUserPrompt({
       sport,
       format,
@@ -2312,7 +2403,9 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       newsValueAdjustments,
     })
 
-    const enrichedUserPrompt = externalIntel ? `${userPrompt}\n\n${externalIntel}` : userPrompt
+    const enrichedUserPrompt = [userPrompt, externalIntel, reconciliationDirective]
+      .filter((s) => typeof s === 'string' && s.trim().length > 0)
+      .join('\n\n')
 
     const result = await openaiChatJson({
       messages: [
@@ -2685,6 +2778,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
         explanation: crResult.explanation,
       },
       ...(analyticsEnhanced ? { analytics: analyticsEnhanced } : {}),
+      intelligenceAudit: providerAudit,
       ...(engineAnalysis ? { engineAnalysis, engineRequest: engineReqSaved } : {}),
       ...(offseasonContext ? { offseasonContext } : {}),
       ...(newsValueAdjustments.length > 0 ? {
@@ -2712,3 +2806,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
     )
   }
 })
+
