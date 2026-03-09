@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import { BackToTop } from '@/components/BackToTop';
 import './globals.css';
@@ -58,11 +59,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
 
-  if (!gaMeasurementId) {
-    console.warn('[AllFantasy] Missing NEXT_PUBLIC_GA_MEASUREMENT_ID');
-  }
-  if (!metaPixelId) {
-    console.warn('[AllFantasy] Missing NEXT_PUBLIC_META_PIXEL_ID');
+  if (process.env.NODE_ENV !== 'production') {
+    if (!gaMeasurementId) console.warn('[AllFantasy] Missing NEXT_PUBLIC_GA_MEASUREMENT_ID');
+    if (!metaPixelId) console.warn('[AllFantasy] Missing NEXT_PUBLIC_META_PIXEL_ID');
   }
 
   return (
@@ -191,13 +190,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           crossOrigin="anonymous"
         />
 
+        <SessionAppProvider>
         <ThemeProvider>
           {children}
           <Toaster position="top-center" richColors closeButton />
           <GlobalModeToggle />
           <BackToTop />
         </ThemeProvider>
+        </SessionAppProvider>
       </body>
     </html>
   );
 }
+
