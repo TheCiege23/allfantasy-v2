@@ -1,49 +1,125 @@
-import { Queue } from "bullmq"
-import IORedis from "ioredis"
+import "server-only";
+import { Queue, type ConnectionOptions } from "bullmq";
+import IORedis from "ioredis";
 
-const REDIS_HOST = process.env.REDIS_HOST || "127.0.0.1"
-const REDIS_PORT = Number(process.env.REDIS_PORT || "6000")
-const REDIS_URL = process.env.REDIS_URL?.trim()
+const QUEUE_NAME_SIMULATIONS = "simulations";
 
-const redisOptions = {
-  maxRetriesPerRequest: null as null,
-  enableReadyCheck: false,
-  lazyConnect: true,
+let redisClient: IORedis | null | undefined;
+let simulationQueue: Queue | null | undefined;
+
+function parseRedisPort(value: string | undefined): number | null {
+  if (!value?.trim()) return null;
+
+  const port = Number(value.trim());
+  return Number.isInteger(port) && port > 0 ? port : null;
 }
 
-function createRedisClient() {
-  if (REDIS_URL) {
-    return new IORedis(REDIS_URL, redisOptions)
-  }
-
-  if (process.env.REDIS_HOST || process.env.REDIS_PORT) {
-    return new IORedis(REDIS_PORT, REDIS_HOST, redisOptions)
-  }
-
-  return null
+function getRedisUrl(): string | null {
+  const value = process.env.REDIS_URL?.trim();
+  return value || null;
 }
 
-export const redis = createRedisClient()
+function getRedisHost(): string | null {
+  const value = process.env.REDIS_HOST?.trim();
+  return value || null;
+}
 
-export const redisConnection = REDIS_URL
-  ? {
-      host: undefined,
-      port: undefined,
-      url: REDIS_URL,
-      maxRetriesPerRequest: null as null,
-      enableReadyCheck: false,
-    }
-  : process.env.REDIS_HOST || process.env.REDIS_PORT
-  ? {
-      host: REDIS_HOST,
-      port: REDIS_PORT,
-      maxRetriesPerRequest: null as null,
-      enableReadyCheck: false,
-    }
-  : null
+function getRedisPort(): number | null {
+  return parseRedisPort(process.env.REDIS_PORT);
+}
 
-export const simulationQueue = redisConnection
-  ? new Queue("simulations", {
-      connection: redisConnection,
-    })
-  : null
+function getRedisOptions() {
+  return {
+    maxRetriesPerRequest: null as null,
+    enableReadyCheck: false,
+    lazyConnect: true,
+  };
+}
+
+export function isRedisConfigured(): boolean {
+  return Boolean(getRedisUrl() || (getRedisHost() && getRedisPort()));
+}
+
+export function getRedisConnection(): ConnectionOptions | null {
+  const redisUrl = getRedisUrl();
+  if (redisUrl) {
+    return {
+      url: redisUrl,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    } as ConnectionOptions;
+  }
+
+  const host = getRedisHost();
+  const port = getRedisPort();
+
+  if (host && port) {
+    return {
+      host,
+      port,
+      maxRetriesPerRequest: null,
+      enableReadyCheck: false,
+    } as ConnectionOptions;
+  }
+
+  return null;
+}
+
+export function getRedisClient(): IORedis | null {
+  if (redisClient !== undefined) {
+    return redisClient;
+  }
+
+  const redisUrl = getRedisUrl();
+  const host = getRedisHost();
+  const port = getRedisPort();
+  const options = getRedisOptions();
+
+  if (redisUrl) {
+    redisClient = new IORedis(redisUrl, options);
+    return redisClient;
+  }
+
+  if (host && port) {
+    redisClient = new IORedis(port, host, options);
+    return redisClient;
+  }
+
+  redisClient = null;
+  return redisClient;
+}
+
+export function getSimulationQueue(): Queue | null {
+  if (simulationQueue !== undefined) {
+    return simulationQueue;
+  }
+
+  const connection = getRedisConnection();
+
+  if (!connection) {
+    simulationQueue = null;
+    return simulationQueue;
+  }
+
+  simulationQueue = new Queue(QUEUE_NAME_SIMULATIONS, {
+    connection,
+  });
+
+  return simulationQueue;
+}
+
+export async function closeBullMqResources(): Promise<void> {
+  const closeTasks: Promise<unknown>[] = [];
+
+  if (simulationQueue) {
+    closeTasks.push(simulationQueue.close());
+    simulationQueue = undefined;
+  }
+
+  if (redisClient) {
+    closeTasks.push(redisClient.quit().catch(() => redisClient?.disconnect()));
+    redisClient = undefined;
+  }
+
+  await Promise.all(closeTasks);
+}

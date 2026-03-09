@@ -1,33 +1,38 @@
-import Stripe from "stripe"
+import "server-only";
+import Stripe from "stripe";
 
-let stripe: Stripe | null = null
+let stripeClient: Stripe | undefined;
 
-export function getStripeClient() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY is missing")
+function getRequiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(
+      `${name} is not set. Add it to your local environment and Vercel project settings.`
+    );
   }
 
-  if (!stripe) {
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2025-08-27.basil" as any,
-    })
-  }
-
-  return stripe
+  return value;
 }
 
-export function getStripePublishableKey() {
-  const key = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  if (!key) {
-    throw new Error("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is missing")
+export function getStripeClient(): Stripe {
+  if (stripeClient) {
+    return stripeClient;
   }
-  return key
+
+  const secretKey = getRequiredEnv("STRIPE_SECRET_KEY");
+
+  stripeClient = new Stripe(secretKey, {
+    apiVersion: "2026-01-28.clover",
+  });
+
+  return stripeClient;
 }
 
-export function getStripeWebhookSecret() {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET
-  if (!secret) {
-    throw new Error("STRIPE_WEBHOOK_SECRET is missing")
-  }
-  return secret
+export function getStripePublishableKey(): string {
+  return getRequiredEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+}
+
+export function getStripeWebhookSecret(): string {
+  return getRequiredEnv("STRIPE_WEBHOOK_SECRET");
 }

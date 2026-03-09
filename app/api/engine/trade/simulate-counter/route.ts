@@ -1,98 +1,587 @@
-import { NextResponse } from 'next/server'
-import { runTradeAnalysis } from '@/lib/engine'
-import type { TradeEngineRequest } from '@/lib/engine'
-
-export async function POST(req: Request) {
-  try {
-    const body = await req.json()
-
-    const originalRequest = body.originalRequest as TradeEngineRequest | undefined
-    const appliedCounter = body.appliedCounter as {
-      addToGive?: { id: string; name: string; pos?: string; team?: string }
-      addToGet?: { id: string; name: string; pos?: string; team?: string }
-    } | undefined
-
-    if (!originalRequest) {
-      return NextResponse.json({ error: 'Missing originalRequest' }, { status: 400 })
-    }
-
-    const leagueId = originalRequest.leagueId || originalRequest.league_id || originalRequest.leagueContext?.leagueId || ''
-    if (!leagueId) {
-      return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
-    }
-
-    const modifiedRequest = { ...originalRequest }
-    modifiedRequest.assetsA = [...(originalRequest.assetsA || [])]
-    modifiedRequest.assetsB = [...(originalRequest.assetsB || [])]
-
-    if (appliedCounter?.addToGive) {
-      const p = appliedCounter.addToGive
-      modifiedRequest.assetsB = [
-        ...modifiedRequest.assetsB,
-        {
-          type: 'player' as const,
-          player: {
-            id: p.id,
-            name: p.name,
-            pos: p.pos,
-            team: p.team,
-            league: 'NFL' as const,
-          },
-        },
-      ]
-    }
-
-    if (appliedCounter?.addToGet) {
-      const p = appliedCounter.addToGet
-      modifiedRequest.assetsA = [
-        ...modifiedRequest.assetsA,
-        {
-          type: 'player' as const,
-          player: {
-            id: p.id,
-            name: p.name,
-            pos: p.pos,
-            team: p.team,
-            league: 'NFL' as const,
-          },
-        },
-      ]
-    }
-
-    const result = await runTradeAnalysis(modifiedRequest)
-
-    const previous = {
-      fairnessScore: body.previousFairness ?? null,
-      acceptProb: body.previousAcceptProb ?? null,
-      starterImpactNet: body.previousStarterNet ?? null,
-      championshipOdds: body.previousChampOdds ?? null,
-    }
-
-    const deltas = {
-      fairness: previous.fairnessScore != null ? result.fairness.score - previous.fairnessScore : null,
-      acceptance: previous.acceptProb != null ? result.acceptanceProbability.final - previous.acceptProb : null,
-      starterImpact: previous.starterImpactNet != null
-        ? (result.meta?.starterImpact?.teamA?.net ?? 0) - previous.starterImpactNet
-        : null,
-      championshipOdds: previous.championshipOdds != null && result.championshipEquity
-        ? result.championshipEquity.teamA.oddsAfter - previous.championshipOdds
-        : null,
-    }
-
-    return NextResponse.json({
-      ok: true,
-      analysis: result,
-      deltas,
-      simulation: {
-        counterApplied: !!appliedCounter,
-        addedToGive: appliedCounter?.addToGive?.name ?? null,
-        addedToGet: appliedCounter?.addToGet?.name ?? null,
-      },
-    })
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || 'Counter simulation failed' },
-      { status: 500 }
-    )
-  }
-}
+[{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "18004",
+	"severity": 8,
+	"message": "No value exists in scope for the shorthand property 'deltas'. Either declare one or provide an initializer.",
+	"source": "ts",
+	"startLineNumber": 208,
+	"startColumn": 7,
+	"endLineNumber": 208,
+	"endColumn": 13,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'marketContext' does not exist on type 'Request'.",
+	"source": "ts",
+	"startLineNumber": 202,
+	"startColumn": 37,
+	"endLineNumber": 202,
+	"endColumn": 50,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'a' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 200,
+	"startColumn": 15,
+	"endLineNumber": 200,
+	"endColumn": 16,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'a' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 199,
+	"startColumn": 18,
+	"endLineNumber": 199,
+	"endColumn": 19,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'assetsB' does not exist on type 'Request'.",
+	"source": "ts",
+	"startLineNumber": 198,
+	"startColumn": 56,
+	"endLineNumber": 198,
+	"endColumn": 63,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'TradePlayerAsset'.",
+	"source": "ts",
+	"startLineNumber": 198,
+	"startColumn": 31,
+	"endLineNumber": 198,
+	"endColumn": 47,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'clamp'.",
+	"source": "ts",
+	"startLineNumber": 196,
+	"startColumn": 32,
+	"endLineNumber": 196,
+	"endColumn": 37,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'clamp'.",
+	"source": "ts",
+	"startLineNumber": 195,
+	"startColumn": 32,
+	"endLineNumber": 195,
+	"endColumn": 37,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'teamB'.",
+	"source": "ts",
+	"startLineNumber": 189,
+	"startColumn": 20,
+	"endLineNumber": 189,
+	"endColumn": 25,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "18004",
+	"severity": 8,
+	"message": "No value exists in scope for the shorthand property 'cfg'. Either declare one or provide an initializer.",
+	"source": "ts",
+	"startLineNumber": 187,
+	"startColumn": 9,
+	"endLineNumber": 187,
+	"endColumn": 12,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'startersFromRoster'.",
+	"source": "ts",
+	"startLineNumber": 185,
+	"startColumn": 29,
+	"endLineNumber": 185,
+	"endColumn": 47,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'teamB'.",
+	"source": "ts",
+	"startLineNumber": 183,
+	"startColumn": 20,
+	"endLineNumber": 183,
+	"endColumn": 25,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "18004",
+	"severity": 8,
+	"message": "No value exists in scope for the shorthand property 'cfg'. Either declare one or provide an initializer.",
+	"source": "ts",
+	"startLineNumber": 181,
+	"startColumn": 9,
+	"endLineNumber": 181,
+	"endColumn": 12,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'preRosterB'.",
+	"source": "ts",
+	"startLineNumber": 180,
+	"startColumn": 17,
+	"endLineNumber": 180,
+	"endColumn": 27,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'startersFromRoster'.",
+	"source": "ts",
+	"startLineNumber": 179,
+	"startColumn": 28,
+	"endLineNumber": 179,
+	"endColumn": 46,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'teamA'.",
+	"source": "ts",
+	"startLineNumber": 176,
+	"startColumn": 20,
+	"endLineNumber": 176,
+	"endColumn": 25,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "18004",
+	"severity": 8,
+	"message": "No value exists in scope for the shorthand property 'cfg'. Either declare one or provide an initializer.",
+	"source": "ts",
+	"startLineNumber": 174,
+	"startColumn": 9,
+	"endLineNumber": 174,
+	"endColumn": 12,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'postRosterA'.",
+	"source": "ts",
+	"startLineNumber": 173,
+	"startColumn": 17,
+	"endLineNumber": 173,
+	"endColumn": 28,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'startersFromRoster'.",
+	"source": "ts",
+	"startLineNumber": 172,
+	"startColumn": 29,
+	"endLineNumber": 172,
+	"endColumn": 47,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'teamA'.",
+	"source": "ts",
+	"startLineNumber": 170,
+	"startColumn": 20,
+	"endLineNumber": 170,
+	"endColumn": 25,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "18004",
+	"severity": 8,
+	"message": "No value exists in scope for the shorthand property 'cfg'. Either declare one or provide an initializer.",
+	"source": "ts",
+	"startLineNumber": 168,
+	"startColumn": 9,
+	"endLineNumber": 168,
+	"endColumn": 12,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'preRosterA'.",
+	"source": "ts",
+	"startLineNumber": 167,
+	"startColumn": 17,
+	"endLineNumber": 167,
+	"endColumn": 27,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'startersFromRoster'.",
+	"source": "ts",
+	"startLineNumber": 166,
+	"startColumn": 28,
+	"endLineNumber": 166,
+	"endColumn": 46,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'pricedItemsToImpactMap'.",
+	"source": "ts",
+	"startLineNumber": 164,
+	"startColumn": 26,
+	"endLineNumber": 164,
+	"endColumn": 48,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'pricedItemsToImpactMap'.",
+	"source": "ts",
+	"startLineNumber": 163,
+	"startColumn": 26,
+	"endLineNumber": 163,
+	"endColumn": 48,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'hvCtx'.",
+	"source": "ts",
+	"startLineNumber": 161,
+	"startColumn": 92,
+	"endLineNumber": 161,
+	"endColumn": 97,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'priceAssets'.",
+	"source": "ts",
+	"startLineNumber": 161,
+	"startColumn": 35,
+	"endLineNumber": 161,
+	"endColumn": 46,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'hvCtx'.",
+	"source": "ts",
+	"startLineNumber": 160,
+	"startColumn": 92,
+	"endLineNumber": 160,
+	"endColumn": 97,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'priceAssets'.",
+	"source": "ts",
+	"startLineNumber": 160,
+	"startColumn": 35,
+	"endLineNumber": 160,
+	"endColumn": 46,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'p' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 158,
+	"startColumn": 88,
+	"endLineNumber": 158,
+	"endColumn": 89,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'p' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 158,
+	"startColumn": 53,
+	"endLineNumber": 158,
+	"endColumn": 54,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2552",
+	"severity": 8,
+	"message": "Cannot find name 'preRosterB'. Did you mean 'pricedRosterB'?",
+	"source": "ts",
+	"startLineNumber": 158,
+	"startColumn": 37,
+	"endLineNumber": 158,
+	"endColumn": 47,
+	"relatedInformation": [
+		{
+			"startLineNumber": 161,
+			"startColumn": 13,
+			"endLineNumber": 161,
+			"endColumn": 26,
+			"message": "'pricedRosterB' is declared here.",
+			"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts"
+		}
+	],
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'uniq'.",
+	"source": "ts",
+	"startLineNumber": 158,
+	"startColumn": 28,
+	"endLineNumber": 158,
+	"endColumn": 32,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'p' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 157,
+	"startColumn": 88,
+	"endLineNumber": 157,
+	"endColumn": 89,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2552",
+	"severity": 8,
+	"message": "Cannot find name 'postRosterA'. Did you mean 'postRosterB'?",
+	"source": "ts",
+	"startLineNumber": 157,
+	"startColumn": 71,
+	"endLineNumber": 157,
+	"endColumn": 82,
+	"relatedInformation": [
+		{
+			"startLineNumber": 151,
+			"startColumn": 11,
+			"endLineNumber": 151,
+			"endColumn": 22,
+			"message": "'postRosterB' is declared here.",
+			"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts"
+		}
+	],
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'p' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 157,
+	"startColumn": 53,
+	"endLineNumber": 157,
+	"endColumn": 54,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2552",
+	"severity": 8,
+	"message": "Cannot find name 'preRosterA'. Did you mean 'pricedRosterA'?",
+	"source": "ts",
+	"startLineNumber": 157,
+	"startColumn": 37,
+	"endLineNumber": 157,
+	"endColumn": 47,
+	"relatedInformation": [
+		{
+			"startLineNumber": 160,
+			"startColumn": 13,
+			"endLineNumber": 160,
+			"endColumn": 26,
+			"message": "'pricedRosterA' is declared here.",
+			"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts"
+		}
+	],
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'uniq'.",
+	"source": "ts",
+	"startLineNumber": 157,
+	"startColumn": 28,
+	"endLineNumber": 157,
+	"endColumn": 32,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'assetsA' does not exist on type 'Request'.",
+	"source": "ts",
+	"startLineNumber": 154,
+	"startColumn": 25,
+	"endLineNumber": 154,
+	"endColumn": 32,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2339",
+	"severity": 8,
+	"message": "Property 'assetsB' does not exist on type 'Request'.",
+	"source": "ts",
+	"startLineNumber": 153,
+	"startColumn": 29,
+	"endLineNumber": 153,
+	"endColumn": 36,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2552",
+	"severity": 8,
+	"message": "Cannot find name 'preRosterB'. Did you mean 'pricedRosterB'?",
+	"source": "ts",
+	"startLineNumber": 152,
+	"startColumn": 20,
+	"endLineNumber": 152,
+	"endColumn": 30,
+	"relatedInformation": [
+		{
+			"startLineNumber": 161,
+			"startColumn": 13,
+			"endLineNumber": 161,
+			"endColumn": 26,
+			"message": "'pricedRosterB' is declared here.",
+			"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts"
+		}
+	],
+	"modelVersionId": 5,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Guap_/allfantasy-v2-main/app/api/engine/trade/simulate-counter/route.ts",
+	"owner": "typescript",
+	"code": "2304",
+	"severity": 8,
+	"message": "Cannot find name 'buildPostRosterPlayers'.",
+	"source": "ts",
+	"startLineNumber": 151,
+	"startColumn": 25,
+	"endLineNumber": 151,
+	"endColumn": 47,
+	"modelVersionId": 5,
+	"origin": "extHost1"
+}]

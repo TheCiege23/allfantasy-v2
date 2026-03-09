@@ -1,21 +1,34 @@
+import "server-only"
 import twilio from "twilio"
 
-export function getTwilioClient() {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const apiKey = process.env.TWILIO_API_KEY
-  const apiKeySecret = process.env.TWILIO_API_SECRET
+let twilioClient: ReturnType<typeof twilio> | undefined
 
-  if (!accountSid || !apiKey || !apiKeySecret) {
-    throw new Error("Twilio environment variables are missing")
+function getRequiredEnv(name: string): string {
+  const value = process.env[name]?.trim()
+
+  if (!value) {
+    throw new Error(
+      `${name} is not set. Add it to your local environment and Vercel project settings.`
+    )
   }
 
-  return twilio(apiKey, apiKeySecret, { accountSid })
+  return value
+}
+
+export function getTwilioClient() {
+  if (twilioClient) {
+    return twilioClient
+  }
+
+  const accountSid = getRequiredEnv("TWILIO_ACCOUNT_SID")
+  const apiKey = getRequiredEnv("TWILIO_API_KEY")
+  const apiKeySecret = getRequiredEnv("TWILIO_API_SECRET")
+
+  twilioClient = twilio(apiKey, apiKeySecret, { accountSid })
+
+  return twilioClient
 }
 
 export function getTwilioFromPhoneNumber() {
-  const phoneNumber = process.env.TWILIO_PHONE_NUMBER
-  if (!phoneNumber) {
-    throw new Error("TWILIO_PHONE_NUMBER is missing")
-  }
-  return phoneNumber
+  return getRequiredEnv("TWILIO_PHONE_NUMBER")
 }

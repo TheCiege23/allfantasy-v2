@@ -1,57 +1,74 @@
-import type { NextAuthOptions } from "next-auth"
-import CredentialsProvider from "next-auth/providers/credentials"
-import { prisma } from "@/lib/prisma"
-import bcrypt from "bcryptjs"
+import type { NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
-function customPrismaAdapter() {
-  return {
-    async createUser(data: { email: string; emailVerified: Date | null; name?: string | null; image?: string | null }) {
-      const user = await prisma.appUser.create({
-        data: {
-          email: data.email,
-          username: data.email.split('@')[0] + '_' + Date.now().toString(36),
-          emailVerified: data.emailVerified,
-          displayName: data.name,
-          avatarUrl: data.image,
+function getAuthSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET?.trim();
+
+  if (!secret) {
+    throw new Error(
+      "NEXTAUTH_SECRET is not set. Add it to your local environment and Vercel project settings."
+    );
+  }
+
+  return secret;
+}
+
+function buildSleeperAvatarUrl(avatar: string | null | undefined): string | null {
+  if (!avatar) return null;
+  return `https://sleepercdn.com/avatars/${avatar}`;
+}
+
+async function fetchSleeperUser(username: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch(
+      `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`,
+      {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
         },
-      })
-      return { id: user.id, email: user.email, emailVerified: user.emailVerified, name: user.displayName, image: user.avatarUrl }
-    },
+      }
+    );
 
-    async getUser(id: string) {
-      const user = await prisma.appUser.findUnique({ where: { id } })
-      if (!user) return null
-      return { id: user.id, email: user.email, emailVerified: user.emailVerified, name: user.displayName, image: user.avatarUrl }
-    },
+    if (!response.ok) {
+      return null;
+    }
 
-    async getUserByEmail(email: string) {
-      const user = await prisma.appUser.findUnique({ where: { email } })
-      if (!user) return null
-      return { id: user.id, email: user.email, emailVerified: user.emailVerified, name: user.displayName, image: user.avatarUrl }
-    },
+    const data = (await response.json()) as {
+      user_id?: string;
+      display_name?: string;
+      avatar?: string | null;
+    };
 
-    async updateUser(data: { id: string; email?: string; emailVerified?: Date | null; name?: string | null; image?: string | null }) {
-      const user = await prisma.appUser.update({
-        where: { id: data.id },
-        data: {
-          ...(data.email !== undefined && { email: data.email }),
-          ...(data.emailVerified !== undefined && { emailVerified: data.emailVerified }),
-          ...(data.name !== undefined && { displayName: data.name }),
-          ...(data.image !== undefined && { avatarUrl: data.image }),
-        },
-      })
-      return { id: user.id, email: user.email, emailVerified: user.emailVerified, name: user.displayName, image: user.avatarUrl }
-    },
+    if (!data?.user_id) {
+      return null;
+    }
 
-    async deleteUser(id: string) {
-      await prisma.appUser.delete({ where: { id } })
-    },
+    return data;
+  } catch (error) {
+    console.error("[auth] Sleeper lookup failed:", error);
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
-  adapter: customPrismaAdapter() as any,
+  secret: getAuthSecret(),
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
+  },
+  pages: {
+    signIn: "/login",
+    error: "/auth/error",
+  },
   providers: [
     CredentialsProvider({
       id: "credentials",
@@ -61,38 +78,50 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.login || !credentials?.password) return null
+        const rawLogin = credentials?.login;
+        const rawPassword = credentials?.password;
 
-        const login = credentials.login.toLowerCase().trim()
-        const user = await prisma.appUser.findFirst({
-          where: {
-            OR: [
-              { email: login },
-              { username: login },
-            ],
-          },
-        })
-
-        if (!user) return null
-        if (!user.username) return null
-
-        if (!user.passwordHash) {
-          const isSleeperAccount = user.email?.endsWith("@sleeper.allfantasy.ai")
-          if (isSleeperAccount) {
-            throw new Error("SLEEPER_ONLY_ACCOUNT")
-          }
-          throw new Error("PASSWORD_NOT_SET")
+        if (!rawLogin || !rawPassword) {
+          return null;
         }
 
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash)
-        if (!valid) return null
+        const login = rawLogin.trim().toLowerCase();
+        const password = rawPassword;
+
+        const user = await prisma.appUser.findFirst({
+          where: {
+            OR: [{ email: login }, { username: login }],
+          },
+        });
+
+        if (!user) {
+          return null;
+        }
+
+        if (!user.passwordHash) {
+          const isSleeperOnlyAccount =
+            typeof user.email === "string" &&
+            user.email.endsWith("@sleeper.allfantasy.ai");
+
+          if (isSleeperOnlyAccount) {
+            throw new Error("SLEEPER_ONLY_ACCOUNT");
+          }
+
+          throw new Error("PASSWORD_NOT_SET");
+        }
+
+        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+
+        if (!isValidPassword) {
+          return null;
+        }
 
         return {
           id: user.id,
           email: user.email,
-          name: user.username,
+          name: user.displayName || user.username || user.email,
           image: user.avatarUrl,
-        }
+        };
       },
     }),
     CredentialsProvider({
@@ -102,30 +131,33 @@ export const authOptions: NextAuthOptions = {
         sleeperUsername: { label: "Sleeper Username", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.sleeperUsername) return null
+        const rawUsername = credentials?.sleeperUsername;
 
-        const username = credentials.sleeperUsername.trim()
-        if (!username) return null
+        if (!rawUsername) {
+          return null;
+        }
 
-        const sleeperRes = await fetch(`https://api.sleeper.app/v1/user/${username}`)
-        if (!sleeperRes.ok) return null
-        const sleeperUser = await sleeperRes.json()
-        if (!sleeperUser?.user_id) return null
+        const sleeperUsername = rawUsername.trim();
 
-        const sleeperUserId = sleeperUser.user_id
-        const displayName = sleeperUser.display_name || username
-        const avatarUrl = sleeperUser.avatar
-          ? `https://sleepercdn.com/avatars/${sleeperUser.avatar}`
-          : null
+        if (!sleeperUsername) {
+          return null;
+        }
+
+        const sleeperUser = await fetchSleeperUser(sleeperUsername);
+
+        if (!sleeperUser?.user_id) {
+          return null;
+        }
+
+        const sleeperUserId = sleeperUser.user_id;
+        const displayName = sleeperUser.display_name?.trim() || sleeperUsername;
+        const avatarUrl = buildSleeperAvatarUrl(sleeperUser.avatar);
 
         let user = await prisma.appUser.findFirst({
           where: {
-            OR: [
-              { username: `sleeper_${sleeperUserId}` },
-              { username: displayName.toLowerCase() },
-            ],
+            username: `sleeper_${sleeperUserId}`,
           },
-        })
+        });
 
         if (!user) {
           user = await prisma.appUser.create({
@@ -135,57 +167,70 @@ export const authOptions: NextAuthOptions = {
               displayName,
               avatarUrl,
             },
-          })
+          });
+        } else {
+          const needsUpdate =
+            user.displayName !== displayName || user.avatarUrl !== avatarUrl;
+
+          if (needsUpdate) {
+            user = await prisma.appUser.update({
+              where: { id: user.id },
+              data: {
+                displayName,
+                avatarUrl,
+              },
+            });
+          }
         }
 
         return {
           id: user.id,
           email: user.email,
-          name: user.displayName || user.username,
+          name: user.displayName || user.username || user.email,
           image: user.avatarUrl,
-        }
+        };
       },
     }),
   ],
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
-  },
-  pages: {
-    signIn: "/login",
-    error: "/auth/error",
-  },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id
-        token.email = user.email
-        token.name = user.name
+        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
+        token.picture = user.image;
       }
-      return token
+
+      return token;
     },
     async session({ session, token }) {
-      if (session.user && token) {
-        (session.user as any).id = token.id as string
-        session.user.email = token.email as string
-        session.user.name = (token.name as string) ?? session.user.name
+      if (session.user) {
+        session.user.email = typeof token.email === "string" ? token.email : session.user.email;
+        session.user.name =
+          typeof token.name === "string" ? token.name : session.user.name;
+        session.user.image =
+          typeof token.picture === "string" ? token.picture : session.user.image;
+
+        (session.user as { id?: string }).id =
+          typeof token.id === "string" ? token.id : undefined;
       }
-      return session
+
+      return session;
     },
   },
   events: {
     async signIn({ user }) {
-      if (!user?.id) return
+      if (!user?.id) return;
+
       try {
-        const db = prisma as any
-        await db.userProfile.upsert({
+        await prisma.userProfile.upsert({
           where: { userId: user.id },
           update: {},
           create: { userId: user.id },
-        }).catch(() => null)
-      } catch (err) {
-        console.error("[auth] signIn event error:", err)
+        });
+      } catch (error) {
+        console.error("[auth] signIn event error:", error);
       }
     },
   },
-}
+};

@@ -1,10 +1,14 @@
-import { withApiUsage } from "@/lib/telemetry/usage"
+import { withApiUsage } from "@/lib/telemetry/usage";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { emailSchema, sanitizeString } from "@/lib/validation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getResendClient } from "@/lib/resend-client";
 import { getEarlyAccessWelcomeEmailV2 } from "@/lib/email-templates/early-access-welcome";
+import { getBaseUrl } from "@/lib/get-base-url";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function getIp(request: NextRequest) {
   return (
@@ -14,50 +18,64 @@ function getIp(request: NextRequest) {
   );
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowed =
-    (process.env.EARLY_ACCESS_SYNC_ALLOWED_ORIGINS || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+  const allowed = (process.env.EARLY_ACCESS_SYNC_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
 
   const isAllowed = origin && allowed.includes(origin);
 
-  if (!isAllowed || !origin) return {};
+  if (!isAllowed || !origin) {
+    return {};
+  }
 
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "content-type, x-early-access-sync-secret",
+    "Access-Control-Allow-Headers": "content-type, x-early-access-sync-secret",
     "Access-Control-Max-Age": "86400",
-    "Vary": "Origin",
+    Vary: "Origin",
   };
 }
 
 export async function OPTIONS(request: NextRequest) {
   const origin = request.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
+
   return new NextResponse(null, {
     status: 204,
     headers: corsHeaders,
   });
 }
 
-export const POST = withApiUsage({ endpoint: "/api/early-access", tool: "EarlyAccess" })(async (request: NextRequest) => {
+export const POST = withApiUsage({
+  endpoint: "/api/early-access",
+  tool: "EarlyAccess",
+})(async (request: NextRequest) => {
   const ip = getIp(request);
   const userAgent = request.headers.get("user-agent") || undefined;
   const referrer = request.headers.get("referer") || undefined;
-
   const origin = request.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
 
   const syncSecretHeader = request.headers.get("x-early-access-sync-secret");
   const syncSecretEnv = (process.env.EARLY_ACCESS_SYNC_SECRET || "").trim();
   const isSyncAttempt = Boolean(syncSecretHeader);
-
-  const isValidSync =
-    isSyncAttempt && syncSecretEnv && syncSecretHeader === syncSecretEnv;
+  const isValidSync = isSyncAttempt && syncSecretEnv && syncSecretHeader === syncSecretEnv;
 
   try {
     if (!checkRateLimit(ip)) {
@@ -67,7 +85,20 @@ export const POST = withApiUsage({ endpoint: "/api/early-access", tool: "EarlyAc
       );
     }
 
-    const body = await request.json().catch(() => ({} as any));
+    const body = (await request.json().catch(() => null)) as
+      | {
+          email?: string;
+          name?: string;
+          source?: string;
+          utm_source?: string;
+          utm_medium?: string;
+          utm_campaign?: string;
+          utm_content?: string;
+          utm_term?: string;
+          referrer?: string;
+          suppressEmail?: boolean;
+        }
+      | null;
 
     const result = emailSchema.safeParse({ email: body?.email });
     if (!result.success) {
@@ -78,18 +109,39 @@ export const POST = withApiUsage({ endpoint: "/api/early-access", tool: "EarlyAc
     }
 
     const email = sanitizeString(result.data.email).toLowerCase();
-    const signupName = typeof body?.name === "string" ? sanitizeString(body.name).slice(0, 100) : null;
+    const signupName =
+      typeof body?.name === "string"
+        ? sanitizeString(body.name).slice(0, 100)
+        : null;
 
     const incomingSourceRaw =
       typeof body?.source === "string" ? body.source : undefined;
     const source = sanitizeString(incomingSourceRaw || "allfantasy.ai");
 
-    const utmSource = typeof body?.utm_source === "string" ? sanitizeString(body.utm_source) : null;
-    const utmMedium = typeof body?.utm_medium === "string" ? sanitizeString(body.utm_medium) : null;
-    const utmCampaign = typeof body?.utm_campaign === "string" ? sanitizeString(body.utm_campaign) : null;
-    const utmContent = typeof body?.utm_content === "string" ? sanitizeString(body.utm_content) : null;
-    const utmTerm = typeof body?.utm_term === "string" ? sanitizeString(body.utm_term) : null;
-    const pageReferrer = typeof body?.referrer === "string" ? sanitizeString(body.referrer) : null;
+    const utmSource =
+      typeof body?.utm_source === "string"
+        ? sanitizeString(body.utm_source)
+        : null;
+    const utmMedium =
+      typeof body?.utm_medium === "string"
+        ? sanitizeString(body.utm_medium)
+        : null;
+    const utmCampaign =
+      typeof body?.utm_campaign === "string"
+        ? sanitizeString(body.utm_campaign)
+        : null;
+    const utmContent =
+      typeof body?.utm_content === "string"
+        ? sanitizeString(body.utm_content)
+        : null;
+    const utmTerm =
+      typeof body?.utm_term === "string"
+        ? sanitizeString(body.utm_term)
+        : null;
+    const pageReferrer =
+      typeof body?.referrer === "string"
+        ? sanitizeString(body.referrer)
+        : null;
 
     const suppressEmail =
       body?.suppressEmail === true ||
@@ -184,17 +236,20 @@ export const POST = withApiUsage({ endpoint: "/api/early-access", tool: "EarlyAc
 
     try {
       const adSource = utmSource
-        ? utmSource.toLowerCase().includes("meta") || utmSource.toLowerCase().includes("facebook") || utmSource.toLowerCase().includes("instagram")
+        ? utmSource.toLowerCase().includes("meta") ||
+          utmSource.toLowerCase().includes("facebook") ||
+          utmSource.toLowerCase().includes("instagram")
           ? "Meta"
           : utmSource.toLowerCase().includes("google")
           ? "Google"
           : utmSource
         : "Direct";
 
-      const { client: notifClient, fromEmail: notifFrom } = await getResendClient();
-      const notifFromAddr = (notifFrom || "").trim() && !(notifFrom || "").toLowerCase().includes("@gmail.com")
-        ? notifFrom!
-        : "AllFantasy <noreply@allfantasy.ai>";
+      const { client: notifClient, fromEmail: notifFrom } = getResendClient();
+      const notifFromAddr =
+        notifFrom.trim() && !notifFrom.toLowerCase().includes("@gmail.com")
+          ? notifFrom
+          : "AllFantasy <noreply@allfantasy.ai>";
 
       await notifClient.emails.send({
         from: notifFromAddr,
@@ -202,21 +257,20 @@ export const POST = withApiUsage({ endpoint: "/api/early-access", tool: "EarlyAc
         subject: `New Early Access Signup - ${adSource}`,
         html: `<div style="font-family:sans-serif;padding:20px;">
 <h2 style="margin:0 0 12px;">New Early Access Signup</h2>
-${signupName ? `<p><strong>Name:</strong> ${signupName}</p>` : ""}
-<p><strong>Email:</strong> ${email}</p>
-<p><strong>Ad Source:</strong> ${adSource}</p>
-${utmCampaign ? `<p><strong>Campaign:</strong> ${utmCampaign}</p>` : ""}
-${utmMedium ? `<p><strong>Medium:</strong> ${utmMedium}</p>` : ""}
-${utmContent ? `<p><strong>Content:</strong> ${utmContent}</p>` : ""}
-${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
-<p><strong>Source Site:</strong> ${effectiveSource}</p>
+${signupName ? `<p><strong>Name:</strong> ${escapeHtml(signupName)}</p>` : ""}
+<p><strong>Email:</strong> ${escapeHtml(email)}</p>
+<p><strong>Ad Source:</strong> ${escapeHtml(adSource)}</p>
+${utmCampaign ? `<p><strong>Campaign:</strong> ${escapeHtml(utmCampaign)}</p>` : ""}
+${utmMedium ? `<p><strong>Medium:</strong> ${escapeHtml(utmMedium)}</p>` : ""}
+${utmContent ? `<p><strong>Content:</strong> ${escapeHtml(utmContent)}</p>` : ""}
+${pageReferrer ? `<p><strong>Referrer:</strong> ${escapeHtml(pageReferrer)}</p>` : ""}
+<p><strong>Source Site:</strong> ${escapeHtml(effectiveSource)}</p>
 <p style="color:#888;font-size:12px;">Signed up at ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })} ET</p>
 </div>`,
         text: `New Early Access Signup\nEmail: ${email}\nAd Source: ${adSource}\nSource Site: ${effectiveSource}`,
       });
-      console.log(`[EMAIL] Admin notification sent for new signup: ${email} (source: ${adSource})`);
-    } catch (notifErr: any) {
-      console.error(`[EMAIL] Failed to send admin notification for ${email}:`, notifErr?.message || notifErr);
+    } catch (notifError) {
+      console.error(`[EMAIL] Failed to send admin notification for ${email}:`, notifError);
     }
 
     let emailSent = false;
@@ -224,25 +278,20 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
 
     if (!suppressEmail) {
       try {
-        const { client, fromEmail, source: resendSource } =
-          await getResendClient();
+        const { client, fromEmail } = getResendClient();
 
-        const baseUrl = (process.env.APP_URL || "https://allfantasy.ai").trim();
+        const baseUrl = getBaseUrl();
         const { subject, html, text } = getEarlyAccessWelcomeEmailV2({
           email,
           baseUrl,
         });
 
-        const rawFrom = (fromEmail || "").trim();
-        const fallbackFrom = "AllFantasy <noreply@allfantasy.ai>";
         const from =
-          rawFrom && !rawFrom.toLowerCase().includes("@gmail.com")
-            ? rawFrom
-            : fallbackFrom;
+          fromEmail.trim() && !fromEmail.toLowerCase().includes("@gmail.com")
+            ? fromEmail
+            : "AllFantasy <noreply@allfantasy.ai>";
 
-        console.log(`[EMAIL] Attempting to send welcome email to ${email} from ${from} (source: ${resendSource})`);
-
-        const resp: any = await client.emails.send({
+        const resp = await client.emails.send({
           from,
           to: email,
           subject,
@@ -250,13 +299,11 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
           text,
         });
 
-        console.log(`[EMAIL] Resend response for ${email}:`, JSON.stringify(resp));
-
-        if (resp?.error) throw new Error(resp.error?.message || "Resend send error");
+        if ("error" in resp && resp.error) {
+          throw new Error(resp.error.message || "Resend send error");
+        }
 
         emailSent = true;
-        const messageId = resp?.data?.id || resp?.id || null;
-        console.log(`[EMAIL] Successfully sent welcome email to ${email}, messageId: ${messageId}`);
 
         await prisma.analyticsEvent.create({
           data: {
@@ -268,16 +315,13 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
             meta: {
               email,
               from,
-              source: resendSource,
-              messageId,
               effectiveSource,
               referrer: pageReferrer,
             },
           },
         });
-      } catch (emailError: any) {
-        emailErrorMsg = String(emailError?.message || emailError || "send failed");
-        console.error(`[EMAIL] Failed to send welcome email to ${email}:`, emailError);
+      } catch (emailError) {
+        emailErrorMsg = getErrorMessage(emailError);
 
         await prisma.analyticsEvent.create({
           data: {
@@ -321,7 +365,7 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
       },
       { headers: corsHeaders }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Early access error:", error);
 
     try {
@@ -332,7 +376,7 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
           path: "/api/early-access",
           userAgent,
           referrer,
-          meta: { ip, error: String(error?.message || error) },
+          meta: { ip, error: getErrorMessage(error) },
         },
       });
     } catch {}
@@ -342,4 +386,4 @@ ${pageReferrer ? `<p><strong>Referrer:</strong> ${pageReferrer}</p>` : ""}
       { status: 500, headers: corsHeaders }
     );
   }
-})
+});
