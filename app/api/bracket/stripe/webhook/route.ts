@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe-client"
 import Stripe from "stripe"
+import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe-client"
 
 export async function POST(req: NextRequest) {
   try {

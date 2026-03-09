@@ -5,9 +5,37 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 import { executeSerperWebSearch, executeSerperNewsSearch } from '@/lib/serper';
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
-const grok = new OpenAI({ apiKey: process.env.XAI_API_KEY!, baseURL: 'https://api.x.ai/v1' });
-const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY!, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' });
+function getGrokClient() {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) {
+    throw new Error("XAI_API_KEY is missing")
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL: "https://api.x.ai/v1",
+  })
+}
+
+function getOpenAIClient() {
+  const apiKey =
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is missing")
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL:
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://api.openai.com/v1",
+  })
+}
 
 const MAX_TOOL_TURNS = 5;
 
@@ -116,6 +144,8 @@ function buildDeterministicFacts(args: {
 }
 
 async function runGrokWithTools(systemPrompt: string, useRealTime: boolean): Promise<{ content: string; newsEvidence: FactEvidence[] }> {
+  const grok = getGrokClient()
+
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: 'Analyze this roster and find the best waiver wire targets. ' + (useRealTime ? 'Use your tools to search for the latest injuries, signings, rookie buzz, and X sentiment for relevant players.' : 'Focus on player profiles, roster fit, and value analysis.') },
@@ -325,6 +355,8 @@ For each target, explain WHY they fit THIS specific roster and contention window
 Return 6–8 waiver targets ranked by priority. Output detailed text — synthesis step will enforce strict JSON.`;
 
     const grokResearch = await runGrokWithTools(systemPrompt, useRealTimeNews);
+
+    const openai = getOpenAIClient()
 
     const synthesis = await openai.chat.completions.create({
       model: 'gpt-4o-2024-11-20',

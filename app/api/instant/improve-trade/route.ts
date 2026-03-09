@@ -9,15 +9,37 @@ import { getUserTradeProfile } from '@/lib/trade-feedback-profile'
 import { executeSerperWebSearch, executeSerperNewsSearch } from '@/lib/serper'
 import { fetchFantasyCalcValues as fetchCalcValues } from '@/lib/fantasycalc'
 
-const grokClient = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-})
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+function getGrokClient() {
+  const apiKey = process.env.XAI_API_KEY
+  if (!apiKey) {
+    throw new Error("XAI_API_KEY is missing")
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL: "https://api.x.ai/v1",
+  })
+}
+
+function getOpenAIClient() {
+  const apiKey =
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is missing")
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL:
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://api.openai.com/v1",
+  })
+}
 
 const MAX_TOOL_TURNS = 6
 
@@ -56,6 +78,7 @@ const GROK_TOOLS: OpenAI.ChatCompletionTool[] = [
 ]
 
 async function runGrokWithTools(systemPrompt: string): Promise<string> {
+    const grokClient = getGrokClient()
   let messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: 'Analyze this trade using all provided context. Use your tools to search for the latest real-time news, injuries, signings, and X sentiment for the players involved. Then generate your counter-offer suggestions.' },
@@ -271,6 +294,9 @@ function parseSuggestions(parsed: any) {
 
 export const POST = withApiUsage({ endpoint: '/api/instant/improve-trade', tool: 'ImproveTradeAI' })(async (req: Request) => {
   try {
+    const grokClient = getGrokClient()
+    const openaiClient = getOpenAIClient()
+
     const ip = getClientIp(req as any) || 'unknown'
     const rl = rateLimit(`improve-trade:${ip}`, 5, 60_000)
     if (!rl.success) {

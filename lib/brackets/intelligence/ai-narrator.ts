@@ -1,6 +1,21 @@
 import OpenAI from "openai"
 
-const openai = new OpenAI()
+function getOpenAIClient() {
+  const apiKey =
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is missing")
+  }
+
+  return new OpenAI({
+    apiKey,
+    baseURL:
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      "https://api.openai.com/v1",
+  })
+}
 
 type NarratorInput = {
   context: Record<string, any>
@@ -9,6 +24,7 @@ type NarratorInput = {
 }
 
 async function generateNarrative(input: NarratorInput): Promise<string> {
+  const openai = getOpenAIClient()
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",

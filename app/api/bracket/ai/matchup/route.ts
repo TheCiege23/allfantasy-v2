@@ -15,6 +15,7 @@ import {
 import { narrateMatchup } from "@/lib/brackets/intelligence/ai-narrator"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 function buildAnalysis(
   teamA: string,
