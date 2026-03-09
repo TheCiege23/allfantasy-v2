@@ -23,10 +23,12 @@ import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { getPlayerAnalyticsBatch } from '@/lib/player-analytics'
 import {
   scoreWaiverCandidates,
+  buildWaiverIntelSignals,
   type WaiverCandidate,
   type WaiverRosterPlayer,
   type WaiverScoringContext,
   type CrowdTrendData,
+  type WaiverIntelSignal,
 } from '@/lib/waiver-engine/waiver-scoring'
 import {
   computeTeamNeeds,
@@ -340,24 +342,51 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
       }
     })
 
+    const valuationCache = new Map<string, number>()
+    for (let i = 0; i < userRosterCategorized.length; i++) {
+      const name = userRosterCategorized[i]?.name
+      const priced = rosterValueResults[i]
+      if (name && priced?.value != null) valuationCache.set(name, priced.value)
+    }
+
+    const leaguePlayerNames = Array.from(
+      new Set(
+        rosters.flatMap((roster) =>
+          (roster.players || [])
+            .map((pid) => allPlayers[pid])
+            .filter((p): p is SleeperPlayer => Boolean(p))
+            .map((p) => p.full_name || `${p.first_name} ${p.last_name}`)
+            .filter(Boolean),
+        ),
+      ),
+    ).slice(0, 550)
+
+    await Promise.all(
+      leaguePlayerNames.map(async (name) => {
+        if (valuationCache.has(name)) return
+        try {
+          const priced = await pricePlayer(name, valCtx)
+          valuationCache.set(name, priced.value)
+        } catch {
+          valuationCache.set(name, 1000)
+        }
+      }),
+    )
     const needs = detectNeeds(rosterPlayers, isSF)
     const surplus = detectSurplus(rosterPlayers)
 
-    const allLeagueRosterPlayers = rosters.map(r => {
+    const allLeagueRosterPlayers = rosters.map((r) => {
       const categorized = categorizeRoster(r, allPlayers)
       return {
-        players: categorized.map((p, idx) => {
-          const priced = rosterValueResults[0]
-          return {
-            id: p.id,
-            name: p.name,
-            position: p.position,
-            team: p.team,
-            slot: p.slot,
-            age: p.age ?? null,
-            value: priced?.value ?? 1000,
-          } as WaiverRosterPlayer
-        })
+        players: categorized.map((p) => ({
+          id: p.id,
+          name: p.name,
+          position: p.position,
+          team: p.team,
+          slot: p.slot,
+          age: p.age ?? null,
+          value: valuationCache.get(p.name) ?? 1000,
+        })) as WaiverRosterPlayer[],
       }
     })
 
@@ -423,6 +452,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
 
     const deterministicResults = scoreWaiverCandidates(waiverCandidates, scoringCtx, { maxResults: 10 })
     console.log(`[WaiverAI] Deterministic engine: ${deterministicResults.length} scored targets for ${resolvedUsername} (goal=${goal})`)
+    const waiverIntelSignals: WaiverIntelSignal[] = buildWaiverIntelSignals(deterministicResults, scoringCtx)
+
 
     let narratives: Record<string, string> = {}
     let summary = ''
@@ -519,6 +550,7 @@ Write narrative summary, per-player reasoning, and roster notes.`
       one_move: null as any,
       suggestions: null as any,
       roster_notes: rosterNotes,
+      intel_signals: waiverIntelSignals,
     }
 
     const waiverPlayerIds = deterministicResults
@@ -542,6 +574,7 @@ Write narrative summary, per-player reasoning, and roster notes.`
         top_drivers: top.topDrivers,
         drop_candidate: top.dropCandidate,
         reasoning: narratives[top.playerName] || top.topDrivers.filter((d: any) => d.direction === 'positive').map((d: any) => d.detail).join('. '),
+        intel_signal: waiverIntelSignals.find((s) => s.playerName === top.playerName) || null,
         playerId: top.playerId,
         fullName: top.playerName,
         teamAbbr: topMedia?.teamAbbr || top.team,
@@ -660,3 +693,4 @@ Write narrative summary, per-player reasoning, and roster notes.`
     )
   }
 })
+

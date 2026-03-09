@@ -102,6 +102,17 @@ export type ScoredWaiverTarget = {
   } | null
 }
 
+
+export type WaiverIntelSignal = {
+  playerName: string
+  rosterFitScore: number
+  opportunityScore: number
+  shortTermScore: number
+  longTermScore: number
+  faabEfficiencyScore?: number
+  explanation: string
+  data: Record<string, unknown>
+}
 const POSITION_SCARCITY: Record<string, number> = {
   QB: 0.7,
   RB: 1.0,
@@ -642,6 +653,50 @@ function computeFaabBid(composite: number, value: number, goal: UserGoal): numbe
   return clamp(bid, 0, 100)
 }
 
+function computeFaabEfficiencyScore(target: ScoredWaiverTarget): number {
+  if (target.faabBid == null) return 50
+  if (target.faabBid <= 0) return 80
+  const valuePerFaab = target.compositeScore / target.faabBid
+  return clamp(Math.round(normalize(valuePerFaab, 0.8, 3.5)), 0, 100)
+}
+
+export function buildWaiverIntelSignals(
+  targets: ScoredWaiverTarget[],
+  ctx: WaiverScoringContext,
+): WaiverIntelSignal[] {
+  return targets.map((target) => {
+    const faabEfficiencyScore = computeFaabEfficiencyScore(target)
+    const horizon = ctx.isDynasty ? 'long-term upside' : 'immediate lineup value'
+    const explanationParts = [
+      `${target.playerName} is a ${target.recommendation.toLowerCase()} candidate.`,
+      `Best fit at ${target.position} with roster-fit ${target.dimensions.needFit}/100.`,
+      `Priority anchored by ${horizon} and league demand ${target.dimensions.leagueDemand}/100.`,
+    ]
+    if (target.dropCandidate) {
+      explanationParts.push(
+        `Preferred drop is ${target.dropCandidate.name} (${target.dropCandidate.riskLabel} regret risk).`,
+      )
+    }
+
+    return {
+      playerName: target.playerName,
+      rosterFitScore: target.dimensions.needFit,
+      opportunityScore: target.compositeScore,
+      shortTermScore: target.dimensions.startNow,
+      longTermScore: target.dimensions.stash,
+      faabEfficiencyScore,
+      explanation: explanationParts.join(' '),
+      data: {
+        position: target.position,
+        recommendation: target.recommendation,
+        priorityRank: target.priorityRank,
+        faabBid: target.faabBid,
+        dropCandidate: target.dropCandidate,
+        topDrivers: target.topDrivers,
+      },
+    }
+  })
+}
 export function scoreWaiverCandidates(
   candidates: WaiverCandidate[],
   ctx: WaiverScoringContext,
@@ -698,3 +753,5 @@ export function scoreWaiverCandidates(
 
   return scored.slice(0, maxResults)
 }
+
+

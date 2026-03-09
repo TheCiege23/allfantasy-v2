@@ -469,6 +469,77 @@ function detectNotificationTriggers(
   return triggers
 }
 
+function summarizeProviderSignalAudit(
+  openaiRaw: string,
+  grokRaw: string,
+  quantResult: QuantResult | null,
+) {
+  const openaiJson = openaiRaw ? parseJsonResponse(openaiRaw) : null
+  const grokJson = grokRaw ? parseJsonResponse(grokRaw) : null
+
+  const internetBuckets = [
+    ...(Array.isArray(grokJson?.injuryAlerts) ? grokJson!.injuryAlerts : []),
+    ...(Array.isArray(grokJson?.trendSignals) ? grokJson!.trendSignals : []),
+    ...(Array.isArray(grokJson?.snapShareChanges) ? grokJson!.snapShareChanges : []),
+    ...(Array.isArray(grokJson?.socialBuzz) ? grokJson!.socialBuzz : []),
+    ...(Array.isArray(grokJson?.momentumFlags) ? grokJson!.momentumFlags : []),
+  ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+
+  const normalizedInternetSignals = internetBuckets.slice(0, 10).map((text) => {
+    const low = text.toLowerCase()
+    const recency =
+      low.includes('breaking') || low.includes('today') || low.includes('just')
+        ? 'fresh'
+        : low.includes('week') || low.includes('recent')
+          ? 'recent'
+          : 'stale'
+    const relevance =
+      low.includes('injur') || low.includes('trade') || low.includes('depth chart') || low.includes('usage')
+        ? 0.88
+        : 0.65
+    const confidence =
+      low.includes('report') || low.includes('confirmed')
+        ? 0.78
+        : low.includes('rumor')
+          ? 0.52
+          : 0.64
+    const affectedEntities = (text.match(/[A-Z][a-z]+\s[A-Z][a-z]+/g) || []).slice(0, 3)
+
+    return {
+      source: 'grok_web_search',
+      recency,
+      relevance,
+      confidence,
+      affectedEntities,
+      summary: text,
+    }
+  })
+
+  const disagreementFlags: string[] = []
+  if (quantResult?.fairnessScore != null && quantResult.fairnessScore < 40 && normalizedInternetSignals.length > 0) {
+    disagreementFlags.push('Quant model flags low fairness while internet signals are active.')
+  }
+  if (
+    quantResult?.riskGrade &&
+    ['D', 'F'].includes(quantResult.riskGrade) &&
+    normalizedInternetSignals.some((s) => s.summary.toLowerCase().includes('bull'))
+  ) {
+    disagreementFlags.push('Risk model is pessimistic but internet sentiment contains bullish signals.')
+  }
+  if (!openaiJson?.answer && (grokRaw || quantResult)) {
+    disagreementFlags.push('Primary reasoning response was incomplete; fallback provider data carried the response.')
+  }
+
+  return {
+    responsibilities: {
+      openai: 'final reasoning synthesis, user-facing recommendation framing, and action ordering',
+      grok: 'internet/current-event scanning normalized into structured context signals',
+      deepseek: 'quantitative risk, fairness, and projection calibration',
+    },
+    normalizedInternetSignals,
+    disagreementFlags,
+  }
+}
 async function parseScreenshotWithVision(imageFile: File, userQuestion: string): Promise<string> {
   const arrayBuffer = await imageFile.arrayBuffer()
   const base64 = Buffer.from(arrayBuffer).toString('base64')
@@ -784,6 +855,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const consensus = buildConsensus(openaiRaw, grokRaw, dsResult, strategyMode)
+  const providerSignalAudit = summarizeProviderSignalAudit(openaiRaw, grokRaw, dsResult)
 
   const toolLink = consensus.recommendedTool !== 'none' ? TOOL_LINKS[consensus.recommendedTool] : null
   let finalAnswer = consensus.answer
@@ -823,6 +895,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       strategyNote: consensus.strategyNote,
       quantData: consensus.quantData,
       trendData: consensus.trendData,
+      providerSignalAudit,
       hasImage: !!screenshotContext,
       privateMode,
       targetUsername: targetUsername || null,
@@ -834,3 +907,4 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     },
   })
 }
+

@@ -1,22 +1,36 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
-import { prisma } from '@/lib/prisma';
-import { rateLimit } from '@/lib/rate-limit';
-import { trackLegacyToolUsage } from '@/lib/analytics-server';
-import { AI_CORE_PERSONALITY, getModeInstructions, SIGNATURE_PHRASES, MEMORY_AWARENESS, WHEN_TO_SPEAK_RULES, ESCALATION_SYSTEM } from '@/lib/ai-personality';
-import { getUniversalAIContext } from '@/lib/ai-player-context';
-import { assembleLegacyAIContext, formatEnrichedContextForPrompt } from '@/lib/legacy-ai-context';
+import { NextRequest, NextResponse } from "next/server"
+import OpenAI from "openai"
+import { prisma } from "@/lib/prisma"
+import { rateLimit } from "@/lib/rate-limit"
+import { trackLegacyToolUsage } from "@/lib/analytics-server"
+import {
+  AI_CORE_PERSONALITY,
+  getModeInstructions,
+  SIGNATURE_PHRASES,
+  MEMORY_AWARENESS,
+  WHEN_TO_SPEAK_RULES,
+  ESCALATION_SYSTEM,
+} from "@/lib/ai-personality"
+import { getUniversalAIContext } from "@/lib/ai-player-context"
+import {
+  assembleLegacyAIContext,
+  formatEnrichedContextForPrompt,
+} from "@/lib/legacy-ai-context"
 
 const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+  apiKey:
+    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL:
+    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+    process.env.OPENAI_BASE_URL ||
+    "https://api.openai.com/v1",
+})
 
 const LEGACY_AI_SYSTEM_PROMPT = `
 ${AI_CORE_PERSONALITY}
 
-${getModeInstructions('commentator')}
+${getModeInstructions("commentator")}
 
 ${SIGNATURE_PHRASES}
 
@@ -239,8 +253,8 @@ Output JSON only:
     "improvement_tips": string[] (specific to their status)
   },
   "next_season_advice": string (offseason-specific: "If the season started today, here's how you stack up..."),
-  "share_text": string (short social media ready legacy card text, <280 chars),
-  
+  "share_text": string (short social media ready legacy card text, <280 chars>),
+
   "window_planner": {
     "current_trajectory": string (where they're headed doing nothing),
     "push_in_scenario": string (what happens if they go all-in),
@@ -248,7 +262,7 @@ Output JSON only:
     "optimal_path": string (recommended direction with reasoning),
     "timeline_shift": string (how optimal path affects window)
   },
-  
+
   "season_autopsy": [
     {
       "season": number,
@@ -259,14 +273,14 @@ Output JSON only:
       "narrative_summary": string
     }
   ],
-  
+
   "manager_profile": {
     "behavior_percentile": string ("You trade more than 91% of managers"),
     "tendency_insight": string,
     "playful_roast": string,
     "pattern_memory": string[] (patterns you've observed about them)
   },
-  
+
   "uncomfortable_truth": string (one honest insight they need to hear),
 
   "citations": [
@@ -285,95 +299,132 @@ Output JSON only:
 - "source" must reference the actual data feed it came from (see ENRICHMENT DATA sections).
 - "confidence" is "high" when backed by multiple data points, "medium" for single-source claims, "low" for inferences.
 - Include at minimum 3 citations. More is better if justified.
-- Do NOT fabricate sources — only cite data actually provided to you.`;
+- Do NOT fabricate sources — only cite data actually provided to you.`
 
 function buildLegacySnapshot(user: {
-  displayName: string | null;
-  sleeperUsername: string;
+  displayName: string | null
+  sleeperUsername: string
   leagues: Array<{
-    id: string;
-    name: string;
-    season: number;
-    leagueType: string | null;
-    specialtyFormat?: string | null;
+    id: string
+    name: string
+    season: number
+    leagueType: string | null
+    specialtyFormat?: string | null
     rosters: Array<{
-      wins: number;
-      losses: number;
-      pointsFor: number;
-      isChampion: boolean;
-      playoffSeed: number | null;
-      finalStanding: number | null;
-    }>;
-  }>;
+      wins: number
+      losses: number
+      pointsFor: number
+      isChampion: boolean
+      playoffSeed: number | null
+      finalStanding: number | null
+    }>
+  }>
 }) {
-  // Separate standard leagues from specialty leagues (guillotine, bestball, survivor, etc.)
-  const standardLeagues = user.leagues.filter(l => !l.specialtyFormat || l.specialtyFormat === 'standard');
-  const specialtyLeagues = user.leagues.filter(l => l.specialtyFormat && l.specialtyFormat !== 'standard');
-  
-  // Use ONLY standard leagues for grading stats
-  let totalWins = 0, totalLosses = 0, championships = 0, totalPointsFor = 0, playoffAppearances = 0;
-  const seasonStats: Record<number, { wins: number; losses: number; championships: number; leagues: number; pointsFor: number }> = {};
-  const winPercentages: number[] = [];
+  const standardLeagues = user.leagues.filter(
+    (l) => !l.specialtyFormat || l.specialtyFormat === "standard"
+  )
+  const specialtyLeagues = user.leagues.filter(
+    (l) => l.specialtyFormat && l.specialtyFormat !== "standard"
+  )
+
+  let totalWins = 0
+  let totalLosses = 0
+  let championships = 0
+  let totalPointsFor = 0
+  let playoffAppearances = 0
+
+  const seasonStats: Record<
+    number,
+    { wins: number; losses: number; championships: number; leagues: number; pointsFor: number }
+  > = {}
+
+  const winPercentages: number[] = []
 
   for (const league of standardLeagues) {
-    const roster = league.rosters[0];
-    if (!roster) continue;
+    const roster = league.rosters[0]
+    if (!roster) continue
 
-    totalWins += roster.wins;
-    totalLosses += roster.losses;
-    totalPointsFor += roster.pointsFor;
-    if (roster.isChampion) championships++;
-    if (roster.playoffSeed && roster.playoffSeed > 0) playoffAppearances++;
+    totalWins += roster.wins
+    totalLosses += roster.losses
+    totalPointsFor += roster.pointsFor
+    if (roster.isChampion) championships++
+    if (roster.playoffSeed && roster.playoffSeed > 0) playoffAppearances++
 
-    const season = league.season;
-    if (!seasonStats[season]) seasonStats[season] = { wins: 0, losses: 0, championships: 0, leagues: 0, pointsFor: 0 };
-    seasonStats[season].wins += roster.wins;
-    seasonStats[season].losses += roster.losses;
-    seasonStats[season].leagues++;
-    seasonStats[season].pointsFor += roster.pointsFor;
-    if (roster.isChampion) seasonStats[season].championships++;
+    const season = league.season
+    if (!seasonStats[season]) {
+      seasonStats[season] = {
+        wins: 0,
+        losses: 0,
+        championships: 0,
+        leagues: 0,
+        pointsFor: 0,
+      }
+    }
+
+    seasonStats[season].wins += roster.wins
+    seasonStats[season].losses += roster.losses
+    seasonStats[season].leagues++
+    seasonStats[season].pointsFor += roster.pointsFor
+    if (roster.isChampion) seasonStats[season].championships++
 
     if (roster.wins + roster.losses > 0) {
-      winPercentages.push(roster.wins / (roster.wins + roster.losses));
+      winPercentages.push(roster.wins / (roster.wins + roster.losses))
     }
   }
 
-  const avgWinPct = winPercentages.length > 0 ? winPercentages.reduce((a, b) => a + b, 0) / winPercentages.length : 0;
-  const variance = winPercentages.length > 1 
-    ? winPercentages.reduce((sum, wp) => sum + Math.pow(wp - avgWinPct, 2), 0) / winPercentages.length 
-    : 0;
+  const avgWinPct =
+    winPercentages.length > 0
+      ? winPercentages.reduce((a, b) => a + b, 0) / winPercentages.length
+      : 0
 
-  let bestSeason = { year: 0, winPct: 0 };
-  let worstSeason = { year: 0, winPct: 1 };
+  const variance =
+    winPercentages.length > 1
+      ? winPercentages.reduce((sum, wp) => sum + Math.pow(wp - avgWinPct, 2), 0) /
+        winPercentages.length
+      : 0
+
+  let bestSeason = { year: 0, winPct: 0 }
+  let worstSeason = { year: 0, winPct: 1 }
+
   for (const [year, stats] of Object.entries(seasonStats)) {
-    const winPct = stats.wins + stats.losses > 0 ? stats.wins / (stats.wins + stats.losses) : 0;
-    if (winPct > bestSeason.winPct) bestSeason = { year: parseInt(year), winPct };
-    if (winPct < worstSeason.winPct && stats.wins + stats.losses > 0) worstSeason = { year: parseInt(year), winPct };
+    const winPct =
+      stats.wins + stats.losses > 0 ? stats.wins / (stats.wins + stats.losses) : 0
+
+    if (winPct > bestSeason.winPct) {
+      bestSeason = { year: parseInt(year, 10), winPct }
+    }
+
+    if (winPct < worstSeason.winPct && stats.wins + stats.losses > 0) {
+      worstSeason = { year: parseInt(year, 10), winPct }
+    }
   }
 
-  // Only include standard leagues in the history for grading
-  const leagueHistory = standardLeagues.map(l => {
-    const roster = l.rosters[0];
+  const leagueHistory = standardLeagues.map((l) => {
+    const roster = l.rosters[0]
     return {
       name: l.name,
       season: l.season,
       type: l.leagueType,
-      record: roster ? `${roster.wins}-${roster.losses}` : 'N/A',
+      record: roster ? `${roster.wins}-${roster.losses}` : "N/A",
       champion: roster?.isChampion || false,
       final_standing: roster?.finalStanding,
-    };
-  });
-  
-  // Summarize specialty leagues (not included in grading)
-  const specialtyLeagueSummary = specialtyLeagues.length > 0 ? {
-    total_specialty_leagues: specialtyLeagues.length,
-    formats: Array.from(new Set(specialtyLeagues.map(l => l.specialtyFormat))),
-    note: "These specialty leagues (guillotine, bestball, survivor, etc.) are EXCLUDED from grading because their format creates skewed records (e.g., elimination = auto-losses/ties)"
-  } : null;
+    }
+  })
+
+  const specialtyLeagueSummary =
+    specialtyLeagues.length > 0
+      ? {
+          total_specialty_leagues: specialtyLeagues.length,
+          formats: Array.from(new Set(specialtyLeagues.map((l) => l.specialtyFormat))),
+          note:
+            "These specialty leagues (guillotine, bestball, survivor, etc.) are EXCLUDED from grading because their format creates skewed records (e.g., elimination = auto-losses/ties)",
+        }
+      : null
 
   return {
     username: user.displayName || user.sleeperUsername,
-    grading_note: "Stats below are from STANDARD leagues only. Specialty leagues (guillotine, bestball, etc.) excluded because they skew records.",
+    grading_note:
+      "Stats below are from STANDARD leagues only. Specialty leagues (guillotine, bestball, etc.) excluded because they skew records.",
     total_seasons: Object.keys(seasonStats).length,
     total_standard_leagues: standardLeagues.length,
     total_leagues_including_specialty: user.leagues.length,
@@ -382,63 +433,312 @@ function buildLegacySnapshot(user: {
     win_percentage: Math.round(avgWinPct * 1000) / 10,
     championships,
     playoff_appearances: playoffAppearances,
-    playoff_rate: standardLeagues.length > 0 ? Math.round((playoffAppearances / standardLeagues.length) * 100) : 0,
+    playoff_rate:
+      standardLeagues.length > 0
+        ? Math.round((playoffAppearances / standardLeagues.length) * 100)
+        : 0,
     total_points: Math.round(totalPointsFor),
     consistency_variance: Math.round(variance * 10000) / 100,
-    best_season: bestSeason.year > 0 ? `${bestSeason.year} (${Math.round(bestSeason.winPct * 100)}% wins)` : null,
-    worst_season: worstSeason.year > 0 ? `${worstSeason.year} (${Math.round(worstSeason.winPct * 100)}% wins)` : null,
+    best_season:
+      bestSeason.year > 0
+        ? `${bestSeason.year} (${Math.round(bestSeason.winPct * 100)}% wins)`
+        : null,
+    worst_season:
+      worstSeason.year > 0
+        ? `${worstSeason.year} (${Math.round(worstSeason.winPct * 100)}% wins)`
+        : null,
     season_breakdown: seasonStats,
-    league_types: standardLeagues.map(l => l.leagueType).filter((v, i, a) => a.indexOf(v) === i),
+    league_types: standardLeagues
+      .map((l) => l.leagueType)
+      .filter((v, i, a) => a.indexOf(v) === i),
     league_history: leagueHistory,
     specialty_leagues_excluded: specialtyLeagueSummary,
-  };
+  }
 }
 
-export const POST = withApiUsage({ endpoint: "/api/legacy/ai/run", tool: "LegacyAiRun" })(async (request: NextRequest) => {
+type LegacyAudit = {
+  partialData: boolean
+  sourcesUsed: string[]
+  missingSources: string[]
+  dataFreshness: Record<string, string>
+}
+
+
+type LegacyCitation = {
+  claim: string
+  source: string
+  timestamp: string
+  confidence: "high" | "medium" | "low"
+}
+
+type NormalizedLegacyResponse = {
+  rating: number
+  title: string
+  archetype: string
+  consistency_score: number
+  window_status: string
+  window_status_emoji: string
+  window_status_label: string
+  offseason_label: string
+  offseason_power_index: number
+  power_index_breakdown: {
+    roster_value: number
+    positional_scarcity: number
+    age_curve: number
+    pick_capital: number
+  }
+  legacy_summary: string
+  insights: {
+    strengths: string[]
+    weaknesses: string[]
+    hall_of_fame_moments: string[]
+    improvement_tips: string[]
+  }
+  next_season_advice: string
+  share_text: string
+  citations: LegacyCitation[]
+}
+
+function toStringArray(value: unknown, max = 8): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .slice(0, max)
+}
+
+function toBoundedNumber(value: unknown, min: number, max: number, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback
+  return Math.max(min, Math.min(max, value))
+}
+
+function normalizeCitations(value: unknown, audit: LegacyAudit): LegacyCitation[] {
+  const input = Array.isArray(value) ? value : []
+  const citations = input
+    .map((entry): LegacyCitation | null => {
+      if (!entry || typeof entry !== "object") return null
+      const e = entry as Record<string, unknown>
+      const claim = typeof e.claim === "string" ? e.claim.trim() : ""
+      const source = typeof e.source === "string" ? e.source.trim() : ""
+      if (!claim || !source) return null
+      const confidence =
+        e.confidence === "high" || e.confidence === "medium" || e.confidence === "low"
+          ? e.confidence
+          : "medium"
+      return {
+        claim,
+        source,
+        timestamp: typeof e.timestamp === "string" && e.timestamp.trim() ? e.timestamp : "historical",
+        confidence,
+      }
+    })
+    .filter((c): c is LegacyCitation => Boolean(c))
+    .slice(0, 12)
+
+  if (citations.length >= 3) return citations
+
+  const fallback: LegacyCitation[] = [
+    {
+      claim: "Legacy grading anchored to imported league history and performance trends.",
+      source: "importedLeague",
+      timestamp: audit.dataFreshness.importedLeague || new Date().toISOString(),
+      confidence: "high",
+    },
+  ]
+  if (audit.sourcesUsed.includes("fantasyCalc")) {
+    fallback.push({
+      claim: "Dynasty market context incorporated from FantasyCalc where available.",
+      source: "fantasyCalc",
+      timestamp: audit.dataFreshness.fantasyCalc || new Date().toISOString(),
+      confidence: "medium",
+    })
+  }
+  if (audit.sourcesUsed.includes("newsApi")) {
+    fallback.push({
+      claim: "Recent player and team context considered from News API enrichment.",
+      source: "newsApi",
+      timestamp: audit.dataFreshness.newsApi || new Date().toISOString(),
+      confidence: "medium",
+    })
+  }
+  if (audit.sourcesUsed.includes("rollingInsights")) {
+    fallback.push({
+      claim: "Rolling trends and performance snapshots included from rolling insights.",
+      source: "rollingInsights",
+      timestamp: audit.dataFreshness.rollingInsights || new Date().toISOString(),
+      confidence: "medium",
+    })
+  }
+  return [...citations, ...fallback].slice(0, 6)
+}
+
+function buildEnrichmentPriorityBrief(audit: LegacyAudit): string {
+  const weightedSources = [
+    { key: "importedLeague", weight: 0.42 },
+    { key: "fantasyCalc", weight: 0.24 },
+    { key: "rollingInsights", weight: 0.2 },
+    { key: "newsApi", weight: 0.14 },
+  ]
+  const active = weightedSources
+    .filter((s) => audit.sourcesUsed.includes(s.key))
+    .map((s) => `${s.key}(${Math.round(s.weight * 100)}%)`)
+    .join(", ")
+  const missing = audit.missingSources.length ? audit.missingSources.join(", ") : "none"
+  return `Data coverage priority: ${active || "importedLeague(100%)"} | missing=${missing} | partial=${audit.partialData}`
+}
+
+function normalizeLegacyResponse(
+  aiResponse: Record<string, unknown>,
+  snapshot: ReturnType<typeof buildLegacySnapshot>,
+  audit: LegacyAudit,
+): NormalizedLegacyResponse {
+  const insights = (aiResponse.insights as Record<string, unknown> | null) || null
+  const fallbackTitle =
+    snapshot.win_percentage >= 60
+      ? "Dynasty Contender"
+      : snapshot.win_percentage >= 50
+        ? "Competitive Manager"
+        : "Rebuild Candidate"
+  const rating = toBoundedNumber(aiResponse.rating, 0, 100, Math.round(snapshot.win_percentage || 50))
+  const offseasonPower = toBoundedNumber(
+    aiResponse.offseason_power_index,
+    0,
+    100,
+    Math.round(rating * 0.7 + snapshot.playoff_rate * 0.3),
+  )
+
+  return {
+    rating,
+    title:
+      typeof aiResponse.title === "string" && aiResponse.title.trim()
+        ? aiResponse.title
+        : fallbackTitle,
+    archetype:
+      typeof aiResponse.archetype === "string" && aiResponse.archetype.trim()
+        ? aiResponse.archetype
+        : "Balanced",
+    consistency_score: toBoundedNumber(
+      aiResponse.consistency_score,
+      0,
+      100,
+      Math.max(15, 100 - Math.round((snapshot.consistency_variance || 0) * 8)),
+    ),
+    window_status:
+      typeof aiResponse.window_status === "string" && aiResponse.window_status.trim()
+        ? aiResponse.window_status
+        : "DIRECTION_NEEDED",
+    window_status_emoji:
+      typeof aiResponse.window_status_emoji === "string" && aiResponse.window_status_emoji.trim()
+        ? aiResponse.window_status_emoji
+        : "[direction-needed]",
+    window_status_label:
+      typeof aiResponse.window_status_label === "string" && aiResponse.window_status_label.trim()
+        ? aiResponse.window_status_label
+        : "Direction Needed",
+    offseason_label:
+      typeof aiResponse.offseason_label === "string" && aiResponse.offseason_label.trim()
+        ? aiResponse.offseason_label
+        : "Most Fragile Contender",
+    offseason_power_index: offseasonPower,
+    power_index_breakdown: {
+      roster_value: toBoundedNumber(
+        (aiResponse.power_index_breakdown as Record<string, unknown> | undefined)?.roster_value,
+        0,
+        100,
+        Math.round(offseasonPower * 0.4),
+      ),
+      positional_scarcity: toBoundedNumber(
+        (aiResponse.power_index_breakdown as Record<string, unknown> | undefined)?.positional_scarcity,
+        0,
+        100,
+        Math.round(offseasonPower * 0.25),
+      ),
+      age_curve: toBoundedNumber(
+        (aiResponse.power_index_breakdown as Record<string, unknown> | undefined)?.age_curve,
+        0,
+        100,
+        Math.round(offseasonPower * 0.2),
+      ),
+      pick_capital: toBoundedNumber(
+        (aiResponse.power_index_breakdown as Record<string, unknown> | undefined)?.pick_capital,
+        0,
+        100,
+        Math.round(offseasonPower * 0.15),
+      ),
+    },
+    legacy_summary:
+      typeof aiResponse.legacy_summary === "string" && aiResponse.legacy_summary.trim()
+        ? aiResponse.legacy_summary
+        : `Standard-league profile: ${snapshot.win_percentage}% win rate across ${snapshot.total_standard_leagues} leagues with ${snapshot.championships} title(s).`,
+    insights: {
+      strengths: toStringArray(insights?.strengths),
+      weaknesses: toStringArray(insights?.weaknesses),
+      hall_of_fame_moments: toStringArray(insights?.hall_of_fame_moments),
+      improvement_tips: toStringArray(insights?.improvement_tips),
+    },
+    next_season_advice:
+      typeof aiResponse.next_season_advice === "string" && aiResponse.next_season_advice.trim()
+        ? aiResponse.next_season_advice
+        : "Focus on one clear lane this offseason: consolidate for contention or convert aging value into future assets.",
+    share_text:
+      typeof aiResponse.share_text === "string" && aiResponse.share_text.trim()
+        ? aiResponse.share_text
+        : `${snapshot.username}: ${rating}/100 legacy grade in standard leagues.`,
+    citations: normalizeCitations(aiResponse.citations, audit),
+  }
+}
+export const POST = withApiUsage({
+  endpoint: "/api/legacy/ai/run",
+  tool: "LegacyAiRun",
+})(async (request: NextRequest) => {
   try {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimitResult = rateLimit(ip, 5, 60000);
+    const ip = request.headers.get("x-forwarded-for") || "unknown"
+    const rateLimitResult = rateLimit(ip, 5, 60000)
 
     if (!rateLimitResult.success) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
+        { error: "Rate limit exceeded. Please try again later." },
         { status: 429 }
-      );
+      )
     }
 
-    const body = await request.json();
-    const { sleeper_username, force_refresh } = body;
+    const body = await request.json()
+    const { sleeper_username, force_refresh } = body
 
     if (!sleeper_username) {
-      return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 });
+      return NextResponse.json({ error: "Missing sleeper_username" }, { status: 400 })
     }
 
     const user = await prisma.legacyUser.findUnique({
-      where: { sleeperUsername: sleeper_username.toLowerCase() },
+      where: { sleeperUsername: String(sleeper_username).toLowerCase() },
       include: {
         leagues: { include: { rosters: true } },
-        aiReports: { 
-          where: { reportType: 'legacy' },
-          orderBy: { createdAt: 'desc' },
+        aiReports: {
+          where: { reportType: "legacy" },
+          orderBy: { createdAt: "desc" },
           take: 1,
         },
       },
-    });
+    })
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found. Start an import first.' }, { status: 404 });
+      return NextResponse.json(
+        { error: "User not found. Start an import first." },
+        { status: 404 }
+      )
     }
 
-    // Delete old reports if force_refresh is requested
     if (force_refresh && user.aiReports.length > 0) {
       await prisma.legacyAIReport.deleteMany({
-        where: { userId: user.id, reportType: 'legacy' },
-      });
+        where: { userId: user.id, reportType: "legacy" },
+      })
     }
 
     if (!force_refresh && user.aiReports.length > 0) {
-      const existingReport = user.aiReports[0];
-      const insights = existingReport.insights as Record<string, unknown> | null;
+      const existingReport = user.aiReports[0]
+      const insights = existingReport.insights as Record<string, unknown> | null
+
       return NextResponse.json({
         success: true,
         cached: true,
@@ -467,61 +767,54 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai/run", tool: "Legacy
         },
         audit: {
           partialData: false,
-          sourcesUsed: ['importedLeague'],
+          sourcesUsed: ["importedLeague"],
           missingSources: [],
           dataFreshness: { importedLeague: existingReport.createdAt.toISOString() },
         },
-      });
+      })
     }
 
-    const snapshot = buildLegacySnapshot(user);
+    const snapshot = buildLegacySnapshot(user)
 
-    let enrichmentBlock = '';
-    const now = new Date().toISOString();
-    let enrichmentAudit: {
-      partialData: boolean;
-      sourcesUsed: string[];
-      missingSources: string[];
-      dataFreshness: Record<string, string>;
-    } = {
+    let enrichmentBlock = ""
+    const now = new Date().toISOString()
+
+    let enrichmentAudit: LegacyAudit = {
       partialData: false,
-      sourcesUsed: ['importedLeague'],
+      sourcesUsed: ["importedLeague"],
       missingSources: [],
       dataFreshness: { importedLeague: now },
-    };
-    try {
-      const enriched = await assembleLegacyAIContext(
-  prisma as unknown as any,
-  user as any,
-  snapshot as any
-);
-      enrichmentBlock = formatEnrichedContextForPrompt(enriched);
+    }
 
-      const sa = enriched.sourceAudit;
-      const df = enriched.dataFreshness;
-      const sources: string[] = ['importedLeague'];
-      const missing: string[] = [];
-      const freshness: Record<string, string> = { importedLeague: now };
+    try {
+      const enriched = await assembleLegacyAIContext(prisma, user as any, snapshot as any)
+      enrichmentBlock = formatEnrichedContextForPrompt(enriched)
+
+      const sa = enriched.sourceAudit
+      const df = enriched.dataFreshness
+      const sources: string[] = ["importedLeague"]
+      const missing: string[] = []
+      const freshness: Record<string, string> = { importedLeague: now }
 
       if (sa.fantasyCalcPlayerCount > 0 || sa.fantasyCalcPickCount > 0) {
-        sources.push('fantasyCalc');
-        freshness.fantasyCalc = df.fantasyCalcFetchedAt || now;
-      } else if (sa.missingSources.includes('fantasycalc')) {
-        missing.push('fantasyCalc');
+        sources.push("fantasyCalc")
+        freshness.fantasyCalc = df.fantasyCalcFetchedAt || now
+      } else if (sa.missingSources.includes("fantasycalc")) {
+        missing.push("fantasyCalc")
       }
 
       if (sa.newsItemCount > 0) {
-        sources.push('newsApi');
-        freshness.newsApi = df.newsAge || now;
-      } else if (sa.missingSources.includes('news')) {
-        missing.push('newsApi');
+        sources.push("newsApi")
+        freshness.newsApi = df.newsAge || now
+      } else if (sa.missingSources.includes("news")) {
+        missing.push("newsApi")
       }
 
       if (sa.rollingInsightsPlayerCount > 0) {
-        sources.push('rollingInsights');
-        freshness.rollingInsights = df.assembledAt || now;
-      } else if (sa.missingSources.includes('rolling_insights')) {
-        missing.push('rollingInsights');
+        sources.push("rollingInsights")
+        freshness.rollingInsights = df.assembledAt || now
+      } else if (sa.missingSources.includes("rolling_insights")) {
+        missing.push("rollingInsights")
       }
 
       enrichmentAudit = {
@@ -529,100 +822,109 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai/run", tool: "Legacy
         sourcesUsed: sources,
         missingSources: missing,
         dataFreshness: freshness,
-      };
+      }
     } catch (err) {
-      console.warn('[LegacyAI] Enrichment assembly failed, continuing without:', err);
+      console.warn("[LegacyAI] Enrichment assembly failed, continuing without:", err)
       enrichmentAudit = {
         partialData: true,
-        sourcesUsed: ['importedLeague'],
-        missingSources: ['fantasyCalc', 'newsApi', 'rollingInsights'],
+        sourcesUsed: ["importedLeague"],
+        missingSources: ["fantasyCalc", "newsApi", "rollingInsights"],
         dataFreshness: { importedLeague: now },
-      };
+      }
     }
 
     const userPrompt = `Analyze this fantasy manager's legacy:
 
 ${JSON.stringify(snapshot, null, 2)}
 
-${enrichmentBlock ? `\n--- ENRICHMENT DATA (use to enhance analysis) ---\n${enrichmentBlock}\n--- END ENRICHMENT DATA ---` : ''}
+Data reliability framing:
+- ${buildEnrichmentPriorityBrief(enrichmentAudit)}
+- Use only provided sources and downgrade confidence when coverage is partial.
 
-Generate a comprehensive rating and analysis.`;
+${
+  enrichmentBlock
+    ? `\n--- ENRICHMENT DATA (use to enhance analysis) ---\n${enrichmentBlock}\n--- END ENRICHMENT DATA ---`
+    : ""
+}
+
+Generate a comprehensive rating and analysis.`
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: "gpt-4o",
       messages: [
-        { role: 'system', content: LEGACY_AI_SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: LEGACY_AI_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
       ],
       temperature: 0.7,
       max_tokens: 2500,
-      response_format: { type: 'json_object' },
-    });
+      response_format: { type: "json_object" },
+    })
 
-    const responseText = completion.choices[0]?.message?.content;
+    const responseText = completion.choices[0]?.message?.content
     if (!responseText) {
-      return NextResponse.json({ error: 'No AI response' }, { status: 500 });
+      return NextResponse.json({ error: "No AI response" }, { status: 500 })
     }
 
-    const aiResponse = JSON.parse(responseText);
+    const aiResponse = JSON.parse(responseText) as Record<string, unknown>
+    const normalized = normalizeLegacyResponse(aiResponse, snapshot, enrichmentAudit)
 
     await prisma.legacyAIReport.create({
       data: {
         userId: user.id,
-        reportType: 'legacy',
-        rating: aiResponse.rating,
-        title: aiResponse.title,
-        summary: aiResponse.legacy_summary,
+        reportType: "legacy",
+        rating: normalized.rating,
+        title: normalized.title,
+        summary: normalized.legacy_summary,
         insights: {
-          archetype: aiResponse.archetype,
-          consistency_score: aiResponse.consistency_score,
-          window_status: aiResponse.window_status,
-          window_status_emoji: aiResponse.window_status_emoji,
-          window_status_label: aiResponse.window_status_label,
-          offseason_label: aiResponse.offseason_label,
-          offseason_power_index: aiResponse.offseason_power_index,
-          power_index_breakdown: aiResponse.power_index_breakdown,
-          strengths: aiResponse.insights?.strengths,
-          weaknesses: aiResponse.insights?.weaknesses,
-          hall_of_fame_moments: aiResponse.insights?.hall_of_fame_moments,
-          improvement_tips: aiResponse.insights?.improvement_tips,
-          next_season_advice: aiResponse.next_season_advice,
-          citations: Array.isArray(aiResponse.citations) ? aiResponse.citations : [],
+          archetype: normalized.archetype,
+          consistency_score: normalized.consistency_score,
+          window_status: normalized.window_status,
+          window_status_emoji: normalized.window_status_emoji,
+          window_status_label: normalized.window_status_label,
+          offseason_label: normalized.offseason_label,
+          offseason_power_index: normalized.offseason_power_index,
+          power_index_breakdown: normalized.power_index_breakdown,
+          strengths: normalized.insights.strengths,
+          weaknesses: normalized.insights.weaknesses,
+          hall_of_fame_moments: normalized.insights.hall_of_fame_moments,
+          improvement_tips: normalized.insights.improvement_tips,
+          next_season_advice: normalized.next_season_advice,
+          citations: normalized.citations,
         },
-        shareText: aiResponse.share_text,
+        shareText: normalized.share_text,
       },
-    });
+    })
 
-    // Track tool usage
-    trackLegacyToolUsage('legacy_ai_run', user.id)
+    trackLegacyToolUsage("legacy_ai_run", user.id)
 
     return NextResponse.json({
       success: true,
       cached: false,
       report: {
-        rating: aiResponse.rating,
-        title: aiResponse.title,
-        archetype: aiResponse.archetype,
-        consistency_score: aiResponse.consistency_score,
-        window_status: aiResponse.window_status,
-        window_status_emoji: aiResponse.window_status_emoji,
-        window_status_label: aiResponse.window_status_label,
-        offseason_label: aiResponse.offseason_label,
-        offseason_power_index: aiResponse.offseason_power_index,
-        power_index_breakdown: aiResponse.power_index_breakdown,
-        legacy_summary: aiResponse.legacy_summary,
-        insights: aiResponse.insights,
-        next_season_advice: aiResponse.next_season_advice,
-        share_text: aiResponse.share_text,
-        citations: Array.isArray(aiResponse.citations) ? aiResponse.citations : [],
+        rating: normalized.rating,
+        title: normalized.title,
+        archetype: normalized.archetype,
+        consistency_score: normalized.consistency_score,
+        window_status: normalized.window_status,
+        window_status_emoji: normalized.window_status_emoji,
+        window_status_label: normalized.window_status_label,
+        offseason_label: normalized.offseason_label,
+        offseason_power_index: normalized.offseason_power_index,
+        power_index_breakdown: normalized.power_index_breakdown,
+        legacy_summary: normalized.legacy_summary,
+        insights: normalized.insights,
+        next_season_advice: normalized.next_season_advice,
+        share_text: normalized.share_text,
+        citations: normalized.citations,
       },
       audit: enrichmentAudit,
-    });
+    })
   } catch (error) {
-    console.error('Legacy AI run error:', error);
+    console.error("Legacy AI run error:", error)
     return NextResponse.json(
-      { error: 'Failed to run AI analysis', details: String(error) },
+      { error: "Failed to run AI analysis", details: String(error) },
       { status: 500 }
-    );
+    )
   }
 })
+
