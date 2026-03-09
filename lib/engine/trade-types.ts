@@ -58,13 +58,6 @@ export interface TradeLeagueContext {
   };
 }
 
-export type TradeAssetUnion =
-  | { type: "player"; player: TradePlayerAsset }
-  | { type: "pick"; pick: TradePickAsset }
-  | { type: "faab"; faab: { amount: number } };
-
-export type Asset = TradeAssetUnion;
-
 export interface TradePlayerAsset {
   id: string;
   name: string;
@@ -95,6 +88,13 @@ export interface TradePickAsset {
   originalOwner?: string;
   projected_range?: string;
 }
+
+export type TradeAssetUnion =
+  | { type: "player"; player: TradePlayerAsset }
+  | { type: "pick"; pick: TradePickAsset }
+  | { type: "faab"; faab: { amount: number } };
+
+export type Asset = TradeAssetUnion;
 
 export interface TeamContext {
   rosterId?: string;

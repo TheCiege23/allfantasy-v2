@@ -5,7 +5,7 @@ import IORedis from "ioredis";
 const QUEUE_NAME_SIMULATIONS = "simulations";
 
 let redisClient: IORedis | null | undefined;
-let simulationQueue: Queue | null | undefined;
+let simulationQueueInstance: Queue | null | undefined;
 
 function parseRedisPort(value: string | undefined): number | null {
   if (!value?.trim()) return null;
@@ -90,34 +90,45 @@ export function getRedisClient(): IORedis | null {
 }
 
 export function getSimulationQueue(): Queue | null {
-  if (simulationQueue !== undefined) {
-    return simulationQueue;
+  if (simulationQueueInstance !== undefined) {
+    return simulationQueueInstance;
   }
 
   const connection = getRedisConnection();
 
   if (!connection) {
-    simulationQueue = null;
-    return simulationQueue;
+    simulationQueueInstance = null;
+    return simulationQueueInstance;
   }
 
-  simulationQueue = new Queue(QUEUE_NAME_SIMULATIONS, {
+  simulationQueueInstance = new Queue(QUEUE_NAME_SIMULATIONS, {
     connection,
   });
 
-  return simulationQueue;
+  return simulationQueueInstance;
 }
+
+/**
+ * Named exports to support existing route imports like:
+ * import { simulationQueue, redis } from "@/lib/queues/bullmq"
+ */
+export const redis = getRedisClient();
+export const simulationQueue = getSimulationQueue();
 
 export async function closeBullMqResources(): Promise<void> {
   const closeTasks: Promise<unknown>[] = [];
 
-  if (simulationQueue) {
-    closeTasks.push(simulationQueue.close());
-    simulationQueue = undefined;
+  if (simulationQueueInstance) {
+    closeTasks.push(simulationQueueInstance.close());
+    simulationQueueInstance = undefined;
   }
 
   if (redisClient) {
-    closeTasks.push(redisClient.quit().catch(() => redisClient?.disconnect()));
+    closeTasks.push(
+      redisClient.quit().catch(() => {
+        redisClient?.disconnect();
+      })
+    );
     redisClient = undefined;
   }
 

@@ -1,174 +1,80 @@
-import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/adminAuth";
-import { getResendClient } from "@/lib/resend-client";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-type Body = {
-  to?: string;
-};
-
-function bad(msg: string) {
-  return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+function getFromEmail(): string {
+  return (process.env.RESEND_FROM_EMAIL || "AllFantasy <no-reply@allfantasy.ai>").trim();
 }
 
-function looksLikeEmail(email: string) {
-  const e = email.trim();
-  if (!e || e.length > 254) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-}
-
-export const GET = withApiUsage({ endpoint: "/api/admin/resend/verify", tool: "AdminResendVerify" })(async (request: NextRequest) => {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
-
-  const userAgent = request.headers.get("user-agent") || undefined;
-  const referrer = request.headers.get("referer") || undefined;
-
+export async function GET(_req: NextRequest) {
   try {
-    const { fromEmail, source } = await getResendClient();
+    const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
+    const fromEmail = getFromEmail();
 
-    await prisma.analyticsEvent.create({
-      data: {
-        event: "tool_use",
-        toolKey: "admin_resend_verify",
-        path: "/api/admin/resend/verify",
-        userAgent,
-        referrer,
-        userId: gate.user.id,
-        meta: {
-          adminEmail: gate.user.email,
-          source,
+    const configured = resendApiKey.length > 0;
+
+    try {
+      const prismaAny = prisma as any;
+
+      if (prismaAny?.analyticsEvent?.create) {
+        await prismaAny.analyticsEvent.create({
+          data: {
+            event: "admin_resend_verify",
+            category: "email",
+            label: fromEmail,
+            metadata: {
+              configured,
+              fromEmail,
+              checkedAt: new Date().toISOString(),
+            },
+          },
+        });
+      }
+    } catch (analyticsError) {
+      console.warn("[admin/resend/verify] analytics logging skipped:", analyticsError);
+    }
+
+    if (!configured) {
+      return NextResponse.json(
+        {
+          success: false,
+          configured: false,
+          error: "Missing RESEND_API_KEY.",
           fromEmail,
-          ok: true,
         },
-      },
-    });
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      ok: true,
-      source,
+      success: true,
+      configured: true,
       fromEmail,
-      note:
-        "Credentials loaded. Use POST with {to} to send a test email.",
     });
-  } catch (e: any) {
-    const msg = String(e?.message || e || "verify failed");
+  } catch (error: unknown) {
+    console.error("[admin/resend/verify] error:", error);
 
-    await prisma.analyticsEvent.create({
-      data: {
-        event: "tool_use",
-        toolKey: "admin_resend_verify_failed",
-        path: "/api/admin/resend/verify",
-        userAgent,
-        referrer,
-        userId: gate.user.id,
-        meta: {
-          adminEmail: gate.user.email,
-          ok: false,
-          error: msg,
-        },
-      },
-    });
+    const message =
+      error instanceof Error ? error.message : "Failed to verify Resend configuration.";
 
     return NextResponse.json(
-      { ok: false, error: msg },
+      {
+        success: false,
+        configured: false,
+        error: message,
+      },
       { status: 500 }
     );
   }
-})
+}
 
-export const POST = withApiUsage({ endpoint: "/api/admin/resend/verify", tool: "AdminResendVerify" })(async (request: NextRequest) => {
-  const gate = await requireAdmin();
-  if (!gate.ok) return gate.res;
-
-  const userAgent = request.headers.get("user-agent") || undefined;
-  const referrer = request.headers.get("referer") || undefined;
-
-  try {
-    const body = (await request.json().catch(() => null)) as Body | null;
-    if (!body) return bad("Missing JSON body");
-
-    const to = (body.to || "").trim();
-    if (!to) return bad("Missing 'to' email");
-    if (!looksLikeEmail(to)) return bad("Invalid 'to' email");
-
-    const { client, fromEmail, source } = await getResendClient();
-
-    const rawFrom = (fromEmail || "").trim();
-    const fallbackFrom = "AllFantasy <noreply@allfantasy.ai>";
-    const from = rawFrom && !rawFrom.toLowerCase().includes("@gmail.com")
-      ? rawFrom
-      : fallbackFrom;
-
-    const subject = "AllFantasy Resend Test";
-    const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial">
-      <h2>Resend test email ✅</h2>
-      <p>This confirms Resend is working for your current deployment.</p>
-      <p><b>Source:</b> ${source}</p>
-      <p><b>From:</b> ${from}</p>
-      <p style="opacity:.7;font-size:12px">Sent at ${new Date().toISOString()}</p>
-    </div>`;
-
-    const resp: any = await client.emails.send({
-      from,
-      to,
-      subject,
-      html,
-      text: `Resend test email. Source=${source}. From=${from}.`,
-    });
-
-    if (resp?.error) {
-      throw new Error(resp.error?.message || "Resend send error");
-    }
-
-    await prisma.analyticsEvent.create({
-      data: {
-        event: "tool_use",
-        toolKey: "admin_resend_test_sent",
-        path: "/api/admin/resend/verify",
-        userAgent,
-        referrer,
-        userId: gate.user.id,
-        meta: {
-          adminEmail: gate.user.email,
-          source,
-          from,
-          to,
-          messageId: resp?.data?.id || resp?.id || null,
-          ok: true,
-        },
-      },
-    });
-
-    return NextResponse.json({
-      ok: true,
-      source,
-      from,
-      to,
-      messageId: resp?.data?.id || resp?.id || null,
-    });
-  } catch (e: any) {
-    const msg = String(e?.message || e || "send failed");
-
-    await prisma.analyticsEvent.create({
-      data: {
-        event: "tool_use",
-        toolKey: "admin_resend_test_failed",
-        path: "/api/admin/resend/verify",
-        userAgent,
-        referrer,
-        userId: gate.user.id,
-        meta: {
-          adminEmail: gate.user.email,
-          ok: false,
-          error: msg,
-        },
-      },
-    });
-
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
-  }
-})
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      Allow: "GET, OPTIONS",
+    },
+  });
+}

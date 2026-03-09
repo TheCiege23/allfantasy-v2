@@ -490,7 +490,11 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai/run", tool: "Legacy
       dataFreshness: { importedLeague: now },
     };
     try {
-      const enriched = await assembleLegacyAIContext(prisma, user as any, snapshot as any);
+      const enriched = await assembleLegacyAIContext(
+  prisma as unknown as any,
+  user as any,
+  snapshot as any
+);
       enrichmentBlock = formatEnrichedContextForPrompt(enriched);
 
       const sa = enriched.sourceAudit;

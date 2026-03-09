@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       fairness: previous.fairnessScore != null ? result.fairness.score - previous.fairnessScore : null,
       acceptance: previous.acceptProb != null ? result.acceptanceProbability.final - previous.acceptProb : null,
       starterImpact: previous.starterImpactNet != null
-        ? (result.meta?.starterImpact?.teamA?.net ?? 0) - previous.starterImpactNet
+        ? ((((result.meta as any)?.starterImpact?.teamA?.net) ?? 0) - previous.starterImpactNet)
         : null,
       championshipOdds: previous.championshipOdds != null && result.championshipEquity
         ? result.championshipEquity.teamA.oddsAfter - previous.championshipOdds

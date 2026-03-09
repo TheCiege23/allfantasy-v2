@@ -41,14 +41,14 @@ export async function buildTradeHubIntelBlock(
   const teamAbbrevs = [...new Set((input.teamAbbrevs || []).filter(Boolean))].slice(0, 12)
 
   const [news, rolling, fantasyCalc, rookieClass, rookieRanks, ktcCache] = await Promise.all([
-    deps.fetchNewsContext({ prisma, newsApiKey: process.env.NEWS_API_KEY }, {
+    deps.fetchNewsContext({ prisma: prisma as any, newsApiKey: process.env.NEWS_API_KEY }, {
       playerNames,
       teamAbbrevs,
       sport: 'NFL',
       hoursBack: 120,
       limit: 25,
     }).catch(() => null),
-    deps.fetchRollingInsights({ prisma }, {
+    deps.fetchRollingInsights({ prisma: prisma as any }, {
       playerNames,
       teamAbbrevs,
       sport: 'NFL',

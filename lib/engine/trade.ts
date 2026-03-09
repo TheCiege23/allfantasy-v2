@@ -56,6 +56,31 @@ function devWarn(message: string, error?: unknown) {
   }
 }
 
+type RosterCfg = {
+  startingQB: number;
+  startingRB: number;
+  startingWR: number;
+  startingTE: number;
+  startingFlex: number;
+  superflex: boolean;
+};
+
+type TradePlayerAnalyticsResult = Record<
+  string,
+  {
+    comparablePlayers: string[];
+    athleticGrade: { grade: string; score: number; label: string } | null;
+    collegeGrade: { grade: string; score: number; label: string } | null;
+    combine: {
+      fortyYardDash: number | null;
+      speedScore: number | null;
+      athleticismScore: number | null;
+    } | null;
+    breakoutAge: number | null;
+    weeklyVolatility: number | null;
+  }
+>;
+
 function computeBaseStdDev(req: TradeEngineRequest): number {
   let stdDev = 22;
 
@@ -94,10 +119,10 @@ function buildLeagueProjections(args: {
     req,
   } = args;
 
-  const allKnown = [teamAImpactPre, teamBImpactPre].filter((v) => v > 0);
+  const allKnown = [teamAImpactPre, teamBImpactPre].filter((v: number) => v > 0);
   const avgImpact =
     allKnown.length > 0
-      ? allKnown.reduce((a, b) => a + b, 0) / allKnown.length
+      ? allKnown.reduce((a: number, b: number) => a + b, 0) / allKnown.length
       : 15000;
 
   const impactToMean = (imp: number) => {
@@ -180,7 +205,7 @@ function inferTeamDirection(team: TeamContext): TeamContext {
     if (typeof p.age === "number") ages.push(p.age);
   }
 
-  const avgAge = ages.length ? ages.reduce((a, b) => a + b, 0) / ages.length : 25;
+  const avgAge = ages.length ? ages.reduce((a: number, b: number) => a + b, 0) / ages.length : 25;
   const directionConfidence =
     nflCount >= 12 ? ("MODERATE" as const) : ("LEARNING" as const);
 
@@ -310,7 +335,7 @@ export function computeTradeMomentum(
     needsFitScore >= 50 ? 1 : -1,
   ];
 
-  const score = signals.reduce((a, b) => a + b, 0);
+  const score = signals.reduce((a: number, b: number) => a + b, 0);
   const direction = score > 1 ? "positive" : score < -1 ? "negative" : "neutral";
 
   return { direction, score };
@@ -343,15 +368,15 @@ function computeVerdict(
 function sortHotPositions(ldiByPos: Record<string, number> | undefined) {
   if (!ldiByPos) return [];
   return Object.entries(ldiByPos)
-    .map(([pos, v]) => ({ pos: String(pos).toUpperCase(), v: Number(v) }))
-    .filter((x) => Number.isFinite(x.v))
-    .sort((a, b) => b.v - a.v)
-    .map((x) => x.pos);
+    .map(([pos, v]: [string, number]) => ({ pos: String(pos).toUpperCase(), v: Number(v) }))
+    .filter((x: { pos: string; v: number }) => Number.isFinite(x.v))
+    .sort((a: { pos: string; v: number }, b: { pos: string; v: number }) => b.v - a.v)
+    .map((x: { pos: string; v: number }) => x.pos);
 }
 
 function benchFromStarters(roster: TradePlayerAsset[], starters: { name: string }[]) {
-  const starterNames = new Set(starters.map((s) => normName(s.name)));
-  return roster.filter((p) => !starterNames.has(normName(p.name)));
+  const starterNames = new Set(starters.map((s: { name: string }) => normName(s.name)));
+  return roster.filter((p: TradePlayerAsset) => !starterNames.has(normName(p.name)));
 }
 
 function pickCandidates(args: {
@@ -374,7 +399,7 @@ function pickCandidates(args: {
   const filtered = roster.filter(posOk);
   if (filtered.length === 0) return [];
 
-  const sorted = filtered.slice().sort((a, b) => {
+  const sorted = filtered.slice().sort((a: TradePlayerAsset, b: TradePlayerAsset) => {
     if (prefer === "high_vol") return volOf(b) - volOf(a);
     if (prefer === "low_vol") return volOf(a) - volOf(b);
     if (prefer === "high_impact") return impactOf(b) - impactOf(a);
@@ -394,7 +419,7 @@ function pickCandidates(args: {
 }
 
 function formatCandidateList(players: TradePlayerAsset[]) {
-  return players.map((p) => `${p.name} (${String(p.pos || "").toUpperCase()})`);
+  return players.map((p: TradePlayerAsset) => `${p.name} (${String(p.pos || "").toUpperCase()})`);
 }
 
 function buildCountersAdaptiveNamedTop3(args: {
@@ -443,7 +468,7 @@ function buildCountersAdaptiveNamedTop3(args: {
   const wantCeiling = teamADirection === "REBUILD";
 
   const hotPos = sortHotPositions(ldiByPos);
-  const hotPosFiltered = hotPos.filter((p) => ["QB", "RB", "WR", "TE"].includes(p));
+  const hotPosFiltered = hotPos.filter((p: string) => ["QB", "RB", "WR", "TE"].includes(p));
   const topHot = hotPosFiltered[0] || (cfg.superflex ? "QB" : "WR");
 
   const myBench = benchFromStarters(preRosterA, startersPreA.starters);
@@ -612,7 +637,7 @@ function buildCountersAdaptiveNamedTop3(args: {
             ? ["You keep ceiling assets; pay with surplus/low-impact pieces instead."]
             : ["You increase acceptance without reshaping the core deal."],
         options: {
-          addCandidates: myAddOptions.map((p) => ({
+          addCandidates: myAddOptions.map((p: TradePlayerAsset) => ({
             id: p.id,
             name: p.name,
             pos: p.pos,
@@ -671,7 +696,7 @@ function buildCountersAdaptiveNamedTop3(args: {
           ? ["Adds upside insulation to raise long-term EV."]
           : ["Improves deal balance with minimal negotiation pain."],
       options: {
-        askCandidates: myAskOptions.map((p) => ({
+        askCandidates: myAskOptions.map((p: TradePlayerAsset) => ({
           id: p.id,
           name: p.name,
           pos: p.pos,
@@ -841,15 +866,6 @@ function faabValue(assets: Asset[], leagueFaabBudget: number = 100) {
   return total;
 }
 
-type RosterCfg = {
-  startingQB: number;
-  startingRB: number;
-  startingWR: number;
-  startingTE: number;
-  startingFlex: number;
-  superflex: boolean;
-};
-
 function rosterCfgFromLeague(req: TradeEngineRequest): RosterCfg {
   const isSF = req.leagueContext?.scoring?.qbFormat === "superflex";
   const base: RosterCfg = {
@@ -896,16 +912,16 @@ function buildPostRosterPlayers(args: {
 
   const sentNames = new Set(
     sentAssets
-      .filter((a) => a.type === "player")
-      .map((a) => normName(a.player.name))
+      .filter((a: Asset) => a.type === "player")
+      .map((a: Asset) => (a.type === "player" ? normName(a.player.name) : ""))
       .filter(Boolean)
   );
 
-  const kept = preRoster.filter((p) => !sentNames.has(normName(p.name)));
+  const kept = preRoster.filter((p: TradePlayerAsset) => !sentNames.has(normName(p.name)));
 
   const receivedPlayers: TradePlayerAsset[] = receivedAssets
-    .filter((a) => a.type === "player")
-    .map((a) => enrichDevy((a as any).player));
+    .filter((a: Asset) => a.type === "player")
+    .map((a: Asset) => enrichDevy(a.type === "player" ? a.player : ({} as TradePlayerAsset)));
 
   const merged = [...kept, ...receivedPlayers];
   const seen = new Set<string>();
@@ -935,9 +951,9 @@ function startersFromRoster(args: {
 
   const byPos = (pos: string) =>
     roster
-      .filter((p) => String(p.pos || "").toUpperCase() === pos)
+      .filter((p: TradePlayerAsset) => String(p.pos || "").toUpperCase() === pos)
       .slice()
-      .sort((a, b) => scoreOf(b) - scoreOf(a));
+      .sort((a: TradePlayerAsset, b: TradePlayerAsset) => scoreOf(b) - scoreOf(a));
 
   const starters: {
     slot: string;
@@ -970,20 +986,20 @@ function startersFromRoster(args: {
   takeN(byPos("TE"), cfg.startingTE, "TE");
 
   const flexEligible = roster
-    .filter((p) => {
+    .filter((p: TradePlayerAsset) => {
       const pos = String(p.pos || "").toUpperCase();
       if (cfg.superflex) return pos === "RB" || pos === "WR" || pos === "TE" || pos === "QB";
       return pos === "RB" || pos === "WR" || pos === "TE";
     })
     .slice()
-    .sort((a, b) => scoreOf(b) - scoreOf(a));
+    .sort((a: TradePlayerAsset, b: TradePlayerAsset) => scoreOf(b) - scoreOf(a));
 
   takeN(flexEligible, cfg.startingFlex, cfg.superflex ? "FLEX/SF" : "FLEX");
 
-  const totalImpact = starters.reduce((acc, s) => acc + (s.impact || 0), 0);
+  const totalImpact = starters.reduce((acc: number, s) => acc + (s.impact || 0), 0);
   const avgVol =
     starters.length > 0
-      ? starters.reduce((acc, s) => acc + (s.vol || 0), 0) / starters.length
+      ? starters.reduce((acc: number, s) => acc + (s.vol || 0), 0) / starters.length
       : 0;
 
   return { starters, totalImpact, prefLabel: pref.label, avgVol };
@@ -1010,7 +1026,7 @@ function computeNeedsFitFromRosterConfig(args: {
   };
   if (cfg.superflex) need.QB += 0.5;
 
-  const totalNeeds = Object.values(need).reduce((a, b) => a + b, 0);
+  const totalNeeds = Object.values(need).reduce((a: number, b: number) => a + b, 0);
   if (totalNeeds === 0) return 50;
 
   let score = 0;
@@ -1031,22 +1047,6 @@ function computeNeedsFitFromRosterConfig(args: {
 
   return clamp(Math.round((score / 100) * 100), 0, 100);
 }
-
-type TradePlayerAnalyticsResult = Record<
-  string,
-  {
-    comparablePlayers: string[];
-    athleticGrade: { grade: string; score: number; label: string } | null;
-    collegeGrade: { grade: string; score: number; label: string } | null;
-    combine: {
-      fortyYardDash: number | null;
-      speedScore: number | null;
-      athleticismScore: number | null;
-    } | null;
-    breakoutAge: number | null;
-    weeklyVolatility: number | null;
-  }
->;
 
 export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEngineResponse> {
   const leagueId = req.leagueId || req.league_id || req.leagueContext?.leagueId || "";
@@ -1098,7 +1098,9 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
           pts_carry: s.ppCarry ?? 0,
         },
         roster_positions: r?.slots
-          ? Object.entries(r.slots).flatMap(([pos, count]) => Array(count as number).fill(pos))
+          ? Object.entries(r.slots).flatMap(([pos, count]: [string, number]) =>
+              Array(count as number).fill(pos)
+            )
           : [],
         numTeams,
         settings: { num_teams: numTeams },
@@ -1231,8 +1233,14 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
     sentAssets: req.assetsA,
   });
 
-  const rosterNamesA = uniq([...preRosterA.map((p) => p.name), ...postRosterA.map((p) => p.name)]);
-  const rosterNamesB = uniq([...preRosterB.map((p) => p.name), ...postRosterB.map((p) => p.name)]);
+  const rosterNamesA = uniq([
+    ...preRosterA.map((p: TradePlayerAsset) => p.name),
+    ...postRosterA.map((p: TradePlayerAsset) => p.name),
+  ]);
+  const rosterNamesB = uniq([
+    ...preRosterB.map((p: TradePlayerAsset) => p.name),
+    ...postRosterB.map((p: TradePlayerAsset) => p.name),
+  ]);
 
   const pricedRosterA = await priceAssets({ players: rosterNamesA, picks: [] } as any, hvCtx);
   const pricedRosterB = await priceAssets({ players: rosterNamesB, picks: [] } as any, hvCtx);
@@ -1273,12 +1281,15 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
   const starterDeltaPtsB = clamp(Math.round(netStarterImpactB / 75), -12, 12);
 
   const offeredToPartner: TradePlayerAsset[] = req.assetsB
-    .filter((a) => a.type === "player")
-    .map((a) => (a as any).player);
+    .filter((a: Asset) => a.type === "player")
+    .map((a: Asset) => (a.type === "player" ? a.player : ({} as TradePlayerAsset)));
 
   const partnerTendencies = req.marketContext?.partnerTendencies;
   const firstPartnerKey = partnerTendencies ? Object.keys(partnerTendencies)[0] : undefined;
-  const partnerProfile = firstPartnerKey ? partnerTendencies![firstPartnerKey] : undefined;
+  const partnerProfile =
+    partnerTendencies && firstPartnerKey
+      ? partnerTendencies[firstPartnerKey]
+      : undefined;
 
   const acceptance = computeAcceptanceProbability({
     fairnessScore,
@@ -1286,7 +1297,7 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
     volatilityDelta,
     tradeCount: partnerProfile?.sampleSize ?? 0,
     ldi: req.marketContext?.ldiByPos,
-    offeredPlayers: offeredToPartner.map((p) => ({
+    offeredPlayers: offeredToPartner.map((p: TradePlayerAsset) => ({
       position: p.pos ?? "",
       isDevy: p.devyEligible ?? false,
       draftProjectionScore: p.draftProjectionScore,
@@ -1390,7 +1401,10 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
       confidence: fairnessConfidence,
       drivers: fairnessDrivers
         .slice()
-        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+        .sort(
+          (a: { key: string; delta: number; note: string }, b: { key: string; delta: number; note: string }) =>
+            Math.abs(b.delta) - Math.abs(a.delta)
+        )
         .slice(0, 6),
       explanations: explainFairnessScore(fairnessScore, vA, vB, leagueAdj.delta, starterDeltaPtsA),
     },
@@ -1462,6 +1476,7 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
         sideA: { count: splitA.devyPlayers.length, mult: devyA.mult },
         sideB: { count: splitB.devyPlayers.length, mult: devyB.mult },
       },
+      fairnessDeltaPct,
     },
     playerAnalytics: await buildPlayerAnalyticsForTrade(
       [...(splitA.marketAssets || []), ...(splitB.marketAssets || [])],
@@ -1501,9 +1516,9 @@ async function buildPlayerAnalyticsForTrade(
     const analyticsMap = await getPlayerAnalyticsBatch(namesArr);
 
     const result: TradePlayerAnalyticsResult = {};
-    for (const [name, analytics] of analyticsMap) {
+    for (const [name, analytics] of analyticsMap as Iterable<[string, any]>) {
       result[name] = {
-        comparablePlayers: analytics.comparablePlayers.slice(0, 5),
+        comparablePlayers: (analytics.comparablePlayers as string[]).slice(0, 5),
         athleticGrade:
           analytics.combine.athleticismScore != null
             ? computeAthleticGrade(analytics)
