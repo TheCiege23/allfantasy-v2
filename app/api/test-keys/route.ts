@@ -130,17 +130,26 @@ async function testResend(): Promise<ServiceResult> {
 async function testTwilio(): Promise<ServiceResult> {
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
   const token = process.env.TWILIO_AUTH_TOKEN || "";
+  const apiKey = process.env.TWILIO_API_KEY || "";
+  const apiSecret = process.env.TWILIO_API_SECRET || "";
+  const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID || "";
   const from = process.env.TWILIO_PHONE_NUMBER || "";
 
-  if (!sid.trim() || !token.trim()) {
+  const hasAuthTokenMode = !!sid.trim() && !!token.trim();
+  const hasApiKeyMode = !!sid.trim() && !!apiKey.trim() && !!apiSecret.trim();
+
+  if (!hasAuthTokenMode && !hasApiKeyMode) {
     return {
       configured: false,
       ok: false,
       message: "Twilio env vars are incomplete.",
       details: {
         hasSid: !!sid.trim(),
-        hasToken: !!token.trim(),
+        hasAuthToken: !!token.trim(),
+        hasApiKey: !!apiKey.trim(),
+        hasApiSecret: !!apiSecret.trim(),
         hasFrom: !!from.trim(),
+        hasVerifyServiceSid: !!verifySid.trim(),
       },
     };
   }
@@ -148,10 +157,14 @@ async function testTwilio(): Promise<ServiceResult> {
   return {
     configured: true,
     ok: true,
-    message: "Twilio env vars are configured.",
+    message: hasApiKeyMode
+      ? "Twilio configured (API key/secret mode)."
+      : "Twilio configured (account SID/auth token mode).",
     details: {
       accountSidPreview: maskKey(sid),
+      mode: hasApiKeyMode ? "api_key" : "auth_token",
       hasFromNumber: !!from.trim(),
+      hasVerifyServiceSid: !!verifySid.trim(),
     },
   };
 }

@@ -9,6 +9,9 @@ function ResetPasswordContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams?.get("token") || ""
+  const requestedReturnTo = searchParams?.get("returnTo") || ""
+  const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(safeReturnTo)}`
 
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -58,7 +61,7 @@ function ResetPasswordContent() {
       } else {
         setSuccess(true)
         setTimeout(() => {
-          window.location.href = "/login?reset=1"
+          window.location.href = `${loginHref}&reset=1`
         }, 2000)
       }
     } catch {
@@ -94,7 +97,7 @@ function ResetPasswordContent() {
           <h1 className="text-xl font-semibold">Password reset</h1>
           <p className="text-sm text-white/60">Your password has been updated. Redirecting to sign in...</p>
           <Link
-            href="/login"
+            href={loginHref}
             className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white transition"
           >
             Sign In
@@ -107,7 +110,7 @@ function ResetPasswordContent() {
   return (
     <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
       <Link
-        href="/login"
+        href={loginHref}
         className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -201,3 +204,4 @@ export default function ResetPasswordPage() {
     </Suspense>
   )
 }
+

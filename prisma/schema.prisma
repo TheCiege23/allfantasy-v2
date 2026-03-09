@@ -2228,6 +2228,13 @@ model AppUser {
   bracketPayments      BracketPayment[]       @relation("BracketPayments")
   bracketRiskProfile   BracketRiskProfile?    @relation("BracketRiskProfile")
 
+  platformChatThreadsCreated    PlatformChatThread[]      @relation("PlatformChatThreadCreator")
+  platformChatThreadMemberships PlatformChatThreadMember[]
+  platformChatMessages          PlatformChatMessage[]     @relation("PlatformChatMessageSender")
+  platformNotifications         PlatformNotification[]
+  walletAccount                 PlatformWalletAccount?
+  walletLedgerEntries           WalletLedgerEntry[]
+
   @@map("app_users")
 }
 
@@ -2360,6 +2367,7 @@ model BracketEntry {
   userId         String
   name           String
   insuredNodeId  String?
+  tiebreakerPoints Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2879,3 +2887,120 @@ model ShareEngagement {
   @@index([createdAt])
   @@map("share_engagements")
 }
+
+
+
+model PlatformChatThread {
+  id               String   @id @default(uuid())
+  threadType       String
+  productType      String   @default("shared")
+  title            String?
+  createdByUserId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  lastMessageAt    DateTime @default(now())
+
+  createdBy        AppUser?                  @relation("PlatformChatThreadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  members          PlatformChatThreadMember[]
+  messages         PlatformChatMessage[]
+
+  @@index([threadType, lastMessageAt])
+  @@index([createdByUserId])
+  @@map("platform_chat_threads")
+}
+
+model PlatformChatThreadMember {
+  id         String   @id @default(uuid())
+  threadId   String
+  userId     String
+  role       String   @default("member")
+  joinedAt   DateTime @default(now())
+  lastReadAt DateTime?
+  isMuted    Boolean  @default(false)
+  isBlocked  Boolean  @default(false)
+
+  thread PlatformChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId, joinedAt])
+  @@map("platform_chat_thread_members")
+}
+
+model PlatformChatMessage {
+  id           String   @id @default(uuid())
+  threadId     String
+  senderUserId String?
+  messageType  String   @default("text")
+  body         String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  thread PlatformChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender AppUser?           @relation("PlatformChatMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([threadId, createdAt])
+  @@index([senderUserId, createdAt])
+  @@map("platform_chat_messages")
+}
+
+model PlatformNotification {
+  id         String   @id @default(uuid())
+  sourceKey  String?  @unique
+  userId     String
+  productType String  @default("shared")
+  type       String
+  title      String
+  body       String?
+  severity   String   @default("low")
+  meta       Json?
+  createdAt  DateTime @default(now())
+  readAt     DateTime?
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("platform_notifications")
+}
+
+model PlatformWalletAccount {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  currency            String   @default("USD")
+  balanceCents        Int      @default(0)
+  pendingBalanceCents Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user    AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries WalletLedgerEntry[]
+
+  @@map("platform_wallet_accounts")
+}
+
+model WalletLedgerEntry {
+  id              String   @id @default(uuid())
+  sourceKey       String?  @unique
+  walletAccountId String
+  userId          String
+  entryType       String
+  status          String   @default("completed")
+  amountCents     Int
+  description     String?
+  refProduct      String?
+  refId           String?
+  createdAt       DateTime @default(now())
+  effectiveAt     DateTime?
+
+  walletAccount PlatformWalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
+  user          AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([walletAccountId, createdAt])
+  @@index([userId, createdAt])
+  @@index([entryType, status])
+  @@map("wallet_ledger_entries")
+}
+
+

@@ -1,9 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { scoreEntry, type ScoringMode, type PickResult, type LeaguePickDistribution, type BonusFlags, bonusFlagsFromRules, scoringConfigKey } from "@/lib/brackets/scoring"
+import {
+  scoreEntry,
+  type ScoringMode,
+  type PickResult,
+  type LeaguePickDistribution,
+  type BonusFlags,
+  bonusFlagsFromRules,
+  scoringConfigKey,
+} from "@/lib/brackets/scoring"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+function normalizeRoundPoints(input: unknown): Record<number, number> | undefined {
+  if (!input || typeof input !== "object") return undefined
+  const out: Record<number, number> = {}
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const round = Number(k)
+    const value = Number(v)
+    if (Number.isFinite(round) && Number.isFinite(value) && round >= 1 && round <= 6) {
+      out[round] = Math.max(0, value)
+    }
+  }
+  return Object.keys(out).length ? out : undefined
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,9 +65,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const linkedGameIds = nodes
-      .map((n) => n.sportsGameId)
-      .filter((id): id is string => id !== null)
+    const linkedGameIds = nodes.map((n) => n.sportsGameId).filter((id): id is string => id !== null)
     const games = linkedGameIds.length > 0
       ? await prisma.sportsGame.findMany({
           where: { id: { in: linkedGameIds } },
@@ -61,7 +80,7 @@ export async function GET(request: NextRequest) {
       select: { nodeId: true },
       distinct: ["nodeId"],
     })
-    decidedPicks.forEach(p => decidedNodeIds.add(p.nodeId))
+    decidedPicks.forEach((p) => decidedNodeIds.add(p.nodeId))
     const totalDecidedGames = decidedNodeIds.size
 
     let leagueWhere: any = { tournamentId }
@@ -93,22 +112,20 @@ export async function GET(request: NextRequest) {
       leagueWhere = { id: { in: matchingIds } }
     }
 
-    const leagueIds = (
-      await prisma.bracketLeague.findMany({
-        where: leagueWhere,
-        select: { id: true },
-      })
-    ).map((l) => l.id)
+    const leagueIds = (await prisma.bracketLeague.findMany({ where: leagueWhere, select: { id: true } })).map((l) => l.id)
 
     if (leagueIds.length === 0) {
       return NextResponse.json({
-        ok: true, tournament, rankings: [], totalEntries: 0, page, totalPages: 0,
+        ok: true,
+        tournament,
+        rankings: [],
+        totalEntries: 0,
+        page,
+        totalPages: 0,
       })
     }
 
-    const totalEntries = await prisma.bracketEntry.count({
-      where: { leagueId: { in: leagueIds } },
-    })
+    const totalEntries = await prisma.bracketEntry.count({ where: { leagueId: { in: leagueIds } } })
 
     const leaguesWithRules = await prisma.bracketLeague.findMany({
       where: { id: { in: leagueIds } },
@@ -148,8 +165,9 @@ export async function GET(request: NextRequest) {
 
     const ranked = (allEntries as any[]).map((entry) => {
       const entryMode = leagueModeMap.get(entry.league.id) || "fancred_edge"
-      const roundPts = entryMode === "fancred_edge" ? ROUND_PTS_EDGE : ROUND_PTS_DEFAULT
       const rules = leagueRulesMap.get(entry.league.id) || {}
+      const roundPointsOverride = normalizeRoundPoints(rules.roundPoints)
+      const roundPts = roundPointsOverride || (entryMode === "fancred_edge" ? ROUND_PTS_EDGE : ROUND_PTS_DEFAULT)
 
       let correctPicks = 0
       let totalDecided = 0
@@ -182,7 +200,7 @@ export async function GET(request: NextRequest) {
         const node = nodeMap.get(pick.nodeId)
         const gameForNode = node?.sportsGameId ? gameMap.get(node.sportsGameId) : null
         let opponentSeed: number | null = null
-        if (gameForNode && gameForNode.status === "final" && gameForNode.homeScore != null && gameForNode.awayScore != null) {
+        if (gameForNode && gameForNode.homeScore != null && gameForNode.awayScore != null) {
           const loser = gameForNode.homeScore > gameForNode.awayScore ? node?.awayTeamName : node?.homeTeamName
           opponentSeed = loser ? (seedMapLocal.get(loser) ?? null) : null
         } else if (node && pick.pickedTeamName) {
@@ -202,9 +220,9 @@ export async function GET(request: NextRequest) {
       })
 
       const leagueDist = leagueDistributions.get(entry.league.id) || {}
-      const flags = bonusFlagsFromRules(rules)
+      const flags: BonusFlags = bonusFlagsFromRules(rules)
       const insuranceNodeId = flags.insuranceEnabled ? (entry.insuredNodeId || null) : null
-      const { total: totalPoints } = scoreEntry(entryMode, pickResults, leagueDist, insuranceNodeId, flags)
+      const { total: totalPoints } = scoreEntry(entryMode, pickResults, leagueDist, insuranceNodeId, flags, roundPointsOverride)
       const configKey = scoringConfigKey(entryMode, flags)
 
       const accuracy = totalDecided > 0 ? Math.round((correctPicks / totalDecided) * 1000) / 10 : 0

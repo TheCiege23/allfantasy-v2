@@ -305,9 +305,9 @@ export async function fetchNewsAPIEverything(query: string, opts?: {
   from?: string;
   pageSize?: number;
 }): Promise<NewsArticle[]> {
-  const apiKey = process.env.NEWSAPI_KEY;
+  const apiKey = process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY;
   if (!apiKey) {
-    console.warn('[News] NEWSAPI_KEY not set, skipping NewsAPI fetch');
+    console.warn('[News] NEWS_API_KEY/NEWSAPI_KEY not set, skipping NewsAPI fetch');
     return [];
   }
 
@@ -354,9 +354,9 @@ export async function fetchNewsAPITopHeadlines(opts?: {
   query?: string;
   pageSize?: number;
 }): Promise<NewsArticle[]> {
-  const apiKey = process.env.NEWSAPI_KEY;
+  const apiKey = process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY;
   if (!apiKey) {
-    console.warn('[News] NEWSAPI_KEY not set, skipping NewsAPI top-headlines');
+    console.warn('[News] NEWS_API_KEY/NEWSAPI_KEY not set, skipping NewsAPI top-headlines');
     return [];
   }
 

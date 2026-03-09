@@ -1,8 +1,35 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { scoreMomentum, scoreAccuracyBoldness, scoreStreakSurvival, scoreFanCredEdge, type ScoringMode, type PickResult, type LeaguePickDistribution } from "@/lib/brackets/scoring"
+import {
+  scoreEntry,
+  type ScoringMode,
+  type PickResult,
+  type LeaguePickDistribution,
+  type BonusFlags,
+} from "@/lib/brackets/scoring"
 
 export const dynamic = "force-dynamic"
+
+function normalizeRoundPoints(input: unknown): Record<number, number> | undefined {
+  if (!input || typeof input !== "object") return undefined
+  const out: Record<number, number> = {}
+  for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
+    const round = Number(k)
+    const value = Number(v)
+    if (Number.isFinite(round) && Number.isFinite(value) && round >= 1 && round <= 6) {
+      out[round] = Math.max(0, value)
+    }
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+function getNodeWinner(node: any, game: any): string | null {
+  if (!game || game.homeScore == null || game.awayScore == null) return null
+  const status = String(game.status || "").toLowerCase()
+  const isFinal = ["final", "completed", "closed", "finished"].some((k) => status.includes(k))
+  if (!isFinal || game.homeScore === game.awayScore) return null
+  return game.homeScore > game.awayScore ? node.homeTeamName : node.awayTeamName
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,9 +41,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
     }
 
-    const tournament = await prisma.bracketTournament.findUnique({
-      where: { id: tournamentId },
-    })
+    const tournament = await prisma.bracketTournament.findUnique({ where: { id: tournamentId } })
     if (!tournament) {
       return NextResponse.json({ error: "Tournament not found" }, { status: 404 })
     }
@@ -26,10 +51,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ round: "asc" }, { slot: "asc" }],
     })
 
-    const linkedGameIds = nodes
-      .map((n) => n.sportsGameId)
-      .filter((id): id is string => id !== null)
-
+    const linkedGameIds = nodes.map((n) => n.sportsGameId).filter((id): id is string => id !== null)
     const games = linkedGameIds.length > 0
       ? await prisma.sportsGame.findMany({
           where: { id: { in: linkedGameIds } },
@@ -72,27 +94,27 @@ export async function GET(request: NextRequest) {
               fetchedAt: game.fetchedAt,
             }
           : null,
-        winner:
-          game?.status === "final" &&
-          game.homeScore != null &&
-          game.awayScore != null &&
-          game.homeScore !== game.awayScore
-            ? game.homeScore > game.awayScore
-              ? node.homeTeamName
-              : node.awayTeamName
-            : null,
+        winner: getNodeWinner(node, game),
       }
     })
 
     let standings = null
     let scoringMode: ScoringMode = "momentum"
+
     if (leagueId) {
       const league = await prisma.bracketLeague.findUnique({
         where: { id: leagueId },
         select: { scoringRules: true },
       })
+
       const rules = (league?.scoringRules || {}) as any
-      scoringMode = rules.scoringMode || rules.mode || "momentum"
+      scoringMode = (rules.scoringMode || rules.mode || "momentum") as ScoringMode
+      const roundPointsOverride = normalizeRoundPoints(rules.roundPoints)
+      const bonusFlags: BonusFlags = {
+        upsetDeltaEnabled: rules.upsetDeltaEnabled !== false,
+        leverageBonusEnabled: rules.leverageBonusEnabled !== false,
+        insuranceEnabled: rules.insuranceEnabled === true,
+      }
 
       const entries = await prisma.bracketEntry.findMany({
         where: { leagueId },
@@ -106,9 +128,10 @@ export async function GET(request: NextRequest) {
       const nodeRoundMap = new Map<string, number>()
       for (const n of nodes) nodeRoundMap.set(n.id, n.round)
 
-      const ROUND_PTS_DEFAULT: Record<number, number> = { 1: 1, 2: 2, 3: 4, 4: 8, 5: 16, 6: 32 }
-      const ROUND_PTS_EDGE: Record<number, number> = { 1: 1, 2: 2, 3: 5, 4: 10, 5: 18, 6: 30 }
-      const ROUND_PTS = scoringMode === "fancred_edge" ? ROUND_PTS_EDGE : ROUND_PTS_DEFAULT
+      const defaultRoundPoints = scoringMode === "fancred_edge"
+        ? ({ 1: 1, 2: 2, 3: 5, 4: 10, 5: 18, 6: 30 } as Record<number, number>)
+        : ({ 1: 1, 2: 2, 3: 4, 4: 8, 5: 16, 6: 32 } as Record<number, number>)
+      const maxPossibleRoundPoints = roundPointsOverride || defaultRoundPoints
 
       const seedMapLocal = new Map<string, number>()
       for (const n of nodes) {
@@ -118,7 +141,7 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      let leagueDistribution: LeaguePickDistribution = {}
+      const leagueDistribution: LeaguePickDistribution = {}
       if (scoringMode === "accuracy_boldness" || scoringMode === "fancred_edge") {
         for (const entry of entries) {
           for (const pick of entry.picks) {
@@ -130,6 +153,14 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      const championshipNode = nodes.find((n) => n.round === 6)
+      const championshipGame = championshipNode?.sportsGameId ? gameMap.get(championshipNode.sportsGameId) : null
+      const actualChampionshipTotalPoints =
+        championshipGame?.homeScore != null && championshipGame?.awayScore != null
+          ? championshipGame.homeScore + championshipGame.awayScore
+          : null
+      const tiebreakerEnabled = Boolean(rules.tiebreakerEnabled)
+
       standings = entries.map((entry) => {
         let correctPicks = 0
         let totalPicks = 0
@@ -137,7 +168,7 @@ export async function GET(request: NextRequest) {
         let championPick: string | null = null
         let maxPossible = 0
 
-        const pickResults: PickResult[] = entry.picks.map((pick: { nodeId: string; pickedTeamName: string | null; isCorrect: boolean | null }) => {
+        const pickResults: PickResult[] = entry.picks.map((pick: any) => {
           const round = nodeRoundMap.get(pick.nodeId) ?? 0
           if (pick.isCorrect === true) {
             correctPicks++
@@ -145,7 +176,7 @@ export async function GET(request: NextRequest) {
           }
           if (pick.isCorrect !== null) totalPicks++
           if (pick.isCorrect !== false && round >= 1 && round <= 6) {
-            maxPossible += ROUND_PTS[round] ?? 0
+            maxPossible += maxPossibleRoundPoints[round] ?? 0
           }
           if (round === 6 && pick.pickedTeamName) {
             championPick = pick.pickedTeamName
@@ -155,17 +186,14 @@ export async function GET(request: NextRequest) {
           const gameForNode = node?.sportsGameId ? gameMap.get(node.sportsGameId) : null
           let actualWinnerSeed: number | null = null
           let opponentSeed: number | null = null
-          if (gameForNode && gameForNode.status === "final" && gameForNode.homeScore != null && gameForNode.awayScore != null) {
+          if (gameForNode && gameForNode.homeScore != null && gameForNode.awayScore != null) {
             const winner = gameForNode.homeScore > gameForNode.awayScore ? node?.homeTeamName : node?.awayTeamName
             const loser = gameForNode.homeScore > gameForNode.awayScore ? node?.awayTeamName : node?.homeTeamName
             actualWinnerSeed = winner ? (seedMapLocal.get(winner) ?? null) : null
             opponentSeed = loser ? (seedMapLocal.get(loser) ?? null) : null
-          } else if (node) {
-            const pickedTeam = pick.pickedTeamName
-            if (pickedTeam) {
-              const opponent = pickedTeam === node.homeTeamName ? node.awayTeamName : node.homeTeamName
-              opponentSeed = opponent ? (seedMapLocal.get(opponent) ?? null) : null
-            }
+          } else if (node && pick.pickedTeamName) {
+            const opponent = pick.pickedTeamName === node.homeTeamName ? node.awayTeamName : node.homeTeamName
+            opponentSeed = opponent ? (seedMapLocal.get(opponent) ?? null) : null
           }
 
           return {
@@ -179,40 +207,14 @@ export async function GET(request: NextRequest) {
           }
         })
 
-        const bonusFlags = {
-          upsetDeltaEnabled: rules.upsetDeltaEnabled !== false,
-          leverageBonusEnabled: rules.leverageBonusEnabled !== false,
-          insuranceEnabled: rules.insuranceEnabled === true,
-        }
-
-        let totalPoints = 0
-        let details: any = null
-        switch (scoringMode) {
-          case "fancred_edge": {
-            const entryInsuredNodeId = bonusFlags.insuranceEnabled ? (entry.insuredNodeId || null) : null
-            const result = scoreFanCredEdge(pickResults, leagueDistribution, entryInsuredNodeId, bonusFlags)
-            totalPoints = result.total
-            details = result
-            break
-          }
-          case "accuracy_boldness": {
-            const result = scoreAccuracyBoldness(pickResults, leagueDistribution)
-            totalPoints = result.total
-            details = result
-            break
-          }
-          case "streak_survival": {
-            const result = scoreStreakSurvival(pickResults)
-            totalPoints = result.total
-            details = { currentStreak: result.currentStreak, longestStreak: result.longestStreak }
-            break
-          }
-          default: {
-            const result = scoreMomentum(pickResults)
-            totalPoints = result.total
-            details = result
-          }
-        }
+        const { total: totalPoints, details } = scoreEntry(
+          scoringMode,
+          pickResults,
+          leagueDistribution,
+          bonusFlags.insuranceEnabled ? (entry.insuredNodeId || null) : null,
+          bonusFlags,
+          roundPointsOverride
+        )
 
         const roundPoints: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 }
         if (details?.breakdown) {
@@ -221,6 +223,12 @@ export async function GET(request: NextRequest) {
             if (r >= 1 && r <= 6) roundPoints[r] += b.total
           }
         }
+
+        const tiebreakerPoints = entry.tiebreakerPoints ?? null
+        const tiebreakerDelta =
+          tiebreakerEnabled && actualChampionshipTotalPoints != null && tiebreakerPoints != null
+            ? Math.abs(tiebreakerPoints - actualChampionshipTotalPoints)
+            : null
 
         return {
           entryId: entry.id,
@@ -237,10 +245,22 @@ export async function GET(request: NextRequest) {
           maxPossible,
           insuredNodeId: entry.insuredNodeId || null,
           scoringDetails: details,
+          tiebreakerPoints,
+          tiebreakerDelta,
         }
       })
 
-      standings.sort((a, b) => b.totalPoints - a.totalPoints)
+      standings.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
+        if (a.tiebreakerDelta != null && b.tiebreakerDelta != null) {
+          if (a.tiebreakerDelta !== b.tiebreakerDelta) return a.tiebreakerDelta - b.tiebreakerDelta
+        } else if (a.tiebreakerDelta != null) {
+          return -1
+        } else if (b.tiebreakerDelta != null) {
+          return 1
+        }
+        return b.correctPicks - a.correctPicks
+      })
     }
 
     const seedMap = new Map<string, number>()
@@ -268,14 +288,10 @@ export async function GET(request: NextRequest) {
       const seed = seedMap.get(team)
       if (seed == null) continue
       const baseline = SEED_EXPECTED_WINS[seed] ?? 0
-      if (wins > baseline) {
-        sleeperTeams.push(team)
-      }
+      if (wins > baseline) sleeperTeams.push(team)
     }
 
-    const hasLiveGames = bracketNodes.some(
-      (n) => n.liveGame?.status === "in_progress"
-    )
+    const hasLiveGames = bracketNodes.some((n) => n.liveGame?.status === "in_progress")
 
     const gamesFlat = games.map((g) => ({
       id: g.id,

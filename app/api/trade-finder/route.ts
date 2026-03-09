@@ -36,7 +36,7 @@ import {
   type TeamProfileLite,
 } from '@/lib/trade-finder/allowed-assets'
 import { buildAssetIndex, makeSleeperPickId } from '@/lib/trade-finder/asset-index'
-import { buildTradeHubIntelBlock } from '@/lib/trade-engine/trade-analyzer-intel'
+import { buildTradeHubIntelBlock, parseTradeIntelBlockMeta } from '@/lib/trade-engine/trade-analyzer-intel'
 
 const TradeFinderRequestSchema = z.object({
   league_id: z.string(),
@@ -131,6 +131,28 @@ RESPONSE FORMAT:
 }
 `
 
+
+type TradeFinderProviderAudit = {
+  modelRole: 'openai_reasoning'
+  normalizedSignalCount: number | null
+  sourceWeighting: string[]
+  newsItemCount: number
+  dataGaps: string[]
+}
+function buildTradeFinderIntelReconciliationDirective(audit: TradeFinderProviderAudit): string {
+  const gaps = audit.dataGaps.length ? audit.dataGaps.join('; ') : 'none'
+  const weighting = audit.sourceWeighting.length ? audit.sourceWeighting.join(', ') : 'none'
+  return [
+    'INTEL_RECONCILIATION_DIRECTIVE:',
+    `- model_role: ${audit.modelRole}`,
+    `- normalized_signal_count: ${audit.normalizedSignalCount ?? 'unknown'}`,
+    `- source_weighting: ${weighting}`,
+    `- news_items: ${audit.newsItemCount}`,
+    `- data_gaps: ${gaps}`,
+    '- instruction: If trade recommendation confidence is high while intel coverage is thin, lower confidence and explain what evidence is missing.',
+    '- instruction: Resolve conflicting signals by prioritizing higher-confidence, fresher signals and clearly state uncertainty.',
+  ].join('\n')
+}
 function valueToTier(value: number): string {
   if (value >= 9000) return 'Tier0_Untouchable'
   if (value >= 7500) return 'Tier1_Cornerstone'
@@ -570,6 +592,19 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder", tool: "TradeFi
       numTeams: sleeperLeague.total_rosters || 12,
       isSuperflex: isSF,
     }).catch(() => '')
+    const externalIntelMeta = parseTradeIntelBlockMeta(externalIntel)
+    const intelAudit: TradeFinderProviderAudit = {
+      modelRole: 'openai_reasoning',
+      normalizedSignalCount: externalIntelMeta.normalizedSignalCount,
+      sourceWeighting: externalIntelMeta.sourceWeighting,
+      newsItemCount: externalIntelMeta.newsItems,
+      dataGaps: [
+        ...(externalIntelMeta.normalizedSignalCount === null ? ['Missing normalized signal count'] : []),
+        ...(externalIntelMeta.newsItems <= 0 ? ['No recent news context returned'] : []),
+        ...(externalIntelMeta.sourceWeighting.length === 0 ? ['No source weighting metadata returned'] : []),
+      ],
+    }
+    const reconciliationDirective = buildTradeFinderIntelReconciliationDirective(intelAudit)
 
     const openaiPayload = {
       userTeam: userTeam ? {
@@ -595,9 +630,15 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder", tool: "TradeFi
       userRosterAssets,
       preferredTone: data.preferredTone || null,
       externalIntel,
+      intelligenceAudit: intelAudit,
     }
 
-    const userPayloadStr = JSON.stringify(openaiPayload) + '\n\n' + NEGOTIATION_USER_INSTRUCTION
+    const userPayloadStr =
+      JSON.stringify(openaiPayload) +
+      '\n\n' +
+      reconciliationDirective +
+      '\n\n' +
+      NEGOTIATION_USER_INSTRUCTION
 
     const result = await openaiChatJson({
       messages: [
@@ -708,6 +749,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder", tool: "TradeFi
         prunedTo: generatorOutput.prunedTo,
         aiEnhanced: true,
         hasOpportunities: generatorOutput.opportunities.length > 0,
+        intelligenceAudit: intelAudit,
       },
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
     })

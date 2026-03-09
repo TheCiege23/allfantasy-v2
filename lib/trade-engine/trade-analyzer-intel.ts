@@ -85,6 +85,11 @@ export interface LeagueStrategySnapshot {
   recommendedStrategy: string[]
   risks: string[]
 }
+export interface TradeIntelBlockMeta {
+  normalizedSignalCount: number | null
+  sourceWeighting: string[]
+  newsItems: number
+}
 
 function clampScore(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -151,6 +156,28 @@ function formatSignalLine(signal: TradeIntelSignal): string {
   )} | conf=${signal.confidence.toFixed(2)} | fresh=${signal.freshnessScore.toFixed(
     2,
   )} | rel=${signal.relevanceScore.toFixed(2)}`
+}
+export function parseTradeIntelBlockMeta(externalIntel: string): TradeIntelBlockMeta {
+  if (!externalIntel) {
+    return { normalizedSignalCount: null, sourceWeighting: [], newsItems: 0 }
+  }
+
+  const normalizedMatch = externalIntel.match(/Normalized TradeIntelSignal count:\s*(\d+)/i)
+  const newsMatch = externalIntel.match(/News:\s*(\d+)\s*items/i)
+  const weightingMatch = externalIntel.match(/Source weighting:\s*(.+)/i)
+
+  const sourceWeighting = weightingMatch?.[1]
+    ? weightingMatch[1]
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : []
+
+  return {
+    normalizedSignalCount: normalizedMatch ? Number(normalizedMatch[1]) : null,
+    sourceWeighting,
+    newsItems: newsMatch ? Number(newsMatch[1]) : 0,
+  }
 }
 
 function computeLeagueStrategySnapshot(ctx: TradeDecisionContextV1): LeagueStrategySnapshot {
@@ -221,7 +248,7 @@ export async function buildTradeHubIntelBlock(
   const [news, rolling, fantasyCalc, rookieClass, rookieRanks, ktcCache] = await Promise.all([
     deps
       .fetchNewsContext(
-        { prisma, newsApiKey: process.env.NEWS_API_KEY },
+        { prisma, newsApiKey: process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY },
         {
           playerNames,
           teamAbbrevs,
@@ -539,4 +566,5 @@ export async function buildTradeAnalyzerIntelPrompt(
     deps,
   )
 }
+
 

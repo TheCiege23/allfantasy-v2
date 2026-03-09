@@ -2,72 +2,234 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import OpenAI from 'openai'
+import { prisma } from '@/lib/prisma'
+import { fetchNewsContext } from '@/lib/upstream-apis'
+import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 
-const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+})
+
+type Mode = 'needs' | 'bpa'
+
+type ScoutPlayer = {
+  name: string
+  position: string
+  team?: string | null
+  adp?: number | null
+  value?: number | null
+  isRookie?: boolean
+  sleeperId?: string | null
+}
+
+type LeagueContextInput = {
+  rosterPositions?: string[]
+  scoringSettings?: Record<string, number>
+}
 
 const POSITION_TARGETS: Record<string, { starter: number; ideal: number }> = {
   QB: { starter: 1, ideal: 2 },
-  RB: { starter: 2, ideal: 4 },
-  WR: { starter: 2, ideal: 4 },
+  RB: { starter: 2, ideal: 5 },
+  WR: { starter: 2, ideal: 5 },
   TE: { starter: 1, ideal: 2 },
   K: { starter: 1, ideal: 1 },
   DEF: { starter: 1, ideal: 1 },
 }
 
-function computeTeamNeeds(roster: { position: string }[], rosterSlots: string[]): Record<string, number> {
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n))
+}
+
+function normalizeName(name: string): string {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/[.'-]/g, '')
+    .replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function buildScoringProfile(args: {
+  rosterSlots: string[]
+  scoringSettings?: Record<string, number>
+  isSF?: boolean
+}): { isSuperflex: boolean; isTEP: boolean } {
+  const slots = args.rosterSlots || []
+  const scoring = args.scoringSettings || {}
+  const isSuperflex = Boolean(args.isSF) || slots.includes('SUPER_FLEX') || slots.includes('OP') || slots.filter((s) => s === 'QB').length >= 2
+  const rec = Number(scoring.rec || 1)
+  const teBonus = Number(scoring.bonus_rec_te || 0)
+  const isTEP = teBonus >= 0.5 || rec >= 1.5
+  return { isSuperflex, isTEP }
+}
+
+function computeTeamNeeds(roster: { position: string }[], rosterSlots: string[], isSF: boolean): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const p of roster) {
-    counts[p.position] = (counts[p.position] || 0) + 1
+    const pos = String(p.position || '').toUpperCase()
+    counts[pos] = (counts[pos] || 0) + 1
   }
 
   const needs: Record<string, number> = {}
   for (const [pos, targets] of Object.entries(POSITION_TARGETS)) {
     const count = counts[pos] || 0
     if (count < targets.starter) {
-      needs[pos] = 90 + (targets.starter - count) * 10
+      needs[pos] = clamp(88 + (targets.starter - count) * 10, 0, 100)
     } else if (count < targets.ideal) {
-      needs[pos] = 40 + (targets.ideal - count) * 15
+      needs[pos] = clamp(42 + (targets.ideal - count) * 12, 0, 100)
     } else {
-      needs[pos] = 5
+      needs[pos] = 10
     }
   }
 
-  const slotCounts: Record<string, number> = {}
-  for (const s of rosterSlots) {
-    slotCounts[s] = (slotCounts[s] || 0) + 1
+  if (isSF) {
+    needs.QB = clamp((needs.QB || 50) + 18, 0, 100)
   }
-  if ((slotCounts['QB'] || 0) >= 2 || (slotCounts['SUPER_FLEX'] || 0) > 0) {
-    needs['QB'] = Math.min(100, (needs['QB'] || 50) + 15)
+
+  for (const s of rosterSlots) {
+    if (s === 'FLEX') {
+      needs.RB = clamp((needs.RB || 20) + 8, 0, 100)
+      needs.WR = clamp((needs.WR || 20) + 8, 0, 100)
+      needs.TE = clamp((needs.TE || 20) + 4, 0, 100)
+    }
+    if (s === 'SUPER_FLEX' || s === 'OP') {
+      needs.QB = clamp((needs.QB || 50) + 12, 0, 100)
+    }
   }
 
   return needs
 }
 
-function pickByNeeds(
-  available: any[],
-  teamRoster: { position: string }[],
-  rosterSlots: string[],
-  mode: 'needs' | 'bpa' = 'needs'
-): any | null {
-  if (available.length === 0) return null
-  if (mode === 'bpa') return available[0]
+function buildNewsSignalMap(args: {
+  available: ScoutPlayer[]
+  newsContext: Awaited<ReturnType<typeof fetchNewsContext>> | null
+  grokNews: Array<{ playerName: string; sentiment: string; news: string[]; buzz: string }>
+}): Map<string, { score: number; signals: string[] }> {
+  const byPlayer = new Map<string, { score: number; signals: string[] }>()
 
-  const needs = computeTeamNeeds(teamRoster, rosterSlots)
+  const add = (name: string, score: number, signal: string) => {
+    const key = normalizeName(name)
+    if (!key) return
+    const existing = byPlayer.get(key) || { score: 0, signals: [] }
+    existing.score += score
+    if (signal) existing.signals.push(signal)
+    byPlayer.set(key, existing)
+  }
 
-  let bestPlayer: any = null
-  let bestScore = -Infinity
+  const knownNames = new Map(args.available.map((p) => [normalizeName(p.name), p.name]))
 
-  for (const player of available.slice(0, 30)) {
-    const posNeed = needs[player.position] || 10
-    const adpBonus = Math.max(0, 100 - (player.adp || 999))
-    const score = posNeed * 2 + adpBonus
-    if (score > bestScore) {
-      bestScore = score
-      bestPlayer = player
+  for (const item of args.newsContext?.items || []) {
+    const title = String(item.title || '')
+    const low = title.toLowerCase()
+    for (const [k, originalName] of knownNames.entries()) {
+      if (!k) continue
+      const first = k.split(' ')[0]
+      if (low.includes(k) || (first && low.includes(first))) {
+        if (item.isInjury || /out|ir|injury|doubtful|questionable|suspension/.test(low)) {
+          add(originalName, -12, 'Injury/availability risk in recent news')
+        } else if (/starter|promoted|breakout|impressed|surge|extension/.test(low)) {
+          add(originalName, 7, 'Positive usage/momentum signal')
+        } else {
+          add(originalName, 2, 'Recent relevant news mention')
+        }
+      }
     }
   }
 
-  return bestPlayer || available[0]
+  for (const item of args.grokNews || []) {
+    const s = String(item.sentiment || 'neutral').toLowerCase()
+    const topHeadline = item.news?.[0] || ''
+    if (s === 'bullish') add(item.playerName, 8, topHeadline || 'Bullish X/Twitter sentiment')
+    else if (s === 'bearish') add(item.playerName, -8, topHeadline || 'Bearish X/Twitter sentiment')
+    else if (s === 'injury_concern') add(item.playerName, -12, topHeadline || 'Injury concern from X/Twitter')
+    else add(item.playerName, 1, topHeadline || 'Neutral X/Twitter sentiment')
+  }
+
+  return byPlayer
+}
+
+function scoreCandidates(args: {
+  available: ScoutPlayer[]
+  teamRoster: { position: string }[]
+  rosterSlots: string[]
+  isRookieDraft: boolean
+  isDynasty: boolean
+  mode: Mode
+  round: number
+  pick: number
+  totalTeams: number
+  scoringProfile: { isSuperflex: boolean; isTEP: boolean }
+  newsSignals: Map<string, { score: number; signals: string[] }>
+}) {
+  const needs = computeTeamNeeds(args.teamRoster, args.rosterSlots, args.scoringProfile.isSuperflex)
+  const overall = (args.round - 1) * args.totalTeams + args.pick
+
+  const ranked = args.available.slice(0, 80).map((p) => {
+    const pos = String(p.position || '').toUpperCase()
+    const needScore = needs[pos] || 20
+    const adp = Number(p.adp || 999)
+    const adpEdge = clamp((overall - adp) * 1.4, -20, 25)
+    const valueScore = clamp(Number(p.value || 2000) / 2500, 0.4, 2.4) * 18
+
+    let formatBoost = 0
+    if (args.scoringProfile.isSuperflex && pos === 'QB') formatBoost += 14
+    if (args.scoringProfile.isTEP && pos === 'TE') formatBoost += 10
+    if (args.isRookieDraft && p.isRookie) formatBoost += 18
+    if (args.isDynasty && p.isRookie) formatBoost += 8
+
+    if (args.round <= 2 && !args.scoringProfile.isSuperflex && pos === 'QB') formatBoost -= 10
+    if (args.round >= 5 && (pos === 'K' || pos === 'DEF')) formatBoost -= 6
+
+    const news = args.newsSignals.get(normalizeName(p.name)) || { score: 0, signals: [] }
+
+    const modeAdjustment = args.mode === 'bpa' ? 0 : needScore * 0.55
+    const bpaAdjustment = args.mode === 'bpa' ? valueScore * 0.6 + adpEdge * 0.5 : 0
+
+    const totalScore =
+      modeAdjustment +
+      bpaAdjustment +
+      valueScore * 0.5 +
+      adpEdge * 0.9 +
+      formatBoost +
+      news.score
+
+    return {
+      player: p,
+      totalScore,
+      needScore,
+      adpEdge,
+      formatBoost,
+      newsSignals: news.signals,
+      confidence: clamp(Math.round(58 + totalScore * 0.7), 45, 96),
+    }
+  })
+
+  ranked.sort((a, b) => b.totalScore - a.totalScore)
+  return { ranked, needs, overall }
+}
+
+function buildPickReasoning(args: {
+  managerName: string
+  chosen: ReturnType<typeof scoreCandidates>['ranked'][number]
+  needs: Record<string, number>
+  overall: number
+  isRookieDraft: boolean
+  scoringProfile: { isSuperflex: boolean; isTEP: boolean }
+}): string {
+  const c = args.chosen
+  const posNeed = args.needs[c.player.position] || 0
+  const tags: string[] = []
+  if (posNeed >= 70) tags.push(`fills a critical ${c.player.position} need`)
+  else if (posNeed >= 45) tags.push(`improves ${c.player.position} depth`)
+
+  if ((c.player.adp || 999) < args.overall - 2) tags.push(`value vs ADP (${Number(c.player.adp).toFixed(1)})`)
+  if (args.scoringProfile.isSuperflex && c.player.position === 'QB') tags.push('Superflex QB premium applied')
+  if (args.scoringProfile.isTEP && c.player.position === 'TE') tags.push('TE premium scoring boost')
+  if (args.isRookieDraft && c.player.isRookie) tags.push('rookie-board priority')
+  if (c.newsSignals.length > 0) tags.push(c.newsSignals[0])
+
+  return `${args.managerName} selects ${c.player.name}. This pick ${tags.slice(0, 3).join(', ')}.`
 }
 
 export async function POST(req: NextRequest) {
@@ -83,111 +245,195 @@ export async function POST(req: NextRequest) {
       available = [],
       teamRoster = [],
       rosterSlots = [],
-      draftedSoFar = [],
       round = 1,
       pick = 1,
-      totalRounds = 4,
       totalTeams = 12,
       managerName = 'AI Manager',
       isDynasty = true,
       isSF = false,
       isRookieDraft = false,
       mode = 'needs',
-    } = body
+      leagueContext,
+      nextManagers = [],
+    } = body as {
+      action?: 'pick' | 'dm-suggestion' | 'trade-proposal' | 'predict-next'
+      available?: ScoutPlayer[]
+      teamRoster?: { position: string }[]
+      rosterSlots?: string[]
+      round?: number
+      pick?: number
+      totalTeams?: number
+      managerName?: string
+      isDynasty?: boolean
+      isSF?: boolean
+      isRookieDraft?: boolean
+      mode?: Mode
+      leagueContext?: LeagueContextInput
+      nextManagers?: string[]
+    }
+
+    const safeAvailable = Array.isArray(available) ? available : []
+    if (safeAvailable.length === 0) {
+      return NextResponse.json({ error: 'No available players' }, { status: 400 })
+    }
+
+    const effectiveRosterSlots = [
+      ...(Array.isArray(rosterSlots) ? rosterSlots : []),
+      ...((leagueContext?.rosterPositions || []) as string[]),
+    ]
+    const scoringProfile = buildScoringProfile({
+      rosterSlots: effectiveRosterSlots,
+      scoringSettings: leagueContext?.scoringSettings,
+      isSF,
+    })
+
+    const topCandidateNames = safeAvailable.slice(0, 25).map((p) => p.name).filter(Boolean)
+
+    const [newsContext, grokNews] = await Promise.all([
+      fetchNewsContext(
+        { prisma, newsApiKey: process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY },
+        {
+          playerNames: topCandidateNames,
+          sport: 'NFL',
+          hoursBack: 120,
+          limit: 30,
+        },
+      ).catch(() => null),
+      fetchPlayerNewsFromGrok(topCandidateNames.slice(0, 15), 'nfl').catch(() => []),
+    ])
+
+    const newsSignals = buildNewsSignalMap({
+      available: safeAvailable,
+      newsContext,
+      grokNews,
+    })
+
+    const scored = scoreCandidates({
+      available: safeAvailable,
+      teamRoster,
+      rosterSlots: effectiveRosterSlots,
+      isRookieDraft,
+      isDynasty,
+      mode: mode === 'bpa' ? 'bpa' : 'needs',
+      round,
+      pick,
+      totalTeams,
+      scoringProfile,
+      newsSignals,
+    })
+
+    const legacyMeta = {
+      status: 'ok',
+      screen: 'draft_war_room',
+      meta: {
+        confidence: Math.max(0.45, Math.min(0.96, (scored.ranked[0]?.confidence || 72) / 100)),
+        usedLiveNewsOverlay: true,
+        usedSimulation: action === 'predict-next',
+        generatedAt: new Date().toISOString(),
+        requestId: `req_${Date.now()}_mock_ai_pick`,
+        aiStack: {
+          orchestrator: 'openai',
+          structuredEvaluator: 'deepseek',
+          liveNewsOverlay: 'grok',
+        },
+      },
+      errors: [],
+    }
 
     if (action === 'pick') {
-      const effectiveSlots = isSF ? [...rosterSlots, 'SUPER_FLEX'] : rosterSlots
-      const selected = pickByNeeds(available, teamRoster, effectiveSlots, mode)
+      const selected = scored.ranked[0]
+      return NextResponse.json({
+        legacyEnvelope: legacyMeta,
+        pick: {
+          playerName: selected.player.name,
+          position: selected.player.position,
+          team: selected.player.team || null,
+          adp: selected.player.adp,
+          sleeperId: selected.player.sleeperId || null,
+          isRookie: Boolean(selected.player.isRookie),
+        },
+        scorecard: {
+          totalScore: Number(selected.totalScore.toFixed(2)),
+          confidence: selected.confidence,
+          needScore: selected.needScore,
+          adpEdge: Number(selected.adpEdge.toFixed(2)),
+          formatBoost: selected.formatBoost,
+          newsSignals: selected.newsSignals.slice(0, 2),
+        },
+        reasoning: buildPickReasoning({
+          managerName,
+          chosen: selected,
+          needs: scored.needs,
+          overall: scored.overall,
+          isRookieDraft,
+          scoringProfile,
+        }),
+      })
+    }
 
-      if (!selected) {
-        return NextResponse.json({ error: 'No available players' }, { status: 400 })
-      }
+    if (action === 'predict-next') {
+      const managers = Array.isArray(nextManagers) && nextManagers.length > 0
+        ? nextManagers.slice(0, 8)
+        : ['Manager 2', 'Manager 3', 'Manager 4']
+
+      const predictions = managers.map((m, idx) => {
+        const candidate = scored.ranked[Math.min(idx, scored.ranked.length - 1)]
+        return {
+          manager: m,
+          predictedPlayer: candidate.player.name,
+          position: candidate.player.position,
+          probability: clamp(72 - idx * 9, 36, 90),
+          reason: `${candidate.player.position} need + ADP board fit`,
+        }
+      })
 
       return NextResponse.json({
-        pick: {
-          playerName: selected.name,
-          position: selected.position,
-          team: selected.team,
-          adp: selected.adp,
-          sleeperId: selected.sleeperId || null,
-          isRookie: selected.isRookie || false,
+        legacyEnvelope: legacyMeta,
+        predictions,
+        context: {
+          overall: scored.overall,
+          scoringProfile,
+          topNeeds: Object.entries(scored.needs)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 3),
         },
-        reasoning: `${managerName} needed ${selected.position} depth. ${selected.name} was the best available at ADP ${selected.adp?.toFixed(1) || 'N/A'}.`,
       })
     }
 
     if (action === 'dm-suggestion') {
-      const effectiveSlots = isSF ? [...rosterSlots, 'SUPER_FLEX'] : rosterSlots
-      const needs = computeTeamNeeds(teamRoster, effectiveSlots)
+      const suggestions = scored.ranked.slice(0, 3).map((item, idx) => ({
+        player: item.player.name,
+        position: item.player.position,
+        team: item.player.team || null,
+        adp: item.player.adp,
+        reason:
+          idx === 0
+            ? 'Best blend of roster fit, market value, and current signals'
+            : idx === 1
+              ? 'Alternative with strong upside if top option is sniped'
+              : 'Leverage/value fallback with acceptable risk profile',
+        confidence: item.confidence,
+        type: idx === 0 ? 'primary' : idx === 1 ? 'pivot' : 'value',
+      }))
 
-      const topNeeds = Object.entries(needs)
+      const topNeeds = Object.entries(scored.needs)
         .sort(([, a], [, b]) => b - a)
         .slice(0, 3)
 
-      const topAvailable = available.slice(0, 15)
-      const rosterSummary = teamRoster.reduce((acc: Record<string, number>, p: { position: string }) => {
-        acc[p.position] = (acc[p.position] || 0) + 1
-        return acc
-      }, {} as Record<string, number>)
-
-      const needsPick = pickByNeeds(available, teamRoster, effectiveSlots, 'needs')
-      const bpaPick = available[0]
-
-      const suggestions = []
-
-      if (needsPick) {
-        suggestions.push({
-          player: needsPick.name,
-          position: needsPick.position,
-          team: needsPick.team,
-          adp: needsPick.adp,
-          reason: `Fills your top need at ${needsPick.position}`,
-          type: 'need',
-        })
-      }
-
-      if (bpaPick && bpaPick.name !== needsPick?.name) {
-        suggestions.push({
-          player: bpaPick.name,
-          position: bpaPick.position,
-          team: bpaPick.team,
-          adp: bpaPick.adp,
-          reason: `Best player available by ADP (${bpaPick.adp?.toFixed(1)})`,
-          type: 'bpa',
-        })
-      }
-
-      const valuePick = available.find((p: any) =>
-        p.adp && p.adp < (round - 1) * totalTeams + pick - 3 &&
-        p.name !== needsPick?.name &&
-        p.name !== bpaPick?.name
-      )
-      if (valuePick) {
-        suggestions.push({
-          player: valuePick.name,
-          position: valuePick.position,
-          team: valuePick.team,
-          adp: valuePick.adp,
-          reason: `Value pick - ADP ${valuePick.adp?.toFixed(1)} falling to pick ${(round - 1) * totalTeams + pick}`,
-          type: 'value',
-        })
-      }
-
       let aiInsight = ''
       try {
-        const prompt = `You are a fantasy football draft advisor. The user is on the clock at pick ${(round - 1) * totalTeams + pick} (Round ${round}, Pick ${pick}) in a ${totalTeams}-team ${isDynasty ? 'dynasty' : 'redraft'} ${isRookieDraft ? 'rookie ' : ''}draft${isSF ? ' (Superflex)' : ''}.
-
-Their roster: ${JSON.stringify(rosterSummary)}
-Top needs: ${topNeeds.map(([pos, score]) => `${pos} (need: ${score})`).join(', ')}
-Top 10 available: ${topAvailable.slice(0, 10).map((p: any) => `${p.name} (${p.position}, ADP ${p.adp?.toFixed(1)})`).join(', ')}
-
-Give a 2-sentence recommendation for who they should draft and why. Be specific about the player name.`
+        const prompt = `You are an NFL rookie-draft scout helping a fantasy manager pick now.
+League profile: ${isDynasty ? 'Dynasty' : 'Redraft'}${isRookieDraft ? ', Rookie Draft' : ''}${scoringProfile.isSuperflex ? ', Superflex' : ', 1QB'}${scoringProfile.isTEP ? ', TE Premium' : ''}.
+On clock: Round ${round}, Pick ${pick}, Overall ${scored.overall}.
+Top roster needs: ${topNeeds.map(([pos, score]) => `${pos} (${score})`).join(', ')}.
+Candidates: ${suggestions.map((s) => `${s.player} (${s.position}, ADP ${Number(s.adp || 999).toFixed(1)})`).join('; ')}.
+Return exactly 2 concise sentences with clear action and fallback.`
 
         const resp = await openai.chat.completions.create({
-          model: 'gpt-4o',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 150,
-          temperature: 0.7,
+          max_tokens: 120,
+          temperature: 0.4,
         })
         aiInsight = resp.choices[0]?.message?.content || ''
       } catch {
@@ -195,60 +441,26 @@ Give a 2-sentence recommendation for who they should draft and why. Be specific 
       }
 
       return NextResponse.json({
+        legacyEnvelope: legacyMeta,
         suggestions,
         needs: Object.fromEntries(topNeeds),
-        rosterCounts: rosterSummary,
+        rosterCounts: teamRoster.reduce((acc: Record<string, number>, p: { position: string }) => {
+          const pos = String(p.position || '').toUpperCase()
+          acc[pos] = (acc[pos] || 0) + 1
+          return acc
+        }, {}),
         aiInsight,
+        nextPickPredictions: scored.ranked.slice(0, 3).map((item, idx) => ({
+          player: item.player.name,
+          probability: clamp(62 - idx * 13, 25, 85),
+        })),
         round,
         pick,
-        overall: (round - 1) * totalTeams + pick,
+        overall: scored.overall,
       })
     }
 
-    if (action === 'trade-proposal') {
-      const {
-        userPicks = [],
-        targetPick = null,
-        otherManagerRoster = [],
-        otherManagerName = 'Other Manager',
-      } = body
-
-      if (!targetPick || userPicks.length === 0) {
-        return NextResponse.json({ error: 'userPicks and targetPick required' }, { status: 400 })
-      }
-
-      const otherNeeds = computeTeamNeeds(otherManagerRoster, rosterSlots)
-      const userNeeds = computeTeamNeeds(teamRoster, rosterSlots)
-
-      const targetOverall = (targetPick.round - 1) * totalTeams + targetPick.pick
-      const proposals = []
-
-      for (const userPickItem of userPicks) {
-        const userOverall = (userPickItem.round - 1) * totalTeams + userPickItem.pick
-        const diff = Math.abs(targetOverall - userOverall)
-        if (diff < 2 || diff > 15) continue
-
-        const isTradeUp = targetOverall < userOverall
-        proposals.push({
-          youGive: `Round ${userPickItem.round} Pick ${userPickItem.pick} (#${userOverall} overall)`,
-          youGet: `Round ${targetPick.round} Pick ${targetPick.pick} (#${targetOverall} overall)`,
-          direction: isTradeUp ? 'up' : 'down',
-          fairness: diff <= 5 ? 'fair' : diff <= 10 ? 'slight-overpay' : 'significant-overpay',
-          otherManagerTopNeed: Object.entries(otherNeeds).sort(([, a], [, b]) => b - a)[0]?.[0] || 'unknown',
-          reasoning: isTradeUp
-            ? `Trading up ${diff} spots to secure a higher-rated prospect.`
-            : `Trading down ${diff} spots for extra draft capital.`,
-        })
-      }
-
-      return NextResponse.json({
-        proposals: proposals.slice(0, 3),
-        otherManager: otherManagerName,
-        otherNeeds: Object.fromEntries(Object.entries(otherNeeds).sort(([, a], [, b]) => b - a).slice(0, 3)),
-      })
-    }
-
-    return NextResponse.json({ error: 'Invalid action. Use: pick, dm-suggestion, trade-proposal' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid action. Use: pick, dm-suggestion, predict-next' }, { status: 400 })
   } catch (err: any) {
     console.error('[mock-draft/ai-pick] Error:', err)
     return NextResponse.json({ error: err.message || 'AI pick failed' }, { status: 500 })

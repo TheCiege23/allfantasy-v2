@@ -7,6 +7,9 @@ import { ArrowLeft, Loader2, Globe, Lock } from "lucide-react"
 export default function NewBracketLeaguePage() {
   const [name, setName] = useState("")
   const [isPublic, setIsPublic] = useState(false)
+  const [maxEntriesPerUser, setMaxEntriesPerUser] = useState(1)
+  const [tiebreakerEnabled, setTiebreakerEnabled] = useState(true)
+  const [tiebreakerType, setTiebreakerType] = useState("championship_total_points")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showAgeConfirm, setShowAgeConfirm] = useState(false)
@@ -20,7 +23,7 @@ export default function NewBracketLeaguePage() {
       if (res.ok) {
         setShowAgeConfirm(false)
         setError(null)
-        setTimeout(() => submitPool(), 500)
+        setTimeout(() => submitPool(), 400)
       } else {
         setError("Failed to confirm age. Please try again.")
       }
@@ -36,6 +39,8 @@ export default function NewBracketLeaguePage() {
     setShowAgeConfirm(false)
     setLoading(true)
 
+    const returnTo = "/brackets/leagues/new"
+
     try {
       const res = await fetch("/api/bracket/leagues", {
         method: "POST",
@@ -46,17 +51,27 @@ export default function NewBracketLeaguePage() {
           sport: "ncaam",
           maxManagers: 100,
           isPublic,
+          bracketType: "mens_ncaa",
+          maxEntriesPerUser,
+          entriesPerUserFree: maxEntriesPerUser,
+          tiebreakerEnabled,
+          tiebreakerType,
+          incompleteEntryPolicy: "invalid_incomplete",
         }),
       })
 
       const data = await res.json()
       if (!res.ok) {
+        if (data.error === "UNAUTHENTICATED") {
+          router.push(`/login?callbackUrl=${encodeURIComponent(returnTo)}`)
+          return
+        }
         if (data.error === "AGE_REQUIRED") {
           setShowAgeConfirm(true)
           return
         }
         if (data.error === "VERIFICATION_REQUIRED") {
-          setError("Please verify your email first before creating a pool.")
+          router.push(`/verify?error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
           return
         }
         setError(data.error ?? "Failed to create pool")
@@ -87,9 +102,9 @@ export default function NewBracketLeaguePage() {
           <ArrowLeft className="w-4 h-4" />
         </button>
 
-        <h1 className="text-xl font-bold text-center mb-8">Name your pool</h1>
+        <h1 className="text-xl font-bold text-center mb-8">Create NCAA Bracket Pool</h1>
 
-        <form onSubmit={createPool} className="space-y-6">
+        <form onSubmit={createPool} className="space-y-6 pb-24 sm:pb-0">
           <div>
             <label className="text-xs font-semibold" style={{ color: '#fb923c' }}>Pool Name</label>
             <input
@@ -101,9 +116,6 @@ export default function NewBracketLeaguePage() {
               disabled={loading}
               autoFocus
             />
-            <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Don&apos;t worry. You will be able to change this later.
-            </p>
           </div>
 
           <div>
@@ -139,10 +151,49 @@ export default function NewBracketLeaguePage() {
                 <div className="text-left">
                   <div className="text-sm font-semibold" style={{ color: isPublic ? 'white' : 'rgba(255,255,255,0.4)' }}>Public</div>
                   <div className="text-[10px] mt-0.5" style={{ color: isPublic ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.2)' }}>
-                    Anyone can find &amp; join
+                    Anyone can find & join
                   </div>
                 </div>
               </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <label className="text-xs font-semibold" style={{ color: '#fb923c' }}>Entries Per User</label>
+            <div className="mt-2 flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={maxEntriesPerUser}
+                onChange={(e) => setMaxEntriesPerUser(Number(e.target.value))}
+                disabled={loading}
+                className="w-full"
+              />
+              <span className="w-8 text-sm font-semibold text-white">{maxEntriesPerUser}</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <label className="text-xs font-semibold" style={{ color: '#fb923c' }}>Tiebreaker</label>
+            <div className="mt-2 space-y-2">
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={tiebreakerEnabled}
+                  onChange={(e) => setTiebreakerEnabled(e.target.checked)}
+                  disabled={loading}
+                />
+                Enable championship total points tiebreaker
+              </label>
+              <select
+                disabled={!tiebreakerEnabled || loading}
+                value={tiebreakerType}
+                onChange={(e) => setTiebreakerType(e.target.value)}
+                className="w-full rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-sm"
+              >
+                <option value="championship_total_points">Championship Total Points</option>
+              </select>
             </div>
           </div>
 
@@ -189,7 +240,7 @@ export default function NewBracketLeaguePage() {
                   Creating...
                 </span>
               ) : (
-                "NEXT"
+                "Create Pool"
               )}
             </button>
           </div>

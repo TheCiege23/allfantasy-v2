@@ -312,10 +312,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/share", tool: "LegacyS
       })
     }
 
-    const xaiApiKey = process.env.XAI_API_KEY
+    const xaiApiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
     if (!xaiApiKey) {
       return NextResponse.json(
-        { success: false, error: 'XAI_API_KEY not configured. Set it in Secrets to enable Grok-powered captions.' },
+        { success: false, error: 'XAI_API_KEY/GROK_API_KEY not configured. Set one in Secrets to enable Grok-powered captions.' },
         { status: 500 }
       )
     }
@@ -397,3 +397,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/share", tool: "LegacyS
     )
   }
 })
+

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { signOut } from "next-auth/react"
+import AppShellNav from "@/components/navigation/AppShellNav"
 import {
   Trophy,
   Users,
@@ -9,7 +9,6 @@ import {
   UserPlus,
   BarChart3,
   ChevronRight,
-  LogOut,
   AlertCircle,
   CheckCircle2,
   Shield,
@@ -44,56 +43,22 @@ interface DashboardProps {
     tournamentId: string
     score: number
   }[]
+  isAdmin?: boolean
 }
 
-export default function DashboardContent({ user, profile, leagues, entries }: DashboardProps) {
+export default function DashboardContent({ user, profile, leagues, entries, isAdmin = false }: DashboardProps) {
   const displayName = user.displayName || user.username || "Player"
   const needsAction = !profile.isVerified || !profile.isAgeConfirmed || !profile.profileComplete
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
-      <header className="border-b border-white/10 bg-white/[0.02] backdrop-blur-sm">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/dashboard" className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            AllFantasy.ai
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/brackets/leagues/new"
-              className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2 text-sm font-medium hover:from-cyan-400 hover:to-purple-500 transition-all"
-            >
-              <Plus className="h-4 w-4" />
-              Create League
-            </Link>
-            <Link
-              href="/brackets/join"
-              className="hidden sm:inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium hover:bg-white/10 transition"
-            >
-              <UserPlus className="h-4 w-4" />
-              Join League
-            </Link>
-
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="h-6 w-6 rounded-full" />
-              ) : (
-                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center text-xs font-bold">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span className="text-sm font-medium hidden sm:block">{displayName}</span>
-              <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
-                className="ml-1 text-white/40 hover:text-white/70 transition"
-                title="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppShellNav
+        isAuthenticated
+        isAdmin={isAdmin}
+        userLabel={displayName}
+        balanceLabel="$0.00"
+        winningsLabel="$0.00"
+      />
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         <div>

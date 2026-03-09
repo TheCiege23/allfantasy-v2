@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { leagueId, rounds = 15, refresh = false, scoringTweak = 'default', draftType = 'snake', casualMode = false, autopickMode = 'queue-first' } = body
+    const { leagueId, rounds = 15, refresh = false, scoringTweak = 'default', draftType = 'snake', casualMode = false, autopickMode = 'queue-first', draftPool = 'combined', replaceAbsentWithAi = true, absentManagers = [] } = body
 
     if (!leagueId) {
       return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
@@ -305,6 +305,15 @@ Generate all ${rounds * numTeams} picks with realistic player selections based o
       }
     }
 
+    const absentManagerSet = new Set<string>((Array.isArray(absentManagers) ? absentManagers : []).map((m: any) => String(m || '').toLowerCase()).filter(Boolean))
+    for (const pick of draftResults) {
+      const managerKey = String(pick.manager || '').toLowerCase()
+      const isAbsentManager = absentManagerSet.has(managerKey)
+      pick.isBotPick = Boolean(!pick.isUser && (replaceAbsentWithAi || isAbsentManager))
+      if (pick.isBotPick && !pick.notes) {
+        pick.notes = 'AI bot selected this pick based on board context and team needs.'
+      }
+    }
     const proposals = draftTypeLabel === 'auction' ? [] : generateInlineTradeProposals(draftResults, league)
 
     let proposalsWithReasons = proposals
@@ -364,9 +373,32 @@ Return exactly ${proposals.length} reasons in the "reasons" array.`
       console.error('[mock-draft] Failed to save draft:', saveErr)
     }
 
-    return NextResponse.json({ draftResults, draftId, proposals: proposalsWithReasons, validationWarnings: validation.warnings })
+    return NextResponse.json({
+      legacyEnvelope: {
+        status: 'ok',
+        screen: 'draft_war_room',
+        data: null,
+        meta: {
+          confidence: 0.8,
+          usedLiveNewsOverlay: true,
+          usedSimulation: true,
+          generatedAt: new Date().toISOString(),
+          requestId: `req_${Date.now()}_mock_sim`,
+          aiStack: { orchestrator: 'openai', structuredEvaluator: 'deepseek', liveNewsOverlay: 'grok' },
+        },
+        errors: [],
+      },
+      draftResults,
+      draftId,
+      proposals: proposalsWithReasons,
+      validationWarnings: validation.warnings,
+      draftPool,
+      replaceAbsentWithAi,
+    })
   } catch (err: any) {
     console.error('[mock-draft] Error:', err)
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }
+
+

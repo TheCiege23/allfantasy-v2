@@ -58,7 +58,11 @@ export type PickResult = {
 
 export type LeaguePickDistribution = Record<string, Record<string, number>>
 
-export function pointsForRound(round: number): number {
+export function pointsForRound(round: number, roundPoints?: Record<number, number>): number {
+  if (roundPoints && Number.isFinite(roundPoints[round])) {
+    return Math.max(0, Number(roundPoints[round]))
+  }
+
   switch (round) {
     case 0: return 0
     case 1: return 1
@@ -71,7 +75,11 @@ export function pointsForRound(round: number): number {
   }
 }
 
-export function edgePointsForRound(round: number): number {
+export function edgePointsForRound(round: number, roundPoints?: Record<number, number>): number {
+  if (roundPoints && Number.isFinite(roundPoints[round])) {
+    return Math.max(0, Number(roundPoints[round]))
+  }
+
   switch (round) {
     case 1: return 1
     case 2: return 2
@@ -87,7 +95,8 @@ export function scoreFanCredEdge(
   picks: PickResult[],
   leagueDistribution: LeaguePickDistribution,
   insuranceNodeId?: string | null,
-  flags?: BonusFlags
+  flags?: BonusFlags,
+  roundPoints?: Record<number, number>
 ): {
   total: number
   breakdown: Array<{
@@ -118,7 +127,7 @@ export function scoreFanCredEdge(
 
     if (pick.isCorrect !== true) {
       if (isInsured && pick.isCorrect === false) {
-        const partialBase = Math.ceil(edgePointsForRound(pick.round) * 0.5)
+        const partialBase = Math.ceil(edgePointsForRound(pick.round, roundPoints) * 0.5)
         total += partialBase
         breakdown.push({
           nodeId: pick.nodeId,
@@ -141,7 +150,7 @@ export function scoreFanCredEdge(
       continue
     }
 
-    const base = edgePointsForRound(pick.round)
+    const base = edgePointsForRound(pick.round, roundPoints)
 
     let upsetDelta = 0
     if (
@@ -181,7 +190,10 @@ export function scoreFanCredEdge(
   return { total, breakdown }
 }
 
-export function scoreMomentum(picks: PickResult[]): {
+export function scoreMomentum(
+  picks: PickResult[],
+  roundPoints?: Record<number, number>
+): {
   total: number
   breakdown: Array<{ nodeId: string; base: number; upsetBonus: number; total: number }>
 } {
@@ -194,7 +206,7 @@ export function scoreMomentum(picks: PickResult[]): {
       continue
     }
 
-    const base = pointsForRound(pick.round)
+    const base = pointsForRound(pick.round, roundPoints)
 
     let upsetBonus = 0
     if (
@@ -216,7 +228,8 @@ export function scoreMomentum(picks: PickResult[]): {
 
 export function scoreAccuracyBoldness(
   picks: PickResult[],
-  leagueDistribution: LeaguePickDistribution
+  leagueDistribution: LeaguePickDistribution,
+  roundPoints?: Record<number, number>
 ): {
   total: number
   breakdown: Array<{ nodeId: string; base: number; uniquenessBonus: number; total: number }>
@@ -230,7 +243,7 @@ export function scoreAccuracyBoldness(
       continue
     }
 
-    const base = pointsForRound(pick.round)
+    const base = pointsForRound(pick.round, roundPoints)
 
     let uniquenessBonus = 0
     const nodeDist = leagueDistribution[pick.nodeId]
@@ -257,7 +270,10 @@ export function scoreAccuracyBoldness(
   return { total, breakdown }
 }
 
-export function scoreStreakSurvival(picks: PickResult[]): {
+export function scoreStreakSurvival(
+  picks: PickResult[],
+  roundPoints?: Record<number, number>
+): {
   total: number
   currentStreak: number
   longestStreak: number
@@ -280,7 +296,7 @@ export function scoreStreakSurvival(picks: PickResult[]): {
     currentStreak++
     longestStreak = Math.max(longestStreak, currentStreak)
 
-    const base = pointsForRound(pick.round)
+    const base = pointsForRound(pick.round, roundPoints)
 
     let streakBonus = 0
     if (currentStreak >= 3) {
@@ -302,27 +318,27 @@ export function scoreEntry(
   picks: PickResult[],
   leagueDistribution?: LeaguePickDistribution,
   insuranceNodeId?: string | null,
-  flags?: BonusFlags
+  flags?: BonusFlags,
+  roundPoints?: Record<number, number>
 ): { total: number; details: any } {
   switch (mode) {
     case "fancred_edge": {
-      const result = scoreFanCredEdge(picks, leagueDistribution || {}, insuranceNodeId, flags)
+      const result = scoreFanCredEdge(picks, leagueDistribution || {}, insuranceNodeId, flags, roundPoints)
+      return { total: result.total, details: result }
+    }
+    case "accuracy_boldness": {
+      const result = scoreAccuracyBoldness(picks, leagueDistribution || {}, roundPoints)
+      return { total: result.total, details: result }
+    }
+    case "streak_survival": {
+      const result = scoreStreakSurvival(picks, roundPoints)
       return { total: result.total, details: result }
     }
     case "momentum":
-      return { total: scoreMomentum(picks).total, details: scoreMomentum(picks) }
-    case "accuracy_boldness":
-      return {
-        total: scoreAccuracyBoldness(picks, leagueDistribution || {}).total,
-        details: scoreAccuracyBoldness(picks, leagueDistribution || {}),
-      }
-    case "streak_survival":
-      return {
-        total: scoreStreakSurvival(picks).total,
-        details: scoreStreakSurvival(picks),
-      }
-    default:
-      return { total: scoreMomentum(picks).total, details: scoreMomentum(picks) }
+    default: {
+      const result = scoreMomentum(picks, roundPoints)
+      return { total: result.total, details: result }
+    }
   }
 }
 

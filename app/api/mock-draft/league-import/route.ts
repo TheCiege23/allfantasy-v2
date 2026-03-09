@@ -55,10 +55,18 @@ export async function POST(req: NextRequest) {
     }
 
     let draftOrder: number[] = []
+    let draftMeta: { draftId: string | null; type: string | null; status: string | null; startTime: number | null; pickTimerSec: number | null } = { draftId: null, type: null, status: null, startTime: null, pickTimerSec: null }
     try {
       const draftsData = await fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}/drafts`)
       if (Array.isArray(draftsData) && draftsData.length > 0) {
         const latestDraft = draftsData[0]
+        draftMeta = {
+          draftId: latestDraft?.draft_id || null,
+          type: latestDraft?.type || null,
+          status: latestDraft?.status || null,
+          startTime: typeof latestDraft?.start_time === 'number' ? latestDraft.start_time : null,
+          pickTimerSec: typeof latestDraft?.settings?.pick_timer === 'number' ? latestDraft.settings.pick_timer : null,
+        }
         if (latestDraft.draft_order && typeof latestDraft.draft_order === 'object') {
           const orderEntries = Object.entries(latestDraft.draft_order as Record<string, number>)
           const userToSlot = new Map<string, number>()
@@ -159,9 +167,12 @@ export async function POST(req: NextRequest) {
       rosters,
       tradedPicks,
       draftOrder,
+      draftMeta,
     })
   } catch (err: any) {
     console.error('[mock-draft/league-import] Error:', err)
     return NextResponse.json({ error: err.message || 'Failed to import league data' }, { status: 500 })
   }
 }
+
+

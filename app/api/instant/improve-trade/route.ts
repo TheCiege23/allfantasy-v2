@@ -13,9 +13,9 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 function getGrokClient() {
-  const apiKey = process.env.XAI_API_KEY
+  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
   if (!apiKey) {
-    throw new Error("XAI_API_KEY is missing")
+    throw new Error("XAI_API_KEY/GROK_API_KEY is missing")
   }
 
   return new OpenAI({
@@ -119,7 +119,7 @@ async function runGrokWithTools(systemPrompt: string): Promise<string> {
           const xRes = await fetch('https://api.x.ai/v1/tools/x_keyword_search', {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+              Authorization: `Bearer ${process.env.XAI_API_KEY || process.env.GROK_API_KEY}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ query: args.query, limit: args.limit || 12 }),
@@ -216,7 +216,7 @@ Current AI verdict: ${currentVerdict}
 Current value delta: ${fairnessStr} (positive = better for user)
 
 === TASK ===
-Generate 3–5 highly realistic, personalized counter-offer suggestions that meaningfully improve the deal for the user.
+Generate 3-5 highly realistic, personalized counter-offer suggestions that meaningfully improve the deal for the user.
 
 Take EVERYTHING into account:
 - Exact positional scarcity based on league starters, bench size, flex rules, TE-premium, Superflex
@@ -224,23 +224,23 @@ Take EVERYTHING into account:
 - Dynasty-specific value: future picks (early/mid/late adjusted for league size/format), rookie draft outlook
 - Volatility: boom/bust players, injury history, contract situations
 - FAAB implications if relevant
-- FantasyCalc objective values when available — use them to ground your suggestions
+- FantasyCalc objective values when available - use them to ground your suggestions
 - Real-time news: injuries, signings, trades, rookie buzz, X sentiment
-- Acceptance likelihood — suggest counters a rational opponent would consider
+- Acceptance likelihood - suggest counters a rational opponent would consider
 
 For each suggestion return:
-- Short title (8–15 words)
+- Short title (8-15 words)
 - Exact natural-language counter-offer text (copy-paste ready, "I give: X\\nI get: Y" format)
 - Estimated new fairness impact (e.g. "+18% for you", "now strong win", "higher acceptance chance")
-- 3–5 concise, specific bullets explaining WHY it's better (reference roster, league settings, contention, etc.)
-- Optional sensitivity note (one sentence) — e.g. "Only if you're truly win-now", null if not needed
+- 3-5 concise, specific bullets explaining WHY it's better (reference roster, league settings, contention, etc.)
+- Optional sensitivity note (one sentence) - e.g. "Only if you're truly win-now", null if not needed
 
 Rules:
-- Be brutally honest — never suggest trades that hurt the user
+- Be brutally honest - never suggest trades that hurt the user
 - Prioritize high-acceptance counters: depth swaps, future picks, small upgrades
 - In dynasty: weight youth, picks, long-term upside heavily
 - If no roster provided, fall back to general positional scarcity but note limitation
-- Keep language clear, confident, conversational — like advising a league mate
+- Keep language clear, confident, conversational - like advising a league mate
 - Order from most to least likely to be accepted
 
 ${feedbackBlock || ''}
@@ -453,8 +453,8 @@ export const POST = withApiUsage({ endpoint: '/api/instant/improve-trade', tool:
             content: `You are the final synthesizer combining two elite AI trade analysts. Merge Grok's real-time research (which may include live web search results) with OpenAI's strategically deep suggestions into one cohesive, best-possible set of 3-5 counter-offers.
 
 Rules:
-- Pick the strongest suggestions from both sources — deduplicate similar ideas
-- If both AIs agree on a counter, it's high-confidence — rank it first
+- Pick the strongest suggestions from both sources - deduplicate similar ideas
+- If both AIs agree on a counter, it's high-confidence - rank it first
 - If they disagree, include the more realistic/higher-acceptance option
 - Incorporate any real-time news/injury data that Grok found via tools
 - Preserve the exact JSON format with title, counter, impact, reasons, sensitivityNote
@@ -583,3 +583,5 @@ Return ONLY valid JSON:
     )
   }
 })
+
+

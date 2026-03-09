@@ -35,6 +35,14 @@ import {
   deriveGoalFromContext,
   type UserGoal,
 } from '@/lib/waiver-engine/team-needs'
+import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
+import { computeWaiverScore, computeAddDropDelta, normalizeScore } from '@/lib/legacy-tool/scoring'
+import { fuseDecisionScore } from '@/lib/legacy-tool/fusion'
+import { normalizeGrokSignalsToDeltaEvents, persistGrokDeltaEvents } from '@/lib/legacy-tool/grok-delta'
+import {
+  buildPrivateWaiverCoachingNotification,
+  buildLeagueWaiverProcessedNotification,
+} from '@/lib/legacy-tool/notifications'
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -455,6 +463,102 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
     const waiverIntelSignals: WaiverIntelSignal[] = buildWaiverIntelSignals(deterministicResults, scoringCtx)
 
 
+    const grokPlayerSignals = await fetchPlayerNewsFromGrok(
+      deterministicResults.slice(0, 20).map((r) => r.playerName),
+    ).catch(() => [])
+    const grokDeltaEvents = normalizeGrokSignalsToDeltaEvents(grokPlayerSignals || [])
+    const grokDeltaCacheWrites = await persistGrokDeltaEvents(grokDeltaEvents).catch(() => 0)
+
+    const sentimentByPlayer = new Map<string, string>()
+    for (const sig of grokPlayerSignals || []) {
+      if (sig?.playerName) sentimentByPlayer.set(sig.playerName.toLowerCase(), String(sig.sentiment || 'neutral'))
+    }
+
+    const eventByPlayerSlug = new Map<string, (typeof grokDeltaEvents)[number]['event']>()
+    for (const evt of grokDeltaEvents) {
+      const entityId = evt?.event?.entity_id
+      if (entityId) eventByPlayerSlug.set(entityId, evt.event)
+    }
+
+    const getOverlayFromSentiment = (playerName: string): number => {
+      const sentiment = sentimentByPlayer.get(playerName.toLowerCase()) || 'neutral'
+      if (sentiment === 'bullish') return 6
+      if (sentiment === 'bearish') return -6
+      if (sentiment === 'injury_concern') return -10
+      return 0
+    }
+
+    const legacyWaiverCandidates = deterministicResults.slice(0, 8).map((target) => {
+      const xBuzzScore = normalizeScore(50 + getOverlayFromSentiment(target.playerName) * 5)
+      const acquisitionCostPenalty = normalizeScore((target.faabBid ?? 0) * 4)
+      const structuredScore = computeWaiverScore({
+        opportunityScore: normalizeScore(target.dimensions.startNow),
+        talentUpsideScore: normalizeScore(target.dimensions.stash * 0.6 + target.dimensions.startNow * 0.4),
+        shortTermUsability: normalizeScore(target.dimensions.startNow),
+        longTermStashValue: normalizeScore(target.dimensions.stash),
+        rosterFitScore: normalizeScore(target.dimensions.needFit),
+        usageTrendScore: normalizeScore(target.dimensions.leagueDemand),
+        scheduleScore: normalizeScore(target.dimensions.startNow * 0.65 + target.dimensions.needFit * 0.35),
+        playoffStashScore: normalizeScore(isDynasty ? target.dimensions.stash : target.dimensions.startNow),
+        xBuzzScore,
+        acquisitionCostPenalty,
+      })
+
+      const playerSlug = `nfl_${target.playerName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`
+      const matchedEvent = eventByPlayerSlug.get(playerSlug)
+      const grokOverlayRaw = getOverlayFromSentiment(target.playerName)
+      const fused = fuseDecisionScore({
+        deepseekStructuredScore: structuredScore,
+        grokLiveOverlayAdjustment: grokOverlayRaw,
+        eventType: matchedEvent?.event_type,
+        eventConfidence: matchedEvent?.confidence,
+      })
+
+      const currentRosterSpotScore = normalizeScore((target.dropCandidate?.value ?? 1200) / 40)
+      const addDropDelta = computeAddDropDelta({
+        waiverTargetScore: structuredScore,
+        currentRosterSpotScore,
+      })
+
+      return {
+        playerName: target.playerName,
+        playerId: target.playerId,
+        deepseekStructuredScore: structuredScore,
+        fusedScore: fused.finalScore,
+        cappedGrokAdjustment: fused.cappedGrokAdjustment,
+        grokAdjustmentCap: fused.grokCap,
+        grokOverlayRaw,
+        addDropDelta,
+        recommendation: target.recommendation,
+        faabBid: target.faabBid,
+      }
+    })
+
+    legacyWaiverCandidates.sort((a, b) => b.fusedScore - a.fusedScore)
+    const topLegacyWaiver = legacyWaiverCandidates[0] || null
+
+    const waiverNotifications = {
+      private_dm:
+        topLegacyWaiver && (resolvedUserId || resolvedUsername)
+          ? buildPrivateWaiverCoachingNotification({
+              userId: resolvedUserId || resolvedUsername,
+              topPlayer: topLegacyWaiver.playerName,
+              action:
+                topLegacyWaiver.addDropDelta >= 12
+                  ? `Prioritize this claim now. Suggested bid: ${topLegacyWaiver.faabBid ?? 0}% FAAB.`
+                  : `Viable add, but keep bid disciplined at ${topLegacyWaiver.faabBid ?? 0}% FAAB.`,
+              confidence: topLegacyWaiver.fusedScore >= 75 ? 0.82 : topLegacyWaiver.fusedScore >= 65 ? 0.74 : 0.62,
+            })
+          : null,
+      league_chat: topLegacyWaiver
+        ? buildLeagueWaiverProcessedNotification({
+            leagueId: league_id,
+            playerName: topLegacyWaiver.playerName,
+            recommendation: topLegacyWaiver.recommendation,
+          })
+        : null,
+    }
+
     let narratives: Record<string, string> = {}
     let summary = ''
     let rosterNotes: string[] = []
@@ -683,6 +787,12 @@ Write narrative summary, per-player reasoning, and roster notes.`
       roster_count: userRosterCategorized.length,
       free_agent_count: freeAgents.length,
       remaining: rl.remaining,
+      legacyDecision: {
+        topCandidates: legacyWaiverCandidates.slice(0, 5),
+        topRecommendation: topLegacyWaiver,
+        grokDeltaEventsApplied: grokDeltaCacheWrites,
+      },
+      notificationsPreview: waiverNotifications,
       ...(offseasonContext ? { offseasonContext } : {}),
     })
   } catch (error: any) {

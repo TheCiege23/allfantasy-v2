@@ -3,7 +3,7 @@ const BEARER = process.env.ADMIN_BEARER_TOKEN || process.env.ADMIN_PASSWORD || "
 
 if (!PROD_URL) {
   console.error("Usage: node scripts/sync-questionnaire-to-prod.mjs <PROD_URL>");
-  console.error("Example: node scripts/sync-questionnaire-to-prod.mjs https://your-app.replit.app");
+  console.error("Example: node scripts/sync-questionnaire-to-prod.mjs https://your-app.example.com");
   process.exit(1);
 }
 
@@ -39,3 +39,5 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
+

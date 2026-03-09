@@ -94,12 +94,15 @@ export async function POST(req: Request) {
   )
 
   let pickDistribution: { publicPctA: number; publicPctB: number } | null = null
+  let advisoryOnly = false
   let leverage = null
   let sleeper = null
   let strategy = null
   let aiNarrative: string | undefined
 
   if (tournamentId && nodeId) {
+    const tournament = await prisma.bracketTournament.findUnique({ where: { id: String(tournamentId) }, select: { lockAt: true } })
+    advisoryOnly = Boolean(tournament?.lockAt && new Date(tournament.lockAt) <= new Date())
     const distributions = await computePickDistribution(tournamentId, [nodeId])
     const dist = distributions.get(nodeId)
 
@@ -180,5 +183,8 @@ export async function POST(req: Request) {
     sources,
     lastUpdated: new Date().toISOString(),
     dataDisclaimer: "Analysis based on historical seed performance data and pool pick distribution.",
+    advisoryOnly,
+    note: advisoryOnly ? "Tournament is locked. AI output is advisory-only." : undefined,
   })
 }
+

@@ -20,12 +20,24 @@ export async function POST(req: Request) {
 
   const entry = await prisma.bracketEntry.findUnique({
     where: { id: entryId },
-    select: { id: true, userId: true, league: { select: { tournamentId: true } } },
+    select: {
+      id: true,
+      userId: true,
+      league: {
+        select: {
+          tournamentId: true,
+          tournament: { select: { lockAt: true } },
+        },
+      },
+    },
   })
 
   if (!entry || entry.userId !== auth.userId) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 })
   }
+
+  const tournamentLockAt = entry.league.tournament?.lockAt
+  const advisoryOnly = Boolean(tournamentLockAt && new Date(tournamentLockAt) <= new Date())
 
   const [nodes, picks] = await Promise.all([
     prisma.bracketNode.findMany({
@@ -65,11 +77,17 @@ export async function POST(req: Request) {
         safePick,
         upsetPick,
         safeConfidence: confidenceFromSeeds(homeSeed, awaySeed),
-        insight: n.round >= 4
-          ? "Late rounds are high leverage. Favor teams with healthier rotations and recent momentum."
-          : "Early rounds: balance one upset dart with mostly value-preserving picks.",
+        insight:
+          n.round >= 4
+            ? "Late rounds are high leverage. Favor teams with healthier rotations and recent momentum."
+            : "Early rounds: balance one upset dart with mostly value-preserving picks.",
       }
     })
 
-  return NextResponse.json({ ok: true, recommendations })
+  return NextResponse.json({
+    ok: true,
+    advisoryOnly,
+    recommendations,
+    note: advisoryOnly ? "Tournament is locked. AI output is advisory-only." : undefined,
+  })
 }

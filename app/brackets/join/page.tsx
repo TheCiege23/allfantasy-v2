@@ -22,20 +22,27 @@ function JoinLeagueForm() {
     setError(null)
     setLoading(true)
 
+    const normalizedCode = code.trim().toUpperCase()
+    const returnTo = `/brackets/join?code=${encodeURIComponent(normalizedCode)}`
+
     try {
       const res = await fetch("/api/bracket/leagues/join", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ joinCode: code.trim().toUpperCase() }),
+        body: JSON.stringify({ joinCode: normalizedCode }),
       })
       const data = await res.json()
       if (!res.ok) {
+        if (data.error === "UNAUTHENTICATED") {
+          router.push(`/login?callbackUrl=${encodeURIComponent(returnTo)}`)
+          return
+        }
         if (data.error === "AGE_REQUIRED") {
-          router.push("/verify?error=AGE_REQUIRED")
+          router.push(`/verify?error=AGE_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
           return
         }
         if (data.error === "VERIFICATION_REQUIRED") {
-          router.push("/verify?error=VERIFICATION_REQUIRED")
+          router.push(`/verify?error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
           return
         }
         setError(data.error ?? "Failed to join pool")

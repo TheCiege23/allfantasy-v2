@@ -22,7 +22,7 @@ export type XaiToolWebSearch = {
 
 export type XaiTool = XaiToolXSearch | XaiToolWebSearch
 
-// ─── Chat Completions API types (legacy, no search tools) ───
+// --- Chat Completions API types (legacy, no search tools) ---
 
 export type XaiUsageDetails = {
   prompt_tokens?: number
@@ -84,9 +84,9 @@ export async function xaiChatJson(opts: {
   responseFormat?: { type: "text" | "json_object" }
   seed?: number
 }) : Promise<XaiChatJsonResult> {
-  const apiKey = process.env.XAI_API_KEY
+  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
   if (!apiKey) {
-    return { ok: false, status: 500, details: "Missing XAI_API_KEY env var" }
+    return { ok: false, status: 500, details: "Missing XAI_API_KEY/GROK_API_KEY env var" }
   }
 
   const hasSearchTools = opts.tools && opts.tools.length > 0
@@ -131,7 +131,7 @@ export async function xaiChatJson(opts: {
   return { ok: true, status: res.status, json }
 }
 
-// ─── Responses API types (current, supports search tools) ───
+// --- Responses API types (current, supports search tools) ---
 
 export type XaiResponsesAnnotation = {
   type?: string
@@ -308,9 +308,9 @@ export async function xaiResponsesJson(opts: {
   store?: boolean
   reasoning?: { effort?: "low" | "medium" | "high"; summary?: "auto" | "concise" | "detailed" }
 }): Promise<XaiResponsesJsonResult> {
-  const apiKey = process.env.XAI_API_KEY
+  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
   if (!apiKey) {
-    return { ok: false, status: 500, details: "Missing XAI_API_KEY env var" }
+    return { ok: false, status: 500, details: "Missing XAI_API_KEY/GROK_API_KEY env var" }
   }
 
   const input = opts.messages.map(m => ({
@@ -354,7 +354,7 @@ export async function xaiResponsesJson(opts: {
   return { ok: true, status: res.status, json }
 }
 
-// ─── Shared parsers ───
+// --- Shared parsers ---
 
 export function parseTextFromXaiChatCompletion(json: XaiChatCompletionResponse | any): string | null {
   const content = json?.choices?.[0]?.message?.content
@@ -422,3 +422,4 @@ export function parseRefusal(json: XaiChatCompletionResponse | any): string | nu
   const refusal = json?.choices?.[0]?.message?.refusal
   return typeof refusal === "string" ? refusal : null
 }
+

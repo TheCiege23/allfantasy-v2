@@ -248,7 +248,7 @@ export default function LoginContent() {
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-white/60">Password</label>
-                    <Link href="/forgot-password" className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
+                    <Link href={`/forgot-password?returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
                       Forgot password?
                     </Link>
                   </div>
@@ -419,3 +419,4 @@ export default function LoginContent() {
     </div>
   )
 }
+

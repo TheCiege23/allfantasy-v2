@@ -16,7 +16,19 @@ import { getUniversalAIContext } from "@/lib/ai-player-context"
 import {
   assembleLegacyAIContext,
   formatEnrichedContextForPrompt,
+  type EnrichedLegacyContext,
 } from "@/lib/legacy-ai-context"
+import { buildLegacyOrchestratorPlan } from "@/lib/legacy-tool/orchestrator"
+import { buildLegacyOffseasonBundle, type DraftWarRoomInput } from "@/lib/legacy-tool/offseason"
+import {
+  buildOffseasonDashboardData,
+  buildDraftWarRoomData,
+  buildTradeCommandCenterData,
+  buildOkEnvelope,
+  buildInsufficientDataEnvelope,
+  type LegacyScreenEnvelope,
+  type LegacyScreenName,
+} from "@/lib/legacy-tool/screen-contracts"
 
 const openai = new OpenAI({
   apiKey:
@@ -402,6 +414,7 @@ function buildLegacySnapshot(user: {
   const leagueHistory = standardLeagues.map((l) => {
     const roster = l.rosters[0]
     return {
+      id: l.id,
       name: l.name,
       season: l.season,
       type: l.leagueType,
@@ -588,6 +601,24 @@ function buildEnrichmentPriorityBrief(audit: LegacyAudit): string {
   return `Data coverage priority: ${active || "importedLeague(100%)"} | missing=${missing} | partial=${audit.partialData}`
 }
 
+function buildLegacyExecutionPlan(args: {
+  requestText?: string
+  audit: LegacyAudit
+}) {
+  const sources = new Set(args.audit.sourcesUsed)
+  return buildLegacyOrchestratorPlan({
+    requestText: args.requestText,
+    hasLeagueContext: true,
+    hasRosterContext: true,
+    hasPlayerStates: sources.has("fantasyCalc") || sources.has("rollingInsights"),
+    hasTeamStates: sources.has("rollingInsights"),
+    needsGrokOverlay: sources.has("newsApi"),
+    needsSimulation: false,
+    needsCommissionerAlertCheck: false,
+    priority: "medium",
+  })
+}
+
 function normalizeLegacyResponse(
   aiResponse: Record<string, unknown>,
   snapshot: ReturnType<typeof buildLegacySnapshot>,
@@ -688,6 +719,93 @@ function normalizeLegacyResponse(
     citations: normalizeCitations(aiResponse.citations, audit),
   }
 }
+function createRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+function buildLegacyScreenContracts(args: {
+  requestId: string
+  snapshot: ReturnType<typeof buildLegacySnapshot>
+  offseason: ReturnType<typeof buildLegacyOffseasonBundle>
+  enrichedContext: EnrichedLegacyContext | null
+  draftInput?: DraftWarRoomInput
+  reportSignal?: {
+    title?: string
+    archetype?: string
+    window_status?: string
+    next_season_advice?: string
+    insights?: {
+      strengths?: string[]
+      weaknesses?: string[]
+      improvement_tips?: string[]
+    }
+  }
+  audit: LegacyAudit
+  userId: string
+}): Record<LegacyScreenName, LegacyScreenEnvelope<unknown>> {
+  const usedLiveNewsOverlay = args.audit.sourcesUsed.includes('newsApi')
+
+  const offseasonDashboardData = buildOffseasonDashboardData({
+    snapshot: args.snapshot as any,
+    offseason: args.offseason,
+    enrichedContext: args.enrichedContext,
+    reportSignal: args.reportSignal,
+    userId: args.userId,
+  })
+
+  const tradeCommandCenterData = buildTradeCommandCenterData({
+    snapshot: args.snapshot as any,
+    offseason: args.offseason,
+  })
+
+  const missingDraftFields: string[] = []
+  if (!args.draftInput?.pick_number) missingDraftFields.push('draft_order')
+  if (!args.draftInput?.available_players?.length) missingDraftFields.push('available_players')
+  if (!args.enrichedContext?.currentRosters?.length) missingDraftFields.push('user_roster')
+  if (!args.enrichedContext?.currentRosters?.[0]) missingDraftFields.push('league_scoring')
+
+  const draftEnvelope =
+    missingDraftFields.length > 0
+      ? buildInsufficientDataEnvelope({
+          requestId: args.requestId,
+          screen: 'draft_war_room',
+          missingFields: missingDraftFields,
+          message: 'Draft War Room requires draft order, user roster, and league scoring settings.',
+          usedLiveNewsOverlay,
+        })
+      : buildOkEnvelope({
+          requestId: args.requestId,
+          screen: 'draft_war_room',
+          data: buildDraftWarRoomData({
+            offseason: args.offseason,
+            draftInput: args.draftInput,
+          }),
+          confidence: 0.81,
+          usedSimulation: true,
+          usedLiveNewsOverlay,
+        })
+
+  return {
+    offseason_dashboard: buildOkEnvelope({
+      requestId: args.requestId,
+      screen: 'offseason_dashboard',
+      data: offseasonDashboardData,
+      confidence: 0.84,
+      usedSimulation: false,
+      usedLiveNewsOverlay,
+    }),
+    draft_war_room: draftEnvelope,
+    trade_command_center: buildOkEnvelope({
+      requestId: args.requestId,
+      screen: 'trade_command_center',
+      data: tradeCommandCenterData,
+      confidence: 0.8,
+      usedSimulation: false,
+      usedLiveNewsOverlay,
+    }),
+  }
+}
+
 export const POST = withApiUsage({
   endpoint: "/api/legacy/ai/run",
   tool: "LegacyAiRun",
@@ -705,6 +823,10 @@ export const POST = withApiUsage({
 
     const body = await request.json()
     const { sleeper_username, force_refresh } = body
+    const draftInput: DraftWarRoomInput | undefined =
+      body?.draft_input && typeof body.draft_input === "object"
+        ? (body.draft_input as DraftWarRoomInput)
+        : undefined
 
     if (!sleeper_username) {
       return NextResponse.json({ error: "Missing sleeper_username" }, { status: 400 })
@@ -729,6 +851,10 @@ export const POST = withApiUsage({
       )
     }
 
+    const snapshot = buildLegacySnapshot(user)
+    const requestId = createRequestId()
+    const requestedScreen = typeof body?.screen === "string" ? (body.screen as LegacyScreenName) : null
+
     if (force_refresh && user.aiReports.length > 0) {
       await prisma.legacyAIReport.deleteMany({
         where: { userId: user.id, reportType: "legacy" },
@@ -738,10 +864,54 @@ export const POST = withApiUsage({
     if (!force_refresh && user.aiReports.length > 0) {
       const existingReport = user.aiReports[0]
       const insights = existingReport.insights as Record<string, unknown> | null
+      const cachedAudit: LegacyAudit = {
+        partialData: false,
+        sourcesUsed: ["importedLeague"],
+        missingSources: [],
+        dataFreshness: { importedLeague: existingReport.createdAt.toISOString() },
+      }
+      const cachedReportSignal = {
+        title: existingReport.title || undefined,
+        archetype: typeof insights?.archetype === "string" ? insights.archetype : undefined,
+        window_status: typeof insights?.window_status === "string" ? insights.window_status : undefined,
+        next_season_advice:
+          typeof insights?.next_season_advice === "string"
+            ? insights.next_season_advice
+            : undefined,
+        insights: {
+          strengths: Array.isArray(insights?.strengths) ? (insights?.strengths as string[]) : [],
+          weaknesses: Array.isArray(insights?.weaknesses) ? (insights?.weaknesses as string[]) : [],
+          improvement_tips: Array.isArray(insights?.improvement_tips)
+            ? (insights?.improvement_tips as string[])
+            : [],
+        },
+      }
+      const cachedOffseason = buildLegacyOffseasonBundle({
+        snapshot: snapshot as any,
+        enrichedContext: null,
+        draftInput,
+        reportSignal: cachedReportSignal,
+      })
+      const cachedScreenContracts = buildLegacyScreenContracts({
+        requestId,
+        snapshot,
+        offseason: cachedOffseason,
+        enrichedContext: null,
+        draftInput,
+        reportSignal: cachedReportSignal,
+        audit: cachedAudit,
+        userId: user.id,
+      })
+      const cachedScreenResponse = requestedScreen ? cachedScreenContracts[requestedScreen] : null
 
       return NextResponse.json({
         success: true,
         cached: true,
+        offseason: cachedOffseason,
+        orchestration_plan: buildLegacyExecutionPlan({
+          requestText: body?.request_text,
+          audit: cachedAudit,
+        }),
         report: {
           rating: existingReport.rating,
           title: existingReport.title,
@@ -765,19 +935,17 @@ export const POST = withApiUsage({
           citations: Array.isArray(insights?.citations) ? insights.citations : [],
           created_at: existingReport.createdAt,
         },
-        audit: {
-          partialData: false,
-          sourcesUsed: ["importedLeague"],
-          missingSources: [],
-          dataFreshness: { importedLeague: existingReport.createdAt.toISOString() },
-        },
+        audit: cachedAudit,
+        request_id: requestId,
+        screen_response: cachedScreenResponse,
+        screen_contracts: cachedScreenContracts,
+        ui_tabs: ["offseason_dashboard", "draft_war_room", "trade_command_center"],
       })
     }
 
-    const snapshot = buildLegacySnapshot(user)
-
     let enrichmentBlock = ""
     const now = new Date().toISOString()
+    let enrichedContext: EnrichedLegacyContext | null = null
 
     let enrichmentAudit: LegacyAudit = {
       partialData: false,
@@ -788,6 +956,7 @@ export const POST = withApiUsage({
 
     try {
       const enriched = await assembleLegacyAIContext(prisma, user as any, snapshot as any)
+      enrichedContext = enriched
       enrichmentBlock = formatEnrichedContextForPrompt(enriched)
 
       const sa = enriched.sourceAudit
@@ -897,9 +1066,39 @@ Generate a comprehensive rating and analysis.`
 
     trackLegacyToolUsage("legacy_ai_run", user.id)
 
+    const normalizedReportSignal = {
+      title: normalized.title,
+      archetype: normalized.archetype,
+      window_status: normalized.window_status,
+      next_season_advice: normalized.next_season_advice,
+      insights: normalized.insights,
+    }
+    const offseasonBundle = buildLegacyOffseasonBundle({
+      snapshot: snapshot as any,
+      enrichedContext,
+      draftInput,
+      reportSignal: normalizedReportSignal,
+    })
+    const screenContracts = buildLegacyScreenContracts({
+      requestId,
+      snapshot,
+      offseason: offseasonBundle,
+      enrichedContext,
+      draftInput,
+      reportSignal: normalizedReportSignal,
+      audit: enrichmentAudit,
+      userId: user.id,
+    })
+    const screenResponse = requestedScreen ? screenContracts[requestedScreen] : null
+
     return NextResponse.json({
       success: true,
       cached: false,
+      offseason: offseasonBundle,
+      orchestration_plan: buildLegacyExecutionPlan({
+        requestText: body?.request_text,
+        audit: enrichmentAudit,
+      }),
       report: {
         rating: normalized.rating,
         title: normalized.title,
@@ -918,6 +1117,10 @@ Generate a comprehensive rating and analysis.`
         citations: normalized.citations,
       },
       audit: enrichmentAudit,
+      request_id: requestId,
+      screen_response: screenResponse,
+      screen_contracts: screenContracts,
+      ui_tabs: ["offseason_dashboard", "draft_war_room", "trade_command_center"],
     })
   } catch (error) {
     console.error("Legacy AI run error:", error)
@@ -927,4 +1130,5 @@ Generate a comprehensive rating and analysis.`
     )
   }
 })
+
 

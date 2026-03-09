@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import RosterLegacyReport from '@/app/components/RosterLegacyReport';
 import SyncedRosters from '@/app/components/SyncedRosters';
 import WaiverAI from '@/app/components/WaiverAI';
@@ -23,6 +24,9 @@ export default function LegacyOverview() {
   const [activeTab, setActiveTab] = useState<'overview' | 'trade' | 'waiver' | 'chat' | 'mock-draft' | 'ideas' | 'transfer'>('overview');
   const [mockLeagues, setMockLeagues] = useState<LeagueOption[]>([]);
   const [mockLoading, setMockLoading] = useState(false);
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === 'authenticated';
+  const protectedTabs: Array<'trade' | 'waiver' | 'chat' | 'mock-draft' | 'ideas' | 'transfer'> = ['trade', 'waiver', 'chat', 'mock-draft', 'ideas', 'transfer'];
 
   useEffect(() => {
     let mounted = true;
@@ -52,8 +56,7 @@ export default function LegacyOverview() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="border-b border-white/10 bg-black/70 backdrop-blur-2xl sticky top-0 z-50">
+    <div className="min-h-screen bg-[#0a0a0f] text-white">      <div className="border-b border-white/10 bg-black/70 backdrop-blur-2xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-11 h-11 bg-gradient-to-br from-purple-600 via-cyan-400 to-indigo-500 rounded-2xl flex items-center justify-center text-3xl shadow-xl">
@@ -68,20 +71,27 @@ export default function LegacyOverview() {
             </div>
           </div>
 
-          <div className="flex items-center gap-8 text-sm">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-cyan-400">448</div>
-              <div className="text-xs text-slate-400">Leagues</div>
+          {!isAuthenticated ? (
+            <div className="flex items-center gap-3">
+              <Link href="/login?next=/legacy" className="px-4 py-2 rounded-lg border border-white/20 text-sm hover:bg-white/10 transition-colors">Sign In</Link>
+              <Link href="/signup?next=/legacy" className="px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-slate-200 transition-colors">Sign Up</Link>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-emerald-400">2918-3664-63</div>
-              <div className="text-xs text-slate-400">W-L-T Record</div>
+          ) : (
+            <div className="flex items-center gap-8 text-sm">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-cyan-400">448</div>
+                <div className="text-xs text-slate-400">Leagues</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-emerald-400">2918-3664-63</div>
+                <div className="text-xs text-slate-400">W-L-T Record</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-400">11</div>
+                <div className="text-xs text-slate-400">Ships</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-purple-400">11</div>
-              <div className="text-xs text-slate-400">Ships</div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -107,23 +117,35 @@ export default function LegacyOverview() {
           { id: 'mock-draft', label: 'Mock Draft AI', icon: '🧠' },
           { id: 'ideas', label: 'Submit Ideas', icon: '💡' },
           { id: 'transfer', label: 'Transfer', icon: '🔄' },
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`px-6 py-3 rounded-2xl flex items-center gap-3 text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'bg-white text-black shadow-lg'
-                : 'bg-white/5 hover:bg-white/10'
-            }`}
-          >
-            <span>{tab.icon}</span>
-            {tab.label}
-          </button>
-        ))}
+        ].map(tab => {
+          const isProtected = protectedTabs.includes(tab.id as any);
+          const isDisabled = isProtected && !isAuthenticated;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                if (!isDisabled) setActiveTab(tab.id as any);
+              }}
+              disabled={isDisabled}
+              title={isDisabled ? 'Sign in to use this tab' : undefined}
+              className={`px-6 py-3 rounded-2xl flex items-center gap-3 text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-white text-black shadow-lg'
+                  : 'bg-white/5 hover:bg-white/10'
+              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pt-10 pb-20">
+        {!isAuthenticated && protectedTabs.includes(activeTab as any) ? (
+          <LegacyAuthGate />
+        ) : (
+          <>
         {activeTab === 'overview' && (
           <>
             <div className="mb-16">
@@ -286,7 +308,33 @@ export default function LegacyOverview() {
             <p className="text-sm text-slate-500 mt-4">Coming soon — seamless cross-platform league transfers.</p>
           </div>
         )}
+          </>
+        )}
       </div>
     </div>
   );
 }
+
+
+
+
+
+
+
+function LegacyAuthGate() {
+  return (
+    <div className="rounded-2xl border border-white/15 bg-white/5 p-8 text-center space-y-4">
+      <h2 className="text-2xl font-bold">Sign in to unlock Legacy AI tools</h2>
+      <p className="text-sm text-slate-300 max-w-xl mx-auto">
+        Trade AI, Waiver AI, Mock Draft AI, and league-transfer actions require an account so your results, imports, and AI context stay synced.
+      </p>
+      <div className="flex items-center justify-center gap-3">
+        <Link href="/login?next=/legacy" className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10">Sign In</Link>
+        <Link href="/signup?next=/legacy" className="rounded-lg bg-white text-black px-4 py-2 text-sm font-semibold hover:bg-slate-200">Create Account</Link>
+      </div>
+    </div>
+  );
+}
+
+
+

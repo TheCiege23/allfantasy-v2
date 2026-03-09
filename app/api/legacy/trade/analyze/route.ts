@@ -7,7 +7,7 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { evaluateTrade, formatEvaluationForAI, TradeAsset as TierTradeAsset, LeagueSettings, detectIDPFromRosterPositions, detectSFFromRosterPositions } from '@/lib/dynasty-tiers'
 import { getPlayerValuesForNames, formatValuesForPrompt, FantasyCalcSettings, calculateTradeBalance, getPickValue } from '@/lib/fantasycalc'
-import { buildTradeHubIntelBlock } from '@/lib/trade-engine/trade-analyzer-intel'
+import { buildTradeHubIntelBlock, parseTradeIntelBlockMeta } from '@/lib/trade-engine/trade-analyzer-intel'
 import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 import { buildRuntimeConstraints, formatConstraintsForPrompt, DEFAULT_TRADE_CONSTRAINTS, getPickValueWithRange, getPickRange } from '@/lib/trade-constraints'
 import { buildHistoricalTradeContext, getDataInfo } from '@/lib/historical-values'
@@ -30,6 +30,15 @@ import { logTradeOfferEvent } from '@/lib/trade-engine/trade-event-logger'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { runTradeAnalysis } from '@/lib/engine/trade'
 import type { TradeEngineRequest as EngineTradeReq, TradeAssetUnion } from '@/lib/engine/trade-types'
+import { computeTradeFairnessScore, computeTradeRecommendationScore, normalizeScore } from '@/lib/legacy-tool/scoring'
+import { fuseDecisionScore } from '@/lib/legacy-tool/fusion'
+import { evaluateCommissionerAlert } from '@/lib/legacy-tool/fairness'
+import { normalizeGrokSignalsToDeltaEvents, persistGrokDeltaEvents } from '@/lib/legacy-tool/grok-delta'
+import {
+  buildPrivateTradeCoachingNotification,
+  buildLeagueTradeProcessedNotification,
+  buildCommissionerFairnessNotification,
+} from '@/lib/legacy-tool/notifications'
 
 type Sport = 'nfl' | 'nba'
 type RosterSlot = 'Starter' | 'Bench' | 'IR' | 'Taxi'
@@ -1426,33 +1435,6 @@ type TradeProviderAudit = {
   disagreements: string[]
 }
 
-function parseExternalIntelMeta(externalIntel: string): {
-  normalizedSignalCount: number | null
-  sourceWeighting: string[]
-  newsItems: number
-} {
-  if (!externalIntel) {
-    return { normalizedSignalCount: null, sourceWeighting: [], newsItems: 0 }
-  }
-
-  const normalizedMatch = externalIntel.match(/Normalized TradeIntelSignal count:\s*(\d+)/i)
-  const newsMatch = externalIntel.match(/News:\s*(\d+)\s*items/i)
-  const weightingMatch = externalIntel.match(/Source weighting:\s*(.+)/i)
-
-  const sourceWeighting = weightingMatch?.[1]
-    ? weightingMatch[1]
-        .split(',')
-        .map((v) => v.trim())
-        .filter(Boolean)
-    : []
-
-  return {
-    normalizedSignalCount: normalizedMatch ? Number(normalizedMatch[1]) : null,
-    sourceWeighting,
-    newsItems: newsMatch ? Number(newsMatch[1]) : 0,
-  }
-}
-
 function buildTradeIntelReconciliationDirective(audit: TradeProviderAudit): string {
   const weighting = audit.sourceCoverage.sourceWeighting.length
     ? audit.sourceCoverage.sourceWeighting.join(' | ')
@@ -1976,6 +1958,9 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
         return [] as Array<{ playerName: string; sentiment: string; news: string[]; buzz: string }>;
       }),
     ])
+
+    const grokDeltaEvents = normalizeGrokSignalsToDeltaEvents(playerNews || [])
+    const grokDeltaCacheWrites = await persistGrokDeltaEvents(grokDeltaEvents).catch(() => 0)
     
     let newsValueAdjustments: NewsValueAdjustment[] = []
     let newsAdjustedCalcMap = fantasyCalcMap
@@ -2333,7 +2318,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       isSuperflex: /superflex|2qb/i.test(String(leagueType || '')),
     }).catch(() => '')
 
-    const externalIntelMeta = parseExternalIntelMeta(externalIntel)
+    const externalIntelMeta = parseTradeIntelBlockMeta(externalIntel)
     const providerAudit: TradeProviderAudit = {
       providers: {
         openai: 'Final synthesis, recommendation framing, and user-facing decision language',
@@ -2654,6 +2639,110 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       console.error('Analytics engines error (non-fatal):', analyticsErr)
     }
 
+    const scoreToEdge = (score?: number | null): number => {
+      if (typeof score !== 'number' || !Number.isFinite(score)) return 0
+      if (score >= 0 && score <= 1) return (score - 0.5) * 200
+      if (score >= 0 && score <= 100) return score - 50
+      return 0
+    }
+
+    const sideAScore = tradeBalance?.sideAValue ?? 0
+    const sideBScore = tradeBalance?.sideBValue ?? 0
+    const maxSideScore = Math.max(sideAScore, sideBScore, 1)
+    const fairnessScore = tradeBalance
+      ? computeTradeFairnessScore({
+          sideAScore,
+          sideBScore,
+          fairnessScale: 100 / maxSideScore,
+        })
+      : normalizeScore((tradeDriverData?.totalScore as number | undefined) ?? 50)
+
+    const rawValueEdge = tradeBalance
+      ? ((sideAScore - sideBScore) / maxSideScore) * 100
+      : scoreToEdge((tradeDriverData?.marketScore as number | undefined) ?? 0.5)
+
+    const teamFitEdge = scoreToEdge((tradeDriverData?.behaviorScore as number | undefined) ?? 0.5)
+    const shortTermEdge = scoreToEdge((tradeDriverData?.lineupImpactScore as number | undefined) ?? 0.5)
+    const longTermEdge = scoreToEdge((tradeDriverData?.vorpScore as number | undefined) ?? 0.5)
+    const riskAdjustedEdge =
+      (crResult?.confidenceScore01 ? crResult.confidenceScore01 * 100 - 50 : 0) -
+      (crResult?.riskTags?.length || 0) * 2
+    const playoffEdge = analyticsEnhanced?.championshipDelta?.delta
+      ? analyticsEnhanced.championshipDelta.delta * 100
+      : 0
+
+    const tradeRecommendationScore = computeTradeRecommendationScore({
+      rawValueEdge,
+      teamFitEdge,
+      shortTermEdge,
+      longTermEdge,
+      riskAdjustedEdge,
+      playoffEdge,
+    })
+
+    const deepseekStructuredScore = normalizeScore(50 + tradeRecommendationScore)
+
+    const grokOverlayRaw =
+      newsValueAdjustments.length > 0
+        ? newsValueAdjustments.reduce((sum, adj) => sum + ((adj.multiplier ?? 1) - 1) * 100, 0) /
+          newsValueAdjustments.length
+        : 0
+
+    const dominantGrokEventType = grokDeltaEvents[0]?.event?.event_type ?? null
+    const dominantGrokConfidence = grokDeltaEvents[0]?.event?.confidence ?? 0.7
+
+    const fusedDecision = fuseDecisionScore({
+      deepseekStructuredScore,
+      grokLiveOverlayAdjustment: grokOverlayRaw,
+      eventType: dominantGrokEventType,
+      eventConfidence: dominantGrokConfidence,
+    })
+
+    const recommendationLabel: 'accept' | 'counter' | 'reject' =
+      tradeRecommendationScore >= 15
+        ? 'accept'
+        : tradeRecommendationScore <= -15
+          ? 'reject'
+          : 'counter'
+
+    const commissionerAlert = evaluateCommissionerAlert({
+      tradeFairnessScore: fairnessScore,
+      repeatedHighImbalanceBetweenSameManagers: false,
+      packageContainsEliteAssetNoPremiumReturn: fairnessScore < 45 && Math.abs(rawValueEdge) > 20,
+      inactiveManagerExtremeValueLoss: fairnessScore < 35,
+    })
+
+    const notifications = {
+      private_dm: canonicalA
+        ? buildPrivateTradeCoachingNotification({
+            userId: canonicalA,
+            recommendation: recommendationLabel,
+            summary:
+              recommendationLabel === 'accept'
+                ? 'This profile grades as actionable; execute if roster fit holds.'
+                : recommendationLabel === 'reject'
+                  ? 'Risk profile is elevated; decline unless terms materially improve.'
+                  : 'Value is close; counter with a smaller value swing.',
+            confidence: crResult.confidenceScore01,
+          })
+        : null,
+      league_chat: leagueId
+        ? buildLeagueTradeProcessedNotification({
+            leagueId,
+            sideA: assetsA.map((a: any) => a.player?.name || String((a.pick?.year ?? '') + ' R' + (a.pick?.round ?? ''))),
+            sideB: assetsB.map((a: any) => a.player?.name || String((a.pick?.year ?? '') + ' R' + (a.pick?.round ?? ''))),
+          })
+        : null,
+      commissioner_alert:
+        commissionerAlert.required && leagueId
+          ? buildCommissionerFairnessNotification({
+              leagueId,
+              reasonCodes: commissionerAlert.reason_codes,
+              severity: commissionerAlert.severity,
+            })
+          : null,
+    }
+
     logTradeOfferEvent({
       leagueId: leagueId || null,
       senderUserId: canonicalA || null,
@@ -2795,6 +2884,19 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
             headlines: a.newsHeadlines,
           })),
       } : {}),
+      legacyDecision: {
+        tradeFairnessScore: fairnessScore,
+        tradeRecommendationScore,
+        recommendation: recommendationLabel,
+        deepseekStructuredScore,
+        grokOverlayRaw,
+        fusedScore: fusedDecision.finalScore,
+        cappedGrokAdjustment: fusedDecision.cappedGrokAdjustment,
+        grokAdjustmentCap: fusedDecision.grokCap,
+        commissionerAlert,
+        grokDeltaEventsApplied: grokDeltaCacheWrites,
+      },
+      notificationsPreview: notifications,
       validated: true,
       rate_limit: { remaining: rlPair.remaining, retryAfterSec: rlPair.retryAfterSec },
     })
@@ -2806,4 +2908,5 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
     )
   }
 })
+
 

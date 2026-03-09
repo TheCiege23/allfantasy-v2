@@ -53,6 +53,11 @@ export async function PATCH(
       "insurancePerEntry",
       "upsetDeltaEnabled",
       "leverageBonusEnabled",
+      "tiebreakerEnabled",
+      "tiebreakerType",
+      "roundPoints",
+      "incompleteEntryPolicy",
+      "bracketType",
     ]
 
     const updatedRules = { ...currentRules }
@@ -61,8 +66,37 @@ export async function PATCH(
         updatedRules[field] = body[field]
       }
     }
+
     if (body.scoringMode) {
       updatedRules.mode = body.scoringMode
+    }
+
+    if (updatedRules.maxEntriesPerUser !== undefined) {
+      updatedRules.maxEntriesPerUser = Math.min(25, Math.max(1, Number(updatedRules.maxEntriesPerUser)))
+    }
+
+    if (updatedRules.entriesPerUserFree !== undefined) {
+      const maxEntries = Number(updatedRules.maxEntriesPerUser || 1)
+      updatedRules.entriesPerUserFree = Math.min(maxEntries, Math.max(1, Number(updatedRules.entriesPerUserFree)))
+    }
+
+    if (updatedRules.pickVisibility !== undefined) {
+      updatedRules.pickVisibility =
+        updatedRules.pickVisibility === "hidden_until_lock" ? "hidden_until_lock" : "visible"
+    }
+
+    if (updatedRules.tiebreakerType !== undefined) {
+      updatedRules.tiebreakerType =
+        updatedRules.tiebreakerType === "championship_total_points" ? "championship_total_points" : "none"
+    }
+
+    if (updatedRules.incompleteEntryPolicy !== undefined) {
+      updatedRules.incompleteEntryPolicy =
+        updatedRules.incompleteEntryPolicy === "auto_favorite" ? "auto_favorite" : "invalid_incomplete"
+    }
+
+    if (updatedRules.bracketType !== undefined) {
+      updatedRules.bracketType = updatedRules.bracketType === "mens_ncaa" ? "mens_ncaa" : "mens_ncaa"
     }
 
     await (prisma as any).bracketLeague.update({

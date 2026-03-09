@@ -101,20 +101,18 @@ function isDevelopment(): boolean {
 
 export function validateRequestOrigin(req: NextRequest): boolean {
   if (isDevelopment()) return true
-  
+
   const origin = req.headers.get('origin')
   const referer = req.headers.get('referer')
-  
+
   if (origin) {
     if (ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed))) return true
-    if (origin.includes('.replit.dev') || origin.includes('.repl.co')) return true
   }
-  
+
   if (referer) {
     if (ALLOWED_ORIGINS.some(allowed => referer.startsWith(allowed))) return true
-    if (referer.includes('.replit.dev') || referer.includes('.repl.co')) return true
   }
-  
+
   return false
 }
 
@@ -173,3 +171,5 @@ export function unauthorizedResponse(message = 'Unauthorized'): NextResponse {
 export function forbiddenResponse(message = 'Forbidden'): NextResponse {
   return NextResponse.json({ error: message }, { status: 403 })
 }
+
+

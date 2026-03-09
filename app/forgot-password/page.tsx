@@ -2,9 +2,15 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, Mail, Loader2, CheckCircle2 } from "lucide-react"
 
 export default function ForgotPasswordPage() {
+  const searchParams = useSearchParams()
+  const requestedReturnTo = searchParams?.get("returnTo") || ""
+  const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(safeReturnTo)}`
+
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -18,7 +24,7 @@ export default function ForgotPasswordPage() {
       await fetch("/api/auth/password/reset/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), returnTo: safeReturnTo }),
       })
       setSent(true)
     } catch {
@@ -40,7 +46,7 @@ export default function ForgotPasswordPage() {
             If an account exists for <span className="text-white/80 font-medium">{email}</span>, we sent a password reset link. The link expires in 30 minutes.
           </p>
           <Link
-            href="/login"
+            href={loginHref}
             className="inline-block rounded-xl bg-white/10 border border-white/10 px-6 py-2.5 text-sm font-medium hover:bg-white/15 transition"
           >
             Back to Sign In
@@ -53,7 +59,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
       <Link
-        href="/login"
+        href={loginHref}
         className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
       >
         <ArrowLeft className="h-4 w-4" />

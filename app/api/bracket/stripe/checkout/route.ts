@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getStripeClient } from "@/lib/stripe-client"
+import { getBaseUrl } from "@/lib/get-base-url"
 
 export async function POST(req: NextRequest) {
   try {
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
     }
 
     const price = prices.data[0]
-    const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(",")[0]}`
+    const baseUrl = getBaseUrl()
 
     const checkoutSession = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -137,3 +138,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Checkout failed" }, { status: 500 })
   }
 }
+
+

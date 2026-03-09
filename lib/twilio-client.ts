@@ -21,12 +21,23 @@ export function getTwilioClient() {
   }
 
   const accountSid = getRequiredEnv("TWILIO_ACCOUNT_SID")
-  const apiKey = getRequiredEnv("TWILIO_API_KEY")
-  const apiKeySecret = getRequiredEnv("TWILIO_API_SECRET")
+  const apiKey = process.env.TWILIO_API_KEY?.trim()
+  const apiKeySecret = process.env.TWILIO_API_SECRET?.trim()
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
 
-  twilioClient = twilio(apiKey, apiKeySecret, { accountSid })
+  if (apiKey && apiKeySecret) {
+    twilioClient = twilio(apiKey, apiKeySecret, { accountSid })
+    return twilioClient
+  }
 
-  return twilioClient
+  if (authToken) {
+    twilioClient = twilio(accountSid, authToken)
+    return twilioClient
+  }
+
+  throw new Error(
+    "Twilio credentials missing. Set TWILIO_API_KEY + TWILIO_API_SECRET, or TWILIO_AUTH_TOKEN."
+  )
 }
 
 export function getTwilioFromPhoneNumber() {

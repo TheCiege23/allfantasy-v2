@@ -259,7 +259,7 @@ function PoolTab({
               Create an entry to start picking winners
             </p>
           </div>
-          <CreateEntryButton leagueId={leagueId} />
+          <CreateEntryButton leagueId={leagueId} tiebreakerEnabled={Boolean(scoringRules?.tiebreakerEnabled)} />
         </div>
       )}
 
@@ -401,6 +401,25 @@ const SCORING_MODES: { id: ScoringMode; label: string; desc: string }[] = [
   { id: 'streak_survival', label: 'Streak & Survival', desc: 'Streak bonuses scaling deeper' },
 ]
 
+function getDefaultRoundPoints(mode: ScoringMode): Record<number, number> {
+  if (mode === "fancred_edge") return { 1: 1, 2: 2, 3: 5, 4: 10, 5: 18, 6: 30 }
+  return { 1: 1, 2: 2, 3: 4, 4: 8, 5: 16, 6: 32 }
+}
+
+function normalizeRoundPoints(raw: any, mode: ScoringMode): Record<number, number> {
+  const fallback = getDefaultRoundPoints(mode)
+  if (!raw || typeof raw !== "object") return fallback
+  const out: Record<number, number> = { ...fallback }
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const round = Number(k)
+    const value = Number(v)
+    if (Number.isFinite(round) && Number.isFinite(value) && round >= 1 && round <= 6) {
+      out[round] = Math.max(0, Math.round(value))
+    }
+  }
+  return out
+}
+
 function getScoringTable(mode: ScoringMode) {
   if (mode === 'fancred_edge') {
     return [
@@ -473,6 +492,10 @@ function SettingsPanel({
 }) {
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode)
   const [saving, setSaving] = useState(false)
+  const [roundPoints, setRoundPoints] = useState<Record<number, number>>(
+    normalizeRoundPoints(scoringRules?.roundPoints, initialScoringMode)
+  )
+  const [savingRoundPoints, setSavingRoundPoints] = useState(false)
 
   const canEdit = useMemo(() => {
     if (isOwner) return true
@@ -493,6 +516,22 @@ function SettingsPanel({
       })
     } catch {}
     setSaving(false)
+    if (!scoringRules?.roundPoints) {
+      setRoundPoints(getDefaultRoundPoints(mode))
+    }
+  }
+
+  async function saveRoundPoints() {
+    if (!canEdit) return
+    setSavingRoundPoints(true)
+    try {
+      await fetch(`/api/bracket/leagues/${leagueId}/settings`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ roundPoints }),
+      })
+    } catch {}
+    setSavingRoundPoints(false)
   }
 
   const scoring = getScoringTable(scoringMode)
@@ -555,6 +594,52 @@ function SettingsPanel({
           </tbody>
         </table>
 
+        <div className="px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Round Points Override
+            </div>
+            {savingRoundPoints && <span className="text-[10px]" style={{ color: '#fb923c' }}>saving...</span>}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[1, 2, 3, 4, 5, 6].map((round) => (
+              <label key={round} className="text-[10px]" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                R{round}
+                <input
+                  type="number"
+                  min={0}
+                  value={roundPoints[round] ?? 0}
+                  onChange={(e) => setRoundPoints((prev) => ({
+                    ...prev,
+                    [round]: Math.max(0, Number(e.target.value || 0)),
+                  }))}
+                  disabled={!canEdit}
+                  className="mt-1 w-full rounded-md bg-black/25 border border-white/10 px-2 py-1 text-xs text-white"
+                />
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={!canEdit || savingRoundPoints}
+              onClick={() => setRoundPoints(getDefaultRoundPoints(scoringMode))}
+              className="text-[10px] px-2 py-1 rounded-md"
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)' }}
+            >
+              Reset Defaults
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit || savingRoundPoints}
+              onClick={saveRoundPoints}
+              className="text-[10px] px-2 py-1 rounded-md"
+              style={{ background: 'rgba(251,146,60,0.15)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.2)' }}
+            >
+              Save Round Points
+            </button>
+          </div>
+        </div>
         {scoringMode === 'momentum' && (
           <div className="px-4 py-2 text-[10px]" style={{ color: 'rgba(255,255,255,0.3)', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
             Upset bonus scales with seed gap and round depth. Rewards correctly picking upsets deeper in the tournament.
@@ -623,6 +708,15 @@ function SettingsPanel({
         <div className="text-[10px] font-semibold uppercase tracking-wider px-4 py-2" style={{ color: 'rgba(255,255,255,0.3)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
           Entry Controls
         </div>
+        <EntryControlRow
+          label="Enable Tiebreaker"
+          description="Use championship total points guess as tie-break"
+          field="tiebreakerEnabled"
+          isOwner={canEdit}
+          leagueId={leagueId}
+          initialValue={Boolean(scoringRules?.tiebreakerEnabled)}
+        />
+
         <EntryControlRow
           label="Allow Copy Bracket"
           description="Let members copy existing brackets"
@@ -1311,4 +1405,13 @@ function PublicPoolsTab({ tournamentId }: { tournamentId: string }) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
 

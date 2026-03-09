@@ -199,6 +199,7 @@ function MiniCell({
   isInsured,
   onToggleInsurance,
   insuranceEnabled,
+  eliminatedTeams,
   x,
   y,
 }: {
@@ -216,6 +217,7 @@ function MiniCell({
   isInsured?: boolean
   onToggleInsurance?: (nodeId: string) => void
   insuranceEnabled?: boolean
+  eliminatedTeams: Set<string>
   x: number
   y: number
 }) {
@@ -233,6 +235,10 @@ function MiniCell({
   const awayCorrect = isComplete && awayPicked && winner === awayName
   const homeWrong = isComplete && homePicked && winner !== homeName
   const awayWrong = isComplete && awayPicked && winner !== awayName
+  const homeBusted = !!(homePicked && homeName && eliminatedTeams.has(homeName) && !homeCorrect)
+  const awayBusted = !!(awayPicked && awayName && eliminatedTeams.has(awayName) && !awayCorrect)
+  const homeWrongOrBusted = homeWrong || homeBusted
+  const awayWrongOrBusted = awayWrong || awayBusted
 
   const loser = isComplete && winner ? (winner === homeName ? awayName : homeName) : null
   const hasUpsetResult = isComplete && isUpsetResult(seedMap, winner, loser)
@@ -244,20 +250,20 @@ function MiniCell({
 
   const canClick = !readOnly && !locked
 
-  function pickBg(isPicked: boolean, correct: boolean, wrong: boolean, isUpset: boolean): string {
+  function pickBg(isPicked: boolean, correct: boolean, busted: boolean, isUpset: boolean): string {
     if (correct && isUpset) return 'rgba(168,85,247,0.2)'
     if (correct) return 'rgba(34,197,94,0.15)'
-    if (wrong) return 'rgba(239,68,68,0.1)'
+    if (busted) return 'rgba(239,68,68,0.1)'
     if (isPicked && isUpset) return 'rgba(168,85,247,0.12)'
     if (isPicked) return 'rgba(251,146,60,0.18)'
     return 'transparent'
   }
 
-  function pickColor(name: string | null, isPicked: boolean, correct: boolean, wrong: boolean, isSleeper: boolean, isUpset: boolean): string {
+  function pickColor(name: string | null, isPicked: boolean, correct: boolean, busted: boolean, isSleeper: boolean, isUpset: boolean): string {
     if (!name) return 'rgba(255,255,255,0.12)'
     if (correct && isUpset) return '#c084fc'
     if (correct) return '#22c55e'
-    if (wrong) return 'rgba(239,68,68,0.5)'
+    if (busted) return 'rgba(239,68,68,0.5)'
     if (isPicked && isUpset) return '#c084fc'
     if (isPicked) return '#fb923c'
     if (isSleeper) return '#c084fc'
@@ -268,8 +274,8 @@ function MiniCell({
     return isSleeper ? '#a855f7' : 'rgba(255,255,255,0.25)'
   }
 
-  function TeamRow({ name, seed, isPicked, side, correct, wrong, isUpset }: {
-    name: string | null; seed: number | null; isPicked: boolean; side: 'home' | 'away'; correct: boolean; wrong: boolean; isUpset: boolean
+  function TeamRow({ name, seed, isPicked, side, correct, busted, isUpset }: {
+    name: string | null; seed: number | null; isPicked: boolean; side: 'home' | 'away'; correct: boolean; busted: boolean; isUpset: boolean
   }) {
     const isSleeper = !!(name && sleeperTeams?.has(name))
     const clickable = canClick && !!name
@@ -283,7 +289,7 @@ function MiniCell({
         className="w-full flex items-center text-left"
         style={{
           height: TH,
-          background: isTeamHighlighted ? 'rgba(251,146,60,0.25)' : pickBg(isPicked, correct, wrong, isUpset),
+          background: isTeamHighlighted ? 'rgba(251,146,60,0.25)' : pickBg(isPicked, correct, busted, isUpset),
           borderBottom: side === 'home' ? '1px solid rgba(255,255,255,0.04)' : undefined,
           cursor: clickable ? 'pointer' : 'default',
           paddingLeft: 4,
@@ -303,23 +309,23 @@ function MiniCell({
           style={{
             fontSize: 10,
             fontWeight: isTeamHighlighted ? 700 : 500,
-            color: pickColor(name, isPicked, correct, wrong, isSleeper, isUpset),
+            color: pickColor(name, isPicked, correct, busted, isSleeper, isUpset),
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
             flex: 1,
-            textDecoration: wrong ? 'line-through' : undefined,
+            textDecoration: busted ? 'line-through' : undefined,
           }}
         >
           {name || ''}
         </span>
         {correct && hasUpsetResult && <Zap style={{ width: 8, height: 8, color: '#c084fc', flexShrink: 0 }} />}
         {correct && !hasUpsetResult && <Check style={{ width: 8, height: 8, color: '#22c55e', flexShrink: 0 }} />}
-        {wrong && <X style={{ width: 8, height: 8, color: '#ef4444', flexShrink: 0 }} />}
-        {isUpset && !isComplete && !correct && !wrong && (
+        {busted && <X style={{ width: 8, height: 8, color: '#ef4444', flexShrink: 0 }} />}
+        {isUpset && !isComplete && !correct && !busted && (
           <span style={{ fontSize: 6, fontWeight: 800, color: '#c084fc', flexShrink: 0 }}>!</span>
         )}
-        {node.game && !correct && !wrong && (
+        {node.game && !correct && !busted && (
           <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
             {side === 'home' ? (node.game.homeScore ?? '') : (node.game.awayScore ?? '')}
           </span>
@@ -333,7 +339,7 @@ function MiniCell({
   let borderColor = 'rgba(255,255,255,0.10)'
   if (isHighlighted) borderColor = 'rgba(251,146,60,0.5)'
   else if (homeCorrect || awayCorrect) borderColor = hasUpsetResult ? 'rgba(168,85,247,0.4)' : 'rgba(34,197,94,0.3)'
-  else if (homeWrong || awayWrong) borderColor = 'rgba(239,68,68,0.2)'
+  else if (homeWrongOrBusted || awayWrongOrBusted) borderColor = 'rgba(239,68,68,0.2)'
   else if (hasUpset) borderColor = 'rgba(168,85,247,0.3)'
   else if (hasPick) borderColor = 'rgba(251,146,60,0.25)'
 
@@ -360,8 +366,8 @@ function MiniCell({
       }}
       onDoubleClick={() => onMatchupClick?.(node)}
     >
-      <TeamRow name={homeName} seed={homeSeed} isPicked={homePicked} side="home" correct={homeCorrect} wrong={homeWrong} isUpset={homeIsUpsetPick} />
-      <TeamRow name={awayName} seed={awaySeed} isPicked={awayPicked} side="away" correct={awayCorrect} wrong={awayWrong} isUpset={awayIsUpsetPick} />
+      <TeamRow name={homeName} seed={homeSeed} isPicked={homePicked} side="home" correct={homeCorrect} busted={homeWrongOrBusted} isUpset={homeIsUpsetPick} />
+      <TeamRow name={awayName} seed={awaySeed} isPicked={awayPicked} side="away" correct={awayCorrect} busted={awayWrongOrBusted} isUpset={awayIsUpsetPick} />
       {insuranceEnabled && hasPick && (
         <button
           onClick={(e) => { e.stopPropagation(); onToggleInsurance?.(node.id) }}
@@ -389,7 +395,6 @@ function MiniCell({
     </div>
   )
 }
-
 
 const STRATEGY_TIPS = [
   "Lower seeds (1-4) historically dominate late rounds. No team seeded 12+ has ever made the Final Four.",
@@ -460,6 +465,20 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
     const { isComplete } = getGameResult(n)
     return isComplete
   }), [nodesWithLive])
+
+  const eliminatedTeams = useMemo(() => {
+    const eliminated = new Set<string>()
+    for (const n of nodesWithLive) {
+      const { winner, isComplete } = getGameResult(n)
+      if (!isComplete || !winner) continue
+      const eff = effective.get(n.id)
+      const home = eff?.home ?? n.homeTeamName
+      const away = eff?.away ?? n.awayTeamName
+      const loser = winner === home ? away : home
+      if (loser) eliminated.add(loser)
+    }
+    return eliminated
+  }, [effective, nodesWithLive])
 
   const autoFill = useCallback(async () => {
     if (autoFilling || readOnly) return
@@ -670,6 +689,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
             isInsured={insuredNodeId === roundNodes[i].id}
             onToggleInsurance={toggleInsurance}
             insuranceEnabled={insuranceEnabled}
+            eliminatedTeams={eliminatedTeams}
             x={x}
             y={y}
           />
@@ -945,6 +965,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
                   isInsured={insuredNodeId === n.id}
                   onToggleInsurance={toggleInsurance}
                   insuranceEnabled={insuranceEnabled}
+                  eliminatedTeams={eliminatedTeams}
                   x={centerX + (CENTER_W - CW) / 2}
                   y={i === 0 ? ff0Y : ff1Y}
                 />
@@ -968,6 +989,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
                   isInsured={insuredNodeId === n.id}
                   onToggleInsurance={toggleInsurance}
                   insuranceEnabled={insuranceEnabled}
+                  eliminatedTeams={eliminatedTeams}
                   x={centerX + (CENTER_W - CW) / 2}
                   y={champY}
                 />
@@ -1044,3 +1066,15 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+

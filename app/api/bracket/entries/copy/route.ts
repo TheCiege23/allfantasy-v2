@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
     where: { id: entryId },
     include: {
       picks: true,
+      
       league: {
         select: {
           id: true,
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
       leagueId: source.leagueId,
       userId: auth.userId,
       name: `${source.name} (Copy)`,
+      tiebreakerPoints: source.tiebreakerPoints ?? null,
     },
   })
 
@@ -123,3 +125,4 @@ export async function POST(req: NextRequest) {
     picksCount: source.picks.length,
   })
 }
+

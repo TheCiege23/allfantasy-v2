@@ -22,14 +22,14 @@ AI-powered fantasy sports platform for drafts, waivers, start/sit, and modern le
 
 ### 1. Provision PostgreSQL Database
 
-1. Open the Replit project
+1. Open the project
 2. Go to the "Database" tab in the left sidebar
 3. Click "Create a database" and select PostgreSQL
 4. The DATABASE_URL will be automatically set
 
 ### 2. Set Environment Variables
 
-In Replit's Secrets tab, add:
+In your environment secrets, add:
 
 - `ADMIN_PASSWORD`: Your secure admin password
 
@@ -103,3 +103,5 @@ The app will run on port 5000.
 - createdAt
 
 sync test
+
+

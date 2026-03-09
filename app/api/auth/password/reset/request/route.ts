@@ -14,6 +14,8 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const email = String(body?.email || "").toLowerCase().trim()
+  const requestedReturnTo = String(body?.returnTo || "")
+  const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
 
   if (!email) return NextResponse.json({ ok: true })
 
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
   const baseUrl = getBaseUrl()
   if (!baseUrl) return NextResponse.json({ ok: true })
 
-  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`
+  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
 
   const { getResendClient } = await import("@/lib/resend-client")
   const { client, fromEmail } = await getResendClient()
@@ -82,3 +84,4 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true })
 }
+

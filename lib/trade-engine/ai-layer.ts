@@ -339,7 +339,7 @@ export function validateAIRiskResponse(response: any, offerId: string): AIRiskAn
 }
 
 // ============================================
-// RUNTIME AI ASSIST (USES REPLIT OPENAI)
+// RUNTIME AI ASSIST (USES OPENAI)
 // ============================================
 
 import OpenAI from 'openai'
@@ -428,3 +428,5 @@ Return JSON ONLY:
 
   return params.trades
 }
+
+

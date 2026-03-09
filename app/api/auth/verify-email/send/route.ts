@@ -5,6 +5,10 @@ import { sha256Hex, makeToken } from "@/lib/tokens"
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}))
+  const requestedReturnTo = String(body?.returnTo || "")
+  const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
+
   const { getSessionAndProfile } = await import("@/lib/auth-guard")
   const { userId, email } = await getSessionAndProfile()
 
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "MISSING_BASE_URL" }, { status: 500 })
   }
 
-  const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}`
+  const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
 
   const { getResendClient } = await import("@/lib/resend-client")
   const { client, fromEmail } = await getResendClient()

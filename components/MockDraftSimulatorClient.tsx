@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Play, RefreshCw, Download, RotateCcw, Users, Loader2, Link, ArrowUp, ArrowDown, X, TrendingUp, TrendingDown, Minus, Star, Handshake, Check, Newspaper, Beaker, Zap } from 'lucide-react'
+import { Play, Pause, SkipForward, RefreshCw, Download, RotateCcw, Users, Loader2, Link, ArrowUp, ArrowDown, X, TrendingUp, TrendingDown, Minus, Star, Handshake, Check, Newspaper, Beaker, Zap, Clock3, Bot } from 'lucide-react'
 import { useAI } from '@/hooks/useAI'
 import { toast } from 'sonner'
 import html2canvas from 'html2canvas'
@@ -113,6 +113,7 @@ interface DraftPick {
   isUser: boolean
   value: number
   notes: string
+  isBotPick?: boolean
 }
 
 const POSITION_COLORS: Record<string, string> = {
@@ -224,6 +225,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
   const [customScoring, setCustomScoring] = useState('default')
   const [draftType, setDraftType] = useState<'snake' | 'linear' | 'auction'>('snake')
   const [autopickMode, setAutopickMode] = useState<'queue-first' | 'bpa' | 'need-based'>('queue-first')
+  const [draftPool, setDraftPool] = useState<'rookie' | 'vet' | 'combined'>('combined')
   const [casualMode, setCasualMode] = useState(false)
   const [onClockPick, setOnClockPick] = useState<number | null>(null)
   const [tradeResult, setTradeResult] = useState<any>(null)
@@ -271,8 +273,30 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
   const [retroLoading, setRetroLoading] = useState(false)
   const [retroData, setRetroData] = useState<any>(null)
   const [retroCalibration, setRetroCalibration] = useState<any>(null)
-
+  const [livePlayback, setLivePlayback] = useState(true)
+  const [isLivePlaying, setIsLivePlaying] = useState(false)
+  const [secondsPerPick, setSecondsPerPick] = useState(10)
+  const [clockSecondsLeft, setClockSecondsLeft] = useState(10)
+  const [completedPicks, setCompletedPicks] = useState(0)
+  const [replaceAbsentWithAi, setReplaceAbsentWithAi] = useState(true)
+  const [absentManagers, setAbsentManagers] = useState<Set<string>>(new Set())
+  const [livePredictions, setLivePredictions] = useState<Array<{ manager: string; predictedPlayer: string; position: string; probability: number; reason: string }>>([])
+  const [liveSuggestion, setLiveSuggestion] = useState<any>(null)
+  const [liveIntelLoading, setLiveIntelLoading] = useState(false)
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId)
+  const managerNames = useMemo(() => Array.from(new Set(draftResults.map((p) => p.manager))).filter(Boolean), [draftResults])
+  const onClockOverall = useMemo(
+    () => (livePlayback ? (completedPicks < draftResults.length ? completedPicks + 1 : null) : null),
+    [livePlayback, completedPicks, draftResults.length],
+  )
+  const currentOnClockPick = useMemo(
+    () => (onClockOverall ? draftResults.find((p) => p.overall === onClockOverall) || null : null),
+    [draftResults, onClockOverall],
+  )
+  const draftedSoFar = useMemo(
+    () => (livePlayback ? draftResults.filter((p) => p.overall <= completedPicks) : draftResults),
+    [livePlayback, draftResults, completedPicks],
+  )
 
   const normalizeName = useCallback((name: string) => {
     return name.toLowerCase().replace(/[.\-']/g, '').replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '').trim()
@@ -287,21 +311,21 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
   }, [adpData, normalizeName])
 
   const perRoundRosters = useMemo(() => {
-    if (draftResults.length === 0) return {}
-    const maxRound = Math.max(...draftResults.map(p => p.round))
+    if (draftedSoFar.length === 0) return {}
+    const maxRound = Math.max(...draftedSoFar.map(p => p.round))
     const managers = Array.from(new Set(draftResults.map(p => p.manager)))
     const result: Record<number, { manager: string; counts: Record<string, number>; isUser: boolean }[]> = {}
     for (let r = 1; r <= maxRound; r++) {
       result[r] = managers.map(mgr => {
         const counts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 }
-        for (const p of draftResults) {
+        for (const p of draftedSoFar) {
           if (p.round <= r && p.manager === mgr && counts[p.position] !== undefined) counts[p.position]++
         }
-        return { manager: mgr, counts, isUser: draftResults.some(p => p.round <= r && p.manager === mgr && p.isUser) }
+        return { manager: mgr, counts, isUser: draftedSoFar.some(p => p.round <= r && p.manager === mgr && p.isUser) }
       })
     }
     return result
-  }, [draftResults])
+  }, [draftResults, draftedSoFar])
 
   const managerAvatars = useMemo(() => {
     const map: Record<string, string> = {}
@@ -399,7 +423,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
   useEffect(() => {
     if (!adpData.length || draftResults.length === 0) return
 
-    const drafted = new Set(draftResults.map(p => p.playerName))
+    const drafted = new Set(draftedSoFar.map(p => p.playerName))
     let remaining = adpData.filter(p => !drafted.has(p.name))
 
     if (selectedFilter !== 'All') {
@@ -407,20 +431,21 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
     }
 
     setBestAvailable(remaining.slice(0, 15))
-  }, [draftResults, adpData, selectedFilter])
+  }, [draftedSoFar, adpData, selectedFilter])
 
   const openComparison = useCallback((pick: any) => {
-    const bap = adpData.find(p => !draftResults.some(d => d.playerName === p.name))
+    const bap = adpData.find(p => !draftedSoFar.some(d => d.playerName === p.name))
     setComparePlayer({ drafted: pick, bap })
     setComparisonOpen(true)
-  }, [draftResults, adpData])
+  }, [draftedSoFar, adpData])
 
   useEffect(() => {
     if (!selectedLeagueId || !selectedLeague) return
     const fetchADP = async () => {
       try {
         const type = selectedLeague.isDynasty ? 'dynasty' : 'redraft'
-        const res = await fetch(`/api/mock-draft/adp?type=${type}&limit=300`)
+        const pool = selectedLeague.isDynasty ? draftPool : 'vet'
+        const res = await fetch(`/api/mock-draft/adp?type=${type}&pool=${pool}&limit=300`)
         if (res.ok) {
           const data = await res.json()
           setAdpData(data.entries || [])
@@ -430,13 +455,13 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       }
     }
     fetchADP()
-  }, [selectedLeagueId, selectedLeague])
+  }, [selectedLeagueId, selectedLeague, draftPool])
 
   useEffect(() => {
     if (adpData.length > 0 || draftResults.length === 0 || !selectedLeagueId) return
     const fetchADP = async () => {
       try {
-        const res = await fetch(`/api/mock-draft/adp?type=redraft&limit=300`)
+        const res = await fetch(`/api/mock-draft/adp?type=redraft&pool=vet&limit=300`)
         if (res.ok) {
           const data = await res.json()
           setAdpData(data.entries || [])
@@ -451,11 +476,163 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       setBestAvailableTop([])
       return
     }
-    const draftedNames = new Set(draftResults.map(p => normalizeName(p.playerName)))
+    const draftedNames = new Set(draftedSoFar.map(p => normalizeName(p.playerName)))
     const remaining = adpData.filter(p => !draftedNames.has(normalizeName(p.name))).slice(0, 3)
     setBestAvailableTop(remaining)
-  }, [draftResults, adpData, normalizeName])
+  }, [draftedSoFar, adpData, normalizeName])
 
+  useEffect(() => {
+    if (!livePlayback || !isLivePlaying || draftResults.length === 0) return
+    if (completedPicks >= draftResults.length) {
+      setIsLivePlaying(false)
+      setOnClockPick(null)
+      return
+    }
+
+    const timer = setInterval(() => {
+      setClockSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setCompletedPicks((count) => {
+            const next = Math.min(count + 1, draftResults.length)
+            if (next >= draftResults.length) {
+              setIsLivePlaying(false)
+              setOnClockPick(null)
+            }
+            return next
+          })
+          return secondsPerPick
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [livePlayback, isLivePlaying, draftResults, completedPicks, secondsPerPick])
+
+  useEffect(() => {
+    setOnClockPick(onClockOverall)
+  }, [onClockOverall])
+
+  useEffect(() => {
+    if (!livePlayback || !selectedLeagueId || !currentOnClockPick || adpData.length === 0) {
+      setLivePredictions([])
+      setLiveSuggestion(null)
+      return
+    }
+
+    let active = true
+
+    const runLiveIntel = async () => {
+      try {
+        setLiveIntelLoading(true)
+        const draftedNames = new Set(draftedSoFar.map((p) => normalizeName(p.playerName)))
+        const availableBoard = adpData
+          .filter((p) => !draftedNames.has(normalizeName(p.name)))
+          .slice(0, 80)
+          .map((p) => ({
+            name: p.name,
+            position: p.position,
+            team: p.team,
+            adp: p.adp,
+            value: p.value,
+            isRookie: /rookie|devy/i.test(String(draftPool)) || /rookie|devy/i.test(String((p as any).source || '')),
+          }))
+
+        const managerRoster = draftedSoFar
+          .filter((p) => p.manager === currentOnClockPick.manager)
+          .map((p) => ({ position: p.position }))
+
+        const nextManagers = draftResults
+          .filter((p) => p.overall > (currentOnClockPick.overall || 0))
+          .slice(0, 4)
+          .map((p) => p.manager)
+
+        const basePayload = {
+          available: availableBoard,
+          teamRoster: managerRoster,
+          rosterSlots: selectedLeague?.isDynasty
+            ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
+            : ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX'],
+          round: currentOnClockPick.round,
+          pick: currentOnClockPick.pick,
+          totalTeams: selectedLeague?.leagueSize || 12,
+          managerName: currentOnClockPick.manager,
+          isDynasty: !!selectedLeague?.isDynasty,
+          isSF: true,
+          isRookieDraft: draftPool === 'rookie',
+          mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
+          leagueContext: {
+            rosterPositions: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+            scoringSettings: {},
+          },
+        }
+
+        const [predictRes, suggestRes] = await Promise.all([
+          fetch('/api/mock-draft/ai-pick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'predict-next', ...basePayload, nextManagers }),
+          }),
+          currentOnClockPick.isUser
+            ? fetch('/api/mock-draft/ai-pick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'dm-suggestion', ...basePayload }),
+              })
+            : Promise.resolve(null as Response | null),
+        ])
+
+        if (!active) return
+
+        if (predictRes.ok) {
+          const data = await predictRes.json().catch(() => ({}))
+          setLivePredictions(Array.isArray(data.predictions) ? data.predictions.slice(0, 4) : [])
+        } else {
+          setLivePredictions([])
+        }
+
+        if (suggestRes && suggestRes.ok) {
+          const data = await suggestRes.json().catch(() => ({}))
+          setLiveSuggestion(data)
+        } else {
+          setLiveSuggestion(null)
+        }
+      } catch {
+        if (!active) return
+        setLivePredictions([])
+        setLiveSuggestion(null)
+      } finally {
+        if (active) setLiveIntelLoading(false)
+      }
+    }
+
+    runLiveIntel()
+    return () => {
+      active = false
+    }
+  }, [livePlayback, selectedLeagueId, currentOnClockPick, adpData, draftedSoFar, normalizeName, draftPool, autopickMode, selectedLeague, draftResults])
+
+  const stepLiveDraft = useCallback(() => {
+    if (draftResults.length === 0) return
+    setCompletedPicks((count) => {
+      const next = Math.min(count + 1, draftResults.length)
+      if (next >= draftResults.length) {
+        setIsLivePlaying(false)
+        setOnClockPick(null)
+      }
+      return next
+    })
+    setClockSecondsLeft(secondsPerPick)
+  }, [draftResults.length, secondsPerPick])
+
+  const toggleAbsentManager = useCallback((manager: string) => {
+    setAbsentManagers((prev) => {
+      const next = new Set(prev)
+      if (next.has(manager)) next.delete(manager)
+      else next.add(manager)
+      return next
+    })
+  }, [])
   const startMockDraft = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
     setIsSimulating(true)
@@ -466,12 +643,23 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       scoringTweak: customScoring,
       draftType,
       autopickMode,
+      draftPool,
       casualMode,
       useLiveADP: true,
+      replaceAbsentWithAi,
+      absentManagers: Array.from(absentManagers),
     })
     if (data?.draftResults) {
       setDraftResults(data.draftResults)
       setCurrentDraftId((data as any).draftId || null)
+      setClockSecondsLeft(secondsPerPick)
+      if (livePlayback) {
+        setCompletedPicks(0)
+        setIsLivePlaying(true)
+      } else {
+        setCompletedPicks((data.draftResults || []).length)
+        setIsLivePlaying(false)
+      }
 
       const inlineProposals = (data as any).proposals || []
       if (inlineProposals.length > 0) {
@@ -484,7 +672,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
         toast.success(`Mock draft complete! ${inlineProposals.length} trade offer${inlineProposals.length > 1 ? 's' : ''} from other managers.`)
       } else {
         setTradeProposals({})
-        toast.success('Mock draft complete! AI drafted for all managers.')
+        toast.success(livePlayback ? 'Live room started. AI bots are drafting for absent managers.' : 'Mock draft complete! AI drafted for all managers.')
       }
     }
     setIsSimulating(false)
@@ -563,7 +751,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       setDnaCards(data.dnaCards || [])
       setDnaExpandedIdx(null)
       setDnaOpen(true)
-      toast.success(`Scouting report ready — ${(data.dnaCards || []).length} managers profiled.`)
+      toast.success(`Scouting report ready - ${(data.dnaCards || []).length} managers profiled.`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load Manager DNA')
     } finally {
@@ -584,7 +772,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       if (!res.ok) throw new Error(data.error || 'Failed to load Snipe Radar')
       setSnipeRadarData(data.snipeRadar || [])
       setSnipeRadarOpen(true)
-      toast.success(`Snipe Radar active — ${(data.snipeRadar || []).reduce((s: number, r: any) => s + (r.alerts?.length || 0), 0)} threats detected.`)
+      toast.success(`Snipe Radar active - ${(data.snipeRadar || []).reduce((s: number, r: any) => s + (r.alerts?.length || 0), 0)} threats detected.`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load Snipe Radar')
     } finally {
@@ -606,7 +794,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       setTradeUpOffers(data.tradeUpOffers || [])
       setTradeDownOffers(data.tradeDownOffers || [])
       setTradeOptimizerOpen(true)
-      toast.success(`Trade Optimizer ready — ${(data.tradeUpOffers?.length || 0) + (data.tradeDownOffers?.length || 0)} offers evaluated.`)
+      toast.success(`Trade Optimizer ready - ${(data.tradeUpOffers?.length || 0) + (data.tradeDownOffers?.length || 0)} offers evaluated.`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load Trade Optimizer')
     } finally {
@@ -628,7 +816,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       setBoardDriftReport(data)
       setBoardDriftOpen(true)
       const movers = (data.topRisers?.length || 0) + (data.topFallers?.length || 0)
-      toast.success(movers > 0 ? `Board Drift: ${movers} players moved this week.` : 'Baseline snapshot saved — check back next week!')
+      toast.success(movers > 0 ? `Board Drift: ${movers} players moved this week.` : 'Baseline snapshot saved - check back next week!')
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load Board Drift')
     } finally {
@@ -682,6 +870,83 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
     if (!selectedLeagueId) return toast.error('Select a league first')
     setAssistantLoading(true)
     try {
+      const userManager = draftedSoFar.find(p => p.isUser)?.manager || draftResults.find(p => p.isUser)?.manager
+      const userRoster = draftedSoFar
+        .filter(p => p.manager === userManager && p.playerName)
+        .map(p => ({ position: p.position }))
+      const drafted = new Set(draftedSoFar.map(p => normalizeName(p.playerName)))
+      const availableBoard = adpData
+        .filter(p => !drafted.has(normalizeName(p.name)))
+        .slice(0, 80)
+        .map(p => ({
+          name: p.name,
+          position: p.position,
+          team: p.team,
+          adp: p.adp,
+          value: p.value,
+          isRookie: /rookie|devy/i.test(String(draftPool)) || /rookie|devy/i.test(String((p as any).source || '')),
+        }))
+      const scoutRes = await fetch('/api/mock-draft/ai-pick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dm-suggestion',
+          available: availableBoard,
+          teamRoster: userRoster,
+          rosterSlots: selectedLeague?.isDynasty ? ['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SUPER_FLEX'] : ['QB','RB','RB','WR','WR','TE','FLEX'],
+          round: Math.ceil(pickOverall / Math.max(1, selectedLeague?.leagueSize || 12)),
+          pick: ((pickOverall - 1) % Math.max(1, selectedLeague?.leagueSize || 12)) + 1,
+          totalTeams: selectedLeague?.leagueSize || 12,
+          managerName: userManager || 'You',
+          isDynasty: !!selectedLeague?.isDynasty,
+          isSF: true,
+          isRookieDraft: draftPool === 'rookie',
+          mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
+          leagueContext: {
+            rosterPositions: ['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SUPER_FLEX'],
+            scoringSettings: {},
+          },
+        }),
+      })
+      if (scoutRes.ok) {
+        const scoutData = await scoutRes.json().catch(() => ({}))
+        const top3 = (scoutData.suggestions || []).slice(0, 3).map((s: any, idx: number) => ({
+          player: s.player,
+          position: s.position,
+          probability: Math.max(30, (s.confidence || 70) - idx * 8),
+          why: s.reason,
+          scorecard: {
+            adpWeight: 30,
+            teamNeedWeight: 35,
+            managerTendencyWeight: 10,
+            newsImpactWeight: 15,
+            rookieRankBoostWeight: 10,
+            total: s.confidence || 70,
+          },
+        }))
+        setAssistantData({
+          focusPick: pickOverall,
+          top3,
+          fallback: top3[2] || null,
+          waitAdvice: {
+            canWait: false,
+            availabilityAt4: Math.max(10, 60 - (top3[0]?.probability || 50)),
+            reason: scoutData.aiInsight || 'Take your top fit now if this tier is thinning.',
+          },
+          queue: top3,
+          volatility: {
+            chaosLevel: 'medium',
+            chaosScore: 52,
+            confidenceBands: { high: top3[0]?.probability || 45, mid: 70, low: 88 },
+            tierStability: 'fragile',
+            tierSpread: 16,
+            topConcentration: top3[0]?.probability || 45,
+          },
+        })
+        setAssistantOpen(true)
+        toast.success('Scout recommendation loaded.')
+        return
+      }
       const res = await fetch('/api/mock-draft/predict-board', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -803,7 +1068,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
 
     if (data?.updatedDraft) {
       setDraftResults(data.updatedDraft)
-      toast.success(action === 'accept' ? 'Trade accepted — board updated!' : 'Trade rejected — draft continues.')
+      toast.success(action === 'accept' ? 'Trade accepted - board updated!' : 'Trade rejected - draft continues.')
     }
   }
 
@@ -870,6 +1135,17 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                 <SelectItem value="queue-first">Queue-first</SelectItem>
                 <SelectItem value="bpa">Best Player Available</SelectItem>
                 <SelectItem value="need-based">Need-based</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Player Pool</label>
+            <Select value={draftPool} onValueChange={(v: 'rookie' | 'vet' | 'combined') => setDraftPool(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rookie">Rookie / Devy</SelectItem>
+                <SelectItem value="vet">Veterans</SelectItem>
+                <SelectItem value="combined">Combined Board</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -993,11 +1269,65 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                 <Button onClick={copyShareLink} variant="ghost" size="sm" className="h-7 text-xs text-gray-400 hover:text-white"><Link className="mr-1.5 h-3.5 w-3.5" /> Share</Button>
               </div>
               <Button onClick={updateWeekly} variant="outline" size="sm" className="h-7 text-xs" disabled={isSimulating || loading}><RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Update Weekly</Button>
-              <Button onClick={() => { setDraftResults([]); setCurrentDraftId(null); setIsSimulating(false); setBestAvailableTop([]); setTradeProposals({}); setDismissedProposals(new Set()) }} variant="outline" size="sm" className="h-7 text-xs border-red-900/40 text-red-400 hover:text-red-300 hover:bg-red-950/30">
+              <Button onClick={() => { setDraftResults([]); setCurrentDraftId(null); setIsSimulating(false); setBestAvailableTop([]); setTradeProposals({}); setDismissedProposals(new Set()); setCompletedPicks(0); setIsLivePlaying(false); setClockSecondsLeft(secondsPerPick); setLivePredictions([]); setLiveSuggestion(null) }} variant="outline" size="sm" className="h-7 text-xs border-red-900/40 text-red-400 hover:text-red-300 hover:bg-red-950/30">
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
               </Button>
             </div>
           </div>
+
+          {livePlayback && (
+            <div className="mb-6 rounded-2xl border border-cyan-700/40 bg-cyan-950/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-cyan-300">Live Room</div>
+                  <div className="text-sm text-gray-200">
+                    {currentOnClockPick ? (
+                      <>
+                        <span className="font-semibold text-cyan-200">{currentOnClockPick.manager}</span> on the clock at #{currentOnClockPick.overall}
+                      </>
+                    ) : 'Draft complete'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-3 py-1 text-xs text-cyan-300">
+                    <Clock3 className="h-3 w-3" /> {clockSecondsLeft}s
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setIsLivePlaying((prev) => !prev)} disabled={completedPicks >= draftResults.length}>
+                    {isLivePlaying ? <><Pause className="mr-1 h-3.5 w-3.5" /> Pause</> : <><Play className="mr-1 h-3.5 w-3.5" /> Play</>}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={stepLiveDraft} disabled={completedPicks >= draftResults.length}>
+                    <SkipForward className="mr-1 h-3.5 w-3.5" /> Step
+                  </Button>
+                  <span className="text-xs text-gray-400">{completedPicks}/{draftResults.length} picks</span>
+                </div>
+              </div>
+              {(liveSuggestion?.suggestions?.length > 0 || livePredictions.length > 0 || liveIntelLoading) && (
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-yellow-700/30 bg-yellow-950/15 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-yellow-300 mb-1">Scout Recommendation</div>
+                    {liveIntelLoading ? <div className="text-xs text-gray-400">Updating AI scout...</div> : (
+                      <>
+                        <div className="text-sm text-gray-200">{liveSuggestion?.suggestions?.[0]?.player || 'Waiting for user pick context'}</div>
+                        <div className="text-xs text-gray-400">{liveSuggestion?.suggestions?.[0]?.reason || liveSuggestion?.aiInsight || 'AI will suggest a pick when your slot is on the clock.'}</div>
+                      </>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-indigo-700/30 bg-indigo-950/15 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-1">Next Pick Predictions</div>
+                    {livePredictions.length === 0 ? <div className="text-xs text-gray-400">No prediction yet.</div> : (
+                      <div className="space-y-1">
+                        {livePredictions.slice(0, 3).map((pred) => (
+                          <div key={pred.manager + '-' + pred.predictedPlayer} className="text-xs text-gray-300">
+                            <span className="text-indigo-300 font-medium">{pred.manager}</span>: {pred.predictedPlayer} ({pred.position}) - {pred.probability}%
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <AnimatePresence>
             {bestAvailableTop.length > 0 && (
@@ -1057,7 +1387,10 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-12 gap-4">
                     <AnimatePresence>
                       {roundPicks.map((pick, i) => {
-                        const isOnClockUserPick = onClockPick === pick.overall && pick.isUser
+                        const isFuturePick = livePlayback && pick.overall > completedPicks
+                        const isOnClockPick = livePlayback && pick.overall === completedPicks + 1
+                        const isOnClockUserPick = isOnClockPick && pick.isUser
+                        const isRevealedPick = !isFuturePick
                         return (
                         <motion.div
                           key={pick.overall}
@@ -1075,21 +1408,20 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                           }}
                           transition={{ delay: (round * 12 + i) * 0.18, duration: 0.58, type: 'spring', stiffness: 210, damping: 20 }}
                           className={`rounded-2xl p-5 group transition-all relative ${
-                            isOnClockUserPick
+                            isOnClockPick
                               ? 'border-2 border-yellow-500/70 bg-gradient-to-br from-yellow-950/30 to-black mock-on-clock-pulse'
-                              : pick.isUser
-                                ? 'bg-cyan-950/30 border-2 border-cyan-500/40 hover:border-cyan-400/60'
-                                : 'bg-gray-950 border border-gray-800 hover:border-purple-500/60'
+                              : !isRevealedPick
+                                ? 'bg-gray-950/70 border border-gray-800/60'
+                                : pick.isUser
+                                  ? 'bg-cyan-950/30 border-2 border-cyan-500/40 hover:border-cyan-400/60'
+                                  : 'bg-gray-950 border border-gray-800 hover:border-purple-500/60'
                           }`}
                           onClick={() => {
-                            if (pick.isUser && !pick.playerName) {
-                              setOnClockPick(onClockPick === pick.overall ? null : pick.overall)
-                            } else if (pick.playerName) {
-                              openComparison(pick)
-                            }
+                            if (!isRevealedPick) return
+                            if (pick.playerName) openComparison(pick)
                           }}
                         >
-                          {onClockPick === pick.overall && pick.isUser && (
+                          {isOnClockPick && (
                             <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-[9px] px-2 py-0.5 rounded-full font-bold">
                               ON THE CLOCK
                             </div>
@@ -1110,16 +1442,23 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                           </div>
 
                           <div className="font-bold text-lg mb-1 group-hover:text-purple-400 transition-colors">
-                            {pick.playerName}
+                            {isRevealedPick ? pick.playerName : (isOnClockPick ? 'On the Clock' : 'Pending Pick')}
                           </div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge className={`${POSITION_COLORS[pick.position] || ''} border text-[10px] px-1.5 py-0`}>
-                              {pick.position}
-                            </Badge>
-                            <span className="text-sm text-gray-400">{pick.team}</span>
-                          </div>
+                          {isRevealedPick ? (
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className={`${POSITION_COLORS[pick.position] || ''} border text-[10px] px-1.5 py-0`}>
+                                {pick.position}
+                              </Badge>
+                              <span className="text-sm text-gray-400">{pick.team}</span>
+                              {pick.isBotPick && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">AI BOT</span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 mb-2">{isOnClockPick ? 'Selecting...' : 'Awaiting board'}</div>
+                          )}
 
-                          {(() => {
+                          {isRevealedPick ? (() => {
                             const adpInfo = adpMap.get(normalizeName(pick.playerName))
                             if (!adpInfo) return <div className="text-xs text-emerald-400">Confidence: {pick.confidence}%</div>
                             const diff = pick.overall - adpInfo.adp
@@ -1152,13 +1491,13 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                                 )}
                               </div>
                             )
-                          })()}
+                          })() : <div className="text-xs text-gray-500">No player selected yet.</div>}
 
-                          {pick.notes && (
+                          {isRevealedPick && pick.notes && (
                             <p className="text-[10px] text-gray-600 mt-2 line-clamp-2">{pick.notes}</p>
                           )}
 
-                          {onClockPick === pick.overall && pick.isUser && (
+                          {isOnClockUserPick && (
                             <div className="flex gap-2 mt-4 justify-center">
                               <Button
                                 variant="outline"
@@ -1525,7 +1864,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       <Dialog open={forecastOpen} onOpenChange={setForecastOpen}>
         <DialogContent className="max-w-4xl bg-black/95 border-cyan-900/40">
           <DialogHeader>
-            <DialogTitle>AI Predicted Draft Board ({forecastMeta?.rounds || 2} rounds · {forecastMeta?.simulations || 0} sims)</DialogTitle>
+            <DialogTitle>AI Predicted Draft Board ({forecastMeta?.rounds || 2} rounds  -  {forecastMeta?.simulations || 0} sims)</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-3 pr-1">
             {boardForecasts.length > 0 && (() => {
@@ -1562,7 +1901,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                 <div className="grid gap-1">
                   {forecastMovers.slice(0, 8).map((m) => (
                     <div key={m.name} className="text-xs text-gray-300 flex items-center justify-between gap-3">
-                      <span className="truncate">{m.name} · {m.delta < 0 ? 'UP' : 'DOWN'} {Math.abs(m.delta)} ({m.reasons?.[0] || 'signal update'})</span>
+                      <span className="truncate">{m.name}  -  {m.delta < 0 ? 'UP' : 'DOWN'} {Math.abs(m.delta)} ({m.reasons?.[0] || 'signal update'})</span>
                       <span className="text-cyan-300">ADP {m.adjustedAdp.toFixed(1)}</span>
                     </div>
                   ))}
@@ -1571,7 +1910,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
             )}
             {boardForecasts.slice(0, 36).map((f) => (
               <div key={`${f.overall}-${f.manager}`} className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-                <div className="text-xs text-gray-400 mb-1">Round {f.round} · Pick {f.pick} (#{f.overall}) · {f.manager}</div>
+                <div className="text-xs text-gray-400 mb-1">Round {f.round}  -  Pick {f.pick} (#{f.overall})  -  {f.manager}</div>
                 {f.volatility && <VolatilityBadge v={f.volatility} />}
                 <div className="space-y-1.5">
                   {f.topTargets.length === 0 ? (
@@ -1604,7 +1943,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         <div className="flex items-start justify-between gap-3 text-sm">
                           <div>
                             <span className="font-semibold text-white">{t.player}</span>
-                            <span className="text-gray-400"> · {t.position}</span>
+                            <span className="text-gray-400">  -  {t.position}</span>
                             <div className="text-xs text-gray-500">{t.why}</div>
                           </div>
                           <div className="text-cyan-300 font-semibold tabular-nums">{t.probability}%</div>
@@ -1640,19 +1979,19 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       <Dialog open={pickPathOpen} onOpenChange={setPickPathOpen}>
         <DialogContent className="max-w-4xl bg-black/95 border-purple-900/40">
           <DialogHeader>
-            <DialogTitle>Pick Path — Contingency Tree{pickPathTarget ? ` (targeting ${pickPathTarget})` : ''}</DialogTitle>
+            <DialogTitle>Pick Path - Contingency Tree{pickPathTarget ? ` (targeting ${pickPathTarget})` : ''}</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">
             {pickPathData.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No pick paths available</p>}
             {pickPathData.map((pp: any) => (
               <div key={pp.overall} className="rounded-xl border border-purple-900/30 bg-purple-500/5 p-4 space-y-3">
-                <div className="text-sm font-semibold text-purple-300">Round {pp.round} · Pick {pp.pick} (#{pp.overall})</div>
+                <div className="text-sm font-semibold text-purple-300">Round {pp.round}  -  Pick {pp.pick} (#{pp.overall})</div>
 
                 <div className="space-y-2">
                   <div className="text-xs font-semibold text-cyan-300">Baseline Projection</div>
                   {pp.baseline?.map((t: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-sm">
-                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400">· {t.position}</span></span>
+                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400"> -  {t.position}</span></span>
                       <span className="text-cyan-400 tabular-nums">{t.probability}%</span>
                     </div>
                   ))}
@@ -1663,7 +2002,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                     <div className="text-xs font-semibold text-red-400">If {pp.playerGone.removedPlayer} is gone</div>
                     {pp.playerGone.fallbacks?.map((t: any, i: number) => (
                       <div key={i} className="flex items-center justify-between text-sm">
-                        <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400">· {t.position}</span></span>
+                        <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400"> -  {t.position}</span></span>
                         <span className="text-amber-400 tabular-nums">{t.probability}%</span>
                       </div>
                     ))}
@@ -1678,7 +2017,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                   <div className="text-xs text-gray-400 italic">{pp.rbRun?.narrative}</div>
                   {pp.rbRun?.pivot?.map((t: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-sm">
-                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400">· {t.position}</span></span>
+                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400"> -  {t.position}</span></span>
                       <span className="text-green-400 tabular-nums">{t.probability}%</span>
                     </div>
                   ))}
@@ -1689,7 +2028,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                   <div className="text-xs text-gray-400 italic">{pp.qbRun?.narrative}</div>
                   {pp.qbRun?.recommendation?.map((t: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-sm">
-                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400">· {t.position}</span></span>
+                      <span><span className="font-medium text-white">{t.player}</span> <span className="text-gray-400"> -  {t.position}</span></span>
                       <span className="text-yellow-400 tabular-nums">{t.probability}%</span>
                     </div>
                   ))}
@@ -1703,7 +2042,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       <Dialog open={dnaOpen} onOpenChange={setDnaOpen}>
         <DialogContent className="max-w-5xl bg-black/95 border-amber-900/40">
           <DialogHeader>
-            <DialogTitle className="text-amber-300">Manager DNA — League Scouting Report</DialogTitle>
+            <DialogTitle className="text-amber-300">Manager DNA - League Scouting Report</DialogTitle>
           </DialogHeader>
           <div className="max-h-[72vh] overflow-y-auto space-y-3 pr-1">
             {dnaCards.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No DNA profiles available</p>}
@@ -1801,7 +2140,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       <Dialog open={snipeRadarOpen} onOpenChange={setSnipeRadarOpen}>
         <DialogContent className="max-w-4xl bg-black/95 border-red-900/40">
           <DialogHeader>
-            <DialogTitle className="text-red-300">Snipe Radar — Threat Detection</DialogTitle>
+            <DialogTitle className="text-red-300">Snipe Radar - Threat Detection</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
             {snipeRadarData.length === 0 && <p className="text-sm text-gray-500 text-center py-4">No snipe radar data available</p>}
@@ -1809,13 +2148,13 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
               <div key={entry.userPickOverall} className="rounded-xl border border-red-900/30 bg-red-500/[0.03] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-white">
-                    Your Pick: Round {entry.round} · Pick {entry.pick} (#{entry.userPickOverall})
+                    Your Pick: Round {entry.round}  -  Pick {entry.pick} (#{entry.userPickOverall})
                   </div>
                   <span className="text-[10px] text-gray-500">{entry.picksBefore} picks before yours</span>
                 </div>
 
                 {entry.alerts.length === 0 ? (
-                  <div className="text-sm text-emerald-400 bg-emerald-500/10 rounded-lg p-2">No major snipe threats detected — your targets look safe.</div>
+                  <div className="text-sm text-emerald-400 bg-emerald-500/10 rounded-lg p-2">No major snipe threats detected - your targets look safe.</div>
                 ) : (
                   <div className="space-y-2">
                     {entry.alerts.map((alert) => {
@@ -1831,7 +2170,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                             <div className="flex items-center gap-2">
                               <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded ${s.bg} ${s.text}`}>{alert.urgencyLevel}</span>
                               <span className="font-semibold text-white text-sm">{alert.player}</span>
-                              <span className="text-xs text-gray-400">{alert.position} · ADP {alert.adp.toFixed(1)}</span>
+                              <span className="text-xs text-gray-400">{alert.position}  -  ADP {alert.adp.toFixed(1)}</span>
                             </div>
                             <span className={`text-sm font-bold tabular-nums ${s.text}`}>{alert.snipeProbability}%</span>
                           </div>
@@ -1845,7 +2184,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                             <span className="text-gray-500">
                               Likely sniped by: {alert.snipedByManagers.slice(0, 2).map(m => `${m.manager} (${m.probability}%)`).join(', ')}
                             </span>
-                            <span className="text-red-400 font-semibold">EV lost if sniped: {alert.expectedValueLost > 0 ? `−${alert.expectedValueLost}` : '0'}</span>
+                            <span className="text-red-400 font-semibold">EV lost if sniped: {alert.expectedValueLost > 0 ? `-${alert.expectedValueLost}` : '0'}</span>
                           </div>
                         </div>
                       )
@@ -1874,7 +2213,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       <Dialog open={tradeOptimizerOpen} onOpenChange={setTradeOptimizerOpen}>
         <DialogContent className="max-w-4xl bg-black/95 border-green-900/40">
           <DialogHeader>
-            <DialogTitle className="text-green-300">Trade-Window Optimizer — Best Offers by EV</DialogTitle>
+            <DialogTitle className="text-green-300">Trade-Window Optimizer - Best Offers by EV</DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
             {tradeUpOffers.length === 0 && tradeDownOffers.length === 0 && (
@@ -1902,7 +2241,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         <div className="text-[10px] text-red-400 font-semibold mb-1">YOU GIVE</div>
                         {offer.userGives.map(g => (
                           <div key={g.pickOverall} className="text-xs text-gray-300">
-                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick} · val {g.value})</span>
+                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick}  -  val {g.value})</span>
                           </div>
                         ))}
                       </div>
@@ -1910,7 +2249,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         <div className="text-[10px] text-green-400 font-semibold mb-1">YOU GET</div>
                         {offer.userGets.map(g => (
                           <div key={g.pickOverall} className="text-xs text-gray-300">
-                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick} · val {g.value})</span>
+                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick}  -  val {g.value})</span>
                           </div>
                         ))}
                         {offer.topPlayerGain && (
@@ -1961,7 +2300,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         <div className="text-[10px] text-red-400 font-semibold mb-1">YOU GIVE</div>
                         {offer.userGives.map(g => (
                           <div key={g.pickOverall} className="text-xs text-gray-300">
-                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick} · val {g.value})</span>
+                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick}  -  val {g.value})</span>
                           </div>
                         ))}
                       </div>
@@ -1969,7 +2308,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         <div className="text-[10px] text-blue-400 font-semibold mb-1">YOU GET</div>
                         {offer.userGets.map(g => (
                           <div key={g.pickOverall} className="text-xs text-gray-300">
-                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick} · val {g.value})</span>
+                            Pick #{g.pickOverall} <span className="text-gray-500">(R{g.round}P{g.pick}  -  val {g.value})</span>
                           </div>
                         ))}
                       </div>
@@ -2042,10 +2381,10 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-white text-sm">{p.name}</span>
-                              <span className="text-xs text-gray-400">{p.position} · {p.team || '—'}</span>
+                              <span className="text-xs text-gray-400">{p.position}  -  {p.team || '-'}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-gray-500">ADP {p.previousAdp} → {p.currentAdp}</span>
+                              <span className="text-[10px] text-gray-500">ADP {p.previousAdp} -&gt; {p.currentAdp}</span>
                               <span className="text-sm font-bold text-emerald-400 tabular-nums">{p.drift > 0 ? '' : '+'}{Math.abs(p.drift)}</span>
                               <ArrowUp className="h-3.5 w-3.5 text-emerald-400" />
                             </div>
@@ -2077,10 +2416,10 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-white text-sm">{p.name}</span>
-                              <span className="text-xs text-gray-400">{p.position} · {p.team || '—'}</span>
+                              <span className="text-xs text-gray-400">{p.position}  -  {p.team || '-'}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-gray-500">ADP {p.previousAdp} → {p.currentAdp}</span>
+                              <span className="text-[10px] text-gray-500">ADP {p.previousAdp} -&gt; {p.currentAdp}</span>
                               <span className="text-sm font-bold text-red-400 tabular-nums">-{Math.abs(p.drift)}</span>
                               <ArrowDown className="h-3.5 w-3.5 text-red-400" />
                             </div>
@@ -2109,7 +2448,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                             {mc.previousArchetype && mc.previousArchetype !== mc.archetype ? (
                               <>
                                 <span className="text-gray-500">{mc.previousArchetype}</span>
-                                <span className="text-gray-600">→</span>
+                                <span className="text-gray-600">-&gt;</span>
                                 <span className="text-amber-300 font-semibold">{mc.archetype}</span>
                               </>
                             ) : (
@@ -2121,7 +2460,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                           <div className="flex flex-wrap gap-2">
                             {mc.changedSignals.map((cs: any, i: number) => (
                               <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${cs.direction === 'up' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'}`}>
-                                {cs.signal}: {cs.previous} → {cs.current} {cs.direction === 'up' ? '↑' : '↓'}
+                                {cs.signal}: {cs.previous} -&gt; {cs.current} {cs.direction === 'up' ? 'up' : 'down'}
                               </span>
                             ))}
                           </div>
@@ -2187,7 +2526,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
         <DialogContent className="max-w-2xl bg-black/95 border-yellow-900/40">
           <DialogHeader>
             <DialogTitle className="text-yellow-300 flex items-center gap-2">
-              <Zap className="h-5 w-5" /> Draft-Day Assistant — Pick #{assistantData?.focusPick || '?'}
+              <Zap className="h-5 w-5" /> Draft-Day Assistant - Pick #{assistantData?.focusPick || '?'}
             </DialogTitle>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">
@@ -2255,7 +2594,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
 
                 {assistantData.queue?.length > 0 && (
                   <div className="space-y-2">
-                    <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Your Queue — Next 6 Targets</div>
+                    <div className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Your Queue - Next 6 Targets</div>
                     <div className="grid grid-cols-2 gap-2">
                       {assistantData.queue.map((q: any, i: number) => {
                         const posBg: Record<string, string> = { QB: 'bg-red-500/10 text-red-400 border-red-500/20', RB: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', WR: 'bg-green-500/10 text-green-400 border-green-500/20', TE: 'bg-purple-500/10 text-purple-400 border-purple-500/20' }
@@ -2290,7 +2629,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
         <DialogContent className="max-w-6xl bg-black/95 border-violet-900/40">
           <DialogHeader>
             <DialogTitle className="text-violet-300 flex items-center gap-2">
-              <Beaker className="h-5 w-5" /> Scenario Lab — Side-by-Side Comparison
+              <Beaker className="h-5 w-5" /> Scenario Lab - Side-by-Side Comparison
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-wrap gap-1.5 mb-3">
@@ -2423,7 +2762,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto bg-gray-950 border-amber-800/50">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl text-amber-300">
-              <Check className="h-5 w-5" /> Post-Draft Retrospective — AI vs Reality
+              <Check className="h-5 w-5" /> Post-Draft Retrospective - AI vs Reality
             </DialogTitle>
           </DialogHeader>
 
@@ -2462,7 +2801,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                     ))}
                   </div>
                   <p className="text-xs text-gray-500 mt-2 text-center">
-                    Based on {retroCalibration.sampleSize || 0} draft picks — future predictions will use these weights
+                    Based on {retroCalibration.sampleSize || 0} draft picks - future predictions will use these weights
                   </p>
                 </div>
               )}
@@ -2498,12 +2837,12 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
                         </div>
                         {m.bestPrediction && (
                           <p className="text-xs text-green-400 mt-1">
-                            Best: Pick #{m.bestPrediction.overall} — {m.bestPrediction.player} ({m.bestPrediction.probability}% confidence)
+                            Best: Pick #{m.bestPrediction.overall} - {m.bestPrediction.player} ({m.bestPrediction.probability}% confidence)
                           </p>
                         )}
                         {m.worstMiss && (
                           <p className="text-xs text-red-400 mt-1">
-                            Worst: Pick #{m.worstMiss.overall} — predicted {m.worstMiss.predicted} ({m.worstMiss.predictedProb}%), actual: {m.worstMiss.actual}
+                            Worst: Pick #{m.worstMiss.overall} - predicted {m.worstMiss.predicted} ({m.worstMiss.predictedProb}%), actual: {m.worstMiss.actual}
                           </p>
                         )}
                       </div>
@@ -2550,3 +2889,4 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
     </div>
   )
 }
+

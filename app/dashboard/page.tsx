@@ -8,6 +8,15 @@ import RosterLegacyReport from "@/app/components/RosterLegacyReport"
 
 export const dynamic = "force-dynamic"
 
+function resolveAdmin(email: string | null | undefined) {
+  if (!email) return false
+  const allow = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean)
+  return allow.includes(email.toLowerCase())
+}
+
 export default async function DashboardPage() {
   const session = (await getServerSession(authOptions as any)) as {
     user?: { id?: string; email?: string | null }
@@ -20,61 +29,69 @@ export default async function DashboardPage() {
   const userId = session.user.id
   const email = session.user.email
 
-  const appUser = await (prisma as any).appUser.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      email: true,
-      emailVerified: true,
-      avatarUrl: true,
-    },
-  }).catch(() => null)
+  const appUser = await (prisma as any).appUser
+    .findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        emailVerified: true,
+        avatarUrl: true,
+      },
+    })
+    .catch(() => null)
 
-  const profile = await (prisma as any).userProfile.findUnique({
-    where: { userId },
-    select: {
-      sleeperUsername: true,
-      sleeperUserId: true,
-      sleeperLinkedAt: true,
-      ageConfirmedAt: true,
-      phoneVerifiedAt: true,
-      profileComplete: true,
-    },
-  }).catch(() => null)
+  const profile = await (prisma as any).userProfile
+    .findUnique({
+      where: { userId },
+      select: {
+        sleeperUsername: true,
+        sleeperUserId: true,
+        sleeperLinkedAt: true,
+        ageConfirmedAt: true,
+        phoneVerifiedAt: true,
+        profileComplete: true,
+      },
+    })
+    .catch(() => null)
 
-  const leagues = await (prisma as any).bracketLeagueMember.findMany({
-    where: { userId },
-    include: {
-      league: {
-        select: {
-          id: true,
-          name: true,
-          tournamentId: true,
-          joinCode: true,
-          _count: { select: { members: true } },
+  const leagues = await (prisma as any).bracketLeagueMember
+    .findMany({
+      where: { userId },
+      include: {
+        league: {
+          select: {
+            id: true,
+            name: true,
+            tournamentId: true,
+            joinCode: true,
+            _count: { select: { members: true } },
+          },
         },
       },
-    },
-  }).catch(() => [])
+    })
+    .catch(() => [])
 
-  const entriesRaw = await (prisma as any).bracketEntry.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      name: true,
-      createdAt: true,
-      league: {
-        select: { tournamentId: true },
+  const entriesRaw = await (prisma as any).bracketEntry
+    .findMany({
+      where: { userId },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        league: {
+          select: { tournamentId: true },
+        },
+        picks: {
+          select: { points: true },
+        },
       },
-      picks: {
-        select: { points: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  }).catch(() => [])
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    })
+    .catch(() => [])
 
   const entries = entriesRaw.map((e: any) => ({
     id: e.id,
@@ -85,6 +102,7 @@ export default async function DashboardPage() {
 
   const isVerified = !!appUser?.emailVerified || !!profile?.phoneVerifiedAt
   const isAgeConfirmed = !!profile?.ageConfirmedAt
+  const isAdmin = resolveAdmin(email)
 
   return (
     <>
@@ -115,6 +133,7 @@ export default async function DashboardPage() {
           tournamentId: e.tournamentId,
           score: e.score || 0,
         }))}
+        isAdmin={isAdmin}
       />
       <div className="max-w-6xl mx-auto px-4 pb-12 space-y-12">
         <RosterLegacyReport />

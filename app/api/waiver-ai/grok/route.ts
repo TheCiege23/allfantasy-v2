@@ -9,9 +9,9 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 function getGrokClient() {
-  const apiKey = process.env.XAI_API_KEY
+  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
   if (!apiKey) {
-    throw new Error("XAI_API_KEY is missing")
+    throw new Error("XAI_API_KEY/GROK_API_KEY is missing")
   }
 
   return new OpenAI({
@@ -199,7 +199,7 @@ async function runGrokWithTools(systemPrompt: string, useRealTime: boolean): Pro
           const xRes = await fetch('https://api.x.ai/v1/tools/x_keyword_search', {
             method: 'POST',
             headers: {
-              Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+              Authorization: `Bearer ${process.env.XAI_API_KEY || process.env.GROK_API_KEY}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ query: args.query, limit: args.limit || 12 }),
@@ -303,7 +303,7 @@ export async function POST(req: NextRequest) {
       ]);
 
       if (recentPickups.length > 0) {
-        const pickupSummary = recentPickups.map((p: any) => `${p.playerName} → ${p.outcome || 'unknown'}`).join(', ');
+        const pickupSummary = recentPickups.map((p: any) => `${p.playerName} -> ${p.outcome || 'unknown'}`).join(', ');
         pickupClause = `\n\nPast waiver pickups (learn from these): ${pickupSummary}\nRecommend more players like past hits, avoid profiles similar to past misses.`;
       }
 
@@ -343,16 +343,16 @@ ${rosterData}
 
 Prioritize waiver targets that:
 1. Fill immediate roster holes based on the provided roster (identify positional weaknesses)
-2. Fit the user's contention window (${userContention}) — win-now targets for contenders, stash/upside for rebuilders
+2. Fit the user's contention window (${userContention}) - win-now targets for contenders, stash/upside for rebuilders
 3. Offer breakout upside or long-term stash value in dynasty formats
 4. Replace potential busts, aging, or injury-prone players currently on the roster
 5. Are realistic FAAB spends given ${resolvedFAAB}% remaining budget
-6. Consider roster construction holistically — depth vs ceiling, bye week coverage, handcuff value
+6. Consider roster construction holistically - depth vs ceiling, bye week coverage, handcuff value
 ${pickupClause}${profileClause}${realTimeClause}
 
 For each target, explain WHY they fit THIS specific roster and contention window using specific measurable facts (depth count, FAAB %, injury status, role changes, recent production, draft capital). Avoid subjective statements without evidence.
 
-Return 6–8 waiver targets ranked by priority. Output detailed text — synthesis step will enforce strict JSON.`;
+Return 6-8 waiver targets ranked by priority. Output detailed text - synthesis step will enforce strict JSON.`;
 
     const grokResearch = await runGrokWithTools(systemPrompt, useRealTimeNews);
 
@@ -448,3 +448,5 @@ Required format:
     return NextResponse.json({ error: 'Failed to generate waiver suggestions' }, { status: 500 });
   }
 }
+
+
