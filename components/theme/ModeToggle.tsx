@@ -10,7 +10,6 @@ export function ModeToggle(props: { className?: string }) {
   useEffect(() => setMounted(true), [])
 
   const label = mode === "dark" ? "Dark" : mode === "light" ? "Light" : "AF Legacy"
-  const icon = mode === "dark" ? "MOON" : mode === "light" ? "SUN" : "AF"
 
   return (
     <button
@@ -20,14 +19,14 @@ export function ModeToggle(props: { className?: string }) {
         "rounded-xl border px-3 py-2 text-sm font-semibold active:scale-[0.98] transition"
       }
       style={{
-        color: 'var(--text)',
-        borderColor: 'var(--border)',
-        background: 'var(--panel)',
+        color: "var(--text)",
+        borderColor: "var(--border)",
+        background: "var(--panel)",
       }}
       title="Toggle theme mode"
       suppressHydrationWarning
     >
-      {mounted ? `${icon} ${label}` : '\u00A0'}
+      {mounted ? label : "\u00A0"}
     </button>
   )
 }

@@ -40,6 +40,7 @@ import LegacyCompareIntro from '@/app/af-legacy/components/tabs/LegacyCompareInt
 import LegacyFinderTab from '@/app/af-legacy/components/tabs/LegacyFinderTab'
 import LegacyChatIntro from '@/app/af-legacy/components/tabs/LegacyChatIntro'
 import LegacyShareIntro from '@/app/af-legacy/components/tabs/LegacyShareIntro'
+import LegacyHeroTabSection from '@/app/af-legacy/components/tabs/LegacyHeroTabSection'
 import { getLegacyFeedbackToolLabel } from '@/app/af-legacy/components/legacy-tab-label'
 import ExploitMyLeague from "@/components/ExploitMyLeague"
 import { DraftGradesSection } from "@/components/rankings/DraftGradesSection"
@@ -17629,39 +17630,48 @@ function AFLegacyContent() {
                 )}
 
                 {activeTab === 'strategy' && (
-                  <>
-                  <HeroMetric 
-                    value="AI"
-                    label="Season Strategy Planner"
-                    helper="AI-powered roadmap for your fantasy season"
-                    accent="purple"
-                  />
-                  <LegacyStrategyTab leagues={leagues as any} username={username} />
-                  </>
+                  <LegacyHeroTabSection
+                    metric={
+                      <HeroMetric
+                        value="AI"
+                        label="Season Strategy Planner"
+                        helper="AI-powered roadmap for your fantasy season"
+                        accent="purple"
+                      />
+                    }
+                  >
+                    <LegacyStrategyTab leagues={leagues as any} username={username} />
+                  </LegacyHeroTabSection>
                 )}
 
                 {activeTab === 'shop' && (
-                  <>
-                  <HeroMetric 
-                    value="10"
-                    label="Official AllFantasy Merch"
-                    helper="Rep the brand with AF gear"
-                    accent="cyan"
-                  />
-                  <LegacyShopTab />
-                  </>
+                  <LegacyHeroTabSection
+                    metric={
+                      <HeroMetric
+                        value="10"
+                        label="Official AllFantasy Merch"
+                        helper="Rep the brand with AF gear"
+                        accent="cyan"
+                      />
+                    }
+                  >
+                    <LegacyShopTab />
+                  </LegacyHeroTabSection>
                 )}
 
                 {activeTab === 'ideas' && (
-                  <>
-                  <HeroMetric 
-                    value="Idea"
-                    label="Submit League Ideas"
-                    helper="Share your unique league format with the community"
-                    accent="cyan"
-                  />
-                  <LegacyIdeasTab />
-                  </>
+                  <LegacyHeroTabSection
+                    metric={
+                      <HeroMetric
+                        value="Idea"
+                        label="Submit League Ideas"
+                        helper="Share your unique league format with the community"
+                        accent="cyan"
+                      />
+                    }
+                  >
+                    <LegacyIdeasTab />
+                  </LegacyHeroTabSection>
                 )}
 
                 {activeTab === 'mock-draft' && (
@@ -18050,39 +18060,4 @@ export default function AFLegacyPage() {
     </>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

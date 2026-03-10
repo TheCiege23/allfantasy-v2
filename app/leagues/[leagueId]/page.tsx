@@ -5,6 +5,7 @@ import { useMemo, useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import AppShellNav from "@/components/navigation/AppShellNav"
+import { SmartDataView } from "@/components/app/league/SmartDataView"
 import { useLegacyTab } from "@/hooks/useLegacyTab"
 import { postMarketRefresh } from "@/lib/api/legacy"
 import type {
@@ -93,7 +94,7 @@ type ChatResponse = {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+    <section className="mode-panel rounded-2xl p-5">
       <h2 className="text-lg font-semibold">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
@@ -101,7 +102,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function InlineNote({ text }: { text: string }) {
-  return <p className="text-sm text-white/60">{text}</p>
+  return <p className="mode-muted text-sm">{text}</p>
 }
 
 export default function LeagueHomeShellPage() {
@@ -275,18 +276,18 @@ export default function LeagueHomeShellPage() {
   }, [activeTab, waiverRefresh, waiverLoading, refreshWaiverPanel])
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className="mode-surface mode-readable min-h-screen">
       <AppShellNav isAuthenticated={isAuthenticated} userLabel={userLabel} />
 
       <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 space-y-4">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <section className="mode-panel rounded-2xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-semibold">{leagueSummary?.name || "League Home"}</h1>
-              <p className="text-sm text-white/60">League ID: {leagueId}</p>
+              <p className="mode-muted text-sm">League ID: {leagueId}</p>
             </div>
-            <div className="flex gap-2">
-              <Link href="/leagues" className="rounded-lg border border-white/15 px-3 py-2 text-sm hover:bg-white/10">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              <Link href="/leagues" className="rounded-lg border border-white/15 px-3 py-2 text-center text-sm hover:bg-white/10">
                 Back to Leagues
               </Link>
               <button
@@ -295,7 +296,7 @@ export default function LeagueHomeShellPage() {
               >
                 Refresh League Data
               </button>
-              <Link href="/legacy" className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 hover:bg-cyan-500/20">
+              <Link href="/legacy" className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-center text-sm text-cyan-200 hover:bg-cyan-500/20">
                 Open Legacy AI
               </Link>
             </div>
@@ -308,13 +309,13 @@ export default function LeagueHomeShellPage() {
           </div>
         </section>
 
-        <section className="sticky top-[72px] z-30 rounded-2xl border border-white/10 bg-black/80 p-3 backdrop-blur-xl">
-          <div className="flex gap-2 overflow-x-auto">
+        <section className="mode-panel sticky top-[64px] z-30 rounded-2xl p-2 sm:top-[72px] sm:p-3 backdrop-blur-xl">
+          <div className="flex gap-1.5 overflow-x-auto sm:gap-2 [scrollbar-width:none] snap-x snap-mandatory">
             {LEAGUE_TABS.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm transition ${
+                className={`shrink-0 snap-start whitespace-nowrap rounded-lg px-3 py-2 text-xs transition sm:px-4 sm:text-sm ${
                   activeTab === tab ? "bg-white text-black" : "bg-white/5 text-white/70 hover:bg-white/10"
                 }`}
               >
@@ -364,9 +365,9 @@ export default function LeagueHomeShellPage() {
             {(activeTab === "Team" || activeTab === "Roster") && (
               <Card title={activeTab === "Team" ? "Team Context" : "Roster"}>
                 {rosterData?.roster ? (
-                  <pre className="max-h-96 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                    {JSON.stringify(rosterData.roster, null, 2)}
-                  </pre>
+                  <div className="mode-panel-soft rounded-xl p-3">
+                    <SmartDataView data={rosterData.roster} />
+                  </div>
                 ) : (
                   <InlineNote text="No imported roster found for this league/user yet." />
                 )}
@@ -378,17 +379,28 @@ export default function LeagueHomeShellPage() {
 
             {activeTab === "Matchups" && (
               <Card title="Matchups">
-                <InlineNote text="Bracket league matchups are represented by standings and entry progress." />
-                <p className="mt-2 text-sm text-white/70">Current tracked entries: {entries?.length ?? 0}</p>
+                <InlineNote text="Entry progress and pressure board." />
+                {standings && standings.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {standings.slice(0, 6).map((s) => (
+                      <div key={s.entryId} className="rounded-lg border border-white/10 px-3 py-2">
+                        <div className="text-sm font-medium">#{s.rank} {s.entryName}</div>
+                        <div className="text-xs text-white/60">{s.ownerName}</div>
+                        <div className="mt-1 text-xs text-white/70">{s.points} pts - {s.picksCount} picks</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-white/70">Current tracked entries: {entries?.length ?? 0}</p>
+                )}
               </Card>
             )}
-
             {activeTab === "Players" && (
               <Card title="Players">
                 <InlineNote text="Players tab will use imported roster/player pools. Showing roster source until league-wide player index is wired." />
-                <pre className="mt-3 max-h-80 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                  {JSON.stringify(rosterData?.roster ?? { message: "No roster data" }, null, 2)}
-                </pre>
+                <div className="mt-3 mode-panel-soft rounded-xl p-3">
+                  <SmartDataView data={rosterData?.roster ?? { message: "No roster data" }} />
+                </div>
               </Card>
             )}
 
@@ -522,29 +534,40 @@ export default function LeagueHomeShellPage() {
             {activeTab === "Standings/Playoffs" && (
               <Card title="Standings">
                 {standings && standings.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[640px] text-sm">
-                      <thead className="text-white/60">
-                        <tr>
-                          <th className="px-2 py-2 text-left">Rank</th>
-                          <th className="px-2 py-2 text-left">Entry</th>
-                          <th className="px-2 py-2 text-left">Owner</th>
-                          <th className="px-2 py-2 text-left">Points</th>
-                          <th className="px-2 py-2 text-left">Picks</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {standings.map((s) => (
-                          <tr key={s.entryId} className="border-t border-white/10">
-                            <td className="px-2 py-2">{s.rank}</td>
-                            <td className="px-2 py-2">{s.entryName}</td>
-                            <td className="px-2 py-2">{s.ownerName}</td>
-                            <td className="px-2 py-2">{s.points}</td>
-                            <td className="px-2 py-2">{s.picksCount}</td>
+                  <div>
+                    <div className="space-y-2 sm:hidden">
+                      {standings.map((s) => (
+                        <div key={s.entryId} className="rounded-lg border border-white/10 px-3 py-2">
+                          <div className="text-sm font-medium">#{s.rank} {s.entryName}</div>
+                          <div className="text-xs text-white/60">{s.ownerName}</div>
+                          <div className="mt-1 text-xs text-white/70">{s.points} pts - {s.picksCount} picks</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto sm:block">
+                      <table className="w-full min-w-[640px] text-sm">
+                        <thead className="text-white/60">
+                          <tr>
+                            <th className="px-2 py-2 text-left">Rank</th>
+                            <th className="px-2 py-2 text-left">Entry</th>
+                            <th className="px-2 py-2 text-left">Owner</th>
+                            <th className="px-2 py-2 text-left">Points</th>
+                            <th className="px-2 py-2 text-left">Picks</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {standings.map((s) => (
+                            <tr key={s.entryId} className="border-t border-white/10">
+                              <td className="px-2 py-2">{s.rank}</td>
+                              <td className="px-2 py-2">{s.entryName}</td>
+                              <td className="px-2 py-2">{s.ownerName}</td>
+                              <td className="px-2 py-2">{s.points}</td>
+                              <td className="px-2 py-2">{s.picksCount}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ) : (
                   <InlineNote text="No standings yet." />
@@ -554,9 +577,34 @@ export default function LeagueHomeShellPage() {
 
             {activeTab === "League" && (
               <Card title="League Info">
-                <pre className="max-h-80 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs text-white/80">
-                  {JSON.stringify(leagueSummary || { message: "No league summary" }, null, 2)}
-                </pre>
+                {leagueSummary ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-white/10 px-3 py-2">
+                      <div className="text-xs text-white/60">League Name</div>
+                      <div className="text-sm font-medium">{leagueSummary.name}</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 px-3 py-2">
+                      <div className="text-xs text-white/60">League ID</div>
+                      <div className="text-sm font-mono">{leagueSummary.id}</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 px-3 py-2">
+                      <div className="text-xs text-white/60">Members</div>
+                      <div className="text-sm font-medium">{leagueSummary._count?.members ?? "-"}</div>
+                    </div>
+                    <div className="rounded-lg border border-white/10 px-3 py-2">
+                      <div className="text-xs text-white/60">Entries</div>
+                      <div className="text-sm font-medium">{leagueSummary._count?.entries ?? entries?.length ?? 0}</div>
+                    </div>
+                    {leagueSummary.joinCode && (
+                      <div className="rounded-lg border border-white/10 px-3 py-2 sm:col-span-2">
+                        <div className="text-xs text-white/60">Join Code</div>
+                        <div className="text-sm font-mono">{leagueSummary.joinCode}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <InlineNote text="No league summary available." />
+                )}
               </Card>
             )}
 
@@ -597,6 +645,3 @@ export default function LeagueHomeShellPage() {
     </div>
   )
 }
-
-
-

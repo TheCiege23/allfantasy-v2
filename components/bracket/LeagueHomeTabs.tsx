@@ -98,33 +98,33 @@ export function LeagueHomeTabs(props: Props) {
 
   return (
     <div className="space-y-0 relative pb-16">
-      <div className="grid gap-3 sm:grid-cols-4 mb-4">
+      <div className="mb-4 grid gap-2 sm:grid-cols-4 sm:gap-3">
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="text-[11px] text-white/50">Your Entries</div>
-          <div className="text-base font-semibold text-white">{props.userEntries.length}</div>
+          <div className="text-[11px] mode-muted">Your Entries</div>
+          <div className="text-base font-semibold mode-text">{props.userEntries.length}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="text-[11px] text-white/50">Pool Entries</div>
-          <div className="text-base font-semibold text-white">{props.entries.length}</div>
+          <div className="text-[11px] mode-muted">Pool Entries</div>
+          <div className="text-base font-semibold mode-text">{props.entries.length}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="text-[11px] text-white/50">Members</div>
-          <div className="text-base font-semibold text-white">{props.members.length}</div>
+          <div className="text-[11px] mode-muted">Members</div>
+          <div className="text-base font-semibold mode-text">{props.members.length}</div>
         </div>
         <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="text-[11px] text-white/50">Scoring</div>
-          <div className="text-base font-semibold text-white">{normalizeScoringMode(props.scoringMode)}</div>
+          <div className="text-[11px] mode-muted">Scoring</div>
+          <div className="text-base font-semibold mode-text">{normalizeScoringMode(props.scoringMode)}</div>
         </div>
       </div>
-      <div className="flex items-center justify-center gap-0 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="mb-4 flex items-center gap-0 overflow-x-auto [scrollbar-width:none]" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="relative px-6 py-3 text-sm font-semibold tracking-wide transition-colors"
-              style={{ color: isActive ? 'white' : 'rgba(255,255,255,0.35)' }}
+              className="relative shrink-0 px-4 py-3 text-xs font-semibold tracking-wide transition-colors sm:px-6 sm:text-sm"
+              style={{ color: isActive ? 'var(--text)' : 'var(--muted2)' }}
             >
               {tab.label}
               {isActive && (
@@ -229,7 +229,7 @@ function PoolTab({
       {userEntries.length > 0 ? (
         <div className="space-y-3">
           {userEntries.length > 1 && (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Viewing:</label>
               <div className="relative">
                 <select
@@ -352,7 +352,7 @@ function InviteSection({
 
       {inviteOpen && (
         <div className="px-4 pb-4 space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {members.slice(0, 5).map((m) => (
               <div
                 key={m.id}
@@ -367,7 +367,7 @@ function InviteSection({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div
               className="flex-1 rounded-lg px-3 py-2 text-xs truncate"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(251,146,60,0.3)', color: 'rgba(255,255,255,0.5)' }}
@@ -978,11 +978,11 @@ function EntryControlRow({
 }
 
 const FEED_EVENT_STYLES: Record<string, { icon: string; bg: string; border: string; text: string }> = {
-  UPSET_BUSTED: { icon: '💥', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)', text: '#ef4444' },
-  CHAMP_ELIMINATED: { icon: '💀', bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.15)', text: '#a78bfa' },
-  PERFECT_TRACKER: { icon: '✨', bg: 'rgba(251,146,60,0.06)', border: 'rgba(251,146,60,0.15)', text: '#fb923c' },
-  LEAD_CHANGE: { icon: '👑', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)', text: '#22c55e' },
-  BIG_UPSET: { icon: '🚨', bg: 'rgba(234,179,8,0.06)', border: 'rgba(234,179,8,0.15)', text: '#eab308' },
+  UPSET_BUSTED: { icon: 'UPSET', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)', text: '#ef4444' },
+  CHAMP_ELIMINATED: { icon: 'ELIM', bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.15)', text: '#a78bfa' },
+  PERFECT_TRACKER: { icon: 'HOT', bg: 'rgba(251,146,60,0.06)', border: 'rgba(251,146,60,0.15)', text: '#fb923c' },
+  LEAD_CHANGE: { icon: 'LEAD', bg: 'rgba(34,197,94,0.06)', border: 'rgba(34,197,94,0.15)', text: '#22c55e' },
+  BIG_UPSET: { icon: 'BIG', bg: 'rgba(234,179,8,0.06)', border: 'rgba(234,179,8,0.15)', text: '#eab308' },
 }
 
 function FeedTab({ tournamentId, leagueId }: { tournamentId: string; leagueId: string }) {
@@ -1026,7 +1026,7 @@ function FeedTab({ tournamentId, leagueId }: { tournamentId: string; leagueId: s
         </div>
       ) : events.length === 0 ? (
         <div className="rounded-xl p-8 text-center space-y-3" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="text-3xl">🏀</div>
+          <div className="text-3xl">BALL</div>
           <h3 className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.5)' }}>No Events Yet</h3>
           <p className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
             Bracket-busting moments will appear here as games are played.
@@ -1216,7 +1216,7 @@ function GlobalTab({ tournamentId, currentUserId }: { tournamentId: string; curr
                   {isMe && <span className="ml-1 text-[10px]" style={{ color: 'rgba(251,146,60,0.6)' }}>(you)</span>}
                 </div>
                 <div className="text-[10px] truncate" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                  {r.entryName} • {r.championPick || '—'}
+                  {r.entryName} - {r.championPick || '--'}
                 </div>
               </div>
               <div className="w-12 text-center text-xs font-bold" style={{ color: '#fb923c' }}>
@@ -1373,7 +1373,7 @@ function PublicPoolsTab({ tournamentId }: { tournamentId: string }) {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="text-right">
                     <div className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.6)' }}>
                       {pool.memberCount}
@@ -1423,15 +1423,3 @@ function PublicPoolsTab({ tournamentId }: { tournamentId: string }) {
     </div>
   )
 }
-
-
-
-
-
-
-
-
-
-
-
-

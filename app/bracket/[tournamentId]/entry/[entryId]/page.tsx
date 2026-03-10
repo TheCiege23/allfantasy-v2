@@ -22,9 +22,9 @@ export default async function EntryBracketPage({
   })
 
   if (!entry || entry.userId !== userId)
-    return <div className="p-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Bracket entry not found.</div>
+    return <div className="p-6 mode-muted">Bracket entry not found.</div>
   if (entry.league.tournamentId !== params.tournamentId)
-    return <div className="p-6" style={{ color: 'rgba(255,255,255,0.4)' }}>Wrong tournament.</div>
+    return <div className="p-6 mode-muted">Wrong tournament.</div>
 
   const { nodesWithGame, pickMap } = await getEntryBracketData(params.tournamentId, entry.id)
   const totalPicks = Object.values(pickMap || {}).filter(Boolean).length
@@ -32,33 +32,33 @@ export default async function EntryBracketPage({
   const completionPct = totalGames > 0 ? Math.round((totalPicks / totalGames) * 100) : 0
 
   return (
-    <div className="min-h-screen text-white" style={{ background: '#0d1117' }}>
+    <div className="mode-surface mode-readable min-h-screen">
       <BracketShell>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Link
               href={`/brackets/leagues/${entry.leagueId}`}
               className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+              style={{ background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--muted)" }}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
               <h1 className="text-lg font-bold">{entry.name || "My Bracket"}</h1>
-              <div className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Fill out your bracket</div>
+              <div className="mode-muted text-xs">Fill out your bracket</div>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mode-panel rounded-xl p-3">
               <div className="text-xs text-white/55">Picks Made</div>
               <div className="text-lg font-semibold text-white">{totalPicks}/{totalGames || 0}</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mode-panel rounded-xl p-3">
               <div className="text-xs text-white/55">Completion</div>
               <div className="text-lg font-semibold text-white">{completionPct}%</div>
             </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="mode-panel rounded-xl p-3">
               <div className="text-xs text-white/55">Status</div>
               <div className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-300"><CheckCircle2 className="h-4 w-4" />Editable</div>
             </div>
@@ -88,3 +88,5 @@ export default async function EntryBracketPage({
     </div>
   )
 }
+
+

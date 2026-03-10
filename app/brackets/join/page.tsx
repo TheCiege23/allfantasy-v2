@@ -59,17 +59,17 @@ function JoinLeagueForm() {
   return (
     <>
       {error && (
-        <div className="rounded-xl p-3 text-sm" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5' }}>
+        <div className="rounded-xl p-3 text-sm" style={{ background: 'color-mix(in srgb, var(--accent-red-strong) 14%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-red-strong) 38%, transparent)', color: 'var(--accent-red)' }}>
           {error}
         </div>
       )}
 
       <form onSubmit={handleJoin} className="space-y-4">
         <div>
-          <label className="text-xs font-semibold" style={{ color: '#fb923c' }}>Invite Code</label>
+          <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Invite Code</label>
           <input
             className="mt-2 w-full bg-transparent border-b-2 pb-2 text-2xl outline-none uppercase tracking-[0.3em] text-center font-mono"
-            style={{ borderColor: '#fb923c', color: 'white' }}
+            style={{ borderColor: "var(--accent)", color: "var(--text)" }}
             placeholder="ABCD1234"
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -77,7 +77,7 @@ function JoinLeagueForm() {
             disabled={loading}
             autoFocus
           />
-          <p className="text-xs mt-2 text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>
+          <p className="mode-muted text-xs mt-2 text-center">
             Enter the invite code your friend shared with you.
           </p>
         </div>
@@ -87,7 +87,7 @@ function JoinLeagueForm() {
             type="submit"
             disabled={!code.trim() || loading}
             className="w-full rounded-xl px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-black disabled:opacity-40 transition"
-            style={{ background: '#fb923c' }}
+            style={{ background: "var(--accent)" }}
           >
             {loading ? (
               <span className="inline-flex items-center justify-center gap-2">
@@ -109,8 +109,7 @@ function BackButton() {
   return (
     <button
       onClick={() => router.back()}
-      className="flex items-center gap-2 text-sm transition"
-      style={{ color: 'rgba(255,255,255,0.5)' }}
+      className="mode-muted flex items-center gap-2 text-sm transition"
     >
       <ArrowLeft className="w-4 h-4" />
     </button>
@@ -119,18 +118,18 @@ function BackButton() {
 
 export default function JoinLeaguePage() {
   return (
-    <div className="min-h-screen text-white" style={{ background: '#0d1117' }}>
+    <div className="mode-surface mode-readable min-h-screen">
       <div className="p-4 sm:p-6 max-w-md mx-auto space-y-6">
         <BackButton />
 
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.12)' }}>
-            <Users className="w-6 h-6" style={{ color: '#fb923c' }} />
+          <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)" }}>
+            <Users className="w-6 h-6" style={{ color: "var(--accent)" }} />
           </div>
           <h1 className="text-xl font-bold">Join a Pool</h1>
         </div>
 
-        <Suspense fallback={<div className="text-sm text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>Loading...</div>}>
+        <Suspense fallback={<div className="mode-muted text-sm text-center">Loading...</div>}>
           <JoinLeagueForm />
         </Suspense>
       </div>

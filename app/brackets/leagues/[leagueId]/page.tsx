@@ -40,10 +40,10 @@ export default async function LeagueDetailPage({
   const isMember = league.members.some((m: any) => m.userId === userId)
   if (!isMember) {
     return (
-      <div className="min-h-screen text-white flex items-center justify-center" style={{ background: '#0d1117' }}>
+      <div className="mode-surface mode-readable min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p style={{ color: 'rgba(255,255,255,0.4)' }}>You&apos;re not a member of this pool.</p>
-          <Link href="/brackets" style={{ color: '#fb923c' }} className="text-sm hover:underline">
+          <p className="mode-muted">You&apos;re not a member of this pool.</p>
+          <Link href="/brackets" className="text-sm hover:underline" style={{ color: "var(--accent)" }}>
             Back to March Madness
           </Link>
         </div>
@@ -95,26 +95,26 @@ export default async function LeagueDetailPage({
   const scoringMode = String(rules.scoringMode || 'standard')
 
   return (
-    <div className="min-h-screen text-white" style={{ background: '#0d1117' }}>
+    <div className="mode-surface mode-readable min-h-screen">
       <BracketShell>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Link
               href="/brackets"
               className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
-              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+              style={{ background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--muted)" }}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.12)' }}>
-                <Trophy className="w-4 h-4" style={{ color: '#fb923c' }} />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)" }}>
+                <Trophy className="w-4 h-4" style={{ color: "var(--accent)" }} />
               </div>
               <h1 className="text-lg sm:text-xl font-bold truncate">
                 {league.name}
               </h1>
             </div>
-            <button className="p-2 rounded-full transition" style={{ color: 'rgba(255,255,255,0.3)' }}>
+            <button className="p-2 rounded-full transition mode-muted">
               <Settings className="w-5 h-5" />
             </button>
           </div>
@@ -145,3 +145,4 @@ export default async function LeagueDetailPage({
     </div>
   )
 }
+
