@@ -59,11 +59,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
 
-  if (process.env.NODE_ENV !== 'production') {
-    if (!gaMeasurementId) console.warn('[AllFantasy] Missing NEXT_PUBLIC_GA_MEASUREMENT_ID');
-    if (!metaPixelId) console.warn('[AllFantasy] Missing NEXT_PUBLIC_META_PIXEL_ID');
-  }
-
   return (
     <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
       <head>
@@ -202,4 +197,5 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+
 

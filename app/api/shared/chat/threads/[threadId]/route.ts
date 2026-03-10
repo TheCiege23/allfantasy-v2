@@ -11,9 +11,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const threadId = decodeURIComponent(params.threadId)
-  const thread = await getPlatformThreadById(user.appUserId, threadId)
-
+  const thread = await getPlatformThreadById(user.appUserId, decodeURIComponent(params.threadId))
   if (!thread) {
     return NextResponse.json({ error: 'Thread not found' }, { status: 404 })
   }

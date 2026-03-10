@@ -4,6 +4,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Trophy, Plus, Users, ChevronRight, Star, Shield, Zap, Crown, ExternalLink, Sparkles, AlertTriangle, Scale, Heart } from "lucide-react"
+import BracketShell from "@/components/bracket/BracketShell"
+import BracketHomeTabs from "@/components/bracket/BracketHomeTabs"
+import MyPoolsTab from "@/components/bracket/MyPoolsTab"
+import BracketAICoachTab from "@/components/bracket/BracketAICoachTab"
+import CreatePoolTab from "@/components/bracket/CreatePoolTab"
+import JoinPoolTab from "@/components/bracket/JoinPoolTab"
+import StandingsTab from "@/components/bracket/StandingsTab"
+import BracketHistoryTab from "@/components/bracket/BracketHistoryTab"
 
 export const dynamic = "force-dynamic"
 
@@ -42,8 +50,8 @@ export default async function BracketsHomePage() {
     : []
 
   return (
-    <div className="min-h-screen text-white" style={{ background: '#0d1117' }}>
-      <div className="relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #0f1a2e 0%, #0d1117 100%)' }}>
+    <div className="min-h-screen mode-surface mode-readable">
+      <div className="relative overflow-hidden" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, transparent) 0%, var(--bg) 100%)' }}>
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)' }} />
           <div className="absolute -bottom-20 -left-20 w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,146,60,0.06) 0%, transparent 70%)' }} />
@@ -59,7 +67,7 @@ export default async function BracketsHomePage() {
               </div>
             </div>
             <Link
-              href="/af-legacy"
+              href="/dashboard"
               className="text-xs px-3 py-1.5 rounded-lg transition"
               style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
             >
@@ -167,7 +175,36 @@ export default async function BracketsHomePage() {
           )}
         </div>
       </div>
-
+      <BracketShell>
+        <div className="space-y-4">
+          <BracketHomeTabs
+            poolCount={myLeagues.length}
+          />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <MyPoolsTab
+              pools={myLeagues.map((m: any) => ({
+                id: m.league.id,
+                name: m.league.name,
+                members: m.league._count.members,
+                entries: m.league._count.entries,
+              }))}
+            />
+            <BracketAICoachTab />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <CreatePoolTab />
+            <JoinPoolTab />
+            <StandingsTab />
+            <BracketHistoryTab
+              pools={myLeagues.map((m: any) => ({
+                id: m.league.id,
+                name: m.league.name,
+                entries: m.league._count.entries,
+              }))}
+            />
+          </div>
+        </div>
+      </BracketShell>
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pb-12 space-y-8">
 
         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -546,3 +583,13 @@ export default async function BracketsHomePage() {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+

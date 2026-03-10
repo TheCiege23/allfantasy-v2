@@ -24,43 +24,42 @@ export default function MessagesPage() {
   }, [isAuthenticated, session?.user?.email, session?.user?.name])
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className="min-h-screen mode-surface mode-readable">
       <AppShellNav isAuthenticated={isAuthenticated} userLabel={userLabel} />
 
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 space-y-5">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-          <h1 className="text-2xl font-semibold">Messages</h1>
-          <p className="mt-1 text-sm text-white/60">
+        <section className="mode-panel rounded-2xl p-5">
+          <h1 className="text-2xl font-semibold mode-text">Messages</h1>
+          <p className="mt-1 text-sm mode-muted">
             Unified inbox for DMs, group chats, and AI chat.
           </p>
         </section>
 
         {!isAuthenticated ? (
-          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
-            <h2 className="text-xl font-semibold">Sign in to open your inbox</h2>
-            <p className="mt-2 text-sm text-white/60">
+          <section className="mode-panel rounded-2xl p-8 text-center">
+            <h2 className="text-xl font-semibold mode-text">Sign in to open your inbox</h2>
+            <p className="mt-2 text-sm mode-muted">
               Account login is required for private and league chat history.
             </p>
             <div className="mt-4 flex justify-center gap-3">
-              <Link href="/login?next=/messages" className="rounded-lg border border-white/20 px-4 py-2 text-sm hover:bg-white/10">
+              <Link href="/login?next=/messages" className="rounded-lg border px-4 py-2 text-sm" style={{ borderColor: 'var(--border)' }}>
                 Sign In
               </Link>
-              <Link href="/signup?next=/messages" className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-slate-200">
+              <Link href="/signup?next=/messages" className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: 'var(--accent-cyan-strong)', color: 'var(--on-accent-bg)' }}>
                 Sign Up
               </Link>
             </div>
           </section>
         ) : (
           <>
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <section className="mode-panel rounded-2xl p-3">
               <div className="flex gap-2 overflow-x-auto">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`rounded-lg px-4 py-2 text-sm transition ${
-                      activeTab === tab.id ? "bg-white text-black" : "bg-white/5 text-white/70 hover:bg-white/10"
-                    }`}
+                    className="rounded-lg px-4 py-2 text-sm transition"
+                    style={activeTab === tab.id ? { background: 'var(--text)', color: 'var(--bg)' } : { background: 'color-mix(in srgb, var(--panel2) 80%, transparent)', color: 'var(--muted)' }}
                   >
                     {tab.label}
                   </button>
@@ -68,24 +67,24 @@ export default function MessagesPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <section className="mode-panel rounded-2xl p-6">
               {activeTab === "dm" && (
                 <div>
-                  <h3 className="text-lg font-semibold">Private DMs</h3>
-                  <p className="mt-1 text-sm text-white/60">Search users, open one-on-one chats, and manage mentions.</p>
+                  <h3 className="text-lg font-semibold mode-text">Private DMs</h3>
+                  <p className="mt-1 text-sm mode-muted">Search users, open one-on-one chats, and manage mentions.</p>
                 </div>
               )}
               {activeTab === "groups" && (
                 <div>
-                  <h3 className="text-lg font-semibold">Group Chats</h3>
-                  <p className="mt-1 text-sm text-white/60">League channels, commissioner broadcasts, polls, and media sharing.</p>
+                  <h3 className="text-lg font-semibold mode-text">Group Chats</h3>
+                  <p className="mt-1 text-sm mode-muted">League channels, commissioner broadcasts, polls, and media sharing.</p>
                 </div>
               )}
               {activeTab === "ai" && (
                 <div>
-                  <h3 className="text-lg font-semibold">AI Chatbot</h3>
-                  <p className="mt-1 text-sm text-white/60">Ask one question at a time for trade, waiver, draft, and strategy coaching.</p>
-                  <Link href="/legacy?tab=chat" className="mt-4 inline-flex rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-500/20">
+                  <h3 className="text-lg font-semibold mode-text">AI Chatbot</h3>
+                  <p className="mt-1 text-sm mode-muted">Ask one question at a time for trade, waiver, draft, and strategy coaching.</p>
+                  <Link href="/legacy?tab=chat" className="mt-4 inline-flex rounded-lg border px-4 py-2 text-sm" style={{ borderColor: 'color-mix(in srgb, var(--accent-cyan) 45%, var(--border))', color: 'var(--accent-cyan-strong)', background: 'color-mix(in srgb, var(--accent-cyan) 14%, transparent)' }}>
                     Open Legacy AI Chat
                   </Link>
                 </div>

@@ -1,0 +1,67 @@
+'use client'
+
+import { useState } from 'react'
+import GeneralSettingsPanel from '@/components/app/settings/GeneralSettingsPanel'
+import TeamSettingsPanel from '@/components/app/settings/TeamSettingsPanel'
+import RosterSettingsPanel from '@/components/app/settings/RosterSettingsPanel'
+import ScoringSettingsPanel from '@/components/app/settings/ScoringSettingsPanel'
+import DraftSettingsPanel from '@/components/app/settings/DraftSettingsPanel'
+import DivisionSettingsPanel from '@/components/app/settings/DivisionSettingsPanel'
+import MemberSettingsPanel from '@/components/app/settings/MemberSettingsPanel'
+import CommissionerControlsPanel from '@/components/app/settings/CommissionerControlsPanel'
+import RulesInfoPanel from '@/components/app/settings/RulesInfoPanel'
+import PreviousLeaguesPanel from '@/components/app/settings/PreviousLeaguesPanel'
+import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
+import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
+import type { LeagueTabProps } from '@/components/app/tabs/types'
+
+const SUBTABS = [
+  'General',
+  'Team Settings',
+  'Roster Settings',
+  'Scoring Settings',
+  'Draft Settings',
+  'Division Settings',
+  'Member Settings',
+  'Commissioner Controls',
+  'Rules & Info',
+  'Previous Leagues',
+  'Reset League',
+  'Delete League',
+] as const
+
+type SettingsSubtab = (typeof SUBTABS)[number]
+
+export default function LeagueSettingsTab(_props: LeagueTabProps) {
+  const [active, setActive] = useState<SettingsSubtab>('General')
+
+  return (
+    <section className="space-y-4">
+      <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
+        {SUBTABS.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActive(tab)}
+            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition ${active === tab ? 'bg-white text-black' : 'border border-white/10 bg-black/20 text-white/75 hover:bg-white/10'}`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {active === 'General' && <GeneralSettingsPanel />}
+      {active === 'Team Settings' && <TeamSettingsPanel />}
+      {active === 'Roster Settings' && <RosterSettingsPanel />}
+      {active === 'Scoring Settings' && <ScoringSettingsPanel />}
+      {active === 'Draft Settings' && <DraftSettingsPanel />}
+      {active === 'Division Settings' && <DivisionSettingsPanel />}
+      {active === 'Member Settings' && <MemberSettingsPanel />}
+      {active === 'Commissioner Controls' && <CommissionerControlsPanel />}
+      {active === 'Rules & Info' && <RulesInfoPanel />}
+      {active === 'Previous Leagues' && <PreviousLeaguesPanel />}
+      {active === 'Reset League' && <ResetLeaguePanel />}
+      {active === 'Delete League' && <DeleteLeaguePanel />}
+    </section>
+  )
+}

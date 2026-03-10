@@ -10,7 +10,7 @@ export function ModeToggle(props: { className?: string }) {
   useEffect(() => setMounted(true), [])
 
   const label = mode === "dark" ? "Dark" : mode === "light" ? "Light" : "AF Legacy"
-  const icon = mode === "dark" ? "🌙" : mode === "light" ? "☀️" : "⚡"
+  const icon = mode === "dark" ? "MOON" : mode === "light" ? "SUN" : "AF"
 
   return (
     <button

@@ -278,3 +278,95 @@ export async function createPlatformThreadMessage(
     return null
   }
 }
+
+export async function createPlatformThreadTypedMessage(
+  appUserId: string,
+  threadId: string,
+  messageType: string,
+  payload: unknown,
+): Promise<PlatformChatMessage | null> {
+  const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
+  return createPlatformThreadMessage(appUserId, threadId, body, messageType)
+}
+
+export async function blockUserInSharedThreads(
+  requesterUserId: string,
+  blockedUserId: string,
+): Promise<number> {
+  if (!requesterUserId || !blockedUserId || requesterUserId === blockedUserId) return 0
+
+  try {
+    const shared = await (prisma as any).platformChatThread.findMany({
+      where: {
+        members: {
+          some: { userId: requesterUserId },
+        },
+        AND: [
+          {
+            members: {
+              some: { userId: blockedUserId },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+      take: 200,
+    })
+
+    if (!shared.length) return 0
+    const threadIds = shared.map((t: { id: string }) => t.id)
+
+    const result = await (prisma as any).platformChatThreadMember.updateMany({
+      where: {
+        threadId: { in: threadIds },
+        userId: blockedUserId,
+      },
+      data: { isBlocked: true },
+    })
+
+    return Number(result?.count || 0)
+  } catch {
+    return 0
+  }
+}
+
+export async function getBlockedUsers(requesterUserId: string): Promise<Array<{ userId: string; username: string | null; displayName: string | null }>> {
+  if (!requesterUserId) return []
+
+  try {
+    const members = await (prisma as any).platformChatThreadMember.findMany({
+      where: {
+        isBlocked: true,
+        thread: {
+          members: {
+            some: { userId: requesterUserId },
+          },
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+          },
+        },
+      },
+      take: 500,
+    })
+
+    const dedup = new Map<string, { userId: string; username: string | null; displayName: string | null }>()
+    for (const member of members) {
+      if (!member?.user?.id || member.user.id === requesterUserId) continue
+      dedup.set(member.user.id, {
+        userId: member.user.id,
+        username: member.user.username || null,
+        displayName: member.user.displayName || null,
+      })
+    }
+
+    return Array.from(dedup.values())
+  } catch {
+    return []
+  }
+}

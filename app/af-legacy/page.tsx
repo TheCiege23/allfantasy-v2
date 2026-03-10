@@ -22,14 +22,25 @@ import CommunityInsights from "@/components/CommunityInsights"
 import MarketTimingAlerts from "@/components/MarketTimingAlerts"
 import TradeAlternatives from "@/components/TradeAlternatives"
 import TradeCounterSuggestions from "@/components/TradeCounterSuggestions"
-import TradeFinderV2 from "@/components/TradeFinderV2"
 import AdaptiveRankings from "@/components/AdaptiveRankings"
 import EnhancedRankingsPanel from "@/components/EnhancedRankingsPanel"
 import LeagueRankingsV2Panel from "@/components/LeagueRankingsV2Panel"
-import StrategyPlanner from "@/components/StrategyPlanner"
-import EtsyShop from "@/components/EtsyShop"
 import DraftRoom from "@/app/af-legacy/components/mock-draft/DraftRoom"
-import LegacyLeagueIdeaForm from '@/app/components/LegacyLeagueIdeaForm'
+import LegacyStrategyTab from '@/app/af-legacy/components/tabs/LegacyStrategyTab'
+import LegacyShopTab from '@/app/af-legacy/components/tabs/LegacyShopTab'
+import LegacyIdeasTab from '@/app/af-legacy/components/tabs/LegacyIdeasTab'
+import LegacyOverviewLaunchCard from '@/app/af-legacy/components/tabs/LegacyOverviewLaunchCard'
+import LegacyTransferIntro from '@/app/af-legacy/components/tabs/LegacyTransferIntro'
+import LegacyTradeTabHeader from '@/app/af-legacy/components/tabs/LegacyTradeTabHeader'
+import LegacyWaiverTabIntro from '@/app/af-legacy/components/tabs/LegacyWaiverTabIntro'
+import LegacyRankingsIntro from '@/app/af-legacy/components/tabs/LegacyRankingsIntro'
+import LegacyPlayerFinderIntro from '@/app/af-legacy/components/tabs/LegacyPlayerFinderIntro'
+import LegacyPulseIntro from '@/app/af-legacy/components/tabs/LegacyPulseIntro'
+import LegacyCompareIntro from '@/app/af-legacy/components/tabs/LegacyCompareIntro'
+import LegacyFinderTab from '@/app/af-legacy/components/tabs/LegacyFinderTab'
+import LegacyChatIntro from '@/app/af-legacy/components/tabs/LegacyChatIntro'
+import LegacyShareIntro from '@/app/af-legacy/components/tabs/LegacyShareIntro'
+import { getLegacyFeedbackToolLabel } from '@/app/af-legacy/components/legacy-tab-label'
 import ExploitMyLeague from "@/components/ExploitMyLeague"
 import { DraftGradesSection } from "@/components/rankings/DraftGradesSection"
 import { HallOfFameSection } from "@/components/rankings/HallOfFameSection"
@@ -730,19 +741,19 @@ function LeagueHistoryAccordion({
                                     )}
                                   </div>
                                 )
-                              })}
-                            </div>
-                          )}
+                                                })}
+                  </div>
+                )}
                         </div>
                       )
-                    })}
+                                      })}
                   </div>
                 )}
               </div>
             )
-          })}
-        </div>
-      )}
+                            })}
+                  </div>
+                )}
       </div>
     </div>
   )
@@ -1457,9 +1468,9 @@ function AFLegacyContent() {
                   )}
                 </>
               )
-            })()}
-          </div>
-        )}
+                              })()}
+                  </div>
+                )}
       </div>
     )
   }
@@ -4399,20 +4410,20 @@ function AFLegacyContent() {
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode; badge?: string }> = [
     { id: 'overview' as Tab, label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'trade' as Tab, label: 'AI Trade Hub', icon: <ArrowLeftRight className="w-4 h-4" />, badge: 'AI' },
-    { id: 'finder' as Tab, label: 'Trade Finder', icon: <Search className="w-4 h-4" />, badge: 'AI' },
-    { id: 'player-finder' as Tab, label: 'Player Finder', icon: <Search className="w-4 h-4" /> },
-    { id: 'waiver' as Tab, label: 'Waiver AI', icon: <TrendingUp className="w-4 h-4" />, badge: 'AI' },
-    { id: 'rankings' as Tab, label: 'Rankings', icon: <Trophy className="w-4 h-4" /> },
-    { id: 'pulse' as Tab, label: 'Pulse', icon: <Radio className="w-4 h-4" />, badge: 'Beta' },
-    { id: 'compare' as Tab, label: 'Compare', icon: <Swords className="w-4 h-4" /> },
+    { id: 'trade' as Tab, label: 'Trade Command Center', icon: <ArrowLeftRight className="w-4 h-4" />, badge: 'AI' },
+    { id: 'finder' as Tab, label: 'Trade Review', icon: <Search className="w-4 h-4" />, badge: 'AI' },
+    { id: 'player-finder' as Tab, label: 'Team Scan', icon: <Search className="w-4 h-4" /> },
+    { id: 'waiver' as Tab, label: 'Waiver Engine', icon: <TrendingUp className="w-4 h-4" />, badge: 'AI' },
+    { id: 'rankings' as Tab, label: 'Team Direction', icon: <Trophy className="w-4 h-4" /> },
+    { id: 'pulse' as Tab, label: 'Market Board', icon: <Radio className="w-4 h-4" />, badge: 'Beta' },
+    { id: 'compare' as Tab, label: 'Opponent Behavior', icon: <Swords className="w-4 h-4" /> },
     { id: 'chat' as Tab, label: 'AI Chat', icon: <MessageCircle className="w-4 h-4" />, badge: 'AI' },
-    { id: 'mock-draft' as Tab, label: 'Mock Draft', icon: <LayoutGrid className="w-4 h-4" />, badge: 'AI' },
-    { id: 'share' as Tab, label: 'Share', icon: <Share2 className="w-4 h-4" /> },
-    { id: 'transfer' as Tab, label: 'Transfer', icon: <PackageOpen className="w-4 h-4" /> },
-    { id: 'strategy' as Tab, label: 'Strategy', icon: <Target className="w-4 h-4" />, badge: 'AI' },
-    { id: 'shop' as Tab, label: 'Shop', icon: <ShoppingBag className="w-4 h-4" /> },
-    { id: 'ideas' as Tab, label: 'Submit Ideas', icon: <Lightbulb className="w-4 h-4" /> },
+    { id: 'mock-draft' as Tab, label: 'Draft War Room', icon: <LayoutGrid className="w-4 h-4" />, badge: 'AI' },
+    { id: 'share' as Tab, label: 'League Fairness', icon: <Share2 className="w-4 h-4" /> },
+    { id: 'transfer' as Tab, label: 'Imports', icon: <PackageOpen className="w-4 h-4" /> },
+    { id: 'strategy' as Tab, label: 'Renegotiation', icon: <Target className="w-4 h-4" />, badge: 'AI' },
+    { id: 'shop' as Tab, label: 'History Analysis', icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: 'ideas' as Tab, label: 'Action Plan', icon: <Lightbulb className="w-4 h-4" /> },
   ]
 
   const isShareLocked = shareCooldownMs > 0
@@ -4430,25 +4441,25 @@ function AFLegacyContent() {
   const subTabConfigs: Record<MainTab, Array<{ id: string; label: string; icon?: React.ReactNode; badge?: string }>> = {
     home: [],
     trade: [
-      { id: 'trade', label: 'Trade Hub', icon: <ArrowLeftRight className="w-3.5 h-3.5" />, badge: 'AI' },
-      { id: 'finder', label: 'Finder', icon: <Search className="w-3.5 h-3.5" />, badge: 'AI' },
-      { id: 'player-finder', label: 'Players', icon: <Search className="w-3.5 h-3.5" /> },
+      { id: 'trade', label: 'Trade Cmd', icon: <ArrowLeftRight className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'finder', label: 'Review', icon: <Search className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'player-finder', label: 'Team Scan', icon: <Search className="w-3.5 h-3.5" /> },
       { id: 'waiver', label: 'Waiver', icon: <TrendingUp className="w-3.5 h-3.5" />, badge: 'AI' },
     ],
     strategy: [
-      { id: 'strategy', label: 'Planner', icon: <Target className="w-3.5 h-3.5" />, badge: 'AI' },
-      { id: 'rankings', label: 'Rankings', icon: <Trophy className="w-3.5 h-3.5" /> },
-      { id: 'pulse', label: 'Pulse', icon: <Radio className="w-3.5 h-3.5" /> },
-      { id: 'compare', label: 'Compare', icon: <Swords className="w-3.5 h-3.5" /> },
+      { id: 'strategy', label: 'Renegotiate', icon: <Target className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'rankings', label: 'Direction', icon: <Trophy className="w-3.5 h-3.5" /> },
+      { id: 'pulse', label: 'Market', icon: <Radio className="w-3.5 h-3.5" /> },
+      { id: 'compare', label: 'Opponents', icon: <Swords className="w-3.5 h-3.5" /> },
     ],
     alerts: [],
     profile: [
       { id: 'chat', label: 'AI', icon: <MessageCircle className="w-3.5 h-3.5" /> },
-      { id: 'mock-draft', label: 'Draft', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'AI' },
-      { id: 'share', label: 'Share', icon: <Share2 className="w-3.5 h-3.5" /> },
-      { id: 'transfer', label: 'Transfer', icon: <PackageOpen className="w-3.5 h-3.5" /> },
-      { id: 'shop', label: 'Shop', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
-      { id: 'ideas', label: 'Ideas', icon: <Lightbulb className="w-3.5 h-3.5" /> },
+      { id: 'mock-draft', label: 'War Room', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'share', label: 'Fairness', icon: <Share2 className="w-3.5 h-3.5" /> },
+      { id: 'transfer', label: 'Imports', icon: <PackageOpen className="w-3.5 h-3.5" /> },
+      { id: 'shop', label: 'History', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
+      { id: 'ideas', label: 'Plan', icon: <Lightbulb className="w-3.5 h-3.5" /> },
     ],
   }
 
@@ -6836,19 +6847,7 @@ function AFLegacyContent() {
                 <div className={mobileAlertsActive ? 'hidden lg:block' : ''}>
                 {activeTab === 'overview' && (
                   <div className="space-y-8">
-                    <a
-                      href="/brackets"
-                      className="block rounded-2xl border border-purple-500/25 bg-gradient-to-r from-purple-800/20 via-indigo-800/20 to-purple-800/20 p-4 hover:border-purple-400/40 transition group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">🏀</span>
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-white">NCAA Bracket Challenge</div>
-                          <div className="text-xs text-white/50 mt-0.5">Create a bracket league with your dynasty group and compete.</div>
-                        </div>
-                        <span className="text-white/30 group-hover:text-white/60 transition text-lg">→</span>
-                      </div>
-                    </a>
+                    <LegacyOverviewLaunchCard />
                     {/* Composite Profile + Report Card */}
                     {(() => {
                       const leagueRecords: LeagueRecord[] = (leagues || []).map(l => ({
@@ -7694,18 +7693,12 @@ function AFLegacyContent() {
 
                 {activeTab === 'trade' && (
                   <div className="space-y-6">
-                    {/* Tab Headline */}
-                    <p className="text-center text-sm sm:text-base text-white/60">Know if a trade helps or hurts your team before you accept.</p>
-                    {/* AI GM Status Indicator */}
-                    {(tradeSelectedLeague || leagues[0]?.league_id) && (
-                      <AIGMStatusIndicator
-                        username={username}
-                        leagueId={tradeSelectedLeague || leagues[0]?.league_id || ''}
-                        onReady={(cache) => {
-                          
-                        }}
-                      />
-                    )}
+                    {/* Trade Header */}
+                    <LegacyTradeTabHeader
+                      username={username}
+                      leagueId={tradeSelectedLeague || leagues[0]?.league_id || ""}
+                    />
+
 
                     {/* ═══════════════════════════════════════════════════════════════════════════════
                         TRADE REPORT CARD - Premium Header (Dynasty Dealmaker Style)
@@ -7954,9 +7947,9 @@ function AFLegacyContent() {
                                     )}
                                   </div>
                                 )
-                              })()}
-                            </div>
-                          )}
+                                                })()}
+                  </div>
+                )}
 
                           {/* AI Validation Pipeline Visual */}
                           <div className="mb-6 p-4 rounded-2xl bg-black/20 border border-white/5">
@@ -8528,9 +8521,9 @@ function AFLegacyContent() {
                                         <div className="text-right text-xs text-white/40 mt-1">{comp.score}/100</div>
                                       </div>
                                     )
-                                  })()}
-                                </div>
-                              )}
+                                                    })()}
+                  </div>
+                )}
 
                               {/* SECTION 1.6: Skill Radar Chart */}
                               {tradeAnalytics?.reportCard?.skillRadar && (
@@ -8568,9 +8561,9 @@ function AFLegacyContent() {
                                         ))}
                                       </div>
                                     )
-                                  })()}
-                                </div>
-                              )}
+                                                    })()}
+                  </div>
+                )}
 
                               {/* SECTION 1.7: AI Counter Projection */}
                               {tradeAnalytics?.reportCard?.aiCounterProjection && (
@@ -11709,9 +11702,9 @@ function AFLegacyContent() {
                                   })}
                                 </div>
                               )
-                            })}
-                          </div>
-                        )}
+                                              })()}
+                  </div>
+                )}
 
                         {goalProposalResult && goalProposalResult.partners?.length === 0 && (
                           <div className="p-6 rounded-xl bg-gradient-to-b from-slate-900/80 to-slate-800/50 border border-white/10 text-center">
@@ -12016,9 +12009,9 @@ function AFLegacyContent() {
                                   </div>
                                 </div>
                               )
-                            })}
-                          </div>
-                        )}
+                                              })}
+                  </div>
+                )}
                       </div>
                     </div>
                     )}
@@ -12026,7 +12019,7 @@ function AFLegacyContent() {
                 )}
 
                 {activeTab === 'finder' && (
-                  <TradeFinderV2
+                  <LegacyFinderTab
                     leagues={leagues.map(lg => ({
                       league_id: lg.league_id,
                       name: lg.name,
@@ -12564,15 +12557,8 @@ function AFLegacyContent() {
                     accent="cyan"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Find players by value, momentum, and roster fit — not hype.</p>
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
-                    <div className="flex items-start sm:items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/30 to-cyan-500/30 flex items-center justify-center text-xl flex-shrink-0">🔍</div>
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">Player Finder</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">Find which of your leagues you own a specific player in</p>
-                      </div>
-                    </div>
+                    <LegacyPlayerFinderIntro />
 
                     <div className="flex flex-col sm:flex-row gap-3 mb-6">
                       <div className="relative flex-1" ref={autoSuggestRef}>
@@ -12733,9 +12719,9 @@ function AFLegacyContent() {
                               </div>
                             </button>
                           )
-                        })}
-                      </div>
-                    )}
+                                          })}
+                  </div>
+                )}
 
                     {!playerSearchLoading && playerSearchResults.length === 0 && !playerSearchError && (
                       <div className="text-center py-12 text-white/50">
@@ -12770,28 +12756,15 @@ function AFLegacyContent() {
                   ) : (
                     <HeroMetric value="--" label="Waiver AI" helper="Select a league to find your best pickups" accent="emerald" />
                   )}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">League-specific, goal-aware analysis with 4 scoring dimensions — not generic advice.</p>
+                  <LegacyWaiverTabIntro />
 
-                  <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6 space-y-5">
-                    <div className="flex items-start sm:items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500/30 to-emerald-500/30 flex items-center justify-center text-xl flex-shrink-0">
-                        <span className="text-emerald-400 text-base">&#x2197;</span>
-                      </div>
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">Waiver AI</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">Find the best adds for your team and league</p>
-                      </div>
-                    </div>
+                  {waiverDynastyLeagues.length === 0 && !waiverLeaguesLoading && (
+                    <button onClick={loadWaiverLeagues} className="px-5 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 text-cyan-200 rounded-xl transition font-medium">
+                      Find Leagues
+                    </button>
+                  )}
 
-                    {waiverDynastyLeagues.length === 0 && !waiverLeaguesLoading && (
-                      <button onClick={loadWaiverLeagues} className="px-5 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/30 text-cyan-200 rounded-xl transition font-medium">
-                        Find Leagues
-                      </button>
-                    )}
-
-                    {waiverLeaguesLoading && <div className="text-gray-400">Loading leagues...</div>}
-
-                    {waiverDynastyLeagues.length > 0 && (
+                  {waiverDynastyLeagues.length > 0 && (
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
@@ -12839,7 +12812,6 @@ function AFLegacyContent() {
                         {waiverError && <p className="text-red-400 text-sm">{waiverError}</p>}
                       </div>
                     )}
-                  </div>
 
                   {waiverAnalysis && (
                     <div className="space-y-5 mt-5">
@@ -13038,9 +13010,9 @@ function AFLegacyContent() {
                                               <div className="text-[9px] text-white/30 mt-0.5">{dim.desc}</div>
                                             </div>
                                           )
-                                        })}
-                                      </div>
-                                    )}
+                                                          })}
+                  </div>
+                )}
 
                                     {drivers.length > 0 && (
                                       <div className="space-y-1">
@@ -13142,11 +13114,11 @@ function AFLegacyContent() {
                     accent="amber"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">See exactly where your team stands in the league hierarchy.</p>
+                  <LegacyRankingsIntro />
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
                     <div className="flex items-start sm:items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500/30 to-amber-500/30 flex items-center justify-center text-xl flex-shrink-0">🏆</div>
-                      <div className="flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500/30 to-amber-500/30 flex items-center justify-center text-xl flex-shrink-0">&#x1F3C6;</div>
+                      <div>
                         <h3 className="text-lg sm:text-xl font-bold text-cyan-400">League Rankings</h3>
                         <p className="text-xs sm:text-sm text-gray-400">See where you rank in your dynasty leagues</p>
                       </div>
@@ -15042,15 +15014,8 @@ function AFLegacyContent() {
                     accent="pink"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Understand player narratives before the market shifts.</p>
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
-                    <div className="flex items-start sm:items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center text-xl flex-shrink-0">📡</div>
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">Social Pulse</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">Live X and web search for real-time player/team news and sentiment</p>
-                      </div>
-                    </div>
+                    <LegacyPulseIntro />
 
                     <div className="space-y-4">
                       <div>
@@ -15230,15 +15195,8 @@ function AFLegacyContent() {
                     accent="amber"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">One question. One answer. Who should you choose?</p>
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
-                    <div className="flex items-start sm:items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/30 to-orange-500/30 flex items-center justify-center text-xl flex-shrink-0">⚔️</div>
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">Manager Comparison</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">Compare any two Sleeper managers instantly</p>
-                      </div>
-                    </div>
+                    <LegacyCompareIntro />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div className="rounded-xl bg-cyan-500/10 border border-cyan-400/30 p-4">
@@ -15481,7 +15439,6 @@ function AFLegacyContent() {
                     accent="purple"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Ask your fantasy questions and get clear, contextual answers.</p>
                   <div
                     className={`bg-black/30 border rounded-2xl p-4 sm:p-6 flex flex-col h-[600px] sm:h-[700px] relative transition-colors ${chatDragActive ? 'border-cyan-400/60 bg-cyan-500/5' : 'border-cyan-500/20'}`}
                     onDragEnter={handleChatDragEnter}
@@ -15493,24 +15450,18 @@ function AFLegacyContent() {
                     {chatDragActive && (
                       <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/60 backdrop-blur-sm border-2 border-dashed border-cyan-400/50 pointer-events-none">
                         <div className="text-center">
-                          <div className="text-4xl mb-2">📸</div>
+                          <div className="text-4xl mb-2">&#x1F4F8;</div>
                           <p className="text-cyan-300 font-semibold text-lg">Drop your image here</p>
                           <p className="text-cyan-400/60 text-sm mt-1">Screenshots, trade images, roster photos</p>
                         </div>
                       </div>
                     )}
-                    <div className="flex items-start sm:items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-purple-500/30 flex items-center justify-center text-xl flex-shrink-0">💬</div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">AI Fantasy Coach</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">
-                          {username 
-                            ? 'Personalized to your leagues, rosters & trading style'
-                            : 'Ask about trades, players, drafts, waivers, or drop a screenshot'}
-                        </p>
-                      </div>
-                      {username && leagues.length > 0 && renderLeagueDropdown('chat', leagues, chatLeagueId, (val) => setChatLeagueId(val), 'All leagues', true, 'max-w-[200px] sm:max-w-[240px]')}
-                    </div>
+                    <LegacyChatIntro
+                      username={username}
+                      leagues={leagues.map((l) => ({ league_id: l.league_id, name: l.name }))}
+                      chatLeagueId={chatLeagueId}
+                      renderLeagueSelector={() => renderLeagueDropdown('chat', leagues, chatLeagueId, (val) => setChatLeagueId(val), 'All leagues', true, 'max-w-[200px] sm:max-w-[240px]')}
+                    />
 
                     {username && (
                       <div className="mb-3 rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-xs text-cyan-200">
@@ -15716,18 +15667,8 @@ function AFLegacyContent() {
                     accent="cyan"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Turn your fantasy career into a shareable report card.</p>
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
-                    <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">Share Your Legacy</h3>
-                        <CooldownPill label="Share" ms={shareCooldownMs} tone="slate" />
-                      </div>
-
-                      {shareRemaining != null && (
-                        <div className="text-[11px] text-white/50">Remaining: {shareRemaining}</div>
-                      )}
-                    </div>
+                    <LegacyShareIntro shareRemaining={shareRemaining} shareCooldownMs={shareCooldownMs} />
 
                     {/* Share Type Selection */}
                     <div className="mb-4">
@@ -16206,25 +16147,8 @@ function AFLegacyContent() {
                     accent="emerald"
                   />
                   {/* Tab Headline */}
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Bring your leagues with you — no reset, no risk.</p>
+                  <LegacyTransferIntro subtitle="Bring your leagues with you - no reset, no risk." />
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
-                    <div className="flex flex-wrap items-start sm:items-center gap-3 mb-6">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 flex items-center justify-center text-xl sm:text-2xl flex-shrink-0">📦</div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-lg sm:text-xl font-bold text-cyan-400">League Transfer</h3>
-                        <p className="text-xs sm:text-sm text-gray-400">Migrate your entire Sleeper league to AllFantasy</p>
-                      </div>
-                      <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[10px] sm:text-xs font-semibold whitespace-nowrap">Live Preview</span>
-                    </div>
-
-                    <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 border border-emerald-400/20 mb-6">
-                      <p className="text-sm text-gray-300">
-                        <span className="text-emerald-400 font-semibold">Full League Migration</span> — Transfer your complete Sleeper league history, 
-                        settings, and data to AllFantasy with one click. Everything stays intact.
-                      </p>
-                    </div>
-
-                    {/* Transfer Input */}
                     <div className="space-y-4 mb-6 sm:mb-8">
                       {/* League Dropdown Selector */}
                       <div>
@@ -17712,13 +17636,7 @@ function AFLegacyContent() {
                     helper="AI-powered roadmap for your fantasy season"
                     accent="purple"
                   />
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Get a personalized strategy based on your roster, standings, and draft capital.</p>
-                  <div className="bg-black/30 border border-purple-500/20 rounded-2xl p-4 sm:p-6">
-                    <StrategyPlanner
-                      leagues={leagues.filter(l => l.season === Math.max(...leagues.map(lg => lg.season)))}
-                      sleeperUsername={username}
-                    />
-                  </div>
+                  <LegacyStrategyTab leagues={leagues as any} username={username} />
                   </>
                 )}
 
@@ -17730,23 +17648,19 @@ function AFLegacyContent() {
                     helper="Rep the brand with AF gear"
                     accent="cyan"
                   />
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Gear up with official AllFantasy merchandise. T-shirts, hoodies, hats, and more.</p>
-                  <div className="bg-black/30 border border-white/10 rounded-2xl p-4 sm:p-6">
-                    <EtsyShop />
-                  </div>
+                  <LegacyShopTab />
                   </>
                 )}
 
                 {activeTab === 'ideas' && (
                   <>
                   <HeroMetric 
-                    value="💡"
+                    value="Idea"
                     label="Submit League Ideas"
                     helper="Share your unique league format with the community"
                     accent="cyan"
                   />
-                  <p className="text-center text-sm sm:text-base text-white/60 mb-4">Got a creative league format? Submit it here — accepted ideas get built into AllFantasy with full credit.</p>
-                  <LegacyLeagueIdeaForm />
+                  <LegacyIdeasTab />
                   </>
                 )}
 
@@ -18013,25 +17927,7 @@ function AFLegacyContent() {
         onClose={() => setFeedbackOpen(false)}
         sleeperUsername={username}
         userId={profile?.sleeper_user_id}
-        defaultTool={
-          activeTab === 'overview' ? 'Career Stats / History' :
-          activeTab === 'trade' ? 'AI Trade Hub' :
-          activeTab === 'finder' ? 'Trade Finder' :
-          activeTab === 'player-finder' ? 'Player Finder' :
-          activeTab === 'waiver' ? 'Waiver AI' :
-          activeTab === 'rankings' ? 'League Rankings' :
-          activeTab === 'pulse' ? 'Social Pulse' :
-          activeTab === 'compare' ? 'Rankings / Percentiles' :
-          activeTab === 'chat' ? 'AI Chat' :
-          activeTab === 'mock-draft' ? 'Mock Draft Room' :
-          activeTab === 'share' ? 'Share / Social Cards' :
-          activeTab === 'transfer' ? 'League Transfer' :
-          activeTab === 'strategy' ? 'Season Strategy' :
-          activeTab === 'shop' ? 'AF Merch Shop' :
-          activeTab === 'ideas' ? 'Submit League Ideas' :
-          activeTab === 'mock-draft' ? 'Mock Draft Simulator' :
-          undefined
-        }
+        defaultTool={getLegacyFeedbackToolLabel(activeTab)}
       />
       {guardianVisible && guardianEval && (
         <DecisionGuardianModal
@@ -18154,3 +18050,39 @@ export default function AFLegacyPage() {
     </>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

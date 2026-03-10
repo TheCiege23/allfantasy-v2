@@ -14,6 +14,9 @@ import {
   CheckCircle2,
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
+import AuthShell from "@/components/auth/AuthShell"
+import AuthHero from "@/components/auth/AuthHero"
+import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 
 export default function LoginContent() {
   const searchParams = useSearchParams()
@@ -21,6 +24,7 @@ export default function LoginContent() {
   const callbackUrl = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/dashboard"
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
+  const destinationLabel = callbackUrl.startsWith("/brackets") ? "NCAA Bracket" : callbackUrl.startsWith("/af-legacy") ? "AF Legacy" : callbackUrl.startsWith("/app") || callbackUrl.startsWith("/leagues") ? "AllFantasy WebApp" : "AllFantasy Home"
 
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
@@ -136,7 +140,7 @@ export default function LoginContent() {
   }
 
   return (
-    <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
+    <AuthShell>
       <Link
         href="/"
         className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
@@ -206,12 +210,8 @@ export default function LoginContent() {
           </div>
         ) : (
           <>
-            <div className="text-center mb-2">
-              <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                AllFantasy.ai
-              </div>
-              <h1 className="mt-2 text-xl font-semibold">Welcome back</h1>
-            </div>
+            <AuthHero title="Welcome back" subtitle="Sign in once to access WebApp, Bracket, and Legacy." />
+            <p className="-mt-3 mb-1 text-center text-xs text-white/45">After sign in: {destinationLabel}</p>
 
             {passwordReset && !error && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
@@ -294,6 +294,8 @@ export default function LoginContent() {
               <div className="h-px flex-1 bg-white/10" />
             </div>
 
+            <SocialLoginButtons callbackUrl={callbackUrl} />
+
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 text-xs font-bold">S</div>
@@ -338,7 +340,7 @@ export default function LoginContent() {
                 </button>
               </form>
               <p className="mt-2 text-center text-xs text-white/30">
-                No password needed — we verify your Sleeper account directly.
+                No password needed - we verify your Sleeper account directly.
               </p>
             </div>
 
@@ -416,7 +418,14 @@ export default function LoginContent() {
           </>
         )}
       </div>
-    </div>
+    </AuthShell>
   )
 }
+
+
+
+
+
+
+
 

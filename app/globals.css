@@ -56,6 +56,63 @@
   --glass: rgba(15, 23, 42, 0.75);
 }
 
+.mode-surface {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.mode-panel {
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.mode-panel-soft {
+  background: color-mix(in srgb, var(--panel2) 88%, transparent);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.mode-text {
+  color: var(--text);
+}
+
+.mode-muted {
+  color: var(--muted);
+}
+
+.mode-muted-2 {
+  color: var(--muted2);
+}
+
+.mode-image-safe {
+  filter: none;
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+
+html[data-mode="light"] .mode-readable [class*="text-white"] {
+  color: var(--text) !important;
+}
+
+html[data-mode="light"] .mode-readable [class*="text-gray-"] {
+  color: var(--muted) !important;
+}
+
+html[data-mode="light"] .mode-readable [class*="bg-black"] {
+  background-color: color-mix(in srgb, var(--panel2) 88%, transparent) !important;
+}
+
+html[data-mode="light"] .mode-readable [class*="border-white"] {
+  border-color: var(--border) !important;
+}
+
+html[data-mode="legacy"] .mode-readable [class*="text-black"] {
+  color: var(--text) !important;
+}
+
+
+
 html[data-mode="dark"] {
   --foreground-rgb: 255, 255, 255;
   --background-rgb: 0, 0, 0;

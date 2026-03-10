@@ -21,15 +21,15 @@ export default async function SettingsPage() {
   const isAdmin = resolveAdmin(session?.user?.email)
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className="min-h-screen mode-surface mode-readable">
       <AppShellNav isAuthenticated={isAuthenticated} isAdmin={isAdmin} userLabel={session?.user?.name || session?.user?.email || 'Guest'} />
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <h1 className="text-2xl font-semibold">Settings</h1>
-          <p className="mt-2 text-sm text-white/65">Shared profile/security/verification/payment preferences across all products.</p>
+        <section className="mode-panel rounded-2xl p-6">
+          <h1 className="text-2xl font-semibold mode-text">Settings</h1>
+          <p className="mt-2 text-sm mode-muted">Shared profile/security/verification/payment preferences across all products.</p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Link href="/verify" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Verification</Link>
-            <Link href="/forgot-password" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Password Reset</Link>
+            <Link href="/verify" className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)' }}>Verification</Link>
+            <Link href="/forgot-password" className="rounded-lg border px-3 py-2 text-sm" style={{ borderColor: 'var(--border)' }}>Password Reset</Link>
           </div>
         </section>
       </main>

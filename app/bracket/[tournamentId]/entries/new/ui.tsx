@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Loader2, Trophy, Plus } from "lucide-react"
+import { ArrowLeft, Loader2, Trophy, Plus, Sparkles } from "lucide-react"
 
 type League = {
   id: string
@@ -56,11 +56,6 @@ export default function CreateEntryChooser({
         return
       }
 
-      if (data.alreadyExists) {
-        router.push(`/bracket/${tournamentId}/entry/${data.entryId}`)
-        return
-      }
-
       router.push(`/bracket/${tournamentId}/entry/${data.entryId}`)
     } catch {
       setLoading(false)
@@ -70,7 +65,7 @@ export default function CreateEntryChooser({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-white">
-      <div className="p-6 max-w-xl mx-auto space-y-6">
+      <div className="p-6 max-w-2xl mx-auto space-y-6">
         <Link
           href="/brackets"
           className="inline-flex items-center gap-2 text-sm text-white/60 hover:text-white transition"
@@ -83,9 +78,22 @@ export default function CreateEntryChooser({
           <Trophy className="h-6 w-6 text-yellow-400" />
           <div>
             <h1 className="text-xl font-bold">Create a bracket entry</h1>
-            <p className="text-sm text-white/50">
-              Pick a league and name your entry.
-            </p>
+            <p className="text-sm text-white/50">Pick a league and name your entry.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="text-xs text-white/55">Eligible Leagues</div>
+            <div className="text-lg font-semibold text-white">{leagues.length}</div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+            <div className="text-xs text-white/55">Selected Pool Members</div>
+            <div className="text-lg font-semibold text-white">{selectedLeague?._count.members ?? 0}</div>
+          </div>
+          <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-3">
+            <div className="inline-flex items-center gap-1.5 text-cyan-200 text-xs font-medium"><Sparkles className="h-3.5 w-3.5" />AI Coach</div>
+            <div className="text-[11px] text-cyan-100/75 mt-1">After creation, use AI pick assist from the entry page.</div>
           </div>
         </div>
 
@@ -117,7 +125,7 @@ export default function CreateEntryChooser({
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-white/70">League</label>
               {leagues.length === 1 ? (

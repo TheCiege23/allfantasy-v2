@@ -29,6 +29,10 @@ export default function SignupPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [timezone, setTimezone] = useState("America/New_York")
+  const [preferredLanguage, setPreferredLanguage] = useState("en")
+  const [avatarPreset, setAvatarPreset] = useState("crest")
   const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [phone, setPhone] = useState("")
@@ -61,6 +65,12 @@ export default function SignupPage() {
     setLoading(true)
     setError("")
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.")
+      setLoading(false)
+      return
+    }
+
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -74,6 +84,9 @@ export default function SignupPage() {
           sleeperUsername: sleeperResult?.found ? sleeperResult.username : undefined,
           ageConfirmed,
           verificationMethod,
+          timezone,
+          preferredLanguage,
+          avatarPreset,
         }),
       })
 
@@ -241,6 +254,63 @@ export default function SignupPage() {
           </div>
 
           <div>
+            <label className="block text-xs text-white/60 mb-1">Confirm Password *</label>
+            <input
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              type={showPassword ? "text" : "password"}
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
+              placeholder="Re-enter password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs text-white/60 mb-1">Timezone</label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:border-white/30 transition"
+              >
+                <option value="America/New_York">America/New_York</option>
+                <option value="America/Chicago">America/Chicago</option>
+                <option value="America/Denver">America/Denver</option>
+                <option value="America/Los_Angeles">America/Los_Angeles</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-white/60 mb-1">Language</label>
+              <select
+                value={preferredLanguage}
+                onChange={(e) => setPreferredLanguage(e.target.value)}
+                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:border-white/30 transition"
+              >
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-white/60 mb-1">Profile Image (placeholder)</label>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {["crest", "bolt", "crown"].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setAvatarPreset(preset)}
+                  className={`rounded-lg border px-2 py-2 capitalize ${avatarPreset === preset ? "border-cyan-400 bg-cyan-500/10 text-cyan-200" : "border-white/10 bg-black/20 text-white/70"}`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
             <label className="block text-xs text-white/60 mb-1">Phone {verificationMethod === "PHONE" ? "*" : "(optional)"}</label>
             <input
               value={phone}
@@ -348,7 +418,7 @@ export default function SignupPage() {
 
         <button
           type="submit"
-          disabled={loading || !username.trim() || !email.trim() || !password || !ageConfirmed || (verificationMethod === "PHONE" && !phone.trim())}
+          disabled={loading || !username.trim() || !email.trim() || !password || !confirmPassword || password !== confirmPassword || !ageConfirmed || (verificationMethod === "PHONE" && !phone.trim())}
           className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {loading ? (
@@ -371,3 +441,8 @@ export default function SignupPage() {
     </div>
   )
 }
+
+
+
+
+

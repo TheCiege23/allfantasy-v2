@@ -62,10 +62,10 @@ type Props = {
 type TabId = "pool" | "brackets" | "live" | "feed" | "global" | "public"
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "pool", label: "POOL" },
-  { id: "brackets", label: "BRACKETS" },
+  { id: "pool", label: "HOME" },
+  { id: "brackets", label: "MY BRACKETS" },
   { id: "live", label: "LIVE" },
-  { id: "feed", label: "FEED" },
+  { id: "feed", label: "CHAT" },
   { id: "global", label: "GLOBAL" },
   { id: "public", label: "PUBLIC" },
 ]
@@ -98,6 +98,24 @@ export function LeagueHomeTabs(props: Props) {
 
   return (
     <div className="space-y-0 relative pb-16">
+      <div className="grid gap-3 sm:grid-cols-4 mb-4">
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="text-[11px] text-white/50">Your Entries</div>
+          <div className="text-base font-semibold text-white">{props.userEntries.length}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="text-[11px] text-white/50">Pool Entries</div>
+          <div className="text-base font-semibold text-white">{props.entries.length}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="text-[11px] text-white/50">Members</div>
+          <div className="text-base font-semibold text-white">{props.members.length}</div>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="text-[11px] text-white/50">Scoring</div>
+          <div className="text-base font-semibold text-white">{normalizeScoringMode(props.scoringMode)}</div>
+        </div>
+      </div>
       <div className="flex items-center justify-center gap-0 mb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id
@@ -1405,6 +1423,8 @@ function PublicPoolsTab({ tournamentId }: { tournamentId: string }) {
     </div>
   )
 }
+
+
 
 
 

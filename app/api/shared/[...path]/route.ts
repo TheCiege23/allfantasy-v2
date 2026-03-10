@@ -14,8 +14,13 @@ function notMapped(path: string[], method: string) {
 function chatThreadPath(path: string[]): string | null {
   if (!(path[0] === 'chat' && path[1] === 'threads')) return null
   if (!path[2]) return '/api/shared/chat/threads'
-  if (path[3] === 'messages') return `/api/shared/chat/threads/${encodeURIComponent(path[2])}/messages`
-  return `/api/shared/chat/threads/${encodeURIComponent(path[2])}`
+  if (!path[3]) return `/api/shared/chat/threads/${encodeURIComponent(path[2])}`
+
+  if (['messages', 'media', 'polls', 'pin', 'broadcast'].includes(path[3])) {
+    return `/api/shared/chat/threads/${encodeURIComponent(path[2])}/${path[3]}`
+  }
+
+  return null
 }
 
 function notificationReadPath(path: string[]): string | null {
@@ -64,6 +69,8 @@ export async function POST(req: NextRequest, { params }: { params: { path: strin
 
   if (path[0] === 'wallet' && path[1] === 'deposit') return proxyToExisting(req, { targetPath: '/api/shared/wallet/deposit' })
   if (path[0] === 'wallet' && path[1] === 'withdraw') return proxyToExisting(req, { targetPath: '/api/shared/wallet/withdraw' })
+
+  if (path[0] === 'chat' && path[1] === 'block') return proxyToExisting(req, { targetPath: '/api/shared/chat/block' })
 
   const chatPath = chatThreadPath(path)
   if (chatPath) return proxyToExisting(req, { targetPath: chatPath })

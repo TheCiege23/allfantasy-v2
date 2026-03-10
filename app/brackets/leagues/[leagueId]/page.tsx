@@ -4,6 +4,8 @@ import { notFound } from "next/navigation"
 import { requireVerifiedSession } from "@/lib/require-verified"
 import { getEntryBracketData } from "@/lib/brackets/getEntryBracketData"
 import { LeagueHomeTabs } from "@/components/bracket/LeagueHomeTabs"
+import BracketShell from "@/components/bracket/BracketShell"
+import BracketLeagueSummaryCards from "@/components/bracket/BracketLeagueSummaryCards"
 import { Trophy, Settings, ArrowLeft } from "lucide-react"
 
 export default async function LeagueDetailPage({
@@ -94,44 +96,52 @@ export default async function LeagueDetailPage({
 
   return (
     <div className="min-h-screen text-white" style={{ background: '#0d1117' }}>
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-3">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/brackets"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.12)' }}>
-              <Trophy className="w-4 h-4" style={{ color: '#fb923c' }} />
+      <BracketShell>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/brackets"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)' }}
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(251,146,60,0.12)' }}>
+                <Trophy className="w-4 h-4" style={{ color: '#fb923c' }} />
+              </div>
+              <h1 className="text-lg sm:text-xl font-bold truncate">
+                {league.name}
+              </h1>
             </div>
-            <h1 className="text-lg sm:text-xl font-bold truncate">
-              {league.name}
-            </h1>
+            <button className="p-2 rounded-full transition" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              <Settings className="w-5 h-5" />
+            </button>
           </div>
-          <button className="p-2 rounded-full transition" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
 
-        <LeagueHomeTabs
-          leagueId={league.id}
-          tournamentId={league.tournament.id}
-          currentUserId={userId}
-          isOwner={league.ownerId === userId}
-          members={league.members}
-          entries={league.entries}
-          userEntries={userEntries}
-          nodes={nodesWithGame}
-          initialPicks={allPicksByEntry}
-          joinCode={league.joinCode}
-          maxManagers={league.maxManagers}
-          scoringMode={scoringMode}
-          scoringRules={rules}
-        />
-      </div>
+          <BracketLeagueSummaryCards
+            memberCount={league.members.length}
+            entryCount={league.entries.length}
+            lockAt={league.tournament?.lockAt}
+          />
+
+          <LeagueHomeTabs
+            leagueId={league.id}
+            tournamentId={league.tournament.id}
+            currentUserId={userId}
+            isOwner={league.ownerId === userId}
+            members={league.members}
+            entries={league.entries}
+            userEntries={userEntries}
+            nodes={nodesWithGame}
+            initialPicks={allPicksByEntry}
+            joinCode={league.joinCode}
+            maxManagers={league.maxManagers}
+            scoringMode={scoringMode}
+            scoringRules={rules}
+          />
+        </div>
+      </BracketShell>
     </div>
   )
 }

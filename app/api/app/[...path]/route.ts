@@ -68,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'matchups') {
-    return proxyToExisting(req, { targetPath: '/api/feed', query: { scope: 'league', leagueId } })
+    return proxyToExisting(req, { targetPath: '/api/bracket/live' })
   }
 
   if (leagueId && section === 'roster') {
@@ -76,7 +76,9 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'players') {
-    return proxyToExisting(req, { targetPath: '/api/players/search' })
+    const q = req.nextUrl.searchParams.get('q')
+    if (!q) return NextResponse.json([])
+    return proxyToExisting(req, { targetPath: '/api/players/search', query: { q } })
   }
 
   if (leagueId && section === 'waivers') {
@@ -88,7 +90,7 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'draft') {
-    return proxyToExisting(req, { targetPath: '/api/mock-draft/simulate', query: { leagueId } })
+    return proxyToExisting(req, { targetPath: '/api/mock-draft/adp' })
   }
 
   if (leagueId && section === 'standings') {
@@ -215,3 +217,4 @@ export async function PATCH(req: NextRequest, { params }: { params: { path: stri
 
   return notMapped(path, 'PATCH')
 }
+
