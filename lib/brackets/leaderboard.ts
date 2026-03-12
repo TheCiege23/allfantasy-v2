@@ -102,7 +102,9 @@ export async function rebuildLeaderboardForScope(args: {
       where: {
         tournamentId_leagueId_entryId: {
           tournamentId: row.tournamentId,
-          leagueId: row.leagueId,
+          // leagueId can be null for global scope; cast to satisfy TS while
+          // preserving the underlying Prisma type from the schema.
+          leagueId: row.leagueId as any,
           entryId: row.entryId,
         },
       },
@@ -114,7 +116,7 @@ export async function rebuildLeaderboardForScope(args: {
       },
       create: {
         tournamentId: row.tournamentId,
-        leagueId: row.leagueId,
+        leagueId: row.leagueId as any,
         entryId: row.entryId,
         score: row.score,
         rank: row.rank,
