@@ -75,14 +75,6 @@ export default function PricingPage() {
                 <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> Start/Sit advice</li>
                 <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> Auto league settings</li>
               </ul>
-              <PlanCheckoutOptions
-                accent="rgba(34, 211, 238, 0.35)"
-                monthlyId={BUY_BUTTONS.pro.monthly}
-                monthlyPrice="$9.99 / month"
-                yearlyId={BUY_BUTTONS.pro.yearly}
-                yearlyPrice="$99.99 / year"
-                yearlyNote="Save 17%"
-              />
               <div className="mt-3 border-t border-white/10 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-cyan-300/50">Legacy refresh: Daily</span>
               </div>
@@ -111,14 +103,6 @@ export default function PricingPage() {
                 <li className="flex items-center gap-2"><span className="text-purple-400">+</span> League import (Sleeper)</li>
                 <li className="flex items-center gap-2"><span className="text-red-400/70">-</span> <span className="text-white/40">No player AI</span></li>
               </ul>
-              <PlanCheckoutOptions
-                accent="rgba(192, 132, 252, 0.35)"
-                monthlyId={BUY_BUTTONS.commissioner.monthly}
-                monthlyPrice="$4.99 / month"
-                yearlyId={BUY_BUTTONS.commissioner.yearly}
-                yearlyPrice="$49.99 / year"
-                yearlyNote="Save 17%"
-              />
               <div className="mt-3 border-t border-white/10 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-purple-300/50">Commissioner AI: Unlimited</span>
               </div>
@@ -144,14 +128,6 @@ export default function PricingPage() {
                 <li className="flex items-center gap-2"><span className="text-amber-400">+</span> Priority feature access</li>
                 <li className="flex items-center gap-2"><span className="text-amber-400">+</span> Unlimited everything</li>
               </ul>
-              <PlanCheckoutOptions
-                accent="rgba(251, 191, 36, 0.35)"
-                monthlyId={BUY_BUTTONS.supreme.monthly}
-                monthlyPrice="$12.99 / month"
-                yearlyId={BUY_BUTTONS.supreme.yearly}
-                yearlyPrice="$120.99 / year"
-                yearlyNote="Save 22%"
-              />
               <div className="mt-3 border-t border-amber-500/20 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-amber-300/60">All AI: Unlimited</span>
               </div>
