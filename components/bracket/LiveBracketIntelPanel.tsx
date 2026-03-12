@@ -117,13 +117,15 @@ export function LiveBracketIntelPanel({ entryId }: Props) {
           <ul className="list-disc pl-4 space-y-0.5">
             {intel.upsetAlerts.slice(0, 3).map((g) => {
               const prob = g.upsetProbability != null ? Math.round(g.upsetProbability * 100) : null
+              const template = t("bracket.live.upset.item")
+              const text =
+                template
+                  ?.replace("{round}", String(g.round))
+                  .replace("{home}", g.homeTeam)
+                  .replace("{away}", g.awayTeam) ?? `${g.homeTeam} vs ${g.awayTeam} (R${g.round})`
               return (
                 <li key={g.id}>
-                  {t("bracket.live.upset.item", {
-                    round: String(g.round),
-                    home: g.homeTeam,
-                    away: g.awayTeam,
-                  })}
+                  {text}
                   {prob != null && (
                     <span className="ml-1 text-amber-200/80">
                       · {prob}%
