@@ -8,6 +8,27 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from "@/lib/openai
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+type BracketReviewMetrics = {
+  entryId: string
+  tournamentId: string
+  leagueId: string
+  totalPicks: number
+  totalUpsets: number
+  upsetRate: number
+  upsetsByRound: Record<number, number>
+  picksByRound: Record<number, number>
+  picksByRegion: Record<string, number>
+  uniqueness: {
+    score: number
+    percentile: number | null
+  }
+  champion: {
+    pick: string | null
+    popularity: { team: string; pct: number } | null
+  }
+  riskScore?: number
+}
+
 export async function POST(req: Request) {
   const auth = await requireVerifiedUser()
   if (!auth.ok) return auth.response
@@ -101,7 +122,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const metrics = {
+  const metrics: BracketReviewMetrics = {
     entryId,
     tournamentId,
     leagueId: entry.league.id,
@@ -136,7 +157,7 @@ export async function POST(req: Request) {
       riskScore -= 5
     }
   }
-  metrics["riskScore"] = Math.max(0, Math.min(100, Math.round(riskScore)))
+  metrics.riskScore = Math.max(0, Math.min(100, Math.round(riskScore)))
 
   let aiReview: {
     strengths: string[]
