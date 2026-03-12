@@ -76,7 +76,13 @@ export default function BracketReviewPage() {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ entryId }),
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })).catch(() => ({ ok: false, data: {} })))
+    })
+      .then((res) =>
+        res
+          .json()
+          .then((data) => ({ ok: res.ok, data }))
+          .catch(() => ({ ok: false, data: {} })),
+      )
       .then(({ ok, data }) => {
         if (!ok || !data?.ok) {
           setSimError(data?.error || t('bracket.intel.simulate.error'))
