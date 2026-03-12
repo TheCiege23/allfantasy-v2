@@ -93,6 +93,7 @@ export async function POST(req: Request) {
       leagueId,
       userId: auth.userId,
       name,
+      status: "DRAFT",
       tiebreakerPoints: tiebreakerEnabled ? requestedTiebreakerPoints : null,
     },
     select: { id: true, tiebreakerPoints: true },

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:5000';
+const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:3000';
 
 const checks = [
   { name: 'Legacy mock draft page renders', method: 'GET', path: '/af-legacy', expected: [200] },

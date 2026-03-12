@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
       userId: auth.userId,
       name: `${source.name} (Copy)`,
       tiebreakerPoints: source.tiebreakerPoints ?? null,
+      status: "DRAFT",
     },
   })
 

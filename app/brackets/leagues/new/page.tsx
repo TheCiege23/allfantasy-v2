@@ -4,9 +4,21 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Loader2, Globe, Lock } from "lucide-react"
 
+const SCORING_OPTIONS = [
+  { value: "momentum", label: "Standard (1-2-4-8-16-32)" },
+  { value: "fancred_edge", label: "AF Edge (upset & leverage)" },
+  { value: "accuracy_boldness", label: "Accuracy + Boldness" },
+  { value: "streak_survival", label: "Streak & Survival" },
+] as const
+
 export default function NewBracketLeaguePage() {
+  const now = new Date()
+  const defaultSeason = now.getFullYear()
+
   const [name, setName] = useState("")
+  const [season, setSeason] = useState<number>(defaultSeason)
   const [isPublic, setIsPublic] = useState(false)
+  const [scoringMode, setScoringMode] = useState<string>("momentum")
   const [maxEntriesPerUser, setMaxEntriesPerUser] = useState(1)
   const [tiebreakerEnabled, setTiebreakerEnabled] = useState(true)
   const [tiebreakerType, setTiebreakerType] = useState("championship_total_points")
@@ -47,10 +59,11 @@ export default function NewBracketLeaguePage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
-          season: new Date().getFullYear(),
+          season,
           sport: "ncaam",
           maxManagers: 100,
           isPublic,
+          scoringMode,
           bracketType: "mens_ncaa",
           maxEntriesPerUser,
           entriesPerUserFree: maxEntriesPerUser,
@@ -115,6 +128,39 @@ export default function NewBracketLeaguePage() {
               disabled={loading}
               autoFocus
             />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Tournament Year</label>
+              <input
+                type="number"
+                min={2024}
+                max={defaultSeason + 1}
+                className="mt-2 w-full rounded-lg border px-3 py-2 text-sm bg-transparent"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                value={season}
+                onChange={(e) => setSeason(Number(e.target.value) || defaultSeason)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Scoring System</label>
+              <select
+                className="mt-2 w-full rounded-lg px-3 py-2 text-sm"
+                style={{ border: "1px solid var(--border)", background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--text)" }}
+                value={scoringMode}
+                onChange={(e) => setScoringMode(e.target.value)}
+                disabled={loading}
+              >
+                {SCORING_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>

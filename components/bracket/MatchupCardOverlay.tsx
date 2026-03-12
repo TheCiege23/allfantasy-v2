@@ -36,6 +36,8 @@ type Props = {
   onPick: (node: Node, team: string) => void
   onClose: () => void
   entryId: string
+  tournamentId: string
+  leagueId: string
 }
 
 const ROUND_LABELS: Record<number, string> = {
@@ -57,9 +59,19 @@ export function MatchupCardOverlay({
   onPick,
   onClose,
   entryId,
+  tournamentId,
+  leagueId,
 }: Props) {
   const [aiData, setAiData] = useState<any>(null)
   const [loadingAi, setLoadingAi] = useState(false)
+  const [popularity, setPopularity] = useState<
+    | {
+        scope: "global" | "league"
+        homePct: number | null
+        awayPct: number | null
+      }
+    | null
+  >(null)
 
   const homeName = effective.home ?? node.homeTeamName
   const awayName = effective.away ?? node.awayTeamName
@@ -70,6 +82,42 @@ export function MatchupCardOverlay({
   const isLive = game?.status === "in_progress"
   const isFinal = game?.status === "final" || game?.status === "completed"
   const canPick = !readOnly && !locked && !isFinal
+
+  useEffect(() => {
+    if (!homeName || !awayName) return
+    const controller = new AbortController()
+    async function loadPopularity() {
+      try {
+        const params = new URLSearchParams()
+        params.set("tournamentId", tournamentId)
+        params.set("nodeId", node.id)
+        if (leagueId) {
+          params.set("scope", "league")
+          params.set("leagueId", leagueId)
+        } else {
+          params.set("scope", "global")
+        }
+        const res = await fetch(`/api/bracket/popularity?${params.toString()}`, {
+          method: "GET",
+          signal: controller.signal,
+        })
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !data?.ok || !Array.isArray(data.popularity)) return
+        const scope = (data.scope === "league" ? "league" : "global") as "global" | "league"
+        let homePct: number | null = null
+        let awayPct: number | null = null
+        for (const row of data.popularity as any[]) {
+          if (row.teamName === homeName) homePct = row.pickPct
+          if (row.teamName === awayName) awayPct = row.pickPct
+        }
+        setPopularity({ scope, homePct, awayPct })
+      } catch {
+        // ignore
+      }
+    }
+    loadPopularity()
+    return () => controller.abort()
+  }, [tournamentId, leagueId, node.id, homeName, awayName])
 
   useEffect(() => {
     if (!homeName || !awayName) return
@@ -98,11 +146,13 @@ export function MatchupCardOverlay({
     seed,
     isPicked,
     side,
+    popularityPct,
   }: {
     name: string | null
     seed: number | null
     isPicked: boolean
     side: "home" | "away"
+    popularityPct: number | null
   }) {
     if (!name) return null
     const winProb = aiData?.winProbability?.[side === "home" ? "home" : "away"]
@@ -150,17 +200,34 @@ export function MatchupCardOverlay({
               </div>
             )}
           </div>
-          {winProb != null && (
+          {(winProb != null || popularityPct != null) && (
             <div className="text-right">
-              <div
-                className="text-lg font-black"
-                style={{ color: isPicked ? "#fb923c" : "rgba(255,255,255,0.6)" }}
-              >
-                {Math.round(winProb)}%
-              </div>
-              <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
-                win prob
-              </div>
+              {winProb != null && (
+                <>
+                  <div
+                    className="text-lg font-black"
+                    style={{ color: isPicked ? "#fb923c" : "rgba(255,255,255,0.6)" }}
+                  >
+                    {Math.round(winProb)}%
+                  </div>
+                  <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    win prob
+                  </div>
+                </>
+              )}
+              {popularityPct != null && (
+                <div className="mt-1">
+                  <div
+                    className="text-xs font-semibold"
+                    style={{ color: "rgba(148,163,184,0.9)" }}
+                  >
+                    {Math.round(popularityPct)}%
+                  </div>
+                  <div className="text-[9px]" style={{ color: "rgba(148,163,184,0.7)" }}>
+                    picked
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {isPicked && (
@@ -247,9 +314,21 @@ export function MatchupCardOverlay({
             </div>
           )}
 
-          <TeamCard name={homeName} seed={homeSeed} isPicked={picked === homeName} side="home" />
+          <TeamCard
+            name={homeName}
+            seed={homeSeed}
+            isPicked={picked === homeName}
+            side="home"
+            popularityPct={popularity?.homePct ?? null}
+          />
           <div className="text-center text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.12)" }}>VS</div>
-          <TeamCard name={awayName} seed={awaySeed} isPicked={picked === awayName} side="away" />
+          <TeamCard
+            name={awayName}
+            seed={awaySeed}
+            isPicked={picked === awayName}
+            side="away"
+            popularityPct={popularity?.awayPct ?? null}
+          />
         </div>
 
         {loadingAi && (

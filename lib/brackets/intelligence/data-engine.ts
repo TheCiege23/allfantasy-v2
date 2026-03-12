@@ -63,6 +63,9 @@ export type HealthMetrics = {
   totalEntries: number
   upside: number
   riskExposure: number
+  championAlive: boolean
+  finalFourAlive: number
+  finalFourTotal: number
 }
 
 export function computeWinProbability(seedA: number | null, seedB: number | null): WinProbability {
@@ -238,7 +241,20 @@ export async function computeHealthScore(
   ])
 
   if (!entry) {
-    return { alivePct: 0, teamsAlive: 0, teamsTotal: 0, maxPossiblePoints: 0, currentPoints: 0, currentRank: 0, totalEntries: 0, upside: 0, riskExposure: 0 }
+    return {
+      alivePct: 0,
+      teamsAlive: 0,
+      teamsTotal: 0,
+      maxPossiblePoints: 0,
+      currentPoints: 0,
+      currentRank: 0,
+      totalEntries: 0,
+      upside: 0,
+      riskExposure: 0,
+      championAlive: false,
+      finalFourAlive: 0,
+      finalFourTotal: 0,
+    }
   }
 
   const pickedTeams = new Set(entry.picks.map(p => p.pickedTeamName).filter(Boolean))
@@ -284,6 +300,29 @@ export async function computeHealthScore(
   const totalPicks = entry.picks.length
   const riskExposure = totalPicks > 0 ? Math.round(((teamsTotal - teamsAlive) / Math.max(teamsTotal, 1)) * 100) / 100 : 0
 
+  // Champion and Final Four survival
+  const championshipNodes = allNodes.filter(n => n.round === 6)
+  const championshipNodeIds = new Set(championshipNodes.map(n => n.id))
+  const championPick = entry.picks.find(p => championshipNodeIds.has(p.nodeId) && p.pickedTeamName != null)
+  const championAlive =
+    championPick && championPick.pickedTeamName
+      ? !eliminatedTeams.has(championPick.pickedTeamName)
+      : true
+
+  const finalFourNodes = allNodes.filter(n => n.round === 5)
+  const finalFourNodeIds = new Set(finalFourNodes.map(n => n.id))
+  const ffTeams = new Set<string>()
+  for (const p of entry.picks) {
+    if (finalFourNodeIds.has(p.nodeId) && p.pickedTeamName) {
+      ffTeams.add(p.pickedTeamName)
+    }
+  }
+  const finalFourTotal = ffTeams.size
+  let finalFourAlive = 0
+  for (const team of ffTeams) {
+    if (!eliminatedTeams.has(team)) finalFourAlive++
+  }
+
   return {
     alivePct,
     teamsAlive,
@@ -294,6 +333,9 @@ export async function computeHealthScore(
     totalEntries,
     upside,
     riskExposure,
+    championAlive,
+    finalFourAlive,
+    finalFourTotal,
   }
 }
 
@@ -364,6 +406,53 @@ export function runPoolSimulation(
       runs,
     }
   })
+}
+
+export function combineHealthComponents(args: {
+  health: HealthMetrics
+  remainingPoints: number
+  championAlive: boolean
+  finalFourAliveRatio: number
+  uniquenessScore: number
+  winLeagueProbability?: number | null
+}): { score: number; statusLabel: string } {
+  const { health, remainingPoints, championAlive, finalFourAliveRatio, uniquenessScore, winLeagueProbability } = args
+
+  const rankFactor =
+    health.totalEntries > 1
+      ? 1 - (health.currentRank - 1) / Math.max(health.totalEntries - 1, 1)
+      : 1
+  const aliveFactor = health.alivePct
+  const riskFactor = 1 - (health.riskExposure || 0)
+  const upsideFactor =
+    health.maxPossiblePoints > 0
+      ? Math.max(0, Math.min(1, remainingPoints / Math.max(health.maxPossiblePoints, 1)))
+      : 0
+  const championFactor = championAlive ? 1 : 0
+  const ffFactor = Math.max(0, Math.min(1, finalFourAliveRatio))
+  const uniqFactor = Math.max(0, Math.min(1, uniquenessScore / 100))
+  const winProbFactor =
+    typeof winLeagueProbability === "number" && Number.isFinite(winLeagueProbability)
+      ? Math.max(0, Math.min(1, winLeagueProbability))
+      : 0
+
+  let s =
+    0.2 * aliveFactor +
+    0.2 * rankFactor +
+    0.15 * riskFactor +
+    0.1 * upsideFactor +
+    0.1 * championFactor +
+    0.05 * ffFactor +
+    0.1 * winProbFactor +
+    0.1 * uniqFactor
+
+  s = Math.max(0, Math.min(1, s))
+
+  const score = Math.round(s * 100)
+  const statusLabel =
+    s >= 0.75 ? "strong" : s >= 0.5 ? "stable" : s >= 0.25 ? "fragile" : "on_the_edge"
+
+  return { score, statusLabel }
 }
 
 export function computePostTournamentInsights(

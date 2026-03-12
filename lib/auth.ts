@@ -85,12 +85,15 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const login = rawLogin.trim().toLowerCase();
+        const login = rawLogin.trim();
         const password = rawPassword;
 
         const user = await prisma.appUser.findFirst({
           where: {
-            OR: [{ email: login }, { username: login }],
+            OR: [
+              { email: { equals: login, mode: "insensitive" } },
+              { username: { equals: login, mode: "insensitive" } },
+            ],
           },
         });
 

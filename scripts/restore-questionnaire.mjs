@@ -41,7 +41,7 @@ const rows = [
   { email: "steve210111@gmail.com", favoriteSport: "NFL", favoriteLeagueType: "Dynasty", competitiveness: "Competitive", draftPreference: "Snake", painPoint: "League Management", experimentalInterest: ["Survivor (TV Show Style)", "Guillotine++", "Draft Lottery Chaos", "Yes — surprise me with new formats"], freeText: null, createdAt: "2026-02-01T01:43:29.285Z" },
 ];
 
-const BASE = process.argv[2] || "http://localhost:5000";
+const BASE = process.argv[2] || "http://localhost:3000";
 const TOKEN = process.env.ADMIN_PASSWORD || "";
 
 async function main() {

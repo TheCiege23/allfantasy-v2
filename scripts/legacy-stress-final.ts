@@ -1,6 +1,6 @@
 import * as fs from "fs"
 
-const BASE_URL = "http://localhost:5000"
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000"
 const USER_ID = "6a0faf22-6bfa-4484-8acc-c6618028e334"
 const USERNAME = "theciege24"
 const LEAGUE_IDS = ["509cc54f-fedf-4d8a-b1e2-a6fb4bfd40b8", "f1b731f3-db1e-4214-bc39-bc07cda13efb"]

@@ -1,4 +1,4 @@
-﻿import crypto from "crypto";
+import crypto from "crypto";
 
 export type AdminSessionPayload = {
   authenticated: boolean;
@@ -10,8 +10,14 @@ export type AdminSessionPayload = {
 };
 
 function adminSessionSecret() {
-  // Keep admin auth operable in environments missing explicit secrets.
-  return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || "admin123";
+  const secret =
+    process.env.ADMIN_SESSION_SECRET ||
+    process.env.ADMIN_PASSWORD ||
+    "";
+  // In production, require an explicit secret; in dev, allow fallback for local use only.
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") return "production-requires-ADMIN_SESSION_SECRET-or-ADMIN_PASSWORD";
+  return "admin123";
 }
 
 export function signAdminSessionCookie(payload: AdminSessionPayload) {

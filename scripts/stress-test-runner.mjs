@@ -1,6 +1,6 @@
 import { writeFileSync, appendFileSync } from "fs"
 
-const BASE = "http://localhost:5000"
+const BASE = process.env.BASE_URL || "http://localhost:3000"
 const TOTAL = 1000
 const CONC = 10
 const REPORT = "/tmp/stress-test-complete-report.txt"

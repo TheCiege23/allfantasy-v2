@@ -47,7 +47,7 @@ npx prisma db push
 npm run dev
 \`\`\`
 
-The app will run on port 5000.
+The app runs on **port 3000** by default (`next dev`). For script-based tests (e.g. smoke tests, QA) set `BASE_URL=http://localhost:3000` or pass the URL as configured.
 
 ## Project Structure
 

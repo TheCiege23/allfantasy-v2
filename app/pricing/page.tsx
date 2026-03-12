@@ -1,145 +1,340 @@
-'use client'
+import type { Metadata } from "next"
+import Link from "next/link"
 
-import Link from 'next/link'
+export const metadata: Metadata = {
+  title: "Zen Lab Pricing \u2014 Guided Meditation & Breathing Sessions",
+  description:
+    "See how Zen Lab by AllFantasy is priced today. Guided meditation, breathing exercises, and daily calm streaks are currently available for free while premium plans are in development.",
+  alternates: {
+    canonical: "https://allfantasy.ai/pricing",
+  },
+  openGraph: {
+    title: "Zen Lab Pricing \u2014 Guided Meditation & Breathing",
+    description:
+      "Zen Lab calm tools are currently free while we design future premium meditation and mindfulness plans.",
+    url: "https://allfantasy.ai/pricing",
+    type: "website",
+  },
+}
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
+    <main className="mode-readable min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <section className="mx-auto max-w-4xl px-4 py-10 sm:px-6 sm:py-12">
+        <header className="space-y-3 text-center">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Simple pricing for calm routines
+          </h1>
+          <p className="mx-auto max-w-2xl text-sm text-white/70 sm:text-base">
+            Zen Lab guided meditation, breathing exercises, and daily calm streak tracking are
+            currently free while we continue to refine the experience and design future premium
+            plans.
+          </p>
+        </header>
+
+        <section className="mt-8 rounded-2xl border border-white/12 bg-white/5 p-6">
+          <h2 className="text-base font-semibold text-white">Zen Lab Free</h2>
+          <p className="mt-1 text-3xl font-bold text-white">$0</p>
+          <p className="mt-1 text-sm text-white/70">No credit card required.</p>
+          <ul className="mt-4 space-y-1.5 text-sm text-white/75">
+            <li>\u2022 Guided meditation scripts based on your current mood</li>
+            <li>\u2022 Breathing exercises including 4\u20114\u20116, box 4\u20114\u20114, and 4\u20117\u20118</li>
+            <li>\u2022 Daily calm streak tracking and badges</li>
+            <li>\u2022 Evening wind-down suggestions for sleep and reflection</li>
+          </ul>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/zen"
+              className="inline-flex items-center justify-center rounded-full bg-emerald-400 px-5 py-2.5 text-sm font-semibold text-black shadow-sm hover:bg-emerald-300"
+            >
+              Open Zen Lab
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white hover:bg-white/10"
+            >
+              Create free account
+            </Link>
+          </div>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-dashed border-white/12 bg-white/5 p-6">
+          <h2 className="text-base font-semibold text-white">Future premium meditation plans</h2>
+          <p className="mt-2 text-sm text-white/70">
+            We&apos;re exploring optional premium tiers for longer guided sessions, deeper
+            reflection prompts, and more detailed progress insights. For now, Zen Lab stays simple
+            and free while we learn what supports your routine best.
+          </p>
+        </section>
+
+        <section className="mt-8 text-xs text-white/60 sm:text-sm">
+          <p>
+            Want to explore breathing and meditation first? Start with{" "}
+            <Link href="/meditation" className="underline underline-offset-2 hover:text-white">
+              guided meditation
+            </Link>{" "}
+            or{" "}
+            <Link href="/breathing" className="underline underline-offset-2 hover:text-white">
+              breathing exercises
+            </Link>{" "}
+            before you decide what you need long term.
+          </p>
+        </section>
+      </section>
+    </main>
+  )
+}
+
+'use client'
+
+import Link from 'next/link'
+import Script from 'next/script'
+import { createElement } from 'react'
+
+const STRIPE_PUBLISHABLE_KEY =
+  'pk_live_51ReIO1Ht5tjM1ovRLN9joFcoVDcFvVsyNFZ76y5mgNaYSvdCQ9Q4nfZBmSjvzFjIUErouWwaHLSwv9NBiyRVko6m00JfnOdY1Q'
+
+const BUY_BUTTONS = {
+  pro: {
+    monthly: 'buy_btn_1T9pTtHt5tjM1ovRjMaMBpLE',
+    yearly: 'buy_btn_1T9pTRHt5tjM1ovR5X6JwbmB',
+  },
+  commissioner: {
+    monthly: 'buy_btn_1T9pUUHt5tjM1ovR67a5tE4B',
+    yearly: 'buy_btn_1T9pUxHt5tjM1ovRWiASrERh',
+  },
+  supreme: {
+    monthly: 'buy_btn_1T9pVPHt5tjM1ovRyjn6yuig',
+    yearly: 'buy_btn_1T9pVrHt5tjM1ovRSSiWxOmH',
+  },
+} as const
+
+type StripeBuyButtonProps = {
+  buyButtonId: string
+}
+
+type PlanCheckoutOptionsProps = {
+  accent: string
+  monthlyId: string
+  monthlyPrice: string
+  yearlyId: string
+  yearlyPrice: string
+  yearlyNote: string
+}
+
+function StripeBuyButton({ buyButtonId }: StripeBuyButtonProps) {
+  return createElement('stripe-buy-button', {
+    'buy-button-id': buyButtonId,
+    'publishable-key': STRIPE_PUBLISHABLE_KEY,
+  } as Record<string, string>)
+}
+
+function PlanCheckoutOptions({
+  accent,
+  monthlyId,
+  monthlyPrice,
+  yearlyId,
+  yearlyPrice,
+  yearlyNote,
+}: PlanCheckoutOptionsProps) {
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border p-3" style={{ borderColor: accent }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-white/45">Monthly</div>
+            <div className="mt-1 text-sm font-semibold text-white">{monthlyPrice}</div>
+          </div>
+          <div className="text-[11px] text-white/45">Secure checkout</div>
+        </div>
+        <div className="mt-3 overflow-hidden rounded-xl bg-white/[0.03] px-2 py-2">
+          <StripeBuyButton buyButtonId={monthlyId} />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border p-3" style={{ borderColor: accent }}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.2em] text-white/45">Annual</div>
+            <div className="mt-1 text-sm font-semibold text-white">{yearlyPrice}</div>
+          </div>
+          <div className="rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: accent, color: '#05060a' }}>
+            {yearlyNote}
+          </div>
+        </div>
+        <div className="mt-3 overflow-hidden rounded-xl bg-white/[0.03] px-2 py-2">
+          <StripeBuyButton buyButtonId={yearlyId} />
+        </div>
+      </div>
+
+      <p className="text-[11px] text-white/45">Checkout is handled directly by Stripe.</p>
+    </div>
+  )
+}
+
+export default function PricingPage() {
+  return (
+    <main className="relative min-h-screen overflow-hidden bg-[#05060a] text-white">
+      <Script src="https://js.stripe.com/v3/buy-button.js" strategy="afterInteractive" />
+
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-48 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[160px]" />
         <div className="absolute top-52 -left-56 h-[520px] w-[520px] rounded-full bg-fuchsia-500/7 blur-[180px]" />
         <div className="absolute -bottom-64 right-0 h-[560px] w-[560px] rounded-full bg-indigo-500/9 blur-[190px]" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-10">
-        <Link 
+      <div className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
+        <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white/80 transition mb-6 sm:mb-8 min-h-[44px]"
+          className="mb-6 inline-flex min-h-[44px] items-center gap-2 text-sm text-white/50 transition hover:text-white/80 sm:mb-8"
         >
-          <span>←</span> Back to Home
+          <span aria-hidden>&larr;</span> Back to Home
         </Link>
 
-        <div className="text-center mb-6 sm:mb-10">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-transparent">
+        <div className="mb-6 text-center sm:mb-10">
+          <h1 className="bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl md:text-4xl">
             Choose Your Plan
           </h1>
-          <p className="mt-2 sm:mt-3 text-sm sm:text-base text-white/50">Unlock the full power of AI-driven fantasy sports</p>
+          <p className="mt-2 text-sm text-white/50 sm:mt-3 sm:text-base">
+            Unlock the full power of AI-driven fantasy sports.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 overflow-visible max-w-md sm:max-w-none mx-auto">
-          <div className="group relative rounded-2xl sm:rounded-3xl p-[1px] bg-gradient-to-br from-white/20 via-white/5 to-transparent">
-            <div className="relative rounded-[15px] sm:rounded-[23px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:p-5 h-full flex flex-col">
-              <div className="text-xs uppercase tracking-wider text-white/40 font-medium">Free</div>
-              <h3 className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-bold text-white">AF Free</h3>
-              <p className="mt-1 text-xs text-white/40">The core experience — no AI</p>
+        <div className="mx-auto grid max-w-md grid-cols-1 gap-4 overflow-visible sm:max-w-none sm:grid-cols-2">
+          <div className="group relative rounded-2xl bg-gradient-to-br from-white/20 via-white/5 to-transparent p-[1px] sm:rounded-3xl">
+            <div className="flex h-full flex-col rounded-[15px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:rounded-[23px] sm:p-5">
+              <div className="text-xs font-medium uppercase tracking-wider text-white/40">Free</div>
+              <h3 className="mt-1.5 text-lg font-bold text-white sm:mt-2 sm:text-xl">AF Free</h3>
+              <p className="mt-1 text-xs text-white/40">The core experience with no AI add-ons.</p>
               <div className="mt-2.5 sm:mt-3">
-                <span className="text-2xl sm:text-3xl font-black text-white">$0</span>
-                <span className="text-white/40 text-sm">/forever</span>
+                <span className="text-2xl font-black text-white sm:text-3xl">$0</span>
+                <span className="text-sm text-white/40">/forever</span>
               </div>
-              <ul className="mt-3 sm:mt-4 space-y-2 text-sm text-white/60 flex-1">
-                <li className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Unlimited leagues</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-400">✓</span> League & DM chat</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Legacy import & ranking</li>
-                <li className="flex items-center gap-2"><span className="text-emerald-400">✓</span> Career stats & history</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70">✗</span> <span className="text-white/40">No AI features</span></li>
+              <ul className="mt-3 flex-1 space-y-2 text-sm text-white/60 sm:mt-4">
+                <li className="flex items-center gap-2"><span className="text-emerald-400">+</span> Unlimited leagues</li>
+                <li className="flex items-center gap-2"><span className="text-emerald-400">+</span> League and DM chat</li>
+                <li className="flex items-center gap-2"><span className="text-emerald-400">+</span> Legacy import and ranking</li>
+                <li className="flex items-center gap-2"><span className="text-emerald-400">+</span> Career stats and history</li>
+                <li className="flex items-center gap-2"><span className="text-red-400/70">-</span> <span className="text-white/40">No AI features</span></li>
               </ul>
-              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
-                <span className="text-xs text-white/40">Legacy refresh: 1/week</span>
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/65 sm:mt-4">
+                Included with every account. Legacy refresh: 1/week.
               </div>
             </div>
           </div>
 
-          <div className="group relative rounded-2xl sm:rounded-3xl p-[1px] bg-gradient-to-br from-cyan-500/40 via-cyan-500/10 to-transparent">
-            <div className="absolute -inset-1 rounded-3xl blur-xl opacity-30 bg-cyan-500/10" />
-            <div className="relative rounded-[15px] sm:rounded-[23px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:p-5 h-full flex flex-col">
+          <div className="group relative rounded-2xl bg-gradient-to-br from-cyan-500/40 via-cyan-500/10 to-transparent p-[1px] sm:rounded-3xl">
+            <div className="absolute -inset-1 rounded-3xl bg-cyan-500/10 opacity-30 blur-xl" />
+            <div className="relative flex h-full flex-col rounded-[15px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:rounded-[23px] sm:p-5">
               <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider text-cyan-400/70 font-medium">Pro</span>
-                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-[10px] text-cyan-300 font-medium">Popular</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-cyan-400/70">Pro</span>
+                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/20 px-2 py-0.5 text-[10px] font-medium text-cyan-300">Popular</span>
               </div>
-              <h3 className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-bold bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-transparent">AF Pro</h3>
+              <h3 className="mt-1.5 bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-lg font-bold text-transparent sm:mt-2 sm:text-xl">AF Pro</h3>
               <p className="mt-1 text-xs text-cyan-300/50">For competitive players</p>
               <div className="mt-2.5 sm:mt-3">
-                <span className="text-2xl sm:text-3xl font-black text-white">$9.99</span>
-                <span className="text-white/40 text-sm">/month</span>
+                <span className="text-2xl font-black text-white sm:text-3xl">$9.99</span>
+                <span className="text-sm text-white/40">/month</span>
               </div>
-              <div className="text-xs text-cyan-300/60 mt-1">or $99.99/year (save 17%)</div>
-              <ul className="mt-3 sm:mt-4 space-y-2 text-sm text-white/60 flex-1">
-                <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Everything in Free</li>
-                <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> AI Analysis (25/day)</li>
-                <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> AI Coach (25/day)</li>
-                <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Start/Sit advice</li>
-                <li className="flex items-center gap-2"><span className="text-cyan-400">✓</span> Auto league settings</li>
+              <div className="mt-1 text-xs text-cyan-300/60">or $99.99/year (save 17%)</div>
+              <ul className="mt-3 flex-1 space-y-2 text-sm text-white/60 sm:mt-4">
+                <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> Everything in Free</li>
+                <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> AI Analysis (25/day)</li>
+                <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> AI Coach (25/day)</li>
+                <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> Start/Sit advice</li>
+                <li className="flex items-center gap-2"><span className="text-cyan-400">+</span> Auto league settings</li>
               </ul>
-              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
+              <PlanCheckoutOptions
+                accent="rgba(34, 211, 238, 0.35)"
+                monthlyId={BUY_BUTTONS.pro.monthly}
+                monthlyPrice="$9.99 / month"
+                yearlyId={BUY_BUTTONS.pro.yearly}
+                yearlyPrice="$99.99 / year"
+                yearlyNote="Save 17%"
+              />
+              <div className="mt-3 border-t border-white/10 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-cyan-300/50">Legacy refresh: Daily</span>
               </div>
             </div>
           </div>
 
-          <div className="group relative rounded-2xl sm:rounded-3xl p-[1px] bg-gradient-to-br from-purple-500/40 via-purple-500/10 to-transparent">
-            <div className="absolute -inset-1 rounded-3xl blur-xl opacity-30 bg-purple-500/10" />
-            <div className="relative rounded-[15px] sm:rounded-[23px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:p-5 h-full flex flex-col">
+          <div className="group relative rounded-2xl bg-gradient-to-br from-purple-500/40 via-purple-500/10 to-transparent p-[1px] sm:rounded-3xl">
+            <div className="absolute -inset-1 rounded-3xl bg-purple-500/10 opacity-30 blur-xl" />
+            <div className="relative flex h-full flex-col rounded-[15px] bg-gradient-to-br from-[#0a0c12] via-[#0d1018] to-[#080a0f] p-4 sm:rounded-[23px] sm:p-5">
               <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider text-purple-400/70 font-medium">Commissioner</span>
-                <span className="text-lg">🧠</span>
+                <span className="text-xs font-medium uppercase tracking-wider text-purple-400/70">Commissioner</span>
+                <span className="text-lg">AI</span>
               </div>
-              <h3 className="mt-1.5 sm:mt-2 text-base sm:text-lg font-bold bg-gradient-to-r from-purple-200 to-purple-400 bg-clip-text text-transparent">AF Super Commissioner</h3>
+              <h3 className="mt-1.5 bg-gradient-to-r from-purple-200 to-purple-400 bg-clip-text text-base font-bold text-transparent sm:mt-2 sm:text-lg">AF Super Commissioner</h3>
               <p className="mt-1 text-xs text-purple-300/50">Run the best league possible</p>
               <div className="mt-2.5 sm:mt-3">
-                <span className="text-2xl sm:text-3xl font-black text-white">$4.99</span>
-                <span className="text-white/40 text-sm">/month</span>
+                <span className="text-2xl font-black text-white sm:text-3xl">$4.99</span>
+                <span className="text-sm text-white/40">/month</span>
               </div>
-              <div className="text-xs text-purple-300/60 mt-1">or $49.99/year (save 17%)</div>
-              <ul className="mt-3 sm:mt-4 space-y-2 text-sm text-white/60 flex-1">
-                <li className="flex items-center gap-2"><span className="text-purple-400">✓</span> AI collusion detection</li>
-                <li className="flex items-center gap-2"><span className="text-purple-400">✓</span> AI tanking detection</li>
-                <li className="flex items-center gap-2"><span className="text-purple-400">✓</span> AI weekly recaps</li>
-                <li className="flex items-center gap-2"><span className="text-purple-400">✓</span> AI rivalry weeks</li>
-                <li className="flex items-center gap-2"><span className="text-purple-400">✓</span> League import (Sleeper)</li>
-                <li className="flex items-center gap-2"><span className="text-red-400/70">✗</span> <span className="text-white/40">No player AI</span></li>
+              <div className="mt-1 text-xs text-purple-300/60">or $49.99/year (save 17%)</div>
+              <ul className="mt-3 flex-1 space-y-2 text-sm text-white/60 sm:mt-4">
+                <li className="flex items-center gap-2"><span className="text-purple-400">+</span> AI collusion detection</li>
+                <li className="flex items-center gap-2"><span className="text-purple-400">+</span> AI tanking detection</li>
+                <li className="flex items-center gap-2"><span className="text-purple-400">+</span> AI weekly recaps</li>
+                <li className="flex items-center gap-2"><span className="text-purple-400">+</span> AI rivalry weeks</li>
+                <li className="flex items-center gap-2"><span className="text-purple-400">+</span> League import (Sleeper)</li>
+                <li className="flex items-center gap-2"><span className="text-red-400/70">-</span> <span className="text-white/40">No player AI</span></li>
               </ul>
-              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
+              <PlanCheckoutOptions
+                accent="rgba(192, 132, 252, 0.35)"
+                monthlyId={BUY_BUTTONS.commissioner.monthly}
+                monthlyPrice="$4.99 / month"
+                yearlyId={BUY_BUTTONS.commissioner.yearly}
+                yearlyPrice="$49.99 / year"
+                yearlyNote="Save 17%"
+              />
+              <div className="mt-3 border-t border-white/10 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-purple-300/50">Commissioner AI: Unlimited</span>
               </div>
             </div>
           </div>
 
-          <div className="group relative rounded-2xl sm:rounded-3xl p-[1px] bg-gradient-to-br from-amber-500/50 via-yellow-500/20 to-orange-500/30 shadow-[0_0_30px_rgba(251,191,36,0.15)]">
-            <div className="absolute -inset-1 rounded-3xl blur-xl opacity-30 bg-amber-500/15 pointer-events-none" />
-            <div className="rounded-[15px] sm:rounded-[23px] bg-gradient-to-br from-[#0f0d08] via-[#0d1018] to-[#080a0f] p-4 sm:p-5 h-full flex flex-col">
-              <div className="text-xs uppercase tracking-wider text-amber-400/80 font-medium">Supreme</div>
-              <h3 className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-bold bg-gradient-to-r from-amber-200 via-yellow-300 to-orange-300 bg-clip-text text-transparent">AF Supreme</h3>
-              <p className="mt-1 text-xs text-amber-300/50">Power user + status + no friction</p>
+          <div className="group relative rounded-2xl bg-gradient-to-br from-amber-500/50 via-yellow-500/20 to-orange-500/30 p-[1px] shadow-[0_0_30px_rgba(251,191,36,0.15)] sm:rounded-3xl">
+            <div className="pointer-events-none absolute -inset-1 rounded-3xl bg-amber-500/15 opacity-30 blur-xl" />
+            <div className="rounded-[15px] bg-gradient-to-br from-[#0f0d08] via-[#0d1018] to-[#080a0f] p-4 sm:rounded-[23px] sm:p-5">
+              <div className="text-xs font-medium uppercase tracking-wider text-amber-400/80">Supreme</div>
+              <h3 className="mt-1.5 bg-gradient-to-r from-amber-200 via-yellow-300 to-orange-300 bg-clip-text text-lg font-bold text-transparent sm:mt-2 sm:text-xl">AF Supreme</h3>
+              <p className="mt-1 text-xs text-amber-300/50">Power user, status, and no friction</p>
               <div className="mt-2.5 sm:mt-3">
-                <span className="text-2xl sm:text-3xl font-black text-white">$12.99</span>
-                <span className="text-white/40 text-sm">/month</span>
+                <span className="text-2xl font-black text-white sm:text-3xl">$12.99</span>
+                <span className="text-sm text-white/40">/month</span>
               </div>
-              <div className="text-xs text-amber-300/60 mt-1">or $120.99/year (save 22%)</div>
-              <ul className="mt-3 sm:mt-4 space-y-2 text-sm text-white/60 flex-1">
-                <li className="flex items-center gap-2"><span className="text-amber-400">✓</span> All Free features</li>
-                <li className="flex items-center gap-2"><span className="text-amber-400">✓</span> All Pro features</li>
-                <li className="flex items-center gap-2"><span className="text-amber-400">✓</span> All Commissioner features</li>
-                <li className="flex items-center gap-2"><span className="text-amber-400">👑</span> Supreme badge</li>
-                <li className="flex items-center gap-2"><span className="text-amber-400">✓</span> Priority feature access</li>
-                <li className="flex items-center gap-2"><span className="text-amber-400">✓</span> Unlimited everything</li>
+              <div className="mt-1 text-xs text-amber-300/60">or $120.99/year (save 22%)</div>
+              <ul className="mt-3 space-y-2 text-sm text-white/60 sm:mt-4">
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> All Free features</li>
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> All Pro features</li>
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> All Commissioner features</li>
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> Supreme badge</li>
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> Priority feature access</li>
+                <li className="flex items-center gap-2"><span className="text-amber-400">+</span> Unlimited everything</li>
               </ul>
-              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-amber-500/20">
+              <PlanCheckoutOptions
+                accent="rgba(251, 191, 36, 0.35)"
+                monthlyId={BUY_BUTTONS.supreme.monthly}
+                monthlyPrice="$12.99 / month"
+                yearlyId={BUY_BUTTONS.supreme.yearly}
+                yearlyPrice="$120.99 / year"
+                yearlyNote="Save 22%"
+              />
+              <div className="mt-3 border-t border-amber-500/20 pt-3 sm:mt-4 sm:pt-4">
                 <span className="text-xs text-amber-300/60">All AI: Unlimited</span>
               </div>
             </div>
-            <div className="absolute -top-3 -right-3 z-[9999] pointer-events-none">
-              <span className="text-3xl sm:text-4xl" style={{ filter: 'drop-shadow(0 2px 10px rgba(251,191,36,0.8))' }}>👑</span>
+            <div className="pointer-events-none absolute -right-3 -top-3 z-10">
+              <span className="text-3xl drop-shadow-[0_2px_10px_rgba(251,191,36,0.8)] sm:text-4xl">C</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 sm:mt-10 text-center pb-8">
-          <Link 
-            href="/"
-            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500/80 to-purple-500/80 text-white font-bold hover:from-cyan-400/90 hover:to-purple-400/90 active:scale-[0.98] transition shadow-[0_12px_35px_rgba(0,0,0,0.35)] min-h-[48px] w-full sm:w-auto justify-center"
-          >
-            Get Early Access
-          </Link>
+        <div className="pb-8 pt-8 text-center sm:pt-10">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/60">
+            Every paid plan now checks out directly through Stripe on this page. Free stays free.
+          </div>
         </div>
       </div>
     </main>

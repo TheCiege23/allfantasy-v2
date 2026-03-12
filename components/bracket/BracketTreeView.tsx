@@ -40,6 +40,7 @@ type Props = {
   compact?: boolean
   insuranceEnabled?: boolean
   initialInsuredNodeId?: string | null
+  insuranceAllowedRounds?: number[]
 }
 
 const ALL_REGIONS = ["West", "East", "South", "Midwest"]
@@ -405,7 +406,18 @@ const STRATEGY_TIPS = [
   "First Four play-in games don't count for bracket scoring — focus on Round 1 and beyond.",
 ]
 
-export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initialPicks, readOnly, compact, insuranceEnabled, initialInsuredNodeId }: Props) {
+export function BracketTreeView({
+  tournamentId,
+  leagueId,
+  entryId,
+  nodes,
+  initialPicks,
+  readOnly,
+  compact,
+  insuranceEnabled,
+  initialInsuredNodeId,
+  insuranceAllowedRounds,
+}: Props) {
   const { data: live } = useBracketLive({ tournamentId, leagueId, enabled: true, intervalMs: 15000 })
 
   const [picks, setPicks] = useState<Record<string, string | null>>(initialPicks)
@@ -426,6 +438,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
   const canvasContainerRef = useRef<HTMLDivElement | null>(null)
 
   const seedMap = useMemo(() => buildSeedMap(nodes), [nodes])
+  const isSaving = !!savingNode || savingInsurance
 
   const nodesWithLive = useMemo(() => {
     const gameById = new Map((live?.games ?? []).map((g: any) => [g.id, g]))
@@ -480,6 +493,22 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
     return eliminated
   }, [effective, nodesWithLive])
 
+  const championInsights = useMemo(() => {
+    const standings = (live as any)?.standings as
+      | Array<{ entryId: string; championPick?: string | null }>
+      | null
+      | undefined
+    if (!standings || standings.length === 0) return null
+    const mine = standings.find((s) => s.entryId === entryId)
+    const champion = mine?.championPick ?? null
+    if (!champion) return null
+    const total = standings.length
+    const same = standings.filter((s) => s.championPick === champion).length
+    if (!total || !same) return null
+    const pct = Math.round((same / total) * 1000) / 10
+    return { champion, pct, total }
+  }, [live, entryId])
+
   const autoFill = useCallback(async () => {
     if (autoFilling || readOnly) return
     setAutoFilling(true)
@@ -513,6 +542,9 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
 
   const toggleInsurance = useCallback(async (nodeId: string) => {
     if (readOnly || savingInsurance || !insuranceEnabled) return
+    const node = nodesWithLive.find((n) => n.id === nodeId)
+    if (!node) return
+    if (insuranceAllowedRounds && !insuranceAllowedRounds.includes(node.round)) return
     const newNodeId = insuredNodeId === nodeId ? null : nodeId
     setSavingInsurance(true)
     setInsuredNodeId(newNodeId)
@@ -527,7 +559,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
       setInsuredNodeId(insuredNodeId)
     }
     setSavingInsurance(false)
-  }, [entryId, insuredNodeId, readOnly, savingInsurance, insuranceEnabled])
+  }, [entryId, insuredNodeId, readOnly, savingInsurance, insuranceEnabled, nodesWithLive, insuranceAllowedRounds])
 
   const handleMatchupClick = useCallback((node: Node) => {
     if (!isPanning) setSelectedNode(node.id)
@@ -642,6 +674,25 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
     setPanY(0)
   }, [])
 
+  const focusArea = useCallback((area: "all" | "early" | "mid" | "final") => {
+    const el = canvasContainerRef.current
+    if (!el) return
+    const cw = el.clientWidth || FULL_W
+    let targetX: number
+    if (area === "early") {
+      targetX = FULL_W * 0.2
+    } else if (area === "mid") {
+      targetX = FULL_W * 0.5
+    } else if (area === "final") {
+      targetX = FULL_W * 0.8
+    } else {
+      targetX = FULL_W * 0.5
+    }
+    const padding = 24
+    const desired = cw / 2 - targetX * zoom - padding
+    setPanX(desired)
+  }, [zoom])
+
   const selectedNodeData = useMemo(() => {
     if (!selectedNode) return null
     return nodesWithLive.find((n) => n.id === selectedNode) ?? null
@@ -672,6 +723,10 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
           x = offsetX + (4 - r) * (CW + CG)
         }
         const y = offsetY + centers[i] - TH
+        const round = roundNodes[i].round
+        const roundInsuranceEnabled =
+          !!insuranceEnabled &&
+          (!insuranceAllowedRounds || insuranceAllowedRounds.includes(round))
         cells.push(
           <MiniCell
             key={roundNodes[i].id}
@@ -688,7 +743,7 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
             onMatchupClick={handleMatchupClick}
             isInsured={insuredNodeId === roundNodes[i].id}
             onToggleInsurance={toggleInsurance}
-            insuranceEnabled={insuranceEnabled}
+            insuranceEnabled={roundInsuranceEnabled}
             eliminatedTeams={eliminatedTeams}
             x={x}
             y={y}
@@ -805,6 +860,13 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
           )}
         </div>
         <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center text-[10px] px-2 py-1 rounded-full" style={{
+            background: isSaving ? 'rgba(251,146,60,0.08)' : 'rgba(15,23,42,0.8)',
+            border: isSaving ? '1px solid rgba(251,146,60,0.4)' : '1px solid rgba(148,163,184,0.5)',
+            color: isSaving ? '#fb923c' : 'rgba(148,163,184,0.9)',
+          }}>
+            {isSaving ? 'Saving picks…' : 'All changes saved'}
+          </div>
           {!readOnly && totalPicks < totalGames && (
             <button
               onClick={autoFill}
@@ -830,6 +892,30 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
         </div>
       </div>
 
+      {championInsights && (
+        <div
+          className="rounded-xl px-3 py-2.5 text-[11px] flex flex-wrap items-center gap-2"
+          style={{ background: "rgba(15,23,42,0.85)", border: "1px solid rgba(148,163,184,0.45)" }}
+        >
+          <span className="font-semibold" style={{ color: "rgba(226,232,240,0.95)" }}>
+            Champion pick: {championInsights.champion}
+          </span>
+          <span style={{ color: "rgba(148,163,184,0.9)" }}>
+            Picked by {championInsights.pct}% of this pool
+          </span>
+          {championInsights.pct < 20 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]" style={{ background: "rgba(168,85,247,0.15)", color: "#c4b5fd" }}>
+              Contrarian edge
+            </span>
+          )}
+          {championInsights.pct > 50 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px]" style={{ background: "rgba(234,179,8,0.14)", color: "#facc15" }}>
+              Popular chalk
+            </span>
+          )}
+        </div>
+      )}
+
       {showTips && (
         <div className="rounded-xl p-4 space-y-2.5" style={{ background: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.12)' }}>
           <div className="flex items-center gap-2">
@@ -850,7 +936,38 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
       </div>
 
       <div>
-        <div className="flex items-center gap-2 mb-2 justify-end flex-wrap">
+        <div className="flex items-center gap-2 mb-2 justify-between flex-wrap">
+          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(148,163,184,0.9)' }}>
+            <span>View:</span>
+            <button
+              onClick={() => focusArea("all")}
+              className="px-2 py-0.5 rounded-full border text-[10px]"
+              style={{ borderColor: 'rgba(148,163,184,0.5)', background: 'rgba(15,23,42,0.9)', color: 'rgba(226,232,240,0.9)' }}
+            >
+              Full
+            </button>
+            <button
+              onClick={() => focusArea("early")}
+              className="px-2 py-0.5 rounded-full border text-[10px]"
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.7)', color: 'rgba(148,163,184,0.95)' }}
+            >
+              Rounds 1–2
+            </button>
+            <button
+              onClick={() => focusArea("mid")}
+              className="px-2 py-0.5 rounded-full border text-[10px]"
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.7)', color: 'rgba(148,163,184,0.95)' }}
+            >
+              Sweet 16 / Elite 8
+            </button>
+            <button
+              onClick={() => focusArea("final")}
+              className="px-2 py-0.5 rounded-full border text-[10px]"
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.7)', color: 'rgba(148,163,184,0.95)' }}
+            >
+              Final Four / Champ
+            </button>
+          </div>
           <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>
             {Math.round(zoom * 100)}%
           </span>
@@ -1061,6 +1178,8 @@ export function BracketTreeView({ tournamentId, leagueId, entryId, nodes, initia
           onPick={(n, team) => { submitPick(n, team); setSelectedNode(null) }}
           onClose={() => setSelectedNode(null)}
           entryId={entryId}
+          tournamentId={tournamentId}
+          leagueId={leagueId}
         />
       )}
     </div>

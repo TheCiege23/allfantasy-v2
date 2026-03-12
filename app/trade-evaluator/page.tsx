@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 interface PlayerInput {
   name: string
@@ -83,8 +84,25 @@ const defaultTeam: TeamInput = {
 }
 
 export default function TradeEvaluator() {
-  const [sender, setSender] = useState<TeamInput>({ ...defaultTeam, manager_name: 'Sender Team' })
-  const [receiver, setReceiver] = useState<TeamInput>({ ...defaultTeam, manager_name: 'Receiver Team' })
+  const searchParams = useSearchParams()
+
+  const [sender, setSender] = useState<TeamInput>(() => {
+    const previewName = searchParams.get('previewSender') || ''
+    return {
+      ...defaultTeam,
+      manager_name: 'Sender Team',
+      gives_players: [{ ...defaultPlayer, name: previewName }],
+    }
+  })
+
+  const [receiver, setReceiver] = useState<TeamInput>(() => {
+    const previewName = searchParams.get('previewReceiver') || ''
+    return {
+      ...defaultTeam,
+      manager_name: 'Receiver Team',
+      gives_players: [{ ...defaultPlayer, name: previewName }],
+    }
+  })
   const [leagueFormat, setLeagueFormat] = useState<'dynasty' | 'keeper' | 'redraft'>('dynasty')
   const [sport, setSport] = useState('NFL')
   const [scoring, setScoring] = useState('PPR')

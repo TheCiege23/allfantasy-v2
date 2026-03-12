@@ -4,7 +4,7 @@
 - [ ] Install dependencies (npm ci).
 - [ ] Generate Prisma client (npx prisma generate) if needed.
 - [ ] Start app locally (npm run dev).
-- [ ] Confirm app is reachable at http://127.0.0.1:5000.
+- [ ] Confirm app is reachable at http://127.0.0.1:3000 (or BASE_URL if set).
 - [ ] Confirm required secrets are set (OPENAI_API_KEY, XAI_API_KEY, auth/session/database env vars as applicable).
 
 ## Mock Draft (UI + API)

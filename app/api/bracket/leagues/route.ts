@@ -131,7 +131,8 @@ export async function POST(req: Request) {
   }
 
   const validModes = ["fancred_edge", "momentum", "accuracy_boldness", "streak_survival"]
-  const selectedMode = validModes.includes(scoringMode || "") ? scoringMode : "fancred_edge"
+  // Platform default: momentum (1-2-4-8-16-32) when a mode is not explicitly provided.
+  const selectedMode = validModes.includes(scoringMode || "") ? scoringMode : "momentum"
   const isPrivateLeague = isPublic !== true
   const normalizedMaxEntriesPerUser = Math.min(25, Math.max(1, Number(maxEntriesPerUser || 1)))
   const normalizedFreeEntries = Math.min(

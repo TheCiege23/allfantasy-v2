@@ -448,21 +448,17 @@ export async function scoreAndAdvanceFinals(
       })
       if (!next) continue
 
-      const current =
-        node.nextNodeSide === "HOME"
-          ? next.homeTeamName
-          : next.awayTeamName
+      // Normalize side to be robust to legacy lowercase values ("home"/"away").
+      const side = String(node.nextNodeSide).toUpperCase()
+      const isHomeSide = side === "HOME"
 
-      if (isPlaceholderTeam(current) || !current) {
-        await prisma.bracketNode.update({
-          where: { id: next.id },
-          data:
-            node.nextNodeSide === "HOME"
-              ? { homeTeamName: winner }
-              : { awayTeamName: winner },
-        })
-        advanced++
-      }
+      await prisma.bracketNode.update({
+        where: { id: next.id },
+        data: isHomeSide
+          ? { homeTeamName: winner }
+          : { awayTeamName: winner },
+      })
+      advanced++
     }
   }
 

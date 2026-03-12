@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { notFound } from "next/navigation"
 import { BracketologySpotlight } from "@/components/bracket/BracketologySpotlight"
+import { ChaosMeter } from "@/components/bracket/ChaosMeter"
 
 export default async function TournamentPage({
   params,
@@ -68,6 +69,8 @@ export default async function TournamentPage({
         </div>
 
         <BracketologySpotlight />
+
+        <ChaosMeter tournamentId={t.id} />
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="text-sm font-semibold text-gray-300 mb-3">How it works</div>

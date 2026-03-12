@@ -71,16 +71,15 @@ export const POST = withApiUsage({ endpoint: "/api/auth/login", tool: "AuthLogin
   const next = sanitizeNext(nextRaw);
 
   const adminPasswordHash = process.env.ADMIN_PASSWORD_HASH || "";
-  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
+  const isProduction = process.env.NODE_ENV === "production";
+  // In production, require explicit admin credentials; no default password.
+  const effectivePassword = adminPassword || (!isProduction ? "admin123" : "");
 
   let ok = false;
-  if (password) {
-    // Always allow explicit admin password fallback for operational recovery.
-    ok = safeEqual(password, adminPassword) || safeEqual(password, "admin123");
-
-    if (!ok && adminPasswordHash) {
-      ok = await bcrypt.compare(password, adminPasswordHash);
-    }
+  if (password && (effectivePassword || adminPasswordHash)) {
+    if (effectivePassword) ok = safeEqual(password, effectivePassword);
+    if (!ok && adminPasswordHash) ok = await bcrypt.compare(password, adminPasswordHash);
   }
 
   if (!ok) {

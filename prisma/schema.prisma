@@ -2368,6 +2368,12 @@ model BracketEntry {
   name           String
   insuredNodeId  String?
   tiebreakerPoints Int?
+  status         String   @default("SUBMITTED") // DRAFT | SUBMITTED | LOCKED | SCORED | INVALIDATED
+  submittedAt    DateTime?
+  lockedAt       DateTime?
+  scoredAt       DateTime?
+  invalidatedAt  DateTime?
+  integrityHash  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2377,6 +2383,93 @@ model BracketEntry {
 
   @@index([leagueId])
   @@index([userId])
+}
+
+model BracketEntrySnapshot {
+  id             String   @id @default(uuid())
+  entryId        String
+  tournamentId   String
+  leagueId       String
+  userId         String
+  status         String
+  lockedAt       DateTime
+  version        Int      @default(1)
+  bracketJson    Json
+  bracketHash    String
+  createdBySystem Boolean @default(true)
+  createdAt      DateTime @default(now())
+
+  entry         BracketEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, leagueId])
+  @@index([entryId, createdAt])
+}
+
+model BracketPickPopularity {
+  id           String   @id @default(uuid())
+  tournamentId String
+  leagueId     String?
+  nodeId       String
+  round        Int
+  teamName     String
+  scope        String   // "global" | "league"
+  pickCount    Int
+  pickPct      Float
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@unique([tournamentId, leagueId, nodeId, teamName, scope])
+  @@index([tournamentId, leagueId, nodeId])
+  @@map("bracket_pick_popularity")
+}
+
+model BracketSimulationSnapshot {
+  id           String   @id @default(uuid())
+  tournamentId String
+  leagueId     String
+  entryId      String
+  simulations  Int
+  winLeagueProbability Float
+  top5Probability     Float
+  expectedRank        Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tournamentId, leagueId, entryId])
+  @@index([leagueId, entryId])
+  @@map("bracket_simulation_snapshot")
+}
+
+model BracketLeaderboard {
+  id             String   @id @default(uuid())
+  tournamentId   String
+  leagueId       String?
+  entryId        String
+  score          Int
+  rank           Int
+  previousRank   Int?
+  tieGroup       Int
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([tournamentId, leagueId, entryId])
+  @@index([tournamentId, leagueId, rank])
+  @@index([tournamentId, leagueId, score, entryId])
+  @@map("bracket_leaderboards")
+}
+
+model BracketHealthSnapshot {
+  id           String   @id @default(uuid())
+  tournamentId String
+  leagueId     String
+  entryId      String
+  healthScore  Int
+  statusLabel  String
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@unique([tournamentId, leagueId, entryId])
+  @@index([leagueId, entryId])
+  @@map("bracket_health_snapshots")
 }
 
 model BracketPick {
@@ -2499,6 +2592,75 @@ model SimulationResult {
   @@unique([bracketId, tournamentId], name: "sim_bracket_tournament")
   @@index([createdByUserId])
   @@map("simulation_results")
+}
+
+model BracketChallenge {
+  id                 String   @id @default(uuid())
+  leagueId           String
+  challengerEntryId  String
+  challengedEntryId  String
+  status             String   @default("pending") // pending, accepted, declined, completed
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([leagueId, challengerEntryId, challengedEntryId])
+  @@index([leagueId])
+  @@map("bracket_challenges")
+}
+
+model UserFollow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followeeId  String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followeeId])
+  @@index([followeeId])
+  @@map("user_follows")
+}
+
+model ActivityEvent {
+  id        String   @id @default(uuid())
+  leagueId  String?
+  entryId   String?
+  userId    String?
+  type      String
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([userId, createdAt])
+  @@map("activity_events")
+}
+
+model ReactionEvent {
+  id         String   @id @default(uuid())
+  leagueId   String?
+  entryId    String?
+  userId     String
+  type       String
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([userId, createdAt])
+  @@map("reaction_events")
+}
+
+model UserRivalry {
+  id             String   @id @default(uuid())
+  userAId        String
+  userBId        String
+  totalMeetings  Int      @default(0)
+  winsA          Int      @default(0)
+  winsB          Int      @default(0)
+  lastUpdatedAt  DateTime @updatedAt
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@map("user_rivalries")
 }
 
 enum VerificationMethod {

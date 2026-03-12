@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
@@ -58,16 +59,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Phone is required for phone verification." }, { status: 400 })
     }
 
-    const existing = await (prisma as any).appUser.findFirst({
-      where: { OR: [{ email }, { username }] },
+    const existing = await prisma.appUser.findFirst({
+      where: {
+        OR: [
+          { email: { equals: email, mode: "insensitive" } },
+          { username: { equals: username, mode: "insensitive" } },
+        ],
+      },
       select: { id: true, email: true, username: true },
     })
 
-    if (existing?.email === email) {
-      return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 })
+    if (existing?.email && existing.email.toLowerCase() === email.toLowerCase()) {
+      return NextResponse.json(
+        { error: "An account with this email already exists." },
+        { status: 409 }
+      )
     }
-    if (existing?.username === username) {
-      return NextResponse.json({ error: "This username is already taken." }, { status: 409 })
+    if (existing?.username && existing.username.toLowerCase() === username.toLowerCase()) {
+      return NextResponse.json(
+        { error: "This username is already taken." },
+        { status: 409 }
+      )
     }
 
     const passwordHash = await bcrypt.hash(password, 12)
@@ -90,7 +102,7 @@ export async function POST(req: Request) {
       } catch {}
     }
 
-    const user = await (prisma as any).$transaction(async (tx: any) => {
+    const user = await prisma.$transaction(async (tx) => {
       const created = await tx.appUser.create({
         data: {
           email,
@@ -114,6 +126,23 @@ export async function POST(req: Request) {
       })
 
       return created
+    }).catch((err) => {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const target = Array.isArray(err.meta?.target) ? err.meta?.target : []
+        if (target?.includes("email")) {
+          throw new Response(
+            JSON.stringify({ error: "An account with this email already exists." }),
+            { status: 409 }
+          )
+        }
+        if (target?.includes("username")) {
+          throw new Response(
+            JSON.stringify({ error: "This username is already taken." }),
+            { status: 409 }
+          )
+        }
+      }
+      throw err
     })
 
     if (method === "PHONE") {
@@ -185,7 +214,13 @@ export async function POST(req: Request) {
       message: "Account created. Please check your email to verify.",
     })
   } catch (err: any) {
+    if (err instanceof Response) {
+      return err
+    }
     console.error("[register] error:", err)
-    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 })
+    return NextResponse.json(
+      { error: "Something went wrong. Please try again." },
+      { status: 500 }
+    )
   }
 }

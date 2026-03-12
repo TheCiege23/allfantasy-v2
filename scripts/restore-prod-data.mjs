@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-const BASE_URL = process.argv[2] || "http://localhost:5000";
+const BASE_URL = process.argv[2] || "http://localhost:3000";
 const BEARER = process.env.ADMIN_BEARER_TOKEN || process.env.ADMIN_PASSWORD || "";
 
 async function main() {

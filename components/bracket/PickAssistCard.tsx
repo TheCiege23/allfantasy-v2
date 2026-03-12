@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Zap, TrendingUp, Shield, Sparkles } from "lucide-react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type Rec = {
   nodeId: string
@@ -39,6 +40,7 @@ export function PickAssistCard({ entryId }: { entryId: string }) {
   const [error, setError] = useState<string | null>(null)
   const [recs, setRecs] = useState<Rec[]>([])
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
+  const { t } = useLanguage()
 
   async function runAssist() {
     setLoading(true)
@@ -75,9 +77,13 @@ export function PickAssistCard({ entryId }: { entryId: string }) {
             <Sparkles style={{ width: 14, height: 14, color: '#22d3ee' }} />
           </div>
           <div>
-            <div className="text-sm font-semibold" style={{ color: '#e0f2fe' }}>AI Pick Assist</div>
+            <div className="text-sm font-semibold" style={{ color: '#e0f2fe' }}>
+              {t("bracket.ai.pickAssist.title")}
+            </div>
             <div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              {recs.length > 0 ? `${recs.length} unpicked matchups` : 'Matchup intelligence'}
+              {recs.length > 0
+                ? t("bracket.ai.pickAssist.subtitleActive")
+                : t("bracket.ai.pickAssist.subtitleIdle")}
             </div>
           </div>
         </div>
@@ -87,7 +93,11 @@ export function PickAssistCard({ entryId }: { entryId: string }) {
           className="text-xs rounded-lg px-3 py-1.5 font-semibold transition-all disabled:opacity-40"
           style={{ background: 'rgba(6,182,212,0.15)', color: '#22d3ee', border: '1px solid rgba(6,182,212,0.2)' }}
         >
-          {loading ? "Analyzing..." : recs.length > 0 ? "Refresh" : "Analyze"}
+          {loading
+            ? t("bracket.ai.pickAssist.button.loading")
+            : recs.length > 0
+            ? t("bracket.ai.pickAssist.button.refresh")
+            : t("bracket.ai.pickAssist.button.analyze")}
         </button>
       </div>
 
@@ -98,7 +108,7 @@ export function PickAssistCard({ entryId }: { entryId: string }) {
       {recs.length === 0 && !loading && (
         <div className="p-4 text-center space-y-2">
           <div className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            Get AI-powered pick recommendations with win probabilities, upset alerts, and strategic insights for your unfilled matchups.
+            {t("bracket.ai.pickAssist.emptyHelper")}
           </div>
         </div>
       )}
@@ -118,7 +128,7 @@ export function PickAssistCard({ entryId }: { entryId: string }) {
             <div className="px-4 py-2 flex items-center gap-2" style={{ background: 'rgba(168,85,247,0.04)' }}>
               <Zap style={{ width: 12, height: 12, color: '#c084fc' }} />
               <span className="text-[10px] font-semibold" style={{ color: '#c084fc' }}>
-                {upsetCount} upset opportunit{upsetCount === 1 ? 'y' : 'ies'} detected
+                {t("bracket.ai.pickAssist.upsetStrip")}
               </span>
             </div>
           )}

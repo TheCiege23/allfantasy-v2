@@ -125,7 +125,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const totalEntries = await prisma.bracketEntry.count({ where: { leagueId: { in: leagueIds } } })
+    const totalEntries = await prisma.bracketEntry.count({
+      where: {
+        leagueId: { in: leagueIds },
+        status: { notIn: ["DRAFT", "INVALIDATED"] },
+      },
+    })
 
     const leaguesWithRules = await prisma.bracketLeague.findMany({
       where: { id: { in: leagueIds } },
@@ -135,12 +140,16 @@ export async function GET(request: NextRequest) {
     const leagueRulesMap = new Map<string, any>()
     for (const lg of leaguesWithRules) {
       const rules = (lg.scoringRules || {}) as any
-      leagueModeMap.set(lg.id, (rules.scoringMode || rules.mode || "fancred_edge") as ScoringMode)
+      // Platform default: momentum scoring with global round points
+      leagueModeMap.set(lg.id, (rules.scoringMode || rules.mode || "momentum") as ScoringMode)
       leagueRulesMap.set(lg.id, rules)
     }
 
     const allEntries = await prisma.bracketEntry.findMany({
-      where: { leagueId: { in: leagueIds } },
+      where: {
+        leagueId: { in: leagueIds },
+        status: { notIn: ["DRAFT", "INVALIDATED"] },
+      },
       include: {
         user: { select: { id: true, displayName: true, avatarUrl: true } },
         picks: { select: { nodeId: true, isCorrect: true, pickedTeamName: true } },

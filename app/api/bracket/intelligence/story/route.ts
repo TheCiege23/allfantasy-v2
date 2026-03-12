@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireVerifiedUser } from "@/lib/auth-guard"
-import { computeHealthScore, computeBracketUniqueness, computePickDistribution, runPoolSimulation, computeWinProbability } from "@/lib/brackets/intelligence/data-engine"
+import { computeHealthScore, computeBracketUniqueness, computePickDistribution } from "@/lib/brackets/intelligence/data-engine"
 import { narrateStoryMode } from "@/lib/brackets/intelligence/ai-narrator"
 
 export const runtime = "nodejs"
@@ -36,9 +36,23 @@ export async function POST(req: Request) {
   const distributions = await computePickDistribution(entry.league.tournamentId)
   const uniqueness = computeBracketUniqueness(validPicks, distributions)
 
-  const winProbability = health.totalEntries > 1
-    ? Math.max(0.01, 1 / health.totalEntries * (health.currentRank <= 3 ? 2 : 0.5))
-    : 0.5
+  const simSnapshot = await prisma.bracketSimulationSnapshot.findUnique({
+    where: {
+      tournamentId_leagueId_entryId: {
+        tournamentId: entry.league.tournamentId,
+        leagueId: entry.league.id,
+        entryId,
+      },
+    },
+    select: { winLeagueProbability: true },
+  })
+
+  const winProbability =
+    typeof simSnapshot?.winLeagueProbability === "number" && Number.isFinite(simSnapshot.winLeagueProbability)
+      ? simSnapshot.winLeagueProbability
+      : health.totalEntries > 1
+      ? Math.max(0.01, 1 / health.totalEntries)
+      : 0.5
 
   const narrative = await narrateStoryMode({
     currentRank: health.currentRank,
@@ -49,6 +63,11 @@ export async function POST(req: Request) {
     currentPoints: health.currentPoints,
     maxPossible: health.maxPossiblePoints,
     riskExposure: health.riskExposure,
+    championAlive: health.championAlive,
+    finalFourAlive: health.finalFourAlive,
+    finalFourTotal: health.finalFourTotal,
+    upside: health.upside,
+    remainingPoints: Math.max(0, health.maxPossiblePoints - health.currentPoints),
   })
 
   return NextResponse.json({

@@ -19,6 +19,7 @@ const nextConfig = {
     ],
   },
 
+  // Default dev port is 3000 (next dev). 5000 kept for optional compatibility.
   allowedDevOrigins: [
     "http://127.0.0.1:3000",
     "http://localhost:3000",

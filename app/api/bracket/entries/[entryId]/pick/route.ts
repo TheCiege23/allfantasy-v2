@@ -31,6 +31,8 @@ export async function POST(
         id: true,
         userId: true,
         leagueId: true,
+        status: true,
+        lockedAt: true,
         league: {
           select: {
             tournamentId: true,
@@ -41,6 +43,13 @@ export async function POST(
     })
     if (!entry || entry.userId !== auth.userId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    if (entry.status === "LOCKED" || entry.status === "SCORED" || entry.status === "INVALIDATED" || entry.lockedAt) {
+      return NextResponse.json(
+        { error: "Picks are locked for this bracket" },
+        { status: 409 },
+      )
     }
 
     const tournamentLockAt = (entry as any).league?.tournament?.lockAt

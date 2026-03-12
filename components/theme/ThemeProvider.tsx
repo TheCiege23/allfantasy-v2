@@ -20,7 +20,8 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
       const current = document.documentElement.dataset.mode as AppMode | undefined
       if (current === "dark" || current === "light" || current === "legacy") return current
     }
-    return "light"
+    // Default to AF Legacy mode if nothing is set yet
+    return "legacy"
   })
 
   useEffect(() => {

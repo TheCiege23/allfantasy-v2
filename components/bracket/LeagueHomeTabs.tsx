@@ -56,7 +56,13 @@ type Props = {
   joinCode: string
   maxManagers: number
   scoringMode?: string
-  scoringRules?: { insuranceEnabled?: boolean; upsetDeltaEnabled?: boolean; leverageBonusEnabled?: boolean; [key: string]: any }
+  scoringRules?: {
+    insuranceEnabled?: boolean
+    upsetDeltaEnabled?: boolean
+    leverageBonusEnabled?: boolean
+    insuranceAllowedRounds?: number[]
+    [key: string]: any
+  }
 }
 
 type TabId = "pool" | "brackets" | "live" | "feed" | "global" | "public"
@@ -257,6 +263,7 @@ function PoolTab({
             initialPicks={activePicks}
             compact
             insuranceEnabled={scoringRules?.insuranceEnabled === true}
+            insuranceAllowedRounds={[1, 3, 4, 5, 6]}
             initialInsuredNodeId={userEntries.find(e => e.id === activeEntryId)?.insuredNodeId}
           />
           <div className="text-center">
@@ -514,6 +521,8 @@ function SettingsPanel({
     normalizeRoundPoints(scoringRules?.roundPoints, initialScoringMode)
   )
   const [savingRoundPoints, setSavingRoundPoints] = useState(false)
+  const [localJoinCode, setLocalJoinCode] = useState(joinCode)
+  const [regenLoading, setRegenLoading] = useState(false)
 
   const canEdit = useMemo(() => {
     if (isOwner) return true
@@ -527,10 +536,13 @@ function SettingsPanel({
     if (!canEdit) return
     setSaving(true)
     try {
-      await fetch(`/api/bracket/leagues/${leagueId}/settings`, {
-        method: 'PATCH',
+      await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scoringMode: mode }),
+        body: JSON.stringify({
+          action: "update_rules",
+          scoringRules: { scoringMode: mode },
+        }),
       })
     } catch {}
     setSaving(false)
@@ -543,13 +555,36 @@ function SettingsPanel({
     if (!canEdit) return
     setSavingRoundPoints(true)
     try {
-      await fetch(`/api/bracket/leagues/${leagueId}/settings`, {
-        method: 'PATCH',
+      await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ roundPoints }),
+        body: JSON.stringify({
+          action: "update_rules",
+          scoringRules: { roundPoints },
+        }),
       })
     } catch {}
     setSavingRoundPoints(false)
+  }
+
+  async function regenerateJoinCode() {
+    if (!canEdit) return
+    setRegenLoading(true)
+    try {
+      const res = await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "regenerate_join_code" }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.joinCode) {
+        setLocalJoinCode(data.joinCode)
+      }
+    } catch {
+      // swallow for now; future: surface toast
+    } finally {
+      setRegenLoading(false)
+    }
   }
 
   const scoring = getScoringTable(scoringMode)
@@ -675,6 +710,78 @@ function SettingsPanel({
         )}
       </div>
 
+      {canEdit && (
+        <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(148,163,184,0.35)' }}>
+          <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(148,163,184,0.25)' }}>
+            <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgba(226,232,240,0.85)' }}>
+              Commissioner Tools
+            </div>
+            <span className="text-[10px]" style={{ color: 'rgba(148,163,184,0.9)' }}>
+              Owner & co‑commissioners only
+            </span>
+          </div>
+
+          <div className="px-4 py-3 space-y-3">
+            <div>
+              <div className="text-[11px] font-medium mb-1" style={{ color: 'rgba(226,232,240,0.9)' }}>
+                Join Code
+              </div>
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex-1 rounded-md px-3 py-1.5 text-xs truncate"
+                  style={{ background: 'rgba(15,23,42,0.9)', border: '1px dashed rgba(148,163,184,0.5)', color: 'rgba(226,232,240,0.8)' }}
+                >
+                  {localJoinCode}
+                </div>
+                <button
+                  type="button"
+                  onClick={regenerateJoinCode}
+                  disabled={regenLoading}
+                  className="text-[10px] px-2 py-1 rounded-md border border-amber-400/40 bg-amber-400/10 text-amber-200 disabled:opacity-60"
+                >
+                  {regenLoading ? "Regenerating..." : "Regenerate"}
+                </button>
+              </div>
+            </div>
+
+            {members && members.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium" style={{ color: 'rgba(226,232,240,0.9)' }}>
+                  Members
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                  {members.map((m) => {
+                    const isSelf = currentUserId && m.userId === currentUserId
+                    const isOwnerRole = m.role === "OWNER"
+                    const removable = canEdit && !isOwnerRole && !isSelf
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-md"
+                        style={{ background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(30,64,175,0.4)' }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate" style={{ color: 'rgba(226,232,240,0.9)' }}>
+                            {m.user.displayName || m.user.email}
+                          </div>
+                          <div className="text-[9px]" style={{ color: 'rgba(148,163,184,0.8)' }}>
+                            {m.role.toLowerCase()}
+                            {isSelf && " · you"}
+                          </div>
+                        </div>
+                        {removable && (
+                          <RemoveMemberButton leagueId={leagueId} userId={m.userId} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {scoringMode === 'fancred_edge' && (
         <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <div className="text-[10px] font-semibold uppercase tracking-wider px-4 py-2" style={{ color: 'rgba(255,255,255,0.3)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
@@ -710,7 +817,7 @@ function SettingsPanel({
           <BonusToggleCard
             icon={<Shield className="w-4 h-4" style={{ color: '#34d399' }} />}
             label="Insurance Token"
-            description="Protect one pick per round. If your insured pick loses, you keep partial points."
+            description="Protect one key pick with partial points if it loses. Commissioners can limit which rounds are eligible."
             accentColor="#34d399"
             bgColor="rgba(52,211,153,0.06)"
             borderColor="rgba(52,211,153,0.15)"
@@ -719,6 +826,31 @@ function SettingsPanel({
             leagueId={leagueId}
             initialValue={scoringRules?.insuranceEnabled === true}
           />
+          {scoringRules?.insuranceEnabled && (
+            <div className="px-4 pb-3 text-[11px]" style={{ color: 'rgba(209,213,219,0.65)' }}>
+              <div className="mb-1 font-semibold" style={{ color: 'rgba(243,244,246,0.9)' }}>
+                Insurance applies to:
+              </div>
+              <div className="flex flex-wrap gap-1.5 text-[10px]">
+                {["Round 1", "Sweet 16 / Elite 8", "Final Four / Champion"].map((label, idx) => (
+                  <span
+                    key={label}
+                    className="inline-flex items-center rounded-full px-2 py-0.5"
+                    style={{
+                      background: 'rgba(15,23,42,0.8)',
+                      border: '1px solid rgba(148,163,184,0.4)',
+                      color: 'rgba(226,232,240,0.9)',
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-1 text-[10px]" style={{ color: 'rgba(148,163,184,0.85)' }}>
+                For this version, insurance is available in Round 1, late regional rounds, and Final Four / title games.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -806,10 +938,13 @@ function BonusToggleCard({
     setEnabled(newVal)
     setSaving(true)
     try {
-      await fetch(`/api/bracket/leagues/${leagueId}/settings`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ [field]: newVal }),
+      await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "update_rules",
+          scoringRules: { [field]: newVal },
+        }),
       })
     } catch {}
     setSaving(false)
@@ -939,10 +1074,13 @@ function EntryControlRow({
     setSaving(true)
     try {
       const value = valueMap ? valueMap[String(newVal)] : newVal
-      await fetch(`/api/bracket/leagues/${leagueId}/settings`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
+      await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "update_rules",
+          scoringRules: { [field]: value },
+        }),
       })
     } catch {}
     setSaving(false)
@@ -974,6 +1112,41 @@ function EntryControlRow({
         />
       </button>
     </div>
+  )
+}
+
+function RemoveMemberButton({ leagueId, userId }: { leagueId: string; userId: string }) {
+  const [removing, setRemoving] = useState(false)
+
+  async function handleRemove() {
+    if (removing) return
+    setRemoving(true)
+    try {
+      await fetch(`/api/bracket/leagues/${leagueId}/manage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "remove_member",
+          memberUserId: userId,
+        }),
+      })
+      // For now we rely on a refresh; future improvement: optimistic local removal.
+    } catch {
+      // swallow; future: surface toast
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleRemove}
+      disabled={removing}
+      className="ml-2 text-[10px] px-2 py-1 rounded-md border border-red-400/40 bg-red-500/10 text-red-200 disabled:opacity-60"
+    >
+      {removing ? "Removing..." : "Remove"}
+    </button>
   )
 }
 

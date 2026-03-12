@@ -92,10 +92,23 @@ export async function narrateStoryMode(data: {
   currentPoints: number
   maxPossible: number
   riskExposure: number
+  championAlive?: boolean
+  finalFourAlive?: number
+  finalFourTotal?: number
+  upside?: number
+  remainingPoints?: number
 }): Promise<string> {
   return generateNarrative({
     context: data,
-    prompt: "Write a 2-sentence dynamic storyline for this bracket user. Tone: exciting but grounded. Reference their rank, alive percentage, and win probability. Make it feel like a sports broadcast narrative.",
+    prompt:
+      "Write a 2–3 sentence dynamic storyline for this bracket user during the tournament.\n" +
+      "Tone: exciting but grounded, like a smart sports broadcast.\n" +
+      "Use ONLY the data provided; do NOT invent specific scores or guarantees.\n" +
+      "- Mention their rank and pool size.\n" +
+      "- Mention alive percentage and remaining points if meaningful.\n" +
+      "- Mention whether the champion and Final Four core are still alive if that is in the data.\n" +
+      "- Mention win probability and uniqueness only as estimates or context, never as promises.\n" +
+      "Make it engaging but clear that outcomes are uncertain.",
   })
 }
 

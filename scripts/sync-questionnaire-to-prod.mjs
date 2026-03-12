@@ -9,7 +9,8 @@ if (!PROD_URL) {
 
 async function main() {
   console.log("Fetching questionnaire responses from dev...");
-  const devRes = await fetch("http://localhost:5000/api/admin/questionnaire", {
+  const devBase = process.env.BASE_URL || "http://localhost:3000";
+  const devRes = await fetch(`${devBase}/api/admin/questionnaire`, {
     headers: { Authorization: `Bearer ${BEARER}` },
   });
   if (!devRes.ok) throw new Error(`Dev fetch failed: ${devRes.status}`);

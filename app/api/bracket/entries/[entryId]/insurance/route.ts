@@ -53,10 +53,22 @@ export async function POST(
     if (nodeId) {
       const node = await prisma.bracketNode.findUnique({
         where: { id: nodeId },
-        select: { id: true },
+        select: { id: true, round: true },
       })
       if (!node) {
         return NextResponse.json({ error: "Node not found" }, { status: 404 })
+      }
+
+      const defaultAllowedRounds = [1, 3, 4, 5, 6]
+      const allowedRounds: number[] =
+        Array.isArray(rules.insuranceAllowedRounds)
+          ? (rules.insuranceAllowedRounds as number[])
+          : defaultAllowedRounds
+      if (!allowedRounds.includes(node.round)) {
+        return NextResponse.json(
+          { error: "Insurance is not allowed for this round in this league" },
+          { status: 400 },
+        )
       }
 
       const pick = await prisma.bracketPick.findUnique({

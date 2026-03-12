@@ -2,7 +2,7 @@
 # AllFantasy Legacy Stress Test - Phase 2 & 3
 # Runs 1,000 requests per page/endpoint using curl with controlled concurrency
 REPORT="/tmp/stress-test-complete-report.txt"
-BASE="http://localhost:5000"
+BASE="${BASE_URL:-http://localhost:3000}"
 
 echo "═══════════════════════════════════════════════════════════════" > "$REPORT"
 echo "  ALLFANTASY LEGACY STRESS TEST - COMPLETE REPORT" >> "$REPORT"

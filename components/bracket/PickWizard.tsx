@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { X, ChevronLeft, ChevronRight, Zap, TrendingUp, Sparkles, Shield, Trophy } from "lucide-react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type Game = {
   id: string
@@ -92,6 +93,7 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
   const [aiData, setAiData] = useState<Record<string, any>>({})
   const [loadingAi, setLoadingAi] = useState<string | null>(null)
   const [pickAnimating, setPickAnimating] = useState(false)
+  const { t } = useLanguage()
 
   useEffect(() => {
     const idx = pickableNodes.findIndex(n => n.id === startNode.id)
@@ -326,7 +328,9 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
             <div className="rounded-xl p-4" style={{ background: 'rgba(6,182,212,0.03)', border: '1px solid rgba(6,182,212,0.08)' }}>
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'rgba(6,182,212,0.3)', borderTopColor: 'transparent' }} />
-                <span className="text-xs" style={{ color: 'rgba(6,182,212,0.6)' }}>Loading AI analysis...</span>
+                <span className="text-xs" style={{ color: 'rgba(6,182,212,0.6)' }}>
+                  {t("bracket.ai.wizard.loading")}
+                </span>
               </div>
             </div>
           )}
@@ -335,10 +339,12 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
             <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(6,182,212,0.03)', border: '1px solid rgba(6,182,212,0.10)' }}>
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4" style={{ color: '#22d3ee' }} />
-                <span className="text-xs font-bold" style={{ color: '#22d3ee' }}>AI Matchup Analysis</span>
+                <span className="text-xs font-bold" style={{ color: '#22d3ee' }}>
+                  {t("bracket.ai.wizard.analysis.title")}
+                </span>
                 {ai.confidence && (
                   <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.3)' }}>
-                    {ai.confidence}% conf
+                    {ai.confidence}% {t("bracket.ai.wizard.analysis.confidenceShort")}
                   </span>
                 )}
               </div>
@@ -348,8 +354,10 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
 
               {ai.keyFactors?.length > 0 && (
                 <div className="space-y-1.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.25)' }}>Key Factors</div>
-                  {ai.keyFactors.slice(0, 3).map((f: string, i: number) => (
+                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                    {t("bracket.ai.wizard.analysis.keyFactors")}
+                  </div>
+                  {ai.keyFactors.slice(0, 4).map((f: string, i: number) => (
                     <div key={i} className="flex items-start gap-2">
                       <div className="w-1 h-1 rounded-full mt-1.5 flex-shrink-0" style={{ background: '#22d3ee' }} />
                       <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{f}</span>
@@ -358,10 +366,46 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
                 </div>
               )}
 
+              {(ai.suggestedLean || ai.upsetWatch || ai.confidenceLabel || ai.dataNotes) && (
+                <div className="space-y-1.5">
+                  {ai.suggestedLean && (
+                    <div className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <span className="font-semibold">
+                        {t("bracket.ai.wizard.analysis.suggestedLean")}{": "}
+                      </span>
+                      {ai.suggestedLean}
+                    </div>
+                  )}
+                  {ai.confidenceLabel && (
+                    <div className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <span className="font-semibold">
+                        {t("bracket.ai.wizard.analysis.confidenceLabel")}{": "}
+                      </span>
+                      {ai.confidenceLabel === "high" && t("bracket.ai.confidence.high")}
+                      {ai.confidenceLabel === "medium" && t("bracket.ai.confidence.medium")}
+                      {ai.confidenceLabel === "low" && t("bracket.ai.confidence.low")}
+                    </div>
+                  )}
+                  {ai.upsetWatch && (
+                    <div className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                      <span className="font-semibold">
+                        {t("bracket.ai.wizard.analysis.upsetWatch")}{": "}
+                      </span>
+                      {ai.upsetWatch}
+                    </div>
+                  )}
+                  {ai.dataNotes && (
+                    <div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                      {ai.dataNotes}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {ai.sources?.length > 0 && (
                 <details className="group">
                   <summary className="text-[10px] font-semibold cursor-pointer" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                    Sources ({ai.sources.length})
+                    {t("bracket.ai.wizard.analysis.sources")} ({ai.sources.length})
                   </summary>
                   <div className="mt-1 space-y-1">
                     {ai.sources.map((s: any, i: number) => (
@@ -374,16 +418,57 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
               )}
             </div>
           )}
-
-          {ai?.recommendation && (
-            <div className="rounded-xl p-4 space-y-2" style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.10)' }}>
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4" style={{ color: AF_BLUE }} />
-                <span className="text-xs font-bold" style={{ color: AF_BLUE }}>AI Recommendation</span>
+          {/* Strategy-based pick recommendation */}
+          {ai?.strategy && hasBothTeams && (
+            <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(59,130,246,0.03)', border: '1px solid rgba(59,130,246,0.10)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" style={{ color: AF_BLUE }} />
+                  <span className="text-xs font-bold" style={{ color: AF_BLUE }}>
+                    {t("bracket.ai.wizard.recommendation.title")}
+                  </span>
+                </div>
+                {ai.strategy.style && (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.08)', color: 'rgba(255,255,255,0.7)' }}>
+                    {ai.strategy.style === "safe" && t("bracket.ai.style.safe")}
+                    {ai.strategy.style === "balanced" && t("bracket.ai.style.balanced")}
+                    {ai.strategy.style === "upset_heavy" && t("bracket.ai.style.upsetHeavy")}
+                    {ai.strategy.style === "chaos" && t("bracket.ai.style.chaos")}
+                  </span>
+                )}
               </div>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                {ai.recommendation}
-              </p>
+              <div className="flex items-center justify-between text-xs">
+                <div className="space-y-0.5">
+                  <div style={{ color: 'rgba(255,255,255,0.5)' }}>
+                    {t("bracket.ai.wizard.recommendation.recommended")}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.9)' }}>
+                      {ai.strategy.recommendedPick}
+                    </span>
+                    {ai.strategy.leveragePlay && (
+                      <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>
+                        <TrendingUp className="w-3 h-3" /> {t("bracket.ai.wizard.recommendation.leverage")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {ai.strategy.confidence != null && (
+                  <div className="text-right">
+                    <div className="text-xl font-black" style={{ color: AF_BLUE }}>
+                      {ai.strategy.confidence}%
+                    </div>
+                    <div className="text-[9px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                      {t("bracket.ai.wizard.recommendation.confidence")}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {ai.strategy.reasoning && (
+                <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  {ai.strategy.reasoning}
+                </p>
+              )}
             </div>
           )}
         </div>

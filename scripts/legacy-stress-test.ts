@@ -13,7 +13,7 @@ const SLEEPER_LEAGUE_IDS = ["1313588237159141376", "1314275221502427136"]
 const LEAGUE_NAMES = ["NFC Dreaming!", "Going Deep League"]
 const BATCH = 100
 const TOTAL = 1000
-const BASE_URL = "http://localhost:5000"
+const BASE_URL = process.env.BASE_URL || "http://localhost:3000"
 
 const NFL_PLAYERS = [
   "Patrick Mahomes", "Josh Allen", "Lamar Jackson", "Joe Burrow", "Jalen Hurts",

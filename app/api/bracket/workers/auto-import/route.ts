@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { selectBestProvider } from "@/lib/brackets/providers"
 import { generateNcaamBracketStructure } from "@/lib/brackets/ncaamStructure"
+import { applyTournamentFieldToBracket } from "@/lib/brackets/teamImport"
 
 export const dynamic = "force-dynamic"
 
@@ -91,36 +92,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (field.teams.length >= 64) {
-      const nodes = await prisma.bracketNode.findMany({
-        where: { tournamentId, round: 1 },
-        select: { id: true, region: true, seedHome: true, seedAway: true },
-      })
-
-      const R64_MATCHUPS = [[1, 16], [8, 9], [5, 12], [4, 13], [6, 11], [3, 14], [7, 10], [2, 15]]
-
-      const teamByRegionSeed = new Map<string, string>()
-      for (const t of field.teams) {
-        teamByRegionSeed.set(`${t.region}-${t.seed}`, t.teamName)
+      const { seeded, totalRound1Nodes, warnings } = await applyTournamentFieldToBracket(
+        tournamentId,
+        field
+      )
+      console.log(
+        `[AutoImport] Seeded ${seeded} round‑of‑64 nodes out of ${totalRound1Nodes} for tournament ${tournamentId}`
+      )
+      if (warnings.length > 0) {
+        console.warn("[AutoImport] Team seeding warnings:", warnings)
       }
-
-      let seeded = 0
-      for (const node of nodes) {
-        if (!node.region || node.seedHome == null || node.seedAway == null) continue
-        const home = teamByRegionSeed.get(`${node.region}-${node.seedHome}`)
-        const away = teamByRegionSeed.get(`${node.region}-${node.seedAway}`)
-        if (home || away) {
-          await prisma.bracketNode.update({
-            where: { id: node.id },
-            data: {
-              ...(home ? { homeTeamName: home } : {}),
-              ...(away ? { awayTeamName: away } : {}),
-            },
-          })
-          seeded++
-        }
-      }
-
-      console.log(`[AutoImport] Seeded ${seeded} R64 nodes with team names`)
     }
 
     const schedule = await provider.getSchedule(season)

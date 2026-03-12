@@ -24,7 +24,10 @@ export async function GET(
     }
 
     const entries = await prisma.bracketEntry.findMany({
-      where: { leagueId },
+      where: {
+        leagueId,
+        status: { notIn: ["DRAFT", "INVALIDATED"] },
+      },
       select: {
         id: true,
         name: true,
