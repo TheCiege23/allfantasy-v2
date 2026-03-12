@@ -63,7 +63,7 @@ export async function applyTournamentFieldToBracket(
     teamByRegionSeed.set(`${t.region}-${t.seed}`, t.teamName)
   }
 
-  const updates: Parameters<typeof prisma.bracketNode.update>[] = []
+  const updates: ReturnType<typeof prisma.bracketNode.update>[] = []
   let seeded = 0
 
   for (const node of round1Nodes) {
