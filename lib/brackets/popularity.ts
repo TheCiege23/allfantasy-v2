@@ -106,7 +106,9 @@ export async function computeTournamentPickPopularity(tournamentId: string) {
           where: {
             tournamentId_leagueId_nodeId_teamName_scope: {
               tournamentId,
-              leagueId: null,
+              // leagueId is null for global scope; cast to satisfy TS while
+              // preserving the Prisma schema type.
+              leagueId: null as any,
               nodeId,
               teamName,
               scope: "global",
@@ -119,7 +121,7 @@ export async function computeTournamentPickPopularity(tournamentId: string) {
           },
           create: {
             tournamentId,
-            leagueId: null,
+            leagueId: null as any,
             nodeId,
             round,
             teamName,
