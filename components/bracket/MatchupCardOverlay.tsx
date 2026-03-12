@@ -37,7 +37,7 @@ type Props = {
   onClose: () => void
   entryId: string
   tournamentId: string
-  leagueId: string
+  leagueId?: string
 }
 
 const ROUND_LABELS: Record<number, string> = {
