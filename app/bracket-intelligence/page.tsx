@@ -10,6 +10,7 @@ import { ChaosMeter } from '@/components/bracket/ChaosMeter'
 
 type DashboardResponse = {
   ok: boolean
+  tournamentId?: string
   summary?: {
     currentRank: number
     totalEntries: number
