@@ -202,7 +202,7 @@ export default function BracketIntelligencePage() {
           .then((data) => ({ ok: res.ok, data }))
           .catch(() => ({ ok: false, data: {} })),
       )
-      .then(({ ok, data }: { ok: boolean; data: StoryResponse }) => {
+      .then(({ ok, data }: { ok: boolean; data: any }) => {
         if (!ok || !data?.ok || !data.story?.narrative) return
         setStory(data.story.narrative)
       })
