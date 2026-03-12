@@ -2377,9 +2377,10 @@ model BracketEntry {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  league       BracketLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user         AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  picks        BracketPick[]
+  league     BracketLeague          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       AppUser                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  picks      BracketPick[]          @relation("EntryToPick")
+  snapshots  BracketEntrySnapshot[] @relation("EntryToSnapshot")
 
   @@index([leagueId])
   @@index([userId])
@@ -2399,7 +2400,7 @@ model BracketEntrySnapshot {
   createdBySystem Boolean @default(true)
   createdAt      DateTime @default(now())
 
-  entry         BracketEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entry         BracketEntry @relation("EntryToSnapshot", fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId, leagueId])
   @@index([entryId, createdAt])
@@ -2481,7 +2482,7 @@ model BracketPick {
   points         Int       @default(0)
   isCorrect      Boolean?
 
-  entry     BracketEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  entry     BracketEntry @relation("EntryToPick", fields: [entryId], references: [id], onDelete: Cascade)
   node      BracketNode  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@unique([entryId, nodeId])
