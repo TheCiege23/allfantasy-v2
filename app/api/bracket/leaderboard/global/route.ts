@@ -32,13 +32,11 @@ export async function GET(req: NextRequest) {
     let offset = (page - 1) * pageSize
 
     if (aroundEntryId) {
-      const target = await prisma.bracketLeaderboard.findUnique({
+      const target = await prisma.bracketLeaderboard.findFirst({
         where: {
-          tournamentId_leagueId_entryId: {
-            tournamentId,
-            leagueId: null,
-            entryId: aroundEntryId,
-          },
+          tournamentId,
+          leagueId: null,
+          entryId: aroundEntryId,
         },
         select: { rank: true },
       })
