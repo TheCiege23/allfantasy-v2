@@ -4,13 +4,15 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 
+type SessionWithUser = { user?: { id?: string } } | null
+
 /** GET: list managers/rosters. DELETE: remove manager (stub – platform may handle). */
 export async function GET(
   _req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as SessionWithUser
+  const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
@@ -38,8 +40,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as SessionWithUser
+  const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
