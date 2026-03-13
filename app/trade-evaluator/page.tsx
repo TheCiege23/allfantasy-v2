@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-import React, { useState } from 'react'
+import React, { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 
@@ -86,7 +86,7 @@ const defaultTeam: TeamInput = {
   gives_faab: 0,
 }
 
-export default function TradeEvaluator() {
+function TradeEvaluatorInner() {
   const searchParams = useSearchParams()
 
   const [sender, setSender] = useState<TeamInput>(() => {
@@ -752,5 +752,13 @@ export default function TradeEvaluator() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function TradeEvaluatorPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen mode-readable" />}>
+      <TradeEvaluatorInner />
+    </Suspense>
   )
 }

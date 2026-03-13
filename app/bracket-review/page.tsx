@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -36,7 +36,7 @@ type AiReview = {
   summary: string
 } | null
 
-export default function BracketReviewPage() {
+function BracketReviewInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const entryId = searchParams?.get('entryId') || ''
@@ -537,6 +537,14 @@ export default function BracketReviewPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+export default function BracketReviewPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen mode-readable" />}>
+      <BracketReviewInner />
+    </Suspense>
   )
 }
 

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-import React, { useEffect, useState } from 'react'
+import React, { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -67,7 +67,7 @@ type StoryResponse = {
   }
 }
 
-export default function BracketIntelligencePage() {
+function BracketIntelligenceInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const entryId = searchParams?.get('entryId') || ''
@@ -483,6 +483,14 @@ export default function BracketIntelligencePage() {
         </div>
       </section>
     </main>
+  )
+}
+
+export default function BracketIntelligencePage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen mode-readable" />}>
+      <BracketIntelligenceInner />
+    </Suspense>
   )
 }
 
