@@ -7,10 +7,11 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
   const leagueId = params.leagueId
   if (!leagueId) return NextResponse.json({ error: 'League ID required' }, { status: 400 })
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const ok = await isCommissioner(leagueId, userId)
   return NextResponse.json({ isCommissioner: ok })

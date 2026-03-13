@@ -7,7 +7,6 @@ import {
   Sparkles,
   X,
   MessageCircle,
-  Gif as GifIcon,
   Image as ImageIcon,
   Film,
   SmilePlus,
@@ -493,7 +492,7 @@ function MediaPlaceholderButtons({ upload }: { upload: ReturnType<typeof useMedi
         title="GIF"
         aria-label="Add GIF"
       >
-        <GifIcon className="h-4 w-4" />
+        <ImageIcon className="h-4 w-4" />
       </button>
       <button
         type="button"
