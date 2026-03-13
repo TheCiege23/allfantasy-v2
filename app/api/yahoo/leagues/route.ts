@@ -2,10 +2,13 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID!
-const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET!
+const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
+const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET
 
 async function refreshAccessToken(connection: any) {
+  if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
+    throw new Error("Yahoo integration is not configured")
+  }
   const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
     method: 'POST',
     headers: {
@@ -39,7 +42,11 @@ async function refreshAccessToken(connection: any) {
 
 export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLeagues" })(async (request: NextRequest) => {
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
-  
+
+  if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
+    console.error("[YahooLeagues] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
+    return NextResponse.json({ error: "Yahoo integration is not configured" }, { status: 500 })
+  }
   if (!yahooUserId) {
     return NextResponse.json({ error: 'Not connected to Yahoo' }, { status: 401 })
   }
@@ -139,7 +146,11 @@ export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLe
 
 export const POST = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLeagues" })(async (request: NextRequest) => {
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
-  
+
+  if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
+    console.error("[YahooLeagues] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
+    return NextResponse.json({ error: "Yahoo integration is not configured" }, { status: 500 })
+  }
   if (!yahooUserId) {
     return NextResponse.json({ error: 'Not connected to Yahoo' }, { status: 401 })
   }

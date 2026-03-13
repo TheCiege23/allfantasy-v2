@@ -2,8 +2,8 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID!
-const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET!
+const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
+const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET
 const APP_URL = process.env.APP_URL || 'https://allfantasy.ai'
 // Must match exactly what's in Yahoo Developer Console
 const YAHOO_REDIRECT_URI = 'https://allfantasy.ai/api/auth/yahoo/callback'
@@ -14,6 +14,11 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
   const state = searchParams.get('state')
   const error = searchParams.get('error')
   
+  if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
+    console.error("[Yahoo Callback] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
+    return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=not_configured`)
+  }
+
   if (error) {
     const errorDesc = searchParams.get('error_description') || ''
     console.error('Yahoo OAuth error:', error, errorDesc)

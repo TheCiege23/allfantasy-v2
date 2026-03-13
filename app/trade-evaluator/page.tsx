@@ -1,4 +1,7 @@
-'use client'
+"use client"
+
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 import React, { useState } from 'react'
 import Link from 'next/link'
