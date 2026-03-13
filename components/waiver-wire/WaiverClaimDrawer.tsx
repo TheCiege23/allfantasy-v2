@@ -43,7 +43,15 @@ export default function WaiverClaimDrawer({
     setSubmitting(true)
     try {
       const faabBid =
-        faabMode && bid !== "" ? Math.max(0, Math.min(Number(bid) || 0, faabRemaining ?? Number(bid) || 0)) : null
+        faabMode && bid !== ""
+          ? Math.max(
+              0,
+              Math.min(
+                Number(bid) || 0,
+                (faabRemaining ?? (Number(bid) || 0)),
+              ),
+            )
+          : null
       const priorityOrder = priority !== "" ? Number(priority) || 0 : null
       await onSubmit({
         dropPlayerId: dropId || null,
