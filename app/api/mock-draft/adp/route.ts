@@ -49,6 +49,18 @@ export async function GET(req: NextRequest) {
 
     const type = (req.nextUrl.searchParams.get('type') || 'redraft') as 'dynasty' | 'redraft'
     const pool = req.nextUrl.searchParams.get('pool') || 'all'
+    const sport = (req.nextUrl.searchParams.get('sport') || 'nfl').toLowerCase()
+
+    if (sport !== 'nfl') {
+      return NextResponse.json({
+        entries: [],
+        count: 0,
+        type,
+        pool,
+        sport,
+        message: 'ADP data for NBA/MLB is not yet available; use sport=nfl for football.',
+      })
+    }
 
     let entries: Awaited<ReturnType<typeof getLiveADP>> = []
 
@@ -138,6 +150,7 @@ export async function GET(req: NextRequest) {
       count: entries.length,
       type,
       pool,
+      sport: 'nfl',
     })
   } catch (err: any) {
     console.error('[mock-draft/adp] Error:', err)

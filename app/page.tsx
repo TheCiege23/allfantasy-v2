@@ -9,6 +9,14 @@ import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import ProductDemoSection from '@/components/home/ProductDemoSection'
 import TradeAnalyzerPreview from '@/components/home/TradeAnalyzerPreview'
+import HomeTopNav from '@/components/navigation/HomeTopNav'
+import UserStatsPanel from '@/components/home/UserStatsPanel'
+import LeagueDashboard from '@/components/home/LeagueDashboard'
+import PlayerFinderPanel from '@/components/home/PlayerFinderPanel'
+import HomeChatDock from '@/components/home/HomeChatDock'
+import SmartToolsSection from '@/components/home/SmartToolsSection'
+import LiveScoringWidget from '@/components/live/LiveScoringWidget'
+import ActivityFeed from '@/components/activity/ActivityFeed'
 
 function HomeContent() {
   const { t } = useLanguage()
@@ -38,39 +46,8 @@ function HomeContent() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Top bar */}
-      <header className="w-full border-b border-white/10/5">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex items-center gap-2">
-            <img
-              src="/af-crest.png"
-              alt="AllFantasy crest"
-              className="h-8 w-8 rounded-lg border border-white/10 bg-black/40 object-contain"
-            />
-            <span className="text-sm font-semibold tracking-tight sm:text-base">
-              AllFantasy.ai
-            </span>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <ModeToggle className="hidden sm:inline-flex rounded-full px-3 py-1 text-xs" />
-            <LanguageToggle />
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              <span>{t('common.signIn')}</span>
-            </Link>
-            <Link
-              href="/signup"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black shadow-sm hover:bg-gray-100"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              <span>{t('common.signUp')}</span>
-            </Link>
-          </div>
-        </div>
-      </header>
+      {/* Top navigation */}
+      <HomeTopNav />
 
       {/* Hero */}
       <section className="flex-1">
@@ -137,6 +114,25 @@ function HomeContent() {
           </div>
         </div>
       </section>
+
+      {/* User stats preview (placeholder, wired for ranking engine later) */}
+      <UserStatsPanel />
+
+      {/* League dashboard (placeholder data, modeled after Sleeper) */}
+      <LeagueDashboard />
+
+      {/* Activity feed: trades, waivers, lineups, messages, announcements */}
+      <section className="px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto max-w-6xl">
+          <ActivityFeed />
+        </div>
+      </section>
+
+      {/* Player finder launcher + slide-out */}
+      <PlayerFinderPanel />
+
+      {/* Global chat dock (league, DMs, AI chat) */}
+      <HomeChatDock />
 
       {/* Product path cards */}
       <section className="border-t border-white/10/5 bg-[rgba(0,0,0,0.3)] px-4 py-10 sm:px-6 sm:py-12">
@@ -320,6 +316,16 @@ function HomeContent() {
           </div>
         </div>
       </section>
+
+      {/* Live scoring widget (homepage) */}
+      <section className="px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="mx-auto max-w-6xl">
+          <LiveScoringWidget />
+        </div>
+      </section>
+
+      {/* Smart tools: AI recs, quick draft, mock draft */}
+      <SmartToolsSection />
 
       {/* Trust signals */}
       <section className="px-4 pb-8 sm:px-6 sm:pb-10">

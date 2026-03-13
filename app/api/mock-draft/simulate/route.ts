@@ -135,6 +135,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
 
+    const sport = (league as any).sport ?? 'NFL'
+    const isNfl = String(sport).toUpperCase() === 'NFL'
+
     if (!refresh) {
       const existing = await prisma.mockDraft.findFirst({
         where: { leagueId, userId: session.user.id },
@@ -186,30 +189,34 @@ export async function POST(req: NextRequest) {
     }
 
     let adpContext = ''
-    try {
-      const adpType = league.isDynasty ? 'dynasty' : 'redraft'
-      const rawADP = await getLiveADP(adpType as 'dynasty' | 'redraft', 200)
-      const adjusted = await applyRealtimeAdpAdjustments(rawADP, { isDynasty: league.isDynasty })
-      const liveADP = adjusted.entries
-      if (liveADP.length > 0) {
-        const adpSummary = liveADP.slice(0, 200).map(p =>
-          `${p.name} (${p.position}, ${p.team || 'FA'}) - ADP: ${p.adp?.toFixed(1) || 'N/A'} • Value: ${p.value?.toFixed(0) || 'N/A'}`
-        ).join('\n')
+    if (isNfl) {
+      try {
+        const adpType = league.isDynasty ? 'dynasty' : 'redraft'
+        const rawADP = await getLiveADP(adpType as 'dynasty' | 'redraft', 200)
+        const adjusted = await applyRealtimeAdpAdjustments(rawADP, { isDynasty: league.isDynasty })
+        const liveADP = adjusted.entries
+        if (liveADP.length > 0) {
+          const adpSummary = liveADP.slice(0, 200).map(p =>
+            `${p.name} (${p.position}, ${p.team || 'FA'}) - ADP: ${p.adp?.toFixed(1) || 'N/A'} • Value: ${p.value?.toFixed(0) || 'N/A'}`
+          ).join('\n')
 
-        const adjustmentNotes = adjusted.adjustments.slice(0, 15).map(a =>
-          `${a.name}: ${a.delta > 0 ? '+' : ''}${a.delta.toFixed(1)} ADP (${a.reasons.join(', ')})`
-        ).join('\n')
+          const adjustmentNotes = adjusted.adjustments.slice(0, 15).map(a =>
+            `${a.name}: ${a.delta > 0 ? '+' : ''}${a.delta.toFixed(1)} ADP (${a.reasons.join(', ')})`
+          ).join('\n')
 
-        adpContext = `\n\n=== REAL-TIME ADP & DYNASTY VALUE DATA (${liveADP.length} players, adjusted for news/injuries) ===
+          adpContext = `\n\n=== REAL-TIME ADP & DYNASTY VALUE DATA (${liveADP.length} players, adjusted for news/injuries) ===
 Use this real-time ADP and dynasty value data to guide picks. Players MUST be drafted in realistic ADP order with slight variance for team needs and individual draft style. Do NOT invent players — only draft players from this list or well-known NFL starters.
 
 ${adpSummary}
 
 === RECENT ADP ADJUSTMENTS (injuries, news, momentum) ===
 ${adjustmentNotes || 'No significant adjustments'}`
+        }
+      } catch (adpErr) {
+        console.log('[mock-draft] ADP fetch failed, AI will use internal knowledge:', adpErr)
       }
-    } catch (adpErr) {
-      console.log('[mock-draft] ADP fetch failed, AI will use internal knowledge:', adpErr)
+    } else {
+      adpContext = `\n\nSport: ${sport}. Draft only real ${sport === 'NBA' ? 'NBA' : 'MLB'} players with correct positions (${sport === 'NBA' ? 'PG, SG, SF, PF, C' : 'P, C, 1B, 2B, 3B, SS, OF, etc.'}). Use your knowledge of current player values and team needs.`
     }
 
     const draftTypeLabel = (['snake', 'linear', 'auction'].includes(draftType) ? draftType : 'snake') as DraftType
@@ -223,17 +230,18 @@ ${adjustmentNotes || 'No significant adjustments'}`
       ? ' For auction, include realistic values and sequence by winning nomination events.'
       : ''
 
-    const systemPrompt = `You are an expert fantasy football mock draft simulator. You simulate realistic drafts based on current ADP (Average Draft Position) data, positional scarcity, and real manager draft tendencies.
+    const sportLabel = sport === 'NBA' ? 'basketball' : sport === 'MLB' ? 'baseball' : 'football'
+    const systemPrompt = `You are an expert fantasy ${sportLabel} mock draft simulator. You simulate realistic drafts based on current ADP (Average Draft Position) data when provided, positional scarcity, and real manager draft tendencies.
 
 Rules:
-- Generate a full ${rounds}-round mock draft for a ${numTeams}-team league
+- Generate a full ${rounds}-round mock draft for a ${numTeams}-team ${sportLabel} league
 - Draft format: ${draftTypeLabel}. ${draftFormatInstruction}
-- Base picks on the LIVE ADP DATA provided below — players should be drafted close to their ADP with realistic variance
+- ${isNfl ? 'Base picks on the LIVE ADP DATA provided below — players should be drafted close to their ADP with realistic variance' : `Draft only real ${sport} players with correct positions. Use your knowledge of current player values.`}
 - Each AI manager should have a distinct draft style (some reach, some go BPA, some are position-focused)
 - Autopick mode default per team: ${autopickMode} (queue-first -> BPA -> need-based fallback)
 - Team at index ${userTeamIdx} ("${teamNames[userTeamIdx]}") is the user's team — mark those picks with isUser: true
 - League format: ${league.scoring || 'PPR'}, ${league.isDynasty ? 'Dynasty' : 'Redraft'}${scoringTweak === 'sf' ? '\n- SUPERFLEX LEAGUE: QBs are significantly more valuable. Draft QBs earlier and expect 2-3 QBs taken in Round 1. Value QBs like top-10 overall picks.' : ''}${scoringTweak === 'tep' ? '\n- TE PREMIUM LEAGUE: TEs receive bonus PPR scoring (1.5-2.0 PPR). Draft elite TEs earlier (Rounds 1-3 for top TEs). TEs like Kelce, LaPorta, Bowers are valued much higher.' : ''}
-- Include real NFL player names with correct positions and teams
+- Include real ${sport} player names with correct positions and teams
 - Confidence represents how strongly the AI recommends that pick (60-95 range)
 - Notes should be a brief scouting blurb
 - The "value" field should reflect the player's dynasty/trade value (higher = more valuable, scale 1-100)
@@ -241,7 +249,7 @@ Rules:
 Return a JSON object with a "draftResults" array. Each pick object:
 { "round": number, "pick": number, "overall": number, "playerName": string, "position": string, "team": string, "manager": string, "confidence": number, "isUser": boolean, "value": number, "notes": string }`
 
-    const userPrompt = `Simulate a ${rounds}-round ${draftTypeLabel} mock draft for this ${numTeams}-team ${league.isDynasty ? 'dynasty' : 'redraft'} ${league.scoring || 'PPR'} league.
+    const userPrompt = `Simulate a ${rounds}-round ${draftTypeLabel} mock draft for this ${numTeams}-team ${league.isDynasty ? 'dynasty' : 'redraft'} ${league.scoring || (sport === 'NBA' ? 'points' : 'standard')} ${sportLabel} league.
 
 Team names in draft order: ${teamNames.join(', ')}
 
@@ -394,6 +402,7 @@ Return exactly ${proposals.length} reasons in the "reasons" array.`
       validationWarnings: validation.warnings,
       draftPool,
       replaceAbsentWithAi,
+      sport,
     })
   } catch (err: any) {
     console.error('[mock-draft] Error:', err)

@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev } from './team-abbrev';
+import { recordProviderSync } from './provider-sync-logger';
 
 interface RollingInsightsToken {
   accessToken: string;
@@ -412,8 +413,12 @@ export async function syncNFLPlayersToDb(options?: { season?: string }): Promise
           }
         } catch (err) {
           console.error(`[RollingInsights] Failed to sync players for ${team.team}:`, err);
-        }
-        return teamSynced;
+          }
+          await recordProviderSync(
+            { provider: 'rolling_insights', entityType: 'player', sport: 'NFL', key: team.id, sourcePriority: 0 },
+            { recordsImported: teamSynced },
+          );
+          return teamSynced;
       })
     );
 

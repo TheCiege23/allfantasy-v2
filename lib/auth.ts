@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
@@ -59,6 +60,145 @@ async function fetchSleeperUser(username: string) {
   }
 }
 
+const providers: NextAuthOptions["providers"] = [
+  CredentialsProvider({
+    id: "credentials",
+    name: "Password",
+    credentials: {
+      login: { label: "Email or Username", type: "text" },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(credentials) {
+      const rawLogin = credentials?.login;
+      const rawPassword = credentials?.password;
+
+      if (!rawLogin || !rawPassword) {
+        return null;
+      }
+
+      const login = rawLogin.trim();
+      const password = rawPassword;
+
+      const user = await prisma.appUser.findFirst({
+        where: {
+          OR: [
+            { email: { equals: login, mode: "insensitive" } },
+            { username: { equals: login, mode: "insensitive" } },
+          ],
+        },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      if (!user.passwordHash) {
+        const isSleeperOnlyAccount =
+          typeof user.email === "string" &&
+          user.email.endsWith("@sleeper.allfantasy.ai");
+
+        if (isSleeperOnlyAccount) {
+          throw new Error("SLEEPER_ONLY_ACCOUNT");
+        }
+
+        throw new Error("PASSWORD_NOT_SET");
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+
+      if (!isValidPassword) {
+        return null;
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.displayName || user.username || user.email,
+        image: user.avatarUrl,
+      };
+    },
+  }),
+  CredentialsProvider({
+    id: "sleeper",
+    name: "Sleeper",
+    credentials: {
+      sleeperUsername: { label: "Sleeper Username", type: "text" },
+    },
+    async authorize(credentials) {
+      const rawUsername = credentials?.sleeperUsername;
+
+      if (!rawUsername) {
+        return null;
+      }
+
+      const sleeperUsername = rawUsername.trim();
+
+      if (!sleeperUsername) {
+        return null;
+      }
+
+      const sleeperUser = await fetchSleeperUser(sleeperUsername);
+
+      if (!sleeperUser?.user_id) {
+        return null;
+      }
+
+      const sleeperUserId = sleeperUser.user_id;
+      const displayName = sleeperUser.display_name?.trim() || sleeperUsername;
+      const avatarUrl = buildSleeperAvatarUrl(sleeperUser.avatar);
+
+      let user = await prisma.appUser.findFirst({
+        where: {
+          username: `sleeper_${sleeperUserId}`,
+        },
+      });
+
+      if (!user) {
+        user = await prisma.appUser.create({
+          data: {
+            email: `${sleeperUserId}@sleeper.allfantasy.ai`,
+            username: `sleeper_${sleeperUserId}`,
+            displayName,
+            avatarUrl,
+          },
+        });
+      } else {
+        const needsUpdate =
+          user.displayName !== displayName || user.avatarUrl !== avatarUrl;
+
+        if (needsUpdate) {
+          user = await prisma.appUser.update({
+            where: { id: user.id },
+            data: {
+              displayName,
+              avatarUrl,
+            },
+          });
+        }
+      }
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.displayName || user.username || user.email,
+        image: user.avatarUrl,
+      };
+    },
+  }),
+];
+
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+if (googleClientId && googleClientSecret) {
+  providers.push(
+    GoogleProvider({
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+    })
+  );
+}
+
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
   session: {
@@ -69,132 +209,7 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
     error: "/auth/error",
   },
-  providers: [
-    CredentialsProvider({
-      id: "credentials",
-      name: "Password",
-      credentials: {
-        login: { label: "Email or Username", type: "text" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        const rawLogin = credentials?.login;
-        const rawPassword = credentials?.password;
-
-        if (!rawLogin || !rawPassword) {
-          return null;
-        }
-
-        const login = rawLogin.trim();
-        const password = rawPassword;
-
-        const user = await prisma.appUser.findFirst({
-          where: {
-            OR: [
-              { email: { equals: login, mode: "insensitive" } },
-              { username: { equals: login, mode: "insensitive" } },
-            ],
-          },
-        });
-
-        if (!user) {
-          return null;
-        }
-
-        if (!user.passwordHash) {
-          const isSleeperOnlyAccount =
-            typeof user.email === "string" &&
-            user.email.endsWith("@sleeper.allfantasy.ai");
-
-          if (isSleeperOnlyAccount) {
-            throw new Error("SLEEPER_ONLY_ACCOUNT");
-          }
-
-          throw new Error("PASSWORD_NOT_SET");
-        }
-
-        const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-
-        if (!isValidPassword) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.displayName || user.username || user.email,
-          image: user.avatarUrl,
-        };
-      },
-    }),
-    CredentialsProvider({
-      id: "sleeper",
-      name: "Sleeper",
-      credentials: {
-        sleeperUsername: { label: "Sleeper Username", type: "text" },
-      },
-      async authorize(credentials) {
-        const rawUsername = credentials?.sleeperUsername;
-
-        if (!rawUsername) {
-          return null;
-        }
-
-        const sleeperUsername = rawUsername.trim();
-
-        if (!sleeperUsername) {
-          return null;
-        }
-
-        const sleeperUser = await fetchSleeperUser(sleeperUsername);
-
-        if (!sleeperUser?.user_id) {
-          return null;
-        }
-
-        const sleeperUserId = sleeperUser.user_id;
-        const displayName = sleeperUser.display_name?.trim() || sleeperUsername;
-        const avatarUrl = buildSleeperAvatarUrl(sleeperUser.avatar);
-
-        let user = await prisma.appUser.findFirst({
-          where: {
-            username: `sleeper_${sleeperUserId}`,
-          },
-        });
-
-        if (!user) {
-          user = await prisma.appUser.create({
-            data: {
-              email: `${sleeperUserId}@sleeper.allfantasy.ai`,
-              username: `sleeper_${sleeperUserId}`,
-              displayName,
-              avatarUrl,
-            },
-          });
-        } else {
-          const needsUpdate =
-            user.displayName !== displayName || user.avatarUrl !== avatarUrl;
-
-          if (needsUpdate) {
-            user = await prisma.appUser.update({
-              where: { id: user.id },
-              data: {
-                displayName,
-                avatarUrl,
-              },
-            });
-          }
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.displayName || user.username || user.email,
-          image: user.avatarUrl,
-        };
-      },
-    }),
-  ],
+  providers,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {

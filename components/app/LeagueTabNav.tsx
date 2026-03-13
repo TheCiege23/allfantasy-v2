@@ -13,6 +13,7 @@ export type LeagueShellTab =
   | "League"
   | "Chat"
   | "Settings"
+  | "Commissioner"
   | "Previous Leagues"
 
 export const LEAGUE_SHELL_TABS: LeagueShellTab[] = [
@@ -31,10 +32,19 @@ export const LEAGUE_SHELL_TABS: LeagueShellTab[] = [
   "Previous Leagues",
 ]
 
-export default function LeagueTabNav({ activeTab, onChange }: { activeTab: LeagueShellTab; onChange: (tab: LeagueShellTab) => void }) {
+export default function LeagueTabNav({
+  activeTab,
+  onChange,
+  tabs,
+}: {
+  activeTab: LeagueShellTab
+  onChange: (tab: LeagueShellTab) => void
+  tabs?: LeagueShellTab[]
+}) {
+  const list = tabs ?? LEAGUE_SHELL_TABS
   return (
     <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
-      {LEAGUE_SHELL_TABS.map((tab) => (
+      {list.map((tab) => (
         <button
           key={tab}
           type="button"

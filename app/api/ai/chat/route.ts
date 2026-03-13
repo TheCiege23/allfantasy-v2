@@ -7,6 +7,7 @@ import { getOpenAIConfig } from '@/lib/openai-client'
 import { getUniversalAIContext } from '@/lib/ai-player-context'
 import { getPlayerAnalyticsBatch, computeAthleticGrade, computeCollegeProductionGrade, type PlayerAnalytics } from '@/lib/player-analytics'
 import { logUserEventByUsername } from '@/lib/user-events'
+import { logAiOutput } from '@/lib/ai/output-logger'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -244,13 +245,13 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       { role: 'user', content: message },
     ]
 
-    const { apiKey, baseUrl } = getOpenAIConfig()
+    const { apiKey, baseUrl, model } = getOpenAIConfig()
 
     const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        model: model || process.env.OPENAI_MODEL || 'gpt-4o',
         messages,
         temperature: 0.7,
         max_tokens: 1000,
@@ -275,6 +276,19 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
 
     logUserEventByUsername(sleeperUsername, 'ai_chat_used', {
       hasLegacyContext: !!legacyContext,
+    })
+
+    await logAiOutput({
+      provider: 'openai',
+      role: 'narrative',
+      taskType: 'ai_chat',
+      targetType: 'user',
+      targetId: sleeperUsername,
+      model: completion?.model || model,
+      contentText: responseText,
+      meta: {
+        hasLegacyContext: !!legacyContext,
+      },
     })
 
     return NextResponse.json({

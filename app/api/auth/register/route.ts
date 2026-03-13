@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
+import { containsProfanity } from "@/lib/profanity"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
@@ -29,7 +30,17 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { password, displayName, phone, sleeperUsername, ageConfirmed, verificationMethod } = body
+    const {
+      password,
+      displayName,
+      phone,
+      sleeperUsername,
+      ageConfirmed,
+      verificationMethod,
+      timezone,
+      preferredLanguage,
+      avatarPreset,
+    } = body
 
     const username = normalizeUsername(String(body?.username ?? ""))
     const email = normalizeEmail(String(body?.email ?? ""))
@@ -44,6 +55,13 @@ export async function POST(req: Request) {
 
     if (!email || !email.includes("@")) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 })
+    }
+
+    if (containsProfanity(username)) {
+      return NextResponse.json(
+        { error: "Please choose a different username." },
+        { status: 400 },
+      )
     }
 
     if (!isStrongPassword(String(password ?? ""))) {
@@ -122,6 +140,10 @@ export async function POST(req: Request) {
           verificationMethod: method,
           ...sleeperData,
           profileComplete: false,
+          timezone: typeof timezone === "string" ? timezone : null,
+          preferredLanguage:
+            typeof preferredLanguage === "string" ? preferredLanguage : null,
+          avatarPreset: typeof avatarPreset === "string" ? avatarPreset : null,
         },
       })
 

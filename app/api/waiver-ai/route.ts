@@ -14,6 +14,7 @@ import { xaiChatJson, parseTextFromXaiChatCompletion } from "@/lib/xai-client"
 import { deepseekQuantAnalysis } from "@/lib/deepseek-client"
 import { trackLegacyToolUsage } from "@/lib/analytics-server"
 import { enrichRawWaiverSuggestionsWithGrok } from "@/lib/waiver-engine/waiver-grok-adapter"
+import { logAiOutput } from "@/lib/ai/output-logger"
 
 type AnyObj = Record<string, any>
 
@@ -323,6 +324,15 @@ ${strategyContext}
   if (deepseekRaw.status === 'fulfilled' && deepseekRaw.value?.json) {
     quantResult = deepseekRaw.value.json as WaiverQuantResult
     providers.deepseek = 'ok'
+    await logAiOutput({
+      provider: 'deepseek',
+      role: 'quantitative',
+      taskType: 'waiver_eval',
+      targetType: 'league',
+      targetId: leagueMeta.leagueName || undefined,
+      model: 'deepseek',
+      contentJson: quantResult,
+    })
   } else {
     providers.deepseek = 'error'
     const reason = deepseekRaw.status === 'rejected'
@@ -340,6 +350,15 @@ ${strategyContext}
       if (parsed) {
         trendResult = parsed as WaiverTrendResult
         providers.grok = 'ok'
+        await logAiOutput({
+          provider: 'grok',
+          role: 'realtime',
+          taskType: 'waiver_eval',
+          targetType: 'league',
+          targetId: leagueMeta.leagueName || undefined,
+          model: 'grok',
+          contentJson: trendResult,
+        })
       } else {
         providers.grok = 'error'
         console.warn('[waiver-ai] Grok JSON parse failed')
@@ -554,6 +573,18 @@ export const POST = withApiUsage({
     })
 
     providers.openai = completion.ok ? 'ok' : 'error'
+    if (completion.ok) {
+      const parsed = parseJsonContentFromChatCompletion(completion.json)
+      await logAiOutput({
+        provider: 'openai',
+        role: 'narrative',
+        taskType: 'waiver_eval',
+        targetType: 'league',
+        targetId: leagueMeta.leagueName || undefined,
+        model: (completion as any)?.json?.model ?? undefined,
+        contentJson: parsed ?? null,
+      })
+    }
 
     if (!completion.ok) {
       return NextResponse.json(

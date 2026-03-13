@@ -36,6 +36,8 @@ export default function LoginContent() {
   const [sleeperLoading, setSleeperLoading] = useState(false)
   const [sleeperError, setSleeperError] = useState<string | null>(null)
 
+  const [keepSignedIn, setKeepSignedIn] = useState(true)
+
   const [showAdmin, setShowAdmin] = useState(isAdminLogin)
   const [adminPassword, setAdminPassword] = useState("")
   const [adminLoading, setAdminLoading] = useState(false)
@@ -45,6 +47,17 @@ export default function LoginContent() {
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!login.trim()) {
+      setError("Enter your email or username.")
+      return
+    }
+
+    if (!password) {
+      setError("Enter your password.")
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -53,6 +66,8 @@ export default function LoginContent() {
         password,
         redirect: false,
         callbackUrl,
+        // hint for future session-tuning; ignored by backend today
+        keepSignedIn: keepSignedIn ? "1" : "0",
       })
 
       if (result?.error) {
@@ -241,7 +256,7 @@ export default function LoginContent() {
                     type="text"
                     autoComplete="username"
                     className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-white/20"
-                    placeholder="you@example.com or username"
+                    placeholder="you@example.com or your_username"
                     disabled={loading}
                   />
                 </div>
@@ -271,6 +286,19 @@ export default function LoginContent() {
                     </button>
                   </div>
                 </div>
+                <div className="flex items-center justify-between text-[11px] text-white/40">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={keepSignedIn}
+                      onChange={(e) => setKeepSignedIn(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-white/30 bg-black/40 text-cyan-500 focus:ring-cyan-500"
+                      disabled={loading}
+                    />
+                    <span>Keep me signed in on this device</span>
+                  </label>
+                  <span>Secure session, up to 30 days.</span>
+                </div>
                 <button
                   type="submit"
                   disabled={loading || !login.trim() || !password}
@@ -295,6 +323,10 @@ export default function LoginContent() {
             </div>
 
             <SocialLoginButtons callbackUrl={callbackUrl} />
+            <div className="pt-1 text-[11px] text-white/35">
+              Google sign-in is available when configured for this environment. Other networks
+              (Facebook, Instagram, X) will appear here once secure connections are enabled.
+            </div>
 
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-3">

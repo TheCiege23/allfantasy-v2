@@ -36,6 +36,7 @@ import { computeDataCoverageTier } from '@/lib/trade-engine/trade-decision-conte
 import type { TradeDecisionContextV1 } from '@/lib/trade-engine/trade-decision-context'
 import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getAllPlayers } from '@/lib/sleeper-client'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
+import { logAiOutput } from '@/lib/ai/output-logger'
 
 const PlayerInputSchema = z.object({
   name: z.string(),
@@ -1087,6 +1088,15 @@ Fairness score: ${fairnessScore}/100
     if (dsResult.status === 'fulfilled' && dsResult.value?.json) {
       deepseekQuantResult = dsResult.value.json
       aiProviders.deepseek = 'ok'
+      await logAiOutput({
+        provider: 'deepseek',
+        role: 'quantitative',
+        taskType: 'trade_eval',
+        targetType: 'league',
+        targetId: data.league_id || undefined,
+        model: 'deepseek',
+        contentJson: deepseekQuantResult,
+      })
     } else {
       aiProviders.deepseek = 'error'
       const reason = dsResult.status === 'rejected' ? dsResult.reason : (dsResult.status === 'fulfilled' ? dsResult.value?.error : undefined)
@@ -1101,6 +1111,15 @@ Fairness score: ${fairnessScore}/100
         if (grokParsed) {
           grokTrendResult = grokParsed
           aiProviders.grok = 'ok'
+          await logAiOutput({
+            provider: 'grok',
+            role: 'realtime',
+            taskType: 'trade_eval',
+            targetType: 'league',
+            targetId: data.league_id || undefined,
+            model: 'grok',
+            contentJson: grokTrendResult,
+          })
         } else {
           aiProviders.grok = 'error'
         }
@@ -1157,6 +1176,15 @@ Fairness score: ${fairnessScore}/100
       } else {
         aiProviders.openai = 'ok'
         parsed = parseJsonContentFromChatCompletion(result.json)
+        await logAiOutput({
+          provider: 'openai',
+          role: 'narrative',
+          taskType: 'trade_eval',
+          targetType: 'league',
+          targetId: data.league_id || undefined,
+          model: (result as any)?.json?.model ?? undefined,
+          contentJson: parsed ?? null,
+        })
 
         if (parsed && gptContract) {
           const driverIds = gptContract.drivers.map(d => d.id)

@@ -24,6 +24,12 @@ import {
   type APISportsGame,
   type APISportsStanding,
 } from './api-sports';
+import {
+  fetchClearSportsTeams,
+  fetchClearSportsPlayers,
+  fetchClearSportsGames,
+  type ClearSportsSport,
+} from './clear-sports';
 import { normalizeTeamAbbrev } from './team-abbrev';
 
 export type Sport = 'NFL' | 'NBA' | 'MLB';
@@ -46,9 +52,11 @@ interface SportsDataResponse {
 }
 
 const API_PRIORITY: Record<Sport, string[]> = {
-  NFL: ['rolling_insights', 'api_sports', 'thesportsdb', 'espn'],
-  NBA: ['thesportsdb', 'espn'],
-  MLB: ['thesportsdb', 'espn'],
+  // NFL: Rolling Insights primary, then API-Sports, ESPN, Clear Sports, then TheSportsDB as a last resort.
+  NFL: ['rolling_insights', 'api_sports', 'espn', 'clear_sports', 'thesportsdb'],
+  // For NBA/MLB, prefer Clear Sports when available, then TheSportsDB, then ESPN.
+  NBA: ['clear_sports', 'thesportsdb', 'espn'],
+  MLB: ['clear_sports', 'thesportsdb', 'espn'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {
@@ -434,6 +442,77 @@ async function fetchFromAPISports(
   }
 }
 
+async function fetchFromClearSports(
+  sport: Sport,
+  dataType: DataType,
+  identifier?: string,
+  season?: string,
+): Promise<unknown | null> {
+  if (!process.env.CLEAR_SPORTS_API_BASE || !process.env.CLEAR_SPORTS_API_KEY) return null;
+  const csSport = sport as ClearSportsSport;
+
+  try {
+    switch (dataType) {
+      case 'teams': {
+        const teams = await fetchClearSportsTeams(csSport);
+        return teams.map((t): NormalizedTeam => ({
+          id: t.id,
+          name: t.name,
+          shortName: normalizeTeamAbbrev(t.shortName || t.name) || t.name,
+          mascot: t.mascot || undefined,
+          city: t.city || undefined,
+          logo: t.logo || null,
+          source: 'clear_sports',
+        }));
+      }
+      case 'players': {
+        if (!identifier) return null;
+        const players = await fetchClearSportsPlayers(csSport, identifier);
+        return players.map((p): NormalizedPlayer => ({
+          id: p.id,
+          name: p.name,
+          position: p.position ?? null,
+          team: p.teamAbbrev ? normalizeTeamAbbrev(p.teamAbbrev) || p.teamAbbrev : null,
+          teamId: p.teamId ?? null,
+          number: p.number ?? null,
+          height: p.height ?? null,
+          weight: p.weight ?? null,
+          college: p.college ?? null,
+          dob: p.dob ?? null,
+          status: p.status ?? null,
+          img: p.imageUrl ?? null,
+          fantasyPoints: null,
+          seasonStats: [],
+          source: 'clear_sports',
+        }));
+      }
+      case 'games':
+      case 'schedule': {
+        const games = await fetchClearSportsGames(csSport, season);
+        return games.map((g): NormalizedGame => ({
+          id: g.id,
+          homeTeam: g.homeTeamAbbrev
+            ? normalizeTeamAbbrev(g.homeTeamAbbrev) || g.homeTeamAbbrev
+            : g.homeTeamId,
+          awayTeam: g.awayTeamAbbrev
+            ? normalizeTeamAbbrev(g.awayTeamAbbrev) || g.awayTeamAbbrev
+            : g.awayTeamId,
+          date: g.date ?? null,
+          status: g.status ?? null,
+          season: g.season ?? season ?? null,
+          venue: g.venue ?? null,
+          source: 'clear_sports',
+        }));
+      }
+      default:
+        return null;
+    }
+  } catch (error) {
+    console.error('[SportsRouter] Clear Sports fetch failed:', error);
+    return null;
+  }
+}
+
 async function fetchFromTheSportsDB(sport: Sport, dataType: DataType, identifier?: string): Promise<unknown | null> {
   const apiKey = process.env.THESPORTSDB_API_KEY || '3';
   const leagueId = THESPORTSDB_LEAGUE_IDS[sport];
@@ -607,6 +686,9 @@ async function fetchFromSource(
       case 'api_sports':
         if (sport !== 'NFL') return null;
         return fetchFromAPISports(dataType, identifier, season);
+      case 'clear_sports': {
+        return fetchFromClearSports(sport, dataType, identifier, season);
+      }
       case 'thesportsdb': {
         const raw = await fetchFromTheSportsDB(sport, dataType, identifier);
         return normalizeTheSportsDBData(raw, dataType);

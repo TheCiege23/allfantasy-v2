@@ -8,10 +8,12 @@ export default function LeagueShell({
   leagueName,
   initialTab,
   renderTab,
+  tabs,
 }: {
   leagueName: string
   initialTab?: LeagueShellTab
   renderTab: (tab: LeagueShellTab) => ReactNode
+  tabs?: LeagueShellTab[]
 }) {
   const [activeTab, setActiveTab] = useState<LeagueShellTab>(initialTab || "Overview")
 
@@ -21,7 +23,7 @@ export default function LeagueShell({
         <h1 className="text-xl font-semibold">{leagueName}</h1>
         <p className="mt-1 text-sm text-white/60">Sleeper-style league shell with tabbed workflows and shared AI context.</p>
       </section>
-      <LeagueTabNav activeTab={activeTab} onChange={setActiveTab} />
+      <LeagueTabNav activeTab={activeTab} onChange={setActiveTab} tabs={tabs} />
       {renderTab(activeTab)}
     </main>
   )

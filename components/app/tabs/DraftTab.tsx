@@ -6,11 +6,20 @@ import TabDataState from '@/components/app/tabs/TabDataState'
 import LegacyAIPanel from '@/components/app/tabs/LegacyAIPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { SmartDataView } from '@/components/app/league/SmartDataView'
+import { DraftQueue } from '@/components/app/draft/DraftQueue'
+import { useDraftQueue } from '@/components/app/draft/useDraftQueue'
+import { LeagueDraftBoard } from '@/components/app/draft/LeagueDraftBoard'
 
 export default function DraftTab({ leagueId }: LeagueTabProps) {
-  const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'draft')
+  const { data, loading, error, reload } =
+    useLeagueSectionData<Record<string, unknown>>(leagueId, 'draft')
   const [analysis, setAnalysis] = useState<unknown>(null)
   const [running, setRunning] = useState(false)
+
+  const { queue, addToQueue, removeFromQueue, reorder } = useDraftQueue([
+    { id: 'p1', name: 'Garrett Wilson', position: 'WR', team: 'NYJ', rank: 18 },
+    { id: 'p2', name: 'Travis Etienne', position: 'RB', team: 'JAX', rank: 22 },
+  ])
 
   async function runDraftAi() {
     setRunning(true)
@@ -28,24 +37,40 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <TabDataState title="Draft" loading={loading} error={error} onReload={() => void reload()}>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3">
-            <p className="text-sm text-white/75">Refresh draft recommendation</p>
-            <button
-              type="button"
-              onClick={runDraftAi}
-              disabled={running}
-              className="rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              {running ? 'Running...' : 'Run Draft AI'}
-            </button>
+    <TabDataState title="Draft" loading={loading} error={error} onReload={() => void reload()}>
+      <div className="space-y-4">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.2fr)]">
+          <LeagueDraftBoard
+            leagueId={leagueId}
+            entries={Array.isArray((data as any)?.entries) ? ((data as any).entries as any[]) : []}
+            onAddToQueue={(item) => addToQueue(item)}
+          />
+          <div className="space-y-3">
+            <DraftQueue queue={queue} onRemove={removeFromQueue} onReorder={reorder} />
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-3">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-white/75">Draft AI recommendation</p>
+                  <button
+                    type="button"
+                    onClick={runDraftAi}
+                    disabled={running}
+                    className="rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+                  >
+                    {running ? 'Running...' : 'Run Draft AI'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-white/60">
+                  Use your queue to star players you want to target. AI can later consume this queue when recommending picks.
+                </p>
+              </div>
+              <SmartDataView data={analysis || data} />
+            </div>
+            <LegacyAIPanel leagueId={leagueId} endpoint="draft-war-room" title="Legacy Draft War Room" />
           </div>
-          <SmartDataView data={analysis || data} />
         </div>
-      </TabDataState>
-      <LegacyAIPanel leagueId={leagueId} endpoint="draft-war-room" title="Legacy Draft War Room" />
-    </div>
+      </div>
+    </TabDataState>
   )
 }
+

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -33,6 +33,8 @@ export default function SignupPage() {
   const [timezone, setTimezone] = useState("America/New_York")
   const [preferredLanguage, setPreferredLanguage] = useState("en")
   const [avatarPreset, setAvatarPreset] = useState("crest")
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [phone, setPhone] = useState("")
@@ -44,6 +46,8 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "ok" | "taken" | "invalid">("idle")
+  const [usernameMessage, setUsernameMessage] = useState<string>("")
 
   const lookupSleeper = useCallback(async () => {
     if (!sleeperUsername.trim() || sleeperLooking) return
@@ -59,6 +63,73 @@ export default function SignupPage() {
       setSleeperLooking(false)
     }
   }, [sleeperUsername, sleeperLooking])
+
+  // Debounced username availability + profanity check
+  useEffect(() => {
+    if (!username.trim()) {
+      setUsernameStatus("idle")
+      setUsernameMessage("")
+      return
+    }
+    const normalized = username.trim().toLowerCase()
+    if (normalized.length < 3 || normalized.length > 30) {
+      setUsernameStatus("invalid")
+      setUsernameMessage("Username must be 3–30 characters.")
+      return
+    }
+    if (!/^[a-z0-9_]+$/.test(normalized)) {
+      setUsernameStatus("invalid")
+      setUsernameMessage("Use only letters, numbers, and underscores.")
+      return
+    }
+
+    let cancelled = false
+    setUsernameStatus("checking")
+    setUsernameMessage("Checking availability…")
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(normalized)}`)
+        const data = await res.json()
+        if (cancelled) return
+        if (!data.ok) {
+          setUsernameStatus("invalid")
+          setUsernameMessage("Unable to validate username right now.")
+          return
+        }
+        if (!data.available) {
+          if (data.reason === "taken") {
+            setUsernameStatus("taken")
+            setUsernameMessage("This username is already taken.")
+          } else if (data.reason === "profanity") {
+            setUsernameStatus("invalid")
+            setUsernameMessage("Please choose a different username.")
+          } else if (data.reason === "length") {
+            setUsernameStatus("invalid")
+            setUsernameMessage("Username must be 3–30 characters.")
+          } else if (data.reason === "charset") {
+            setUsernameStatus("invalid")
+            setUsernameMessage("Use only letters, numbers, and underscores.")
+          } else {
+            setUsernameStatus("invalid")
+            setUsernameMessage("This username is not allowed.")
+          }
+        } else {
+          setUsernameStatus("ok")
+          setUsernameMessage("Username is available.")
+        }
+      } catch {
+        if (cancelled) return
+        setUsernameStatus("invalid")
+        setUsernameMessage("Unable to validate username right now.")
+      }
+    }, 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [username])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -87,6 +158,7 @@ export default function SignupPage() {
           timezone,
           preferredLanguage,
           avatarPreset,
+          avatarDataUrl: avatarPreview || undefined,
         }),
       })
 
@@ -203,7 +275,27 @@ export default function SignupPage() {
               autoComplete="username"
               required
             />
-            <p className="mt-1 text-xs text-white/30">Letters, numbers, underscores. 3-30 characters.</p>
+        <div className="mt-1 flex items-center justify-between text-xs">
+          <span className="text-white/30">Letters, numbers, underscores. 3–30 characters.</span>
+          {usernameStatus === "checking" && (
+            <span className="text-white/40">Checking…</span>
+          )}
+          {usernameStatus === "ok" && (
+            <span className="text-emerald-300 flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              Available
+            </span>
+          )}
+          {usernameStatus === "taken" && (
+            <span className="text-amber-300 flex items-center gap-1">
+              <TriangleAlert className="h-3 w-3" />
+              Taken
+            </span>
+          )}
+        </div>
+        {usernameMessage && (
+          <p className="mt-0.5 text-[11px] text-white/45">{usernameMessage}</p>
+        )}
           </div>
 
           <div>
@@ -295,19 +387,66 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-xs text-white/60 mb-1">Profile Image (placeholder)</label>
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            <label className="block text-xs text-white/60 mb-1">Profile Image</label>
+            <div className="grid grid-cols-3 gap-2 text-xs mb-2">
               {["crest", "bolt", "crown"].map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  onClick={() => setAvatarPreset(preset)}
-                  className={`rounded-lg border px-2 py-2 capitalize ${avatarPreset === preset ? "border-cyan-400 bg-cyan-500/10 text-cyan-200" : "border-white/10 bg-black/20 text-white/70"}`}
+                  onClick={() => {
+                    setAvatarPreset(preset)
+                    setAvatarPreview(null)
+                  }}
+                  className={`rounded-lg border px-2 py-2 capitalize ${
+                    avatarPreset === preset && !avatarPreview
+                      ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
+                      : "border-white/10 bg-black/20 text-white/70"
+                  }`}
                 >
                   {preset}
                 </button>
               ))}
             </div>
+            <div className="flex items-center gap-3">
+              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/70 cursor-pointer hover:border-white/30">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    if (file.size > 2 * 1024 * 1024) {
+                      setAvatarFileError("Max file size is 2MB.")
+                      return
+                    }
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      setAvatarPreview(reader.result as string)
+                      setAvatarPreset("custom")
+                      setAvatarFileError(null)
+                    }
+                    reader.readAsDataURL(file)
+                  }}
+                />
+                <span>Upload image</span>
+              </label>
+              {avatarPreview && (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar preview"
+                  className="h-10 w-10 rounded-full border border-white/20 object-cover"
+                />
+              )}
+            </div>
+            {avatarFileError && (
+              <p className="mt-1 text-[11px] text-red-300">{avatarFileError}</p>
+            )}
+            {!avatarPreview && (
+              <p className="mt-1 text-[11px] text-white/35">
+                Choose a preset or upload your own avatar. You can change this later.
+              </p>
+            )}
           </div>
 
           <div>

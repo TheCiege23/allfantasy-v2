@@ -39,6 +39,10 @@ const translations: Record<string, Record<string, string>> = {
 
     "home.hero.cta.primary": "Get started",
     "home.hero.cta.secondary": "View plans",
+    "home.hero.cta.app": "Open Sports App",
+    "home.hero.cta.bracket": "NCAA Bracket Challenge",
+    "home.hero.cta.legacy": "Open AllFantasy Legacy",
+    "home.hero.tradeTeaser": "Or jump straight to the Trade Analyzer →",
 
     "home.products.heading": "Choose your AllFantasy path",
 
@@ -596,6 +600,10 @@ const translations: Record<string, Record<string, string>> = {
 
     "home.hero.cta.primary": "Empezar",
     "home.hero.cta.secondary": "Ver planes",
+    "home.hero.cta.app": "Abrir Sports App",
+    "home.hero.cta.bracket": "Desafío de Bracket NCAA",
+    "home.hero.cta.legacy": "Abrir AllFantasy Legacy",
+    "home.hero.tradeTeaser": "O ir directo al Analizador de Traspasos →",
 
     "home.products.heading": "Elige tu camino en AllFantasy",
 

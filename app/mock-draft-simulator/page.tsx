@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
-import MockDraftSimulatorClient from '@/components/MockDraftSimulatorClient'
+import MockDraftSimulatorWrapper from '@/components/mock-draft/MockDraftSimulatorWrapper'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,14 +32,15 @@ export default async function MockDraftSimulatorPage() {
           Powered by Sleeper data + AI that learns real draft tendencies
         </p>
 
-        <MockDraftSimulatorClient
-          leagues={leagues.map(l => ({
+        <MockDraftSimulatorWrapper
+          leagues={leagues.map((l) => ({
             id: l.id,
             name: l.name || 'Unnamed League',
             platform: l.platform,
             leagueSize: l.leagueSize ?? 12,
             isDynasty: l.isDynasty,
             scoring: l.scoring,
+            sport: l.sport ?? undefined,
           }))}
         />
       </div>

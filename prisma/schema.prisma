@@ -60,10 +60,10 @@ model QuestionnaireResponse {
 }
 
 model SportsDataCache {
-  key        String   @id
-  data       Json
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  key       String   @id
+  data      Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([expiresAt])
 }
@@ -119,30 +119,32 @@ model SportsPlayer {
 }
 
 model PlayerIdentityMap {
-  id                 String   @id @default(uuid())
-  canonicalName      String
-  normalizedName     String
-  position           String?
-  currentTeam        String?
-  dob                String?
-  sleeperId          String?  @unique
-  fantasyCalcId      String?
-  rollingInsightsId  String?
-  apiSportsId        String?
-  mflId              String?
-  espnId             String?
-  fleaflickerId      String?
-  sport              String   @default("NFL")
-  status             String?
-  lastSyncedAt       DateTime @default(now())
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(uuid())
+  canonicalName     String
+  normalizedName    String
+  position          String?
+  currentTeam       String?
+  dob               String?
+  sleeperId         String?  @unique
+  fantasyCalcId     String?
+  rollingInsightsId String?
+  apiSportsId       String?
+  mflId             String?
+  espnId            String?
+  fleaflickerId     String?
+  clearSportsId     String?
+  sport             String   @default("NFL")
+  status            String?
+  lastSyncedAt      DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([normalizedName])
   @@index([fantasyCalcId])
   @@index([rollingInsightsId])
   @@index([apiSportsId])
   @@index([espnId])
+  @@index([clearSportsId])
   @@index([currentTeam])
   @@index([sport, position])
 }
@@ -179,6 +181,7 @@ model SportsGame {
   week       Int?
   season     Int?
   source     String
+  raw        Json?
   fetchedAt  DateTime  @default(now())
   expiresAt  DateTime
   createdAt  DateTime  @default(now())
@@ -190,25 +193,26 @@ model SportsGame {
 }
 
 model SportsInjury {
-  id           String    @id @default(uuid())
-  sport        String
-  externalId   String
-  playerName   String
-  playerId     String?
-  team         String?
-  teamId       String?
-  position     String?
-  type         String?
-  status       String?
-  description  String?
-  date         DateTime?
-  season       Int?
-  week         Int?
-  source       String
-  fetchedAt    DateTime  @default(now())
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(uuid())
+  sport       String
+  externalId  String
+  playerName  String
+  playerId    String?
+  team        String?
+  teamId      String?
+  position    String?
+  type        String?
+  status      String?
+  description String?
+  date        DateTime?
+  season      Int?
+  week        Int?
+  source      String
+  raw         Json?
+  fetchedAt   DateTime  @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([sport, externalId, source])
   @@index([sport, team])
@@ -218,29 +222,29 @@ model SportsInjury {
 }
 
 model SportsNews {
-  id           String    @id @default(uuid())
-  sport        String
-  externalId   String
-  title        String
-  description  String?
-  content      String?
-  source       String
-  sourceId     String?
-  sourceUrl    String?
-  author       String?
-  imageUrl     String?
-  playerName   String?
-  playerNames  String[]  @default([])
-  playerId     String?
-  team         String?
-  teams        String[]  @default([])
-  category     String?
-  sentiment    String?
-  publishedAt  DateTime?
-  fetchedAt    DateTime  @default(now())
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(uuid())
+  sport       String
+  externalId  String
+  title       String
+  description String?
+  content     String?
+  source      String
+  sourceId    String?
+  sourceUrl   String?
+  author      String?
+  imageUrl    String?
+  playerName  String?
+  playerNames String[]  @default([])
+  playerId    String?
+  team        String?
+  teams       String[]  @default([])
+  category    String?
+  sentiment   String?
+  publishedAt DateTime?
+  fetchedAt   DateTime  @default(now())
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@unique([sport, externalId, source])
   @@index([sport, publishedAt])
@@ -270,11 +274,11 @@ model LegacyUser {
 }
 
 model UserEvent {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   userId    String
   eventType String
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
   user      LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -485,41 +489,41 @@ model EmailPreference {
 }
 
 model AIUserProfile {
-  id                      String   @id @default(uuid())
-  userId                  String   @unique
-  sleeperUsername         String?
-  toneMode                String   @default("professional")
-  detailLevel             String   @default("concise")
-  riskMode                String   @default("conservative")
-  humorLevel              String   @default("medium")
-  strategyBias            Json     @default("{\"qb_priority\": 0.5, \"rb_aversion\": 0.3, \"prefers_picks\": 0.5, \"prefers_youth\": 0.5}")
-  behaviorMetrics         Json     @default("{\"draft_reach_tendency\": null, \"trade_rate_percentile\": null, \"waiver_rate_percentile\": null}")
-  personalizeEnabled      Boolean  @default(true)
-  tradePreferenceProfile  String?  @db.Text
-  tradeProfileUpdatedAt   DateTime?
-  tradeProfileVoteCount   Int      @default(0)
-  tradeProfileVersion     Int      @default(1)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  userId                 String    @unique
+  sleeperUsername        String?
+  toneMode               String    @default("professional")
+  detailLevel            String    @default("concise")
+  riskMode               String    @default("conservative")
+  humorLevel             String    @default("medium")
+  strategyBias           Json      @default("{\"qb_priority\": 0.5, \"rb_aversion\": 0.3, \"prefers_picks\": 0.5, \"prefers_youth\": 0.5}")
+  behaviorMetrics        Json      @default("{\"draft_reach_tendency\": null, \"trade_rate_percentile\": null, \"waiver_rate_percentile\": null}")
+  personalizeEnabled     Boolean   @default(true)
+  tradePreferenceProfile String?   @db.Text
+  tradeProfileUpdatedAt  DateTime?
+  tradeProfileVoteCount  Int       @default(0)
+  tradeProfileVersion    Int       @default(1)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([sleeperUsername])
 }
 
 model TradeSuggestionVote {
-  id               String          @id @default(cuid())
-  userId           String
-  tradeText        String          @db.Text
-  suggestionTitle  String
-  suggestionText   String?         @db.Text
-  vote             String
-  reason           String?
-  feedbackReason   FeedbackReason?
-  leagueSize       Int?
-  isDynasty        Boolean?
-  scoring          String?
-  userRoster       String?         @db.Text
-  userContention   String?
-  createdAt        DateTime        @default(now())
+  id              String          @id @default(cuid())
+  userId          String
+  tradeText       String          @db.Text
+  suggestionTitle String
+  suggestionText  String?         @db.Text
+  vote            String
+  reason          String?
+  feedbackReason  FeedbackReason?
+  leagueSize      Int?
+  isDynasty       Boolean?
+  scoring         String?
+  userRoster      String?         @db.Text
+  userContention  String?
+  createdAt       DateTime        @default(now())
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -541,24 +545,24 @@ enum VoteType {
 }
 
 model Feedback {
-  id               String          @id @default(uuid())
-  userId           String
-  user             AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String  @id @default(uuid())
+  userId String
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tradeText        String?
-  suggestionTitle  String?
-  suggestionText   String?
+  tradeText       String?
+  suggestionTitle String?
+  suggestionText  String?
 
-  vote             VoteType
-  reason           FeedbackReason?
+  vote   VoteType
+  reason FeedbackReason?
 
-  leagueSize       Int?
-  isDynasty        Boolean?
-  scoring          String?
-  userContention   String?
-  userRoster       String?
+  leagueSize     Int?
+  isDynasty      Boolean?
+  scoring        String?
+  userContention String?
+  userRoster     String?
 
-  createdAt        DateTime        @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([vote])
@@ -567,18 +571,18 @@ model Feedback {
 }
 
 model TradeProfile {
-  id                 String    @id @default(uuid())
-  userId             String    @unique
-  user               AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String  @id @default(uuid())
+  userId String  @unique
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  summary            String    @db.Text
+  summary String @db.Text
 
-  voteCount          Int       @default(0)
-  lastSummarizedAt   DateTime?
-  version            Int       @default(1)
+  voteCount        Int       @default(0)
+  lastSummarizedAt DateTime?
+  version          Int       @default(1)
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("trade_profiles")
 }
@@ -776,10 +780,10 @@ model TradeLearningInsight {
 }
 
 model TradeLearningStats {
-  id                     String   @id @default(cuid())
-  season                 Int      @unique
-  totalTradesAnalyzed    Int      @default(0)
-  totalUsersContributing Int      @default(0)
+  id                     String    @id @default(cuid())
+  season                 Int       @unique
+  totalTradesAnalyzed    Int       @default(0)
+  totalUsersContributing Int       @default(0)
   avgValueDifferential   Float?
   mostOvervaluedPlayers  Json?
   mostUndervaluedPlayers Json?
@@ -787,7 +791,7 @@ model TradeLearningStats {
   pickValueObserved      Json?
   ageCurveData           Json?
   calibratedB0           Float?
-  calibrationSampleSize  Int      @default(0)
+  calibrationSampleSize  Int       @default(0)
   calibrationHistory     Json?
   feedbackWeightAdj      Json?
   driftReport            Json?
@@ -801,29 +805,29 @@ model TradeLearningStats {
   isotonicSampleSize     Int?
   lastRecalibrationAt    DateTime?
   lastCalibrated         DateTime?
-  lastUpdated            DateTime @updatedAt
-  createdAt              DateTime @default(now())
+  lastUpdated            DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
 }
 
 model TradePreAnalysisCache {
-  id                        String    @id @default(cuid())
-  sleeperUsername           String
-  sleeperLeagueId           String
-  leagueName                String?
-  leagueSettings            Json?
-  userTradingProfile        Json?
-  leagueTradePatterns       Json?
-  managerProfiles           Json?
-  managerTendencyProfiles   Json?
-  rosterNeeds               Json?
-  marketInsights            Json?
-  status                    String    @default("pending")
-  analysisStartedAt         DateTime?
-  analysisCompletedAt       DateTime?
-  tendencyComputedAt        DateTime?
-  lastUsedAt                DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  sleeperUsername         String
+  sleeperLeagueId         String
+  leagueName              String?
+  leagueSettings          Json?
+  userTradingProfile      Json?
+  leagueTradePatterns     Json?
+  managerProfiles         Json?
+  managerTendencyProfiles Json?
+  rosterNeeds             Json?
+  marketInsights          Json?
+  status                  String    @default("pending")
+  analysisStartedAt       DateTime?
+  analysisCompletedAt     DateTime?
+  tendencyComputedAt      DateTime?
+  lastUsedAt              DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   @@unique([sleeperUsername, sleeperLeagueId])
   @@index([sleeperUsername])
@@ -1121,17 +1125,17 @@ model user_trade_reputation {
 }
 
 model SleeperImportCache {
-  id               String   @id @default(cuid())
-  sleeperUsername  String   @db.VarChar(64)
-  sleeperLeagueId  String   @db.VarChar(64)
-  leagueName       String?  @db.VarChar(255)
+  id              String  @id @default(cuid())
+  sleeperUsername String  @db.VarChar(64)
+  sleeperLeagueId String  @db.VarChar(64)
+  leagueName      String? @db.VarChar(255)
 
-  leagueContext        Json
-  managerRosters       Json
-  fantasyCalcValueMap  Json
+  leagueContext       Json
+  managerRosters      Json
+  fantasyCalcValueMap Json
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([sleeperUsername, sleeperLeagueId])
   @@index([sleeperUsername])
@@ -1139,89 +1143,86 @@ model SleeperImportCache {
 }
 
 model TradeBlockEntry {
-  id                String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  sleeperLeagueId   String   @db.VarChar(64)
-  rosterId          Int
+  sleeperLeagueId String @db.VarChar(64)
+  rosterId        Int
 
-  playerId          String   @db.VarChar(32)
-  playerName        String   @db.VarChar(128)
-  position          String?  @db.VarChar(16)
-  team              String?  @db.VarChar(8)
+  playerId   String  @db.VarChar(32)
+  playerName String  @db.VarChar(128)
+  position   String? @db.VarChar(16)
+  team       String? @db.VarChar(8)
 
-  createdByUsername String   @db.VarChar(64)
+  createdByUsername String  @db.VarChar(64)
   notes             String?
 
-  isActive          Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([sleeperLeagueId, playerId], map: "uq_trade_block_active")
   @@index([sleeperLeagueId, isActive, updatedAt(sort: Desc)], map: "idx_trade_block_league_active")
   @@index([sleeperLeagueId, rosterId], map: "idx_trade_block_roster")
-
   @@map("trade_block_entries")
 }
 
 model TradeAnalysisSnapshot {
-  id               String    @id @default(uuid())
-  leagueId         String    @db.VarChar(64)
-  sleeperUsername  String    @db.VarChar(64)
-  snapshotType     String    @db.VarChar(32)
-  contextKey       String?   @db.VarChar(64)
-  payloadJson      Json
-  season           Int?
-  expiresAt        DateTime?
-  createdAt        DateTime  @default(now())
+  id              String    @id @default(uuid())
+  leagueId        String    @db.VarChar(64)
+  sleeperUsername String    @db.VarChar(64)
+  snapshotType    String    @db.VarChar(32)
+  contextKey      String?   @db.VarChar(64)
+  payloadJson     Json
+  season          Int?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
 
   @@index([leagueId, sleeperUsername, snapshotType])
   @@index([sleeperUsername, createdAt])
   @@index([expiresAt])
-
   @@map("trade_analysis_snapshots")
 }
 
 model ShareReward {
-  id               String    @id @default(uuid())
-  sleeperUsername  String    @db.VarChar(64)
-  leagueId         String?   @db.VarChar(64)
-  shareType        String    @db.VarChar(32)
-  shareContent     Json?
-  tokensAwarded    Int       @default(1)
-  platform         String?   @db.VarChar(32)
-  redeemed         Boolean   @default(false)
-  redeemedAt       DateTime?
-  createdAt        DateTime  @default(now())
+  id              String    @id @default(uuid())
+  sleeperUsername String    @db.VarChar(64)
+  leagueId        String?   @db.VarChar(64)
+  shareType       String    @db.VarChar(32)
+  shareContent    Json?
+  tokensAwarded   Int       @default(1)
+  platform        String?   @db.VarChar(32)
+  redeemed        Boolean   @default(false)
+  redeemedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
   @@index([sleeperUsername])
   @@index([createdAt])
   @@index([redeemed])
-
   @@map("share_rewards")
 }
 
 model DecisionLog {
-  id                 String            @id @default(uuid())
-  userId             String            @db.VarChar(64)
-  leagueId           String            @db.VarChar(64)
-  decisionType       String            @db.VarChar(32)
-  aiRecommendation   Json
-  confidenceScore    Float
-  numericConfidence  Int?
-  riskProfile        String            @db.VarChar(32)
-  volatilityLabel    String?           @db.VarChar(16)
-  volatilityScore    Float?
-  riskTags           Json?
+  id                    String           @id @default(uuid())
+  userId                String           @db.VarChar(64)
+  leagueId              String           @db.VarChar(64)
+  decisionType          String           @db.VarChar(32)
+  aiRecommendation      Json
+  confidenceScore       Float
+  numericConfidence     Int?
+  riskProfile           String           @db.VarChar(32)
+  volatilityLabel       String?          @db.VarChar(16)
+  volatilityScore       Float?
+  riskTags              Json?
   confidenceExplanation String?
-  contextSnapshot    Json?
-  userFollowed       Boolean?
-  userAction         Json?
-  resolvedAt         DateTime?
-  expiresAt          DateTime?
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  outcome            DecisionOutcome?
+  contextSnapshot       Json?
+  userFollowed          Boolean?
+  userAction            Json?
+  resolvedAt            DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  outcome               DecisionOutcome?
 
   @@index([userId])
   @@index([leagueId])
@@ -1231,70 +1232,68 @@ model DecisionLog {
   @@index([createdAt])
   @@index([resolvedAt])
   @@index([numericConfidence])
-
   @@map("decision_logs")
 }
 
 model DecisionOutcome {
-  id                  String      @id @default(uuid())
-  decisionLogId       String      @unique
-  rosterValueBefore   Float?
-  rosterValueAfter    Float?
-  rosterValueDelta    Float?
-  winProbBefore       Float?
-  winProbAfter        Float?
-  winProbDelta        Float?
-  evaluationWeeks     Int         @default(3)
-  actualResult        String?     @db.VarChar(32)
-  outcomeGrade        String?     @db.VarChar(8)
-  aiRetroSummary      String?
-  detailJson          Json?
-  evaluatedAt         DateTime    @default(now())
-  decisionLog         DecisionLog @relation(fields: [decisionLogId], references: [id], onDelete: Cascade)
+  id                String      @id @default(uuid())
+  decisionLogId     String      @unique
+  rosterValueBefore Float?
+  rosterValueAfter  Float?
+  rosterValueDelta  Float?
+  winProbBefore     Float?
+  winProbAfter      Float?
+  winProbDelta      Float?
+  evaluationWeeks   Int         @default(3)
+  actualResult      String?     @db.VarChar(32)
+  outcomeGrade      String?     @db.VarChar(8)
+  aiRetroSummary    String?
+  detailJson        Json?
+  evaluatedAt       DateTime    @default(now())
+  decisionLog       DecisionLog @relation(fields: [decisionLogId], references: [id], onDelete: Cascade)
 
   @@index([decisionLogId])
   @@index([evaluatedAt])
   @@index([outcomeGrade])
   @@index([actualResult])
-
   @@map("decision_outcomes")
 }
 
 model TradeOfferEvent {
-  id                    String         @id @default(uuid())
-  createdAt             DateTime       @default(now())
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
 
-  mode                  TradeOfferMode
-  season                Int?
-  week                  Int?
+  mode   TradeOfferMode
+  season Int?
+  week   Int?
 
-  leagueId              String?        @db.VarChar(64)
-  senderUserId          String?        @db.VarChar(64)
-  opponentUserId        String?        @db.VarChar(64)
+  leagueId       String? @db.VarChar(64)
+  senderUserId   String? @db.VarChar(64)
+  opponentUserId String? @db.VarChar(64)
 
-  inputHash             String         @unique
-  assetsGiven           Json           @default("[]")
-  assetsReceived        Json           @default("[]")
+  inputHash      String @unique
+  assetsGiven    Json   @default("[]")
+  assetsReceived Json   @default("[]")
 
-  acceptProb            Float
-  verdict               String         @db.VarChar(32)
-  lean                  String         @db.VarChar(32)
-  grade                 String?        @db.VarChar(16)
-  confidenceScore       Int?
-  confidenceLabel       String?        @db.VarChar(32)
+  acceptProb      Float
+  verdict         String  @db.VarChar(32)
+  lean            String  @db.VarChar(32)
+  grade           String? @db.VarChar(16)
+  confidenceScore Int?
+  confidenceLabel String? @db.VarChar(32)
 
   featuresJson          Json
   driversJson           Json
   confidenceDriversJson Json
 
-  narrativeValid        Boolean        @default(true)
-  driverSetComplete     Boolean        @default(true)
+  narrativeValid    Boolean @default(true)
+  driverSetComplete Boolean @default(true)
 
-  isSuperFlex           Boolean?
-  leagueFormat          String?        @db.VarChar(32)
-  scoringType           String?        @db.VarChar(16)
-  leagueTradeId         String?
-  modelVersion          String?        @db.VarChar(32)
+  isSuperFlex   Boolean?
+  leagueFormat  String?  @db.VarChar(32)
+  scoringType   String?  @db.VarChar(16)
+  leagueTradeId String?
+  modelVersion  String?  @db.VarChar(32)
 
   @@index([leagueId, createdAt])
   @@index([senderUserId, createdAt])
@@ -1312,19 +1311,19 @@ enum TradeOfferMode {
 }
 
 model TradeOutcomeEvent {
-  id                    String       @id @default(uuid())
-  createdAt             DateTime     @default(now())
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
 
-  leagueId              String?      @db.VarChar(64)
-  season                Int?
-  week                  Int?
+  leagueId String? @db.VarChar(64)
+  season   Int?
+  week     Int?
 
-  offerEventId          String?      @unique @db.VarChar(64)
-  leagueTradeId         String?
+  offerEventId  String? @unique @db.VarChar(64)
+  leagueTradeId String?
 
-  outcome               TradeOutcome
-  timeToDecisionMin     Int?
-  outcomeMetaJson       Json?
+  outcome           TradeOutcome
+  timeToDecisionMin Int?
+  outcomeMetaJson   Json?
 
   @@index([leagueId, createdAt])
   @@index([outcome, createdAt])
@@ -1340,24 +1339,24 @@ enum TradeOutcome {
 }
 
 model ModelMetricsDaily {
-  id               String         @id @default(cuid())
-  day              DateTime
-  mode             TradeOfferMode
-  segmentKey       String         @db.VarChar(64)
+  id         String         @id @default(cuid())
+  day        DateTime
+  mode       TradeOfferMode
+  segmentKey String         @db.VarChar(64)
 
-  nOffers          Int
-  nLabeled         Int
-  nAccepted        Int
+  nOffers   Int
+  nLabeled  Int
+  nAccepted Int
 
-  meanPred         Float
-  meanObs          Float
-  ece              Float
-  brier            Float
-  auc              Float?
+  meanPred Float
+  meanObs  Float
+  ece      Float
+  brier    Float
+  auc      Float?
 
-  psiJson          Json?
-  capRateJson      Json?
-  bucketStatsJson  Json?
+  psiJson           Json?
+  capRateJson       Json?
+  bucketStatsJson   Json?
   narrativeFailRate Float
 
   @@unique([day, mode, segmentKey])
@@ -1365,20 +1364,20 @@ model ModelMetricsDaily {
 }
 
 model LearnedWeights {
-  id          String   @id @default(cuid())
-  leagueClass String   @db.VarChar(16)
-  season      Int
-  wMarket     Float
-  wImpact     Float
-  wScarcity   Float
-  wDemand     Float
-  nTrades     Int
-  corrMarket  Float    @default(0)
-  corrImpact  Float    @default(0)
-  corrScarcity Float   @default(0)
-  corrDemand  Float    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  leagueClass  String   @db.VarChar(16)
+  season       Int
+  wMarket      Float
+  wImpact      Float
+  wScarcity    Float
+  wDemand      Float
+  nTrades      Int
+  corrMarket   Float    @default(0)
+  corrImpact   Float    @default(0)
+  corrScarcity Float    @default(0)
+  corrDemand   Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([leagueClass, season])
   @@index([leagueClass])
@@ -1393,7 +1392,7 @@ model RankingWeightsWeekly {
   finalJson           Json
   metricsJson         Json     @default("{}")
   compositeParamsJson Json?
-  status              String   @db.VarChar(32)  // APPLIED | REJECTED | INSUFFICIENT_DATA | ROLLED_BACK
+  status              String   @db.VarChar(32) // APPLIED | REJECTED | INSUFFICIENT_DATA | ROLLED_BACK
   version             String   @db.VarChar(48)
   nSamples            Int      @default(0)
   createdAt           DateTime @default(now())
@@ -1436,81 +1435,78 @@ model NarrativeValidationLog {
 }
 
 model ManagerDNA {
-  id                String   @id @default(uuid())
+  id                 String   @id @default(uuid())
   sleeperUsername    String
-  sleeperUserId     String?  @db.VarChar(64)
-  archetype         String   @db.VarChar(64)
-  secondaryArchetype String? @db.VarChar(64)
-  metrics           Json
-  strengths         Json     @default("[]")
-  blindSpots        Json     @default("[]")
-  recommendations   Json     @default("[]")
-  confidence        Float    @default(0)
-  tradeCount        Int      @default(0)
-  waiverCount       Int      @default(0)
-  seasonsCovered    Int      @default(0)
-  lastComputedAt    DateTime @default(now())
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  sleeperUserId      String?  @db.VarChar(64)
+  archetype          String   @db.VarChar(64)
+  secondaryArchetype String?  @db.VarChar(64)
+  metrics            Json
+  strengths          Json     @default("[]")
+  blindSpots         Json     @default("[]")
+  recommendations    Json     @default("[]")
+  confidence         Float    @default(0)
+  tradeCount         Int      @default(0)
+  waiverCount        Int      @default(0)
+  seasonsCovered     Int      @default(0)
+  lastComputedAt     DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([sleeperUsername])
   @@index([sleeperUserId])
   @@index([lastComputedAt])
-
   @@map("manager_dna")
 }
 
 model OpponentTendency {
-  id               String   @id @default(uuid())
-  leagueId         String   @db.VarChar(64)
-  rosterId         Int
-  username         String?  @db.VarChar(64)
-  displayName      String?  @db.VarChar(128)
-  tendencies       Json
-  tradeLikelihood  Json     @default("{}")
-  pitchAngles      Json     @default("[]")
-  confidence       Float    @default(0)
-  tradeCount       Int      @default(0)
-  seasonsCovered   Int      @default(0)
-  lastComputedAt   DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(uuid())
+  leagueId        String   @db.VarChar(64)
+  rosterId        Int
+  username        String?  @db.VarChar(64)
+  displayName     String?  @db.VarChar(128)
+  tendencies      Json
+  tradeLikelihood Json     @default("{}")
+  pitchAngles     Json     @default("[]")
+  confidence      Float    @default(0)
+  tradeCount      Int      @default(0)
+  seasonsCovered  Int      @default(0)
+  lastComputedAt  DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([leagueId, rosterId])
   @@index([leagueId])
   @@index([lastComputedAt])
-
   @@map("opponent_tendencies")
 }
 
 model StrategySnapshot {
-  id               String   @id @default(uuid())
-  leagueId         String   @db.VarChar(64)
-  rosterId         Int
-  season           String   @db.VarChar(8)
-  sleeperUsername   String?  @db.VarChar(64)
-  classification   String   @db.VarChar(32)
-  confidence       Float    @default(0)
-  metrics          Json
-  roster           Json     @default("{}")
-  standings        Json     @default("{}")
-  draftCapital     Json     @default("[]")
-  phases           Json     @default("[]")
-  tradeWindows     Json     @default("[]")
-  riskPoints       Json     @default("[]")
-  aiRoadmap        String?
-  weekNumber       Int      @default(0)
-  lastComputedAt   DateTime @default(now())
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(uuid())
+  leagueId        String   @db.VarChar(64)
+  rosterId        Int
+  season          String   @db.VarChar(8)
+  sleeperUsername String?  @db.VarChar(64)
+  classification  String   @db.VarChar(32)
+  confidence      Float    @default(0)
+  metrics         Json
+  roster          Json     @default("{}")
+  standings       Json     @default("{}")
+  draftCapital    Json     @default("[]")
+  phases          Json     @default("[]")
+  tradeWindows    Json     @default("[]")
+  riskPoints      Json     @default("[]")
+  aiRoadmap       String?
+  weekNumber      Int      @default(0)
+  lastComputedAt  DateTime @default(now())
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([leagueId, rosterId, season])
   @@index([leagueId])
   @@index([sleeperUsername])
   @@index([lastComputedAt])
   @@index([expiresAt])
-
   @@map("strategy_snapshots")
 }
 
@@ -1539,90 +1535,133 @@ model PlayerSeasonStats {
   @@index([sport, position])
   @@index([season])
   @@index([source])
-
   @@map("player_season_stats")
 }
 
 model TrendingPlayer {
-  id          String   @id @default(uuid())
-  sport       String   @default("nfl")
-  sleeperId   String
-  playerName  String?
-  position    String?
-  team        String?
-  addCount    Int      @default(0)
-  dropCount   Int      @default(0)
-  netTrend    Int      @default(0)
-  addRank     Int?
-  dropRank    Int?
-  crowdSignal String   @default("neutral")
-  crowdScore  Int      @default(50)
-  lookbackHours Int    @default(24)
-  fetchedAt   DateTime @default(now())
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid())
+  sport         String   @default("nfl")
+  sleeperId     String
+  playerName    String?
+  position      String?
+  team          String?
+  addCount      Int      @default(0)
+  dropCount     Int      @default(0)
+  netTrend      Int      @default(0)
+  addRank       Int?
+  dropRank      Int?
+  crowdSignal   String   @default("neutral")
+  crowdScore    Int      @default(50)
+  lookbackHours Int      @default(24)
+  fetchedAt     DateTime @default(now())
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([sport, sleeperId, lookbackHours])
   @@index([sport, crowdSignal])
   @@index([sport, crowdScore])
   @@index([playerName])
-
   @@map("trending_players")
 }
 
 model DepthChart {
-  id         String   @id @default(uuid())
-  sport      String
-  team       String
-  teamId     String?
-  position   String
-  players    Json
-  source     String
-  season     String?
-  fetchedAt  DateTime @default(now())
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(uuid())
+  sport     String
+  team      String
+  teamId    String?
+  position  String
+  players   Json
+  source    String
+  season    String?
+  fetchedAt DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([sport, team, position, source])
   @@index([sport, team])
   @@index([sport, position])
-
   @@map("depth_charts")
 }
 
 model TeamSeasonStats {
-  id               String   @id @default(uuid())
-  sport            String
-  team             String
-  teamId           String?
-  season           String
-  seasonType       String   @default("regular")
-  stats            Json
-  wins             Int?
-  losses           Int?
-  ties             Int?
-  pointsFor        Int?
-  pointsAgainst    Int?
-  totalYards       Int?
-  passingYards     Int?
-  rushingYards     Int?
-  turnovers        Int?
-  sacks            Float?
-  fantasyPoints    Float?
-  gamesPlayed      Int?
-  source           String
-  fetchedAt        DateTime @default(now())
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id            String   @id @default(uuid())
+  sport         String
+  team          String
+  teamId        String?
+  season        String
+  seasonType    String   @default("regular")
+  stats         Json
+  wins          Int?
+  losses        Int?
+  ties          Int?
+  pointsFor     Int?
+  pointsAgainst Int?
+  totalYards    Int?
+  passingYards  Int?
+  rushingYards  Int?
+  turnovers     Int?
+  sacks         Float?
+  fantasyPoints Float?
+  gamesPlayed   Int?
+  source        String
+  fetchedAt     DateTime @default(now())
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([sport, team, season, seasonType, source])
   @@index([sport, team])
   @@index([season])
-
   @@map("team_season_stats")
+}
+
+model ProviderSyncState {
+  id               String    @id @default(uuid())
+  provider         String
+  sport            String?
+  entityType       String
+  key              String?
+  lastStartedAt    DateTime?
+  lastCompletedAt  DateTime?
+  lastSuccessAt    DateTime?
+  lastErrorAt      DateTime?
+  lastError        String?
+  recordsImported  Int       @default(0)
+  recordsUpdated   Int       @default(0)
+  recordsSkipped   Int       @default(0)
+  lastPayloadBytes Int       @default(0)
+  fallbackProvider String?
+  sourcePriority   Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([provider, entityType, sport, key])
+  @@index([provider, entityType, sport, key])
+  @@index([lastSuccessAt])
+  @@index([lastErrorAt])
+}
+
+model AiOutput {
+  id               String   @id @default(uuid())
+  provider         String
+  role             String
+  taskType         String
+  targetType       String?
+  targetId         String?
+  model            String?
+  contentText      String?  @db.Text
+  contentJson      Json?
+  confidence       Float?
+  meta             Json?
+  tokensPrompt     Int?
+  tokensCompletion Int?
+  createdAt        DateTime @default(now())
+
+  @@index([provider, role, taskType])
+  @@index([targetType, targetId])
+  @@index([createdAt])
 }
 
 model GuardianIntervention {
@@ -1649,26 +1688,25 @@ model GuardianIntervention {
   @@index([severity])
   @@index([userDecision])
   @@index([createdAt])
-
   @@map("guardian_interventions")
 }
 
 model AIInsight {
-  id               String   @id @default(uuid())
-  userId           String
-  sleeperUsername   String?
-  leagueId         String?
-  insightType      String   @db.VarChar(48)
-  category         String   @db.VarChar(32)
-  title            String
-  body             String
-  data             Json?
-  priority         Int      @default(50)
-  confidence       Float    @default(0.7)
-  isRead           Boolean  @default(false)
-  isDismissed      Boolean  @default(false)
-  expiresAt        DateTime?
-  createdAt        DateTime @default(now())
+  id              String    @id @default(uuid())
+  userId          String
+  sleeperUsername String?
+  leagueId        String?
+  insightType     String    @db.VarChar(48)
+  category        String    @db.VarChar(32)
+  title           String
+  body            String
+  data            Json?
+  priority        Int       @default(50)
+  confidence      Float     @default(0.7)
+  isRead          Boolean   @default(false)
+  isDismissed     Boolean   @default(false)
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
 
   @@index([userId])
   @@index([sleeperUsername])
@@ -1676,74 +1714,70 @@ model AIInsight {
   @@index([category])
   @@index([isRead])
   @@index([createdAt])
-
   @@map("ai_insights")
 }
 
 model AIBadge {
-  id               String   @id @default(uuid())
-  userId           String
-  sleeperUsername   String?
-  badgeType        String   @db.VarChar(48)
-  badgeName        String
-  description      String
-  tier             String   @default("bronze") @db.VarChar(16)
-  xpReward         Int      @default(0)
-  data             Json?
-  earnedAt         DateTime @default(now())
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid())
+  userId          String
+  sleeperUsername String?
+  badgeType       String   @db.VarChar(48)
+  badgeName       String
+  description     String
+  tier            String   @default("bronze") @db.VarChar(16)
+  xpReward        Int      @default(0)
+  data            Json?
+  earnedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([userId])
   @@index([sleeperUsername])
   @@index([badgeType])
   @@index([earnedAt])
-
   @@map("ai_badges")
 }
 
 model SimulationRun {
-  id               String   @id @default(uuid())
-  userId           String
-  sleeperUsername   String?
-  leagueId         String?
-  simulationType   String   @db.VarChar(32)
-  scenario         Json
-  results          Json
-  iterations       Int      @default(1000)
-  confidence       Float    @default(0.7)
-  summary          String?
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid())
+  userId          String
+  sleeperUsername String?
+  leagueId        String?
+  simulationType  String   @db.VarChar(32)
+  scenario        Json
+  results         Json
+  iterations      Int      @default(1000)
+  confidence      Float    @default(0.7)
+  summary         String?
+  createdAt       DateTime @default(now())
 
   @@index([userId])
   @@index([sleeperUsername])
   @@index([leagueId])
   @@index([simulationType])
   @@index([createdAt])
-
   @@map("simulation_runs")
 }
 
 model ChatConversation {
-  id               String   @id @default(uuid())
-  userId           String
-  sleeperUsername   String?
-  title            String?
-  messageCount     Int      @default(0)
-  lastMessageAt    DateTime @default(now())
-  dataSources      Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id              String   @id @default(uuid())
+  userId          String
+  sleeperUsername String?
+  title           String?
+  messageCount    Int      @default(0)
+  lastMessageAt   DateTime @default(now())
+  dataSources     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([userId])
   @@index([sleeperUsername])
   @@index([lastMessageAt])
-
   @@map("chat_conversations")
 }
 
 model WeeklyMatchup {
-  id            String   @id @default(cuid())
-  leagueId      String   @db.VarChar(64)
+  id            String @id @default(cuid())
+  leagueId      String @db.VarChar(64)
   seasonYear    Int
   week          Int
   rosterId      Int
@@ -1752,8 +1786,8 @@ model WeeklyMatchup {
   pointsAgainst Float
   win           Int
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([leagueId, seasonYear, week, rosterId])
   @@index([leagueId, seasonYear, week])
@@ -1773,12 +1807,11 @@ model RankingsSnapshot {
   metricsJson  Json?
   createdAt    DateTime @default(now())
 
+  @@unique([leagueId, season, week, rosterId], name: "uniq_snapshot_league_season_week_roster")
   @@index([leagueId, season, week])
   @@index([leagueId, rosterId, createdAt])
-  @@unique([leagueId, season, week, rosterId], name: "uniq_snapshot_league_season_week_roster")
   @@map("rankings_snapshots")
 }
-
 
 model RankingsWeightsSnapshot {
   id        String   @id @default(cuid())
@@ -1795,16 +1828,16 @@ model RankingsWeightsSnapshot {
 }
 
 model SeasonResult {
-  id             String   @id @default(cuid())
-  leagueId       String
-  season         String
-  rosterId       String
-  wins           Int?
-  losses         Int?
-  pointsFor      Decimal? @db.Decimal(12, 2)
-  pointsAgainst  Decimal? @db.Decimal(12, 2)
-  champion       Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  leagueId      String
+  season        String
+  rosterId      String
+  wins          Int?
+  losses        Int?
+  pointsFor     Decimal? @db.Decimal(12, 2)
+  pointsAgainst Decimal? @db.Decimal(12, 2)
+  champion      Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
   @@unique([leagueId, season, rosterId], name: "uniq_season_result_league_season_roster")
   @@index([leagueId, season])
@@ -1846,25 +1879,25 @@ model HallOfFameRow {
 }
 
 model ApiUsageEvent {
-  id          BigInt   @id @default(autoincrement())
-  ts          DateTime @default(now())
+  id BigInt   @id @default(autoincrement())
+  ts DateTime @default(now())
 
-  userId      String?
-  username    String?
-  leagueId    String?
+  userId   String?
+  username String?
+  leagueId String?
 
-  scope       String
-  tool        String?
-  endpoint    String?
-  method      String?
-  status      Int?
-  ok          Boolean?
+  scope    String
+  tool     String?
+  endpoint String?
+  method   String?
+  status   Int?
+  ok       Boolean?
 
-  durationMs  Int?
-  bytesIn     Int?
-  bytesOut    Int?
+  durationMs Int?
+  bytesIn    Int?
+  bytesOut   Int?
 
-  meta        Json?
+  meta Json?
 
   @@index([ts])
   @@index([scope, ts])
@@ -1875,163 +1908,162 @@ model ApiUsageEvent {
 }
 
 model ApiUsageRollup {
-  id           BigInt   @id @default(autoincrement())
+  id BigInt @id @default(autoincrement())
 
-  bucketStart  DateTime
-  bucketType   String
+  bucketStart DateTime
+  bucketType  String
 
-  scope        String   @default("")
-  tool         String   @default("")
-  endpoint     String   @default("")
-  leagueId     String   @default("")
+  scope    String @default("")
+  tool     String @default("")
+  endpoint String @default("")
+  leagueId String @default("")
 
-  count        Int      @default(0)
-  okCount      Int      @default(0)
-  errCount     Int      @default(0)
+  count    Int @default(0)
+  okCount  Int @default(0)
+  errCount Int @default(0)
 
-  avgMs        Int?
-  p95Ms        Int?
-  maxMs        Int?
+  avgMs Int?
+  p95Ms Int?
+  maxMs Int?
 
-  bytesInSum   BigInt?  @default(0)
-  bytesOutSum  BigInt?  @default(0)
+  bytesInSum  BigInt? @default(0)
+  bytesOutSum BigInt? @default(0)
 
-  meta         Json?
+  meta Json?
 
-  updatedAt    DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
+  @@unique([bucketType, bucketStart, scope, tool, endpoint, leagueId], name: "uniq_usage_rollup_bucket_key")
   @@index([bucketType, bucketStart])
   @@index([scope, bucketType, bucketStart])
   @@index([endpoint, bucketType, bucketStart])
   @@index([tool, bucketType, bucketStart])
   @@index([leagueId, bucketType, bucketStart])
-
-  @@unique([bucketType, bucketStart, scope, tool, endpoint, leagueId], name: "uniq_usage_rollup_bucket_key")
 }
 
 model Player {
-  id                     String   @id
-  name                   String
-  sport                  String
-  position               String
-  team                   String?
-  birthYear              Int?
+  id        String  @id
+  name      String
+  sport     String
+  position  String
+  team      String?
+  birthYear Int?
 
-  league                 String
-  devyEligible           Boolean  @default(false)
-  graduatedToNFL         Boolean  @default(false)
+  league         String
+  devyEligible   Boolean @default(false)
+  graduatedToNFL Boolean @default(false)
 
-  recruitingComposite    Float?
-  breakoutAge            Float?
-  draftProjectionScore   Float?
-  projectedDraftRound    Int?
-  projectedDraftPick     Int?
-  devyAdp                Float?
-  redshirtStatus         Boolean  @default(false)
-  transferStatus         Boolean  @default(false)
-  nilImpactScore         Float?
-  injurySeverityScore    Float?
+  recruitingComposite  Float?
+  breakoutAge          Float?
+  draftProjectionScore Float?
+  projectedDraftRound  Int?
+  projectedDraftPick   Int?
+  devyAdp              Float?
+  redshirtStatus       Boolean @default(false)
+  transferStatus       Boolean @default(false)
+  nilImpactScore       Float?
+  injurySeverityScore  Float?
 
-  nflDraftRound          Int?
-  nflDraftPick           Int?
-  nflTeam                String?
+  nflDraftRound Int?
+  nflDraftPick  Int?
+  nflTeam       String?
 
-  active                 Boolean  @default(true)
-  injuryStatus           String?
+  active       Boolean @default(true)
+  injuryStatus String?
 
-  lastSyncedAt           DateTime @updatedAt
-  createdAt              DateTime @default(now())
+  lastSyncedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
 
   @@index([league])
   @@index([devyEligible])
 }
 
 model DevyPlayer {
-  id                 String   @id @default(uuid())
-  name               String
-  normalizedName     String
-  position           String
-  school             String
-  conference         String?
-  classYear          Int?
-  heightInches       Int?
-  weightLbs          Int?
+  id             String  @id @default(uuid())
+  name           String
+  normalizedName String
+  position       String
+  school         String
+  conference     String?
+  classYear      Int?
+  heightInches   Int?
+  weightLbs      Int?
 
-  league             String   @default("NCAA")
-  devyEligible       Boolean  @default(true)
-  graduatedToNFL     Boolean  @default(false)
-  draftYear          Int?
-  draftEligibleYear  Int?
-  draftRound         Int?
-  draftPick          Int?
+  league            String  @default("NCAA")
+  devyEligible      Boolean @default(true)
+  graduatedToNFL    Boolean @default(false)
+  draftYear         Int?
+  draftEligibleYear Int?
+  draftRound        Int?
+  draftPick         Int?
 
-  draftStatus        String   @default("college")
-  statusSource       String?
-  statusConfidence   Int      @default(0)
-  statusUpdatedAt    DateTime?
-  lastRosterYear     Int?
-  declaredDraftYear  Int?
+  draftStatus       String    @default("college")
+  statusSource      String?
+  statusConfidence  Int       @default(0)
+  statusUpdatedAt   DateTime?
+  lastRosterYear    Int?
+  declaredDraftYear Int?
 
-  cfbdId             String?
-  sleeperId          String?
-  nflTeam            String?
+  cfbdId    String?
+  sleeperId String?
+  nflTeam   String?
 
-  passingYards       Int?
-  passingTDs         Int?
-  rushingYards       Int?
-  rushingTDs         Int?
-  receivingYards     Int?
-  receivingTDs       Int?
-  receptions         Int?
-  statSeason         Int?
+  passingYards   Int?
+  passingTDs     Int?
+  rushingYards   Int?
+  rushingTDs     Int?
+  receivingYards Int?
+  receivingTDs   Int?
+  receptions     Int?
+  statSeason     Int?
 
-  devyValue          Int      @default(0)
-  projectedNFLValue  Int?
-  trend              String   @default("stable")
+  devyValue         Int    @default(0)
+  projectedNFLValue Int?
+  trend             String @default("stable")
 
-  recruitingStars    Int?
-  recruitingRanking  Int?
+  recruitingStars   Int?
+  recruitingRanking Int?
 
-  recruitingComposite    Float?
-  breakoutAge            Float?
-  draftProjectionScore   Float?
-  projectedDraftRound    Int?
-  projectedDraftPick     Int?
-  devyAdp                Float?
-  redshirtStatus         Boolean  @default(false)
-  transferStatus         Boolean  @default(false)
-  transferFromSchool     String?
-  transferToSchool       String?
-  transferEligibility    String?
-  nilImpactScore         Float?
-  injurySeverityScore    Float?
-  athleticProfileScore   Float?
-  productionIndex        Float?
-  volatilityScore        Float?
-  nflDraftRound          Int?
-  nflDraftPick           Int?
+  recruitingComposite  Float?
+  breakoutAge          Float?
+  draftProjectionScore Float?
+  projectedDraftRound  Int?
+  projectedDraftPick   Int?
+  devyAdp              Float?
+  redshirtStatus       Boolean @default(false)
+  transferStatus       Boolean @default(false)
+  transferFromSchool   String?
+  transferToSchool     String?
+  transferEligibility  String?
+  nilImpactScore       Float?
+  injurySeverityScore  Float?
+  athleticProfileScore Float?
+  productionIndex      Float?
+  volatilityScore      Float?
+  nflDraftRound        Int?
+  nflDraftPick         Int?
 
-  usageOverall           Float?
-  usagePass              Float?
-  usageRush              Float?
-  ppaTotal               Float?
-  ppaPass                Float?
-  ppaRush                Float?
-  wepaTotal              Float?
-  wepaPass               Float?
-  wepaRush               Float?
-  returningProdPct       Float?
-  teamSpRating           Float?
-  recruitingCity         String?
-  recruitingState        String?
+  usageOverall     Float?
+  usagePass        Float?
+  usageRush        Float?
+  ppaTotal         Float?
+  ppaPass          Float?
+  ppaRush          Float?
+  wepaTotal        Float?
+  wepaPass         Float?
+  wepaRush         Float?
+  returningProdPct Float?
+  teamSpRating     Float?
+  recruitingCity   String?
+  recruitingState  String?
 
   devyAdpHistory DevyAdp[]
 
-  source             String   @default("cfbd")
-  lastClassifiedAt   DateTime?
-  lastSyncedAt       DateTime @default(now())
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  source           String    @default("cfbd")
+  lastClassifiedAt DateTime?
+  lastSyncedAt     DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([normalizedName, position, school], name: "uniq_devy_player")
   @@index([devyEligible])
@@ -2045,13 +2077,13 @@ model DevyPlayer {
 }
 
 model DevyAdp {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   playerId  String
   player    DevyPlayer @relation(fields: [playerId], references: [id], onDelete: Cascade)
   adp       Float
   source    String
   season    Int
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime   @updatedAt
 
   @@unique([playerId, source, season])
   @@index([playerId])
@@ -2059,56 +2091,56 @@ model DevyAdp {
 }
 
 model RookieClass {
-  year        Int      @id
-  strength    Float
-  qbDepth     Float
-  rbDepth     Float
-  wrDepth     Float
-  teDepth     Float
-  updatedAt   DateTime @updatedAt
+  year      Int      @id
+  strength  Float
+  qbDepth   Float
+  rbDepth   Float
+  wrDepth   Float
+  teDepth   Float
+  updatedAt DateTime @updatedAt
 }
 
 model TradeOutcomeTraining {
-  id               String   @id @default(cuid())
+  id               String @id @default(cuid())
   leagueId         String
   proposerRosterId String
   partnerRosterId  String
 
-  fairnessScore    Float
-  ldiAlignment     Float
-  needsFitScore    Float
-  archetypeMatch   Float
-  dealShapeScore   Float
-  volatilityDelta  Float
+  fairnessScore   Float
+  ldiAlignment    Float
+  needsFitScore   Float
+  archetypeMatch  Float
+  dealShapeScore  Float
+  volatilityDelta Float
 
-  wasAccepted      Boolean
-  createdAt        DateTime @default(now())
+  wasAccepted Boolean
+  createdAt   DateTime @default(now())
 
   @@index([leagueId, createdAt])
   @@index([wasAccepted])
 }
 
 model TradeShare {
-  id          String   @id @default(uuid())
-  userId      String?
-  analysis    Json
-  sideA       Json
-  sideB       Json
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
+  id        String   @id @default(uuid())
+  userId    String?
+  analysis  Json
+  sideA     Json
+  sideB     Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 
   @@index([expiresAt])
   @@index([userId, createdAt])
 }
 
 model EngineSnapshot {
-  id         String   @id @default(cuid())
-  leagueId   String
-  type       String   @db.VarChar(32)
-  hash       String   @db.VarChar(64)
-  payload    Json
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  leagueId  String
+  type      String   @db.VarChar(32)
+  hash      String   @db.VarChar(64)
+  payload   Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@unique([leagueId, type, hash])
   @@index([leagueId, type])
@@ -2116,73 +2148,73 @@ model EngineSnapshot {
 }
 
 model PlayerAnalyticsSnapshot {
-  id                        String   @id @default(uuid())
-  normalizedName            String
-  name                      String
-  position                  String
-  status                    String?
-  currentTeam               String?
-  season                    String
+  id             String  @id @default(uuid())
+  normalizedName String
+  name           String
+  position       String
+  status         String?
+  currentTeam    String?
+  season         String
 
   // Combine & Athletic Metrics
-  fortyYardDash             Float?
-  twentyYardShuttle         Float?
-  threeConeDrill            Float?
-  benchPress                Int?
-  broadJump                 Int?
-  verticalJump              Float?
-  athleticismScore          Float?
-  speedScore                Float?
-  burstScore                Float?
-  agilityScore              Float?
-  sparqX                    Float?
-  armLengthIn               Float?
-  handSizeIn                Float?
-  heightIn                  Int?
-  weightLb                  Int?
-  bmi                       Float?
-  catchRadius               Float?
-  throwVelocityMph          Float?
+  fortyYardDash     Float?
+  twentyYardShuttle Float?
+  threeConeDrill    Float?
+  benchPress        Int?
+  broadJump         Int?
+  verticalJump      Float?
+  athleticismScore  Float?
+  speedScore        Float?
+  burstScore        Float?
+  agilityScore      Float?
+  sparqX            Float?
+  armLengthIn       Float?
+  handSizeIn        Float?
+  heightIn          Int?
+  weightLb          Int?
+  bmi               Float?
+  catchRadius       Float?
+  throwVelocityMph  Float?
 
   // College Production
-  breakoutAge               Float?
-  breakoutRating            Float?
-  breakoutYear              Int?
-  college                   String?
-  collegeDominatorRating    Float?
-  collegeDynamicScore       Float?
-  collegeLevelOfCompetition Float?
-  collegeFreshmanYards      Float?
-  collegeTargetShare        Float?
-  collegeReceiverRating     String?
-  collegeYpr                Float?
-  collegeTeammateScore      Float?
+  breakoutAge                   Float?
+  breakoutRating                Float?
+  breakoutYear                  Int?
+  college                       String?
+  collegeDominatorRating        Float?
+  collegeDynamicScore           Float?
+  collegeLevelOfCompetition     Float?
+  collegeFreshmanYards          Float?
+  collegeTargetShare            Float?
+  collegeReceiverRating         String?
+  collegeYpr                    Float?
+  collegeTeammateScore          Float?
   bestCollegeSeasonYardageShare Float?
 
   // Draft Info
-  draftPick                 Float?
-  draftYear                 Int?
-  currentAdp                Float?
-  currentAdpTrend           Float?
-  lifetimeValue             Float?
+  draftPick       Float?
+  draftYear       Int?
+  currentAdp      Float?
+  currentAdpTrend Float?
+  lifetimeValue   Float?
 
   // Comparables
-  bestComparablePlayers     String?
+  bestComparablePlayers String?
 
   // Key Production & Fantasy
-  totalFantasyPoints        Float?
-  fantasyPointsPerGame      Float?
-  expectedFantasyPoints     Float?
+  totalFantasyPoints           Float?
+  fantasyPointsPerGame         Float?
+  expectedFantasyPoints        Float?
   expectedFantasyPointsPerGame Float?
-  weeklyVolatility          Float?
+  weeklyVolatility             Float?
 
   // All 355 columns stored as JSON
-  rawData                   Json?
+  rawData Json?
 
-  source                    String   @default("csv_import")
-  dataVersion               String   @default("v1")
-  importedAt                DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  source      String   @default("csv_import")
+  dataVersion String   @default("v1")
+  importedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([normalizedName, season, source])
   @@index([normalizedName])
@@ -2209,28 +2241,28 @@ model AppUser {
   accounts AuthAccount[]
   sessions AuthSession[]
 
-  bracketLeaguesOwned  BracketLeague[]       @relation("BracketLeagueOwner")
-  bracketMemberships   BracketLeagueMember[]
-  bracketEntries       BracketEntry[]
-  profile              UserProfile?
-  emailVerifyTokens    EmailVerifyToken[]
-  passwordResetTokens  PasswordResetToken[]
-  tradeFeedback        Feedback[]
-  tradeProfile         TradeProfile?
-  waiverPickups        WaiverPickup[]
-  leagues              League[]
-  leagueAuths          LeagueAuth[]
-  sleeperLeagues       SleeperLeague[]
-  mockDrafts           MockDraft[]
-  activeLeagueId       String?
-  bracketLeagueMessages BracketLeagueMessage[] @relation("BracketLeagueMessages")
+  bracketLeaguesOwned     BracketLeague[]          @relation("BracketLeagueOwner")
+  bracketMemberships      BracketLeagueMember[]
+  bracketEntries          BracketEntry[]
+  profile                 UserProfile?
+  emailVerifyTokens       EmailVerifyToken[]
+  passwordResetTokens     PasswordResetToken[]
+  tradeFeedback           Feedback[]
+  tradeProfile            TradeProfile?
+  waiverPickups           WaiverPickup[]
+  leagues                 League[]
+  leagueAuths             LeagueAuth[]
+  sleeperLeagues          SleeperLeague[]
+  mockDrafts              MockDraft[]
+  activeLeagueId          String?
+  bracketLeagueMessages   BracketLeagueMessage[]   @relation("BracketLeagueMessages")
   bracketMessageReactions BracketMessageReaction[] @relation("BracketMessageReactions")
-  bracketPayments      BracketPayment[]       @relation("BracketPayments")
-  bracketRiskProfile   BracketRiskProfile?    @relation("BracketRiskProfile")
+  bracketPayments         BracketPayment[]         @relation("BracketPayments")
+  bracketRiskProfile      BracketRiskProfile?      @relation("BracketRiskProfile")
 
-  platformChatThreadsCreated    PlatformChatThread[]      @relation("PlatformChatThreadCreator")
+  platformChatThreadsCreated    PlatformChatThread[]       @relation("PlatformChatThreadCreator")
   platformChatThreadMemberships PlatformChatThreadMember[]
-  platformChatMessages          PlatformChatMessage[]     @relation("PlatformChatMessageSender")
+  platformChatMessages          PlatformChatMessage[]      @relation("PlatformChatMessageSender")
   platformNotifications         PlatformNotification[]
   walletAccount                 PlatformWalletAccount?
   walletLedgerEntries           WalletLedgerEntry[]
@@ -2287,61 +2319,61 @@ model BracketTournament {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  nodes     BracketNode[]
-  leagues   BracketLeague[]
-  payments  BracketPayment[]
+  nodes    BracketNode[]
+  leagues  BracketLeague[]
+  payments BracketPayment[]
 
   @@unique([sport, season])
 }
 
 model BracketNode {
-  id            String   @id @default(uuid())
-  tournamentId  String
-  round         Int
-  region        String?
-  slot          String
+  id           String  @id @default(uuid())
+  tournamentId String
+  round        Int
+  region       String?
+  slot         String
 
-  seedHome      Int?
-  seedAway      Int?
+  seedHome Int?
+  seedAway Int?
 
-  homeTeamName  String?
-  awayTeamName  String?
+  homeTeamName String?
+  awayTeamName String?
 
-  sportsGameId  String?  @unique
+  sportsGameId String? @unique
 
-  nextNodeId    String?
-  nextNodeSide  String?
+  nextNodeId   String?
+  nextNodeSide String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tournament    BracketTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  picks         BracketPick[]
+  tournament BracketTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  picks      BracketPick[]
 
   @@unique([tournamentId, slot])
   @@index([tournamentId, round, region])
 }
 
 model BracketLeague {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   tournamentId String
   ownerId      String
   name         String
-  joinCode     String   @unique
-  isPrivate    Boolean  @default(true)
-  maxManagers  Int      @default(100)
+  joinCode     String    @unique
+  isPrivate    Boolean   @default(true)
+  maxManagers  Int       @default(100)
   deadline     DateTime?
   scoringRules Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  tournament   BracketTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  owner        AppUser @relation("BracketLeagueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  tournament BracketTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  owner      AppUser           @relation("BracketLeagueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
-  members      BracketLeagueMember[]
-  entries      BracketEntry[]
-  messages     BracketLeagueMessage[]
-  payments     BracketPayment[]
+  members  BracketLeagueMember[]
+  entries  BracketEntry[]
+  messages BracketLeagueMessage[]
+  payments BracketPayment[]
 
   @@index([tournamentId])
   @@index([ownerId])
@@ -2354,53 +2386,53 @@ model BracketLeagueMember {
   role      String   @default("MEMBER")
   createdAt DateTime @default(now())
 
-  league    BracketLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user      AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league BracketLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([leagueId, userId])
   @@index([userId])
 }
 
 model BracketEntry {
-  id             String   @id @default(uuid())
-  leagueId       String
-  userId         String
-  name           String
-  insuredNodeId  String?
+  id               String    @id @default(uuid())
+  leagueId         String
+  userId           String
+  name             String
+  insuredNodeId    String?
   tiebreakerPoints Int?
-  status         String   @default("SUBMITTED") // DRAFT | SUBMITTED | LOCKED | SCORED | INVALIDATED
-  submittedAt    DateTime?
-  lockedAt       DateTime?
-  scoredAt       DateTime?
-  invalidatedAt  DateTime?
-  integrityHash  String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  status           String    @default("SUBMITTED") // DRAFT | SUBMITTED | LOCKED | SCORED | INVALIDATED
+  submittedAt      DateTime?
+  lockedAt         DateTime?
+  scoredAt         DateTime?
+  invalidatedAt    DateTime?
+  integrityHash    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  league     BracketLeague          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user       AppUser                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  picks      BracketPick[]          @relation("EntryToPick")
-  snapshots  BracketEntrySnapshot[] @relation("EntryToSnapshot")
+  league    BracketLeague          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user      AppUser                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  picks     BracketPick[]          @relation("EntryToPick")
+  snapshots BracketEntrySnapshot[] @relation("EntryToSnapshot")
 
   @@index([leagueId])
   @@index([userId])
 }
 
 model BracketEntrySnapshot {
-  id             String   @id @default(uuid())
-  entryId        String
-  tournamentId   String
-  leagueId       String
-  userId         String
-  status         String
-  lockedAt       DateTime
-  version        Int      @default(1)
-  bracketJson    Json
-  bracketHash    String
-  createdBySystem Boolean @default(true)
-  createdAt      DateTime @default(now())
+  id              String   @id @default(uuid())
+  entryId         String
+  tournamentId    String
+  leagueId        String
+  userId          String
+  status          String
+  lockedAt        DateTime
+  version         Int      @default(1)
+  bracketJson     Json
+  bracketHash     String
+  createdBySystem Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
-  entry         BracketEntry @relation("EntryToSnapshot", fields: [entryId], references: [id], onDelete: Cascade)
+  entry BracketEntry @relation("EntryToSnapshot", fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId, leagueId])
   @@index([entryId, createdAt])
@@ -2413,7 +2445,7 @@ model BracketPickPopularity {
   nodeId       String
   round        Int
   teamName     String
-  scope        String   // "global" | "league"
+  scope        String // "global" | "league"
   pickCount    Int
   pickPct      Float
   updatedAt    DateTime @default(now()) @updatedAt
@@ -2424,16 +2456,16 @@ model BracketPickPopularity {
 }
 
 model BracketSimulationSnapshot {
-  id           String   @id @default(uuid())
-  tournamentId String
-  leagueId     String
-  entryId      String
-  simulations  Int
+  id                   String   @id @default(uuid())
+  tournamentId         String
+  leagueId             String
+  entryId              String
+  simulations          Int
   winLeagueProbability Float
-  top5Probability     Float
-  expectedRank        Float
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  top5Probability      Float
+  expectedRank         Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@unique([tournamentId, leagueId, entryId])
   @@index([leagueId, entryId])
@@ -2441,16 +2473,16 @@ model BracketSimulationSnapshot {
 }
 
 model BracketLeaderboard {
-  id             String   @id @default(uuid())
-  tournamentId   String
-  leagueId       String?
-  entryId        String
-  score          Int
-  rank           Int
-  previousRank   Int?
-  tieGroup       Int
-  updatedAt      DateTime @updatedAt
-  createdAt      DateTime @default(now())
+  id           String   @id @default(uuid())
+  tournamentId String
+  leagueId     String?
+  entryId      String
+  score        Int
+  rank         Int
+  previousRank Int?
+  tieGroup     Int
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
 
   @@unique([tournamentId, leagueId, entryId])
   @@index([tournamentId, leagueId, rank])
@@ -2482,28 +2514,28 @@ model BracketPick {
   points         Int       @default(0)
   isCorrect      Boolean?
 
-  entry     BracketEntry @relation("EntryToPick", fields: [entryId], references: [id], onDelete: Cascade)
-  node      BracketNode  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  entry BracketEntry @relation("EntryToPick", fields: [entryId], references: [id], onDelete: Cascade)
+  node  BracketNode  @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 
   @@unique([entryId, nodeId])
   @@index([nodeId])
 }
 
 model BracketLeagueMessage {
-  id         String   @id @default(uuid())
-  leagueId   String
-  userId     String
-  message    String
-  type       String   @default("text")
-  replyToId  String?
-  imageUrl   String?
-  metadata   Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  leagueId  String
+  userId    String
+  message   String
+  type      String   @default("text")
+  replyToId String?
+  imageUrl  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
 
-  league    BracketLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user      AppUser       @relation("BracketLeagueMessages", fields: [userId], references: [id], onDelete: Cascade)
-  replyTo   BracketLeagueMessage?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies   BracketLeagueMessage[] @relation("MessageReplies")
+  league    BracketLeague            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user      AppUser                  @relation("BracketLeagueMessages", fields: [userId], references: [id], onDelete: Cascade)
+  replyTo   BracketLeagueMessage?    @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   BracketLeagueMessage[]   @relation("MessageReplies")
   reactions BracketMessageReaction[]
 
   @@index([leagueId, createdAt])
@@ -2527,16 +2559,16 @@ model BracketMessageReaction {
 }
 
 model BracketPayment {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   userId              String
   leagueId            String
   tournamentId        String
   paymentType         String
-  stripeSessionId     String?  @unique
+  stripeSessionId     String?   @unique
   stripePaymentIntent String?
-  status              String   @default("pending")
+  status              String    @default("pending")
   amountCents         Int
-  createdAt           DateTime @default(now())
+  createdAt           DateTime  @default(now())
   completedAt         DateTime?
 
   user       AppUser           @relation("BracketPayments", fields: [userId], references: [id], onDelete: Cascade)
@@ -2548,14 +2580,14 @@ model BracketPayment {
 }
 
 model BracketFeedEvent {
-  id            String   @id @default(uuid())
-  tournamentId  String
-  leagueId      String?
-  eventType     String
-  headline      String
-  detail        String?
-  metadata      Json?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  tournamentId String
+  leagueId     String?
+  eventType    String
+  headline     String
+  detail       String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
 
   @@index([tournamentId, createdAt])
   @@index([leagueId, createdAt])
@@ -2578,12 +2610,12 @@ model BracketRiskProfile {
 }
 
 model SimulationResult {
-  id              String   @id @default(uuid())
+  id              String @id @default(uuid())
   bracketId       String
   tournamentId    String
   runs            Int
   modelVersion    String
-  scoringMode     String   @default("EDGE")
+  scoringMode     String @default("EDGE")
   resultJson      Json
   createdByUserId String
 
@@ -2596,13 +2628,13 @@ model SimulationResult {
 }
 
 model BracketChallenge {
-  id                 String   @id @default(uuid())
-  leagueId           String
-  challengerEntryId  String
-  challengedEntryId  String
-  status             String   @default("pending") // pending, accepted, declined, completed
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(uuid())
+  leagueId          String
+  challengerEntryId String
+  challengedEntryId String
+  status            String   @default("pending") // pending, accepted, declined, completed
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([leagueId, challengerEntryId, challengedEntryId])
   @@index([leagueId])
@@ -2610,10 +2642,10 @@ model BracketChallenge {
 }
 
 model UserFollow {
-  id          String   @id @default(uuid())
-  followerId  String
-  followeeId  String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  followerId String
+  followeeId String
+  createdAt  DateTime @default(now())
 
   @@unique([followerId, followeeId])
   @@index([followeeId])
@@ -2651,13 +2683,13 @@ model ReactionEvent {
 }
 
 model UserRivalry {
-  id             String   @id @default(uuid())
-  userAId        String
-  userBId        String
-  totalMeetings  Int      @default(0)
-  winsA          Int      @default(0)
-  winsB          Int      @default(0)
-  lastUpdatedAt  DateTime @updatedAt
+  id            String   @id @default(uuid())
+  userAId       String
+  userBId       String
+  totalMeetings Int      @default(0)
+  winsA         Int      @default(0)
+  winsB         Int      @default(0)
+  lastUpdatedAt DateTime @updatedAt
 
   @@unique([userAId, userBId])
   @@index([userBId])
@@ -2670,20 +2702,23 @@ enum VerificationMethod {
 }
 
 model UserProfile {
-  userId              String              @id
-  displayName         String?
-  phone               String?             @unique
-  phoneVerifiedAt     DateTime?
-  emailVerifiedAt     DateTime?
-  ageConfirmedAt      DateTime?
-  verificationMethod  VerificationMethod?
-  sleeperUsername      String?
-  sleeperUserId       String?             @unique
-  sleeperLinkedAt     DateTime?
-  sleeperVerifiedAt   DateTime?
-  profileComplete     Boolean             @default(false)
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  userId             String              @id
+  displayName        String?
+  phone              String?             @unique
+  phoneVerifiedAt    DateTime?
+  emailVerifiedAt    DateTime?
+  ageConfirmedAt     DateTime?
+  verificationMethod VerificationMethod?
+  sleeperUsername    String?
+  sleeperUserId      String?             @unique
+  sleeperLinkedAt    DateTime?
+  sleeperVerifiedAt  DateTime?
+  profileComplete    Boolean             @default(false)
+  timezone           String?
+  preferredLanguage  String?
+  avatarPreset       String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2728,7 +2763,7 @@ model PasswordResetToken {
 }
 
 model League {
-  id               String    @id @default(uuid())
+  id               String      @id @default(uuid())
   userId           String
   platform         String
   platformLeagueId String
@@ -2737,7 +2772,7 @@ model League {
   season           Int?
   leagueSize       Int?
   scoring          String?
-  isDynasty        Boolean  @default(false)
+  isDynasty        Boolean     @default(false)
   rosterSize       Int?
   starters         Json?
   status           String?
@@ -2747,16 +2782,19 @@ model League {
   syncStatus       String?
   syncError        String?
 
-  rosters          Roster[]
-  teams            LeagueTeam[]
-  waiverPickups    WaiverPickup[]
-  mockDrafts       MockDraft[]
-  user             AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  legacyLeague     LegacyLeague? @relation(fields: [legacyLeagueId], references: [id])
-  legacyLeagueId   String?   @unique
+  rosters            Roster[]
+  teams              LeagueTeam[]
+  waiverPickups      WaiverPickup[]
+  waiverClaims       WaiverClaim[]
+  waiverTransactions WaiverTransaction[]
+  waiverSettings     LeagueWaiverSettings?
+  mockDrafts         MockDraft[]
+  user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
+  legacyLeagueId     String?               @unique
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, platform, platformLeagueId])
   @@index([userId])
@@ -2779,8 +2817,12 @@ model Roster {
   platformUserId String
   playerData     Json
   faabRemaining  Int?
+  waiverPriority Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  waiverClaims       WaiverClaim[]
+  waiverTransactions WaiverTransaction[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
@@ -2789,28 +2831,28 @@ model Roster {
 }
 
 model LeagueTeam {
-  id              String       @id @default(uuid())
-  leagueId        String
-  externalId      String
-  ownerName       String
-  teamName        String
-  avatarUrl       String?
-  wins            Int          @default(0)
-  losses          Int          @default(0)
-  ties            Int          @default(0)
-  pointsFor       Float        @default(0)
-  pointsAgainst   Float        @default(0)
-  currentRank     Int?
-  aiPowerScore    Float?
-  projectedWins   Float?
-  strengthNotes   String?
-  riskNotes       String?
-  lastUpdatedAt   DateTime     @updatedAt
+  id            String   @id @default(uuid())
+  leagueId      String
+  externalId    String
+  ownerName     String
+  teamName      String
+  avatarUrl     String?
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  ties          Int      @default(0)
+  pointsFor     Float    @default(0)
+  pointsAgainst Float    @default(0)
+  currentRank   Int?
+  aiPowerScore  Float?
+  projectedWins Float?
+  strengthNotes String?
+  riskNotes     String?
+  lastUpdatedAt DateTime @updatedAt
 
-  league          League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  performances    TeamPerformance[]
-  legacyRoster    LegacyRoster? @relation(fields: [legacyRosterId], references: [id])
-  legacyRosterId  String?      @unique
+  league         League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  performances   TeamPerformance[]
+  legacyRoster   LegacyRoster?     @relation(fields: [legacyRosterId], references: [id])
+  legacyRosterId String?           @unique
 
   @@unique([leagueId, externalId])
   @@index([leagueId, pointsFor])
@@ -2819,17 +2861,17 @@ model LeagueTeam {
 }
 
 model TeamPerformance {
-  id         String   @id @default(uuid())
-  teamId     String
-  week       Int
-  season     Int
-  points     Float
-  opponent   String?
-  result     String?
-  data       Json?
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  teamId    String
+  week      Int
+  season    Int
+  points    Float
+  opponent  String?
+  result    String?
+  data      Json?
+  createdAt DateTime @default(now())
 
-  team       LeagueTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  team LeagueTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, season, week])
   @@index([teamId, season])
@@ -2855,6 +2897,67 @@ model LeagueAuth {
   @@map("league_auths")
 }
 
+model LeagueWaiverSettings {
+  id                  String    @id @default(uuid())
+  leagueId            String    @unique
+  league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  waiverType          String    @default("standard")
+  processingDayOfWeek Int?
+  processingTimeUtc   String?
+  claimLimitPerPeriod Int?
+  faabBudget          Int?
+  faabResetDate       DateTime?
+  tiebreakRule        String?
+  lockType            String?
+  instantFaAfterClear Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("league_waiver_settings")
+}
+
+model WaiverClaim {
+  id            String    @id @default(uuid())
+  leagueId      String
+  rosterId      String
+  addPlayerId   String
+  dropPlayerId  String?
+  faabBid       Int?
+  priorityOrder Int       @default(0)
+  status        String    @default("pending")
+  processedAt   DateTime?
+  resultMessage String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster Roster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
+  @@index([rosterId])
+  @@index([leagueId, priorityOrder])
+  @@map("waiver_claims")
+}
+
+model WaiverTransaction {
+  id                   String   @id @default(uuid())
+  leagueId             String
+  rosterId             String
+  claimId              String?
+  addPlayerId          String
+  dropPlayerId         String?
+  faabSpent            Int?
+  waiverPriorityBefore Int?
+  processedAt          DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster Roster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, processedAt])
+  @@index([rosterId])
+  @@map("waiver_transactions")
+}
+
 model WaiverPickup {
   id         String   @id @default(uuid())
   userId     String
@@ -2874,44 +2977,44 @@ model WaiverPickup {
 }
 
 model SleeperLeague {
-  id                String   @id @default(uuid())
-  sleeperLeagueId   String   @unique
-  userId            String
-  name              String
-  totalTeams        Int
-  season            String
-  status            String
-  isDynasty         Boolean
-  scoringType       String
-  rosterSettings    Json
-  lastSyncedAt      DateTime?
-  syncStatus        String?
-  syncError         String?
+  id              String    @id @default(uuid())
+  sleeperLeagueId String    @unique
+  userId          String
+  name            String
+  totalTeams      Int
+  season          String
+  status          String
+  isDynasty       Boolean
+  scoringType     String
+  rosterSettings  Json
+  lastSyncedAt    DateTime?
+  syncStatus      String?
+  syncError       String?
 
-  rosters           SleeperRoster[]
-  user              AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rosters SleeperRoster[]
+  user    AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, sleeperLeagueId])
   @@map("sleeper_leagues")
 }
 
 model SleeperRoster {
-  id                String   @id @default(uuid())
-  leagueId          String
-  league            SleeperLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  ownerId           String
-  rosterId          String
-  players           Json
-  starters          Json
-  bench             Json
-  faabRemaining     Int?
-  waiverPriority    Int?
+  id             String        @id @default(uuid())
+  leagueId       String
+  league         SleeperLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  ownerId        String
+  rosterId       String
+  players        Json
+  starters       Json
+  bench          Json
+  faabRemaining  Int?
+  waiverPriority Int?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([leagueId, rosterId])
   @@index([leagueId])
@@ -2939,13 +3042,14 @@ model RookieRanking {
 model MockDraft {
   id        String   @id @default(uuid())
   shareId   String?  @unique
-  leagueId  String
-  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId  String?
+  league    League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   userId    String
   user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
   rounds    Int      @default(15)
   results   Json
   proposals Json?
+  metadata  Json? // sport, leagueType, draftType, numTeams, scoring, timerSeconds, aiEnabled
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2955,20 +3059,20 @@ model MockDraft {
 }
 
 model RankingsBacktestResult {
-  id             String   @id @default(cuid())
-  leagueId       String
-  season         String   @db.VarChar(8)
-  weekEvaluated  Int
-  targetType     String   @db.VarChar(32)
-  horizonWeeks   Int      @default(3)
-  segmentKey     String   @db.VarChar(32)
-  nTeams         Int
-  brier          Float
-  ece            Float
-  ndcg           Float
-  spearman       Float
-  payloadJson    Json?
-  createdAt      DateTime @default(now())
+  id            String   @id @default(cuid())
+  leagueId      String
+  season        String   @db.VarChar(8)
+  weekEvaluated Int
+  targetType    String   @db.VarChar(32)
+  horizonWeeks  Int      @default(3)
+  segmentKey    String   @db.VarChar(32)
+  nTeams        Int
+  brier         Float
+  ece           Float
+  ndcg          Float
+  spearman      Float
+  payloadJson   Json?
+  createdAt     DateTime @default(now())
 
   @@unique([leagueId, season, weekEvaluated, targetType], name: "uniq_backtest_league_week_target")
   @@index([leagueId, season])
@@ -2978,16 +3082,16 @@ model RankingsBacktestResult {
 }
 
 model DraftPredictionSnapshot {
-  id            String   @id @default(uuid())
-  leagueId      String
-  userId        String
-  season        Int
-  draftId       String?
-  rounds        Int      @default(2)
-  simulations   Int      @default(250)
-  scenarios     Json     @default("[]")
-  snapshotJson  Json
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  leagueId     String
+  userId       String
+  season       Int
+  draftId      String?
+  rounds       Int      @default(2)
+  simulations  Int      @default(250)
+  scenarios    Json     @default("[]")
+  snapshotJson Json
+  createdAt    DateTime @default(now())
 
   retrospectives DraftRetrospective[]
 
@@ -3019,17 +3123,17 @@ model DraftRetrospective {
 }
 
 model LeagueDraftCalibration {
-  id            String   @id @default(uuid())
-  leagueId      String
-  season        Int
-  adpWeight     Float    @default(1.0)
-  needWeight    Float    @default(1.0)
-  tendencyWeight Float   @default(1.0)
-  newsWeight    Float    @default(1.0)
-  rookieWeight  Float    @default(1.0)
-  sampleSize    Int      @default(0)
-  lastUpdatedAt DateTime @default(now())
-  createdAt     DateTime @default(now())
+  id             String   @id @default(uuid())
+  leagueId       String
+  season         Int
+  adpWeight      Float    @default(1.0)
+  needWeight     Float    @default(1.0)
+  tendencyWeight Float    @default(1.0)
+  newsWeight     Float    @default(1.0)
+  rookieWeight   Float    @default(1.0)
+  sampleSize     Int      @default(0)
+  lastUpdatedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   @@unique([leagueId, season])
   @@index([leagueId])
@@ -3037,13 +3141,13 @@ model LeagueDraftCalibration {
 }
 
 model ShareEngagement {
-  id               String   @id @default(uuid())
-  sleeperUsername   String   @db.VarChar(64)
-  shareType        String   @db.VarChar(32)
-  platform         String   @db.VarChar(32)
-  action           String   @db.VarChar(16)
-  style            String?  @db.VarChar(32)
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid())
+  sleeperUsername String   @db.VarChar(64)
+  shareType       String   @db.VarChar(32)
+  platform        String   @db.VarChar(32)
+  action          String   @db.VarChar(16)
+  style           String?  @db.VarChar(32)
+  createdAt       DateTime @default(now())
 
   @@index([sleeperUsername])
   @@index([sleeperUsername, shareType])
@@ -3051,21 +3155,19 @@ model ShareEngagement {
   @@map("share_engagements")
 }
 
-
-
 model PlatformChatThread {
-  id               String   @id @default(uuid())
-  threadType       String
-  productType      String   @default("shared")
-  title            String?
-  createdByUserId  String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  lastMessageAt    DateTime @default(now())
+  id              String   @id @default(uuid())
+  threadType      String
+  productType     String   @default("shared")
+  title           String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastMessageAt   DateTime @default(now())
 
-  createdBy        AppUser?                  @relation("PlatformChatThreadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  members          PlatformChatThreadMember[]
-  messages         PlatformChatMessage[]
+  createdBy AppUser?                   @relation("PlatformChatThreadCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  members   PlatformChatThreadMember[]
+  messages  PlatformChatMessage[]
 
   @@index([threadType, lastMessageAt])
   @@index([createdByUserId])
@@ -3073,14 +3175,14 @@ model PlatformChatThread {
 }
 
 model PlatformChatThreadMember {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   threadId   String
   userId     String
-  role       String   @default("member")
-  joinedAt   DateTime @default(now())
+  role       String    @default("member")
+  joinedAt   DateTime  @default(now())
   lastReadAt DateTime?
-  isMuted    Boolean  @default(false)
-  isBlocked  Boolean  @default(false)
+  isMuted    Boolean   @default(false)
+  isBlocked  Boolean   @default(false)
 
   thread PlatformChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -3109,17 +3211,17 @@ model PlatformChatMessage {
 }
 
 model PlatformNotification {
-  id         String   @id @default(uuid())
-  sourceKey  String?  @unique
-  userId     String
-  productType String  @default("shared")
-  type       String
-  title      String
-  body       String?
-  severity   String   @default("low")
-  meta       Json?
-  createdAt  DateTime @default(now())
-  readAt     DateTime?
+  id          String    @id @default(uuid())
+  sourceKey   String?   @unique
+  userId      String
+  productType String    @default("shared")
+  type        String
+  title       String
+  body        String?
+  severity    String    @default("low")
+  meta        Json?
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
 
   user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -3137,24 +3239,24 @@ model PlatformWalletAccount {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  user    AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
   entries WalletLedgerEntry[]
 
   @@map("platform_wallet_accounts")
 }
 
 model WalletLedgerEntry {
-  id              String   @id @default(uuid())
-  sourceKey       String?  @unique
+  id              String    @id @default(uuid())
+  sourceKey       String?   @unique
   walletAccountId String
   userId          String
   entryType       String
-  status          String   @default("completed")
+  status          String    @default("completed")
   amountCents     Int
   description     String?
   refProduct      String?
   refId           String?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
   effectiveAt     DateTime?
 
   walletAccount PlatformWalletAccount @relation(fields: [walletAccountId], references: [id], onDelete: Cascade)
@@ -3165,5 +3267,3 @@ model WalletLedgerEntry {
   @@index([entryType, status])
   @@map("wallet_ledger_entries")
 }
-
-

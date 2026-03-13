@@ -30,6 +30,10 @@ export async function POST(
   const threadId = decodeURIComponent(params.threadId)
   const body = await req.json().catch(() => ({}))
   const message = String(body?.body || '').trim()
+  const metadata =
+    body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+      ? (body.metadata as Record<string, unknown>)
+      : undefined
 
   if (!message) {
     return NextResponse.json({ error: 'Message body required' }, { status: 400 })
@@ -40,6 +44,7 @@ export async function POST(
     threadId,
     message,
     String(body?.messageType || 'text'),
+    metadata,
   )
 
   if (!created) {

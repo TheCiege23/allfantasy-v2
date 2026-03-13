@@ -1,0 +1,114 @@
+"use client"
+
+import { Filter, Search } from "lucide-react"
+
+type Props = {
+  search: string
+  onSearchChange: (value: string) => void
+  position: string
+  onPositionChange: (value: string) => void
+  team: string
+  onTeamChange: (value: string) => void
+  status: string
+  onStatusChange: (value: string) => void
+  sort: string
+  onSortChange: (value: string) => void
+  teams?: string[]
+}
+
+const POSITION_FILTERS = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST"]
+const STATUS_FILTERS = ["all", "available", "watchlist"]
+
+export default function WaiverFilters({
+  search,
+  onSearchChange,
+  position,
+  onPositionChange,
+  team,
+  onTeamChange,
+  status,
+  onStatusChange,
+  sort,
+  onSortChange,
+  teams = [],
+}: Props) {
+  return (
+    <div className="sticky top-0 z-10 -mx-4 mb-3 border-b border-white/10 bg-black/70 px-4 pb-2 pt-2 backdrop-blur sm:-mx-0 sm:rounded-xl sm:border sm:bg-black/60 sm:px-3 sm:pt-3">
+      <div className="flex items-center gap-2 text-xs text-white/60">
+        <Filter className="h-3.5 w-3.5" />
+        <span>Filters</span>
+      </div>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/40" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search players…"
+            className="w-full rounded-full border border-white/15 bg-black/40 py-1.5 pl-7 pr-3 text-xs text-white placeholder:text-white/40 outline-none"
+          />
+        </div>
+        <div className="flex flex-1 flex-wrap items-center gap-1.5 text-[11px]">
+          <div className="flex flex-wrap gap-1.5">
+            {POSITION_FILTERS.map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                onClick={() => onPositionChange(pos)}
+                className={`rounded-full border px-2.5 py-1 ${
+                  position === pos ? "border-cyan-400 bg-cyan-500/20 text-cyan-100" : "border-white/15 bg-black/40 text-white/65"
+                }`}
+              >
+                {pos}
+              </button>
+            ))}
+          </div>
+          {teams.length > 0 && (
+            <select
+              value={team}
+              onChange={(e) => onTeamChange(e.target.value)}
+              className="ml-auto rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[11px] text-white outline-none"
+            >
+              <option value="">All teams</option>
+              {teams.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+        <div className="flex items-center gap-1.5">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onStatusChange(s)}
+              className={`rounded-full px-2 py-0.5 ${
+                status === s ? "bg-white text-black" : "bg-black/40 text-white/65"
+              }`}
+            >
+              {s === "all" ? "All" : s === "available" ? "Available" : "Watchlist"}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-white/50">Sort</span>
+          <select
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value)}
+            className="rounded-lg border border-white/15 bg-black/60 px-2 py-1 text-[11px] text-white outline-none"
+          >
+            <option value="name">Name</option>
+            <option value="position">Position</option>
+            <option value="team">Team</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  )
+}
+

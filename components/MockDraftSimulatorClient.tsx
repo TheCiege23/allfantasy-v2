@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Play, Pause, SkipForward, RefreshCw, Download, RotateCcw, Users, Loader2, Link, ArrowUp, ArrowDown, X, TrendingUp, TrendingDown, Minus, Star, Handshake, Check, Newspaper, Beaker, Zap, Clock3, Bot } from 'lucide-react'
 import { useAI } from '@/hooks/useAI'
 import { toast } from 'sonner'
+import { AIDraftAssistantPanel } from '@/components/mock-draft'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
@@ -28,6 +29,14 @@ interface LeagueOption {
   leagueSize: number
   isDynasty: boolean
   scoring: string | null
+  sport?: string
+}
+
+interface InitialMockConfig {
+  rounds?: number
+  draftType?: 'snake' | 'linear' | 'auction'
+  scoring?: string
+  aiEnabled?: boolean
 }
 
 interface VolatilityMeter {
@@ -215,15 +224,28 @@ function VolatilityBadge({ v }: { v: VolatilityMeter }) {
   )
 }
 
-export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueOption[] }) {
+export default function MockDraftSimulatorClient({
+  leagues,
+  initialLeagueId = '',
+  initialConfig,
+  onDraftComplete,
+  showAIAssistantPanel = false,
+}: {
+  leagues: LeagueOption[]
+  initialLeagueId?: string
+  initialConfig?: InitialMockConfig
+  onDraftComplete?: (results: DraftPick[], draftId: string | null) => void
+  showAIAssistantPanel?: boolean
+}) {
   const { callAI, loading } = useAI<{ draftResults: DraftPick[]; updatedDraft?: DraftPick[] }>()
-  const [selectedLeagueId, setSelectedLeagueId] = useState('')
+  const [selectedLeagueId, setSelectedLeagueId] = useState(initialLeagueId)
   const [draftResults, setDraftResults] = useState<DraftPick[]>([])
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
-  const [customRounds, setCustomRounds] = useState(18)
-  const [customScoring, setCustomScoring] = useState('default')
-  const [draftType, setDraftType] = useState<'snake' | 'linear' | 'auction'>('snake')
+  const [customRounds, setCustomRounds] = useState(initialConfig?.rounds ?? 18)
+  const [customScoring, setCustomScoring] = useState(initialConfig?.scoring ?? 'default')
+  const [draftType, setDraftType] = useState<'snake' | 'linear' | 'auction'>(initialConfig?.draftType ?? 'snake')
+  const [hasFiredComplete, setHasFiredComplete] = useState(false)
   const [autopickMode, setAutopickMode] = useState<'queue-first' | 'bpa' | 'need-based'>('queue-first')
   const [draftPool, setDraftPool] = useState<'rookie' | 'vet' | 'combined'>('combined')
   const [casualMode, setCasualMode] = useState(false)
@@ -285,6 +307,80 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
   const [liveIntelLoading, setLiveIntelLoading] = useState(false)
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId)
   const managerNames = useMemo(() => Array.from(new Set(draftResults.map((p) => p.manager))).filter(Boolean), [draftResults])
+
+  useEffect(() => {
+    if (initialLeagueId && selectedLeagueId !== initialLeagueId) setSelectedLeagueId(initialLeagueId)
+  }, [initialLeagueId])
+  useEffect(() => {
+    if (initialConfig?.rounds != null) setCustomRounds(initialConfig.rounds)
+    if (initialConfig?.scoring != null) setCustomScoring(initialConfig.scoring)
+    if (initialConfig?.draftType != null) setDraftType(initialConfig.draftType)
+  }, [initialConfig?.rounds, initialConfig?.scoring, initialConfig?.draftType])
+
+  useEffect(() => {
+    if (draftResults.length === 0) setHasFiredComplete(false)
+  }, [draftResults.length])
+  useEffect(() => {
+    if (
+      onDraftComplete &&
+      draftResults.length > 0 &&
+      completedPicks >= draftResults.length &&
+      !hasFiredComplete
+    ) {
+      setHasFiredComplete(true)
+      onDraftComplete(draftResults, currentDraftId)
+    }
+  }, [onDraftComplete, draftResults, completedPicks, currentDraftId, hasFiredComplete])
+
+  const aiAssistantParams = useMemo(() => {
+    if (!showAIAssistantPanel || adpData.length === 0 || !selectedLeague || draftResults.length === 0) return null
+    const pick = currentOnClockPick ?? (draftedSoFar.length < draftResults.length ? draftResults[draftedSoFar.length] : null)
+    const round = pick?.round ?? Math.ceil((draftedSoFar.length + 1) / (selectedLeague.leagueSize || 12))
+    const pickNum = pick?.pick ?? ((draftedSoFar.length % (selectedLeague.leagueSize || 12)) + 1)
+    const managerName = pick?.manager ?? draftResults.find((p) => p.overall === draftedSoFar.length + 1)?.manager ?? 'You'
+    const userRoster = draftedSoFar.filter((p) => p.manager === managerName).map((p) => ({ position: p.position }))
+    const draftedNames = new Set(draftedSoFar.map((p) => normalizeName(p.playerName)))
+    const available = adpData
+      .filter((p) => !draftedNames.has(normalizeName(p.name)))
+      .slice(0, 80)
+      .map((p) => ({
+        name: p.name,
+        position: p.position,
+        team: p.team,
+        adp: p.adp,
+        value: p.value,
+        isRookie: /rookie|devy/i.test(String(draftPool)),
+      }))
+    const rosterSlots = selectedLeague.isDynasty
+      ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
+      : ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX']
+    const recentPicks = draftedSoFar.slice(-5).map((p) => ({ position: p.position }))
+    return {
+      available,
+      teamRoster: userRoster,
+      rosterSlots,
+      round,
+      pick: pickNum,
+      totalTeams: selectedLeague.leagueSize || 12,
+      managerName,
+      isDynasty: !!selectedLeague.isDynasty,
+      isSF: true,
+      isRookieDraft: draftPool === 'rookie',
+      mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
+      recentPicks,
+    }
+  }, [
+    showAIAssistantPanel,
+    adpData,
+    selectedLeague,
+    currentOnClockPick,
+    draftedSoFar,
+    draftResults,
+    normalizeName,
+    draftPool,
+    autopickMode,
+  ])
+
   const onClockOverall = useMemo(
     () => (livePlayback ? (completedPicks < draftResults.length ? completedPicks + 1 : null) : null),
     [livePlayback, completedPicks, draftResults.length],
@@ -1813,7 +1909,13 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
       </AnimatePresence>
 
       {draftResults.length > 0 && adpData.length > 0 && (
-        <div className="fixed top-24 right-8 w-80 bg-black/80 border border-cyan-900/50 rounded-2xl p-6 shadow-2xl shadow-cyan-950/50 z-20 hidden lg:block">
+        <div className="fixed top-24 right-8 w-80 space-y-4 z-20 hidden lg:block">
+          {showAIAssistantPanel && (
+            <div className="rounded-2xl overflow-hidden">
+              <AIDraftAssistantPanel params={aiAssistantParams} autoFetch={true} compact />
+            </div>
+          )}
+          <div className="bg-black/80 border border-cyan-900/50 rounded-2xl p-6 shadow-2xl shadow-cyan-950/50">
           <h3 className="text-lg font-bold text-cyan-300 mb-4 flex items-center gap-2">
             Best Available
             <span className="text-xs bg-cyan-900/50 px-2 py-1 rounded-full">Live</span>
@@ -1857,6 +1959,7 @@ export default function MockDraftSimulatorClient({ leagues }: { leagues: LeagueO
             {bestAvailable.length === 0 && (
               <p className="text-sm text-gray-500 text-center py-4">No players available</p>
             )}
+          </div>
           </div>
         </div>
       )}

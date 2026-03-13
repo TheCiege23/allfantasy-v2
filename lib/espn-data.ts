@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev } from './team-abbrev';
+import { recordProviderSync } from './provider-sync-logger';
 
 const SITE_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
 const CORE_API = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl';
@@ -363,6 +364,10 @@ export async function syncESPNInjuriesToDb(): Promise<{ synced: number; teams: n
         console.error(`[ESPN] Failed to sync injury for ${inj.athlete.displayName}:`, err);
       }
     }
+    await recordProviderSync(
+      { provider: 'espn', entityType: 'injury', sport: 'NFL', key: team },
+      { recordsImported: injuries.length },
+    );
   }
 
   return { synced, teams: allInjuries.length };

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 });
 
   const roster = await (prisma as any).roster.findFirst({
-    where: { leagueId, userId },
+    where: { leagueId, platformUserId: userId },
   });
 
   if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 });
@@ -22,5 +22,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     roster: roster.playerData,
     faabRemaining: roster.faabRemaining,
+    waiverPriority: roster.waiverPriority ?? null,
   });
 }

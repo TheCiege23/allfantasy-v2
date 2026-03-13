@@ -206,7 +206,8 @@ export async function getPlatformThreadMessages(
       take,
     })
 
-    return rows.reverse().map((msg: any) => ({
+    const visible = rows.filter((r: any) => !(r.metadata as Record<string, unknown>)?.hiddenByMod)
+    return visible.reverse().map((msg: any) => ({
       id: msg.id,
       threadId,
       senderUserId: msg.senderUserId || null,
@@ -221,11 +222,35 @@ export async function getPlatformThreadMessages(
   }
 }
 
+/** Soft-hide a message for moderation (commissioner). */
+export async function setMessageHiddenByMod(
+  threadId: string,
+  messageId: string,
+  hidden: boolean,
+): Promise<boolean> {
+  try {
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId },
+      select: { id: true, metadata: true },
+    })
+    if (!msg) return false
+    const meta = (msg.metadata as Record<string, unknown>) || {}
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: { metadata: { ...meta, hiddenByMod: hidden }, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function createPlatformThreadMessage(
   appUserId: string,
   threadId: string,
   body: string,
   messageType = 'text',
+  metadata?: Record<string, unknown> | null,
 ): Promise<PlatformChatMessage | null> {
   const content = String(body || '').trim()
   if (!content) return null
@@ -245,6 +270,7 @@ export async function createPlatformThreadMessage(
           senderUserId: appUserId,
           messageType,
           body: content,
+          metadata: metadata ?? undefined,
         },
         include: {
           sender: { select: { id: true, displayName: true, username: true, email: true } },
@@ -284,9 +310,141 @@ export async function createPlatformThreadTypedMessage(
   threadId: string,
   messageType: string,
   payload: unknown,
+  metadata?: Record<string, unknown> | null,
 ): Promise<PlatformChatMessage | null> {
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload)
-  return createPlatformThreadMessage(appUserId, threadId, body, messageType)
+  return createPlatformThreadMessage(appUserId, threadId, body, messageType, metadata)
+}
+
+export async function addReactionToMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+  emoji: string,
+): Promise<boolean> {
+  const emojiTrim = String(emoji || '').trim().slice(0, 10)
+  if (!emojiTrim) return false
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId },
+      select: { id: true, metadata: true },
+    })
+    if (!msg) return false
+
+    const meta = (msg.metadata as Record<string, unknown> | null) || {}
+    const reactions: Array<{ emoji: string; count: number; userIds?: string[] }> = Array.isArray(meta.reactions)
+      ? (meta.reactions as Array<{ emoji: string; count: number; userIds?: string[] }>)
+      : []
+    let found = false
+    for (const r of reactions) {
+      if (r.emoji === emojiTrim) {
+        const ids = Array.isArray(r.userIds) ? r.userIds : []
+        if (!ids.includes(appUserId)) {
+          ids.push(appUserId)
+          r.count = ids.length
+          r.userIds = ids
+        }
+        found = true
+        break
+      }
+    }
+    if (!found) reactions.push({ emoji: emojiTrim, count: 1, userIds: [appUserId] })
+
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: { metadata: { ...meta, reactions }, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Create a system message (no sender). Used for waiver_bot, broadcast, etc. Internal/cron only.
+ */
+export async function createSystemMessage(
+  threadId: string,
+  messageType: string,
+  body: string,
+): Promise<PlatformChatMessage | null> {
+  const content = String(body || '').trim()
+  if (!content) return null
+  try {
+    const created = await (prisma as any).platformChatMessage.create({
+      data: {
+        threadId,
+        senderUserId: null,
+        messageType: messageType || 'text',
+        body: content,
+      },
+    })
+    await (prisma as any).platformChatThread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: new Date() },
+    })
+    return {
+      id: created.id,
+      threadId,
+      senderUserId: null,
+      senderName: 'System',
+      messageType: created.messageType || 'text',
+      body: created.body || '',
+      createdAt: toIso(created.createdAt),
+      metadata: created.metadata || undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Create a system stats_bot message (no sender). Call from cron or internal only.
+ */
+export async function createStatsBotMessage(
+  threadId: string,
+  payload: {
+    weekLabel: string
+    bestTeam: string
+    worstTeam: string
+    bestPlayer: string
+    winStreak: string
+    lossStreak: string
+  },
+): Promise<PlatformChatMessage | null> {
+  const body = JSON.stringify(payload)
+  try {
+    const created = await (prisma as any).platformChatMessage.create({
+      data: {
+        threadId,
+        senderUserId: null,
+        messageType: 'stats_bot',
+        body,
+      },
+    })
+    await (prisma as any).platformChatThread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: new Date() },
+    })
+    return {
+      id: created.id,
+      threadId,
+      senderUserId: null,
+      senderName: 'Chat Stats Bot',
+      messageType: 'stats_bot',
+      body: created.body || '',
+      createdAt: toIso(created.createdAt),
+      metadata: created.metadata || undefined,
+    }
+  } catch {
+    return null
+  }
 }
 
 export async function blockUserInSharedThreads(
@@ -322,6 +480,47 @@ export async function blockUserInSharedThreads(
         userId: blockedUserId,
       },
       data: { isBlocked: true },
+    })
+
+    return Number(result?.count || 0)
+  } catch {
+    return 0
+  }
+}
+
+export async function unblockUserInSharedThreads(
+  requesterUserId: string,
+  blockedUserId: string,
+): Promise<number> {
+  if (!requesterUserId || !blockedUserId || requesterUserId === blockedUserId) return 0
+
+  try {
+    const shared = await (prisma as any).platformChatThread.findMany({
+      where: {
+        members: {
+          some: { userId: requesterUserId },
+        },
+        AND: [
+          {
+            members: {
+              some: { userId: blockedUserId },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+      take: 200,
+    })
+
+    if (!shared.length) return 0
+    const threadIds = shared.map((t: { id: string }) => t.id)
+
+    const result = await (prisma as any).platformChatThreadMember.updateMany({
+      where: {
+        threadId: { in: threadIds },
+        userId: blockedUserId,
+      },
+      data: { isBlocked: false },
     })
 
     return Number(result?.count || 0)
