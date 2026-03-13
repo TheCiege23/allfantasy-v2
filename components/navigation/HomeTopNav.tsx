@@ -20,10 +20,11 @@ export default function HomeTopNav() {
   const [leagueId, setLeagueId] = useState("all")
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  const user = session?.user as { username?: string; name?: string; email?: string | null } | undefined
   const username =
-    (session?.user as any)?.username ||
-    session?.user?.name ||
-    (session?.user?.email ? session.user.email.split("@")[0] : "Guest")
+    user?.username ||
+    user?.name ||
+    (user?.email ? user.email.split("@")[0] : "Guest")
 
   return (
     <>

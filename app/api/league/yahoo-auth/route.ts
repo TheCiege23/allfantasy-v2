@@ -6,8 +6,8 @@ import crypto from 'crypto';
 const YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth';
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id as string | undefined;
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  const userId = session?.user?.id;
 
   if (!userId) {
     return NextResponse.redirect(new URL('/login', request.url));

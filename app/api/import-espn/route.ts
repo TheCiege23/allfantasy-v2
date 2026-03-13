@@ -107,7 +107,7 @@ function getEspnScoring(scoringType: string | undefined): string {
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
     const userId = session?.user?.id ?? null;
 
     if (!userId) {

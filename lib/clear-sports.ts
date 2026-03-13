@@ -102,7 +102,7 @@ function leagueCodeForSport(sport: ClearSportsSport): string {
     case 'MLB':
       return 'mlb'
     default:
-      return sport.toLowerCase()
+      return (sport as string).toLowerCase()
   }
 }
 

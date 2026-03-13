@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: { params: { shareId: string }
   const picks = (draft.results as unknown) as DraftPick[]
   const userPicks = picks.filter(p => p.isUser)
   return {
-    title: `${draft.league.name} Mock Draft - AllFantasy`,
+    title: `${draft.league?.name ?? 'Mock'} Mock Draft - AllFantasy`,
     description: `${picks.length} picks across ${draft.rounds} rounds. Top picks: ${userPicks.slice(0, 3).map(p => p.playerName).join(', ')}`,
   }
 }
@@ -68,10 +68,10 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
         <div className="text-center mb-10">
           <p className="text-sm text-cyan-400 font-mono mb-2">SHARED MOCK DRAFT</p>
           <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-            {draft.league.name}
+            {draft.league?.name ?? 'Mock Draft'}
           </h1>
           <p className="text-gray-500 mt-2 text-sm">
-            by {draft.user.displayName || 'Anonymous'} &middot; {draft.league.leagueSize}-team {draft.league.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league.scoring || 'PPR'} &middot; {new Date(draft.createdAt).toLocaleDateString()}
+            by {draft.user?.displayName || 'Anonymous'} &middot; {draft.league?.leagueSize ?? 12}-team {draft.league?.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league?.scoring || 'PPR'} &middot; {new Date(draft.createdAt).toLocaleDateString()}
           </p>
         </div>
 

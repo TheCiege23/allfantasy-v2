@@ -57,7 +57,7 @@ export default function UserStatsPanel(props: UserStatsPanelProps) {
   const maxWins = Math.max(...history.map((p) => p.wins), 1)
   const maxLosses = Math.max(...history.map((p) => p.losses), 1)
 
-  const initial = username.charAt(0).toUpperCase()
+  const initial = (username ?? '').charAt(0).toUpperCase()
 
   return (
     <section className="px-4 py-6 sm:px-6 sm:py-8">

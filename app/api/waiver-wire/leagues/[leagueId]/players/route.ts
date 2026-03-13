@@ -12,10 +12,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  if (!(session?.user as any)?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const leagueId = params.leagueId
   const [league, rosterAsMember] = await Promise.all([
     (prisma as any).league.findFirst({

@@ -139,19 +139,23 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       let bRef: { section: RosterSectionKey; index: number } | null = null
 
       ;(Object.keys(next) as RosterSectionKey[]).forEach((key) => {
-        next[key].forEach((p, idx) => {
-          if (p.id === aId) aRef = { section: key, index: idx }
-          if (p.id === bId) bRef = { section: key, index: idx }
+        const section = key as RosterSectionKey
+        next[section].forEach((p, idx) => {
+          if (p.id === aId) aRef = { section, index: idx }
+          if (p.id === bId) bRef = { section, index: idx }
         })
       })
 
       if (!aRef || !bRef) return
 
-      const a = next[aRef.section][aRef.index]
-      const b = next[bRef.section][bRef.index]
+      type Ref = { section: RosterSectionKey; index: number }
+      const aR = aRef as Ref
+      const bR = bRef as Ref
+      const a = next[aR.section][aR.index]
+      const b = next[bR.section][bR.index]
 
-      next[aRef.section][aRef.index] = { ...b, slot: aRef.section }
-      next[bRef.section][bRef.index] = { ...a, slot: bRef.section }
+      next[aR.section][aR.index] = { ...b, slot: aR.section }
+      next[bR.section][bR.index] = { ...a, slot: bR.section }
 
       setRoster(next)
       void autoSave(next)

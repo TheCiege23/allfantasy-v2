@@ -11,9 +11,9 @@ export async function POST(req: NextRequest) {
   let userEmail: string | undefined;
   let normalizedPlatform = '';
   try {
-    const session = await getServerSession(authOptions);
-    userId = (session?.user as any)?.id as string | undefined;
-    userEmail = (session?.user as any)?.email;
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string; email?: string | null } } | null;
+    userId = session?.user?.id;
+    userEmail = session?.user?.email ?? undefined;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

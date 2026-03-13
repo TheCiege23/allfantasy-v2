@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { encrypt } from '@/lib/league-auth-crypto';
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id as string | undefined;
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  const userId = session?.user?.id;
 
   if (!userId) {
     return NextResponse.redirect(new URL('/login', req.url));

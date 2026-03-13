@@ -4,10 +4,10 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!(session?.user as any)?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const userId = (session!.user as any).id as string;
+  const userId = session.user.id as string;
   const { searchParams } = new URL(req.url);
   const leagueId = searchParams.get('leagueId');
 

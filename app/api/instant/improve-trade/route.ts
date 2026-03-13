@@ -341,8 +341,8 @@ export const POST = withApiUsage({ endpoint: '/api/instant/improve-trade', tool:
 
     let userPreferenceProfile: string | null = null
     try {
-      const session = await getServerSession(authOptions)
-      const userId = (session?.user as any)?.id
+      const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+      const userId = session?.user?.id
       if (userId) {
         userPreferenceProfile = await getUserTradeProfile(userId)
       }

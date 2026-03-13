@@ -332,6 +332,23 @@ export default function MockDraftSimulatorClient({
     }
   }, [onDraftComplete, draftResults, completedPicks, currentDraftId, hasFiredComplete])
 
+  const onClockOverall = useMemo(
+    () => (livePlayback ? (completedPicks < draftResults.length ? completedPicks + 1 : null) : null),
+    [livePlayback, completedPicks, draftResults.length],
+  )
+  const currentOnClockPick = useMemo(
+    () => (onClockOverall ? draftResults.find((p) => p.overall === onClockOverall) || null : null),
+    [draftResults, onClockOverall],
+  )
+  const draftedSoFar = useMemo(
+    () => (livePlayback ? draftResults.filter((p) => p.overall <= completedPicks) : draftResults),
+    [livePlayback, draftResults, completedPicks],
+  )
+
+  const normalizeName = useCallback((name: string) => {
+    return name.toLowerCase().replace(/[.\-']/g, '').replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '').trim()
+  }, [])
+
   const aiAssistantParams = useMemo(() => {
     if (!showAIAssistantPanel || adpData.length === 0 || !selectedLeague || draftResults.length === 0) return null
     const pick = currentOnClockPick ?? (draftedSoFar.length < draftResults.length ? draftResults[draftedSoFar.length] : null)
@@ -348,7 +365,7 @@ export default function MockDraftSimulatorClient({
         position: p.position,
         team: p.team,
         adp: p.adp,
-        value: p.value,
+        value: p.value ?? undefined,
         isRookie: /rookie|devy/i.test(String(draftPool)),
       }))
     const rosterSlots = selectedLeague.isDynasty
@@ -366,7 +383,7 @@ export default function MockDraftSimulatorClient({
       isDynasty: !!selectedLeague.isDynasty,
       isSF: true,
       isRookieDraft: draftPool === 'rookie',
-      mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
+      mode: (autopickMode === 'bpa' ? 'bpa' : 'needs') as 'bpa' | 'needs',
       recentPicks,
     }
   }, [
@@ -380,23 +397,6 @@ export default function MockDraftSimulatorClient({
     draftPool,
     autopickMode,
   ])
-
-  const onClockOverall = useMemo(
-    () => (livePlayback ? (completedPicks < draftResults.length ? completedPicks + 1 : null) : null),
-    [livePlayback, completedPicks, draftResults.length],
-  )
-  const currentOnClockPick = useMemo(
-    () => (onClockOverall ? draftResults.find((p) => p.overall === onClockOverall) || null : null),
-    [draftResults, onClockOverall],
-  )
-  const draftedSoFar = useMemo(
-    () => (livePlayback ? draftResults.filter((p) => p.overall <= completedPicks) : draftResults),
-    [livePlayback, draftResults, completedPicks],
-  )
-
-  const normalizeName = useCallback((name: string) => {
-    return name.toLowerCase().replace(/[.\-']/g, '').replace(/\s+(jr|sr|ii|iii|iv|v)$/i, '').trim()
-  }, [])
 
   const adpMap = useMemo(() => {
     const map = new Map<string, ADPPlayer>()

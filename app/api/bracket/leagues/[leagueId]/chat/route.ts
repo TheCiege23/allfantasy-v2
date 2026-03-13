@@ -27,8 +27,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as any)?.id as string | undefined
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const member = await prisma.bracketLeagueMember.findUnique({
@@ -59,8 +59,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as any)?.id as string | undefined
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const member = await prisma.bracketLeagueMember.findUnique({

@@ -98,9 +98,16 @@ export default function MockDraftSimulatorWrapper({ leagues }: MockDraftSimulato
     )
   }
 
+  const leaguesWithSize = leagues.map((l) => ({
+    ...l,
+    leagueSize: l.leagueSize ?? 12,
+    isDynasty: l.isDynasty ?? false,
+    scoring: l.scoring ?? null,
+  }))
+
   return (
     <MockDraftSimulatorClient
-      leagues={leagues}
+      leagues={leaguesWithSize}
       initialLeagueId={mockConfig?.leagueId ?? ''}
       initialConfig={
         mockConfig

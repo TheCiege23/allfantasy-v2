@@ -11,8 +11,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
   const leagueId = params.leagueId
 
   const league = await (prisma as any).league.findFirst({

@@ -4,12 +4,12 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!(session?.user as any)?.id) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = (session!.user as any).id as string;
+  const userId = session.user.id as string;
   const { leagueId } = await req.json().catch(() => ({}));
 
   try {

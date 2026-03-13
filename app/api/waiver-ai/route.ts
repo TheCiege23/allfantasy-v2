@@ -479,9 +479,9 @@ export const POST = withApiUsage({
 })(async (request: NextRequest) => {
   const startMs = Date.now()
 
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as any)?.id ?? null
-  const isPro = (session?.user as any)?.isPro ?? false
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string; isPro?: boolean } } | null
+  const userId = session?.user?.id ?? null
+  const isPro = session?.user?.isPro ?? false
 
   const ip = getClientIp(request) || 'unknown'
 

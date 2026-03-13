@@ -1,6 +1,6 @@
 "use client"
 
-import { Gif as GifIcon, Image as ImageIcon, Film } from "lucide-react"
+import { Image as GifIcon, Image as ImageIcon, Film } from "lucide-react"
 import { useMediaUpload } from "@/hooks/useMediaUpload"
 
 /**

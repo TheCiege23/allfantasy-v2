@@ -160,8 +160,8 @@ function analyzeRoster(
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = (session?.user as any)?.id as string | undefined;
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+    const userId = session?.user?.id;
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
