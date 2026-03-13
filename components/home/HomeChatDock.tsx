@@ -10,7 +10,6 @@ import {
   Image as ImageIcon,
   Film,
   SmilePlus,
-  Gif as GifIcon,
   BarChart2,
   Pin,
   MoreHorizontal,
@@ -514,7 +513,7 @@ export default function HomeChatDock() {
             }}
             aria-label="Add GIF"
           >
-            <GifIcon className="h-3.5 w-3.5" />
+            <ImageIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
@@ -699,7 +698,7 @@ function ChatMessageRow({
                     color: "var(--muted2)",
                   }}
                 >
-                  {a.type === "gif" && <GifIcon className="h-3 w-3" />}
+                  {a.type === "gif" && <ImageIcon className="h-3 w-3" />}
                   {a.type === "image" && <ImageIcon className="h-3 w-3" />}
                   {a.type === "video" && <Film className="h-3 w-3" />}
                   {a.type === "meme" && <SmilePlus className="h-3 w-3" />}
