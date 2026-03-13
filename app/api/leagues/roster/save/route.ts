@@ -6,8 +6,8 @@ import { authOptions } from '@/lib/auth'
 // In a future pass this should validate league membership and persist to a real model.
 // For now, it simply validates auth and accepts the payload.
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions as any)
-  if (!(session?.user as any)?.id) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
