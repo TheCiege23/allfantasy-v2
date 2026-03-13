@@ -11,8 +11,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
-  const session = await getServerSession(authOptions as any)
-  const userId = (session?.user as any)?.id
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const leagueId = params.leagueId
