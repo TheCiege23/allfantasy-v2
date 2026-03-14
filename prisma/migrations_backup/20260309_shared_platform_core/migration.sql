@@ -1,7 +1,26 @@
 -- Shared platform core tables for chat, notifications, and wallet ledger
 -- Safe/idempotent artifact for rollout
+-- Ensures app_users exists so FK constraints can be applied (e.g. in shadow DB).
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- AppUser table (required by FKs below; may already exist in production from initial setup)
+CREATE TABLE IF NOT EXISTS "app_users" (
+  "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "email" TEXT NOT NULL,
+  "emailVerified" TIMESTAMPTZ,
+  "username" TEXT NOT NULL,
+  "passwordHash" TEXT,
+  "displayName" TEXT,
+  "avatarUrl" TEXT,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "legacyUserId" TEXT,
+  "activeLeagueId" TEXT,
+  CONSTRAINT "app_users_email_key" UNIQUE ("email"),
+  CONSTRAINT "app_users_username_key" UNIQUE ("username"),
+  CONSTRAINT "app_users_legacyUserId_key" UNIQUE ("legacyUserId")
+);
 
 CREATE TABLE IF NOT EXISTS "platform_chat_threads" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),

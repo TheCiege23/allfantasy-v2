@@ -6,6 +6,8 @@ import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import AppShellNav from "@/components/navigation/AppShellNav"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
+import LeagueIntelligenceGraphPanel from "@/components/app/league-intelligence/LeagueIntelligenceGraphPanel"
+import { LeagueForecastSection } from "@/components/simulation/LeagueForecastSection"
 import { useLegacyTab } from "@/hooks/useLegacyTab"
 import { postMarketRefresh } from "@/lib/api/legacy"
 import type {
@@ -26,6 +28,7 @@ type LeagueTab =
   | "Draft"
   | "Standings/Playoffs"
   | "League"
+  | "Intelligence"
   | "Chat"
   | "Settings"
   | "Previous Leagues"
@@ -41,6 +44,7 @@ const LEAGUE_TABS: LeagueTab[] = [
   "Draft",
   "Standings/Playoffs",
   "League",
+  "Intelligence",
   "Chat",
   "Settings",
   "Previous Leagues",
@@ -532,46 +536,65 @@ export default function LeagueHomeShellPage() {
             )}
 
             {activeTab === "Standings/Playoffs" && (
-              <Card title="Standings">
-                {standings && standings.length > 0 ? (
-                  <div>
-                    <div className="space-y-2 sm:hidden">
-                      {standings.map((s) => (
-                        <div key={s.entryId} className="rounded-lg border border-white/10 px-3 py-2">
-                          <div className="text-sm font-medium">#{s.rank} {s.entryName}</div>
-                          <div className="text-xs text-white/60">{s.ownerName}</div>
-                          <div className="mt-1 text-xs text-white/70">{s.points} pts - {s.picksCount} picks</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="hidden overflow-x-auto sm:block">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead className="text-white/60">
-                          <tr>
-                            <th className="px-2 py-2 text-left">Rank</th>
-                            <th className="px-2 py-2 text-left">Entry</th>
-                            <th className="px-2 py-2 text-left">Owner</th>
-                            <th className="px-2 py-2 text-left">Points</th>
-                            <th className="px-2 py-2 text-left">Picks</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {standings.map((s) => (
-                            <tr key={s.entryId} className="border-t border-white/10">
-                              <td className="px-2 py-2">{s.rank}</td>
-                              <td className="px-2 py-2">{s.entryName}</td>
-                              <td className="px-2 py-2">{s.ownerName}</td>
-                              <td className="px-2 py-2">{s.points}</td>
-                              <td className="px-2 py-2">{s.picksCount}</td>
+              <div className="space-y-6">
+                <Card title="Standings">
+                  {standings && standings.length > 0 ? (
+                    <div>
+                      <div className="space-y-2 sm:hidden">
+                        {standings.map((s) => (
+                          <div key={s.entryId} className="rounded-lg border border-white/10 px-3 py-2">
+                            <div className="text-sm font-medium">#{s.rank} {s.entryName}</div>
+                            <div className="text-xs text-white/60">{s.ownerName}</div>
+                            <div className="mt-1 text-xs text-white/70">{s.points} pts - {s.picksCount} picks</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="hidden overflow-x-auto sm:block">
+                        <table className="w-full min-w-[640px] text-sm">
+                          <thead className="text-white/60">
+                            <tr>
+                              <th className="px-2 py-2 text-left">Rank</th>
+                              <th className="px-2 py-2 text-left">Entry</th>
+                              <th className="px-2 py-2 text-left">Owner</th>
+                              <th className="px-2 py-2 text-left">Points</th>
+                              <th className="px-2 py-2 text-left">Picks</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {standings.map((s) => (
+                              <tr key={s.entryId} className="border-t border-white/10">
+                                <td className="px-2 py-2">{s.rank}</td>
+                                <td className="px-2 py-2">{s.entryName}</td>
+                                <td className="px-2 py-2">{s.ownerName}</td>
+                                <td className="px-2 py-2">{s.points}</td>
+                                <td className="px-2 py-2">{s.picksCount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <InlineNote text="No standings yet." />
-                )}
+                  ) : (
+                    <InlineNote text="No standings yet." />
+                  )}
+                </Card>
+                <Card title="Season & playoff forecast">
+                  <LeagueForecastSection
+                    leagueId={leagueId}
+                    teamNames={Object.fromEntries(
+                      (standings ?? []).map((s) => [s.entryId, s.entryName])
+                    )}
+                    teamRanks={Object.fromEntries(
+                      (standings ?? []).map((s) => [s.entryId, s.rank])
+                    )}
+                  />
+                </Card>
+              </div>
+            )}
+
+            {activeTab === "Intelligence" && (
+              <Card title="League Intelligence Graph">
+                <LeagueIntelligenceGraphPanel leagueId={leagueId} isDynasty={true} />
               </Card>
             )}
 

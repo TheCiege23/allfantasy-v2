@@ -20,6 +20,8 @@ export async function GET() {
         select: {
           id: true,
           name: true,
+          sport: true,
+          leagueVariant: true,
           platform: true,
           platformLeagueId: true,
           leagueSize: true,

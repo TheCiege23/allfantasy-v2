@@ -2,6 +2,7 @@
 
 import { Fragment } from "react"
 import type { MatchupSummary } from "./MatchupCard"
+import { MatchupSimulationCard } from "@/components/simulation/MatchupSimulationCard"
 
 type MatchupDetailViewProps = {
   matchup: MatchupSummary | null
@@ -53,6 +54,17 @@ export function MatchupDetailView({ matchup }: MatchupDetailViewProps) {
           </p>
         </div>
       </header>
+
+      <div className="mt-3">
+        <MatchupSimulationCard
+          teamAName={matchup.teamA}
+          teamBName={matchup.teamB}
+          teamA={{ mean: matchup.projA, stdDev: 15 }}
+          teamB={{ mean: matchup.projB, stdDev: 15 }}
+          scoreA={matchup.scoreA}
+          scoreB={matchup.scoreB}
+        />
+      </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <LineupColumn title="Starting Lineup" teamLabel={matchup.teamA} />

@@ -1,0 +1,222 @@
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
+import { RelationshipGraphView } from "./RelationshipGraphView";
+import { DynastyTimelineView } from "./DynastyTimelineView";
+import { ManagerRelationshipCard } from "./ManagerRelationshipCard";
+import { GraphInsightDrawer } from "./GraphInsightDrawer";
+
+export type GraphPanelView = "summary" | "graph" | "timeline" | "managers";
+
+type RelationshipProfile = {
+  leagueId: string;
+  season: number | null;
+  strongestRivalries: Array<{ nodeA: string; nodeB: string; intensityScore: number; weight: number }>;
+  tradeClusters: Array<{ id: string; members: Array<{ nodeId: string; entityId: string }>; internalWeight?: number; dominantPair?: { nodeA: string; nodeB: string; weight: number } }>;
+  influenceLeaders: Array<{ nodeId: string; entityId: string; compositeScore: number; centralityScore: number; tradeInfluenceScore: number; rivalryInfluenceScore: number; championshipImpactScore: number }>;
+  centralManagers: Array<{ nodeId: string; entityId: string; centralityScore: number; degree: number; weightedDegree: number }>;
+  isolatedManagers: Array<{ nodeId: string; entityId: string }>;
+  dynastyPowerTransitions: Array<{ fromSeason: number; toSeason: number; fromNodeIds: string[]; toNodeIds: string[]; type: string }>;
+  repeatedEliminationPatterns: Array<{ eliminatorNodeId: string; eliminatedNodeId: string; count: number; seasons: number[] }>;
+  generatedAt: string;
+};
+
+type DynastySeason = { season: number; platformLeagueId: string; importedAt: string };
+
+export default function LeagueIntelligenceGraphPanel({
+  leagueId,
+  isDynasty = false,
+}: {
+  leagueId: string;
+  isDynasty?: boolean;
+}) {
+  const [view, setView] = useState<GraphPanelView>("summary");
+  const [season, setSeason] = useState<number | null>(null);
+  const [profile, setProfile] = useState<RelationshipProfile | null>(null);
+  const [dynastySeasons, setDynastySeasons] = useState<DynastySeason[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [insightDrawerOpen, setInsightDrawerOpen] = useState(false);
+
+  const loadProfile = useCallback(
+    async (seasonParam: number | null) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const url = seasonParam != null
+          ? `/api/leagues/${encodeURIComponent(leagueId)}/relationship-profile?season=${seasonParam}`
+          : `/api/leagues/${encodeURIComponent(leagueId)}/relationship-profile`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load profile"));
+        const data = await res.json();
+        setProfile(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load");
+        setProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [leagueId]
+  );
+
+  const loadDynastySeasons = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dynasty-backfill`, { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      const list = Array.isArray(data?.dynastySeasons) ? data.dynastySeasons : [];
+      setDynastySeasons(list.map((d: { season: number; platformLeagueId: string; importedAt: string }) => ({ season: d.season, platformLeagueId: d.platformLeagueId, importedAt: d.importedAt })));
+    } catch {
+      setDynastySeasons([]);
+    }
+  }, [leagueId]);
+
+  useEffect(() => {
+    void loadProfile(season);
+  }, [loadProfile, season]);
+
+  useEffect(() => {
+    if (isDynasty) void loadDynastySeasons();
+  }, [isDynasty, loadDynastySeasons]);
+
+  const seasonLabel = season != null ? `${season}` : "All (dynasty)";
+  const hasHistory = isDynasty && dynastySeasons.length > 0;
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-white">League Intelligence Graph</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {isDynasty && (
+            <select
+              value={season ?? ""}
+              onChange={(e) => setSeason(e.target.value === "" ? null : parseInt(e.target.value, 10))}
+              className="rounded-lg border border-white/20 bg-black/40 px-2 py-1.5 text-sm text-white"
+            >
+              <option value="">All seasons</option>
+              {dynastySeasons.map((d) => (
+                <option key={d.season} value={d.season}>{d.season}</option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => setInsightDrawerOpen(true)}
+            className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-500/20"
+          >
+            AI explain
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        {(["summary", "graph", "timeline", "managers"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`rounded-lg px-3 py-1.5 text-xs capitalize ${view === v ? "bg-white text-black" : "border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"}`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+
+      {hasHistory && (
+        <p className="mb-3 text-xs text-white/60">
+          Using imported dynasty history ({dynastySeasons.length} seasons). View: {seasonLabel}.
+        </p>
+      )}
+
+      {loading && <p className="text-sm text-white/60">Loading graph data...</p>}
+      {error && <p className="text-sm text-red-300">{error}</p>}
+
+      {!loading && !error && profile && (
+        <>
+          {view === "summary" && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-xs text-white/50">Rivalries</div>
+                <div className="text-lg font-medium text-white">{profile.strongestRivalries?.length ?? 0}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-xs text-white/50">Trade clusters</div>
+                <div className="text-lg font-medium text-white">{profile.tradeClusters?.length ?? 0}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="text-xs text-white/50">Power transitions</div>
+                <div className="text-lg font-medium text-white">{profile.dynastyPowerTransitions?.length ?? 0}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 sm:col-span-2 lg:col-span-3">
+                <div className="text-xs text-white/50">Top influence</div>
+                {profile.influenceLeaders?.[0] ? (
+                  <div className="mt-1 text-sm text-white/90">
+                    {String((profile.influenceLeaders[0] as { entityId?: string }).entityId ?? "—")} (score: {(profile.influenceLeaders[0] as { compositeScore?: number }).compositeScore?.toFixed(2) ?? "—"})
+                  </div>
+                ) : (
+                  <div className="mt-1 text-sm text-white/60">No data</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {view === "graph" && (
+            <RelationshipGraphView
+              leagueId={leagueId}
+              season={season}
+              onSelectManager={(id) => {
+                setView("managers");
+              }}
+            />
+          )}
+
+          {view === "timeline" && (
+            <DynastyTimelineView
+              leagueId={leagueId}
+              profile={profile}
+              dynastySeasons={dynastySeasons}
+            />
+          )}
+
+          {view === "managers" && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-white/80">Central managers</h3>
+              {(profile.centralManagers ?? []).slice(0, 8).map((m) => (
+                <ManagerRelationshipCard
+                  key={m.nodeId}
+                  leagueId={leagueId}
+                  entityId={m.entityId}
+                  nodeId={m.nodeId}
+                  centralityScore={m.centralityScore}
+                  profile={profile}
+                />
+              ))}
+              {(profile.isolatedManagers ?? []).length > 0 && (
+                <>
+                  <h3 className="mt-4 text-sm font-medium text-white/80">Isolated</h3>
+                  {profile.isolatedManagers.slice(0, 4).map((m) => (
+                    <ManagerRelationshipCard
+                      key={m.nodeId}
+                      leagueId={leagueId}
+                      entityId={m.entityId}
+                      nodeId={m.nodeId}
+                      centralityScore={0}
+                      profile={profile}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      <GraphInsightDrawer
+        open={insightDrawerOpen}
+        onClose={() => setInsightDrawerOpen(false)}
+        leagueId={leagueId}
+        season={season}
+      />
+    </section>
+  );
+}

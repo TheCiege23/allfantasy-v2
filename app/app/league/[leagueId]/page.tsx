@@ -19,6 +19,7 @@ import LeagueChatTab from '@/components/app/tabs/LeagueChatTab'
 import LeagueSettingsTab from '@/components/app/tabs/LeagueSettingsTab'
 import CommissionerTab from '@/components/app/tabs/CommissionerTab'
 import PreviousLeaguesTab from '@/components/app/tabs/PreviousLeaguesTab'
+import IntelligenceTab from '@/components/app/tabs/IntelligenceTab'
 
 type LeagueSummary = { id: string; name: string }
 
@@ -85,6 +86,7 @@ export default function AppLeaguePage() {
       if (tab === 'Draft') return <DraftTab leagueId={leagueId} />
       if (tab === 'Standings / Playoffs') return <StandingsTab leagueId={leagueId} />
       if (tab === 'League') return <LeagueInfoTab leagueId={leagueId} />
+      if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
       if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} />
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />

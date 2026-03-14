@@ -53,8 +53,16 @@ function teamCacheKey(teamAbbr: string, sport: string): string {
   return `${sport}:team:${teamAbbr}`
 }
 
-function getTeamLogoUrl(teamAbbr: string | null): string | null {
+function getTeamLogoUrl(teamAbbr: string | null, sport: string = 'nfl'): string | null {
   if (!teamAbbr) return null
+  if (sport.toLowerCase() !== 'nfl') {
+    try {
+      const { resolveTeamLogoUrlSync } = require('@/lib/sport-teams/TeamLogoResolver')
+      return resolveTeamLogoUrlSync(teamAbbr, sport)
+    } catch {
+      // fallback to NFL map if sport-teams not available
+    }
+  }
   const upper = teamAbbr.toUpperCase()
   const key = ESPN_TEAM_MAP[upper]
   return key ? `${ESPN_LOGO_BASE}/${key}.png` : null
@@ -64,15 +72,19 @@ function buildHeadshotUrl(playerId: string | null): string | null {
   return playerId ? `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg` : null
 }
 
-function buildMediaFromTemplate(playerId: string | null, teamAbbr: string | null): PlayerMedia {
+function buildMediaFromTemplate(playerId: string | null, teamAbbr: string | null, sport: string = 'nfl'): PlayerMedia {
   return {
     headshotUrl: buildHeadshotUrl(playerId),
-    teamLogoUrl: getTeamLogoUrl(teamAbbr),
+    teamLogoUrl: getTeamLogoUrl(teamAbbr, sport),
   }
 }
 
-export function buildPlayerMedia(playerId: string | null, teamAbbr: string | null): PlayerMedia {
-  return buildMediaFromTemplate(playerId, teamAbbr)
+export function buildPlayerMedia(
+  playerId: string | null,
+  teamAbbr: string | null,
+  sport: string = 'nfl'
+): PlayerMedia {
+  return buildMediaFromTemplate(playerId, teamAbbr, sport)
 }
 
 export function attachTeamMedia(teamAbbr: string | null, sport: string = 'nfl'): PlayerMedia {
@@ -84,7 +96,7 @@ export function attachTeamMedia(teamAbbr: string | null, sport: string = 'nfl'):
 
   const media: PlayerMedia = {
     headshotUrl: null,
-    teamLogoUrl: getTeamLogoUrl(teamAbbr),
+    teamLogoUrl: getTeamLogoUrl(teamAbbr, sport),
   }
 
   TEAM_CACHE.set(ck, { data: media, expiresAt: Date.now() + CACHE_TTL_MS })
@@ -329,7 +341,7 @@ export function toStandardPlayer(
     position,
     teamAbbr,
     sport: 'nfl',
-    media: buildMediaFromTemplate(playerId, teamAbbr),
+    media: buildMediaFromTemplate(playerId, teamAbbr, 'nfl'),
   }
 }
 
@@ -349,7 +361,12 @@ export function sleeperHeadshotUrl(playerId: string, sport: SportKey = 'nfl'): s
 export function sleeperTeamLogoUrl(teamAbbr: string, sport: SportKey = 'nfl'): string | null {
   if (!teamAbbr) return null
   if (sport === 'nfl') return `https://sleepercdn.com/images/team_logos/nfl/${teamAbbr.toLowerCase()}.png`
-  return null
+  try {
+    const { resolveTeamLogoUrlSync } = require('@/lib/sport-teams/TeamLogoResolver')
+    return resolveTeamLogoUrlSync(teamAbbr, sport)
+  } catch {
+    return null
+  }
 }
 
 export function normalizeTeamAbbr(team?: string | null): string | null {

@@ -11,6 +11,7 @@ export type LeagueShellTab =
   | "Draft"
   | "Standings / Playoffs"
   | "League"
+  | "Intelligence"
   | "Chat"
   | "Settings"
   | "Commissioner"
@@ -27,6 +28,7 @@ export const LEAGUE_SHELL_TABS: LeagueShellTab[] = [
   "Draft",
   "Standings / Playoffs",
   "League",
+  "Intelligence",
   "Chat",
   "Settings",
   "Previous Leagues",

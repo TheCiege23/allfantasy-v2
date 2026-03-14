@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Loader2, Trophy } from 'lucide-react';
+import { useSportPreset, type LeagueSportOption } from '@/hooks/useSportPreset';
+import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry';
+import {
+  LeagueCreationSportSelector,
+  LeagueCreationPresetSelector,
+  LeagueSettingsPreviewPanel,
+} from '@/components/league-creation';
+
+function leagueOptionToSport(opt: LeagueSportOption): 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER' {
+  return opt as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
+}
 
 export default function StartupDynastyForm({ userId }: { userId: string }) {
+  const [sport, setSport] = useState<LeagueSportOption>('NFL');
+  const [leagueVariant, setLeagueVariant] = useState<string>('PPR');
   const [leagueName, setLeagueName] = useState('');
   const [platform, setPlatform] = useState<'sleeper' | 'espn' | 'manual'>('sleeper');
   const [platformLeagueId, setPlatformLeagueId] = useState('');
@@ -19,6 +32,27 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
   const [qbFormat, setQbFormat] = useState<'1qb' | 'sf'>('sf');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const sportType = leagueOptionToSport(sport);
+  const variantOptions = getVariantsForSport(sportType);
+  const { preset, loading: presetLoading } = useSportPreset(sport, sport === 'NFL' ? leagueVariant : undefined);
+
+  useEffect(() => {
+    if (sport !== 'NFL') setLeagueVariant('STANDARD');
+  }, [sport]);
+
+  useEffect(() => {
+    if (!preset) return;
+    setLeagueSize(String(preset.league.default_team_count));
+    if (sport === 'NFL' && !['IDP', 'DYNASTY_IDP'].includes(leagueVariant)) {
+      const fmt = (preset.scoring.scoring_format ?? '').toLowerCase();
+      if (fmt === 'half ppr' || fmt === 'half_ppr') setScoring('half_ppr');
+      else if (fmt === 'standard') setScoring('standard');
+      else if (fmt === 'points') setScoring('points');
+      else if (fmt === 'ppr') setScoring('ppr');
+    }
+    if (!leagueName.trim()) setLeagueName(preset.league.default_league_name_pattern || '');
+  }, [preset, sport, leagueVariant]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -43,9 +77,11 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
           platform,
           platformLeagueId: platform !== 'manual' ? platformLeagueId.trim() : undefined,
           leagueSize: Number(leagueSize),
-          scoring,
+          scoring: sport === 'NFL' ? (scoring === 'half_ppr' ? 'Half PPR' : scoring === 'standard' ? 'Standard' : 'PPR') : (preset?.scoring?.scoring_format ?? scoring),
           isDynasty: format === 'dynasty',
           isSuperflex: qbFormat === 'sf',
+          sport,
+          leagueVariant: sport === 'NFL' ? leagueVariant : sport === 'SOCCER' ? 'STANDARD' : undefined,
           userId,
         }),
       });
@@ -81,6 +117,27 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <LeagueCreationSportSelector
+          value={sport}
+          onChange={(v) => setSport(v)}
+          disabled={loading}
+          showHelper
+        />
+        {presetLoading && <p className="text-white/50 text-xs mt-1">Loading preset…</p>}
+        <LeagueCreationPresetSelector
+          variantOptions={variantOptions}
+          value={leagueVariant}
+          onChange={setLeagueVariant}
+          disabled={loading}
+          showHelper
+        />
+        {preset && (
+          <LeagueSettingsPreviewPanel
+            preset={preset}
+            sport={sport}
+            presetLabel={variantOptions.find((v) => v.value === leagueVariant)?.label}
+          />
+        )}
         <div>
           <Label htmlFor="league-name">League Name</Label>
           <Input
@@ -136,18 +193,25 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>QB Format</Label>
-            <Select value={qbFormat} onValueChange={(v) => setQbFormat(v as any)}>
-              <SelectTrigger className="bg-gray-900 border-purple-600/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sf">Superflex (2QB)</SelectItem>
-                <SelectItem value="1qb">1QB</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {sport === 'NFL' && !['IDP', 'DYNASTY_IDP'].includes(leagueVariant) && (
+            <div>
+              <Label>QB Format</Label>
+              <Select value={qbFormat} onValueChange={(v) => setQbFormat(v as any)}>
+                <SelectTrigger className="bg-gray-900 border-purple-600/40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sf">Superflex (2QB)</SelectItem>
+                  <SelectItem value="1qb">1QB</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {sport === 'SOCCER' && (
+            <div className="text-white/60 text-sm flex items-center">
+              Standard soccer scoring (goals, assists, clean sheets, etc.)
+            </div>
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -166,20 +230,28 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Scoring</Label>
-            <Select value={scoring} onValueChange={setScoring}>
-              <SelectTrigger className="bg-gray-900 border-purple-600/40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ppr">PPR</SelectItem>
-                <SelectItem value="half_ppr">Half PPR</SelectItem>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem value="te_premium">TE Premium</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {sport === 'NFL' && !['IDP', 'DYNASTY_IDP'].includes(leagueVariant) && (
+            <div>
+              <Label>Scoring</Label>
+              <Select value={scoring} onValueChange={setScoring}>
+                <SelectTrigger className="bg-gray-900 border-purple-600/40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ppr">PPR</SelectItem>
+                  <SelectItem value="half_ppr">Half PPR</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="points">Points</SelectItem>
+                  <SelectItem value="te_premium">TE Premium</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {sport === 'NFL' && ['IDP', 'DYNASTY_IDP'].includes(leagueVariant) && (
+            <div className="text-white/60 text-sm flex items-center">
+              IDP scoring (offensive + defensive stats) applied from preset.
+            </div>
+          )}
         </div>
 
         <Button
