@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState, useEffect, useCallback } from 'react'
+import { getMatchupAIChatUrl, buildMatchupSummaryForAI } from '@/lib/matchup-simulator'
 
 export type MatchupSimulationResult = {
   winProbabilityA: number
@@ -28,6 +29,8 @@ export type MatchupSimulationCardProps = {
   /** Optional current scores to show */
   scoreA?: number
   scoreB?: number
+  /** Sport for API and AI context; defaults to NFL */
+  sport?: string
   className?: string
 }
 
@@ -56,6 +59,7 @@ export function MatchupSimulationCard({
   teamB,
   scoreA,
   scoreB,
+  sport = 'NFL',
   className = '',
 }: MatchupSimulationCardProps) {
   const [result, setResult] = useState<MatchupSimulationResult | null>(resultProp ?? null)
@@ -72,8 +76,9 @@ export function MatchupSimulationCard({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev ?? 15 },
-        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev ?? 15 },
+        sport,
+        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev },
+        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev },
       }),
     })
       .then((res) => {
@@ -83,7 +88,7 @@ export function MatchupSimulationCard({
       .then((data) => { setResult(data); setError(null) })
       .catch((err) => { setError(err?.message ?? 'Simulation failed'); setResult(null) })
       .finally(() => setLoading(false))
-  }, [teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
+  }, [sport, teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
 
   useEffect(() => {
     if (resultProp != null) {
@@ -147,6 +152,24 @@ export function MatchupSimulationCard({
     )
   }
 
+  if (error) {
+    return (
+      <div
+        className={`rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3 ${className}`}
+      >
+        <p className="text-sm text-rose-400">{error}</p>
+        <button
+          type="button"
+          onClick={runSimulation}
+          disabled={loading}
+          className="rounded border border-white/20 px-2 py-1 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50"
+        >
+          Rerun simulation
+        </button>
+      </div>
+    )
+  }
+
   if (!display) {
     return (
       <div
@@ -156,6 +179,20 @@ export function MatchupSimulationCard({
       </div>
     )
   }
+
+  const explainUrl = getMatchupAIChatUrl(
+    buildMatchupSummaryForAI({
+      teamAName,
+      teamBName,
+      projectedScoreA: display.projA,
+      projectedScoreB: display.projB,
+      winProbA: display.probA,
+      winProbB: display.probB,
+      upsetChance: display.upsetChance,
+      volatilityTag: display.vol,
+      sport,
+    })
+  )
 
   return (
     <div
@@ -167,7 +204,7 @@ export function MatchupSimulationCard({
         </h3>
         <div className="flex items-center gap-2">
           <Link
-            href="/legacy?tab=chat"
+            href={explainUrl}
             className="rounded border border-cyan-500/40 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/10"
             title="Ask Chimmy to explain this matchup"
           >

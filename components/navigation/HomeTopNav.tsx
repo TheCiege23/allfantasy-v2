@@ -1,30 +1,46 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { ModeToggle } from "@/components/theme/ModeToggle"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 import NotificationBell from "@/components/shared/NotificationBell"
 import SettingsModal from "@/components/navigation/SettingsModal"
-import { ChevronDown, Search, MessageCircle, Bot, Settings as SettingsIcon } from "lucide-react"
-
-const MOCK_LEAGUES = [
-  { id: "all", name: "All Leagues" },
-  { id: "sports-app", name: "Sports App" },
-  { id: "bracket", name: "Bracket Challenge" },
-  { id: "legacy", name: "AF Legacy" },
-]
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
+import { Settings as SettingsIcon, Shield } from "lucide-react"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
+import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 
 export default function HomeTopNav() {
-  const { data: session } = useSession()
-  const [leagueId, setLeagueId] = useState("all")
+  const { data: session, status } = useSession()
+  const { t } = useLanguage()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const { profile } = useSettingsProfile()
 
+  const isAuthenticated = status === "authenticated"
   const user = session?.user as { username?: string; name?: string; email?: string | null } | undefined
   const username =
     user?.username ||
     user?.name ||
     (user?.email ? user.email.split("@")[0] : "Guest")
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsAdmin(false)
+      return
+    }
+    let cancelled = false
+    fetch("/api/user/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.isAdmin) setIsAdmin(true)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isAuthenticated])
 
   return (
     <>
@@ -33,150 +49,111 @@ export default function HomeTopNav() {
         style={{ borderColor: "color-mix(in srgb, var(--border) 85%, transparent)" }}
       >
         <div className="mx-auto flex max-w-6xl items-center gap-2 py-2 sm:py-3">
-          {/* Left: logo + league switch */}
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/" className="flex items-center gap-2 min-w-0">
+          {/* Logo */}
+          <div className="flex min-w-0 items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 min-w-0" aria-label="AllFantasy home">
               <img
                 src="/af-crest.png"
-                alt="AllFantasy crest"
+                alt="AllFantasy Crest"
                 className="h-8 w-8 rounded-lg border bg-black/40 object-contain mode-image-safe"
                 style={{ borderColor: "var(--border)" }}
               />
-              <span className="hidden text-sm font-semibold tracking-tight sm:inline-block" style={{ color: "var(--text)" }}>
+              <span
+                className="hidden text-sm font-semibold tracking-tight sm:inline-block"
+                style={{ color: "var(--text)" }}
+              >
                 AllFantasy
               </span>
             </Link>
-            <div className="relative hidden md:flex items-center">
-              <select
-                value={leagueId}
-                onChange={(e) => setLeagueId(e.target.value)}
-                className="appearance-none rounded-xl border bg-transparent pl-3 pr-7 py-1.5 text-xs outline-none"
+          </div>
+
+          {/* Right: Sign In / Sign Up or user + Admin + toggles */}
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="flex items-center gap-2 min-w-0 max-w-[140px]"
+                  title="Profile"
+                >
+                  <IdentityImageRenderer
+                    avatarUrl={profile?.profileImageUrl}
+                    avatarPreset={profile?.avatarPreset}
+                    displayName={profile?.displayName}
+                    username={username}
+                    size="sm"
+                  />
+                  <span className="hidden sm:inline truncate text-xs font-medium" style={{ color: "var(--muted)" }}>
+                    {username}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "color-mix(in srgb, var(--panel2) 84%, transparent)",
+                    color: "var(--muted2)",
+                  }}
+                  aria-label="Open settings"
+                >
+                  <SettingsIcon className="h-4 w-4" />
+                </button>
+                <NotificationBell />
+              </>
+            ) : (
+              <>
+                <Link
+                  href={loginUrlWithIntent("/dashboard")}
+                  className="inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium sm:text-sm"
+                  style={{
+                    borderColor: "var(--border)",
+                    color: "var(--text)",
+                    background: "color-mix(in srgb, var(--panel2) 84%, transparent)",
+                  }}
+                >
+                  {t("common.signIn")}
+                </Link>
+                <Link
+                  href={signupUrlWithIntent("/dashboard")}
+                  className="inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold sm:text-sm"
+                  style={{
+                    background: "var(--accent-cyan)",
+                    color: "var(--on-accent-bg)",
+                  }}
+                >
+                  {t("common.signUp")}
+                </Link>
+              </>
+            )}
+
+            <div className="hidden sm:inline-flex">
+              <LanguageToggle />
+            </div>
+            <ModeToggle className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold" />
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border"
                 style={{
-                  borderColor: "var(--border)",
-                  color: "var(--muted)",
-                  background: "color-mix(in srgb, var(--panel2) 82%, transparent)",
+                  borderColor: "color-mix(in srgb, var(--accent-amber) 45%, var(--border))",
+                  background: "color-mix(in srgb, var(--accent-amber) 14%, transparent)",
+                  color: "var(--accent-amber-strong)",
                 }}
+                aria-label="Admin"
+                title="Admin"
               >
-                {MOCK_LEAGUES.map((lg) => (
-                  <option key={lg.id} value={lg.id}>
-                    {lg.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-[rgba(148,163,184,0.9)]" />
-            </div>
-          </div>
-
-          {/* Center: search bar */}
-          <div className="flex-1 min-w-0 hidden sm:flex items-center justify-center px-2">
-            <div className="relative w-full max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[rgba(148,163,184,0.9)]" />
-              <input
-                type="text"
-                placeholder="Search players, leagues, brackets, tools…"
-                className="w-full rounded-full pl-9 pr-3 py-1.5 text-xs outline-none"
-                style={{
-                  background: "color-mix(in srgb, var(--panel2) 90%, transparent)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Right: user + actions */}
-          <div className="flex items-center gap-1 sm:gap-2 ml-auto">
-            <div className="hidden sm:flex items-center gap-2 pr-2 border-r" style={{ borderColor: "var(--border)" }}>
-              <span className="max-w-[120px] truncate text-xs font-medium" style={{ color: "var(--muted)" }}>
-                {username}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border"
-              style={{
-                borderColor: "var(--border)",
-                background: "color-mix(in srgb, var(--panel2) 84%, transparent)",
-                color: "var(--muted2)",
-              }}
-              aria-label="Open settings"
-            >
-              <SettingsIcon className="h-4 w-4" />
-            </button>
-
-            <div className="hidden md:inline-flex">
-              <ModeToggle className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold" />
-            </div>
-
-            <NotificationBell />
-
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border"
-              style={{
-                borderColor: "var(--border)",
-                background: "color-mix(in srgb, var(--panel2) 84%, transparent)",
-                color: "var(--muted2)",
-              }}
-              aria-label="Direct messages"
-            >
-              <MessageCircle className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border"
-              style={{
-                borderColor: "var(--border)",
-                background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
-                color: "var(--on-accent-bg)",
-              }}
-              aria-label="Open AI assistant"
-            >
-              <Bot className="h-4 w-4" />
-            </button>
+                <Shield className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Mobile search + league switch */}
-        <div className="flex flex-col gap-2 pb-2 sm:hidden">
-          <div className="flex items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[rgba(148,163,184,0.9)]" />
-              <input
-                type="text"
-                placeholder="Search AllFantasy…"
-                className="w-full rounded-full pl-9 pr-3 py-1.5 text-xs outline-none"
-                style={{
-                  background: "color-mix(in srgb, var(--panel2) 90%, transparent)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
-              />
-            </div>
-            <ModeToggle className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-[11px]" />
-          </div>
-          <div className="relative">
-            <select
-              value={leagueId}
-              onChange={(e) => setLeagueId(e.target.value)}
-              className="w-full appearance-none rounded-xl border bg-transparent pl-3 pr-7 py-1.5 text-xs outline-none"
-              style={{
-                borderColor: "var(--border)",
-                color: "var(--muted)",
-                background: "color-mix(in srgb, var(--panel2) 82%, transparent)",
-              }}
-            >
-              {MOCK_LEAGUES.map((lg) => (
-                <option key={lg.id} value={lg.id}>
-                  {lg.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[rgba(148,163,184,0.9)]" />
-          </div>
+        {/* Mobile: language + theme row */}
+        <div className="flex items-center gap-2 pb-2 sm:hidden">
+          <LanguageToggle />
         </div>
       </header>
 
@@ -184,4 +161,3 @@ export default function HomeTopNav() {
     </>
   )
 }
-

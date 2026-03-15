@@ -2,10 +2,11 @@
 
 import { Pin } from "lucide-react"
 import type { PlatformChatMessage } from "@/types/platform-shared"
+import { getPinnedDisplayBody } from "@/lib/league-chat"
 
 type Props = {
   pinned: PlatformChatMessage[]
-  onUnpin?: (messageId: string) => void
+  onUnpin?: (pinMessageId: string) => void
   canUnpin?: boolean
   className?: string
 }
@@ -31,35 +32,25 @@ export default function PinnedSection({
         Pinned
       </div>
       <ul className="mt-1.5 space-y-1.5">
-        {pinned.map((m) => {
-          let displayBody = m.body || "Pinned message"
-          try {
-            const parsed = JSON.parse(m.body || "{}")
-            if (parsed.messageId && !parsed.snippet) displayBody = "Pinned message"
-            else if (parsed.snippet) displayBody = parsed.snippet
-          } catch {
-            // use body as-is
-          }
-          return (
-            <li
-              key={m.id}
-              className="flex items-start justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px]"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            >
-              <span className="min-w-0 flex-1 line-clamp-2">{displayBody}</span>
-              {canUnpin && onUnpin && (
-                <button
-                  type="button"
-                  onClick={() => onUnpin(m.id)}
-                  className="shrink-0 text-[10px] font-medium"
-                  style={{ color: "var(--muted2)" }}
-                >
-                  Unpin
-                </button>
-              )}
-            </li>
-          )
-        })}
+        {pinned.map((m) => (
+          <li
+            key={m.id}
+            className="flex items-start justify-between gap-2 rounded-lg border px-2 py-1.5 text-[11px]"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            <span className="min-w-0 flex-1 line-clamp-2">{getPinnedDisplayBody(m)}</span>
+            {canUnpin && onUnpin && (
+              <button
+                type="button"
+                onClick={() => onUnpin(m.id)}
+                className="shrink-0 text-[10px] font-medium"
+                style={{ color: "var(--muted2)" }}
+              >
+                Unpin
+              </button>
+            )}
+          </li>
+        ))}
       </ul>
     </div>
   )

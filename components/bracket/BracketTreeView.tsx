@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { Trophy, Sparkles, Zap, Info, Check, X, ZoomIn, ZoomOut, Maximize2, Clock, Shield } from "lucide-react"
 import { useBracketLive } from "@/lib/hooks/useBracketLive"
+import { isPickLocked, computeEffectiveTeams, cascadeClearInvalidPicks } from "@/lib/bracket-challenge"
 import { MatchupCardOverlay } from "./MatchupCardOverlay"
 
 type Game = {
@@ -45,11 +46,6 @@ type Props = {
 
 const ALL_REGIONS = ["West", "East", "South", "Midwest"]
 
-function isPickLocked(node: Node): boolean {
-  if (!node.game?.startTime) return false
-  return new Date(node.game.startTime) <= new Date()
-}
-
 function buildSeedMap(nodes: Node[]): Map<string, number> {
   const map = new Map<string, number>()
   for (const n of nodes) {
@@ -59,53 +55,6 @@ function buildSeedMap(nodes: Node[]): Map<string, number> {
     }
   }
   return map
-}
-
-function computeEffectiveTeams(
-  nodes: Node[],
-  picks: Record<string, string | null>
-): Map<string, { home: string | null; away: string | null }> {
-  const effective = new Map<string, { home: string | null; away: string | null }>()
-  for (const n of nodes) {
-    effective.set(n.id, { home: n.homeTeamName, away: n.awayTeamName })
-  }
-  const sorted = [...nodes].sort((a, b) => a.round - b.round)
-  for (const n of sorted) {
-    const picked = picks[n.id]
-    if (!picked || !n.nextNodeId || !n.nextNodeSide) continue
-    const current = effective.get(n.nextNodeId)
-    if (!current) continue
-    if (n.nextNodeSide === "home") {
-      effective.set(n.nextNodeId, { ...current, home: picked })
-    } else {
-      effective.set(n.nextNodeId, { ...current, away: picked })
-    }
-  }
-  return effective
-}
-
-function cascadeClearInvalidPicks(
-  nodes: Node[],
-  basePicks: Record<string, string | null>
-): Record<string, string | null> {
-  let current = { ...basePicks }
-  let maxIter = 10
-  while (maxIter-- > 0) {
-    const recomputed = computeEffectiveTeams(nodes, current)
-    let changed = false
-    for (const n of nodes) {
-      const pick = current[n.id]
-      if (!pick) continue
-      const eff = recomputed.get(n.id)
-      if (!eff) continue
-      if (pick !== eff.home && pick !== eff.away) {
-        current[n.id] = null
-        changed = true
-      }
-    }
-    if (!changed) break
-  }
-  return current
 }
 
 function getGameResult(node: Node): { winner: string | null; isComplete: boolean } {

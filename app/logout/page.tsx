@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { Loader2 } from "lucide-react"
+import { getLoginRedirectUrl } from "@/lib/routing"
 
 function LogoutContent() {
   const router = useRouter()
@@ -11,8 +12,7 @@ function LogoutContent() {
 
   useEffect(() => {
     const requested = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/"
-    const safeCallback = requested.startsWith("/") ? requested : "/"
-    const target = `/login?callbackUrl=${encodeURIComponent(safeCallback)}`
+    const target = getLoginRedirectUrl(requested)
 
     // NextAuth will clear the user session and then redirect to our auth landing
     signOut({ callbackUrl: target })

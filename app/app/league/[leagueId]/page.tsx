@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import LeagueShell from '@/components/app/LeagueShell'
 import LiveScoringWidget from '@/components/live/LiveScoringWidget'
 import LeagueTabNav, { type LeagueShellTab, LEAGUE_SHELL_TABS } from '@/components/app/LeagueTabNav'
@@ -20,12 +20,32 @@ import LeagueSettingsTab from '@/components/app/tabs/LeagueSettingsTab'
 import CommissionerTab from '@/components/app/tabs/CommissionerTab'
 import PreviousLeaguesTab from '@/components/app/tabs/PreviousLeaguesTab'
 import IntelligenceTab from '@/components/app/tabs/IntelligenceTab'
+import HallOfFameTab from '@/components/app/tabs/HallOfFameTab'
+import LegacyTab from '@/components/app/tabs/LegacyTab'
+import AdvisorTab from '@/components/app/tabs/AdvisorTab'
+import CareerTab from '@/components/app/tabs/CareerTab'
+import AwardsTab from '@/components/app/tabs/AwardsTab'
+import RecordBooksTab from '@/components/app/tabs/RecordBooksTab'
+import StoreTab from '@/components/app/tabs/StoreTab'
+import NewsTab from '@/components/app/tabs/NewsTab'
+import DivisionsTab from '@/components/app/tabs/DivisionsTab'
 
 type LeagueSummary = { id: string; name: string }
 
+const VALID_TABS = new Set<LeagueShellTab>([
+  'Overview', 'Team', 'Matchups', 'Roster', 'Players', 'Waivers', 'Trades', 'Draft',
+  'Standings / Playoffs', 'Divisions', 'League', 'News', 'Hall of Fame', 'Legacy', 'Career', 'Awards', 'Record Books', 'Store', 'Intelligence', 'Chat',
+  'Settings', 'Commissioner', 'Previous Leagues',
+])
+
 export default function AppLeaguePage() {
   const params = useParams<{ leagueId: string }>()
+  const searchParams = useSearchParams()
   const leagueId = params?.leagueId || ''
+  const tabParam = searchParams?.get('tab')
+  const initialTab: LeagueShellTab | undefined =
+    tabParam && VALID_TABS.has(tabParam as LeagueShellTab) ? (tabParam as LeagueShellTab) : undefined
+
   const [leagueName, setLeagueName] = useState<string>('League')
   const [isCommissioner, setIsCommissioner] = useState<boolean>(false)
 
@@ -85,7 +105,16 @@ export default function AppLeaguePage() {
       if (tab === 'Trades') return <TradesTab leagueId={leagueId} />
       if (tab === 'Draft') return <DraftTab leagueId={leagueId} />
       if (tab === 'Standings / Playoffs') return <StandingsTab leagueId={leagueId} />
+      if (tab === 'Divisions') return <DivisionsTab leagueId={leagueId} />
       if (tab === 'League') return <LeagueInfoTab leagueId={leagueId} />
+      if (tab === 'News') return <NewsTab leagueId={leagueId} />
+      if (tab === 'Hall of Fame') return <HallOfFameTab leagueId={leagueId} />
+      if (tab === 'Legacy') return <LegacyTab leagueId={leagueId} />
+      if (tab === 'Advisor') return <AdvisorTab leagueId={leagueId} />
+      if (tab === 'Career') return <CareerTab leagueId={leagueId} />
+      if (tab === 'Awards') return <AwardsTab leagueId={leagueId} />
+      if (tab === 'Record Books') return <RecordBooksTab leagueId={leagueId} />
+      if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
       if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} />
@@ -99,7 +128,7 @@ export default function AppLeaguePage() {
       <div className="px-4 pt-3 sm:px-0">
         <LiveScoringWidget leagueId={leagueId} />
       </div>
-      <LeagueShell leagueName={leagueName} renderTab={renderTab} tabs={tabs} />
+      <LeagueShell leagueName={leagueName} initialTab={initialTab} renderTab={renderTab} tabs={tabs} />
     </div>
   )
 }

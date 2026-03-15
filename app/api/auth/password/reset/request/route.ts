@@ -13,9 +13,48 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}))
+  const type = String(body?.type || "email").toLowerCase()
   const email = String(body?.email || "").toLowerCase().trim()
+  let phone = String(body?.phone || "").trim().replace(/[\s()-]/g, "")
+  if (phone && !phone.startsWith("+")) phone = "+1" + phone
   const requestedReturnTo = String(body?.returnTo || "")
   const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
+
+  if (type === "sms") {
+    if (!/^\+\d{10,15}$/.test(phone)) return NextResponse.json({ ok: true })
+    const profile = await (prisma as any).userProfile.findUnique({
+      where: { phone },
+      select: { userId: true },
+    }).catch(() => null)
+    if (!profile) return NextResponse.json({ ok: true })
+
+    const code = String(Math.floor(100000 + Math.random() * 900000))
+    const tokenHash = sha256Hex(code)
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 15)
+
+    await (prisma as any).passwordResetToken.deleteMany({
+      where: { userId: profile.userId },
+    }).catch(() => {})
+
+    await (prisma as any).passwordResetToken.create({
+      data: { userId: profile.userId, tokenHash, expiresAt },
+    })
+
+    try {
+      const { getTwilioClient } = await import("@/lib/twilio-client")
+      const client = await getTwilioClient()
+      const fromNumber = process.env.TWILIO_PHONE_NUMBER
+      if (!fromNumber) return NextResponse.json({ ok: true })
+      await client.messages.create({
+        body: `Your AllFantasy password reset code is: ${code}. It expires in 15 minutes.`,
+        from: fromNumber,
+        to: phone,
+      })
+    } catch {
+      return NextResponse.json({ ok: true })
+    }
+    return NextResponse.json({ ok: true, method: "sms" })
+  }
 
   if (!email) return NextResponse.json({ ok: true })
 

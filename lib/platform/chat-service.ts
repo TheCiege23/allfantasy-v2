@@ -366,6 +366,50 @@ export async function addReactionToMessage(
   }
 }
 
+export async function removeReactionFromMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+  emoji: string,
+): Promise<boolean> {
+  const emojiTrim = String(emoji || '').trim().slice(0, 10)
+  if (!emojiTrim) return false
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId },
+      select: { id: true, metadata: true },
+    })
+    if (!msg) return false
+
+    const meta = (msg.metadata as Record<string, unknown> | null) || {}
+    let reactions: Array<{ emoji: string; count: number; userIds?: string[] }> = Array.isArray(meta.reactions)
+      ? (meta.reactions as Array<{ emoji: string; count: number; userIds?: string[] }>)
+      : []
+    reactions = reactions
+      .map((r) => {
+        if (r.emoji !== emojiTrim) return r
+        const ids = Array.isArray(r.userIds) ? r.userIds.filter((id) => id !== appUserId) : []
+        if (ids.length === 0) return null
+        return { ...r, userIds: ids, count: ids.length }
+      })
+      .filter((r): r is { emoji: string; count: number; userIds?: string[] } => r !== null)
+
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: { metadata: { ...meta, reactions }, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Create a system message (no sender). Used for waiver_bot, broadcast, etc. Internal/cron only.
  */
@@ -401,6 +445,200 @@ export async function createSystemMessage(
     }
   } catch {
     return null
+  }
+}
+
+/**
+ * Record a poll vote. One vote per user; voting again overwrites.
+ * Body must be JSON { question, options, votes?: { [optionIndex]: userId[] } }.
+ */
+export async function votePollMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+  optionIndex: number,
+): Promise<boolean> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId, messageType: 'poll' },
+      select: { id: true, body: true },
+    })
+    if (!msg?.body) return false
+
+    let payload: { question?: string; options?: string[]; votes?: Record<string, string[]> } = {}
+    try {
+      payload = typeof msg.body === 'string' ? JSON.parse(msg.body) : msg.body
+    } catch {
+      return false
+    }
+    const options = Array.isArray(payload.options) ? payload.options : []
+    if (optionIndex < 0 || optionIndex >= options.length) return false
+
+    const votes: Record<string, string[]> = typeof payload.votes === 'object' && payload.votes !== null
+      ? { ...payload.votes }
+      : {}
+    const key = String(optionIndex)
+    for (const k of Object.keys(votes)) {
+      votes[k] = (votes[k] || []).filter((id) => id !== appUserId)
+    }
+    if (!votes[key]) votes[key] = []
+    if (!votes[key].includes(appUserId)) votes[key].push(appUserId)
+
+    const newBody = JSON.stringify({ ...payload, votes })
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: { body: newBody, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Close (resolve) a poll so no more votes can be cast. Caller must be thread member.
+ */
+export async function closePollMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+): Promise<boolean> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId, messageType: 'poll' },
+      select: { id: true, body: true },
+    })
+    if (!msg?.body) return false
+
+    let payload: Record<string, unknown> = {}
+    try {
+      payload = typeof msg.body === 'string' ? JSON.parse(msg.body) : msg.body
+    } catch {
+      return false
+    }
+    const newBody = JSON.stringify({ ...payload, closed: true })
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: { body: newBody, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Delete a pin-type message (unpin). Caller must be thread member. Only messageType 'pin' can be deleted.
+ */
+export async function deletePinMessage(
+  appUserId: string,
+  threadId: string,
+  pinMessageId: string,
+): Promise<boolean> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+    const msg = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: pinMessageId, threadId, messageType: 'pin' },
+      select: { id: true },
+    })
+    if (!msg) return false
+    await (prisma as any).platformChatMessage.delete({
+      where: { id: pinMessageId },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Leave a thread (remove membership). Returns true if left.
+ */
+export async function leaveThread(appUserId: string, threadId: string): Promise<boolean> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId },
+      select: { id: true },
+    })
+    if (!member) return false
+    await (prisma as any).platformChatThreadMember.delete({
+      where: { id: member.id },
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Get thread members for mention suggestions. Caller must be a member. Returns id, username, displayName.
+ */
+export async function getThreadMembers(
+  appUserId: string,
+  threadId: string,
+): Promise<Array<{ id: string; username: string; displayName: string | null }>> {
+  try {
+    const myMember = await prisma.platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!myMember) return []
+
+    const rows = await prisma.platformChatThreadMember.findMany({
+      where: { threadId, isBlocked: false },
+      include: {
+        user: { select: { id: true, username: true, displayName: true } },
+      },
+    })
+    return rows
+      .filter((m) => m.user?.id)
+      .map((m) => ({
+        id: m.user!.id,
+        username: m.user!.username || m.user!.id,
+        displayName: m.user!.displayName ?? null,
+      }))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Update thread title (rename). Caller must be member. Only group threads typically allow rename.
+ */
+export async function updateThreadTitle(
+  appUserId: string,
+  threadId: string,
+  title: string,
+): Promise<boolean> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return false
+    await (prisma as any).platformChatThread.update({
+      where: { id: threadId },
+      data: { title: title.trim().slice(0, 100) || null, updatedAt: new Date() },
+    })
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -526,6 +764,22 @@ export async function unblockUserInSharedThreads(
     return Number(result?.count || 0)
   } catch {
     return 0
+  }
+}
+
+export async function setThreadMuted(
+  appUserId: string,
+  threadId: string,
+  muted: boolean,
+): Promise<boolean> {
+  try {
+    const result = await (prisma as any).platformChatThreadMember.updateMany({
+      where: { threadId, userId: appUserId },
+      data: { isMuted: muted },
+    })
+    return Number(result?.count ?? 0) > 0
+  } catch {
+    return false
   }
 }
 

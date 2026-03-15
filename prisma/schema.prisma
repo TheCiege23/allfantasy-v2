@@ -1878,6 +1878,83 @@ model HallOfFameRow {
   @@map("hall_of_fame")
 }
 
+model HallOfFameEntry {
+  id          String   @id @default(cuid())
+  entityType  String   @db.VarChar(32)
+  entityId    String   @db.VarChar(128)
+  sport       String   @db.VarChar(16)
+  leagueId    String?  @db.VarChar(64)
+  season      String?  @db.VarChar(16)
+  category    String   @db.VarChar(64)
+  title       String   @db.VarChar(256)
+  summary     String?  @db.Text
+  inductedAt  DateTime @default(now())
+  score       Decimal  @db.Decimal(10, 4)
+  metadata    Json?    @default("{}")
+
+  @@index([sport, category])
+  @@index([leagueId, entityType])
+  @@index([entityType, entityId])
+  @@index([inductedAt])
+  @@map("hall_of_fame_entries")
+}
+
+model HallOfFameMoment {
+  id                String   @id @default(cuid())
+  leagueId          String   @db.VarChar(64)
+  sport             String   @db.VarChar(16)
+  season            String   @db.VarChar(16)
+  headline          String   @db.VarChar(512)
+  summary           String?  @db.Text
+  relatedManagerIds String[] @default([])
+  relatedTeamIds    String[] @default([])
+  relatedMatchupId  String?  @db.VarChar(64)
+  significanceScore Decimal  @db.Decimal(10, 4)
+  createdAt         DateTime @default(now())
+
+  @@index([leagueId, season])
+  @@index([sport, season])
+  @@index([createdAt])
+  @@map("hall_of_fame_moments")
+}
+
+model LegacyScoreRecord {
+  id                   String   @id @default(cuid())
+  entityType           String   @db.VarChar(32)
+  entityId             String   @db.VarChar(128)
+  sport                String   @db.VarChar(16)
+  leagueId             String?  @db.VarChar(64)
+  overallLegacyScore   Decimal  @db.Decimal(10, 4)
+  championshipScore    Decimal  @db.Decimal(10, 4)
+  playoffScore         Decimal  @db.Decimal(10, 4)
+  consistencyScore     Decimal  @db.Decimal(10, 4)
+  rivalryScore         Decimal  @db.Decimal(10, 4)
+  awardsScore          Decimal  @db.Decimal(10, 4)
+  dynastyScore         Decimal  @db.Decimal(10, 4)
+  updatedAt            DateTime @updatedAt
+
+  @@unique([entityType, entityId, sport, leagueId], name: "uniq_legacy_score_entity_sport_league")
+  @@index([sport, leagueId])
+  @@index([entityType, entityId])
+  @@index([overallLegacyScore])
+  @@map("legacy_score_records")
+}
+
+model LegacyEvidenceRecord {
+  id              String   @id @default(cuid())
+  entityType      String   @db.VarChar(32)
+  entityId        String   @db.VarChar(128)
+  sport           String   @db.VarChar(16)
+  evidenceType    String   @db.VarChar(64)
+  value           Decimal  @db.Decimal(12, 4)
+  sourceReference String?  @db.VarChar(256)
+  createdAt       DateTime @default(now())
+
+  @@index([entityType, entityId, sport])
+  @@index([sport, evidenceType])
+  @@map("legacy_evidence_records")
+}
+
 model ApiUsageEvent {
   id BigInt   @id @default(autoincrement())
   ts DateTime @default(now())
@@ -2264,6 +2341,11 @@ model AppUser {
   platformChatThreadMemberships PlatformChatThreadMember[]
   platformChatMessages          PlatformChatMessage[]      @relation("PlatformChatMessageSender")
   platformNotifications         PlatformNotification[]
+  platformBlockedUsers          PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
+  platformBlockedBy             PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
+  platformMessageReports       PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
+  platformUserReportsCreated   PlatformUserReport[]       @relation("PlatformUserReportReporter")
+  platformUserReportsAgainst   PlatformUserReport[]       @relation("PlatformUserReportReported")
   walletAccount                 PlatformWalletAccount?
   walletLedgerEntries           WalletLedgerEntry[]
 
@@ -2807,6 +2889,235 @@ model DramaTimelineRecord {
   @@map("drama_timeline_records")
 }
 
+/// Reputation System — trust score per manager per league (evidence-based, configurable tiers).
+model ManagerReputationRecord {
+  id                     String   @id @default(cuid())
+  leagueId               String   @db.VarChar(64)
+  managerId              String   @db.VarChar(128)
+  sport                  String   @db.VarChar(16)
+  overallScore           Float    @default(0)
+  reliabilityScore       Float    @default(0)
+  activityScore          Float    @default(0)
+  tradeFairnessScore     Float    @default(0)
+  sportsmanshipScore     Float    @default(0)
+  commissionerTrustScore Float    @default(0)
+  toxicityRiskScore      Float    @default(0)
+  participationQualityScore Float @default(0)
+  responsivenessScore   Float    @default(0)
+  tier                   String   @db.VarChar(32)
+  updatedAt              DateTime @updatedAt
+
+  @@unique([leagueId, managerId])
+  @@index([leagueId, sport])
+  @@index([managerId])
+  @@index([tier])
+  @@map("manager_reputation_records")
+}
+
+/// Reputation System — evidence backing reputation scores (payments, lineup, trades, disputes, etc.).
+model ReputationEvidenceRecord {
+  id              String   @id @default(cuid())
+  managerId       String   @db.VarChar(128)
+  leagueId        String   @db.VarChar(64)
+  sport           String   @db.VarChar(16)
+  evidenceType    String   @db.VarChar(64)
+  value           Float    @default(0)
+  sourceReference String?  @db.VarChar(256)
+  createdAt       DateTime @default(now())
+
+  @@index([managerId, leagueId])
+  @@index([leagueId, evidenceType])
+  @@index([sport, evidenceType])
+  @@map("reputation_evidence_records")
+}
+
+/// GM Economy — franchise profile per manager (cross-league career progression).
+model ManagerFranchiseProfile {
+  id                    String   @id @default(cuid())
+  managerId             String   @db.VarChar(128)
+  totalCareerSeasons    Int      @default(0)
+  totalLeaguesPlayed    Int      @default(0)
+  championshipCount     Int      @default(0)
+  playoffAppearances    Int      @default(0)
+  careerWinPercentage   Decimal  @db.Decimal(6, 4)
+  gmPrestigeScore       Decimal  @db.Decimal(10, 4)
+  franchiseValue        Decimal  @db.Decimal(12, 4)
+  updatedAt             DateTime @updatedAt
+
+  @@unique([managerId])
+  @@index([gmPrestigeScore])
+  @@index([franchiseValue])
+  @@map("manager_franchise_profiles")
+}
+
+/// GM Economy — progression events (championship, playoff, league join, etc.) for timeline.
+model GMProgressionEvent {
+  id              String   @id @default(cuid())
+  managerId       String   @db.VarChar(128)
+  sport           String   @db.VarChar(16)
+  eventType       String   @db.VarChar(64)
+  valueChange     Decimal  @db.Decimal(12, 4)
+  sourceReference String?  @db.VarChar(256)
+  createdAt       DateTime @default(now())
+
+  @@index([managerId])
+  @@index([managerId, sport])
+  @@index([eventType, createdAt])
+  @@map("gm_progression_events")
+}
+
+/// Career XP — per-manager XP profile (total XP, tier, progress to next tier).
+model ManagerXPProfile {
+  id             String   @id @default(cuid())
+  managerId      String   @db.VarChar(128)
+  totalXP        Int      @default(0)
+  currentTier    String   @db.VarChar(32)
+  xpToNextTier   Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([managerId])
+  @@index([totalXP])
+  @@index([currentTier])
+  @@map("manager_xp_profiles")
+}
+
+/// Career XP — individual XP events (matchup win, playoff, championship, trade, etc.).
+model XPEvent {
+  id        String   @id @default(cuid())
+  managerId String   @db.VarChar(128)
+  eventType String   @db.VarChar(64)
+  xpValue   Int      @default(0)
+  sport     String   @db.VarChar(16)
+  createdAt DateTime @default(now())
+
+  @@index([managerId])
+  @@index([managerId, sport])
+  @@index([eventType, createdAt])
+  @@map("xp_events")
+}
+
+/// Awards Engine — fantasy awards per league/season (GM of the Year, Best Draft, etc.).
+model AwardRecord {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  sport      String   @db.VarChar(16)
+  season     String   @db.VarChar(16)
+  awardType  String   @db.VarChar(64)
+  managerId  String   @db.VarChar(128)
+  score      Decimal  @db.Decimal(12, 4)
+  createdAt  DateTime @default(now())
+
+  @@index([leagueId, season])
+  @@index([leagueId, season, awardType])
+  @@index([managerId])
+  @@map("award_records")
+}
+
+/// Record Books — historical records (highest score, longest streak, most trades, etc.).
+model RecordBookEntry {
+  id         String   @id @default(cuid())
+  sport      String   @db.VarChar(16)
+  leagueId   String   @db.VarChar(64)
+  recordType String   @db.VarChar(64)
+  holderId   String   @db.VarChar(128)
+  value      Decimal  @db.Decimal(18, 4)
+  season     String   @db.VarChar(16)
+  createdAt  DateTime @default(now())
+
+  @@unique([leagueId, recordType, season], name: "uniq_record_book_league_type_season")
+  @@index([leagueId, recordType])
+  @@index([sport, recordType])
+  @@index([holderId])
+  @@map("record_book_entries")
+}
+
+/// League Economy — manager wallet (prestige currency). Cosmetic-only; never affects competitive balance.
+model ManagerWallet {
+  id              String   @id @default(cuid())
+  managerId       String   @unique @db.VarChar(128)
+  currencyBalance Int      @default(0)
+  earnedLifetime  Int      @default(0)
+  spentLifetime   Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@map("manager_wallets")
+}
+
+/// Marketplace items (cosmetic only): team upgrades, frames, trophies, skins, avatar items, banners.
+model MarketplaceItem {
+  id                String   @id @default(cuid())
+  itemType          String   @db.VarChar(64)
+  itemName          String   @db.VarChar(128)
+  description       String?  @db.VarChar(512)
+  price             Int      @default(0)
+  sportRestriction  String?  @db.VarChar(16)
+  cosmeticCategory  String   @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@index([cosmeticCategory])
+  @@index([sportRestriction])
+  @@map("marketplace_items")
+}
+
+/// Purchase record — one row per purchase (inventory = purchases by manager).
+model PurchaseRecord {
+  id         String   @id @default(cuid())
+  managerId  String   @db.VarChar(128)
+  itemId     String
+  price      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([managerId])
+  @@index([itemId])
+  @@map("purchase_records")
+}
+
+/// AI Sports Media — generated league news and narratives (recaps, power rankings, etc.).
+model MediaArticle {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  sport     String   @db.VarChar(16)
+  headline  String   @db.VarChar(256)
+  body      String   @db.Text
+  tags      Json     @default("[]")
+  createdAt DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, sport])
+  @@index([createdAt])
+  @@map("media_articles")
+}
+
+/// League Broadcast Mode — session for watch parties / streams / big screens.
+model BroadcastSession {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  sport     String   @db.VarChar(16)
+  startedAt DateTime @default(now())
+  createdBy String?  @db.VarChar(128)
+
+  @@index([leagueId])
+  @@index([startedAt])
+  @@map("broadcast_sessions")
+}
+
+/// AI Commentary Engine — narrated reactions (matchup, trade, waiver, playoff).
+model CommentaryEntry {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  sport      String   @db.VarChar(16)
+  eventType  String   @db.VarChar(32)
+  headline   String   @db.VarChar(256)
+  body       String   @db.Text
+  contextSnap Json    @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("commentary_entries")
+}
+
 enum VerificationMethod {
   EMAIL
   PHONE
@@ -2827,9 +3138,13 @@ model UserProfile {
   profileComplete    Boolean             @default(false)
   timezone           String?
   preferredLanguage  String?
+  themePreference    String?             // "dark" | "light" | "legacy"
   avatarPreset       String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  bio                String?             @db.Text
+  preferredSports         Json?   // string[] e.g. ["NFL","NBA"]
+  notificationPreferences  Json?   // NotificationPreferences shape
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2898,6 +3213,8 @@ model League {
 
   rosters            Roster[]
   teams              LeagueTeam[]
+  divisions          LeagueDivision[]
+  promotionRules     PromotionRule[]
   waiverPickups      WaiverPickup[]
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
@@ -2969,14 +3286,49 @@ model LeagueTeam {
   lastUpdatedAt DateTime @updatedAt
 
   league         League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  divisionId     String?           @db.VarChar(64)
+  division       LeagueDivision?   @relation(fields: [divisionId], references: [id], onDelete: SetNull)
   performances   TeamPerformance[]
   legacyRoster   LegacyRoster?     @relation(fields: [legacyRosterId], references: [id])
   legacyRosterId String?           @unique
 
   @@unique([leagueId, externalId])
   @@index([leagueId, pointsFor])
+  @@index([divisionId])
   @@index([aiPowerScore])
   @@map("league_teams")
+}
+
+/// League hierarchy — divisions (tiers) within a league for promotion/relegation.
+model LeagueDivision {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  tierLevel  Int      @default(1)
+  sport      String   @db.VarChar(16)
+  name       String?  @db.VarChar(128)
+
+  league League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  teams  LeagueTeam[]
+
+  @@unique([leagueId, tierLevel])
+  @@index([leagueId])
+  @@map("league_divisions")
+}
+
+/// Promotion/relegation rule: how many teams move between two tiers at season end.
+model PromotionRule {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  fromTierLevel  Int      @default(1)
+  toTierLevel    Int      @default(2)
+  promoteCount   Int      @default(1)
+  relegateCount  Int      @default(1)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, fromTierLevel, toTierLevel])
+  @@index([leagueId])
+  @@map("promotion_rules")
 }
 
 model TeamPerformance {
@@ -3599,6 +3951,53 @@ model PlatformNotification {
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("platform_notifications")
+}
+
+model PlatformBlockedUser {
+  id             String   @id @default(uuid())
+  blockerUserId  String
+  blockedUserId  String
+  createdAt      DateTime @default(now())
+
+  blocker AppUser @relation("PlatformBlockedUserBlocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blocked AppUser @relation("PlatformBlockedUserBlocked", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockerUserId])
+  @@index([blockedUserId])
+  @@map("platform_blocked_users")
+}
+
+model PlatformMessageReport {
+  id             String   @id @default(uuid())
+  messageId      String
+  threadId       String
+  reporterUserId String
+  reason         String   @db.Text
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  reporter AppUser @relation("PlatformMessageReportReporter", fields: [reporterUserId], references: [id], onDelete: Cascade)
+
+  @@index([reporterUserId])
+  @@index([messageId, threadId])
+  @@map("platform_message_reports")
+}
+
+model PlatformUserReport {
+  id              String   @id @default(uuid())
+  reportedUserId  String
+  reporterUserId  String
+  reason          String   @db.Text
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+
+  reporter AppUser @relation("PlatformUserReportReporter", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  reported AppUser @relation("PlatformUserReportReported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@index([reporterUserId])
+  @@index([reportedUserId])
+  @@map("platform_user_reports")
 }
 
 model PlatformWalletAccount {

@@ -4,13 +4,15 @@ import { useRef, useState, useEffect } from "react"
 import { Bell } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import NotificationPanel from "@/components/notifications/NotificationPanel"
+import { getUnreadBadgeCount } from "@/lib/notification-center"
+import { isNotificationDrawerCloseKey } from "@/lib/notification-center"
 
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const { notifications } = useNotifications(20)
-  const unread = notifications.filter((n) => !n.read).length
+  const unreadBadge = getUnreadBadgeCount(notifications, 9)
 
   useEffect(() => {
     if (!open) return
@@ -25,6 +27,18 @@ export default function NotificationBell() {
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (isNotificationDrawerCloseKey(e.key)) {
+        e.preventDefault()
+        setOpen(false)
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
   }, [open])
 
   return (
@@ -46,7 +60,7 @@ export default function NotificationBell() {
         aria-expanded={open}
       >
         <Bell className="h-4 w-4" />
-        {unread > 0 && (
+        {unreadBadge !== 0 && (
           <span
             className="absolute -right-1 -top-1 inline-flex min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold"
             style={{
@@ -54,7 +68,7 @@ export default function NotificationBell() {
               color: "var(--on-accent-bg)",
             }}
           >
-            {unread > 9 ? "9+" : unread}
+            {String(unreadBadge)}
           </span>
         )}
       </button>

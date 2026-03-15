@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
-import { getBlockedUsers } from '@/lib/platform/chat-service'
+import { getBlockedUsersWithDetails } from '@/lib/moderation'
 
 export async function GET() {
   const user = await resolvePlatformUser()
@@ -8,6 +8,9 @@ export async function GET() {
     return NextResponse.json({ status: 'ok', blockedUsers: [] })
   }
 
-  const blockedUsers = await getBlockedUsers(user.appUserId)
-  return NextResponse.json({ status: 'ok', blockedUsers })
+  const blockedUsers = await getBlockedUsersWithDetails(user.appUserId)
+  return NextResponse.json({
+    status: 'ok',
+    blockedUsers: blockedUsers.map((u) => ({ userId: u.userId, username: u.username, displayName: u.displayName })),
+  })
 }

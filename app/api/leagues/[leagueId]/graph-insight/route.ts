@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { buildLeagueRelationshipProfile } from "@/lib/league-intelligence-graph";
+import { buildAIPrestigeContext } from "@/lib/prestige-governance/AIPrestigeContextResolver";
 import { deepseekChat } from "@/lib/deepseek-client";
 import { openaiChatText } from "@/lib/openai-client";
 import { grokEnrich } from "@/lib/ai-external/grok";
@@ -59,11 +60,14 @@ export async function POST(
     const type = body.type ?? "summary";
     const season = body.season ?? null;
 
-    const profile = await buildLeagueRelationshipProfile({
-      leagueId,
-      season,
-      limits: { rivalries: 15, clusters: 8, influence: 12, central: 20, transitions: 15, elimination: 15 },
-    });
+    const [profile, prestigeContext] = await Promise.all([
+      buildLeagueRelationshipProfile({
+        leagueId,
+        season,
+        limits: { rivalries: 15, clusters: 8, influence: 12, central: 20, transitions: 15, elimination: 15 },
+      }),
+      buildAIPrestigeContext(leagueId, null).catch(() => null),
+    ]);
 
     const summaryForAI = profileToSummaryLines(profile);
     const topRival = profile.strongestRivalries[0];
@@ -80,6 +84,7 @@ export async function POST(
         : null,
       transitionCount: profile.dynastyPowerTransitions.length,
       focusEntityId: body.focusEntityId ?? null,
+      prestigeHint: prestigeContext?.combinedHint ?? null,
     });
 
     let metricsInterpretation = "";
@@ -106,7 +111,7 @@ export async function POST(
           {
             role: "system",
             content:
-              "You are a fantasy league analyst. In 2-4 short sentences, explain what this league's relationship graph shows: key rivalries, who trades with whom, who is central or isolated, and how power has shifted over time if applicable. Be clear and engaging. No bullet lists.",
+              "You are a fantasy league analyst. In 2-4 short sentences, explain what this league's relationship graph shows: key rivalries, who trades with whom, who is central or isolated, and how power has shifted over time if applicable. If prestigeHint is provided, you may briefly connect to trust, legacy, or Hall of Fame where relevant. Be clear and engaging. No bullet lists.",
           },
           {
             role: "user",

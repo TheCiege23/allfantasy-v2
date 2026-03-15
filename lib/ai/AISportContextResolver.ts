@@ -2,7 +2,10 @@
  * AISportContextResolver — builds sport-aware context strings for AI prompts.
  * Use in waiver-ai, chimmy chat, trade-evaluator, and draft assistant so DeepSeek, Grok, and OpenAI
  * receive explicit sport context for statistical modeling, trends, and explanations.
+ * Uses lib/sport-scope.ts for supported sports (NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER).
  */
+
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export interface LeagueMetaForAI {
   sport?: string | null
@@ -24,7 +27,7 @@ export interface LeagueMetaForAI {
  */
 export function buildSportContextString(meta: LeagueMetaForAI): string {
   const parts: string[] = []
-  const sport = (meta.sport ?? 'NFL').toString().toUpperCase()
+  const sport = normalizeToSupportedSport(meta.sport).toString()
   parts.push(`Sport: ${sport}`)
   if (meta.leagueName) parts.push(`League: ${meta.leagueName}`)
   if (meta.numTeams) parts.push(`${meta.numTeams}-team`)
@@ -40,16 +43,15 @@ export function buildSportContextString(meta: LeagueMetaForAI): string {
 
 /**
  * Resolve sport from request body or league record for AI context.
+ * Uses sport-scope for validation and fallback (no single-sport hardcoding).
  */
 export function resolveSportForAI(body: Record<string, unknown> | null): string {
-  if (!body) return 'NFL'
+  if (!body) return DEFAULT_SPORT
   const context = body.context as Record<string, unknown> | undefined
   const contextLeague = context?.league as Record<string, unknown> | undefined
-  const sport =
-    (body.sport as string) ??
-    (body.league as Record<string, unknown>)?.sport ??
-    contextLeague?.sport
-  const s = typeof sport === 'string' ? sport.trim().toUpperCase() : ''
-  if (['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'].includes(s)) return s
-  return 'NFL'
+  const sportRaw =
+    (body.sport as string | undefined) ??
+    (body.league as Record<string, unknown> | undefined)?.sport ??
+    (contextLeague && typeof contextLeague.sport === 'string' ? contextLeague.sport : undefined)
+  return normalizeToSupportedSport(typeof sportRaw === 'string' ? sportRaw : undefined)
 }

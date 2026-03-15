@@ -1,10 +1,21 @@
 "use client"
 
 import { useState, useCallback, useEffect, useMemo } from "react"
-import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown } from "lucide-react"
+import Link from "next/link"
+import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown, MessageSquare } from "lucide-react"
 import WaiverFilters from "@/components/waiver-wire/WaiverFilters"
 import WaiverPlayerRow from "@/components/waiver-wire/WaiverPlayerRow"
 import WaiverClaimDrawer from "@/components/waiver-wire/WaiverClaimDrawer"
+import {
+  getTabLabel,
+  WAIVER_EMPTY_PLAYERS_TITLE,
+  WAIVER_EMPTY_PLAYERS_HINT,
+  WAIVER_EMPTY_PENDING_TITLE,
+  WAIVER_EMPTY_HISTORY_TITLE,
+  getWaiverAIChatUrl,
+  buildWaiverSummaryForAI,
+} from "@/lib/waiver-wire"
+import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 
 const WAIVER_TYPES = [
   { value: "faab", label: "FAAB" },
@@ -16,6 +27,7 @@ const WAIVER_TYPES = [
 
 type WaiverSettings = {
   leagueId?: string
+  sport?: string | null
   waiverType?: string
   processingDayOfWeek?: number | null
   processingTimeUtc?: string | null
@@ -64,6 +76,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
   const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string }>>({})
+  const [rosterPlayers, setRosterPlayers] = useState<Array<{ id: string; name: string | null }>>([])
 
   const load = useCallback(async () => {
     if (!leagueId) return
@@ -92,8 +105,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       const roster = rosterData.roster
       if (rosterData.faabRemaining != null) setFaabRemaining(rosterData.faabRemaining)
       if (rosterData.waiverPriority != null) setWaiverPriority(rosterData.waiverPriority)
-      const ids = Array.isArray(roster) ? roster : (roster?.players ?? [])
-      setRosterPlayerIds(ids.map((p: any) => (typeof p === "string" ? p : p?.id ?? p?.player_id ?? "")).filter(Boolean))
+      const ids = getRosterPlayerIds(roster)
+      setRosterPlayerIds(ids)
+      const raw = Array.isArray(roster) ? roster : (roster as any)?.players ?? []
+      const withNames = raw.map((p: any) => {
+        const id = typeof p === "string" ? p : p?.id ?? p?.player_id ?? ""
+        const name = typeof p === "object" && p != null ? (p?.name ?? p?.displayName ?? null) : null
+        return { id: String(id), name: name != null ? String(name) : null }
+      }).filter((x: { id: string }) => x.id)
+      setRosterPlayers(withNames)
     } finally {
       setLoading(false)
     }
@@ -229,9 +249,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
               activeTab === tab ? "bg-cyan-500/20 text-cyan-200" : "text-white/70 hover:text-white"
             }`}
           >
-            {tab === "available" && "Available players"}
-            {tab === "pending" && `Pending claims (${claims.length})`}
-            {tab === "history" && "Processed history"}
+            {getTabLabel(tab, tab === "pending" ? claims.length : undefined)}
           </button>
         ))}
       </div>
@@ -250,10 +268,14 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             sort={sort}
             onSortChange={setSort}
             teams={uniqueTeams}
+            sport={settings?.sport ?? undefined}
           />
           <ul className="max-h-[480px] space-y-1.5 overflow-y-auto px-1 pb-3 pt-1 sm:px-0">
             {filteredPlayers.length === 0 ? (
-              <li className="py-6 text-center text-sm text-white/50">No players match your filters.</li>
+              <li className="py-6 text-center text-sm text-white/50">
+                {WAIVER_EMPTY_PLAYERS_TITLE}
+                <span className="block text-xs text-white/40 mt-1">{WAIVER_EMPTY_PLAYERS_HINT}</span>
+              </li>
             ) : (
               filteredPlayers.map((p) => {
                 const alreadyClaimed = claims.some((c) => c.addPlayerId === p.id)
@@ -383,7 +405,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           <h3 className="mb-2 text-sm font-semibold text-white">Processed claims</h3>
           <ul className="space-y-1.5 text-sm">
             {history.transactions.length === 0 && history.claims.length === 0 ? (
-              <li className="py-4 text-center text-sm text-white/50">No processed claims yet.</li>
+              <li className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_HISTORY_TITLE}</li>
             ) : (
               <>
                 {history.transactions.map((t) => (
@@ -475,6 +497,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           ineligible for a slot, you may be required to choose a drop here or finalize moves directly on the host
           platform after claims process.
         </p>
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <Link
+            href={getWaiverAIChatUrl(buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined))}
+            className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 transition-colors"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Get AI waiver help
+          </Link>
+        </div>
       </section>
 
       <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-2 sm:inset-y-0 sm:right-0 sm:left-auto sm:items-stretch sm:px-0">
@@ -491,6 +522,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             faabMode={isFaab}
             faabRemaining={faabRemaining}
             rosterPlayerIds={rosterPlayerIds}
+            rosterPlayers={rosterPlayers.length > 0 ? rosterPlayers : undefined}
             onSubmit={async (opts) => {
               if (!drawerPlayer) return
               await submitClaimForPlayer(drawerPlayer, opts)

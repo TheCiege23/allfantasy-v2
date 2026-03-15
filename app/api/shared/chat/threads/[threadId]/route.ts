@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
-import { getPlatformThreadById } from '@/lib/platform/chat-service'
+import { getPlatformThreadById, updateThreadTitle } from '@/lib/platform/chat-service'
 
 export async function GET(
   _req: Request,
@@ -17,4 +17,21 @@ export async function GET(
   }
 
   return NextResponse.json({ status: 'ok', thread })
+}
+
+/** PATCH: rename thread (title). Body: { title: string } */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { threadId: string } },
+) {
+  const user = await resolvePlatformUser()
+  if (!user.appUserId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const threadId = decodeURIComponent(params.threadId)
+  const body = await req.json().catch(() => ({}))
+  const title = String(body?.title ?? '').trim()
+
+  const ok = await updateThreadTitle(user.appUserId, threadId, title)
+  if (!ok) return NextResponse.json({ error: 'Unable to update' }, { status: 400 })
+  return NextResponse.json({ status: 'ok' })
 }

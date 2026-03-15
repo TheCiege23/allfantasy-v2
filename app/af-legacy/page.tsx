@@ -2731,6 +2731,16 @@ function AFLegacyContent() {
       setPendingShareLeague(sharedLeague)
     } else if (tab && ['overview', 'trade', 'finder', 'waiver', 'compare', 'chat', 'mock-draft', 'share', 'rankings'].includes(tab)) {
       handleActiveTabChange(tab as Tab)
+      if (tab === 'chat') {
+        const promptParam = searchParams.get('prompt')
+        if (promptParam) {
+          try {
+            setChatInput(decodeURIComponent(promptParam).slice(0, 500))
+          } catch {
+            setChatInput(String(promptParam).slice(0, 500))
+          }
+        }
+      }
     }
   }, [searchParams])
 

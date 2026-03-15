@@ -42,7 +42,7 @@ export default function SharedRightRail() {
           <p className="mt-2 text-xs mode-muted">Ask Chimmy from any product context.</p>
         )}
         <Link
-          href="/legacy?tab=chat"
+          href="/af-legacy?tab=chat"
           className="mt-3 inline-flex rounded-lg border px-3 py-1.5 text-xs transition"
           style={{ borderColor: 'color-mix(in srgb, var(--accent-cyan) 45%, var(--border))', color: 'var(--accent-cyan-strong)' }}
         >

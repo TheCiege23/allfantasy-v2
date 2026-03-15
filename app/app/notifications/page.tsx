@@ -184,7 +184,7 @@ export default function NotificationsPage() {
                               )}
                               {chatThreadId && (
                                 <Link
-                                  href={`/app/chat?thread=${chatThreadId}`}
+                                  href={`/messages?thread=${chatThreadId}`}
                                   className="inline-flex items-center gap-1 text-xs font-medium"
                                   style={{ color: "var(--accent-cyan-strong)" }}
                                 >

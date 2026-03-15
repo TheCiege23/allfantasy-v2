@@ -6,6 +6,7 @@ export const runtime = "nodejs"
 import React, { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI, getSportOptions, getFairnessScore as getFairnessScoreUtil, getFairnessColorClass, getWinnerLabel as getWinnerLabelUtil } from '@/lib/trade-analyzer'
 
 interface PlayerInput {
   name: string
@@ -85,6 +86,10 @@ const defaultTeam: TeamInput = {
   gives_picks: [],
   gives_faab: 0,
 }
+
+const SPORT_OPTIONS = getSportOptions()
+
+type SetTeamFn = (t: TeamInput) => void
 
 function TradeEvaluatorInner() {
   const searchParams = useSearchParams()
@@ -174,6 +179,12 @@ function TradeEvaluatorInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const senderNames = sender.gives_players.filter((p) => p.name.trim())
+    const receiverNames = receiver.gives_players.filter((p) => p.name.trim())
+    if (senderNames.length === 0 || receiverNames.length === 0) {
+      setError('Add at least one player (or pick) to each side.')
+      return
+    }
     setLoading(true)
     setResult(null)
 
@@ -242,23 +253,23 @@ function TradeEvaluatorInner() {
     }
   }
 
-  const getFairnessScore = (r: EvaluationResult): number => {
-    return r.evaluation?.fairness_score_0_to_100 ?? r.evaluation?.fairness_score ?? 50
+  const getFairnessScore = (r: EvaluationResult): number => getFairnessScoreUtil(r)
+  const getFairnessColor = (score: number) => getFairnessColorClass(score)
+  const getWinnerLabel = (winner?: string) => getWinnerLabelUtil(winner, sender.manager_name || 'Sender', receiver.manager_name || 'Receiver')
+
+  const resetTrade = () => {
+    setSender({ ...defaultTeam, manager_name: 'Sender Team', gives_players: [{ ...defaultPlayer }] })
+    setReceiver({ ...defaultTeam, manager_name: 'Receiver Team', gives_players: [{ ...defaultPlayer }] })
+    setResult(null)
+    setError('')
   }
 
-  const getFairnessColor = (score: number) => {
-    if (score >= 45 && score <= 55) return 'text-emerald-400'
-    if (score >= 35 && score <= 65) return 'text-yellow-400'
-    return 'text-red-400'
+  const swapSides = () => {
+    setSender((prev) => ({ ...prev, ...receiver, manager_name: receiver.manager_name || 'Sender Team' }))
+    setReceiver((prev) => ({ ...prev, ...sender, manager_name: sender.manager_name || 'Receiver Team' }))
   }
 
-  const getWinnerLabel = (winner?: string) => {
-    if (winner === 'sender') return sender.manager_name || 'Sender'
-    if (winner === 'receiver') return receiver.manager_name || 'Receiver'
-    return 'Even Trade'
-  }
-
-  const renderTeamForm = (team: TeamInput, setTeam: (t: TeamInput) => void, label: string, teamKey: 'sender' | 'receiver') => (
+  const renderTeamForm = (team: TeamInput, setTeam: SetTeamFn, label: string, teamKey: 'sender' | 'receiver') => (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 backdrop-blur">
       <h3 className="text-base sm:text-lg font-medium text-white/90 mb-3 sm:mb-4">{label}</h3>
 
@@ -408,10 +419,10 @@ function TradeEvaluatorInner() {
         </label>
       </div>
     </div>
-  )
+  );
 
-  return (
-    <main className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
+  const content = (
+    <div role="main" className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-48 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[160px]" />
         <div className="absolute top-52 -left-56 h-[520px] w-[520px] rounded-full bg-fuchsia-500/7 blur-[180px]" />
@@ -440,6 +451,9 @@ function TradeEvaluatorInner() {
           </h1>
           <p className="mt-3 text-white/65 max-w-xl mx-auto">
             Get comprehensive AI analysis of your fantasy trade with sender/receiver breakdown.
+          </p>
+          <p className="mt-1 text-xs text-white/45 max-w-lg mx-auto">
+            Add players and picks to each side, then click Evaluate Trade. Supports NFL, NBA, MLB, NHL, NCAA Football, NCAA Basketball, and Soccer.
           </p>
         </div>
 
@@ -482,10 +496,9 @@ function TradeEvaluatorInner() {
                   onChange={(e) => setSport(e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
                 >
-                  <option value="NFL">NFL</option>
-                  <option value="NBA">NBA</option>
-                  <option value="MLB">MLB</option>
-                  <option value="NHL">NHL</option>
+                  {SPORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -559,7 +572,21 @@ function TradeEvaluatorInner() {
             ) : (
               'Evaluate Trade'
             )}
-          </button>
+            </button>
+            <button
+              type="button"
+              onClick={swapSides}
+              className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/80 hover:bg-white/[0.08] transition-all"
+            >
+              Swap sides
+            </button>
+            <button
+              type="button"
+              onClick={resetTrade}
+              className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/60 hover:bg-white/[0.08] transition-all"
+            >
+              Reset trade
+            </button>
         </form>
 
         {result && (
@@ -581,6 +608,19 @@ function TradeEvaluatorInner() {
               <p className="mt-6 text-white/70 max-w-2xl mx-auto">
                 {result.evaluation?.summary || result.evaluation?.explanation}
               </p>
+              <Link
+                href={getTradeAnalyzerAIChatUrl(
+                  buildTradeSummaryForAI(
+                    sender.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
+                    receiver.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
+                    sport
+                  )
+                )}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+              >
+                <span>Discuss in AI Chat</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </Link>
             </div>
 
             {/* Trade Insights - Labels, Warnings, Veto */}
@@ -751,13 +791,14 @@ function TradeEvaluatorInner() {
           </div>
         )}
       </div>
-    </main>
-  )
+    </div>
+  );
+  return content;
 }
 
 export default function TradeEvaluatorPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen mode-readable" />}>
+    <Suspense fallback={<div role="main" className="min-h-screen mode-readable" />}>
       <TradeEvaluatorInner />
     </Suspense>
   )

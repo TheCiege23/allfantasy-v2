@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Hash,
   User2,
@@ -15,6 +15,8 @@ import {
   MoreHorizontal,
   Send,
   Loader2,
+  ChevronDown,
+  Megaphone,
 } from "lucide-react"
 import type { PlatformChatMessage, PlatformChatThread } from "@/types/platform-shared"
 import type { ChatTabId } from "@/types/chat"
@@ -23,6 +25,19 @@ import { useMediaUpload } from "@/hooks/useMediaUpload"
 import PinnedSection from "@/components/chat/PinnedSection"
 import ChatStatsBotMessage, { placeholderStatsBotUpdate } from "@/components/chat/ChatStatsBotMessage"
 import CommissionerBroadcastForm from "@/components/chat/CommissionerBroadcastForm"
+import {
+  parseMentions,
+  getLeagueChatSendPayload,
+  LEAGUE_CHAT_MENTIONS_ENDPOINT,
+  getMentionsPayload,
+  isLeagueVirtualChat,
+  handleComposerKeyDown,
+  createLeaguePollPayload,
+  isLeagueSystemNotice,
+  getLeagueSystemNoticeLabel,
+  getBroadcastBody,
+  getStatsBotPayload,
+} from "@/lib/league-chat"
 
 type Props = {
   leagueId: string
@@ -31,11 +46,6 @@ type Props = {
   defaultOpen?: boolean
   onClose?: () => void
   className?: string
-}
-
-function parseMentions(text: string): string[] {
-  const matches = text.match(/@(\w+)/g) || []
-  return [...new Set(matches.map((m) => m.slice(1)))]
 }
 
 export default function LeagueChatPanel({
@@ -60,9 +70,11 @@ export default function LeagueChatPanel({
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(true)
   const [loadingDm, setLoadingDm] = useState(false)
+  const [showPollComposer, setShowPollComposer] = useState(false)
 
   const aiChat = useAIChat({ leagueId })
   const mediaUpload = useMediaUpload(leagueThreadId ?? undefined)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const resolvedLeagueThreadId = useMemo(() => {
     if (leagueThreadId) return leagueThreadId
@@ -137,12 +149,13 @@ export default function LeagueChatPanel({
     setSending(true)
     setInput("")
     try {
+      const payload = getLeagueChatSendPayload(text)
       const res = await fetch(
         `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ body: text, messageType: "text" }),
+          body: JSON.stringify(payload),
         }
       )
       const json = await res.json().catch(() => ({}))
@@ -151,14 +164,10 @@ export default function LeagueChatPanel({
         setMessages((prev) => [...prev, created])
         const usernames = parseMentions(text)
         if (usernames.length > 0) {
-          fetch("/api/shared/chat/mentions", {
+          fetch(LEAGUE_CHAT_MENTIONS_ENDPOINT, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              threadId: resolvedLeagueThreadId,
-              messageId: created.id,
-              mentionedUsernames: usernames,
-            }),
+            body: JSON.stringify(getMentionsPayload(resolvedLeagueThreadId, created.id, usernames)),
           }).catch(() => {})
         }
       }
@@ -319,50 +328,81 @@ export default function LeagueChatPanel({
               </div>
             )}
 
-            <div className="flex-1 min-h-[200px] overflow-y-auto rounded-xl border px-2 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+            <div
+              className="flex-1 min-h-[200px] overflow-y-auto rounded-xl border px-2 py-2 relative"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+            >
               {loadingMessages || loadingThreads ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--muted)" }} />
                 </div>
               ) : (
-                <ul className="space-y-2">
-                  {messages.map((m) => (
-                    <LeagueMessageRow
-                      key={m.id}
-                      msg={m}
-                      threadId={resolvedLeagueThreadId}
-                      onPin={() => handlePin(m.id)}
-                      onReaction={async (emoji) => {
-                        try {
-                          await fetch(
-                            `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
-                            { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ emoji }) }
-                          )
-                          if (resolvedLeagueThreadId) loadMessages(resolvedLeagueThreadId)
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                      showPin
-                    />
-                  ))}
-                  {messages.length === 0 && !loadingMessages && (
-                    <li className="py-4 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-                      No messages yet. Say something or @mention a manager.
-                    </li>
+                <>
+                  <ul className="space-y-2">
+                    {messages.map((m) => (
+                      <LeagueMessageRow
+                        key={m.id}
+                        msg={m}
+                        threadId={resolvedLeagueThreadId}
+                        onPin={() => handlePin(m.id)}
+                        onReaction={async (emoji) => {
+                          try {
+                            await fetch(
+                              `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
+                              { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ emoji }) }
+                            )
+                            if (resolvedLeagueThreadId) loadMessages(resolvedLeagueThreadId)
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        showPin={!isLeagueVirtualChat(resolvedLeagueThreadId)}
+                      />
+                    ))}
+                    {messages.length === 0 && !loadingMessages && (
+                      <li className="py-4 text-center text-[11px]" style={{ color: "var(--muted)" }}>
+                        No messages yet. Say something or @mention a manager.
+                      </li>
+                    )}
+                  </ul>
+                  <div ref={messagesEndRef} />
+                  {messages.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+                      className="absolute bottom-2 right-2 rounded-full border p-1.5 shadow"
+                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
+                      aria-label="Scroll to bottom"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
                   )}
-                </ul>
+                </>
               )}
             </div>
 
+            {showPollComposer && resolvedLeagueThreadId && (
+              <div className="mb-2 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                <LeaguePollComposer
+                  threadId={resolvedLeagueThreadId}
+                  onSent={() => { setShowPollComposer(false); loadMessages(resolvedLeagueThreadId) }}
+                  onCancel={() => setShowPollComposer(false)}
+                />
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap items-end gap-1.5">
-              <MediaPlaceholderButtons upload={mediaUpload} />
+              <MediaPlaceholderButtons upload={mediaUpload} onPollClick={() => setShowPollComposer((v) => !v)} />
               <div className="flex-1 min-w-[120px] rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendLeague()}
+                  onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSendLeague()
+                  }
+                }}
                   placeholder="Message… @username to mention"
                   className="w-full bg-transparent text-xs outline-none"
                   style={{ color: "var(--text)" }}
@@ -481,7 +521,104 @@ export default function LeagueChatPanel({
   )
 }
 
-function MediaPlaceholderButtons({ upload }: { upload: ReturnType<typeof useMediaUpload> }) {
+function LeaguePollComposer({
+  threadId,
+  onSent,
+  onCancel,
+}: {
+  threadId: string
+  onSent: () => void
+  onCancel: () => void
+}) {
+  const [question, setQuestion] = useState("")
+  const [opt1, setOpt1] = useState("")
+  const [opt2, setOpt2] = useState("")
+  const [sending, setSending] = useState(false)
+  const canSend = question.trim().length > 0 && opt1.trim().length > 0 && opt2.trim().length > 0
+  const handleSubmit = async () => {
+    if (!canSend || sending) return
+    setSending(true)
+    try {
+      const payload = createLeaguePollPayload(question.trim(), [opt1.trim(), opt2.trim()])
+      const res = await fetch(
+        `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            body: payload.question,
+            messageType: "poll",
+            metadata: payload,
+          }),
+        }
+      )
+      if (res.ok) {
+        setQuestion("")
+        setOpt1("")
+        setOpt2("")
+        onSent()
+      }
+    } finally {
+      setSending(false)
+    }
+  }
+  return (
+    <div className="space-y-2">
+      <div className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>Create poll</div>
+      <input
+        type="text"
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        placeholder="Question"
+        className="w-full rounded-lg border px-2.5 py-1.5 text-xs"
+        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+      />
+      <input
+        type="text"
+        value={opt1}
+        onChange={(e) => setOpt1(e.target.value)}
+        placeholder="Option 1"
+        className="w-full rounded-lg border px-2.5 py-1.5 text-xs"
+        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+      />
+      <input
+        type="text"
+        value={opt2}
+        onChange={(e) => setOpt2(e.target.value)}
+        placeholder="Option 2"
+        className="w-full rounded-lg border px-2.5 py-1.5 text-xs"
+        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSend || sending}
+          className="rounded-lg px-3 py-1.5 text-[11px] font-medium disabled:opacity-50"
+          style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+        >
+          {sending ? "Sending…" : "Post poll"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border px-3 py-1.5 text-[11px]"
+          style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MediaPlaceholderButtons({
+  upload,
+  onPollClick,
+}: {
+  upload: ReturnType<typeof useMediaUpload>
+  onPollClick?: () => void
+}) {
   return (
     <>
       <button
@@ -526,9 +663,10 @@ function MediaPlaceholderButtons({ upload }: { upload: ReturnType<typeof useMedi
       </button>
       <button
         type="button"
+        onClick={onPollClick}
         className="rounded-lg border p-2"
         style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
-        title="Poll"
+        title="Create poll"
         aria-label="Create poll"
       >
         <BarChart2 className="h-4 w-4" />
@@ -615,32 +753,62 @@ function LeagueMessageRow({
   const [pickerOpen, setPickerOpen] = useState(false)
   const reactions = (msg.metadata as any)?.reactions as { emoji: string; count: number; userIds?: string[] }[] | undefined
   const lastSeen = (msg.metadata as any)?.lastSeenAt as string | undefined
+  const isSystemNotice = isLeagueSystemNotice(msg.messageType)
+  const systemLabel =
+    msg.messageType === "broadcast"
+      ? "Commissioner"
+      : msg.messageType === "stats_bot"
+        ? "Chat Stats Bot"
+        : msg.messageType === "pin"
+          ? "Pinned"
+          : getLeagueSystemNoticeLabel(msg.messageType)
+  let displayBody = msg.body
+  if (msg.messageType === "broadcast") displayBody = getBroadcastBody(msg.body)
+  else if (msg.messageType === "stats_bot") {
+    const p = getStatsBotPayload(msg.body)
+    displayBody = p ? `Best: ${p.bestTeam} · Worst: ${p.worstTeam} · Top: ${p.bestPlayer}` : msg.body
+  } else if (msg.messageType === "pin") displayBody = "Pinned message"
 
   return (
-    <li className="group rounded-xl px-2 py-1.5 hover:bg-black/5 relative">
+    <li
+      className={`group rounded-xl px-2 py-1.5 relative ${isSystemNotice ? "" : "hover:bg-black/5"}`}
+      style={
+        msg.messageType === "broadcast"
+          ? { background: "color-mix(in srgb, var(--accent-amber) 8%, transparent)", borderLeft: "3px solid var(--accent-amber-strong)" }
+          : msg.messageType === "stats_bot"
+            ? { background: "color-mix(in srgb, var(--accent-cyan-strong) 6%, transparent)" }
+            : msg.messageType === "pin"
+              ? { background: "color-mix(in srgb, var(--accent-cyan-strong) 6%, transparent)" }
+              : undefined
+      }
+    >
       <div className="flex items-start gap-2">
         <div
           className="mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold"
-          style={{ background: "var(--panel2)", border: "1px solid var(--border)", color: "var(--text)" }}
+          style={{
+            background: msg.messageType === "broadcast" ? "var(--accent-amber-strong)" : "var(--panel2)",
+            border: "1px solid var(--border)",
+            color: msg.messageType === "broadcast" ? "var(--on-accent-bg)" : "var(--text)",
+          }}
         >
-          {msg.senderName.slice(0, 2).toUpperCase()}
+          {msg.messageType === "broadcast" ? <Megaphone className="h-3.5 w-3.5" /> : msg.senderName.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>
-              {msg.senderName}
+              {isSystemNotice ? systemLabel : msg.senderName}
             </span>
             <span className="text-[10px]" style={{ color: "var(--muted2)" }}>
               {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             </span>
-            {lastSeen && (
+            {lastSeen && !isSystemNotice && (
               <span className="text-[9px]" style={{ color: "var(--muted)" }}>
                 Last seen {new Date(lastSeen).toLocaleTimeString()}
               </span>
             )}
           </div>
           <p className="mt-0.5 text-[11px] whitespace-pre-wrap" style={{ color: "var(--text)" }}>
-            {msg.body}
+            {displayBody}
           </p>
           <div className="mt-1 flex flex-wrap gap-1 items-center">
             {reactions?.map((r) => (
@@ -689,7 +857,7 @@ function LeagueMessageRow({
             )}
           </div>
           <div className="mt-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {showPin && (
+            {showPin && !isSystemNotice && (
               <button
                 type="button"
                 onClick={onPin}

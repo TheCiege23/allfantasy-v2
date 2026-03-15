@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useMemo, useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import AppShellNav from "@/components/navigation/AppShellNav"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
 import LeagueIntelligenceGraphPanel from "@/components/app/league-intelligence/LeagueIntelligenceGraphPanel"
 import { LeagueForecastSection } from "@/components/simulation/LeagueForecastSection"
@@ -323,10 +322,7 @@ export default function LeagueHomeShellPage() {
   }, [activeTab, waiverRefresh, waiverLoading, refreshWaiverPanel])
 
   return (
-    <div className="mode-surface mode-readable min-h-screen">
-      <AppShellNav isAuthenticated={isAuthenticated} userLabel={userLabel} />
-
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 space-y-4">
+    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 space-y-4 mode-readable">
         <section className="mode-panel rounded-2xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -730,7 +726,6 @@ export default function LeagueHomeShellPage() {
             )}
           </>
         )}
-      </main>
-    </div>
+    </main>
   )
 }

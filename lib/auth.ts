@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { resolveLoginToUser } from "@/lib/auth/login-identifier-resolver";
 
 function getAuthSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET?.trim();
@@ -65,7 +66,7 @@ const providers: NextAuthOptions["providers"] = [
     id: "credentials",
     name: "Password",
     credentials: {
-      login: { label: "Email or Username", type: "text" },
+      login: { label: "Email, username, or phone", type: "text" },
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials) {
@@ -79,14 +80,7 @@ const providers: NextAuthOptions["providers"] = [
       const login = rawLogin.trim();
       const password = rawPassword;
 
-      const user = await prisma.appUser.findFirst({
-        where: {
-          OR: [
-            { email: { equals: login, mode: "insensitive" } },
-            { username: { equals: login, mode: "insensitive" } },
-          ],
-        },
-      });
+      const user = await resolveLoginToUser(login);
 
       if (!user) {
         return null;

@@ -40,6 +40,8 @@ export async function POST(req: Request) {
       timezone,
       preferredLanguage,
       avatarPreset,
+      disclaimerAgreed,
+      termsAgreed,
     } = body
 
     const username = normalizeUsername(String(body?.username ?? ""))
@@ -70,6 +72,14 @@ export async function POST(req: Request) {
 
     if (!ageConfirmed) {
       return NextResponse.json({ error: "You must confirm you are 18 or older." }, { status: 400 })
+    }
+
+    if (!termsAgreed) {
+      return NextResponse.json({ error: "You must agree to the Terms and Conditions." }, { status: 400 })
+    }
+
+    if (!disclaimerAgreed) {
+      return NextResponse.json({ error: "You must agree to the fantasy sports disclaimer (no gambling/DFS)." }, { status: 400 })
     }
 
     const method = verificationMethod === "PHONE" ? "PHONE" : "EMAIL"

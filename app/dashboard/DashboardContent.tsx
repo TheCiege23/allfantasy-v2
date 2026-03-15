@@ -16,6 +16,12 @@ import {
 } from "lucide-react"
 import ProductLauncherCards from "@/components/dashboard/ProductLauncherCards"
 import RecentAIActivity from "@/components/dashboard/RecentAIActivity"
+import { ActiveLeaguesSection } from "@/components/dashboard/ActiveLeaguesSection"
+import {
+  getDashboardSetupAlerts,
+  getDashboardQuickActions,
+  needsSetupAction,
+} from "@/lib/dashboard"
 
 interface DashboardProps {
   user: {
@@ -49,56 +55,53 @@ interface DashboardProps {
 
 export default function DashboardContent({ user, profile, leagues, entries }: DashboardProps) {
   const displayName = user.displayName || user.username || "Player"
-  const needsAction = !profile.isVerified || !profile.isAgeConfirmed || !profile.profileComplete
+  const needsAction = needsSetupAction({
+    isVerified: profile.isVerified,
+    isAgeConfirmed: profile.isAgeConfirmed,
+    profileComplete: profile.profileComplete,
+  })
+  const setupAlerts = getDashboardSetupAlerts({
+    isVerified: profile.isVerified,
+    isAgeConfirmed: profile.isAgeConfirmed,
+    profileComplete: profile.profileComplete,
+  })
+  const quickActions = getDashboardQuickActions()
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 space-y-6 sm:px-6 mode-readable">
       <div>
         <h1 className="text-2xl font-bold">Welcome, {displayName}</h1>
         <p className="text-sm mode-muted mt-1">
-          {user.username && <span className="text-white/40">@{user.username}</span>}
+          {user.username && (
+            <Link href="/profile" className="text-white/40 hover:text-white/60 transition">@{user.username}</Link>
+          )}
           {profile.sleeperUsername && (
             <span className="ml-2 text-cyan-400/60">Sleeper: {profile.sleeperUsername}</span>
           )}
+          <Link href="/profile" className="ml-2 text-cyan-400/80 hover:text-cyan-300 text-sm">Profile</Link>
         </p>
       </div>
 
       <ProductLauncherCards poolCount={leagues.length} entryCount={entries.length} />
 
-      {needsAction && (
+      {needsAction && setupAlerts.length > 0 && (
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
           <div className="flex items-center gap-2 text-amber-300 font-medium text-sm">
             <AlertCircle className="h-4 w-4" />
             Complete your setup
           </div>
           <div className="space-y-2">
-            {!profile.isVerified && (
-              <div className="flex items-center gap-2 text-sm text-white/60">
+            {setupAlerts.map((alert, i) => (
+              <div key={alert.id} className="flex items-center gap-2 text-sm text-white/60">
                 <div className="h-5 w-5 rounded-full border border-amber-500/30 flex items-center justify-center">
-                  <span className="text-amber-400 text-xs">1</span>
+                  <span className="text-amber-400 text-xs">{i + 1}</span>
                 </div>
-                Verify your email to unlock all features.
-                <Link href="/verify" className="text-cyan-400 hover:underline ml-auto">Verify</Link>
+                {alert.message}
+                {alert.actionHref && alert.actionLabel && (
+                  <Link href={alert.actionHref} className="text-cyan-400 hover:underline ml-auto">{alert.actionLabel}</Link>
+                )}
               </div>
-            )}
-            {!profile.isAgeConfirmed && (
-              <div className="flex items-center gap-2 text-sm text-white/60">
-                <div className="h-5 w-5 rounded-full border border-amber-500/30 flex items-center justify-center">
-                  <span className="text-amber-400 text-xs">2</span>
-                </div>
-                Confirm your age (18+) to access leagues and brackets.
-                <Link href="/onboarding" className="text-cyan-400 hover:underline ml-auto">Complete</Link>
-              </div>
-            )}
-            {profile.isVerified && profile.isAgeConfirmed && !profile.profileComplete && (
-              <div className="flex items-center gap-2 text-sm text-white/60">
-                <div className="h-5 w-5 rounded-full border border-amber-500/30 flex items-center justify-center">
-                  <span className="text-amber-400 text-xs">3</span>
-                </div>
-                Complete your profile to get started.
-                <Link href="/onboarding" className="text-cyan-400 hover:underline ml-auto">Complete</Link>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       )}
@@ -126,13 +129,18 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
       <RecentAIActivity />
 
       <div className="grid md:grid-cols-2 gap-4">
+        <ActiveLeaguesSection />
+
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Users className="h-4 w-4 text-purple-400" />
               My Pools
             </div>
-            <span className="text-xs text-white/40">{leagues.length} total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/40">{leagues.length} total</span>
+              <Link href="/brackets" className="text-xs text-cyan-400 hover:text-cyan-300">View all</Link>
+            </div>
           </div>
 
           {leagues.length === 0 ? (
@@ -143,7 +151,7 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
             </div>
           ) : (
             <div className="space-y-2">
-              {leagues.map((league) => (
+              {leagues.slice(0, 5).map((league) => (
                 <Link key={league.id} href={`/brackets/leagues/${league.id}`} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 hover:bg-white/[0.05] transition group">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center shrink-0">
@@ -157,17 +165,23 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
                   <ChevronRight className="h-4 w-4 text-white/20 group-hover:text-white/50 transition shrink-0" />
                 </Link>
               ))}
+              {leagues.length > 5 && (
+                <Link href="/brackets" className="block text-xs text-white/40 hover:text-white/60 py-1">+{leagues.length - 5} more</Link>
+              )}
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:col-span-2">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <BarChart3 className="h-4 w-4 text-cyan-400" />
               My Bracket Entries
             </div>
-            <span className="text-xs text-white/40">{entries.length} total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/40">{entries.length} total</span>
+              <Link href="/brackets" className="text-xs text-cyan-400 hover:text-cyan-300">View all</Link>
+            </div>
           </div>
 
           {entries.length === 0 ? (
@@ -178,7 +192,7 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
             </div>
           ) : (
             <div className="space-y-2">
-              {entries.map((entry) => (
+              {entries.slice(0, 5).map((entry) => (
                 <Link key={entry.id} href={`/bracket/${entry.tournamentId}/entry/${entry.id}`} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 hover:bg-white/[0.05] transition group">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center shrink-0">
@@ -192,6 +206,9 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
                   <ChevronRight className="h-4 w-4 text-white/20 group-hover:text-white/50 transition" />
                 </Link>
               ))}
+              {entries.length > 5 && (
+                <Link href="/brackets" className="block text-xs text-white/40 hover:text-white/60 py-1">+{entries.length - 5} more</Link>
+              )}
             </div>
           )}
         </div>
@@ -203,20 +220,20 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
           Quick Actions
         </div>
         <div className="grid sm:grid-cols-3 gap-3">
-          <Link href="/brackets/leagues/new" className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 hover:bg-cyan-500/10 transition group">
+          <Link href={quickActions[0]!.href} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 hover:bg-cyan-500/10 transition">
             <Plus className="h-5 w-5 text-cyan-400 mb-2" />
-            <div className="text-sm font-medium">Create Bracket Pool</div>
-            <div className="text-xs text-white/40 mt-1">Start your own challenge.</div>
+            <div className="text-sm font-medium">{quickActions[0]!.label}</div>
+            <div className="text-xs text-white/40 mt-1">{quickActions[0]!.description}</div>
           </Link>
-          <Link href="/app/home" className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 hover:bg-purple-500/10 transition group">
+          <Link href={quickActions[1]!.href} className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 hover:bg-purple-500/10 transition">
             <Gamepad2 className="h-5 w-5 text-purple-400 mb-2" />
-            <div className="text-sm font-medium">Open WebApp</div>
-            <div className="text-xs text-white/40 mt-1">Leagues, roster, waivers, trades.</div>
+            <div className="text-sm font-medium">{quickActions[1]!.label}</div>
+            <div className="text-xs text-white/40 mt-1">{quickActions[1]!.description}</div>
           </Link>
-          <Link href="/af-legacy" className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 hover:bg-emerald-500/10 transition group">
+          <Link href={quickActions[2]!.href} className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 hover:bg-emerald-500/10 transition">
             <BarChart3 className="h-5 w-5 text-emerald-400 mb-2" />
-            <div className="text-sm font-medium">Open Legacy AI</div>
-            <div className="text-xs text-white/40 mt-1">Team scan, trade center, draft war room.</div>
+            <div className="text-sm font-medium">{quickActions[2]!.label}</div>
+            <div className="text-xs text-white/40 mt-1">{quickActions[2]!.description}</div>
           </Link>
         </div>
       </div>

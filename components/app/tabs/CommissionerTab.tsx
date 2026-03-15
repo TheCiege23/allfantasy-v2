@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Shield, Users, FileEdit, Clock, ListChecks, MessageSquare, Settings2, Link2, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { Shield, Users, FileEdit, Clock, ListChecks, MessageSquare, Settings2, Link2, Loader2, Award, TrendingUp, Heart } from 'lucide-react'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import TabDataState from '@/components/app/tabs/TabDataState'
 import { Button } from '@/components/ui/button'
@@ -119,6 +120,35 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
             <p className="text-xs text-white/60">You have commissioner access. Changes apply only within this league and cannot bypass global lock rules.</p>
           </div>
         </div>
+
+        <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <Heart className="h-4 w-4 text-cyan-400" /> Trust & legacy
+          </h2>
+          <p className="mt-1 text-xs text-white/60">
+            View manager trust scores, legacy leaderboard, and Hall of Fame in one place. Use these for governance and recognition.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25"
+            >
+              <Shield className="h-3.5 w-3.5" /> Trust scores (Reputation)
+            </Link>
+            <Link
+              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Legacy`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
+            >
+              <TrendingUp className="h-3.5 w-3.5" /> Legacy leaderboard
+            </Link>
+            <Link
+              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Hall of Fame`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
+            >
+              <Award className="h-3.5 w-3.5" /> Hall of Fame
+            </Link>
+          </div>
+        </section>
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">

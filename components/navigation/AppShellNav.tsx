@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { MessageCircle, Shield, Wallet, Sparkles } from "lucide-react"
 import { ModeToggle } from "@/components/theme/ModeToggle"
+import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ")
@@ -25,6 +26,7 @@ const PRODUCT_TABS = [
 
 const GLOBAL_TABS = [
   { href: "/dashboard", label: "Home" },
+  { href: "/profile", label: "Profile" },
   { href: "/brackets", label: "Bracket" },
   { href: "/app", label: "WebApp" },
   { href: "/af-legacy", label: "Legacy" },
@@ -120,10 +122,10 @@ export default function AppShellNav({
             ) : (
               <>
                 <ModeToggle className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition" />
-                <Link href="/login" className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>
+                <Link href={loginUrlWithIntent(pathname || "/app")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>
                   Login
                 </Link>
-                <Link href="/signup" className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>
+                <Link href={signupUrlWithIntent(pathname || "/app")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>
                   Sign Up
                 </Link>
               </>

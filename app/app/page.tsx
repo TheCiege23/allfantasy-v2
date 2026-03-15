@@ -364,10 +364,11 @@ function AppLandingInner() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-3 px-4">
           <span>© {new Date().getFullYear()} AllFantasy</span>
           <span className="hidden text-white/30 sm:inline">•</span>
-          <Link
-            href="/privacy"
-            className="text-white/50 hover:text-white/80"
-          >
+          <Link href="/disclaimer" className="text-white/50 hover:text-white/80">
+            Disclaimer
+          </Link>
+          <span className="text-white/30">•</span>
+          <Link href="/privacy" className="text-white/50 hover:text-white/80">
             Privacy
           </Link>
           <span className="text-white/30">•</span>

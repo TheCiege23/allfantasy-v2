@@ -49,7 +49,7 @@ export default function LoginContent() {
     setError(null)
 
     if (!login.trim()) {
-      setError("Enter your email or username.")
+      setError("Enter your email, username, or phone number.")
       return
     }
 
@@ -76,7 +76,7 @@ export default function LoginContent() {
         } else if (result.error.includes("PASSWORD_NOT_SET")) {
           setError("Your account doesn't have a password set yet. Use the 'Forgot password?' link above to create one.")
         } else {
-          setError("Invalid email/username or password.")
+          setError("Invalid email, username, or password.")
         }
       } else if (result?.url) {
         router.push(result.url)
@@ -247,38 +247,41 @@ export default function LoginContent() {
             )}
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
-              <form onSubmit={handlePasswordLogin} className="space-y-3">
+              <form onSubmit={handlePasswordLogin} className="space-y-4">
                 <div>
-                  <label className="text-xs text-white/60">Email or Username</label>
+                  <label htmlFor="login-identifier" className="block text-xs font-medium text-white/70">Email, username, or phone</label>
                   <input
+                    id="login-identifier"
                     value={login}
                     onChange={(e) => setLogin(e.target.value)}
                     type="text"
                     autoComplete="username"
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-white/20"
-                    placeholder="you@example.com or your_username"
+                    className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+                    placeholder="you@example.com, username, or +1 555 123 4567"
                     disabled={loading}
                   />
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-white/60">Password</label>
+                    <label htmlFor="login-password" className="block text-xs font-medium text-white/70">Password</label>
                     <Link href={`/forgot-password?returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
                       Forgot password?
                     </Link>
                   </div>
-                  <div className="relative">
+                  <div className="relative mt-1.5">
                     <input
+                      id="login-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
-                      className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 pr-10 text-sm outline-none focus:border-white/20"
+                      className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 pr-10 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
                       placeholder="Your password"
                       disabled={loading}
                     />
                     <button
                       type="button"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
                     >
@@ -323,10 +326,9 @@ export default function LoginContent() {
             </div>
 
             <SocialLoginButtons callbackUrl={callbackUrl} />
-            <div className="pt-1 text-[11px] text-white/35">
-              Google sign-in is available when configured for this environment. Other networks
-              (Facebook, Instagram, X) will appear here once secure connections are enabled.
-            </div>
+            <p className="pt-1 text-[11px] text-white/40 leading-relaxed">
+              One account for WebApp, Bracket, and Legacy. We never post without your permission.
+            </p>
 
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
@@ -378,7 +380,7 @@ export default function LoginContent() {
 
             <p className="text-center text-sm text-white/40">
               Don&apos;t have an account?{" "}
-              <Link href="/signup" className="text-white/80 hover:text-white hover:underline transition">
+              <Link href={`/signup?next=${encodeURIComponent(callbackUrl)}`} className="text-white/80 hover:text-white hover:underline transition">
                 Sign up
               </Link>
             </p>

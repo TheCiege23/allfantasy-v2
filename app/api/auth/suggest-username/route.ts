@@ -1,0 +1,45 @@
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
+import { containsProfanity } from "@/lib/profanity"
+
+export const runtime = "nodejs"
+
+function normalizeUsername(u: string) {
+  return u.trim().toLowerCase().replace(/[^a-z0-9_]/g, "")
+}
+
+function isValidUsername(username: string): boolean {
+  return username.length >= 3 && username.length <= 30 && /^[a-z0-9_]+$/.test(username) && !containsProfanity(username)
+}
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const base = normalizeUsername(searchParams.get("base") || searchParams.get("username") || "")
+
+  if (!base || base.length < 2) {
+    return NextResponse.json({ ok: true, suggestion: null })
+  }
+
+  const candidates: string[] = []
+  const stem = base.slice(0, 26)
+  for (let i = 1; i <= 99; i++) {
+    const s = `${stem}_${i}`
+    if (s.length <= 30) candidates.push(s)
+  }
+  if ((stem + "2").length <= 30) candidates.push(stem + "2")
+  if ((stem + "42").length <= 30) candidates.push(stem + "42")
+  if ((base + "af").length <= 30) candidates.push(base + "af")
+
+  for (const candidate of candidates) {
+    if (!isValidUsername(candidate)) continue
+    const existing = await prisma.appUser.findFirst({
+      where: { username: { equals: candidate, mode: "insensitive" } },
+      select: { id: true },
+    })
+    if (!existing) {
+      return NextResponse.json({ ok: true, suggestion: candidate })
+    }
+  }
+
+  return NextResponse.json({ ok: true, suggestion: null })
+}

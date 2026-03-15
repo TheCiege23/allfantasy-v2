@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronUp } from 'lucide-react'
 import { headshotUrl as buildHeadshot, teamLogoUrl as buildTeamLogo } from '@/lib/media-url'
+import PlayerCardAnalytics from '@/components/player-card/PlayerCardAnalytics'
 
 const DEPTH_CHART_POSITION_MAP: Record<string, string> = {
   'RWR': 'WR',
@@ -343,6 +344,17 @@ export default function PlayerDetailModal({ isOpen, onClose, playerName, playerI
                   <p className="text-xs text-white/40">No recent news found for {bio.name}</p>
                 </div>
               )}
+            </div>
+
+            <div className="px-6 pb-4">
+              <PlayerCardAnalytics
+                playerId={playerId}
+                playerName={bio.name ?? playerName}
+                position={bio.position ?? position}
+                team={bio.team ?? team}
+                sport="NFL"
+                eager={true}
+              />
             </div>
 
             {playerId && (

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NextLink from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeftRight, Plus, X, Loader2, TrendingUp, Crown, Search, Download, Share2, Link, Shield, Target, MessageSquare, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { ArrowLeftRight, Plus, X, Loader2, TrendingUp, Crown, Search, Download, Share2, Link as LinkIcon, Shield, Target, MessageSquare, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
+import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI } from '@/lib/trade-analyzer';
 import { Skeleton } from '@/components/ui/legacy-ui';
 import { PlayerAutocomplete } from '@/components/PlayerAutocomplete';
 import { useAI } from '@/hooks/useAI';
@@ -985,6 +987,19 @@ export default function DynastyTradeForm() {
                   &ldquo;{sections.actionPlan.messageText}&rdquo;
                 </p>
               </div>
+              <NextLink
+                href={getTradeAnalyzerAIChatUrl(
+                  buildTradeSummaryForAI(
+                    teamAAssets.map((a) => a.name).join(', '),
+                    teamBAssets.map((a) => a.name).join(', '),
+                    'dynasty'
+                  )
+                )}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Discuss in AI Chat
+              </NextLink>
             </CardContent>
           </Card>
         </div>
@@ -1049,7 +1064,7 @@ export default function DynastyTradeForm() {
             disabled={sharing}
             className="border-cyan-600/40 text-cyan-300 hover:text-cyan-200"
           >
-            {sharing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Link className="h-4 w-4 mr-1.5" />}
+            {sharing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <LinkIcon className="h-4 w-4 mr-1.5" />}
             Share Link
           </Button>
         </div>

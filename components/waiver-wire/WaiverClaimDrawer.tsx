@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { X, DollarSign, ArrowDownCircle } from "lucide-react"
 
+type RosterOption = { id: string; name?: string | null }
+
 type DrawerProps = {
   open: boolean
   onClose: () => void
@@ -11,6 +13,8 @@ type DrawerProps = {
   faabRemaining: number | null
   onSubmit: (opts: { dropPlayerId: string | null; faabBid: number | null; priorityOrder: number | null }) => Promise<void> | void
   rosterPlayerIds: string[]
+  /** Optional roster options with display names for the drop selector. When provided, options show name (fallback: id). */
+  rosterPlayers?: RosterOption[]
 }
 
 export default function WaiverClaimDrawer({
@@ -21,7 +25,10 @@ export default function WaiverClaimDrawer({
   faabRemaining,
   onSubmit,
   rosterPlayerIds,
+  rosterPlayers,
 }: DrawerProps) {
+  const dropOptions = rosterPlayers?.length ? rosterPlayers : rosterPlayerIds.map((id) => ({ id, name: null }))
+  const getDropLabel = (opt: RosterOption) => (opt.name?.trim() ? `${opt.name} (${opt.id})` : opt.id)
   const [dropId, setDropId] = useState<string>("")
   const [bid, setBid] = useState<string>("")
   const [priority, setPriority] = useState<string>("")
@@ -95,9 +102,9 @@ export default function WaiverClaimDrawer({
               className="flex-1 rounded-lg border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="">No drop (requires open roster spot)</option>
-              {rosterPlayerIds.map((id) => (
-                <option key={id} value={id}>
-                  {id}
+              {dropOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {getDropLabel(opt)}
                 </option>
               ))}
             </select>

@@ -11,35 +11,16 @@ import {
   Mail,
   AtSign,
   Loader2,
+  AlertCircle,
 } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import type { PlatformNotification } from "@/types/platform-shared"
-
-type GroupKey = "today" | "yesterday" | "earlier"
-
-function getGroup(dateStr: string): GroupKey {
-  const d = new Date(dateStr)
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const startOfYesterday = new Date(startOfToday)
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
-  if (d >= startOfToday) return "today"
-  if (d >= startOfYesterday) return "yesterday"
-  return "earlier"
-}
-
-function groupNotifications(notifications: PlatformNotification[]): Record<GroupKey, PlatformNotification[]> {
-  const groups: Record<GroupKey, PlatformNotification[]> = {
-    today: [],
-    yesterday: [],
-    earlier: [],
-  }
-  for (const n of notifications) {
-    const key = getGroup(n.createdAt)
-    groups[key].push(n)
-  }
-  return groups
-}
+import {
+  groupNotifications,
+  NOTIFICATION_GROUP_LABELS,
+  getNotificationDestination,
+} from "@/lib/notification-center"
+import type { NotificationGroupKey } from "@/lib/notification-center"
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   mention: AtSign,
@@ -67,7 +48,7 @@ function formatTime(iso: string): string {
 }
 
 export default function NotificationPanel({ onClose }: { onClose?: () => void }) {
-  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(40)
+  const { notifications, loading, error, markAsRead, markAllAsRead } = useNotifications(40)
   const groups = groupNotifications(notifications)
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -101,16 +82,21 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--muted)" }} />
           </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
+            <AlertCircle className="h-8 w-8" style={{ color: "var(--muted)" }} />
+            <p className="text-[11px]" style={{ color: "var(--muted)" }}>{error}</p>
+          </div>
         ) : notifications.length === 0 ? (
           <div className="py-8 text-center text-[11px]" style={{ color: "var(--muted)" }}>
             No notifications yet.
           </div>
         ) : (
           <>
-            {(["today", "yesterday", "earlier"] as const).map((key) => {
+            {(["today", "yesterday", "earlier"] as const).map((key: NotificationGroupKey) => {
               const items = groups[key]
               if (items.length === 0) return null
-              const label = key === "today" ? "Today" : key === "yesterday" ? "Yesterday" : "Earlier"
+              const label = NOTIFICATION_GROUP_LABELS[key]
               return (
                 <div key={key} className="border-b last:border-b-0" style={{ borderColor: "var(--border)" }}>
                   <div
@@ -122,73 +108,72 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
                   <ul className="divide-y" style={{ borderColor: "var(--border)" }}>
                     {items.map((n) => {
                       const Icon = getIcon(n.type)
-                      const leagueId = (n.meta?.leagueId as string) ?? null
-                      const chatThreadId = (n.meta?.chatThreadId as string) ?? null
-                      return (
-                        <li
-                          key={n.id}
-                          className="group flex items-start gap-2 px-3 py-2 transition-colors hover:bg-black/5"
-                          style={{
-                            background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
-                          }}
-                        >
-                          <div
-                            className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                            style={{
-                              background: "var(--panel2)",
-                              border: "1px solid var(--border)",
-                              color: "var(--muted2)",
-                            }}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-medium" style={{ color: "var(--text)" }}>
-                              {n.title}
-                            </p>
-                            {n.body && (
-                              <p className="mt-0.5 line-clamp-2 text-[10px]" style={{ color: "var(--muted2)" }}>
-                                {n.body}
-                              </p>
-                            )}
-                            <p className="mt-1 text-[10px]" style={{ color: "var(--muted)" }}>
-                              {formatTime(n.createdAt)}
-                            </p>
-                            <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                              {!n.read && (
-                                <button
-                                  type="button"
-                                  onClick={() => markAsRead(n.id)}
-                                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
-                                  style={{ color: "var(--accent-cyan-strong)" }}
-                                >
-                                  <Check className="h-3 w-3" />
-                                  Mark read
-                                </button>
-                              )}
-                              {leagueId && (
-                                <Link
-                                  href={`/app/league/${leagueId}`}
-                                  onClick={onClose}
-                                  className="inline-flex items-center gap-1 text-[10px] font-medium"
-                                  style={{ color: "var(--accent-cyan-strong)" }}
-                                >
-                                  Open league
-                                </Link>
-                              )}
-                              {chatThreadId && (
-                                <Link
-                                  href={`/app/chat?thread=${chatThreadId}`}
-                                  onClick={onClose}
-                                  className="inline-flex items-center gap-1 text-[10px] font-medium"
-                                  style={{ color: "var(--accent-cyan-strong)" }}
-                                >
-                                  <MessageSquare className="h-3 w-3" />
-                                  Open chat
-                                </Link>
-                              )}
+                      const dest = getNotificationDestination(n)
+                      const rowClassName = "group flex items-start gap-2 px-3 py-2 transition-colors hover:bg-black/5"
+                      const rowStyle = {
+                        background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
+                      }
+                      const inner = (
+                        <>
+                            <div
+                              className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                              style={{
+                                background: "var(--panel2)",
+                                border: "1px solid var(--border)",
+                                color: "var(--muted2)",
+                              }}
+                            >
+                              <Icon className="h-3.5 w-3.5" />
                             </div>
-                          </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-medium" style={{ color: "var(--text)" }}>
+                                {n.title}
+                              </p>
+                              {n.body && (
+                                <p className="mt-0.5 line-clamp-2 text-[10px]" style={{ color: "var(--muted2)" }}>
+                                  {n.body}
+                                </p>
+                              )}
+                              <p className="mt-1 text-[10px]" style={{ color: "var(--muted)" }}>
+                                {formatTime(n.createdAt)}
+                              </p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                {!n.read && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      markAsRead(n.id)
+                                    }}
+                                    className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                    style={{ color: "var(--accent-cyan-strong)" }}
+                                  >
+                                    <Check className="h-3 w-3" />
+                                    Mark read
+                                  </button>
+                                )}
+                                {dest && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium" style={{ color: "var(--accent-cyan-strong)" }}>
+                                    {dest.label === "Open chat" && <MessageSquare className="h-3 w-3" />}
+                                    {dest.label}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                        </>
+                      )
+                      return (
+                        <li key={n.id}>
+                          {dest ? (
+                            <Link href={dest.href} onClick={onClose} className={rowClassName} style={rowStyle}>
+                              {inner}
+                            </Link>
+                          ) : (
+                            <div className={rowClassName} style={rowStyle}>
+                              {inner}
+                            </div>
+                          )}
                         </li>
                       )
                     })}

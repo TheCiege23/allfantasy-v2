@@ -11,6 +11,9 @@ export default function AppHomePage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/leagues" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Open Leagues</Link>
           <Link href="/app/leagues" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Product League Router</Link>
+          <Link href="/app/discover" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">League Discovery</Link>
+          <Link href="/app/power-rankings" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Power Rankings</Link>
+          <Link href="/app/simulation-lab" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Simulation Lab</Link>
           <Link href="/app/meta-insights" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Meta Insights</Link>
           <Link href="/messages" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Messages</Link>
           <Link href="/wallet" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Wallet</Link>

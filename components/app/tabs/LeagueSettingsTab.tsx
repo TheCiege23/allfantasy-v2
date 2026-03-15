@@ -14,6 +14,8 @@ import MemberSettingsPanel from '@/components/app/settings/MemberSettingsPanel'
 import CommissionerControlsPanel from '@/components/app/settings/CommissionerControlsPanel'
 import BehaviorProfilesPanel from '@/components/app/settings/BehaviorProfilesPanel'
 import LeagueDramaPanel from '@/components/app/settings/LeagueDramaPanel'
+import ReputationPanel from '@/components/app/settings/ReputationPanel'
+import GMEconomyPanel from '@/components/app/settings/GMEconomyPanel'
 import RulesInfoPanel from '@/components/app/settings/RulesInfoPanel'
 import PreviousLeaguesPanel from '@/components/app/settings/PreviousLeaguesPanel'
 import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
@@ -34,6 +36,8 @@ const SUBTABS = [
   'Commissioner Controls',
   'Behavior Profiles',
   'League Drama',
+  'Reputation',
+  'GM Economy',
   'Rules & Info',
   'Previous Leagues',
   'Reset League',
@@ -73,6 +77,8 @@ export default function LeagueSettingsTab({ leagueId }: LeagueTabProps) {
       {active === 'Commissioner Controls' && <CommissionerControlsPanel />}
       {active === 'Behavior Profiles' && <BehaviorProfilesPanel leagueId={leagueId} />}
       {active === 'League Drama' && <LeagueDramaPanel leagueId={leagueId} />}
+      {active === 'Reputation' && <ReputationPanel leagueId={leagueId} />}
+      {active === 'GM Economy' && <GMEconomyPanel leagueId={leagueId} />}
       {active === 'Rules & Info' && <RulesInfoPanel />}
       {active === 'Previous Leagues' && <PreviousLeaguesPanel />}
       {active === 'Reset League' && <ResetLeaguePanel />}

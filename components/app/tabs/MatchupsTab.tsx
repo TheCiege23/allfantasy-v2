@@ -44,8 +44,8 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
         <p className="text-xs text-white/60">
           Weekly head-to-head matchups with live scoring, projections, and win probabilities.
         </p>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <div className="space-y-2">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+          <div className="space-y-2 min-w-0">
             {MOCK_MATCHUPS.map((m) => (
               <MatchupCard
                 key={m.id}
@@ -54,7 +54,18 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
               />
             ))}
           </div>
-          <MatchupDetailView matchup={selected} />
+          <div className="min-w-0">
+            {selected && (
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="md:hidden mb-2 text-[10px] text-white/50 hover:text-white/80"
+              >
+                Clear selection
+              </button>
+            )}
+            <MatchupDetailView matchup={selected} />
+          </div>
         </div>
       </div>
     </TabDataState>

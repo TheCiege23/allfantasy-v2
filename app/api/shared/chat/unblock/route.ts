@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
 import { unblockUserInSharedThreads } from '@/lib/platform/chat-service'
+import { removeBlock } from '@/lib/moderation'
 
 export async function POST(req: NextRequest) {
   const user = await resolvePlatformUser()
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'blockedUserId is required' }, { status: 400 })
   }
 
+  await removeBlock(user.appUserId, blockedUserId)
   const affectedThreads = await unblockUserInSharedThreads(user.appUserId, blockedUserId)
   return NextResponse.json({ status: 'ok', affectedThreads })
 }

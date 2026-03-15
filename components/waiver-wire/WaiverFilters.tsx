@@ -1,6 +1,8 @@
 "use client"
 
 import { Filter, Search } from "lucide-react"
+import { getPositionFiltersForSport } from "@/lib/waiver-wire"
+import { WAIVER_STATUS_FILTERS, SORT_OPTIONS } from "@/lib/waiver-wire"
 
 type Props = {
   search: string
@@ -14,10 +16,9 @@ type Props = {
   sort: string
   onSortChange: (value: string) => void
   teams?: string[]
+  /** Sport for position filters (e.g. NFL, NBA). When set, position options are sport-specific. */
+  sport?: string | null
 }
-
-const POSITION_FILTERS = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST"]
-const STATUS_FILTERS = ["all", "available", "watchlist"]
 
 export default function WaiverFilters({
   search,
@@ -31,7 +32,9 @@ export default function WaiverFilters({
   sort,
   onSortChange,
   teams = [],
+  sport,
 }: Props) {
+  const positionFilters = getPositionFiltersForSport(sport ?? undefined)
   return (
     <div className="sticky top-0 z-10 -mx-4 mb-3 border-b border-white/10 bg-black/70 px-4 pb-2 pt-2 backdrop-blur sm:-mx-0 sm:rounded-xl sm:border sm:bg-black/60 sm:px-3 sm:pt-3">
       <div className="flex items-center gap-2 text-xs text-white/60">
@@ -51,7 +54,7 @@ export default function WaiverFilters({
         </div>
         <div className="flex flex-1 flex-wrap items-center gap-1.5 text-[11px]">
           <div className="flex flex-wrap gap-1.5">
-            {POSITION_FILTERS.map((pos) => (
+            {positionFilters.map((pos) => (
               <button
                 key={pos}
                 type="button"
@@ -82,16 +85,16 @@ export default function WaiverFilters({
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
         <div className="flex items-center gap-1.5">
-          {STATUS_FILTERS.map((s) => (
+          {WAIVER_STATUS_FILTERS.map((s) => (
             <button
-              key={s}
+              key={s.value}
               type="button"
-              onClick={() => onStatusChange(s)}
+              onClick={() => onStatusChange(s.value)}
               className={`rounded-full px-2 py-0.5 ${
-                status === s ? "bg-white text-black" : "bg-black/40 text-white/65"
+                status === s.value ? "bg-white text-black" : "bg-black/40 text-white/65"
               }`}
             >
-              {s === "all" ? "All" : s === "available" ? "Available" : "Watchlist"}
+              {s.label}
             </button>
           ))}
         </div>
@@ -102,9 +105,9 @@ export default function WaiverFilters({
             onChange={(e) => onSortChange(e.target.value)}
             className="rounded-lg border border-white/15 bg-black/60 px-2 py-1 text-[11px] text-white outline-none"
           >
-            <option value="name">Name</option>
-            <option value="position">Position</option>
-            <option value="team">Team</option>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </div>
       </div>

@@ -7,6 +7,7 @@ import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
+import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import './globals.css';
 
 const inter = Inter({
@@ -23,17 +24,24 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'AllFantasy \u2014 Fantasy Sports Tools, Trade Analyzer & NCAA Brackets',
+  title: 'AllFantasy – AI Powered Fantasy Sports Tools',
   description:
-    'Use AllFantasy for fantasy sports tools, AI trade analysis, and NCAA bracket challenges, plus additional tools from the AllFantasy platform.',
+    'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
+  keywords: [
+    'fantasy sports',
+    'fantasy football tools',
+    'fantasy trade analyzer',
+    'AI fantasy sports',
+    'fantasy bracket challenge',
+  ],
   metadataBase: new URL('https://allfantasy.ai'),
   alternates: {
     canonical: 'https://allfantasy.ai/',
   },
   openGraph: {
-    title: 'AllFantasy \u2014 Fantasy Sports Tools, Trade Analyzer & NCAA Brackets',
+    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
     description:
-      'AI fantasy sports tools for trade analysis and NCAA brackets, built for real fantasy players and leagues.',
+      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
     url: 'https://allfantasy.ai/',
     siteName: 'AllFantasy',
     type: 'website',
@@ -41,9 +49,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'AllFantasy \u2014 Fantasy Tools & Zen Lab Meditation',
+    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
     description:
-      'Analyze fantasy trades, manage leagues, and reset with Zen Lab\u2019s guided meditation and breathing sessions.',
+      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
   },
   icons: {
     icon: [
@@ -192,6 +200,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionAppProvider>
           <ThemeProvider>
             <LanguageProviderClient>
+              <SyncProfilePreferences />
               {children}
               <Toaster position="top-center" richColors closeButton />
               <GlobalModeToggle />

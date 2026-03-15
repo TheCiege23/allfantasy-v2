@@ -1,7 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { signOut } from "next-auth/react"
 import { X, User, Settings, Users, Shield, Bell, Bot, Slash } from "lucide-react"
+import { useSettingsProfile } from "@/hooks/useSettingsProfile"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 
 type TabId =
   | "profile"
@@ -30,6 +34,8 @@ export interface SettingsModalProps {
 
 export default function SettingsModal({ open, onClose, username }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabId>("profile")
+  const { profile, loading, saving, updateProfile } = useSettingsProfile()
+  const displayName = profile?.displayName ?? username ?? ""
 
   if (!open) return null
 
@@ -50,7 +56,8 @@ export default function SettingsModal({ open, onClose, username }: SettingsModal
               Settings
             </h2>
             <p className="text-xs" style={{ color: "var(--muted)" }}>
-              Manage your AllFantasy profile, account, privacy, and AI preferences.
+              Manage your AllFantasy profile, account, privacy, and AI preferences.{" "}
+              <Link href="/settings" className="underline" onClick={onClose}>Full settings →</Link>
             </p>
           </div>
           <button
@@ -99,8 +106,17 @@ export default function SettingsModal({ open, onClose, username }: SettingsModal
 
           {/* Content */}
           <section className="flex-1 overflow-y-auto px-4 py-4 text-xs md:px-6 md:py-5 space-y-4">
-            {activeTab === "profile" && <ProfileSettings username={username ?? undefined} />}
-            {activeTab === "account" && <AccountSettings />}
+            {activeTab === "profile" && (
+              <ProfileSettings
+                profile={profile}
+                displayName={displayName}
+                loading={loading}
+                saving={saving}
+                onSave={updateProfile}
+                onClose={onClose}
+              />
+            )}
+            {activeTab === "account" && <AccountSettings profile={profile} onClose={onClose} />}
             {activeTab === "friends" && <FriendsSettings />}
             {activeTab === "privacy" && <PrivacySettings />}
             {activeTab === "notifications" && <NotificationSettings />}
@@ -113,120 +129,111 @@ export default function SettingsModal({ open, onClose, username }: SettingsModal
   )
 }
 
-function ProfileSettings({ username }: { username?: string }) {
+function ProfileSettings({
+  profile,
+  displayName: initialDisplayName,
+  loading,
+  saving,
+  onSave,
+  onClose,
+}: {
+  profile: ReturnType<typeof useSettingsProfile>["profile"]
+  displayName: string
+  loading: boolean
+  saving: boolean
+  onSave: (p: import("@/lib/user-settings").ProfileUpdatePayload) => Promise<boolean>
+  onClose: () => void
+}) {
+  const [displayName, setDisplayName] = useState(initialDisplayName)
+  useEffect(() => {
+    setDisplayName(initialDisplayName)
+  }, [initialDisplayName])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const ok = await onSave({ displayName: displayName.trim() || null })
+    if (ok) onClose()
+  }
+
+  if (loading) {
+    return <p className="text-[11px]" style={{ color: "var(--muted)" }}>Loading…</p>
+  }
+
+  const username = profile?.username ?? ""
+
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-      }}
-    >
+    <form className="space-y-4" onSubmit={handleSubmit}>
       <div>
         <h3 className="text-sm font-semibold mb-1.5" style={{ color: "var(--text)" }}>
           Profile
         </h3>
         <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-          Update how you appear across AllFantasy products. Changes here will apply to both the Sports App and Bracket.
+          Update how you appear across AllFantasy products. Username is read-only.
         </p>
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="h-12 w-12 rounded-full border flex items-center justify-center text-sm font-semibold" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          {username?.charAt(0).toUpperCase() || "A"}
-        </div>
+        <IdentityImageRenderer
+          avatarUrl={profile?.profileImageUrl}
+          avatarPreset={profile?.avatarPreset}
+          displayName={displayName}
+          username={username}
+          size="md"
+        />
         <div className="space-y-1 text-[11px]">
           <div style={{ color: "var(--text)" }}>{username || "Your username"}</div>
-          <button
-            type="button"
-            className="inline-flex items-center rounded-lg border px-2 py-1"
-            style={{ borderColor: "var(--border)", color: "var(--muted2)", background: "color-mix(in srgb, var(--panel2) 84%, transparent)" }}
-          >
-            Change avatar
-          </button>
+          <Link href="/settings" onClick={onClose} className="inline-flex items-center rounded-lg border px-2 py-1" style={{ borderColor: "var(--border)", color: "var(--muted2)", background: "color-mix(in srgb, var(--panel2) 84%, transparent)" }}>
+            Change avatar (full settings)
+          </Link>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Username
-          </label>
-          <input
-            type="text"
-            defaultValue={username}
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="your_username"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Favorite sports
-          </label>
-          <input
-            type="text"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="NFL, NBA, MLB…"
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Favorite teams
-          </label>
-          <input
-            type="text"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="49ers, Celtics…"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Favorite players
-          </label>
-          <input
-            type="text"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="CMC, Jokic…"
-          />
-        </div>
+      <div>
+        <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
+          Display name
+        </label>
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
+          style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+          placeholder="Your display name"
+        />
       </div>
 
       <div className="pt-2">
         <button
           type="submit"
+          disabled={saving}
           className="inline-flex items-center rounded-xl px-4 py-2 text-xs font-semibold"
           style={{
             background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
             color: "var(--on-accent-bg)",
           }}
         >
-          Save profile
+          {saving ? "Saving…" : "Save profile"}
         </button>
       </div>
     </form>
   )
 }
 
-function AccountSettings() {
+function AccountSettings({
+  profile,
+  onClose,
+}: {
+  profile: ReturnType<typeof useSettingsProfile>["profile"]
+  onClose: () => void
+}) {
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-      }}
-    >
+    <div className="space-y-4">
       <div>
         <h3 className="text-sm font-semibold mb-1.5" style={{ color: "var(--text)" }}>
           Account
         </h3>
         <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-          Manage how you sign in to AllFantasy. These settings apply across all products.
+          Email and phone are managed via verification. Password change uses a secure flow.
         </p>
       </div>
 
@@ -235,76 +242,41 @@ function AccountSettings() {
           <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
             Email
           </label>
-          <input
-            type="email"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="you@example.com"
-          />
+          <p className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}>
+            {profile?.email ?? "—"}
+          </p>
         </div>
         <div>
           <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
             Phone
           </label>
-          <input
-            type="tel"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="+1 (555) 123-4567"
-          />
+          <p className="rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}>
+            {profile?.phone ? (profile.phoneVerifiedAt ? "Verified" : profile.phone) : "Not set"}
+          </p>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Current password
-          </label>
-          <input
-            type="password"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="••••••••"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            New password
-          </label>
-          <input
-            type="password"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="••••••••"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-[11px]" style={{ color: "var(--muted2)" }}>
-            Confirm new password
-          </label>
-          <input
-            type="password"
-            className="w-full rounded-xl border px-3 py-2 text-xs outline-none"
-            style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-            placeholder="••••••••"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between pt-2">
-        <button
-          type="submit"
-          className="inline-flex items-center rounded-xl px-4 py-2 text-xs font-semibold"
-          style={{
-            background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
-            color: "var(--on-accent-bg)",
-          }}
+      <div className="flex flex-wrap items-center gap-2 pt-2">
+        <Link
+          href="/verify"
+          onClick={onClose}
+          className="inline-flex rounded-xl border px-4 py-2 text-xs font-semibold"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          Save account settings
-        </button>
+          Verify / change email or phone
+        </Link>
+        <Link
+          href="/forgot-password"
+          onClick={onClose}
+          className="inline-flex rounded-xl border px-4 py-2 text-xs font-semibold"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Change password
+        </Link>
         <button
           type="button"
-          className="text-[11px] font-medium rounded-lg px-3 py-2 border"
+          onClick={() => signOut({ callbackUrl: "/" })}
+          className="text-[11px] font-medium rounded-xl px-4 py-2 border"
           style={{
             borderColor: "color-mix(in srgb, var(--accent-red) 60%, var(--border))",
             color: "var(--accent-red-strong)",
@@ -314,7 +286,7 @@ function AccountSettings() {
           Log out
         </button>
       </div>
-    </form>
+    </div>
   )
 }
 

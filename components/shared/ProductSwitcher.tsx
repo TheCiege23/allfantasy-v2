@@ -2,20 +2,16 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-
-const PRODUCTS = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/app", label: "WebApp" },
-  { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
-] as const
+import { getProductNavItems } from "@/lib/navigation"
+import { isNavItemActive } from "@/lib/shell"
 
 export default function ProductSwitcher() {
   const pathname = usePathname()
+  const products = getProductNavItems()
   return (
     <div className="hidden items-center gap-1 md:flex">
-      {PRODUCTS.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+      {products.map((item) => {
+        const active = isNavItemActive(pathname, item.href)
         return (
           <Link
             key={item.href}
@@ -32,3 +28,4 @@ export default function ProductSwitcher() {
     </div>
   )
 }
+

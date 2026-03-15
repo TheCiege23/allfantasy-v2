@@ -21,6 +21,7 @@ import {
   Minimize2,
   Lock,
 } from 'lucide-react'
+import { getPositionFilterOptionsForSport } from '@/lib/draft-room'
 
 interface DraftRoomProps {
   leagueName: string
@@ -70,6 +71,8 @@ interface DraftRoomProps {
   onAiTradePropose?: (fromManager: string, toManager: string, give: string[], receive: string[]) => Promise<{ accepted: boolean; reasoning: string } | null>
   onSleeperImport?: (leagueId: string) => Promise<{ success: boolean; leagueName?: string; teamCount?: number; error?: string }>
   sleeperImportLoading?: boolean
+  /** Sport for position filters (NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER). Defaults to NFL. */
+  sport?: string
 }
 
 const POS_DOT: Record<string, string> = {
@@ -103,8 +106,6 @@ const POS_TEXT: Record<string, string> = {
 }
 
 const DEFAULT_ROSTER_SLOTS = ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'K', 'DEF']
-
-const ALL_FILTER_POSITIONS = ['All', 'QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF'] as const
 
 type MobileTab = 'board' | 'players' | 'myteam'
 
@@ -293,6 +294,11 @@ export default function DraftRoom(props: DraftRoomProps) {
     }
     return { total, filled: filledCount }
   }, [slots, rosterDisplay])
+
+  const positionFilterOptions = useMemo(() => {
+    const unique = Array.from(new Set(slots))
+    return [{ value: 'All', label: 'All' }, ...unique.map(s => ({ value: s, label: s }))]
+  }, [slots])
 
   useEffect(() => {
     if (aiAutoPickMode === 'off' || !isUserTurn || !isDraftStarted || draftComplete) return
@@ -1022,7 +1028,7 @@ export default function DraftRoom(props: DraftRoomProps) {
         </div>
 
         <div className="flex gap-1 flex-wrap">
-          {ALL_FILTER_POSITIONS.map(pos => {
+          {positionFilterOptions.map(({ value: pos, label }) => {
             const isActive = posFilter === pos
             const totalSlots = pos === 'All'
               ? slots.length
@@ -1042,7 +1048,7 @@ export default function DraftRoom(props: DraftRoomProps) {
                   border: isActive ? '1px solid rgba(14,165,233,0.3)' : '1px solid transparent',
                 }}
               >
-                {pos} {filledSlots}/{totalSlots}
+                {label} {filledSlots}/{totalSlots}
               </button>
             )
           })}

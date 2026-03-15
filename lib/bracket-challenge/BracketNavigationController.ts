@@ -1,0 +1,45 @@
+/**
+ * BracketNavigationController — canonical routes and back links for bracket challenge.
+ */
+
+/** Bracket landing (marketing). */
+export const BRACKET_LANDING_PATH = '/bracket'
+
+/** Brackets app home (authenticated shell). */
+export const BRACKETS_HOME_PATH = '/brackets'
+
+/** Create a new pool. */
+export function getCreatePoolPath(): string {
+  return '/brackets/leagues/new'
+}
+
+/** Join a pool (with optional code query). */
+export function getJoinPoolPath(joinCode?: string): string {
+  if (joinCode) return `/brackets/join?code=${encodeURIComponent(joinCode)}`
+  return '/brackets/join'
+}
+
+/** League/pool detail. */
+export function getLeaguePath(leagueId: string): string {
+  return `/brackets/leagues/${encodeURIComponent(leagueId)}`
+}
+
+/** Entry bracket (fill picks) — tournament + entry. */
+export function getEntryBracketPath(tournamentId: string, entryId: string): string {
+  return `/bracket/${encodeURIComponent(tournamentId)}/entry/${encodeURIComponent(entryId)}`
+}
+
+/** Sign-in next param for bracket flows. */
+export function getSignInNextForBrackets(): string {
+  return '/brackets'
+}
+
+/** Sign-up next param for create flow. */
+export function getSignUpNextForCreate(): string {
+  return '/brackets/leagues/new'
+}
+
+/** Login next param for join flow. */
+export function getLoginNextForJoin(): string {
+  return '/brackets/join'
+}

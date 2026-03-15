@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
 import { ManagerStyleBadge } from '@/components/ManagerStyleBadge';
+import { ReputationBadge } from '@/components/ReputationBadge';
 
 export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
   const [matches, setMatches] = useState<any[]>([]);
@@ -72,11 +74,24 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <h3 className="text-lg font-bold">{match.teamName}</h3>
               {leagueId && (match.externalId || match.teamId) && (
-                <ManagerStyleBadge
-                  leagueId={leagueId}
-                  managerId={match.externalId ?? match.teamId}
-                  className="shrink-0"
-                />
+                <>
+                  <ManagerStyleBadge
+                    leagueId={leagueId}
+                    managerId={match.externalId ?? match.teamId}
+                    className="shrink-0"
+                  />
+                  <ReputationBadge
+                    leagueId={leagueId}
+                    managerId={match.externalId ?? match.teamId}
+                    className="shrink-0"
+                  />
+                  <Link
+                    href={`/app/league/${encodeURIComponent(leagueId)}/legacy/breakdown?entityType=MANAGER&entityId=${encodeURIComponent(match.externalId ?? match.teamId)}`}
+                    className="shrink-0 text-xs text-amber-400 hover:underline"
+                  >
+                    Legacy
+                  </Link>
+                </>
               )}
             </div>
 

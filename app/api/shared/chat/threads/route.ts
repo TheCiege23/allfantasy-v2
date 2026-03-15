@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
 import { createPlatformThread, getPlatformChatThreads } from '@/lib/platform/chat-service'
+import { prisma } from '@/lib/prisma'
 
 export async function GET() {
   const user = await resolvePlatformUser()
@@ -25,15 +26,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unsupported threadType' }, { status: 400 })
   }
 
-  const memberUserIds = Array.isArray(body?.memberUserIds)
-    ? body.memberUserIds.map((v: unknown) => String(v)).filter(Boolean)
-    : []
+  let memberUserIds: string[] = []
+
+  if (threadType === 'group' && Array.isArray(body?.usernames)) {
+    const usernames = (body.usernames as unknown[]).map((u) => String(u).trim()).filter(Boolean)
+    if (usernames.length > 0) {
+      const users = await prisma.appUser.findMany({
+        where: { username: { in: usernames } },
+        select: { id: true },
+      })
+      memberUserIds = users.map((u) => u.id).filter((id) => id !== user.appUserId)
+    }
+  }
+
+  if (memberUserIds.length === 0 && Array.isArray(body?.memberUserIds)) {
+    memberUserIds = body.memberUserIds.map((v: unknown) => String(v)).filter(Boolean)
+  }
 
   const created = await createPlatformThread({
     creatorUserId: user.appUserId,
     threadType,
     productType: (body?.productType || 'shared') as 'shared' | 'app' | 'bracket' | 'legacy',
-    title: body?.title ? String(body.title) : undefined,
+    title: body?.title ? String(body.title).trim().slice(0, 100) : undefined,
     memberUserIds,
   })
 
