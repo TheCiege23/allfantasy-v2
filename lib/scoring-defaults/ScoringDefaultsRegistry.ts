@@ -4,6 +4,7 @@
  * Used when no DB ScoringTemplate exists; compatible with ScoringTemplateResolver and FantasyPointCalculator.
  * Stat keys are canonical; data providers can map feed fields to these keys (e.g. Soccer goal, shot_on_target; IDP idp_sack, idp_solo_tackle).
  */
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import type { SportType, ScoringRuleDefinition, ScoringTemplateDefinition } from './types'
 
 function rule(
@@ -142,7 +143,11 @@ const NCAAF_PPR: ScoringRuleDefinition[] = [
 /** NCAA Basketball: points (same stat keys as NBA). */
 const NCAAB_POINTS: ScoringRuleDefinition[] = [...NBA_POINTS]
 
-/** Soccer: standard (goals, assists, clean sheet, shots, cards, etc.). Stat keys map to provider feeds. */
+/**
+ * Soccer: default scoring template. Stat keys are canonical; data providers map feed fields to these keys.
+ * Keys: goal, assist, shot_on_target, shot, key_pass, clean_sheet, goal_conceded, goal_allowed, save,
+ * penalty_save, penalty_miss, yellow_card, red_card, own_goal, minutes_played.
+ */
 const SOCCER_STANDARD: ScoringRuleDefinition[] = [
   rule('goal', 6),
   rule('assist', 3),
@@ -161,7 +166,12 @@ const SOCCER_STANDARD: ScoringRuleDefinition[] = [
   rule('minutes_played', 0.02),
 ]
 
-/** NFL IDP: offensive rules + IDP (tackles, sacks, INT, etc.). Coexists with standard NFL templates. */
+/**
+ * NFL IDP: offensive (NFL PPR) + defensive scoring. Coexists with standard NFL templates.
+ * IDP stat keys use idp_ prefix to avoid clash with offensive stats. Map feed fields to:
+ * idp_solo_tackle, idp_assist_tackle, idp_tackle_for_loss, idp_qb_hit, idp_sack, idp_interception,
+ * idp_pass_defended, idp_forced_fumble, idp_fumble_recovery, idp_defensive_touchdown, idp_safety, idp_blocked_kick.
+ */
 const NFL_IDP_RULES: ScoringRuleDefinition[] = [
   ...NFL_PPR,
   rule('idp_tackle_solo', 1),
@@ -201,29 +211,51 @@ const REGISTRY: Record<
   'SOCCER-standard': { name: 'Default Soccer Standard', rules: SOCCER_STANDARD },
   'NFL-IDP': { name: 'Default NFL IDP', rules: NFL_IDP_RULES },
   'NFL-idp': { name: 'Default NFL IDP', rules: NFL_IDP_RULES },
+  'NFL-ppr': { name: 'Default NFL PPR', rules: NFL_PPR },
 }
 
 function toSportType(s: string): SportType {
   const u = s.toUpperCase()
   if (u === 'NFL' || u === 'NBA' || u === 'MLB' || u === 'NHL' || u === 'NCAAF' || u === 'NCAAB' || u === 'SOCCER')
     return u as SportType
-  return 'NFL'
+  return DEFAULT_SPORT as SportType
+}
+
+/**
+ * Normalize format string for registry lookup (case-insensitive and common aliases).
+ */
+function normalizeFormatForLookup(sport: SportType, format: string): string {
+  const f = (format || 'standard').trim()
+  const lower = f.toLowerCase()
+  if (sport === 'NFL') {
+    if (lower === 'idp' || lower === 'dynasty_idp') return 'IDP'
+    if (lower === 'ppr') return 'PPR'
+    if (lower === 'half_ppr' || lower === 'half ppr') return 'half_ppr'
+    if (lower === 'standard') return 'standard'
+  }
+  if ((sport === 'NBA' || sport === 'NCAAB') && (lower === 'points' || lower === 'standard')) return 'points'
+  if (sport === 'SOCCER' && lower === 'standard') return 'standard'
+  if ((sport === 'MLB' || sport === 'NHL' || sport === 'NCAAF') && lower === 'standard') return 'standard'
+  if (sport === 'NCAAF' && (lower === 'ppr' || lower === 'standard')) return 'PPR'
+  return f
 }
 
 /**
  * Get default scoring template definition for a sport and format (in-memory only).
+ * Resolved by sport_type, format_type; league_settings can supply format_type when calling from resolvers.
  */
 export function getDefaultScoringTemplate(
   sportType: SportType | string,
   formatType: string = 'standard'
 ): ScoringTemplateDefinition {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  const format = formatType || 'standard'
+  const format = normalizeFormatForLookup(sport, formatType || 'standard')
   const key = `${sport}-${format}`
   let fallbackKey = `${sport}-standard`
-  if (sport === 'NFL') fallbackKey = format === 'IDP' || format === 'idp' ? 'NFL-IDP' : 'NFL-PPR'
+  if (sport === 'NFL') fallbackKey = format === 'IDP' ? 'NFL-IDP' : 'NFL-PPR'
   else if (sport === 'NBA' || sport === 'NCAAB') fallbackKey = `${sport}-points`
   else if (sport === 'SOCCER') fallbackKey = 'SOCCER-standard'
+  else if (sport === 'NCAAF') fallbackKey = 'NCAAF-PPR'
   const entry = REGISTRY[key] ?? REGISTRY[fallbackKey] ?? REGISTRY['NFL-PPR']
   const templateId = `default-${sport}-${format}`
   return {
@@ -243,4 +275,20 @@ export function getDefaultScoringRules(
   formatType: string = 'standard'
 ): ScoringRuleDefinition[] {
   return getDefaultScoringTemplate(sportType, formatType).rules
+}
+
+/**
+ * Build a short scoring context string for AI recommendations (draft, waiver, matchup summary).
+ * Includes template name and a few key rules so AI can reason about scoring impact.
+ */
+export function getScoringContextForAI(
+  sportType: SportType | string,
+  formatType: string = 'standard'
+): string {
+  const template = getDefaultScoringTemplate(sportType, formatType)
+  const topRules = template.rules
+    .filter((r) => r.enabled && r.pointsValue !== 0)
+    .slice(0, 12)
+    .map((r) => `${r.statKey}: ${r.pointsValue > 0 ? '+' : ''}${r.pointsValue}`)
+  return `Scoring: ${template.name}. Key rules: ${topRules.join(', ')}.`
 }

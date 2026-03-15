@@ -3,7 +3,7 @@
  * Supports NFL, NBA, MLB, NHL, NCAAF, NCAAB.
  */
 
-export const SUPPORTED_STRATEGY_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB'] as const
+export const SUPPORTED_STRATEGY_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 export type StrategySport = (typeof SUPPORTED_STRATEGY_SPORTS)[number]
 
 /** Strategy types to detect (Chunk 2 will implement rules). */

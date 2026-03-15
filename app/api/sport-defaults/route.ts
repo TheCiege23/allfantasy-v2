@@ -1,11 +1,12 @@
 /**
  * Sport Defaults API — load defaults by sport for league creation or display.
- * GET ?sport=NFL&load=creation → full league creation payload (templates + defaults)
+ * GET ?sport=NFL&load=creation → full league creation payload via unified orchestrator (templates + defaults)
  * GET ?sport=NFL → raw default set (metadata, league, roster, scoring, draft, waiver)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { loadLeagueCreationDefaults } from '@/lib/sport-defaults/LeagueCreationDefaultsLoader'
+import { getCreationPayload } from '@/lib/league-defaults-orchestrator'
 import { resolveSportDefaults } from '@/lib/sport-defaults/SportDefaultsResolver'
+
 const LEAGUE_SPORT_VALUES = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 
 function toLeagueSport(s: string): (typeof LEAGUE_SPORT_VALUES)[number] {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const sport = toLeagueSport(sportParam)
 
     if (load === 'creation') {
-      const payload = await loadLeagueCreationDefaults(sport, variantParam)
+      const payload = await getCreationPayload(sport, variantParam)
       return NextResponse.json(payload)
     }
 

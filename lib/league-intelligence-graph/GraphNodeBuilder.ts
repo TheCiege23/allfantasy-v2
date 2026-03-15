@@ -46,6 +46,7 @@ export async function buildGraphNodes(
 
   const seasonNum = season ?? null;
   const seasonStr = season != null ? String(season) : null;
+  const sportNorm = league.sport != null ? String(league.sport).toUpperCase() : null;
 
   // League node
   nodes.push({
@@ -54,6 +55,7 @@ export async function buildGraphNodes(
     entityId: league.id,
     leagueId: league.id,
     season: seasonNum,
+    sport: sportNorm,
     metadata: { name: league.name ?? undefined, platform: league.platform },
   });
 
@@ -66,6 +68,7 @@ export async function buildGraphNodes(
       entityId: teamEntityId,
       leagueId: leagueId,
       season: seasonNum,
+      sport: sportNorm,
       metadata: {
         teamName: team.teamName,
         ownerName: team.ownerName,
@@ -81,6 +84,7 @@ export async function buildGraphNodes(
       entityId: managerEntityId,
       leagueId: leagueId,
       season: seasonNum,
+      sport: sportNorm,
       metadata: { ownerName: team.ownerName, teamId: team.id },
     });
   }
@@ -101,6 +105,7 @@ export async function buildGraphNodes(
       entityId,
       leagueId,
       season: row.season ? parseInt(row.season, 10) : null,
+      sport: sportNorm,
       metadata: { rosterId: row.rosterId, season: row.season },
     });
   }
@@ -166,6 +171,7 @@ export async function buildGraphNodes(
           entityId: uid,
           leagueId,
           season: seasonNum,
+          sport: sportNorm,
           metadata: { source: "rivalry" },
         });
       }
@@ -177,6 +183,7 @@ export async function buildGraphNodes(
           entityId,
           leagueId,
           season: seasonNum,
+          sport: sportNorm,
           metadata: { userAId: r.userAId, userBId: r.userBId, totalMeetings: r.totalMeetings, winsA: r.winsA, winsB: r.winsB },
         });
       }

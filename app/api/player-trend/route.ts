@@ -8,6 +8,7 @@ import {
   getRisingPlayers,
   getFallers,
   getTrendingByDirection,
+  getPlayerTrend,
   SUPPORTED_SPORTS,
 } from '@/lib/player-trend'
 import type { TrendDirection } from '@/lib/player-trend'
@@ -15,8 +16,9 @@ import type { TrendDirection } from '@/lib/player-trend'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const list = searchParams.get('list') ?? 'hottest'
+    const playerId = searchParams.get('playerId')
     const sport = searchParams.get('sport') ?? undefined
+    const list = searchParams.get('list') ?? 'hottest'
     const direction = searchParams.get('direction') as TrendDirection | null
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50))
     const minScore = searchParams.get('minScore') != null ? parseFloat(searchParams.get('minScore')!) : undefined
@@ -26,6 +28,11 @@ export async function GET(request: NextRequest) {
         { error: 'Invalid sport', supported: [...SUPPORTED_SPORTS] },
         { status: 400 }
       )
+    }
+
+    if (playerId && sport) {
+      const trend = await getPlayerTrend(playerId, sport)
+      return NextResponse.json(trend ? { data: trend } : { error: 'Not found', data: null }, { status: trend ? 200 : 404 })
     }
 
     const options = { sport, limit, minScore }

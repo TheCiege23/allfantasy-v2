@@ -29,6 +29,7 @@ export interface RosterTemplateDto {
 
 /**
  * Build default NFL-style roster slots (for fallback when no DB template).
+ * Slots: QB, RB, WR, TE, K, DST, FLEX, BENCH, IR.
  */
 function defaultNflSlots(): RosterTemplateSlotDto[] {
   const positions = getPositionsForSport('NFL')
@@ -105,6 +106,7 @@ const NFL_IDP_FLEX_SLOTS: { slotName: string; allowedPositions: string[] }[] = [
 
 /**
  * Build default NFL IDP roster (offense + IDP fixed + IDP flex + BENCH/IR with full position set).
+ * Offense: QB, RB, WR, TE, K, DST, FLEX. IDP: DE, DT, LB, CB, S, DL, DB, IDP_FLEX. BENCH, IR accept all positions.
  */
 function defaultNflIdpSlots(): RosterTemplateSlotDto[] {
   const base = defaultNflSlots()
@@ -161,26 +163,49 @@ function defaultNflIdpSlots(): RosterTemplateSlotDto[] {
   return slots
 }
 
+/** Flexible slot names (flex, util, superflex, pitcher flex, IDP flex, etc.). */
+const FLEX_SLOT_NAMES = new Set(['FLEX', 'UTIL', 'G', 'F', 'SUPERFLEX', 'P', 'DL', 'DB', 'IDP_FLEX'])
+
 /**
- * Build default slots for other sports (simple starter/bench by position).
+ * Build default roster slots from sport-defaults registry (single source of truth).
+ * Used for NBA, MLB, NHL, NCAAF, NCAAB when no DB template exists.
  */
-function defaultSlotsForSport(sportType: SportType, formatType?: string): RosterTemplateSlotDto[] {
-  if (sportType === 'NFL') {
-    if (formatType === 'IDP' || formatType === 'idp') return defaultNflIdpSlots()
-    return defaultNflSlots()
-  }
-  if (sportType === 'SOCCER') return defaultSoccerSlots()
-  const positions = getPositionsForSport(sportType)
+function buildDefaultSlotsFromRosterDefaults(
+  sportType: SportType,
+  formatType?: string
+): RosterTemplateSlotDto[] {
+  const def = getRosterDefaults(sportType, formatType)
   const slots: RosterTemplateSlotDto[] = []
   let order = 0
-  const flex = positions.includes('UTIL') ? 'UTIL' : positions.includes('F') ? 'F' : null
-  for (const pos of positions) {
-    if (pos === 'UTIL' || pos === 'G' || pos === 'F') continue
+  const playerPositions = new Set<string>()
+
+  for (const [slotName, count] of Object.entries(def.starter_slots)) {
+    if (count <= 0) continue
+    const flexDef = def.flex_definitions.find((f) => f.slotName === slotName)
+    const allowedPositions = flexDef?.allowedPositions ?? [slotName]
+    const isFlex = !!flexDef || FLEX_SLOT_NAMES.has(slotName)
+    if (flexDef) flexDef.allowedPositions.forEach((p) => playerPositions.add(p))
+    else if (!FLEX_SLOT_NAMES.has(slotName)) playerPositions.add(slotName)
     slots.push({
-      slotName: pos,
-      allowedPositions: [pos],
-      starterCount: 1,
+      slotName,
+      allowedPositions,
+      starterCount: count,
       benchCount: 0,
+      reserveCount: 0,
+      taxiCount: 0,
+      devyCount: 0,
+      isFlexibleSlot: isFlex,
+      slotOrder: order++,
+    })
+  }
+
+  const allPositions = playerPositions.size > 0 ? [...playerPositions] : getPositionsForSport(sportType, formatType)
+  if (def.bench_slots > 0) {
+    slots.push({
+      slotName: 'BENCH',
+      allowedPositions: allPositions,
+      starterCount: 0,
+      benchCount: def.bench_slots,
       reserveCount: 0,
       taxiCount: 0,
       devyCount: 0,
@@ -188,40 +213,41 @@ function defaultSlotsForSport(sportType: SportType, formatType?: string): Roster
       slotOrder: order++,
     })
   }
-  if (flex) {
+  if (def.IR_slots > 0) {
     slots.push({
-      slotName: flex,
-      allowedPositions: positions.filter((p) => p !== 'G' && p !== 'C').length ? positions : [flex],
-      starterCount: 1,
+      slotName: 'IR',
+      allowedPositions: allPositions,
+      starterCount: 0,
       benchCount: 0,
-      reserveCount: 0,
+      reserveCount: def.IR_slots,
       taxiCount: 0,
       devyCount: 0,
-      isFlexibleSlot: true,
+      isFlexibleSlot: false,
       slotOrder: order++,
     })
   }
-  slots.push({
-    slotName: 'BENCH',
-    allowedPositions: [...positions],
-    starterCount: 0,
-    benchCount: sportType === 'NBA' || sportType === 'NCAAB' ? 4 : 6,
-    reserveCount: 0,
-    taxiCount: 0,
-    devyCount: 0,
-    isFlexibleSlot: false,
-    slotOrder: order++,
-  })
-  const rosterDef = getRosterDefaults(sportType)
-  if (rosterDef.IR_slots > 0) {
+  if (def.taxi_slots > 0) {
     slots.push({
-      slotName: 'IR',
-      allowedPositions: [...positions],
+      slotName: 'TAXI',
+      allowedPositions: allPositions,
       starterCount: 0,
       benchCount: 0,
-      reserveCount: rosterDef.IR_slots,
-      taxiCount: 0,
+      reserveCount: 0,
+      taxiCount: def.taxi_slots,
       devyCount: 0,
+      isFlexibleSlot: false,
+      slotOrder: order++,
+    })
+  }
+  if (def.devy_slots > 0) {
+    slots.push({
+      slotName: 'DEVY',
+      allowedPositions: allPositions,
+      starterCount: 0,
+      benchCount: 0,
+      reserveCount: 0,
+      taxiCount: 0,
+      devyCount: def.devy_slots,
       isFlexibleSlot: false,
       slotOrder: order++,
     })
@@ -229,6 +255,22 @@ function defaultSlotsForSport(sportType: SportType, formatType?: string): Roster
   return slots
 }
 
+/**
+ * Build default slots for a sport (and optional format). NFL and SOCCER use custom builders; others use registry.
+ */
+function defaultSlotsForSport(sportType: SportType, formatType?: string): RosterTemplateSlotDto[] {
+  if (sportType === 'NFL') {
+    if (formatType === 'IDP' || formatType === 'idp') return defaultNflIdpSlots()
+    return defaultNflSlots()
+  }
+  if (sportType === 'SOCCER') return defaultSoccerSlots()
+  return buildDefaultSlotsFromRosterDefaults(sportType, formatType)
+}
+
+/**
+ * Build default Soccer roster slots (GKP/GK, DEF, MID, FWD, UTIL, BENCH, IR).
+ * GKP slot accepts both GKP and GK positions for commissioner/feed flexibility.
+ */
 function defaultSoccerSlots(): RosterTemplateSlotDto[] {
   const positions = getPositionsForSport('SOCCER')
   const slots: RosterTemplateSlotDto[] = []

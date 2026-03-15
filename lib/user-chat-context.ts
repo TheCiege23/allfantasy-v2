@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { Prisma } from '@prisma/client';
+import { DEFAULT_SPORT } from '@/lib/sport-scope';
 import { getAllPlayers, SleeperPlayer } from './sleeper-client';
 import { fetchFantasyCalcValues, FantasyCalcPlayer, findPlayerByName } from './fantasycalc';
 
@@ -623,7 +624,7 @@ export function formatContextForSystemPrompt(context: UserChatContext): string {
       const fantraxLeagues = context.multiPlatform.platforms.fantrax.leagues || [];
       for (const league of fantraxLeagues.slice(0, 5)) {
         const statsInfo = league.wins !== undefined ? ` [${league.wins}-${league.losses}, Rank #${league.rank || '?'}]` : '';
-        prompt += `  - "${league.name}" (${league.sport?.toUpperCase() || 'NFL'}${league.isDevy ? ', DEVY' : ', dynasty'})${statsInfo}\n`;
+        prompt += `  - "${league.name}" (${league.sport?.toUpperCase() || DEFAULT_SPORT}${league.isDevy ? ', DEVY' : ', dynasty'})${statsInfo}\n`;
       }
       if (fantraxLeagues.length > 5) {
         prompt += `  - ...and ${fantraxLeagues.length - 5} more leagues\n`;

@@ -1,0 +1,37 @@
+'use client';
+
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+export type CreationMode = 'create' | 'import';
+
+export interface LeagueCreationImportSelectorProps {
+  value: CreationMode;
+  onChange: (mode: CreationMode) => void;
+  disabled?: boolean;
+}
+
+export function LeagueCreationImportSelector({
+  value,
+  onChange,
+  disabled,
+}: LeagueCreationImportSelectorProps) {
+  return (
+    <div className="space-y-2">
+      <Label>How do you want to set up your league?</Label>
+      <Select
+        value={value}
+        onValueChange={(v) => onChange(v as CreationMode)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="bg-gray-900 border-purple-600/40">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="create">Create New AF League — set sport, scoring, and size manually</SelectItem>
+          <SelectItem value="import">Import Existing League — bring in a Sleeper league with settings, rosters, and history</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}

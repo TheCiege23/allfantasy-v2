@@ -17,8 +17,9 @@ export interface LeagueCreationPresetSelectorProps {
 }
 
 /**
- * League preset / variant selector (e.g. NFL: Standard, PPR, Superflex, IDP, Dynasty IDP).
- * IDP is an NFL league type (preset) that adds defensive roster slots and scoring.
+ * League preset / variant selector.
+ * NFL: Standard, PPR, Half PPR, Superflex, IDP, Dynasty IDP. Soccer (and other sports): Standard.
+ * IDP is an NFL preset that adds defensive roster slots and scoring; selecting it loads IDP defaults automatically.
  */
 export function LeagueCreationPresetSelector({
   variantOptions,
@@ -27,11 +28,11 @@ export function LeagueCreationPresetSelector({
   disabled = false,
   showHelper = true,
 }: LeagueCreationPresetSelectorProps) {
-  if (variantOptions.length <= 1) return null;
+  if (variantOptions.length === 0) return null;
 
   return (
     <div>
-      <Label>League preset</Label>
+      <Label>Preset</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger className="bg-gray-900 border-purple-600/40">
           <SelectValue placeholder="Select preset" />
@@ -46,7 +47,7 @@ export function LeagueCreationPresetSelector({
       </Select>
       {showHelper && (
         <p className="text-white/50 text-xs mt-1">
-          Choosing a preset (e.g. IDP, Dynasty IDP) updates roster and scoring defaults automatically.
+          Selecting a preset changes roster and scoring defaults automatically. For NFL, <strong className="text-white/70">IDP</strong> and <strong className="text-white/70">Dynasty IDP</strong> add defensive players and scoring.
         </p>
       )}
     </div>

@@ -30,7 +30,19 @@ const NBA_ABBREV = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET
 const MLB_ABBREV = ['ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CWS', 'CIN', 'CLE', 'COL', 'DET', 'HOU', 'KC', 'LAA', 'LAD', 'MIA', 'MIL', 'MIN', 'NYM', 'NYY', 'OAK', 'PHI', 'PIT', 'SD', 'SF', 'SEA', 'STL', 'TB', 'TEX', 'TOR', 'WSH']
 const NHL_ABBREV = ['ANA', 'ARI', 'BOS', 'BUF', 'CGY', 'CAR', 'CHI', 'COL', 'CBJ', 'DAL', 'DET', 'EDM', 'FLA', 'LA', 'MIN', 'MTL', 'NSH', 'NJ', 'NYI', 'NYR', 'OTT', 'PHI', 'PIT', 'SJ', 'SEA', 'STL', 'TB', 'TOR', 'VAN', 'VGK', 'WPG', 'WSH']
 
-/** Soccer: MLS + select clubs (club/national scope). Logo path uses abbreviation; map to ESPN or provider. */
+/** NCAA Football: FBS team abbreviations (subset for logo/display; expand via DB or ingestion). Unique abbrevs. */
+const NCAAF_ABBREV = [
+  'ALA', 'ARK', 'AUB', 'FLA', 'UGA', 'UK', 'LSU', 'MSU', 'OLE', 'SC', 'TEN', 'TAMU', 'VAN', 'CLEM', 'DUKE', 'FSU', 'GT', 'LOU', 'MIA', 'UNC', 'NCST', 'PITT', 'SYR', 'UVA', 'VT', 'WAKE',
+  'ILL', 'IND', 'IOWA', 'MD', 'MICH', 'MINN', 'NEB', 'NW', 'OSU', 'PSU', 'PUR', 'RUT', 'WIS', 'BU', 'CIN', 'UCF', 'HOU', 'ECU', 'MEM', 'NAVY', 'SMU', 'USF', 'TULN', 'TLS', 'BAYLOR', 'ISU', 'KU', 'KSU', 'OKLA', 'OKST', 'TCU', 'TEX', 'TTU', 'WVU', 'ARIZ', 'ASU', 'CAL', 'COLO', 'ORE', 'STAN', 'UCLA', 'USC', 'UTAH', 'WASH', 'WSU', 'ND', 'BYU', 'BSU', 'SDSU', 'UNLV', 'NM', 'WYO', 'AF', 'CSU', 'UTEP', 'UTSA', 'APP', 'CCU', 'MARSH', 'TROY',
+]
+
+/** NCAA Basketball: D1 team abbreviations (subset for logo/display; expand via DB or ingestion). Unique abbrevs. */
+const NCAAB_ABBREV = [
+  'ALA', 'ARK', 'AUB', 'FLA', 'UGA', 'UK', 'LSU', 'MSU', 'OLE', 'SC', 'TEN', 'TAMU', 'VAN', 'CLEM', 'DUKE', 'FSU', 'GT', 'LOU', 'MIA', 'UNC', 'NCST', 'PITT', 'SYR', 'UVA', 'VT', 'WAKE',
+  'ILL', 'IND', 'IOWA', 'MD', 'MICH', 'MINN', 'NEB', 'NW', 'OSU', 'PSU', 'PUR', 'RUT', 'WIS', 'BU', 'CIN', 'UCF', 'HOU', 'MEM', 'SMU', 'TULN', 'TLS', 'BAYLOR', 'ISU', 'KU', 'KSU', 'OKLA', 'OKST', 'TCU', 'TEX', 'TTU', 'WVU', 'ARIZ', 'ASU', 'CAL', 'COLO', 'ORE', 'STAN', 'UCLA', 'USC', 'UTAH', 'WASH', 'WSU', 'GONZ', 'SMC', 'BYU', 'SDSU', 'UNLV', 'NM', 'NEV', 'WYO', 'VCU', 'DAY', 'SLU', 'XAV', 'MARQ', 'CREI', 'BUT', 'NOVA', 'SHU', 'SJU', 'PC', 'UConn', 'GTOWN', 'DEP',
+]
+
+/** Soccer: MLS + select clubs (club/national scope). Player pool by sport_type = SOCCER; positions GKP/GK, DEF, MID, FWD. Logo path uses abbreviation; unknown clubs get ESPN-style URL fallback. */
 const SOCCER_TEAMS: { abbr: string; name: string; city: string }[] = [
   { abbr: 'ATL', name: 'Atlanta United', city: 'Atlanta' },
   { abbr: 'LAFC', name: 'Los Angeles FC', city: 'Los Angeles' },
@@ -148,6 +160,14 @@ export function getTeamMetadataForSport(sportType: SportType | string): TeamMeta
     if (!cacheBySport.has('NHL')) cacheBySport.set('NHL', buildLeagueTeams('NHL', NHL_ABBREV))
     return cacheBySport.get('NHL')!
   }
+  if (sport === 'NCAAF') {
+    if (!cacheBySport.has('NCAAF')) cacheBySport.set('NCAAF', buildLeagueTeams('NCAAF', NCAAF_ABBREV))
+    return cacheBySport.get('NCAAF')!
+  }
+  if (sport === 'NCAAB') {
+    if (!cacheBySport.has('NCAAB')) cacheBySport.set('NCAAB', buildLeagueTeams('NCAAB', NCAAB_ABBREV))
+    return cacheBySport.get('NCAAB')!
+  }
   if (sport === 'SOCCER') {
     if (!cacheBySport.has('SOCCER')) cacheBySport.set('SOCCER', buildSoccerTeams())
     return cacheBySport.get('SOCCER')!
@@ -169,11 +189,15 @@ export function getTeamByAbbreviation(
 
 /**
  * Primary logo URL for a team (abbreviation + sport). Use for rendering when DB has no logo.
+ * If team is not in static list (e.g. Soccer club not in SOCCER_TEAMS), returns ESPN-style URL by sport + abbr so logos can still be attempted.
  */
 export function getPrimaryLogoUrlForTeam(
   sportType: SportType | string,
   abbreviation: string
 ): string | null {
-  const team = getTeamByAbbreviation(sportType, abbreviation)
-  return team?.primary_logo_url ?? null
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const team = getTeamByAbbreviation(sport, abbreviation)
+  if (team?.primary_logo_url) return team.primary_logo_url
+  if (abbreviation?.trim()) return logoUrlForAbbrev(sport, abbreviation.trim())
+  return null
 }

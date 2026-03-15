@@ -264,7 +264,7 @@ export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { i
       </div>
 
       {tab === 'partner' ? (
-        <PartnerMatchView leagueId={selectedLeague?.platformLeagueId || ''} />
+        <PartnerMatchView leagueId={selectedLeague?.id || leagueId || ''} />
       ) : (<>
       <div className="flex flex-col md:flex-row gap-4 items-stretch bg-gradient-to-r from-purple-950/80 to-black/80 p-4 rounded-xl border border-purple-500/30 backdrop-blur-md">
         <Select value={leagueId} onValueChange={setLeagueId}>

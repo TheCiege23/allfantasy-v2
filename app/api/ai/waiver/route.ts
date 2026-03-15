@@ -13,6 +13,7 @@ import {
 import { rateLimit } from '@/lib/rate-limit';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
+import { getMetaPromptBlob } from '@/lib/meta-insights';
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -108,10 +109,15 @@ Consider this manager's style when making recommendations.
       userPrompt = legacySection + '\n' + userPrompt;
     }
 
-    const learningContext = await getComprehensiveLearningContext();
-    const enhancedSystemPrompt = learningContext 
-      ? `${WAIVER_AI_SYSTEM_PROMPT}\n${learningContext}`
-      : WAIVER_AI_SYSTEM_PROMPT;
+    const [learningContext, metaBlob] = await Promise.all([
+      getComprehensiveLearningContext(),
+      getMetaPromptBlob(waiverRequest.league?.sport ?? 'NFL').catch(() => ''),
+    ]);
+    const enhancedSystemPrompt = [
+      WAIVER_AI_SYSTEM_PROMPT,
+      learningContext ?? '',
+      metaBlob ? `\nPLATFORM META (use for waiver recommendations):\n${metaBlob}` : '',
+    ].filter(Boolean).join('\n');
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',

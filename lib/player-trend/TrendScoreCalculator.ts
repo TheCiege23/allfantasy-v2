@@ -1,9 +1,11 @@
 /**
  * Computes TrendScore from normalized signal rates.
- * Formula: sum of (weight × signal) for each signal; dropRate and injuryImpact are penalties.
+ * Formula: AddRateWeight + TradeInterestWeight + DraftRateWeight + StartRateWeight (and penalties for dropRate, injuryImpact).
+ * Configurable and sport-aware via getTrendWeightsForSport(sport).
  */
 import type { TrendSignals } from './types'
 import { DEFAULT_TREND_WEIGHTS } from './types'
+import { getTrendWeightsForSport } from './SportTrendContextResolver'
 
 export interface TrendScoreWeights extends Partial<TrendSignals> {}
 
@@ -24,6 +26,14 @@ export function calculateTrendScore(
     w.lineupStartRate * signals.lineupStartRate +
     w.injuryImpact * signals.injuryImpact
   )
+}
+
+/**
+ * Compute trend score with sport-aware weights (for same-sport baseline comparison).
+ */
+export function calculateTrendScoreForSport(signals: TrendSignals, sport: string | null | undefined): number {
+  const w = getTrendWeightsForSport(sport)
+  return calculateTrendScore(signals, w)
 }
 
 /** Clamp score to 0–100 for display. */

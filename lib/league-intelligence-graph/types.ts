@@ -30,10 +30,18 @@ export const EDGE_TYPES = [
   "ELIMINATED",
   "WON_TITLE",
   "COMMISSIONER_OF",
+  "COMMISSIONED_BY",
   "BLOCKED",
   "MENTIONED",
   "INFLUENCED_BY",
   "SUCCESSOR_OF",
+  "FACED",
+  "DEFEATED",
+  "LEAGUE_MEMBER_OF",
+  "CHAMPION_OF",
+  "POWER_SHIFT_EDGE",
+  "DRAMA_EVENT_EDGE",
+  "CO_MANAGED",
 ] as const;
 
 export type GraphEdgeType = (typeof EDGE_TYPES)[number];
@@ -44,6 +52,7 @@ export interface GraphNodePayload {
   entityId: string;
   leagueId: string;
   season: number | null;
+  sport?: string | null;
   metadata: Record<string, unknown> | null;
 }
 
@@ -54,6 +63,7 @@ export interface GraphEdgePayload {
   edgeType: GraphEdgeType;
   weight: number;
   season: number | null;
+  sport?: string | null;
   metadata: Record<string, unknown> | null;
 }
 

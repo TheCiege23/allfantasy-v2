@@ -23,8 +23,31 @@ export interface LeagueCreationPresetPayload {
     flex_definitions: Array<{ slotName: string; allowedPositions: string[] }>;
   };
   scoring: { scoring_template_id: string; scoring_format: string; category_type: string };
-  draft: { draft_type: string; rounds_default: number; timer_seconds_default: number | null; pick_order_rules: string };
-  waiver: { waiver_type: string; processing_days: number[] | null; FAAB_budget_default: number | null };
+  draft: {
+    draft_type: string;
+    rounds_default: number;
+    timer_seconds_default: number | null;
+    pick_order_rules: string;
+    snake_or_linear_behavior?: string;
+    third_round_reversal?: boolean;
+    autopick_behavior?: string;
+    queue_size_limit?: number | null;
+    pre_draft_ranking_source?: string;
+    roster_fill_order?: string;
+    position_filter_behavior?: string;
+  };
+  waiver: {
+    waiver_type: string;
+    processing_days: number[] | null;
+    FAAB_budget_default: number | null;
+    processing_time_utc?: string | null;
+    faab_enabled?: boolean;
+    claim_priority_behavior?: string | null;
+    continuous_waivers_behavior?: boolean;
+    free_agent_unlock_behavior?: string | null;
+    game_lock_behavior?: string | null;
+    max_claims_per_period?: number | null;
+  };
   rosterTemplate: {
     templateId: string;
     name: string;

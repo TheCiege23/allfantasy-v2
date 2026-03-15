@@ -15,6 +15,7 @@ const SIGNAL_TO_SIGNAL_KEY: Record<TrendSignalType, keyof TrendSignals | null> =
   lineup_start: 'lineupStartRate',
   ai_recommendation: 'addRate', // treat as add interest
   injury: 'injuryImpact',
+  injury_event: 'injuryImpact',
 }
 
 /**

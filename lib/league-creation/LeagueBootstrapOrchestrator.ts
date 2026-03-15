@@ -8,12 +8,20 @@ import { initializeLeagueWithSportDefaults } from '@/lib/sport-defaults/LeagueCr
 import { resolveSportConfigForLeague } from '@/lib/multi-sport/SportConfigResolver'
 import { bootstrapLeagueScoring } from '@/lib/scoring-defaults/LeagueScoringBootstrapService'
 import { bootstrapLeaguePlayerPool } from '@/lib/sport-teams/LeaguePlayerPoolBootstrapService'
+import { bootstrapLeagueDraftConfig } from '@/lib/draft-defaults/LeagueDraftBootstrapService'
+import { bootstrapLeagueWaiverSettings } from '@/lib/waiver-defaults/LeagueWaiverBootstrapService'
+import { bootstrapLeaguePlayoffConfig } from '@/lib/playoff-defaults/LeaguePlayoffBootstrapService'
+import { bootstrapLeagueScheduleConfig } from '@/lib/schedule-defaults/LeagueScheduleBootstrapService'
 
 export interface BootstrapResult {
   roster: { templateId: string }
   settings: { settingsApplied: boolean; waiverApplied: boolean }
   scoring: { templateId: string; isDefault: boolean }
   playerPool: { playerCount: number; teamCount: number }
+  draft: { draftConfigApplied: boolean }
+  waiver: { waiverSettingsApplied: boolean }
+  playoff: { playoffConfigApplied: boolean }
+  schedule: { scheduleConfigApplied: boolean }
 }
 
 /**
@@ -28,7 +36,7 @@ export async function runLeagueBootstrap(
   const config = resolveSportConfigForLeague(leagueSport)
   const format = scoringFormat ?? config.defaultFormat
 
-  const [rosterResult, settingsResult, scoringResult, poolResult] = await Promise.all([
+  const [rosterResult, settingsResult, scoringResult, poolResult, draftResult, waiverResult, playoffResult, scheduleResult] = await Promise.all([
     attachRosterConfigForLeague(leagueId, leagueSport, format).then((r) => ({ templateId: r.templateId })),
     initializeLeagueWithSportDefaults({ leagueId, sport: leagueSport, mergeIfExisting: false }),
     bootstrapLeagueScoring(leagueId, leagueSport, format).then((r) => ({
@@ -39,6 +47,30 @@ export async function runLeagueBootstrap(
       playerCount: 0,
       teamCount: 0,
     } as { playerCount: number; teamCount: number })),
+    bootstrapLeagueDraftConfig(leagueId).catch(() => ({
+      leagueId,
+      draftConfigApplied: false,
+      sport: String(leagueSport),
+      variant: null,
+    })),
+    bootstrapLeagueWaiverSettings(leagueId).catch(() => ({
+      leagueId,
+      waiverSettingsApplied: false,
+      sport: String(leagueSport),
+      variant: null,
+    })),
+    bootstrapLeaguePlayoffConfig(leagueId).catch(() => ({
+      leagueId,
+      playoffConfigApplied: false,
+      sport: String(leagueSport),
+      variant: null,
+    })),
+    bootstrapLeagueScheduleConfig(leagueId).catch(() => ({
+      leagueId,
+      scheduleConfigApplied: false,
+      sport: String(leagueSport),
+      variant: null,
+    })),
   ])
 
   return {
@@ -46,5 +78,9 @@ export async function runLeagueBootstrap(
     settings: settingsResult,
     scoring: scoringResult,
     playerPool: poolResult,
+    draft: { draftConfigApplied: draftResult.draftConfigApplied },
+    waiver: { waiverSettingsApplied: waiverResult.waiverSettingsApplied },
+    playoff: { playoffConfigApplied: playoffResult.playoffConfigApplied },
+    schedule: { scheduleConfigApplied: scheduleResult.scheduleConfigApplied },
   }
 }

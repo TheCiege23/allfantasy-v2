@@ -11,10 +11,18 @@ type AdpEntry = {
   value?: number | null
 }
 
+export type DraftBoardConfig = {
+  rounds: number
+  timer_seconds: number | null
+  leagueSize: number
+}
+
 type LeagueDraftBoardProps = {
   leagueId: string
   entries: AdpEntry[]
   onAddToQueue: (item: { id: string; name: string; position: string; team: string; rank: number }) => void
+  /** When provided, uses sport/variant draft config; otherwise falls back to defaults. */
+  config?: DraftBoardConfig | null
 }
 
 type DraftPick = {
@@ -31,11 +39,18 @@ const DEFAULT_TEAMS = 12
 const DEFAULT_ROUNDS = 15
 const DEFAULT_SECONDS_PER_PICK = 60
 
-export function LeagueDraftBoard({ leagueId, entries, onAddToQueue }: LeagueDraftBoardProps) {
-  const [numTeams] = useState(DEFAULT_TEAMS)
-  const [numRounds] = useState(DEFAULT_ROUNDS)
-  const [secondsPerPick] = useState(DEFAULT_SECONDS_PER_PICK)
+export function LeagueDraftBoard({ leagueId, entries, onAddToQueue, config }: LeagueDraftBoardProps) {
+  const [numTeams, setNumTeams] = useState(config?.leagueSize ?? DEFAULT_TEAMS)
+  const [numRounds, setNumRounds] = useState(config?.rounds ?? DEFAULT_ROUNDS)
+  const [secondsPerPick, setSecondsPerPick] = useState(config?.timer_seconds ?? DEFAULT_SECONDS_PER_PICK)
   const [picks, setPicks] = useState<DraftPick[]>([])
+  useEffect(() => {
+    if (config) {
+      if (config.leagueSize != null) setNumTeams(config.leagueSize)
+      if (config.rounds != null) setNumRounds(config.rounds)
+      if (config.timer_seconds != null) setSecondsPerPick(config.timer_seconds)
+    }
+  }, [config?.leagueSize, config?.rounds, config?.timer_seconds])
   const [isPaused, setIsPaused] = useState(false)
   const [bigScreen, setBigScreen] = useState(false)
   const [inviteLink] = useState<string>(() => `${process.env.NEXT_PUBLIC_APP_URL || ''}/leagues/${encodeURIComponent(leagueId)}/draft`)

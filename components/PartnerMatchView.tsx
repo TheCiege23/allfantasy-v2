@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
+import { ManagerStyleBadge } from '@/components/ManagerStyleBadge';
 
 export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
   const [matches, setMatches] = useState<any[]>([]);
@@ -68,7 +69,16 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
       {matches.map((match) => (
         <Card key={match.teamId || match.teamName} className="border-cyan-900/40 bg-black/50 backdrop-blur-sm hover:border-cyan-500/60 transition-colors">
           <CardContent className="p-6">
-            <h3 className="text-lg font-bold mb-3">{match.teamName}</h3>
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <h3 className="text-lg font-bold">{match.teamName}</h3>
+              {leagueId && (match.externalId || match.teamId) && (
+                <ManagerStyleBadge
+                  leagueId={leagueId}
+                  managerId={match.externalId ?? match.teamId}
+                  className="shrink-0"
+                />
+              )}
+            </div>
 
             <div className="mb-4">
               <p className="text-sm text-gray-400 mb-2">Current roster needs:</p>

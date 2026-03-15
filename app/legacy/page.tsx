@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import RosterLegacyReport from '@/app/components/RosterLegacyReport';
 import SyncedRosters from '@/app/components/SyncedRosters';
@@ -20,13 +21,25 @@ type LeagueOption = {
   scoring: string | null
 }
 
+const TAB_IDS = ['overview', 'trade', 'waiver', 'chat', 'mock-draft', 'ideas', 'transfer'] as const;
+type TabId = (typeof TAB_IDS)[number];
+
 export default function LegacyOverview() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'trade' | 'waiver' | 'chat' | 'mock-draft' | 'ideas' | 'transfer'>('overview');
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab: TabId = tabFromUrl && TAB_IDS.includes(tabFromUrl as TabId) ? (tabFromUrl as TabId) : 'overview';
+
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
   const [mockLeagues, setMockLeagues] = useState<LeagueOption[]>([]);
   const [mockLoading, setMockLoading] = useState(false);
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const protectedTabs: Array<'trade' | 'waiver' | 'chat' | 'mock-draft' | 'ideas' | 'transfer'> = ['trade', 'waiver', 'chat', 'mock-draft', 'ideas', 'transfer'];
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && TAB_IDS.includes(t as TabId)) setActiveTab(t as TabId);
+  }, [searchParams]);
 
   useEffect(() => {
     let mounted = true;

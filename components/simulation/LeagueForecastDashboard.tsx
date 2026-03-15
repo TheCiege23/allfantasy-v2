@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo } from 'react'
 import { PlayoffOddsPanel } from './PlayoffOddsPanel'
 import { SimulationConfidenceIndicator } from './SimulationConfidenceIndicator'
@@ -96,6 +97,12 @@ export function LeagueForecastDashboard({
             AI summary
           </h3>
           <p className="text-sm text-white/80 whitespace-pre-wrap">{aiSummary}</p>
+          <Link
+            href="/legacy?tab=chat"
+            className="mt-2 inline-block text-[11px] text-cyan-400 hover:text-cyan-300"
+          >
+            Ask Chimmy about playoff odds →
+          </Link>
         </div>
       )}
 

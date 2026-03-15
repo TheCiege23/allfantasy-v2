@@ -272,11 +272,15 @@ export default function WaiverAI() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <Link href="/" className="text-cyan-400 hover:text-cyan-300 inline-block">
-            &larr; Back to Home
-          </Link>
-
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-cyan-400 hover:text-cyan-300 inline-block">
+              &larr; Back to Home
+            </Link>
+            <Link href="/app/meta-insights" className="text-violet-400 hover:text-violet-300 inline-block text-sm">
+              Trending players
+            </Link>
+          </div>
           <CooldownPill />
         </div>
 
@@ -310,10 +314,9 @@ export default function WaiverAI() {
                     onChange={(e) => setSport(e.target.value)}
                     className="w-full px-3 py-2 bg-black/50 border border-cyan-500/30 rounded text-white"
                   >
-                    <option value="NFL">NFL</option>
-                    <option value="NBA">NBA</option>
-                    <option value="MLB">MLB</option>
-                    <option value="NHL">NHL</option>
+                    {['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER'].map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
                   </select>
                 </div>
 

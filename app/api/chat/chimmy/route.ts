@@ -6,6 +6,7 @@ import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekChat, deepseekQuantAnalysis } from '@/lib/deepseek-client'
 import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enrichment'
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
+import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 
@@ -717,16 +718,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const [userContextResult, enrichmentResult, aiMemoryResult] = await Promise.allSettled([
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult] = await Promise.allSettled([
     getUserContext(userId),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
       return null
     }),
     userId ? getAIMemorySummary(userId) : Promise.resolve(''),
+    userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
   ])
 
-  const userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
+  let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
+  const simWarehouseStr = simWarehouseResult.status === 'fulfilled' ? simWarehouseResult.value : ''
+  if (simWarehouseStr && typeof simWarehouseStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${simWarehouseStr}` : simWarehouseStr
+  }
+  if (simWarehouseStr) dataSources.push('simulation_warehouse')
   const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
   const enrichmentStr = enrichment?.context ?? ''
   const aiMemoryStr = aiMemoryResult.status === 'fulfilled' ? aiMemoryResult.value : ''

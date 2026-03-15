@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, Brain, RefreshCw } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronDown, Brain, RefreshCw, HelpCircle } from 'lucide-react'
 
 interface PsychTrait {
   trait: string
@@ -55,6 +55,16 @@ function TraitBar({ trait }: { trait: PsychTrait }) {
   )
 }
 
+interface EngineProfile {
+  id: string
+  profileLabels: string[]
+  aggressionScore: number
+  activityScore: number
+  tradeFrequencyScore: number
+  waiverFocusScore: number
+  riskToleranceScore: number
+}
+
 export default function ManagerPsychology({
   leagueId,
   rosterId,
@@ -68,8 +78,24 @@ export default function ManagerPsychology({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [profile, setProfile] = useState<PsychProfile | null>(null)
+  const [engineProfile, setEngineProfile] = useState<EngineProfile | null>(null)
+  const [explainNarrative, setExplainNarrative] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const managerId = String(rosterId)
+
+  useEffect(() => {
+    if (!isOpen || !leagueId || !managerId) return
+    const url = `/api/leagues/${encodeURIComponent(leagueId)}/psychological-profiles?managerId=${encodeURIComponent(managerId)}`
+    fetch(url, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.profile) setEngineProfile(data.profile)
+        else setEngineProfile(null)
+      })
+      .catch(() => setEngineProfile(null))
+  }, [isOpen, leagueId, managerId])
 
   const fetchProfile = async () => {
     if (profile) {
@@ -159,6 +185,49 @@ export default function ManagerPsychology({
             </div>
           )}
 
+          {engineProfile && engineProfile.profileLabels.length > 0 && !profile && (
+            <div className="bg-white/[0.03] rounded-lg p-2.5 border border-white/10 mb-3">
+              <div className="text-[9px] text-white/40 uppercase tracking-wider mb-1.5">Behavior labels</div>
+              <div className="flex flex-wrap gap-1">
+                {engineProfile.profileLabels.map((l) => (
+                  <span
+                    key={l}
+                    className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-200 border border-purple-500/20"
+                  >
+                    {l}
+                  </span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (explainNarrative !== null) {
+                    setExplainNarrative(null)
+                    return
+                  }
+                  try {
+                    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/psychological-profiles/explain`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ profileId: engineProfile.id }),
+                    })
+                    const data = await res.json()
+                    setExplainNarrative(data?.narrative ?? 'No explanation available.')
+                  } catch {
+                    setExplainNarrative('Could not load explanation.')
+                  }
+                }}
+                className="mt-1.5 flex items-center gap-1 text-[9px] text-purple-300 hover:text-purple-200"
+              >
+                <HelpCircle size={10} />
+                {explainNarrative ? 'Hide explanation' : 'Why this profile?'}
+              </button>
+              {explainNarrative && (
+                <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
+              )}
+            </div>
+          )}
+
           {profile && !loading && (
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -207,6 +276,49 @@ export default function ManagerPsychology({
                   <p className="text-[10px] text-cyan-200/70 leading-relaxed">{profile.negotiationStyle}</p>
                 </div>
               </div>
+
+              {engineProfile && engineProfile.profileLabels.length > 0 && (
+                <div className="bg-white/[0.03] rounded-lg p-2.5 border border-white/10">
+                  <div className="text-[9px] text-white/40 uppercase tracking-wider mb-1.5">Behavior labels</div>
+                  <div className="flex flex-wrap gap-1">
+                    {engineProfile.profileLabels.map((l) => (
+                      <span
+                        key={l}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-200 border border-purple-500/20"
+                      >
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (explainNarrative !== null) {
+                        setExplainNarrative(null)
+                        return
+                      }
+                      try {
+                        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/psychological-profiles/explain`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ profileId: engineProfile.id }),
+                        })
+                        const data = await res.json()
+                        setExplainNarrative(data?.narrative ?? 'No explanation available.')
+                      } catch {
+                        setExplainNarrative('Could not load explanation.')
+                      }
+                    }}
+                    className="mt-1.5 flex items-center gap-1 text-[9px] text-purple-300 hover:text-purple-200"
+                  >
+                    <HelpCircle size={10} />
+                    {explainNarrative ? 'Hide explanation' : 'Why this profile?'}
+                  </button>
+                  {explainNarrative && (
+                    <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end">
                 <button

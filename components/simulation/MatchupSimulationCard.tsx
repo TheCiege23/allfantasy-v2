@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 
 export type MatchupSimulationResult = {
   winProbabilityA: number
@@ -59,11 +60,36 @@ export function MatchupSimulationCard({
 }: MatchupSimulationCardProps) {
   const [result, setResult] = useState<MatchupSimulationResult | null>(resultProp ?? null)
   const [loading, setLoading] = useState(!resultProp && !!teamA && !!teamB)
+  const [error, setError] = useState<string | null>(null)
+
+  const runSimulation = useCallback(() => {
+    const hasProjections =
+      typeof teamA?.mean === 'number' && typeof teamB?.mean === 'number'
+    if (!hasProjections) return
+    setError(null)
+    setLoading(true)
+    fetch('/api/simulation/matchup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev ?? 15 },
+        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev ?? 15 },
+      }),
+    })
+      .then((res) => {
+        if (res.ok) return res.json()
+        return res.json().then((d) => { throw new Error(d?.error || 'Simulation failed') })
+      })
+      .then((data) => { setResult(data); setError(null) })
+      .catch((err) => { setError(err?.message ?? 'Simulation failed'); setResult(null) })
+      .finally(() => setLoading(false))
+  }, [teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
 
   useEffect(() => {
     if (resultProp != null) {
       setResult(resultProp)
       setLoading(false)
+      setError(null)
       return
     }
     const hasProjections =
@@ -73,6 +99,7 @@ export function MatchupSimulationCard({
       return
     }
     let cancelled = false
+    setError(null)
     fetch('/api/simulation/matchup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -81,17 +108,14 @@ export function MatchupSimulationCard({
         teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev ?? 15 },
       }),
     })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) setResult(data)
+      .then((res) => {
+        if (res.ok) return res.json()
+        return res.json().then((d) => { throw new Error(d?.error || 'Simulation failed') })
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+      .then((data) => { if (!cancelled) setResult(data); if (!cancelled) setError(null) })
+      .catch((err) => { if (!cancelled) setError(err?.message ?? 'Simulation failed'); if (!cancelled) setResult(null) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [resultProp, teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
 
   const display = useMemo(() => {
@@ -141,7 +165,25 @@ export function MatchupSimulationCard({
         <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider">
           Matchup simulation
         </h3>
-        <VolatilityTag tag={display.vol} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/legacy?tab=chat"
+            className="rounded border border-cyan-500/40 px-2 py-0.5 text-[10px] text-cyan-300 hover:bg-cyan-500/10"
+            title="Ask Chimmy to explain this matchup"
+          >
+            Explain matchup
+          </Link>
+          <button
+            type="button"
+            onClick={runSimulation}
+            disabled={loading}
+            className="rounded border border-white/20 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10 disabled:opacity-50"
+            title="Rerun simulation"
+          >
+            {loading ? 'Running…' : 'Rerun'}
+          </button>
+          <VolatilityTag tag={display.vol} />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

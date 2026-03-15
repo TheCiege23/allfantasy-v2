@@ -15,6 +15,7 @@ import { deepseekQuantAnalysis } from "@/lib/deepseek-client"
 import { trackLegacyToolUsage } from "@/lib/analytics-server"
 import { enrichRawWaiverSuggestionsWithGrok } from "@/lib/waiver-engine/waiver-grok-adapter"
 import { logAiOutput } from "@/lib/ai/output-logger"
+import { buildSportContextString } from "@/lib/ai/AISportContextResolver"
 
 type AnyObj = Record<string, any>
 
@@ -142,6 +143,11 @@ function safeStr(v: any): string | undefined {
 function extractLeagueMeta(body: AnyObj) {
   const league = body?.league ?? body?.context?.league ?? body?.settings?.league ?? {}
 
+  const sport =
+    safeStr(league?.sport) ||
+    safeStr(body?.sport) ||
+    undefined
+
   const leagueName =
     safeStr(league?.name) ||
     safeStr(body?.league_name) ||
@@ -188,6 +194,7 @@ function extractLeagueMeta(body: AnyObj) {
     typeof body?.week === 'number' ? body.week : undefined
 
   return {
+    sport: sport ?? 'NFL',
     leagueName,
     format,
     superflex,
@@ -290,6 +297,7 @@ async function runTripleAIWaiverAnalysis(
     : ''
 
   const sharedContext = `
+SPORT: ${leagueMeta.sport ?? 'NFL'}
 WAIVER CANDIDATES: ${candidateNames.join(', ')}
 LEAGUE: ${leagueMeta.format ?? 'dynasty'} | ${leagueMeta.superflex ? 'SuperFlex' : '1QB'} | ${leagueMeta.numTeams} teams
 FAAB BUDGET: $${leagueMeta.faabBudget}
@@ -562,11 +570,13 @@ export const POST = withApiUsage({
       trendResult,
       leagueMeta.strategyMode
     )
+    const sportContext = buildSportContextString(leagueMeta)
+    const userMessage = `${sportContext}\n\n${enrichedPrompt}`
 
     const completion = await openaiChatJson({
       messages: [
         { role: 'system', content: WAIVER_AI_SYSTEM_PROMPT },
-        { role: 'user', content: enrichedPrompt },
+        { role: 'user', content: userMessage },
       ],
       temperature: OPENAI_TEMP,
       maxTokens: OPENAI_TOKENS,

@@ -76,6 +76,7 @@ export async function GET() {
     const normalizedSleeper = sleeperLeagues.map((lg: any) => ({
       id: lg.id,
       name: lg.name,
+      sport: (lg.sport as string) || 'NFL',
       platform: 'sleeper',
       platformLeagueId: lg.sleeperLeagueId,
       leagueSize: lg.totalTeams,

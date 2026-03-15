@@ -1,5 +1,9 @@
 export * from "./types"
-export * from "./settings-service"
+export {
+  getLeagueWaiverSettings,
+  getEffectiveLeagueWaiverSettings,
+  upsertLeagueWaiverSettings,
+} from "./settings-service"
 export * from "./claim-service"
 export * from "./process-engine"
 export * from "./roster-utils"

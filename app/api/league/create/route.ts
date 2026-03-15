@@ -15,6 +15,9 @@ const createSchema = z.object({
   sport: z.enum(['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER']).optional(),
   leagueVariant: z.string().max(32).optional(),
   userId: z.string().optional(),
+  /** Create league from full Sleeper import; requires sleeperLeagueId */
+  createFromSleeperImport: z.boolean().optional(),
+  sleeperLeagueId: z.string().optional(),
 });
 
 export async function POST(req: Request) {
@@ -48,6 +51,8 @@ export async function POST(req: Request) {
     isSuperflex,
     sport: sportInput,
     leagueVariant: leagueVariantInput,
+    createFromSleeperImport,
+    sleeperLeagueId,
   } = parsed.data;
 
   const sport = sportInput ?? 'NFL';
@@ -69,6 +74,82 @@ export async function POST(req: Request) {
   }
 
   try {
+    // --- Sleeper full import path ---
+    if (createFromSleeperImport && sleeperLeagueId?.trim()) {
+      const cleanSleeperId = sleeperLeagueId.trim();
+      const existing = await (prisma as any).league.findFirst({
+        where: {
+          userId: session.user.id,
+          platform: 'sleeper',
+          platformLeagueId: cleanSleeperId,
+        },
+      });
+      if (existing) {
+        return NextResponse.json({ error: 'This league already exists in your account' }, { status: 409 });
+      }
+      const { runImportedLeagueNormalizationPipeline } = await import('@/lib/league-import/ImportedLeagueNormalizationPipeline');
+      const result = await runImportedLeagueNormalizationPipeline(cleanSleeperId);
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.error },
+          { status: result.code === 'LEAGUE_NOT_FOUND' ? 404 : 500 }
+        );
+      }
+      const { normalized } = result;
+      const leagueSport = (normalized.league.sport === 'NFL' || normalized.league.sport === 'NBA' || normalized.league.sport === 'MLB' || normalized.league.sport === 'NHL' || normalized.league.sport === 'NCAAF' || normalized.league.sport === 'NCAAB' || normalized.league.sport === 'SOCCER')
+        ? normalized.league.sport
+        : 'NFL';
+      const settingsFromImport: Record<string, unknown> = {
+        ...(normalized.league as Record<string, unknown>),
+        playoff_team_count: normalized.league.playoff_team_count,
+        roster_positions: (normalized.league as Record<string, unknown>).roster_positions,
+        scoring_settings: (normalized.league as Record<string, unknown>).scoring_settings,
+      };
+      const league = await (prisma as any).league.create({
+        data: {
+          userId: session.user.id,
+          name: normalized.league.name,
+          platform: 'sleeper',
+          platformLeagueId: cleanSleeperId,
+          leagueSize: normalized.league.leagueSize,
+          scoring: normalized.league.scoring ?? undefined,
+          isDynasty: normalized.league.isDynasty,
+          sport: leagueSport,
+          leagueVariant: null,
+          season: normalized.league.season ?? undefined,
+          rosterSize: normalized.league.rosterSize ?? undefined,
+          starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
+          avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
+          settings: settingsFromImport,
+          syncStatus: 'pending',
+          importBatchId: normalized.source.import_batch_id ?? undefined,
+          importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
+        },
+      });
+      try {
+        const { bootstrapLeagueFromSleeperImport } = await import('@/lib/league-import/sleeper/SleeperLeagueCreationBootstrapService');
+        await bootstrapLeagueFromSleeperImport(league.id, normalized);
+      } catch (err) {
+        console.warn('[league/create] Sleeper import bootstrap non-fatal:', err);
+      }
+      try {
+        const { bootstrapLeagueDraftConfig } = await import('@/lib/draft-defaults/LeagueDraftBootstrapService');
+        const { bootstrapLeagueWaiverSettings } = await import('@/lib/waiver-defaults/LeagueWaiverBootstrapService');
+        const { bootstrapLeaguePlayoffConfig } = await import('@/lib/playoff-defaults/LeaguePlayoffBootstrapService');
+        const { bootstrapLeagueScheduleConfig } = await import('@/lib/schedule-defaults/LeagueScheduleBootstrapService');
+        await Promise.all([
+          bootstrapLeagueDraftConfig(league.id),
+          bootstrapLeagueWaiverSettings(league.id),
+          bootstrapLeaguePlayoffConfig(league.id),
+          bootstrapLeagueScheduleConfig(league.id),
+        ]);
+      } catch (err) {
+        console.warn('[league/create] Import gap-fill (draft/waiver/playoff/schedule) non-fatal:', err);
+      }
+      return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });
+    }
+
+    // --- Native creation path (unchanged) ---
     if (platformLeagueId && platform !== 'manual') {
       const existing = await (prisma as any).league.findFirst({
         where: {
@@ -83,8 +164,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const { buildInitialLeagueSettings } = await import('@/lib/sport-defaults/LeagueDefaultSettingsService');
-    const initialSettings = buildInitialLeagueSettings(sport as string);
+    const { getInitialSettingsForCreation } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
+    const initialSettings = getInitialSettingsForCreation(sport as string, leagueVariantInput ?? undefined, {
+      superflex: isSuperflex ?? false,
+      roster_mode: isDynasty ? 'dynasty' : undefined,
+    });
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -96,16 +180,14 @@ export async function POST(req: Request) {
         isDynasty,
         sport,
         leagueVariant: leagueVariantInput ?? null,
-        settings: { ...initialSettings, ...(isSuperflex ? { superflex: true } : {}) },
+        settings: initialSettings as Record<string, unknown>,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
       },
     });
 
-    const bootstrapFormat =
-      leagueVariantInput && ['IDP', 'DYNASTY_IDP'].includes(leagueVariantInput.toUpperCase()) ? 'IDP' : scoring;
     try {
-      const { runLeagueBootstrap } = await import('@/lib/league-creation/LeagueBootstrapOrchestrator');
-      await runLeagueBootstrap(league.id, sport as any, bootstrapFormat);
+      const { runPostCreateInitialization } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
+      await runPostCreateInitialization(league.id, sport as string, leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
       // non-fatal: league is created; roster/scoring/waiver may use in-memory defaults

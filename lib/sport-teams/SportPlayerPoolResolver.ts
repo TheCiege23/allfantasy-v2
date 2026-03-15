@@ -1,8 +1,9 @@
 /**
  * Resolves player pool by sport so leagues only load players for their sport.
  * Uses SportsPlayer and PlayerIdentityMap; draft room and waiver wire filter by league sport.
- * Soccer: sport_type = SOCCER; positions GKP/GK, DEF, MID, FWD.
- * NFL IDP: same pool as NFL (sport_type = NFL); include defensive players (DE, DT, LB, CB, S) in ingestion so they appear in pool; eligibility by slot uses PositionEligibilityResolver with formatType IDP.
+ *
+ * Soccer: sport_type = SOCCER only. Positions: GKP/GK, DEF, MID, FWD (use options.position to filter). Soccer leagues load only soccer teams and players.
+ * NFL IDP: same pool as NFL (sport_type = NFL). Include defensive players (DE, DT, LB, CB, S) in ingestion so they appear; use options.position (e.g. DE, DT, LB, CB, S) for position filter. Eligibility by slot uses PositionEligibilityResolver with formatType IDP.
  */
 import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
@@ -45,7 +46,7 @@ export async function getPlayerPoolForSport(
     full_name: r.name,
     position: r.position ?? '',
     status: r.status ?? null,
-    injury_status: null,
+    injury_status: deriveInjuryStatus(r.status),
     external_source_id: r.sleeperId ?? r.externalId ?? null,
     age: r.age ?? null,
     experience: null,
@@ -94,6 +95,16 @@ export async function isPlayerInSportPool(
     },
   })
   return !!byIdentity
+}
+
+/** Injury-like status values; when status matches, use it as injury_status. */
+const INJURY_STATUS_PATTERNS = ['OUT', 'IR', 'DOUBTFUL', 'QUESTIONABLE', 'PUP', 'SUSPENDED', 'DNR', 'DNP', 'INJURED']
+
+function deriveInjuryStatus(status: string | null): string | null {
+  if (status == null || !status.trim()) return null
+  const upper = status.toUpperCase().trim()
+  if (INJURY_STATUS_PATTERNS.some((p) => upper === p || upper.startsWith(p + ' ') || upper.includes(' ' + p))) return status
+  return null
 }
 
 function normalizeSport(s: SportType | LeagueSport | string): string {

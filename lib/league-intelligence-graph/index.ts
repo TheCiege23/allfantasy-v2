@@ -63,3 +63,32 @@ export type {
   InfluenceLeader,
   DynastyPowerTransition,
 } from "./types";
+export {
+  normalizeSportForGraph,
+  getSportGraphLabel,
+  isSupportedGraphSport,
+  GRAPH_SPORTS,
+} from "./SportGraphResolver";
+export type { GraphSport } from "./SportGraphResolver";
+export {
+  getMatchupHistoryForGraph,
+  getStandingsHistoryForGraph,
+  getLeagueHistorySummaryForGraph,
+  getTradeCountByPairForGraph,
+} from "./GraphHistoryAggregator";
+export type {
+  MatchupHistoryForGraph,
+  StandingsEntryForGraph,
+} from "./GraphHistoryAggregator";
+export {
+  buildSnapshot,
+  getSnapshotPayload,
+  getRelationshipProfile,
+  getRelationshipMap,
+  queryRivals,
+  queryTradePartners,
+  queryPowerShift,
+  queryRepeatedEliminations,
+  getGraphSummaryForAI,
+} from "./LeagueIntelligenceGraphService";
+export { generateSnapshot } from "./GraphSnapshotGenerator";

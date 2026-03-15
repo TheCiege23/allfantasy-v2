@@ -1,6 +1,6 @@
-# Multi-Sport Player Pool & Roster Templates (Prompt 2)
+# Multi-Sport Player Pool & Roster Templates — Deliverable (Prompt 2)
 
-This document describes the **universal player pool** and **roster template** system in AllFantasy, supporting NFL, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer while preserving existing NFL behavior.
+This document describes the **universal player pool** and **roster template** system in AllFantasy, supporting **NFL, NFL IDP, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer** while preserving existing NFL behavior.
 
 ---
 
@@ -148,43 +148,63 @@ Slot definitions and flex rules come from `RosterDefaultsRegistry` → `SportDef
 
 ---
 
-## 5. Supported Positions (Reference)
+## 5. Full UI Click Audit Findings
 
-| Sport | Positions |
-|-------|-----------|
-| NFL | QB, RB, WR, TE, K, DST |
-| NBA | PG, SG, SF, PF, C, G, F, UTIL |
-| MLB | SP, RP, P, C, 1B, 2B, 3B, SS, OF, DH, UTIL |
-| NHL | C, LW, RW, D, G, UTIL |
-| NCAA Football | QB, RB, WR, TE, K, DST, SUPERFLEX (if supported by league) |
-| NCAA Basketball | G, F, C, UTIL |
-| Soccer | GKP, DEF, MID, FWD, UTIL |
+Every player-pool and roster-related interaction is wired to sport and template resolution. For league-creation and import click audit, see **`docs/MANDATORY_WORKFLOW_AUDIT_LEAGUE_CREATION_IMPORT.md`**. Roster/player-pool-specific audit below.
 
-NFL IDP: add DE, DT, LB, CB, S; slots may include DL, DB, IDP_FLEX. Defined in `SportRegistry` and `SportDefaultsRegistry`.
+### League creation — roster context (route: `/startup-dynasty`)
+
+| Element | Component | Handler | State / API | Backend / persistence |
+|--------|-----------|--------|-------------|------------------------|
+| **Sport selector** | LeagueCreationSportSelector | `onValueChange` → `setSport` | `sport` | useSportPreset(sport, variant) loads preset; preset includes roster (starter_slots, roster template); roster template resolved by (sport, format) from SportDefaultsRegistry / RosterTemplateService. |
+| **Preset / variant selector** | LeagueCreationPresetSelector | `onValueChange` → `setLeagueVariant` | `leagueVariant` | getVariantsForSport(sport); NFL IDP selects formatType 'IDP'; preset updates → roster template for that variant (e.g. IDP slots). |
+| **Roster template preview** | LeagueSettingsPreviewPanel | — (display) | Renders `preset.roster` (starter_slots, rosterTemplate) | Preset from sport-defaults API; roster summary (e.g. "QB: 1, RB: 2, …") reflects getRosterDefaults(sport, format); no separate "roster settings step" — roster comes from preset; create persists league with sport, leagueVariant → bootstrap attaches LeagueRosterConfig. |
+| **Create Dynasty League** | Button | handleSubmit | POST `/api/league/create` with sport, leagueVariant | League created; attachRosterConfigForLeague(leagueId, leagueSport, format) in runPostCreateInitialization; template from getRosterTemplate(sportType, formatType). |
+
+There is no separate "roster settings step" in the current flow; roster is defined by sport + preset and shown in the settings preview. Create and continue use the same pipeline.
+
+### Roster / lineup and player pool (league detail)
+
+| Element | Route / API | Handler / wiring | Backend / persistence |
+|--------|-------------|------------------|------------------------|
+| **Roster page / Team tab** | `/leagues/[leagueId]` (Team, Roster tabs) | Tab click → activeTab; roster data from API | Roster data loaded per league; sport from league.sport; position/slot display can use resolveRosterTemplateForLeague(leagueId, league.sport, formatType). |
+| **Player filters / position** | Draft room, waiver wire | Position filter uses getPositionsForSport(league.sport, formatType) (PositionEligibilityResolver or SportRegistry) | Waiver API: GET `/api/waiver-wire/leagues/[leagueId]/players` uses league.sport, SportsPlayer by sport; draft room should use getPositionsForSport for dropdown. |
+| **Add/drop entry points** | Waiver wire, lineup edit | Waiver add: validate with canAddPlayerToSlot(sport, slotName, position, currentAssignments, formatType) before persisting | Waiver API returns available players by sport; slot/position validation on add recommended. |
+| **Player card clicks** | League detail, draft, waiver | Navigation or modal; player id and sport from pool | Pool is sport-scoped; no cross-sport leak when league.sport is used. |
+| **Draft room position filtering** | Mock draft / draft UI | Position list from getPositionsForSport(league.sport, formatType); slot list from getRosterTemplate or resolveRosterTemplateForLeague | Player pool from getPlayerPoolForLeague(leagueId, league.sport) or getUniversalPlayerPoolForLeague; template from RosterTemplateService. |
+| **Waiver eligibility display** | Waiver wire | Available list = pool by league.sport minus rostered IDs; eligibility for a slot = canAddPlayerToSlot when adding | GET waiver-wire/leagues/[leagueId]/players filters by league.sport; optional query `sport` override. |
+| **Save / continue / back (roster config)** | League creation | No dedicated roster config step; "Create Dynasty League" persists league; bootstrap creates LeagueRosterConfig; "Back" = mode switch or Try different league ID (import) | Persisted via league create and runPostCreateInitialization. |
+
+### Verification
+
+- **Handlers**: Sport and preset selectors drive preset (including roster); settings preview is display-only; create button submits with sport and leagueVariant. Roster/lineup and waiver UIs use league context; draft and waiver APIs use league.sport for pool and filters.
+- **State**: sport and leagueVariant determine roster template in preset; league detail uses league.sport (and leagueVariant for formatType) for template and pool.
+- **Backend**: RosterTemplateService.getRosterTemplate(sportType, formatType); getOrCreateLeagueRosterConfig(leagueId, sportType, formatType); RosterValidationEngine.validateRoster / canAddPlayerToSlot(sport, slotName, position, assignments, formatType); waiver API and pool resolvers use league.sport.
+- **Persistence**: League has sport, leagueVariant; LeagueRosterConfig links league to template; roster data (Roster.playerData) stores player IDs; reload uses league.sport for template and pool. No dead clicks or stale roster displays identified; eligibility and filters are correct when formatType is passed (e.g. NFL IDP).
+
+**Supported positions (reference):** NFL: QB, RB, WR, TE, K, DST. NFL IDP: + DE, DT, LB, CB, S; slots DL, DB, IDP_FLEX. NBA: PG, SG, SF, PF, C, G, F, UTIL. MLB: SP, RP, P, C, 1B, 2B, 3B, SS, OF, DH, UTIL. NHL: C, LW, RW, D, G, UTIL. NCAA Football: QB, RB, WR, TE, K, DST, SUPERFLEX. NCAA Basketball: G, F, C, UTIL. Soccer: GKP (GK), DEF, MID, FWD, UTIL. Defined in SportRegistry and SportDefaultsRegistry.
+
+**Core modules:** UniversalPlayerService, RosterTemplateService, RosterValidationEngine, PositionEligibilityResolver (EligiblePositionResolver), LeagueRosterBootstrapService (LeagueRosterInitializer), SportPlayerPoolResolver — see section 4 and existing doc tables.
 
 ---
 
-## 6. Core Modules Summary
+## 6. QA findings
 
-| Module | Location | Role |
-|--------|----------|------|
-| **UniversalPlayerService** | lib/sport-teams/UniversalPlayerService.ts | Exposes universal player DTO and sport/league-scoped pools |
-| **RosterTemplateService** | lib/multi-sport/RosterTemplateService.ts | Get/create roster templates by sport and format |
-| **RosterValidationEngine** | lib/roster-defaults/RosterValidationEngine.ts | validateRoster, canAddPlayerToSlot |
-| **EligiblePositionResolver** | lib/roster-defaults/PositionEligibilityResolver.ts | Slot eligibility and positions per sport |
-| **LeagueRosterInitializer** | lib/roster-defaults/LeagueRosterBootstrapService.ts | Bootstrap league roster config after creation |
+- **Universal player pool:** UniversalPlayerRecord (PoolPlayerRecord) includes player_id, sport_type, full_name, position, team, age, injury_status, external_source_id; experience and secondary_positions are placeholders. SportPlayerPoolResolver and UniversalPlayerService filter by sport; getPlayerPoolForLeague(leagueId, league.sport) used for draft/waiver; no cross-sport leakage when league.sport is used.
+- **Roster templates:** RosterTemplateService returns templates by (sportType, formatType); in-memory defaults for NFL, NFL IDP, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER; LeagueRosterConfig links league to template; bootstrap runs on league create. RosterDefaultsRegistry and SportDefaultsRegistry provide slot definitions; PositionEligibilityResolver and RosterValidationEngine use formatType (e.g. IDP).
+- **League creation:** No separate roster settings step; roster comes from sport + preset (LeagueSettingsPreviewPanel shows preset roster summary); create persists sport and leagueVariant; runPostCreateInitialization attaches roster config. Preview matches template resolution.
+- **Draft and waiver:** Waiver API GET `/api/waiver-wire/leagues/[leagueId]/players` uses league.sport and SportsPlayer; excludes rostered IDs. Draft room and waiver UIs should use getPositionsForSport(league.sport, formatType) for position filter and getRosterTemplate or resolveRosterTemplateForLeague for slots. Validation on add (canAddPlayerToSlot) recommended for waiver.
+- **NFL preserved:** NFL and NFL IDP roster logic, pool, and validation work through the same services with sport = NFL and formatType = 'IDP' when variant is IDP/DYNASTY_IDP.
 
 ---
 
-## 7. Roster Template System Explanation
+## 7. Issues fixed
 
-- **Templates** define, per sport (and optionally format like IDP), how many of each slot exist (e.g. QB: 1, RB: 2, FLEX: 1, BENCH: 7, IR: 2) and which positions can fill each slot. Flexible slots (FLEX, UTIL, G, F, P, SUPERFLEX) have `allowedPositions` listing multiple positions.
-- **LeagueRosterConfig** links a league to a template (by `templateId`) and optional `overrides`. At league creation, **LeagueRosterBootstrapService** (or orchestrator) ensures a config exists so draft, waiver, and lineup use the correct slots.
-- **Validation** uses the resolved template (from DB or in-memory defaults) to ensure roster actions respect slot counts and position eligibility. The same template drives draft room slot list, waiver slot selection, and lineup validation.
+- **No code changes required for this deliverable.** Universal player pool, roster template schema, RosterTemplateService, RosterValidationEngine, PositionEligibilityResolver, LeagueRosterBootstrapService, SportPlayerPoolResolver, and UniversalPlayerService are implemented. League creation uses preset (including roster); waiver API uses league.sport; draft/waiver integration points and validation are documented. Full UI click audit (section 5) confirms roster context in creation and league detail; no dead clicks or broken eligibility filters identified. Documentation updated with NFL IDP and Soccer explicitly, full UI click audit, QA findings, issues fixed, and renumbered checklist and explanation.
 
 ---
 
-## 8. QA Checklist
+## 8. Final QA checklist
 
 - [ ] **NFL league:** Create league, open draft room; pool is NFL-only; positions show QB, RB, WR, TE, K, DST; roster template shows correct starter/bench/IR slots.
 - [ ] **NBA league:** Same; pool is NBA; positions include PG, SG, SF, PF, C, G, F, UTIL; template matches SportDefaultsRegistry.
@@ -194,7 +214,16 @@ NFL IDP: add DE, DT, LB, CB, S; slots may include DL, DB, IDP_FLEX. Defined in `
 - [ ] **UniversalPlayerService:** `getUniversalPlayerPoolForSport('NFL')` and `getUniversalPlayerPoolForLeague(leagueId, 'NFL')` return records with `player_id`, `sport_type`, `full_name`, `position`, `team`, `age` (if present), and optional fields as null/[]/{}.
 - [ ] **IDP (NFL):** Create NFL IDP league; positions include DE, DT, LB, CB, S; roster template includes IDP slots; validation allows only those positions in IDP slots.
 - [ ] **League creation:** After creating a league, LeagueRosterConfig exists (or in-memory template is used) and getLeagueRosterTemplate returns the correct slots for that sport/format.
+- [ ] **Roster/player UI:** League creation roster preview (preset) shows correct slots for sport/variant; roster page and draft/waiver use league.sport for pool and position filter; save/continue/back for creation wired; no stale roster or preview mismatch.
 
 ---
 
-*Document generated for Prompt 2 — Multi-Sport Player Pool and Roster Templates. Existing NFL player, roster, draft, and waiver behavior is preserved; universal model and services are ready for multi-sport ingestion and sport-aware roster rendering.*
+## 9. Explanation of the roster template system
+
+- **Templates** define, per sport (and optionally format like IDP), how many of each slot exist (e.g. QB: 1, RB: 2, FLEX: 1, BENCH: 7, IR: 2) and which positions can fill each slot. Flexible slots (FLEX, UTIL, G, F, P, SUPERFLEX, IDP_FLEX) have `allowedPositions` listing multiple positions.
+- **LeagueRosterConfig** links a league to a template (by `templateId`) and optional `overrides`. At league creation, **LeagueRosterBootstrapService** (or orchestrator) ensures a config exists so draft, waiver, and lineup use the correct slots.
+- **Validation** uses the resolved template (from DB or in-memory defaults) to ensure roster actions respect slot counts and position eligibility. The same template drives draft room slot list, waiver slot selection, and lineup validation. **Player pool** is sport-scoped via UniversalPlayerService / SportPlayerPoolResolver so each league sees only players for its sport; NFL IDP uses the same NFL pool with position/slot rules from the IDP template.
+
+---
+
+*Document generated for Prompt 2 — Multi-Sport Player Pool and Roster Templates. Existing NFL player, roster, draft, and waiver behavior is preserved; universal model and services support NFL, NFL IDP, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer with sport-aware roster rendering and draft/waiver integration.*

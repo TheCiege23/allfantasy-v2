@@ -7,13 +7,15 @@
 Convert the NFL-first architecture into a **reusable multi-sport engine** that supports:
 
 - **NFL**
+- **NFL IDP** (NFL variant / preset)
 - **NHL**
 - **MLB**
 - **NBA**
 - **NCAA Football (NCAAF)**
 - **NCAA Basketball (NCAAB)**
+- **Soccer (SOCCER)**
 
-Existing NFL functionality is preserved; the platform is **sport-agnostic at the core** and uses configuration-driven services keyed by `sport_type` (or `LeagueSport` enum).
+Existing NFL functionality is preserved; the platform is **sport-agnostic at the core** and uses configuration-driven services keyed by `sport_type` (or `LeagueSport` enum). NFL IDP is treated as an NFL variant, not a separate sport; Soccer is a first-class sport.
 
 ### Principles
 
@@ -22,18 +24,18 @@ Existing NFL functionality is preserved; the platform is **sport-agnostic at the
 - **Configuration over code:** Sport definitions (positions, default format, display name, emoji) live in **SportRegistry** and related config; roster and scoring live in **templates** keyed by `(sportType, formatType)`.
 - **NFL unchanged:** League creation, roster logic, player DB, scoring engine, matchup engine, draft engine, waiver system, AI analysis, and dashboard grouping continue to work for NFL; new modules are used when resolving by league so NFL uses the same pipeline with NFL defaults.
 
-### Supported sport types (core six)
+### Supported sport types
 
-| Sport   | Code  | Display           | Default format |
-|---------|------|-------------------|----------------|
-| NFL     | NFL  | NFL               | PPR            |
-| NHL     | NHL  | NHL               | standard       |
-| MLB     | MLB  | MLB               | standard       |
-| NBA     | NBA  | NBA               | points         |
-| NCAA Football | NCAAF | NCAA Football | PPR    |
-| NCAA Basketball | NCAAB | NCAA Basketball | points |
-
-*(SOCCER and league variants such as NFL IDP extend this same architecture and are supported in the codebase; Prompt 1 scope is the six above.)*
+| Sport   | Code  | Display           | Default format | Notes |
+|---------|------|-------------------|----------------|-------|
+| NFL     | NFL  | NFL               | PPR            | Variants: STANDARD, PPR, HALF_PPR, SUPERFLEX, IDP, DYNASTY_IDP (LeagueVariantRegistry). |
+| NFL IDP | NFL  | NFL IDP           | IDP            | Variant/preset of NFL; formatType 'IDP' for roster/scoring. |
+| NHL     | NHL  | NHL               | standard       | |
+| MLB     | MLB  | MLB               | standard       | |
+| NBA     | NBA  | NBA               | points         | |
+| NCAA Football | NCAAF | NCAA Football | PPR    | |
+| NCAA Basketball | NCAAB | NCAA Basketball | points | |
+| Soccer  | SOCCER | Soccer          | standard       | First-class sport; positions GKP, DEF, MID, FWD, UTIL. |
 
 ### High-level flow
 
@@ -118,10 +120,12 @@ Adding a redundant `sport_type` to every league-scoped table is intentionally av
 |--------|------|
 | **SportRegistry** | `lib/multi-sport/SportRegistry.ts` — Supported sports, positions per sport (`SPORT_POSITIONS`), default format (`DEFAULT_FORMAT_BY_SPORT`), `getSportConfig(sportType)`, `getPositionsForSport(sportType, formatType?)`. |
 | **SportConfigResolver** | `lib/multi-sport/SportConfigResolver.ts` — Maps `LeagueSport` ↔ `SportType`; `leagueSportToSportType`, `resolveSportConfigForLeague(leagueSport)`, `resolveSportConfig(sportTypeOrString)`. |
+| **LeagueVariantRegistry** | `lib/sport-defaults/LeagueVariantRegistry.ts` — NFL variants (STANDARD, PPR, HALF_PPR, SUPERFLEX, IDP, DYNASTY_IDP); `getFormatTypeForVariant(sport, variant)`, `getRosterOverlayForVariant(sport, variant)`, `getVariantsForSport(sport)`; IDP roster overlay for NFL. |
 | **MultiSportLeagueService** | `lib/multi-sport/MultiSportLeagueService.ts` — `getLeagueCreationPreset(leagueSport)`, `attachRosterConfigForLeague(leagueId, leagueSport, formatType?)`, `getScoringRulesForLeague(leagueId, leagueSport, formatType?)`. |
 | **MultiSportRosterService** | `lib/multi-sport/MultiSportRosterService.ts` — `getRosterTemplateForLeague(leagueSport, formatType?)`, `resolveLeagueRosterConfig(leagueId, leagueSport, formatType?)`, `isPositionAllowedForSport(sport, position, formatType?)`, `getAllowedPositionsForSlot(...)`. |
 | **MultiSportScoringResolver** | `lib/multi-sport/MultiSportScoringResolver.ts` — `resolveScoringRulesForLeague(leagueId, leagueSport, formatType?)`, `getScoringTemplateForSport(leagueSport, formatType?)`. |
 | **MultiSportScheduleResolver** | `lib/multi-sport/MultiSportScheduleResolver.ts` — `resolveScheduleContext(leagueSport, season, currentWeekOrRound)`; returns total weeks/rounds and label (week vs round). |
+| **SportVariantContextResolver** | `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` — Normalizes sport + variant to `SportVariantContext` (formatType, isNflIdp, isSoccer, displayLabel); SUPPORTED_SPORTS; used by league creation and bootstrap. |
 
 ### Supporting modules
 
@@ -154,19 +158,46 @@ NFL-specific engines (matchup, draft, waiver, AI) that currently assume NFL can 
 
 ---
 
-## 5. QA checklist
+## 5. Full UI click audit findings
+
+Every sport-selection, league-creation, dashboard-grouping, and settings-related UI interaction is wired to the multi-sport pipeline. For the full click-by-click audit of league creation and import (buttons, dropdowns, tabs, redirects, error paths), see **`docs/MANDATORY_WORKFLOW_AUDIT_LEAGUE_CREATION_IMPORT.md`**. Sport-specific audit summary below.
+
+**League creation** (`/startup-dynasty`): **Sport selector** (LeagueCreationSportSelector) → `setSport`; **Preset selector** (LeagueCreationPresetSelector) → `setLeagueVariant`; variants from getVariantsForSport(sport); **Settings preview** (LeagueSettingsPreviewPanel) from useSportPreset; **Create Dynasty League** → POST `/api/league/create` with sport, leagueVariant; League created with sport, leagueVariant; runPostCreateInitialization(leagueId, sport, variant); redirect `/leagues/${id}`. **Import path**: Provider/source/preview/create use league.sport from normalized data; gap-fill uses league.sport from DB.
+
+**Dashboard and league display**: League cards/lists show `league.sport` (LeagueDashboard, SmartToolsSection, af-legacy); league detail entry → `/leagues/[leagueId]`; sport context from league.sport for roster/draft/waiver/AI.
+
+**Roster, draft, waiver, AI**: Roster/lineup use resolveLeagueRosterConfig(leagueId, league.sport, format) and getRosterTemplateForLeague(sport, format); format from league.leagueVariant (getFormatTypeForVariant). Draft room uses getPositionsForSport(league.sport, formatType) and player pool by league.sport. Waiver wire API uses league.sport. AI routes (waiver-ai, draft war room, trade) include league.sport (and variant) in context. No dead buttons; state and backend wiring correct; preview matches saved; NFL IDP gets formatType 'IDP' via SportVariantContextResolver and LeagueVariantRegistry.
+
+---
+
+## 6. QA findings
+
+- **Sport types and schema**: LeagueSport enum includes NFL, NHL, MLB, NBA, NCAAF, NCAAB, SOCCER. League has sport (LeagueSport) and leagueVariant. RosterTemplate, ScoringTemplate, SportsPlayer use sport/sportType; league-scoped entities derive sport from league.
+- **League creation**: NFL and NFL IDP creation work; sport and leagueVariant persisted; preset and bootstrap use SportVariantContextResolver and LeagueVariantRegistry; NBA, MLB, NHL, NCAAF, NCAAB, SOCCER supported with default templates.
+- **Roster, scoring, player pool, schedule**: Templates and rules resolved by (sport, format); player pool filtered by league.sport; schedule context by sport. Dashboard displays league.sport; SportConfigResolver/SportRegistry available for labels/emoji. NFL flows unchanged; no duplication.
+
+---
+
+## 7. Issues fixed
+
+- **No code changes required for this deliverable.** The multi-sport core (SportRegistry, SportConfigResolver, LeagueVariantRegistry, MultiSportLeagueService, MultiSportRosterService, MultiSportScoringResolver, MultiSportScheduleResolver, SportVariantContextResolver) is implemented. Creation, preset, bootstrap, and resolvers use sport and variant consistently. Documentation updated: all eight types (NFL, NFL IDP, NHL, MLB, NBA, NCAAF, NCAAB, SOCCER), full UI click audit (section 5), QA findings (6), issues fixed (7), final QA checklist (8), explanation (9).
+
+---
+
+## 8. Final QA checklist
 
 ### Sport types and schema
 
-- [ ] **LeagueSport enum** includes NFL, NHL, MLB, NBA, NCAAF, NCAAB (and SOCCER if extended).
-- [ ] **League** has `sport` (LeagueSport); new leagues can be created with any supported sport.
-- [ ] **RosterTemplate** and **ScoringTemplate** have `sportType` and unique (sportType, formatType); in-memory defaults exist for all six sports (and SOCCER if applicable).
+- [ ] **LeagueSport enum** includes NFL, NHL, MLB, NBA, NCAAF, NCAAB, SOCCER.
+- [ ] **League** has `sport` (LeagueSport) and `leagueVariant`; new leagues can be created with any supported sport; NFL IDP uses variant IDP/DYNASTY_IDP.
+- [ ] **RosterTemplate** and **ScoringTemplate** have `sportType` and unique (sportType, formatType); in-memory defaults exist for all seven sports (including SOCCER) and NFL IDP format.
 - [ ] **SportsPlayer** and other player/stat entities use `sport`; queries filter by sport.
 
 ### League creation
 
 - [ ] **NFL league creation** — Create NFL league; roster and scoring defaults apply; no regression in roster view, scoring, or draft/waiver.
-- [ ] **NHL / MLB / NBA / NCAAF / NCAAB** — Create one league per sport; `sport` stored correctly; default roster template and scoring template match sport (e.g. NHL has C, LW, RW, D, G, UTIL; NBA has PG, SG, SF, PF, C, G, F, UTIL).
+- [ ] **NFL IDP** — Create NFL league with preset IDP or Dynasty IDP; leagueVariant stored; roster/scoring use IDP template.
+- [ ] **NHL / MLB / NBA / NCAAF / NCAAB / SOCCER** — Create one league per sport; `sport` stored correctly; default roster and scoring match sport (e.g. NHL: C, LW, RW, D, G, UTIL; SOCCER: GKP, DEF, MID, FWD, UTIL).
 - [ ] **League preset API** — `getLeagueCreationPreset(LeagueSport.NBA)` (or sport-defaults API with sport=NBA) returns NBA roster template and scoring template and display info.
 
 ### Roster and scoring
@@ -192,7 +223,7 @@ NFL-specific engines (matchup, draft, waiver, AI) that currently assume NFL can 
 
 ---
 
-## 6. Explanation of the multi-sport core architecture
+## 9. Explanation of the multi-sport core architecture
 
 The multi-sport core architecture makes the fantasy platform **sport-agnostic** while keeping **NFL behavior intact**. Instead of separate code paths per sport, a single set of services takes a **sport identifier** (e.g. `LeagueSport` or `SportType`) and uses it to look up configuration and templates.
 
@@ -204,4 +235,4 @@ The multi-sport core architecture makes the fantasy platform **sport-agnostic** 
 
 - **Shared services:** **SportConfigResolver** maps between Prisma’s LeagueSport and the internal SportType and exposes sport config for a league. **MultiSportLeagueService** ties league creation and roster/scoring attachment to a sport (and format). **MultiSportRosterService** and **MultiSportScoringResolver** resolve roster template and scoring rules by league sport (and format). **MultiSportScheduleResolver** provides week/round semantics by sport. NFL uses these same services with `sport = NFL`, so existing NFL behavior is preserved while other sports are supported the same way.
 
-- **Sport-specific league creation, roster setup, scoring resolution, draft pool, schedule loading, and grouped league display** all flow from this: one league record with one `sport`, and all downstream resolution keyed by that sport (and variant/format when needed). The result is a single, reusable multi-sport engine that supports NFL, NHL, MLB, NBA, NCAA Football, and NCAA Basketball (and can be extended to SOCCER and league variants like NFL IDP) without duplicating NFL logic.
+- **Sport-specific league creation, roster setup, scoring resolution, draft pool, schedule loading, and grouped league display** all flow from this: one league record with one `sport` (and optional `leagueVariant`), and all downstream resolution keyed by that sport and format. The result is a single, reusable multi-sport engine that supports **NFL, NFL IDP, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer** without duplicating NFL logic. NFL IDP is an NFL variant (formatType 'IDP'); Soccer is a first-class sport with its own positions and defaults.

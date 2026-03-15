@@ -33,7 +33,7 @@ export function validateRoster(
     }
 
     for (const a of assigned) {
-      if (!isPositionEligibleForSlot(sport, slot.slotName, a.position)) {
+      if (!isPositionEligibleForSlot(sport, slot.slotName, a.position, formatType)) {
         errors.push(
           `Player in ${slot.slotName} has position ${a.position} (not allowed for this slot)`
         )

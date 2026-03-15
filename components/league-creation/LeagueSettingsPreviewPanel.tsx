@@ -49,6 +49,13 @@ export function LeagueSettingsPreviewPanel({
     `Season: ${preset.league?.default_regular_season_length ?? '—'} ${preset.league?.default_matchup_unit ?? 'weeks'}`,
   ].join(' · ');
 
+  const contextMessage =
+    sport === 'SOCCER'
+      ? 'Soccer is its own sport; roster and scoring are soccer-specific.'
+      : sport === 'NFL' && (presetLabel === 'IDP' || presetLabel === 'Dynasty IDP')
+        ? 'IDP is an NFL preset: offensive + defensive roster and scoring.'
+        : null;
+
   return (
     <div
       className={`rounded-lg border border-purple-600/30 bg-black/30 p-4 text-sm ${className}`}
@@ -56,6 +63,9 @@ export function LeagueSettingsPreviewPanel({
       aria-label="Preset summary"
     >
       <p className="font-medium text-purple-300 mb-2">Preset summary</p>
+      {contextMessage && (
+        <p className="text-white/70 text-xs mb-2 italic">{contextMessage}</p>
+      )}
       <ul className="space-y-1.5 text-white/80">
         <li>
           <span className="text-white/60">Roster:</span> {rosterSlots || '—'}
@@ -70,11 +80,11 @@ export function LeagueSettingsPreviewPanel({
           <span className="text-white/60">Player pool:</span> {playerPoolType}
         </li>
         <li>
-          <span className="text-white/60">Defaults:</span> {leagueDefaults}
+          <span className="text-white/60">League defaults:</span> {leagueDefaults}
         </li>
       </ul>
       <p className="mt-2 text-xs text-white/50">
-        Selecting a preset updates roster and scoring defaults above. You can change league size and other options before creating.
+        Roster and scoring above update when you change sport or preset. You can change league size and other options before creating.
       </p>
     </div>
   );

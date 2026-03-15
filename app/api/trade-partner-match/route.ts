@@ -131,6 +131,7 @@ export async function GET(req: Request) {
 
         return {
           teamId: team.id,
+          externalId: team.externalId,
           teamName: team.teamName || `${team.ownerName}'s Team`,
           record: `${team.wins}-${team.losses}${team.ties > 0 ? `-${team.ties}` : ''}`,
           needs: teamNeeds,
@@ -190,6 +191,7 @@ Return ONLY a JSON array of partner objects. No markdown, no commentary.`;
             const det = deterministicMatches.find(d => d.teamName === p.teamName);
             return {
               teamId: det?.teamId || '',
+              externalId: det?.externalId || '',
               teamName: p.teamName || det?.teamName || 'Unknown',
               record: det?.record || '',
               needs: Array.isArray(p.needs) ? p.needs : det?.needs || [],

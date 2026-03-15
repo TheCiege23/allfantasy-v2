@@ -8,11 +8,16 @@ import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { SmartDataView } from '@/components/app/league/SmartDataView'
 import { DraftQueue } from '@/components/app/draft/DraftQueue'
 import { useDraftQueue } from '@/components/app/draft/useDraftQueue'
-import { LeagueDraftBoard } from '@/components/app/draft/LeagueDraftBoard'
+import { LeagueDraftBoard, type DraftBoardConfig } from '@/components/app/draft/LeagueDraftBoard'
+import { ManagerStyleBadge } from '@/components/ManagerStyleBadge'
 
 export default function DraftTab({ leagueId }: LeagueTabProps) {
   const { data, loading, error, reload } =
     useLeagueSectionData<Record<string, unknown>>(leagueId, 'draft')
+  const { data: draftConfig } = useLeagueSectionData<DraftBoardConfig & { leagueSize?: number }>(
+    leagueId,
+    'draft/config',
+  )
   const [analysis, setAnalysis] = useState<unknown>(null)
   const [running, setRunning] = useState(false)
 
@@ -20,6 +25,15 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
     { id: 'p1', name: 'Garrett Wilson', position: 'WR', team: 'NYJ', rank: 18 },
     { id: 'p2', name: 'Travis Etienne', position: 'RB', team: 'JAX', rank: 22 },
   ])
+
+  const boardConfig: DraftBoardConfig | null =
+    draftConfig && typeof draftConfig.rounds === 'number'
+      ? {
+          rounds: draftConfig.rounds,
+          timer_seconds: draftConfig.timer_seconds ?? null,
+          leagueSize: draftConfig.leagueSize ?? 12,
+        }
+      : null
 
   async function runDraftAi() {
     setRunning(true)
@@ -44,6 +58,7 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
             leagueId={leagueId}
             entries={Array.isArray((data as any)?.entries) ? ((data as any).entries as any[]) : []}
             onAddToQueue={(item) => addToQueue(item)}
+            config={boardConfig}
           />
           <div className="space-y-3">
             <DraftQueue queue={queue} onRemove={removeFromQueue} onReorder={reorder} />
@@ -62,6 +77,9 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
                 </div>
                 <p className="text-[10px] text-white/60">
                   Use your queue to star players you want to target. AI can later consume this queue when recommending picks.
+                </p>
+                <p className="text-[9px] text-white/40">
+                  Manager style badges (Trade Finder, Rankings): build in Settings → Behavior Profiles.
                 </p>
               </div>
               <SmartDataView data={analysis || data} />

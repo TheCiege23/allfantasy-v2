@@ -17,7 +17,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-const SPORTS = ["NFL", "NBA", "MLB"];
+const SPORTS = ["NFL", "NHL", "NBA", "MLB", "NCAAF", "NCAAB", "SOCCER"];
 const LEAGUE_SIZES = ["8", "10", "12", "14", "16+"];
 const SEASON_FORMATS = ["Redraft", "Dynasty", "Keeper", "Best Ball", "Tournament", "Other"];
 const DRAFT_TYPES = ["Snake", "Auction", "Linear", "Third-Round Reversal", "By Team", "Other"];

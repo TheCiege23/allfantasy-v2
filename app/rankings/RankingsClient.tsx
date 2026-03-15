@@ -104,6 +104,7 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
   const [dynastyLoading, setDynastyLoading] = useState(false);
   const [dynastyData, setDynastyData] = useState<any>(null);
   const [dynastyTeamId, setDynastyTeamId] = useState<string | null>(null);
+  const [dynastyError, setDynastyError] = useState<string | null>(null);
 
   const league = allLeagues[selectedIdx] || allLeagues[0];
   const displayTeams = league.teams;
@@ -120,6 +121,7 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
     if (!hasRealData) return;
     setDynastyLoading(true);
     setDynastyTeamId(teamExternalId || null);
+    setDynastyError(null);
     try {
       const res = await fetch('/api/dynasty-outlook', {
         method: 'POST',
@@ -130,11 +132,17 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
         }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setDynastyData(data.analysis);
+        setDynastyError(null);
+      } else {
+        setDynastyData(null);
+        setDynastyError(data?.error || 'Failed to load dynasty outlook');
       }
     } catch (err) {
       console.error('Dynasty outlook error:', err);
+      setDynastyData(null);
+      setDynastyError(err instanceof Error ? err.message : 'Failed to load dynasty outlook');
     } finally {
       setDynastyLoading(false);
     }
@@ -548,7 +556,25 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
                     <p className="text-sm text-gray-500">Evaluating rosters, aging curves, and long-term value</p>
                   </motion.div>
                 )}
-                {!dynastyLoading && !dynastyData && (
+                {!dynastyLoading && dynastyError && (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-center justify-center py-8 text-red-400"
+                  >
+                    <p className="mb-2">{dynastyError}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleDynastyOutlook(dynastyTeamId ?? undefined)}
+                      className="rounded border border-red-400/40 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/10"
+                    >
+                      Retry
+                    </button>
+                  </motion.div>
+                )}
+                {!dynastyLoading && !dynastyError && !dynastyData && (
                   <motion.div
                     key="empty"
                     initial={{ opacity: 0 }}

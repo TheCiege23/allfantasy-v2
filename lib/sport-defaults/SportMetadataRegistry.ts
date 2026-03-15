@@ -1,5 +1,6 @@
 /**
- * Central registry of sport metadata: display name, short name, icon, logo strategy, season type.
+ * Central registry of sport metadata: display name, short name, icon, logo strategy, season type,
+ * player pool source, and sport-specific display labels.
  * Used by SportDefaultsResolver and UI for labels/logos.
  */
 import type { SportType, SportMetadata } from './types'
@@ -13,6 +14,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '🏈',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   NBA: {
     sport_type: 'NBA',
@@ -21,6 +24,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '🏀',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   MLB: {
     sport_type: 'MLB',
@@ -29,6 +34,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '⚾',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   NHL: {
     sport_type: 'NHL',
@@ -37,6 +44,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '🏒',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   NCAAF: {
     sport_type: 'NCAAF',
@@ -45,6 +54,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '🏈',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   NCAAB: {
     sport_type: 'NCAAB',
@@ -53,6 +64,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '🏀',
     logo_strategy: 'sleeper',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Roster', matchups: 'Matchups', draft: 'Draft', waivers: 'Waivers', standings: 'Standings' },
   },
   SOCCER: {
     sport_type: 'SOCCER',
@@ -61,6 +74,8 @@ const METADATA: Record<SportType, SportMetadata> = {
     icon: '⚽',
     logo_strategy: 'espn',
     default_season_type: 'regular',
+    player_pool_source: 'sports_player',
+    display_labels: { roster: 'Squad', matchups: 'Fixtures', draft: 'Draft', waivers: 'Transfers', standings: 'Table' },
   },
 }
 
@@ -78,4 +93,13 @@ export function getSportDisplayName(sportType: SportType): string {
 
 export function getSportIcon(sportType: SportType): string {
   return getSportMetadata(sportType).icon
+}
+
+export function getPlayerPoolSource(sportType: SportType): NonNullable<SportMetadata['player_pool_source']> {
+  return getSportMetadata(sportType).player_pool_source ?? 'sports_player'
+}
+
+export function getDisplayLabel(sportType: SportType, key: string): string {
+  const labels = getSportMetadata(sportType).display_labels
+  return labels?.[key] ?? key
 }

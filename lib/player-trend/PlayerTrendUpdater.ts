@@ -2,7 +2,7 @@
  * Updates PlayerMetaTrend from aggregated signals: compute score, classify direction, upsert.
  */
 import { prisma } from '@/lib/prisma'
-import { calculateTrendScore, normalizeTrendScoreTo100 } from './TrendScoreCalculator'
+import { calculateTrendScoreForSport, normalizeTrendScoreTo100 } from './TrendScoreCalculator'
 import { classifyTrendDirection } from './TrendDirectionClassifier'
 import { aggregateSignalsForPlayer, getPreviousTrendScore } from './TrendSignalAggregator'
 import type { TrendDirection } from './types'
@@ -27,7 +27,7 @@ export async function updatePlayerTrend(
     getPreviousTrendScore(playerId, sport),
   ])
 
-  const rawScore = calculateTrendScore(signals)
+  const rawScore = calculateTrendScoreForSport(signals, sport)
   const score100 = normalizeTrendScoreTo100(rawScore)
   const direction = classifyTrendDirection({
     currentScore: score100,

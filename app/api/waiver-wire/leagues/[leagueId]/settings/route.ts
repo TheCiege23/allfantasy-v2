@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { getLeagueWaiverSettings, upsertLeagueWaiverSettings } from "@/lib/waiver-wire"
+import { getEffectiveLeagueWaiverSettings, upsertLeagueWaiverSettings } from "@/lib/waiver-wire"
 
 export async function GET(
   _req: NextRequest,
@@ -19,8 +19,8 @@ export async function GET(
   ])
   if (!leagueAsOwner && !rosterAsMember) return NextResponse.json({ error: "League not found" }, { status: 404 })
 
-  const settings = await getLeagueWaiverSettings(leagueId)
-  return NextResponse.json(settings ?? { leagueId, waiverType: "standard" })
+  const settings = await getEffectiveLeagueWaiverSettings(leagueId)
+  return NextResponse.json(settings)
 }
 
 export async function PUT(

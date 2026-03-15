@@ -9,12 +9,11 @@ import { computeStrategyMetaReport, type TeamStrategyOutcome } from './MetaSucce
 import type { StrategySport, LeagueFormat } from './types'
 import type { DraftPickFact } from './types'
 import { getPositionCountsFromRoster } from './RosterCompositionAnalyzer'
+import { normalizeToSupportedSport, DEFAULT_SPORT } from '@/lib/sport-scope'
 
 /** Map League.sport (enum) to string. */
 function leagueSportToSport(sport: string): StrategySport {
-  const s = (sport || 'NFL').toUpperCase()
-  if (['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB'].includes(s)) return s as StrategySport
-  return 'NFL'
+  return normalizeToSupportedSport(sport) as StrategySport
 }
 
 /**
@@ -157,7 +156,7 @@ export async function generateStrategyMetaReports(opts: {
     bySegment.set(key, list)
   }
 
-  const sport = opts.sport ?? 'NFL'
+  const sport = opts.sport ?? DEFAULT_SPORT
   let reportCount = 0
   for (const [leagueFormat, segmentOutcomes] of bySegment) {
     const reports = computeStrategyMetaReport(segmentOutcomes, { sport, leagueFormat })

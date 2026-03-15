@@ -74,6 +74,7 @@ export function recordAiRecommendation(
 
 /**
  * Record injury impact (negative signal).
+ * Supports both 'injury' and 'injury_event' signal types.
  */
 export function recordInjuryImpact(
   playerId: string,
@@ -81,4 +82,15 @@ export function recordInjuryImpact(
   value?: number
 ): Promise<void> {
   return recordTrendSignal(playerId, sport, 'injury', { value: value ?? 1 })
+}
+
+/**
+ * Record injury event (alias for injury impact; same aggregation bucket).
+ */
+export function recordInjuryEvent(
+  playerId: string,
+  sport: SportString,
+  value?: number
+): Promise<void> {
+  return recordTrendSignal(playerId, sport, 'injury_event', { value: value ?? 1 })
 }

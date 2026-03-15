@@ -1,0 +1,62 @@
+/**
+ * Rivalry Engine — types for records, events, tiers, and scoring.
+ */
+
+export const RIVALRY_TIERS = ['Emerging', 'Heated', 'Blood Feud', 'League Classic'] as const
+export type RivalryTier = (typeof RIVALRY_TIERS)[number]
+
+/** Configurable score thresholds for tiers (defaults). */
+export const DEFAULT_TIER_THRESHOLDS: Record<RivalryTier, { min: number; max?: number }> = {
+  'Emerging': { min: 0, max: 39 },
+  'Heated': { min: 40, max: 64 },
+  'Blood Feud': { min: 65, max: 84 },
+  'League Classic': { min: 85 },
+}
+
+export const RIVALRY_EVENT_TYPES = [
+  'h2h_matchup',
+  'playoff_matchup',
+  'elimination',
+  'championship_clash',
+  'trade',
+  'close_game',
+  'upset_win',
+  'streak',
+  'drama',
+] as const
+export type RivalryEventType = (typeof RIVALRY_EVENT_TYPES)[number]
+
+export interface RivalryRecordPayload {
+  leagueId: string
+  sport: string
+  managerAId: string
+  managerBId: string
+  rivalryScore: number
+  rivalryTier: RivalryTier
+  firstDetectedAt?: Date
+  updatedAt?: Date
+}
+
+export interface RivalryEventPayload {
+  rivalryId: string
+  eventType: RivalryEventType
+  season?: number | null
+  matchupId?: string | null
+  tradeId?: string | null
+  description?: string | null
+}
+
+export interface RivalryScoreInput {
+  totalMatchups: number
+  closeGameCount: number
+  playoffMeetings: number
+  eliminationEvents: number
+  championshipMeetings: number
+  upsetWins: number
+  tradeCount: number
+  contentionOverlapScore: number
+  dramaEventCount: number
+}
+
+export const RIVALRY_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
+export type RivalrySport = (typeof RIVALRY_SPORTS)[number]

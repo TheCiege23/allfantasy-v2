@@ -1,0 +1,36 @@
+---
+description: Sport scope requirement — support all seven sports; use sport-aware abstractions
+alwaysApply: true
+---
+
+# SPORT SCOPE REQUIREMENT
+
+When building or modifying **sports-related features**, always support these sports unless the task explicitly requires a single-sport implementation:
+
+- **NFL**
+- **NHL**
+- **NBA**
+- **MLB**
+- **NCAA Basketball** (NCAAB)
+- **NCAA Football** (NCAAF)
+- **Soccer** (SOCCER)
+
+## Do
+
+- **Use the single source of truth for supported sports**: `lib/sport-scope.ts` exports `SUPPORTED_SPORTS`, `DEFAULT_SPORT`, `isSupportedSport()`, and `normalizeToSupportedSport()`. Use these for fallbacks and validation instead of hardcoding `'NFL'` or duplicating sport lists.
+- **Use sport-aware abstractions**: resolvers (e.g. `getDetectionConfig(sport)`, `resolveSportForMetaUI(sport)`), templates, and filters that take `sport` as input and behave correctly per sport.
+- **Filter and validate by sport** using `SUPPORTED_SPORTS` or `isSupportedSport()` from `lib/sport-scope.ts` (or the module re-exports it, e.g. `SportVariantContextResolver`).
+- **Default to a safe fallback** via `DEFAULT_SPORT` from `lib/sport-scope.ts` when the user has not selected a sport or when resolving unknown values — not to restrict the UI or API to one sport.
+
+## Do not
+
+- **Hardcode logic for only one sport** (e.g. dropdowns or APIs that only offer NFL, NBA, MLB) unless the task explicitly requires it.
+- **Omit NCAA Basketball, NCAA Football, or Soccer** from sport lists, filters, or options when the feature is sports-related and should be platform-wide.
+- **Assume “sport” means NFL** in shared components or APIs; pass sport through and branch on it where behavior differs.
+
+## Reference
+
+- **Single source of truth**: `lib/sport-scope.ts` — `SUPPORTED_SPORTS`, `DEFAULT_SPORT`, `isSupportedSport()`, `normalizeToSupportedSport()`. Aligns with Prisma `LeagueSport`.
+- **League creation / defaults**: `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` — re-exports `SUPPORTED_SPORTS` from sport-scope.
+- **Canonical type and list (sport-defaults)**: `lib/sport-defaults/types.ts` — `SportType`, `SPORT_TYPES` (same seven sports).
+- **Meta / trend / strategy**: `lib/meta-insights/SportMetaUIResolver.ts`, `lib/player-trend`, `lib/strategy-meta`, `lib/global-meta-engine` — all export sport arrays including all seven.

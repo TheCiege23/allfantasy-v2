@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { gtagEvent } from '@/lib/gtag'
 
-const SPORTS = ['NFL', 'NBA', 'MLB']
+const SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER']
 const LEAGUE_TYPES = ['Redraft', 'Dynasty', 'Keeper', 'Best Ball', 'Guillotine', 'Survivor', 'Tournament']
 const COMPETITIVENESS = ['Casual', 'Competitive', 'Degenerate 😈']
 const DRAFT_PREFS = ['Snake', 'Auction', 'Either']

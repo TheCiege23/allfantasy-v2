@@ -50,7 +50,7 @@ export function LeagueCreationSportSelector({
       </Select>
       {showHelper && (
         <p className="text-white/50 text-xs mt-1">
-          Soccer is its own sport with soccer-specific roster and scoring. For NFL, choose a preset (e.g. Standard, PPR, IDP) below.
+          <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring. <strong className="text-white/70">IDP</strong> is an NFL preset (league type) — choose NFL then pick a preset below (Standard, PPR, Superflex, or IDP/Dynasty IDP). Selecting a preset updates roster and scoring automatically.
         </p>
       )}
     </div>

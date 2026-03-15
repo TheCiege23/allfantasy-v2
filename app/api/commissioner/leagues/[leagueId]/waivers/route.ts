@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
-import { getLeagueWaiverSettings, upsertLeagueWaiverSettings } from '@/lib/waiver-wire'
+import { getEffectiveLeagueWaiverSettings, upsertLeagueWaiverSettings } from '@/lib/waiver-wire'
 import { getPendingClaims, getProcessedClaimsAndTransactions } from '@/lib/waiver-wire'
 import { processWaiverClaimsForLeague } from '@/lib/waiver-wire'
 
@@ -25,8 +25,8 @@ export async function GET(
   const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get('limit') || '50')))
 
   if (type === 'settings') {
-    const settings = await getLeagueWaiverSettings(params.leagueId)
-    return NextResponse.json(settings ?? { leagueId: params.leagueId, waiverType: 'standard' })
+    const settings = await getEffectiveLeagueWaiverSettings(params.leagueId)
+    return NextResponse.json(settings)
   }
 
   if (type === 'history') {

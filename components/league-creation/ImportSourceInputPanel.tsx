@@ -1,0 +1,106 @@
+'use client';
+
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Loader2, Info } from 'lucide-react';
+import { getImportProviderLabel, isImportProviderAvailable } from '@/lib/league-import/provider-ui-config';
+import type { ImportProvider } from '@/lib/league-import/types';
+
+export interface ImportSourceInputPanelProps {
+  provider: ImportProvider | null;
+  /** For Sleeper: league ID. For others: future connection input. */
+  sourceInput: string;
+  onSourceInputChange: (value: string) => void;
+  onFetchPreview: () => void;
+  loading: boolean;
+  disabled?: boolean;
+}
+
+const PROVIDER_INPUT_CONFIG: Record<
+  string,
+  { label: string; placeholder: string; help?: string }
+> = {
+  sleeper: {
+    label: 'Sleeper League ID',
+    placeholder: 'e.g. 123456789',
+    help: 'Find this in your Sleeper league URL or league settings.',
+  },
+  espn: {
+    label: 'ESPN League ID',
+    placeholder: 'e.g. 12345678',
+    help: 'Import from ESPN will be available in a future update.',
+  },
+  yahoo: {
+    label: 'Yahoo League ID',
+    placeholder: 'e.g. 12345',
+    help: 'Import from Yahoo will be available in a future update.',
+  },
+  fantrax: {
+    label: 'Fantrax League ID',
+    placeholder: 'e.g. abc123',
+    help: 'Import from Fantrax will be available in a future update.',
+  },
+  mfl: {
+    label: 'MFL League ID',
+    placeholder: 'e.g. 12345',
+    help: 'Import from MyFantasyLeague will be available in a future update.',
+  },
+};
+
+export function ImportSourceInputPanel({
+  provider,
+  sourceInput,
+  onSourceInputChange,
+  onFetchPreview,
+  loading,
+  disabled,
+}: ImportSourceInputPanelProps) {
+  if (!provider) return null;
+
+  const available = isImportProviderAvailable(provider);
+  const config = PROVIDER_INPUT_CONFIG[provider] ?? {
+    label: `${getImportProviderLabel(provider)} ID`,
+    placeholder: 'Enter league or connection ID',
+  };
+
+  if (!available) {
+    return (
+      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-3 flex items-start gap-2">
+        <Info className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
+        <div className="text-sm text-white/90">
+          <p className="font-medium text-amber-200">Import from {getImportProviderLabel(provider)} is not yet available</p>
+          <p className="mt-1 text-white/60">We’re working on it. Use Sleeper for now, or build a new league manually.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="import-source-input">{config.label}</Label>
+      <div className="flex gap-2">
+        <Input
+          id="import-source-input"
+          placeholder={config.placeholder}
+          value={sourceInput}
+          onChange={(e) => onSourceInputChange(e.target.value)}
+          disabled={loading || disabled}
+          className="flex-1 bg-gray-900 border-purple-600/40"
+        />
+        <Button
+          type="button"
+          onClick={onFetchPreview}
+          disabled={loading || !sourceInput.trim() || disabled}
+          variant="outline"
+          className="border-purple-600/40 text-purple-300 shrink-0"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch & Preview'}
+        </Button>
+      </div>
+      {config.help && (
+        <p className="text-xs text-white/50">{config.help}</p>
+      )}
+    </div>
+  );
+}

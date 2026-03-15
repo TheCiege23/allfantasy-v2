@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, RefreshCw, AlertCircle, CheckCircle, Loader2, X, Shield, ExternalLink, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { groupLeaguesBySport } from '@/lib/dashboard/DashboardSportGroupingService';
 
 interface League {
   id: string;
   name: string | null;
+  sport?: string | null;
   platform: string;
   platformLeagueId: string;
   leagueSize: number | null;
@@ -16,6 +18,85 @@ interface League {
   syncStatus: string | null;
   syncError: string | null;
   lastSyncedAt: string | null;
+}
+
+/** Groups leagues by sport with section headers (emoji + label) for dashboard. */
+function DashboardSportGroups({
+  leagues,
+  platformLabel,
+  syncingId,
+  reSync,
+}: {
+  leagues: League[];
+  platformLabel: (p: string) => string;
+  syncingId: string | null;
+  reSync: (league: League) => void;
+}) {
+  const groups = useMemo(() => groupLeaguesBySport(leagues), [leagues]);
+  return (
+    <div className="space-y-8">
+      {groups.map((group) => (
+        <section key={group.sport}>
+          <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <span>{group.emoji}</span>
+            <span>{group.label}</span>
+          </h2>
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {group.leagues.map((lg, i) => (
+              <motion.div
+                key={lg.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="rounded-2xl bg-slate-900/60 border border-slate-700/50 p-5 hover:border-slate-600 transition-colors"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-bold text-base truncate">{lg.name || 'Unnamed League'}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {platformLabel(lg.platform ?? 'unknown')} &bull; {lg.leagueSize || '?'}-team &bull;{' '}
+                      {lg.isDynasty ? 'Dynasty' : 'Redraft'} &bull;{' '}
+                      {lg.scoring?.toUpperCase() || 'STD'}
+                    </p>
+                  </div>
+                  {lg.syncStatus === 'success' ? (
+                    <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 ml-2" />
+                  ) : lg.syncStatus === 'error' ? (
+                    <div className="relative group flex-shrink-0 ml-2">
+                      <AlertCircle className="w-5 h-5 text-red-400" />
+                      {lg.syncError && (
+                        <div className="absolute right-0 top-7 w-48 p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-red-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                          {lg.syncError}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Loader2 className="w-5 h-5 text-yellow-400 animate-spin flex-shrink-0 ml-2" />
+                  )}
+                </div>
+                <div className="text-xs text-slate-500 mb-4">
+                  Last synced:{' '}
+                  {lg.lastSyncedAt ? new Date(lg.lastSyncedAt).toLocaleString() : 'Never'}
+                </div>
+                <button
+                  onClick={() => reSync(lg as League)}
+                  disabled={syncingId === lg.id}
+                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm disabled:opacity-50 transition-colors"
+                >
+                  {syncingId === lg.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  Re-sync
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
 }
 
 export default function LeagueSyncDashboard() {
@@ -191,62 +272,12 @@ export default function LeagueSyncDashboard() {
           </button>
         </motion.div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {leagues.map((lg, i) => (
-            <motion.div
-              key={lg.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="rounded-2xl bg-slate-900/60 border border-slate-700/50 p-5 hover:border-slate-600 transition-colors"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-base truncate">{lg.name || 'Unnamed League'}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {platformLabel(lg.platform)} &bull; {lg.leagueSize || '?'}-team &bull;{' '}
-                    {lg.isDynasty ? 'Dynasty' : 'Redraft'} &bull;{' '}
-                    {lg.scoring?.toUpperCase() || 'STD'}
-                  </p>
-                </div>
-                {lg.syncStatus === 'success' ? (
-                  <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 ml-2" />
-                ) : lg.syncStatus === 'error' ? (
-                  <div className="relative group flex-shrink-0 ml-2">
-                    <AlertCircle className="w-5 h-5 text-red-400" />
-                    {lg.syncError && (
-                      <div className="absolute right-0 top-7 w-48 p-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-red-300 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                        {lg.syncError}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Loader2 className="w-5 h-5 text-yellow-400 animate-spin flex-shrink-0 ml-2" />
-                )}
-              </div>
-
-              <div className="text-xs text-slate-500 mb-4">
-                Last synced:{' '}
-                {lg.lastSyncedAt
-                  ? new Date(lg.lastSyncedAt).toLocaleString()
-                  : 'Never'}
-              </div>
-
-              <button
-                onClick={() => reSync(lg)}
-                disabled={syncingId === lg.id}
-                className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm disabled:opacity-50 transition-colors"
-              >
-                {syncingId === lg.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                Re-sync
-              </button>
-            </motion.div>
-          ))}
-        </div>
+        <DashboardSportGroups
+          leagues={leagues}
+          platformLabel={platformLabel}
+          syncingId={syncingId}
+          reSync={reSync}
+        />
       )}
 
       <div className="mt-12 rounded-2xl bg-slate-900/60 border border-slate-700/50 p-6">

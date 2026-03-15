@@ -1,6 +1,6 @@
 /**
  * Player Trend Detection Engine – types and constants.
- * Supports NFL, NBA, MLB, NHL, NCAAF, NCAAB.
+ * Supports NFL, NHL, NBA, MLB, NCAAF, NCAAB, SOCCER.
  */
 
 export const TREND_SIGNAL_TYPES = [
@@ -11,6 +11,7 @@ export const TREND_SIGNAL_TYPES = [
   'lineup_start',
   'ai_recommendation',
   'injury',
+  'injury_event',
 ] as const
 
 export type TrendSignalType = (typeof TREND_SIGNAL_TYPES)[number]

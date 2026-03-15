@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type LeagueSportFrontend = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB';
+export type LeagueSportFrontend = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
 
-const LEAGUE_SPORT_VALUES: LeagueSportFrontend[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB'];
+const LEAGUE_SPORT_VALUES: LeagueSportFrontend[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'];
 
 function toLeagueSportFrontend(s: string | null | undefined): LeagueSportFrontend | null {
   if (s == null || s === '') return null;

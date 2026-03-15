@@ -38,6 +38,7 @@ export async function buildGraphEdges(
   if (!league) return edges;
 
   const seasonNum = season ?? null;
+  const sportNorm = league.sport != null ? String(league.sport).toUpperCase() : null;
 
   // MANAGES + OWNS: Manager -> TeamSeason (MANAGES), Manager -> TeamSeason (OWNS for ownership)
   for (const team of league.teams) {
@@ -56,6 +57,7 @@ export async function buildGraphEdges(
           edgeType: type,
           weight: 1,
           season: seasonNum,
+          sport: sportNorm,
           metadata: null,
         });
       }
@@ -126,6 +128,7 @@ export async function buildGraphEdges(
         const eid = edgeId(tradeNodeId, teamNodeId, "ACQUIRED", t.season, t.id);
         if (seenEdgeIds.has(eid)) continue;
         seenEdgeIds.add(eid);
+        const edgeSport = t.sport ? String(t.sport).toUpperCase() : sportNorm;
         edges.push({
           edgeId: eid,
           fromNodeId: tradeNodeId,
@@ -133,6 +136,7 @@ export async function buildGraphEdges(
           edgeType: "ACQUIRED",
           weight: 1,
           season: t.season,
+          sport: edgeSport,
           metadata: { tradeId: t.id, week: t.week },
         });
       }
@@ -179,9 +183,68 @@ export async function buildGraphEdges(
         edgeType: "TRADED_WITH",
         weight: list.length,
         season: seasonNum,
+        sport: sportNorm,
         metadata: null,
       });
     }
+  }
+
+  // FACED + DEFEATED: from MatchupFact (warehouse) or WeeklyMatchup
+  const matchupFacts = await prisma.matchupFact.findMany({
+    where: { leagueId, ...(seasonNum != null ? { season: seasonNum } : {}) },
+  });
+  const facedCount = new Map<string, number>();
+  const defeatedCount = new Map<string, number>();
+  for (const m of matchupFacts) {
+    const teamA = league.teams.find((t) => t.externalId === m.teamA || t.id === m.teamA);
+    const teamB = league.teams.find((t) => t.externalId === m.teamB || t.id === m.teamB);
+    if (!teamA || !teamB) continue;
+    const nodeA = findNode(nodes, "TeamSeason", teamA.id);
+    const nodeB = findNode(nodes, "TeamSeason", teamB.id);
+    if (!nodeA || !nodeB) continue;
+    const [fromId, toId] = nodeA < nodeB ? [nodeA, nodeB] : [nodeB, nodeA];
+    const facedKey = `${fromId}|${toId}`;
+    facedCount.set(facedKey, (facedCount.get(facedKey) ?? 0) + 1);
+    if (m.winnerTeamId) {
+      const winnerNode = m.winnerTeamId === teamA.id || m.winnerTeamId === teamA.externalId ? nodeA : (m.winnerTeamId === teamB.id || m.winnerTeamId === teamB.externalId ? nodeB : null);
+      const loserNode = winnerNode === nodeA ? nodeB : nodeA;
+      if (winnerNode && loserNode) {
+        const defKey = `${winnerNode}|${loserNode}`;
+        defeatedCount.set(defKey, (defeatedCount.get(defKey) ?? 0) + 1);
+      }
+    }
+  }
+  for (const [key, w] of facedCount) {
+    const [fromId, toId] = key.split("|");
+    const eid = edgeId(fromId!, toId!, "FACED", seasonNum, key);
+    if (seenEdgeIds.has(eid)) continue;
+    seenEdgeIds.add(eid);
+    edges.push({
+      edgeId: eid,
+      fromNodeId: fromId!,
+      toNodeId: toId!,
+      edgeType: "FACED",
+      weight: w,
+      season: seasonNum,
+      sport: sportNorm,
+      metadata: null,
+    });
+  }
+  for (const [key, w] of defeatedCount) {
+    const [winnerId, loserId] = key.split("|");
+    const eid = edgeId(winnerId!, loserId!, "DEFEATED", seasonNum, key);
+    if (seenEdgeIds.has(eid)) continue;
+    seenEdgeIds.add(eid);
+    edges.push({
+      edgeId: eid,
+      fromNodeId: winnerId!,
+      toNodeId: loserId!,
+      edgeType: "DEFEATED",
+      weight: w,
+      season: seasonNum,
+      sport: sportNorm,
+      metadata: null,
+    });
   }
 
   // RIVAL_OF: between two Manager nodes (userId-based)
@@ -208,6 +271,7 @@ export async function buildGraphEdges(
         edgeType: "RIVAL_OF",
         weight: intensity > 0 ? intensity : 1,
         season: seasonNum,
+        sport: sportNorm,
         metadata: { winsA: r.winsA, winsB: r.winsB, totalMeetings: r.totalMeetings },
       });
     }

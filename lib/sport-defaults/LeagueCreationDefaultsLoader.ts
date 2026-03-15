@@ -7,6 +7,7 @@ import { getFullLeaguePreset } from './SportLeaguePresetService'
 import { resolveLeaguePreset } from './LeaguePresetResolver'
 import { getDefaultLeagueSettings } from './LeagueDefaultSettingsService'
 import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults } from './SportDefaultsRegistry'
+import { getSportMetadata } from './SportMetadataRegistry'
 import type { SportType } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 
@@ -44,18 +45,36 @@ export interface LeagueCreationDefaultsPayload {
     scoring_format: string
     category_type: string
   }
-  /** Draft defaults */
+  /** Draft defaults (sport- and variant-aware) */
   draft: {
     draft_type: string
     rounds_default: number
     timer_seconds_default: number | null
     pick_order_rules: string
+    snake_or_linear_behavior?: string
+    third_round_reversal?: boolean
+    autopick_behavior?: string
+    queue_size_limit?: number | null
+    draft_order_rules?: string
+    pre_draft_ranking_source?: string
+    roster_fill_order?: string
+    position_filter_behavior?: string
   }
-  /** Waiver defaults */
+  /** Waiver defaults (sport- and variant-aware) */
   waiver: {
     waiver_type: string
     processing_days: number[] | null
     FAAB_budget_default: number | null
+    processing_time_utc?: string | null
+    faab_enabled?: boolean
+    faab_reset_rules?: string | null
+    claim_priority_behavior?: string | null
+    continuous_waivers_behavior?: boolean
+    free_agent_unlock_behavior?: string | null
+    game_lock_behavior?: string | null
+    drop_lock_behavior?: string
+    same_day_add_drop_rules?: string
+    max_claims_per_period?: number | null
   }
   /** Resolved roster template (slots from DB or in-memory default) */
   rosterTemplate: {
@@ -108,17 +127,18 @@ export async function loadLeagueCreationDefaults(
   if (variant && (variant.toUpperCase() === 'IDP' || variant.toUpperCase() === 'DYNASTY_IDP') && leagueSport === 'NFL') {
     const resolved = await resolveLeaguePreset(leagueSport, variant)
     const defaults = getLeagueDefaults(sportType)
-    const draftDef = getDraftDefaults(sportType)
-    const waiverDef = getWaiverDefaults(sportType)
+    const draftDef = getDraftDefaults(sportType, variant ?? undefined)
+    const waiverDef = getWaiverDefaults(sportType, variant ?? undefined)
     const defaultLeagueSettings = getDefaultLeagueSettings(sportType)
+    const metadata = getSportMetadata(sportType)
     return {
       sport: leagueSport,
       leagueVariant: variant,
       metadata: {
-        display_name: 'NFL',
-        short_name: 'NFL',
-        icon: '🏈',
-        logo_strategy: 'sleeper',
+        display_name: metadata.display_name,
+        short_name: metadata.short_name,
+        icon: metadata.icon,
+        logo_strategy: metadata.logo_strategy,
       },
       league: {
         default_league_name_pattern: defaults.default_league_name_pattern,
@@ -146,11 +166,29 @@ export async function loadLeagueCreationDefaults(
         rounds_default: draftDef.rounds_default,
         timer_seconds_default: draftDef.timer_seconds_default,
         pick_order_rules: draftDef.pick_order_rules,
+        snake_or_linear_behavior: draftDef.snake_or_linear_behavior ?? draftDef.pick_order_rules,
+        third_round_reversal: draftDef.third_round_reversal ?? false,
+        autopick_behavior: draftDef.autopick_behavior ?? 'queue-first',
+        queue_size_limit: draftDef.queue_size_limit ?? null,
+        draft_order_rules: draftDef.draft_order_rules ?? draftDef.pick_order_rules,
+        pre_draft_ranking_source: draftDef.pre_draft_ranking_source ?? 'adp',
+        roster_fill_order: draftDef.roster_fill_order ?? 'starter_first',
+        position_filter_behavior: draftDef.position_filter_behavior ?? 'by_eligibility',
       },
       waiver: {
         waiver_type: waiverDef.waiver_type,
         processing_days: waiverDef.processing_days,
         FAAB_budget_default: waiverDef.FAAB_budget_default,
+        processing_time_utc: waiverDef.processing_time_utc ?? null,
+        faab_enabled: waiverDef.waiver_type === 'faab',
+        faab_reset_rules: waiverDef.faab_reset_rules ?? null,
+        claim_priority_behavior: (waiverDef.claim_priority_behavior as string) ?? null,
+        continuous_waivers_behavior: waiverDef.continuous_waivers_behavior ?? false,
+        free_agent_unlock_behavior: (waiverDef.free_agent_unlock_behavior as string) ?? 'after_waiver_run',
+        game_lock_behavior: (waiverDef.game_lock_behavior as string) ?? null,
+        drop_lock_behavior: waiverDef.drop_lock_behavior ?? 'lock_with_game',
+        same_day_add_drop_rules: waiverDef.same_day_add_drop_rules ?? 'allow_if_not_played',
+        max_claims_per_period: waiverDef.max_claims_per_period ?? null,
       },
       rosterTemplate: {
         templateId: resolved.rosterTemplate.templateId,
@@ -225,17 +263,41 @@ export async function loadLeagueCreationDefaults(
       scoring_format: defaults.scoring.scoring_format,
       category_type: defaults.scoring.category_type,
     },
-    draft: {
-      draft_type: defaults.draft.draft_type,
-      rounds_default: defaults.draft.rounds_default,
-      timer_seconds_default: defaults.draft.timer_seconds_default,
-      pick_order_rules: defaults.draft.pick_order_rules,
-    },
-    waiver: {
-      waiver_type: defaults.waiver.waiver_type,
-      processing_days: defaults.waiver.processing_days,
-      FAAB_budget_default: defaults.waiver.FAAB_budget_default,
-    },
+    draft: (() => {
+      const d = getDraftDefaults(sportType, variant ?? undefined)
+      return {
+        draft_type: d.draft_type,
+        rounds_default: d.rounds_default,
+        timer_seconds_default: d.timer_seconds_default,
+        pick_order_rules: d.pick_order_rules,
+        snake_or_linear_behavior: d.snake_or_linear_behavior ?? d.pick_order_rules,
+        third_round_reversal: d.third_round_reversal ?? false,
+        autopick_behavior: d.autopick_behavior ?? 'queue-first',
+        queue_size_limit: d.queue_size_limit ?? null,
+        draft_order_rules: d.draft_order_rules ?? d.pick_order_rules,
+        pre_draft_ranking_source: d.pre_draft_ranking_source ?? 'adp',
+        roster_fill_order: d.roster_fill_order ?? 'starter_first',
+        position_filter_behavior: d.position_filter_behavior ?? 'by_eligibility',
+      }
+    })(),
+      waiver: (() => {
+        const w = getWaiverDefaults(sportType, variant ?? undefined)
+        return {
+          waiver_type: w.waiver_type,
+          processing_days: w.processing_days,
+          FAAB_budget_default: w.FAAB_budget_default,
+          processing_time_utc: w.processing_time_utc ?? null,
+          faab_enabled: w.waiver_type === 'faab',
+          faab_reset_rules: w.faab_reset_rules ?? null,
+          claim_priority_behavior: (w.claim_priority_behavior as string) ?? null,
+          continuous_waivers_behavior: w.continuous_waivers_behavior ?? false,
+          free_agent_unlock_behavior: (w.free_agent_unlock_behavior as string) ?? 'after_waiver_run',
+          game_lock_behavior: (w.game_lock_behavior as string) ?? null,
+          drop_lock_behavior: w.drop_lock_behavior ?? 'lock_with_game',
+          same_day_add_drop_rules: w.same_day_add_drop_rules ?? 'allow_if_not_played',
+          max_claims_per_period: w.max_claims_per_period ?? null,
+        }
+      })(),
     rosterTemplate: {
       templateId: preset.rosterTemplate.templateId,
       name: preset.rosterTemplate.name,

@@ -14,13 +14,22 @@ import {
   LeagueCreationSportSelector,
   LeagueCreationPresetSelector,
   LeagueSettingsPreviewPanel,
+  LeagueCreationModeSelector,
+  ImportProviderSelector,
+  ImportSourceInputPanel,
+  ImportedLeaguePreviewPanel,
+  type CreationMode,
 } from '@/components/league-creation';
+import type { ImportPreviewResponse } from '@/lib/league-import/ImportedLeaguePreviewBuilder';
+import type { ImportProvider } from '@/lib/league-import/types';
+import { fetchImportPreview, submitImportCreation } from '@/lib/league-import/LeagueCreationImportSubmissionService';
 
 function leagueOptionToSport(opt: LeagueSportOption): 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER' {
   return opt as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
 }
 
 export default function StartupDynastyForm({ userId }: { userId: string }) {
+  const [creationMode, setCreationMode] = useState<CreationMode>('create');
   const [sport, setSport] = useState<LeagueSportOption>('NFL');
   const [leagueVariant, setLeagueVariant] = useState<string>('PPR');
   const [leagueName, setLeagueName] = useState('');
@@ -32,10 +41,19 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
   const [qbFormat, setQbFormat] = useState<'1qb' | 'sf'>('sf');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Import flow (provider-ready: Sleeper first)
+  const [importProvider, setImportProvider] = useState<ImportProvider | null>('sleeper');
+  const [importSourceInput, setImportSourceInput] = useState('');
+  const [importPreview, setImportPreview] = useState<ImportPreviewResponse | null>(null);
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false);
+  const [createFromImportLoading, setCreateFromImportLoading] = useState(false);
 
   const sportType = leagueOptionToSport(sport);
   const variantOptions = getVariantsForSport(sportType);
-  const { preset, loading: presetLoading } = useSportPreset(sport, sport === 'NFL' ? leagueVariant : undefined);
+  const { preset, loading: presetLoading } = useSportPreset(
+    sport,
+    sport === 'NFL' ? leagueVariant : sport === 'SOCCER' ? leagueVariant || 'STANDARD' : undefined
+  );
 
   useEffect(() => {
     if (sport !== 'NFL') setLeagueVariant('STANDARD');
@@ -62,6 +80,39 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleFetchImportPreview = async () => {
+    if (!importProvider) {
+      toast.error('Select an import platform');
+      return;
+    }
+    setImportPreviewLoading(true);
+    setImportPreview(null);
+    const result = await fetchImportPreview(importProvider, importSourceInput);
+    setImportPreviewLoading(false);
+    if (!result.ok) {
+      toast.error(result.error ?? 'Failed to load league');
+      return;
+    }
+    setImportPreview(result.data as ImportPreviewResponse);
+  };
+
+  const handleCreateFromImport = async () => {
+    if (!importProvider || !importSourceInput.trim() || !importPreview) return;
+    setCreateFromImportLoading(true);
+    const result = await submitImportCreation(importProvider, importSourceInput, userId);
+    setCreateFromImportLoading(false);
+    if (!result.ok) {
+      if (result.status === 409) toast.error('This league already exists in your account');
+      else toast.error(result.error ?? 'Failed to create league');
+      return;
+    }
+    toast.success('League imported! Redirecting...');
+    const leagueId = (result.data as { league?: { id?: string } })?.league?.id;
+    setTimeout(() => {
+      window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
+    }, 1500);
   };
 
   const handleSubmit = async () => {
@@ -98,8 +149,9 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
       }
 
       toast.success('Dynasty league created! Redirecting...');
+      const leagueId = data?.league?.id;
       setTimeout(() => {
-        window.location.href = '/af-legacy';
+        window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
       }, 1500);
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -117,6 +169,44 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <LeagueCreationModeSelector
+          value={creationMode}
+          onChange={(mode) => {
+            setCreationMode(mode);
+            if (mode === 'create') setImportPreview(null);
+          }}
+          disabled={loading || importPreviewLoading || createFromImportLoading}
+        />
+        {creationMode === 'import' && (
+          <>
+            <ImportProviderSelector
+              value={importProvider}
+              onChange={(p) => {
+                setImportProvider(p);
+                setImportPreview(null);
+              }}
+              disabled={importPreviewLoading || createFromImportLoading}
+            />
+            <ImportSourceInputPanel
+              provider={importProvider}
+              sourceInput={importSourceInput}
+              onSourceInputChange={setImportSourceInput}
+              onFetchPreview={handleFetchImportPreview}
+              loading={importPreviewLoading}
+              disabled={createFromImportLoading}
+            />
+            <ImportedLeaguePreviewPanel
+              provider={importProvider}
+              preview={importPreview}
+              loading={importPreviewLoading}
+              onCreateFromImport={handleCreateFromImport}
+              createLoading={createFromImportLoading}
+              onBack={() => setImportPreview(null)}
+            />
+          </>
+        )}
+        {creationMode === 'create' && (
+          <>
         <LeagueCreationSportSelector
           value={sport}
           onChange={(v) => setSport(v)}
@@ -266,6 +356,8 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
             <><Trophy className="mr-2 h-4 w-4" /> Create Dynasty League</>
           )}
         </Button>
+          </>
+        )}
       </CardContent>
     </Card>
   );

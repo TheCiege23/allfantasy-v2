@@ -89,6 +89,62 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     return proxyToExisting(req, { targetPath: '/api/trade-finder', query: { leagueId } })
   }
 
+  if (leagueId && path[2] === 'draft' && path[3] === 'config') {
+    try {
+      const { getDraftConfigForLeague } = await import('@/lib/draft-defaults/DraftRoomConfigResolver')
+      const { prisma } = await import('@/lib/prisma')
+      const config = await getDraftConfigForLeague(leagueId)
+      const league = await (prisma as any).league.findUnique({
+        where: { id: leagueId },
+        select: { leagueSize: true },
+      })
+      if (!config) return NextResponse.json({ error: 'League or draft config not found' }, { status: 404 })
+      return NextResponse.json({
+        ...config,
+        leagueSize: league?.leagueSize ?? 12,
+      })
+    } catch (e) {
+      console.warn('[app/league/draft/config]', e)
+      return NextResponse.json({ error: 'Failed to load draft config' }, { status: 500 })
+    }
+  }
+
+  if (leagueId && path[2] === 'waiver' && path[3] === 'config') {
+    try {
+      const { getWaiverConfigForLeague } = await import('@/lib/waiver-defaults/WaiverConfigResolver')
+      const config = await getWaiverConfigForLeague(leagueId)
+      if (!config) return NextResponse.json({ error: 'League or waiver config not found' }, { status: 404 })
+      return NextResponse.json(config)
+    } catch (e) {
+      console.warn('[app/league/waiver/config]', e)
+      return NextResponse.json({ error: 'Failed to load waiver config' }, { status: 500 })
+    }
+  }
+
+  if (leagueId && path[2] === 'playoff' && path[3] === 'config') {
+    try {
+      const { getPlayoffConfigForLeague } = await import('@/lib/playoff-defaults/PlayoffConfigResolver')
+      const config = await getPlayoffConfigForLeague(leagueId)
+      if (!config) return NextResponse.json({ error: 'League or playoff config not found' }, { status: 404 })
+      return NextResponse.json(config)
+    } catch (e) {
+      console.warn('[app/league/playoff/config]', e)
+      return NextResponse.json({ error: 'Failed to load playoff config' }, { status: 500 })
+    }
+  }
+
+  if (leagueId && path[2] === 'schedule' && path[3] === 'config') {
+    try {
+      const { getScheduleConfigForLeague } = await import('@/lib/schedule-defaults/ScheduleConfigResolver')
+      const config = await getScheduleConfigForLeague(leagueId)
+      if (!config) return NextResponse.json({ error: 'League or schedule config not found' }, { status: 404 })
+      return NextResponse.json(config)
+    } catch (e) {
+      console.warn('[app/league/schedule/config]', e)
+      return NextResponse.json({ error: 'Failed to load schedule config' }, { status: 500 })
+    }
+  }
+
   if (leagueId && section === 'draft') {
     return proxyToExisting(req, { targetPath: '/api/mock-draft/adp' })
   }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getEffectiveLeagueWaiverSettings } from "./settings-service"
 import {
   getRosterPlayerIds,
   addPlayerToRosterData,
@@ -26,15 +27,9 @@ type ClaimRow = {
   }
 }
 
-type SettingsRow = {
-  waiverType: string
-  faabBudget: number | null
-  tiebreakRule: string | null
-}
-
 export async function processWaiverClaimsForLeague(leagueId: string): Promise<ProcessedClaimResult[]> {
-  const [settings, league, pendingClaims, allRosters, leagueTeams] = await Promise.all([
-    (prisma as any).leagueWaiverSettings.findUnique({ where: { leagueId } }),
+  const [effectiveSettings, league, pendingClaims, allRosters, leagueTeams] = await Promise.all([
+    getEffectiveLeagueWaiverSettings(leagueId),
     (prisma as any).league.findUnique({
       where: { id: leagueId },
       select: { id: true, rosterSize: true },
@@ -64,8 +59,8 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
   ])
 
   if (!league) return []
-  const waiverType = (settings as SettingsRow)?.waiverType ?? "standard"
-  const faabBudget = (settings as SettingsRow)?.faabBudget ?? null
+  const waiverType = effectiveSettings.waiverType ?? "standard"
+  const faabBudget = effectiveSettings.faabBudget ?? null
 
   const rankByPlatformUserId = new Map<string, number>()
   for (const t of (leagueTeams as { externalId: string; currentRank: number | null }[]) || []) {

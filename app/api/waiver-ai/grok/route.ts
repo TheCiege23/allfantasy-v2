@@ -258,6 +258,7 @@ export async function POST(req: NextRequest) {
     let resolvedIsDynasty = isDynasty;
     let resolvedFAAB = userFAAB;
     let leagueSettings = '';
+    let resolvedSport: string = (body.sport as string) || 'NFL';
 
     const sleeperUserId = body.sleeperUserId || body.platformUserId;
 
@@ -271,6 +272,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'League not synced yet. Please sync your league first.' }, { status: 400 });
       }
 
+      resolvedSport = (league.sport as string) || 'NFL';
       const lookupId = sleeperUserId || userId;
       const userRoster = league.rosters.find((r: any) => r.platformUserId === lookupId);
       if (!userRoster) {
@@ -282,7 +284,7 @@ export async function POST(req: NextRequest) {
       resolvedScoring = league.scoring;
       resolvedIsDynasty = league.isDynasty;
       resolvedFAAB = userRoster.faabRemaining ?? userFAAB;
-      leagueSettings = `\n- Full league settings: ${JSON.stringify(league.settings)}`;
+      leagueSettings = `\n- Sport: ${resolvedSport}\n- Full league settings: ${JSON.stringify(league.settings)}`;
     } else if (manualRoster && typeof manualRoster === 'string' && manualRoster.trim()) {
       rosterData = manualRoster;
     } else {
@@ -325,10 +327,12 @@ export async function POST(req: NextRequest) {
       ? `\n\nREAL-TIME DATA ENABLED: Use your web_search and x_keyword_search tools to find the latest injuries, transactions, signings, coaching changes, rookie draft capital/landing spots, and breaking news. Flag any time-sensitive pickups and note if info has uncertainty.`
       : '';
 
-    const systemPrompt = `You are the #1 Waiver Wire AI for 2026 fantasy football.
+    const sportLabel = resolvedSport === 'NFL' ? 'football' : resolvedSport === 'NBA' ? 'basketball' : resolvedSport === 'MLB' ? 'baseball' : resolvedSport === 'NHL' ? 'hockey' : resolvedSport === 'NCAAF' ? 'college football' : resolvedSport === 'NCAAB' ? 'college basketball' : 'sports';
+    const systemPrompt = `You are the #1 Waiver Wire AI for 2026 fantasy ${sportLabel}.
 Analyze the user's roster, contention window, FAAB budget, and league context to surface the highest-impact waiver targets.
 
 LEAGUE CONTEXT (CRITICAL):
+- Sport: ${resolvedSport}
 - Format: ${resolvedLeagueSize}-team ${resolvedIsDynasty ? 'Dynasty' : 'Redraft'} ${resolvedScoring.toUpperCase()}
 - Contention window: ${userContention}
 - FAAB remaining: ${resolvedFAAB}%${leagueSettings}

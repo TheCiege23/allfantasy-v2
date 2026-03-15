@@ -4,7 +4,7 @@
 import { prisma } from '@/lib/prisma'
 import type { TrendDirection } from './types'
 
-export const SUPPORTED_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB'] as const
+export const SUPPORTED_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 
 export interface TrendingPlayerRow {
   playerId: string

@@ -2696,6 +2696,117 @@ model UserRivalry {
   @@map("user_rivalries")
 }
 
+/// Rivalry Engine — persisted rivalry record per league (manager/franchise pair, score, tier).
+model RivalryRecord {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  sport          String   @db.VarChar(16)
+  managerAId     String   @db.VarChar(128)
+  managerBId     String   @db.VarChar(128)
+  rivalryScore   Float    @default(0)
+  rivalryTier    String   @db.VarChar(32)
+  firstDetectedAt DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  events         RivalryEvent[]
+
+  @@unique([leagueId, managerAId, managerBId])
+  @@index([leagueId, sport])
+  @@index([leagueId, rivalryTier])
+  @@index([managerAId, managerBId])
+  @@map("rivalry_records")
+}
+
+/// Rivalry Engine — timeline event for a rivalry (matchup, playoff, trade, championship, etc.).
+model RivalryEvent {
+  id          String   @id @default(cuid())
+  rivalryId  String
+  eventType  String   @db.VarChar(48)
+  season     Int?
+  matchupId  String?  @db.VarChar(64)
+  tradeId    String?  @db.VarChar(64)
+  description String?  @db.Text
+  createdAt  DateTime @default(now())
+  rivalry    RivalryRecord @relation(fields: [rivalryId], references: [id], onDelete: Cascade)
+
+  @@index([rivalryId])
+  @@index([eventType, season])
+  @@map("rivalry_events")
+}
+
+/// Psychological Profiles Engine — behavior profile per manager per league.
+model ManagerPsychProfile {
+  id                   String   @id @default(cuid())
+  leagueId             String   @db.VarChar(64)
+  managerId            String   @db.VarChar(128)
+  sport                String   @db.VarChar(16)
+  profileLabels        Json     @default("[]")
+  aggressionScore      Float    @default(0)
+  activityScore        Float    @default(0)
+  tradeFrequencyScore  Float    @default(0)
+  waiverFocusScore     Float    @default(0)
+  riskToleranceScore   Float    @default(0)
+  updatedAt            DateTime @updatedAt
+  evidence             ProfileEvidenceRecord[]
+
+  @@unique([leagueId, managerId])
+  @@index([leagueId, sport])
+  @@index([managerId])
+  @@map("manager_psych_profiles")
+}
+
+/// Psychological Profiles Engine — evidence backing a profile (draft, trade, waiver, etc.).
+model ProfileEvidenceRecord {
+  id              String   @id @default(cuid())
+  managerId       String   @db.VarChar(128)
+  leagueId        String   @db.VarChar(64)
+  sport           String   @db.VarChar(16)
+  evidenceType    String   @db.VarChar(48)
+  value           Float    @default(0)
+  sourceReference String?  @db.VarChar(256)
+  createdAt       DateTime @default(now())
+  profile         ManagerPsychProfile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId       String?  @db.VarChar(64)
+
+  @@index([managerId, leagueId])
+  @@index([evidenceType, sport])
+  @@map("profile_evidence_records")
+}
+
+/// League Drama Engine — structured storyline event (revenge, upset, rivalry, streak, etc.).
+model DramaEvent {
+  id                String   @id @default(cuid())
+  leagueId          String   @db.VarChar(64)
+  sport             String   @db.VarChar(16)
+  season            Int?
+  dramaType         String   @db.VarChar(48)
+  headline          String   @db.VarChar(256)
+  summary           String?  @db.Text
+  relatedManagerIds Json     @default("[]")
+  relatedTeamIds    Json     @default("[]")
+  relatedMatchupId  String?  @db.VarChar(64)
+  dramaScore        Float    @default(0)
+  createdAt         DateTime @default(now())
+
+  @@index([leagueId, sport])
+  @@index([leagueId, season])
+  @@index([dramaType, season])
+  @@map("drama_events")
+}
+
+/// League Drama Engine — timeline of event ids per league/season for ordered display.
+model DramaTimelineRecord {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  sport     String   @db.VarChar(16)
+  season    Int?
+  eventIds  Json     @default("[]")
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, sport, season])
+  @@index([leagueId])
+  @@map("drama_timeline_records")
+}
+
 enum VerificationMethod {
   EMAIL
   PHONE
@@ -2782,6 +2893,8 @@ model League {
   lastSyncedAt     DateTime?
   syncStatus       String?
   syncError        String?
+  importBatchId    String?     @db.VarChar(64)
+  importedAt       DateTime?
 
   rosters            Roster[]
   teams              LeagueTeam[]
@@ -2802,6 +2915,7 @@ model League {
   @@index([userId, isDynasty])
   @@index([sport, season])
   @@index([status])
+  @@index([importBatchId])
   @@map("leagues")
 }
 
@@ -3138,6 +3252,39 @@ model StrategyMetaReport {
   @@index([sport])
   @@index([leagueFormat])
   @@map("strategy_meta_reports")
+}
+
+/// Global Meta Engine: platform-wide snapshots by sport/season/week and meta type (DraftMeta, WaiverMeta, TradeMeta, RosterMeta, StrategyMeta)
+model GlobalMetaSnapshot {
+  id              String   @id @default(cuid())
+  sport           String   @db.VarChar(12)
+  season          String   @db.VarChar(8)
+  weekOrPeriod    Int      @default(0)
+  metaType        String   @db.VarChar(24)
+  data            Json
+  createdAt       DateTime @default(now())
+
+  @@index([sport, season, weekOrPeriod])
+  @@index([metaType, sport])
+  @@index([createdAt])
+  @@map("global_meta_snapshots")
+}
+
+/// Position-level meta trends (usage, draft rate, roster rate) per sport
+model PositionMetaTrend {
+  id                String   @id @default(cuid())
+  position          String   @db.VarChar(16)
+  sport             String   @db.VarChar(12)
+  usageRate         Float    @default(0)
+  draftRate         Float    @default(0)
+  rosterRate        Float    @default(0)
+  trendingDirection String   @db.VarChar(16)
+  updatedAt         DateTime @updatedAt
+
+  @@unique([position, sport], name: "uniq_position_meta_trend_position_sport")
+  @@index([sport])
+  @@index([trendingDirection])
+  @@map("position_meta_trends")
 }
 
 model WaiverClaim {
@@ -3571,7 +3718,7 @@ model TeamWindowProfile {
   @@map("team_window_profiles")
 }
 
-/// League Intelligence Graph — nodes (entities)
+/// League Intelligence Graph — nodes (entities). sport optional for cross-sport filtering.
 model GraphNode {
   id        String   @id @default(cuid())
   nodeId    String   @unique
@@ -3579,16 +3726,18 @@ model GraphNode {
   entityId  String   @db.VarChar(128)
   leagueId  String   @db.VarChar(64)
   season    Int?
+  sport     String?  @db.VarChar(16)
   metadata  Json?
   createdAt DateTime @default(now())
 
   @@index([leagueId, season])
   @@index([nodeType, leagueId])
   @@index([entityId, leagueId])
+  @@index([leagueId, sport])
   @@map("graph_nodes")
 }
 
-/// League Intelligence Graph — edges (relationships)
+/// League Intelligence Graph — edges (relationships). edgeType: FACED, DEFEATED, TRADED_WITH, RIVAL_OF, etc.
 model GraphEdge {
   id          String   @id @default(cuid())
   edgeId      String   @unique
@@ -3597,6 +3746,7 @@ model GraphEdge {
   edgeType    String   @db.VarChar(32)
   weight      Float    @default(1)
   season      Int?
+  sport       String?  @db.VarChar(16)
   metadata    Json?
   createdAt   DateTime @default(now())
 
@@ -3604,6 +3754,7 @@ model GraphEdge {
   @@index([toNodeId])
   @@index([edgeType, season])
   @@index([fromNodeId, toNodeId, edgeType])
+  @@index([edgeType, sport])
   @@map("graph_edges")
 }
 
@@ -3660,4 +3811,215 @@ model DynastyBackfillStatus {
   @@index([leagueId])
   @@index([status])
   @@map("dynasty_backfill_status")
+}
+
+// ========== Fantasy Data Warehouse (Prompt 30) ==========
+// Raw/normalized/analytics layers; feeds simulation, playoff probability, dynasty, rankings, AI, meta.
+
+/// Player-level game fact (fantasy stats per game)
+model PlayerGameFact {
+  factId          String   @id @default(cuid())
+  playerId        String   @db.VarChar(64)
+  sport           String   @db.VarChar(12)
+  gameId          String   @db.VarChar(64)
+  teamId          String?  @db.VarChar(32)
+  opponentTeamId  String?  @db.VarChar(32)
+  statPayload     Json     @map("stat_payload")
+  normalizedStats Json     @map("normalized_stats")
+  fantasyPoints   Float    @default(0)
+  scoringPeriod   Int      @default(0)
+  season          Int?
+  weekOrRound     Int?
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, sport])
+  @@index([sport, scoringPeriod])
+  @@index([sport, season, weekOrRound])
+  @@index([gameId])
+  @@map("dw_player_game_facts")
+}
+
+/// Team-level game fact (points, result)
+model TeamGameFact {
+  factId           String   @id @default(cuid())
+  teamId           String   @db.VarChar(32)
+  sport            String   @db.VarChar(12)
+  gameId           String   @db.VarChar(64)
+  pointsScored     Float    @default(0)
+  opponentPoints   Float    @default(0)
+  result           String?  @db.VarChar(8)
+  season           Int?
+  weekOrRound      Int?
+  createdAt        DateTime @default(now())
+
+  @@index([teamId, sport])
+  @@index([sport, season, weekOrRound])
+  @@index([gameId])
+  @@map("dw_team_game_facts")
+}
+
+/// Roster snapshot per league/team/period (lineup + bench)
+model RosterSnapshot {
+  snapshotId    String   @id @default(cuid())
+  leagueId      String   @db.VarChar(64)
+  teamId        String   @db.VarChar(64)
+  sport         String   @db.VarChar(12)
+  weekOrPeriod  Int
+  season        Int?
+  rosterPlayers Json     @map("roster_players")
+  lineupPlayers Json     @map("lineup_players")
+  benchPlayers  Json     @map("bench_players")
+  createdAt     DateTime @default(now())
+
+  @@index([leagueId, weekOrPeriod])
+  @@index([teamId, sport])
+  @@index([sport, season])
+  @@map("dw_roster_snapshots")
+}
+
+/// Matchup fact (head-to-head result per period)
+model MatchupFact {
+  matchupId     String   @id @default(cuid())
+  leagueId     String   @db.VarChar(64)
+  sport        String   @db.VarChar(12)
+  weekOrPeriod Int
+  teamA        String   @db.VarChar(64)
+  teamB        String   @db.VarChar(64)
+  scoreA       Float    @default(0)
+  scoreB       Float    @default(0)
+  winnerTeamId String?  @db.VarChar(64)
+  season       Int?
+  createdAt     DateTime @default(now())
+
+  @@index([leagueId, weekOrPeriod])
+  @@index([leagueId, season])
+  @@map("dw_matchup_facts")
+}
+
+/// Draft fact (pick record)
+model DraftFact {
+  draftId    String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  sport      String   @db.VarChar(12)
+  round      Int
+  pickNumber Int
+  playerId   String   @db.VarChar(64)
+  managerId  String?  @db.VarChar(64)
+  season     Int?
+  createdAt  DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, round])
+  @@index([playerId, sport])
+  @@map("dw_draft_facts")
+}
+
+/// Transaction fact (add/drop/trade)
+model TransactionFact {
+  transactionId String   @id @default(cuid())
+  leagueId      String   @db.VarChar(64)
+  sport         String   @db.VarChar(12)
+  type          String   @db.VarChar(24)
+  playerId      String?  @db.VarChar(64)
+  managerId     String?  @db.VarChar(64)
+  rosterId      String?  @db.VarChar(64)
+  payload       Json?
+  season        Int?
+  weekOrPeriod  Int?
+  createdAt     DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([playerId, sport])
+  @@index([type])
+  @@map("dw_transaction_facts")
+}
+
+/// Season standing fact (rank, W-L, PF/PA per team per season)
+model SeasonStandingFact {
+  standingId    String   @id @default(cuid())
+  leagueId      String   @db.VarChar(64)
+  sport         String   @db.VarChar(12)
+  season        Int
+  teamId        String   @db.VarChar(64)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  ties          Int      @default(0)
+  pointsFor     Float    @default(0)
+  pointsAgainst Float    @default(0)
+  rank          Int?
+  createdAt     DateTime @default(now())
+
+  @@unique([leagueId, season, teamId], name: "uniq_dw_standing_league_season_team")
+  @@index([leagueId, season])
+  @@index([teamId, sport])
+  @@map("dw_season_standing_facts")
+}
+
+// ========== Simulation Engine (Prompt 31) — matchup & season results ==========
+
+/// Matchup simulation result (single head-to-head)
+model MatchupSimulationResult {
+  simulationId     String   @id @default(cuid())
+  sport            String   @db.VarChar(12)
+  leagueId         String?  @db.VarChar(64)
+  weekOrPeriod     Int
+  teamAId          String?  @db.VarChar(64)
+  teamBId          String?  @db.VarChar(64)
+  expectedScoreA   Float
+  expectedScoreB   Float
+  winProbabilityA   Float
+  winProbabilityB   Float
+  scoreDistributionA Json?   @map("score_distribution_a")
+  scoreDistributionB Json?   @map("score_distribution_b")
+  iterations       Int      @default(2000)
+  createdAt        DateTime @default(now())
+
+  @@index([leagueId, weekOrPeriod])
+  @@index([sport])
+  @@map("sim_matchup_results")
+}
+
+/// Season simulation result (per-team playoff/championship odds, expected wins/rank)
+model SeasonSimulationResult {
+  resultId               String   @id @default(cuid())
+  sport                  String   @db.VarChar(12)
+  leagueId               String   @db.VarChar(64)
+  teamId                 String   @db.VarChar(64)
+  season                 Int
+  weekOrPeriod           Int
+  playoffProbability     Float    @default(0)
+  championshipProbability Float  @default(0)
+  expectedWins            Float    @default(0)
+  expectedRank            Float    @default(0)
+  simulationsRun          Int      @default(0)
+  createdAt               DateTime @default(now())
+
+  @@index([leagueId, season, weekOrPeriod])
+  @@index([teamId])
+  @@index([sport])
+  @@map("sim_season_results")
+}
+
+// ========== Dynasty Projection Engine (Prompt 32) ==========
+
+/// Unified dynasty projection output (3/5-year strength, championship window, rebuild, aging, future assets)
+model DynastyProjection {
+  projectionId            String   @id @default(cuid())
+  teamId                  String   @db.VarChar(64)
+  leagueId                String   @db.VarChar(64)
+  sport                   String   @db.VarChar(12)
+  championshipWindowScore Float    @default(0)
+  rebuildProbability      Float    @default(0)
+  rosterStrength3Year     Float    @default(0)
+  rosterStrength5Year     Float    @default(0)
+  agingRiskScore          Float    @default(0)
+  futureAssetScore        Float    @default(0)
+  season                  Int?
+  createdAt               DateTime @default(now())
+
+  @@unique([leagueId, teamId], name: "uniq_dynasty_projection_league_team")
+  @@index([leagueId])
+  @@index([teamId])
+  @@index([sport])
+  @@map("dynasty_projections")
 }

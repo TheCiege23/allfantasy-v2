@@ -5,8 +5,9 @@ import { RelationshipGraphView } from "./RelationshipGraphView";
 import { DynastyTimelineView } from "./DynastyTimelineView";
 import { ManagerRelationshipCard } from "./ManagerRelationshipCard";
 import { GraphInsightDrawer } from "./GraphInsightDrawer";
+import { RivalryEngineList } from "./RivalryEngineList";
 
-export type GraphPanelView = "summary" | "graph" | "timeline" | "managers";
+export type GraphPanelView = "summary" | "graph" | "timeline" | "managers" | "rivalries";
 
 type RelationshipProfile = {
   leagueId: string;
@@ -37,6 +38,10 @@ export default function LeagueIntelligenceGraphPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [insightDrawerOpen, setInsightDrawerOpen] = useState(false);
+  const [rivalryExplainId, setRivalryExplainId] = useState<string | null>(null);
+  const [rivalryExplainNarrative, setRivalryExplainNarrative] = useState<string | null>(null);
+  const [rivalryTimelineId, setRivalryTimelineId] = useState<string | null>(null);
+  const [rivalryTimelineData, setRivalryTimelineData] = useState<Array<{ eventType: string; description: string | null; createdAt: string }> | null>(null);
 
   const loadProfile = useCallback(
     async (seasonParam: number | null) => {
@@ -101,6 +106,15 @@ export default function LeagueIntelligenceGraphPanel({
           )}
           <button
             type="button"
+            onClick={() => void loadProfile(season)}
+            disabled={loading}
+            className="rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50"
+            title="Refresh graph data"
+          >
+            {loading ? "Loading…" : "Refresh"}
+          </button>
+          <button
+            type="button"
             onClick={() => setInsightDrawerOpen(true)}
             className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-200 hover:bg-cyan-500/20"
           >
@@ -110,7 +124,7 @@ export default function LeagueIntelligenceGraphPanel({
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
-        {(["summary", "graph", "timeline", "managers"] as const).map((v) => (
+        {(["summary", "graph", "timeline", "managers", "rivalries"] as const).map((v) => (
           <button
             key={v}
             type="button"
@@ -176,6 +190,63 @@ export default function LeagueIntelligenceGraphPanel({
               profile={profile}
               dynastySeasons={dynastySeasons}
             />
+          )}
+
+          {view === "rivalries" && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-white/80">Rivalry engine</h3>
+              <RivalryEngineList
+                leagueId={leagueId}
+                onExplain={async (rivalryId) => {
+                  setRivalryExplainId(rivalryId);
+                  setRivalryTimelineId(null);
+                  setRivalryTimelineData(null);
+                  try {
+                    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/rivalries/explain`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ rivalryId }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    setRivalryExplainNarrative(data.narrative ?? null);
+                  } catch {
+                    setRivalryExplainNarrative("Could not load explanation.");
+                  }
+                }}
+                onViewTimeline={async (rivalryId) => {
+                  setRivalryTimelineId(rivalryId);
+                  setRivalryExplainId(null);
+                  setRivalryExplainNarrative(null);
+                  try {
+                    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/rivalries/${rivalryId}/timeline`, { cache: "no-store" });
+                    const data = await res.json().catch(() => ({}));
+                    setRivalryTimelineData(Array.isArray(data.timeline) ? data.timeline : null);
+                  } catch {
+                    setRivalryTimelineData([]);
+                  }
+                }}
+              />
+              {rivalryExplainNarrative != null && rivalryExplainId && (
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-sm text-white/90">
+                  <div className="text-xs text-cyan-300/80 mb-1">Explain this rivalry</div>
+                  <p>{rivalryExplainNarrative}</p>
+                </div>
+              )}
+              {rivalryTimelineData != null && rivalryTimelineId && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="text-xs text-white/50 mb-2">Timeline</div>
+                  <ul className="space-y-1.5">
+                    {(rivalryTimelineData as Array<{ eventType: string; description: string | null; createdAt: string }>).map((e, i) => (
+                      <li key={i} className="text-xs text-white/70">
+                        <span className="text-white/40">{e.eventType}</span>
+                        {e.description ? ` — ${e.description}` : ""}
+                        <span className="ml-1 text-white/30">{e.createdAt ? new Date(e.createdAt).toLocaleDateString() : ""}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
 
           {view === "managers" && (

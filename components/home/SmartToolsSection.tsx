@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { Brain, Clock, DraftingCompass, Sparkles, PlayCircle } from "lucide-react"
 
+const SUPPORTED_SPORTS = ["NFL", "NHL", "NBA", "MLB", "NCAAF", "NCAAB", "SOCCER"] as const
+
 type AIRecommendation = {
   id: string
   player: string
@@ -231,10 +233,9 @@ export default function SmartToolsSection() {
                   }
                   className="w-full rounded-xl border border-white/15 bg-black/40 px-2 py-1.5 text-xs outline-none"
                 >
-                  <option value="NFL">NFL</option>
-                  <option value="NBA">NBA</option>
-                  <option value="MLB">MLB</option>
-                  <option value="NHL">NHL</option>
+                  {SUPPORTED_SPORTS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
 

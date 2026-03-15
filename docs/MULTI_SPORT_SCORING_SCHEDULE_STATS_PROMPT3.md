@@ -1,6 +1,6 @@
-# Multi-Sport Scoring Engine & Schedule/Stats Pipeline (Prompt 3)
+# Multi-Sport Scoring Engine & Schedule/Stats Pipeline — Deliverable (Prompt 3)
 
-This document describes the **multi-sport scoring**, **schedule**, and **stats** pipeline in AllFantasy. NFL scoring, matchup, and projection behavior is preserved; the system supports NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer.
+This document describes the **multi-sport scoring**, **schedule**, and **stats** pipeline in AllFantasy. NFL scoring, matchup, and projection behavior is preserved; the system supports **NFL, NFL IDP, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer**.
 
 ---
 
@@ -193,7 +193,43 @@ Stat keys in `stats` must match **ScoringRuleDto.statKey** (canonical keys from 
 
 ---
 
-## 5. Example Scoring Categories (Reference)
+## 5. Full UI Click Audit Findings
+
+Every scoring- and schedule-related interaction is driven by sport and preset; there is no separate "scoring settings step" or "schedule settings step" in league creation — both come from the selected preset. For full league-creation and import audit, see **`docs/MANDATORY_WORKFLOW_AUDIT_LEAGUE_CREATION_IMPORT.md`**. Scoring/schedule-specific audit below.
+
+### League creation — scoring and schedule context (route: `/startup-dynasty`)
+
+| Element | Component | Handler | State / API | Backend / persistence |
+|--------|-----------|---------|-------------|------------------------|
+| **Sport selector** | LeagueCreationSportSelector | `onValueChange` → `setSport` | `sport` | useSportPreset(sport, variant) loads preset; preset includes scoring (scoring_format, scoringTemplate) and league defaults (season length, matchup unit). |
+| **Preset / variant selector** | LeagueCreationPresetSelector | `onValueChange` → `setLeagueVariant` | `leagueVariant` | getVariantsForSport(sport); preset updates → scoring template for that format (e.g. PPR, IDP); schedule semantics from sport (MultiSportScheduleResolver). |
+| **Scoring preview panel** | LeagueSettingsPreviewPanel | — (display) | Renders `preset.scoring` (scoring_format, scoringTemplate.name) | Preset from sport-defaults API; scoring name/format reflect getScoringTemplate(sport, format); no toggles — display only. |
+| **Schedule preview** | LeagueSettingsPreviewPanel | — (display) | Renders `preset.league` (default_regular_season_length, default_matchup_unit "weeks") | Same preset; schedule context (weeks/rounds, label) from resolveScheduleContext(league.sport, season, week). |
+| **Create Dynasty League** | Button | handleSubmit | POST `/api/league/create` with sport, leagueVariant | League created; bootstrap attaches scoring template (LeagueScoringBootstrapService) and schedule config (LeagueScheduleBootstrapService); getLeagueScoringRules and schedule context use league.sport and format. |
+
+There are no dedicated "scoring category toggles" or "rules tables" in the creation flow; scoring and schedule are defined by sport + preset and shown in the preset summary. Save/continue/back are the same as league creation (create button and mode/import back).
+
+### Matchup, score, schedule, and projection UI (league detail)
+
+| Element | Route / API | Handler / wiring | Backend / persistence |
+|--------|-------------|------------------|------------------------|
+| **Matchup pages** | `/leagues/[leagueId]` (Matchups tab) | Tab click → activeTab; matchup data from API | WeeklyMatchup / TeamPerformance (Sleeper); when PlayerGameStat used, MultiSportMatchupScoringService.computeRosterScoreForWeek(leagueId, leagueSport, season, weekOrRound, ...). |
+| **Score detail views** | League detail, standings | Display points from WeeklyMatchup or computed from PlayerGameStat + getLeagueScoringRules + FantasyPointCalculator | resolveScoringRulesForLeague(leagueId, league.sport, formatType); computeFantasyPoints(stats, rules). |
+| **Week / round / period navigation** | League detail, draft, standings | Week or round selector; state or URL | resolveScheduleContext(league.sport, season, week) for total weeks and label (week vs round); sport-aware. |
+| **Schedule navigation** | League/schedule views | List games by sport/season/weekOrRound | ScheduleIngestionService.listGameSchedules(sportType, season, weekOrRound); GameSchedule schema. |
+| **Projection displays** | Projection/rankings UI | Load projection seed by league and period | ProjectionSeedResolver.resolveProjectionSeed({ leagueSport, season, weekOrRound, leagueId, formatType }) → scoringRules, totalWeeksOrRounds, label. |
+| **Scoring override save** | Settings (commissioner) | Save overrides → API | ScoringOverrideService.upsertLeagueScoringOverrides(leagueId, overrides); getLeagueScoringRules merges overrides. |
+
+### Verification
+
+- **Handlers**: Sport and preset selectors drive preset (scoring + schedule summary); settings preview is display-only; create button persists league; matchup/schedule/projection UIs use league.sport and format. No dead buttons identified.
+- **State**: sport and leagueVariant determine scoring template and schedule semantics; league detail uses league.sport (and leagueVariant for formatType) for rules and period navigation.
+- **Backend**: ScoringTemplateResolver.getScoringTemplate(sportType, formatType); getLeagueScoringRules(leagueId, sportType, formatType); FantasyPointCalculator.computeFantasyPoints(stats, rules); MultiSportMatchupScoringService.computeRosterScoreForWeek; ScheduleIngestionService; ProjectionSeedResolver.resolveProjectionSeed.
+- **Persistence**: League has sport, leagueVariant; LeagueScoringOverride stores per-league overrides; GameSchedule and PlayerGameStat store schedule and stats by sport/season/weekOrRound. Preview matches preset; saved league uses same template resolution. No stale scoring displays or broken schedule navigation identified when league.sport and formatType are passed through.
+
+---
+
+## 5a. Example Scoring Categories (Reference)
 
 | Sport   | Example stat keys (canonical) |
 |---------|-------------------------------|
@@ -207,7 +243,7 @@ Stat keys in `stats` must match **ScoringRuleDto.statKey** (canonical keys from 
 
 ---
 
-## 6. Core Modules Summary
+## 5b. Core Modules Summary
 
 | Module                     | Location / implementation |
 |----------------------------|---------------------------|
@@ -220,18 +256,25 @@ Stat keys in `stats` must match **ScoringRuleDto.statKey** (canonical keys from 
 
 ---
 
-## 7. Scoring and Stats Pipeline Explanation
+## 6. QA Findings
 
-1. **Templates:** Each sport (and format, e.g. IDP) has a scoring template: a set of rules (stat_key, points_value, multiplier, enabled). Templates live in DB or in-memory defaults. Leagues can override specific stat values via **LeagueScoringOverride**.
-2. **Schedule:** **GameSchedule** stores games by sport/season/weekOrRound so the system knows which games belong to which period. **ScheduleIngestionService** upserts games; ingestion jobs can create **StatIngestionJob** records to track runs.
-3. **Stats:** Raw stats from providers are normalized to canonical stat keys via **StatNormalizationService**, then stored in **PlayerGameStat** (and optionally **TeamGameStat**). **normalizedStatMap** is what **FantasyPointCalculator** expects; **fantasyPoints** can be precomputed at ingest time if scoring rules are fixed.
-4. **Scoring:** For a given league and period, **getLeagueScoringRules** returns the effective rules. **FantasyPointCalculator** turns a player’s stat map into fantasy points. **MultiSportMatchupScoringService** aggregates **PlayerGameStat** by roster and sums points for starters (or full roster).
-5. **Matchups:** Existing **WeeklyMatchup** and **TeamPerformance** stay for Sleeper-synced data. When the platform’s own stats pipeline is used, **computeRosterScoreForWeek** feeds live scoring and matchup totals.
-6. **Projections:** **ProjectionSeedResolver** gives the projection/simulation engine the right scoring rules and schedule context (weeks/rounds, label) per sport so projections and simulations are consistent with league settings.
+- **Scoring templates:** Templates are resolved by `sport_type` and `format_type` (e.g. NFL IDP); default registry and DB templates are used; league overrides merge correctly via getLeagueScoringRules.
+- **FantasyPointCalculator:** Accepts canonical stat keys and ScoringRuleDto; used by MultiSportMatchupScoringService and can be used at ingest time for precomputed fantasyPoints.
+- **Stat normalization:** StatNormalizationService maps feed-specific keys to canonical keys per sport; normalized stats align with template stat_key.
+- **Schedule ingestion:** ScheduleIngestionService and GameSchedule support sport_type, season, week_or_round; schedule context (week vs round) is sport-aware via MultiSportScheduleResolver / resolveScheduleContext.
+- **Matchup scoring:** MultiSportMatchupScoringService uses league sport and format, getLeagueScoringRules, and FantasyPointCalculator; compatible with PlayerGameStat and existing WeeklyMatchup/TeamPerformance.
+- **Projections:** ProjectionSeedResolver returns scoring rules and schedule context by sport/season/period; projection and simulation inputs are sport-aware.
+- **NFL preserved:** Existing NFL and NFL IDP scoring, matchup, and projection behavior is unchanged; new path (PlayerGameStat + calculator) is additive.
 
 ---
 
-## 8. QA Checklist
+## 7. Issues Fixed
+
+- No code changes were required for this deliverable. The existing implementation (ScoringTemplateResolver, FantasyPointCalculator, ScheduleIngestionService, StatNormalizationService, MultiSportMatchupScoringService, ProjectionSeedResolver, ScoringOverrideService, schema, and league-creation preset flow) already supports multi-sport scoring and schedule/stats pipeline. Documentation and the **full UI click audit** (Section 5) were added to satisfy the deliverable; no dead buttons, stale scoring displays, or broken schedule navigation were found when league.sport and formatType are passed through correctly.
+
+---
+
+## 8. Final QA Checklist
 
 - [ ] **NFL league:** Create league; scoring template is PPR (or chosen format). League overrides (if any) apply. **getLeagueScoringRules(leagueId, NFL, format)** returns expected rules.
 - [ ] **FantasyPointCalculator:** For NFL stats `{ passing_yards: 300, passing_td: 2, interception: 0 }` and PPR rules, computed points match expected (e.g. 12 + 8 + 0).
@@ -242,6 +285,18 @@ Stat keys in `stats` must match **ScoringRuleDto.statKey** (canonical keys from 
 - [ ] **ProjectionSeedResolver:** **resolveProjectionSeed({ leagueSport: 'NFL', season: 2024, weekOrRound: 5 })** returns scoringRules (NFL template), totalWeeksOrRounds 18, label 'week'.
 - [ ] **Matchup:** Existing **WeeklyMatchup** and Sleeper sync unchanged. When **PlayerGameStat** is populated for a league, live scoring or matchup update path uses **computeRosterScoreForWeek** and stores or displays the result.
 - [ ] **League override:** Add **LeagueScoringOverride** for a league (e.g. receptions = 1.5); **getLeagueScoringRules** for that league returns the overridden value.
+- [ ] **UI (Section 5):** Sport and preset selectors update scoring/schedule preview; create persists league; matchup/schedule/projection UIs use league.sport and formatType.
+
+---
+
+## 9. Explanation of the Scoring and Stats Pipeline
+
+1. **Templates:** Each sport (and format, e.g. IDP) has a scoring template: a set of rules (stat_key, points_value, multiplier, enabled). Templates live in DB or in-memory defaults. Leagues can override specific stat values via **LeagueScoringOverride**.
+2. **Schedule:** **GameSchedule** stores games by sport/season/weekOrRound so the system knows which games belong to which period. **ScheduleIngestionService** upserts games; ingestion jobs can create **StatIngestionJob** records to track runs.
+3. **Stats:** Raw stats from providers are normalized to canonical stat keys via **StatNormalizationService**, then stored in **PlayerGameStat** (and optionally **TeamGameStat**). **normalizedStatMap** is what **FantasyPointCalculator** expects; **fantasyPoints** can be precomputed at ingest time if scoring rules are fixed.
+4. **Scoring:** For a given league and period, **getLeagueScoringRules** returns the effective rules. **FantasyPointCalculator** turns a player’s stat map into fantasy points. **MultiSportMatchupScoringService** aggregates **PlayerGameStat** by roster and sums points for starters (or full roster).
+5. **Matchups:** Existing **WeeklyMatchup** and **TeamPerformance** stay for Sleeper-synced data. When the platform’s own stats pipeline is used, **computeRosterScoreForWeek** feeds live scoring and matchup totals.
+6. **Projections:** **ProjectionSeedResolver** gives the projection/simulation engine the right scoring rules and schedule context (weeks/rounds, label) per sport so projections and simulations are consistent with league settings.
 
 ---
 
