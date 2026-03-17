@@ -7,7 +7,7 @@ import { getConfirmationReminderEmail } from "@/lib/email-templates/confirmation
 
 export const dynamic = 'force-dynamic';
 
-export const GET = withApiUsage({ endpoint: "/api/admin/send-reminders", tool: "AdminSendReminders" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/admin/send-reminders", tool: "AdminSendReminders" })(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 

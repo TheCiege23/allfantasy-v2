@@ -1,7 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { getEligibleDevyPlayers, computeAvailabilityPct } from '@/lib/devy-classification'
+import { getEligibleDevyPlayers } from '@/lib/devy-classification'
 import { computeAllDevyIntelMetrics, computeDevyFinalScore, computeAvailabilityPctV2 } from '@/lib/devy-intel'
 import { prisma } from '@/lib/prisma'
 
@@ -149,7 +149,6 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/devy-board", tool: "Le
     const rosterPositions = roster?.players?.map(p => p.position) || []
     const qbCount = rosterPositions.filter(p => p === 'QB').length
     const rbCount = rosterPositions.filter(p => p === 'RB').length
-    const wrCount = rosterPositions.filter(p => p === 'WR').length
     const teCount = rosterPositions.filter(p => p === 'TE').length
 
     let biggestNeed = 'WR'
@@ -173,7 +172,6 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/devy-board", tool: "Le
 
       const needPlayers = await getEligibleDevyPlayers({ position: biggestNeed, limit: 10, minValue: 3000 })
       const secondaryPlayers = await getEligibleDevyPlayers({ position: secondaryNeed, limit: 5, minValue: 3000 })
-      const otherPositions = ['QB', 'RB', 'WR', 'TE'].filter(p => p !== biggestNeed && p !== secondaryNeed)
       const otherPlayers = await getEligibleDevyPlayers({ limit: 10, minValue: 5000 })
 
       const allCandidates = [...needPlayers, ...secondaryPlayers, ...otherPlayers.filter(p =>

@@ -4,11 +4,11 @@ import OpenAI from 'openai'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { prisma } from '@/lib/prisma'
 import { preferencesToPrompt } from '@/lib/trade-quiz-data'
-import { pricePlayer, ValuationContext, type AssetValue } from '@/lib/hybrid-valuation'
+import { pricePlayer, ValuationContext } from '@/lib/hybrid-valuation'
 import { fetchFantasyCalcValues } from '@/lib/fantasycalc'
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning'
 import { getPreAnalysisStatus } from '@/lib/trade-pre-analysis'
-import { convertSleeperToAssets, runTradeEngine, runAssistOrchestrator, LeagueIntelligence } from '@/lib/trade-engine'
+import { runTradeEngine, runAssistOrchestrator } from '@/lib/trade-engine'
 import { applyOtbTagsToAssetsByRosterId } from '@/lib/trade-engine/otb-persistence'
 import { writeSnapshot } from '@/lib/trade-engine/snapshot-store'
 import { getCalibratedWeights } from '@/lib/trade-engine/accept-calibration'
@@ -625,7 +625,6 @@ ${recentTrades}`
     }
 
     // Optional AI "target ranking notes"
-    let aiNotes = ''
     if (deterministicTrades && deterministicTrades.validTrades.length > 0) {
       try {
         const aiPrompt = `You are an assistant reviewing PRE-VALIDATED fantasy football trade candidates.
@@ -672,7 +671,7 @@ Respond in JSON format:
           temperature: 0.3,
         })
 
-        aiNotes = aiResponse.choices[0]?.message?.content || ''
+        void aiResponse
         console.log('[AI Layer] Generated targeting notes')
       } catch (e) {
         console.error('Failed to get AI notes:', e)

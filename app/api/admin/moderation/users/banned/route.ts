@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
-  const now = new Date()
   const rows = await prisma.platformModerationAction.findMany({
     where: { actionType: "ban" },
     orderBy: { createdAt: "desc" },

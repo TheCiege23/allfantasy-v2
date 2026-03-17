@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
-import { searchCFBPlayers, getDevyValuesForPlayers, getCFBTeamRoster, getTeamDevyRoster, DevyPlayerValue } from '@/lib/cfb-player-data'
+import { searchCFBPlayers, getDevyValuesForPlayers, getTeamDevyRoster, DevyPlayerValue } from '@/lib/cfb-player-data'
 import { prisma } from '@/lib/prisma'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/cfb-players", tool: "LegacyCfbPlayers" })(async (request: NextRequest) => {

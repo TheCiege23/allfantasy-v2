@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import { getSportsData, getTeams, getGames, getStandings, Sport, DataType } from '@/lib/sports-router';
+import { getSportsData, Sport, DataType } from '@/lib/sports-router';
 
 export const GET = withApiUsage({ endpoint: "/api/sports", tool: "Sports" })(async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;

@@ -8,10 +8,8 @@ import {
   getAllPlayers,
   getLeagueHistory,
   resolveSleeperUser,
-  SleeperTransaction,
 } from '@/lib/sleeper-client'
 import { pricePlayer, pricePick, ValuationContext } from '@/lib/hybrid-valuation'
-import { getDataInfo } from '@/lib/historical-values'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
 
@@ -432,7 +430,6 @@ async function fetchSeasonTrades(
 async function gradeTrade(trade: ProcessedTrade) {
   // Convert trade timestamp to ISO date for historical lookup
   const tradeDate = new Date(trade.timestamp).toISOString().split('T')[0]
-  const dataInfo = getDataInfo()
   
   console.log(`[GRADE] Trade date: ${tradeDate}, using hybrid valuation (Excel -> FantasyCalc fallback)`)
 
@@ -449,9 +446,6 @@ async function gradeTrade(trade: ProcessedTrade) {
   const valuationSources: string[] = []
 
   // Find the user's party to correctly attribute wins/losses
-  const userParty = trade.parties.find(p => p.rosterId === (trade as any).userRosterId)
-  const userPartyIndex = trade.parties.findIndex(p => p.rosterId === (trade as any).userRosterId)
-
   if (trade.parties.length >= 2) {
     const [partyA, partyB] = trade.parties
 
@@ -581,35 +575,4 @@ Format as JSON: { "brief": "...", "full": "..." }`
       valueDifferential: diff,
     }
   }
-}
-
-function getPickValue(round: number, season: string, tradeSeason?: string): number {
-  // Use the trade season context if available, otherwise use current year
-  const baseYear = tradeSeason ? parseInt(tradeSeason) : new Date().getFullYear()
-  const pickYear = parseInt(season)
-  const yearDiff = pickYear - baseYear
-
-  // Dynasty pick values - 3rd round pick is more valuable than 4th round pick
-  const baseValues: Record<number, number> = {
-    1: 7500,
-    2: 4000,
-    3: 2000,  // A 3rd round pick is worth significantly more
-    4: 800,   // than a 4th round pick
-  }
-
-  const base = baseValues[round] || 500
-  
-  // Apply future pick discount (10% per year) or past pick appreciation
-  // Future picks: slightly less valuable due to uncertainty
-  // Past picks that were traded should use their value at time of trade
-  let depreciation = 1.0
-  if (yearDiff > 0) {
-    // Future pick - small discount
-    depreciation = Math.max(0.7, 1 - yearDiff * 0.1)
-  } else if (yearDiff < 0) {
-    // Past pick - no appreciation, use base value
-    depreciation = 1.0
-  }
-
-  return Math.round(base * depreciation)
 }

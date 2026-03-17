@@ -107,7 +107,6 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/profile", tool: "Legacy
     .filter(Boolean)
 
   // Standard league stats (used for grading)
-  const standardSeasonsPlayed = new Set(standardLeagues.map(lg => lg.season)).size || 0
   const standardTotalWins = standardRosters.reduce((s, r) => s + safeNum(r.wins), 0)
   const standardTotalLosses = standardRosters.reduce((s, r) => s + safeNum(r.losses), 0)
   const standardTotalTies = standardRosters.reduce((s, r) => s + safeNum(r.ties), 0)

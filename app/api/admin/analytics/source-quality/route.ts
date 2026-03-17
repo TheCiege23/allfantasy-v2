@@ -1,5 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAdmin } from "@/lib/adminAuth"
 
@@ -41,7 +41,7 @@ const coreEvents = [
   'ai_chat_used',
 ]
 
-export const GET = withApiUsage({ endpoint: "/api/admin/analytics/source-quality", tool: "AdminSourceQuality" })(async (_request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/admin/analytics/source-quality", tool: "AdminSourceQuality" })(async () => {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
 

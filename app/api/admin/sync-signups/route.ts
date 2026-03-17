@@ -1,5 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/adminAuth";
 
@@ -142,7 +142,7 @@ const SIGNUPS_DATA = [
   { email: "cjabar.henson@oracle.com", createdAt: "2025-11-29T22:39:47.486Z", source: "waitlist" },
 ];
 
-export const POST = withApiUsage({ endpoint: "/api/admin/sync-signups", tool: "AdminSyncSignups" })(async (request: NextRequest) => {
+export const POST = withApiUsage({ endpoint: "/api/admin/sync-signups", tool: "AdminSyncSignups" })(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 

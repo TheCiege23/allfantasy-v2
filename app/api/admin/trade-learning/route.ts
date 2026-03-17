@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import { runBackgroundTradeAnalysis, getLearningContextForAI, aggregateTradeLearningInsights } from '@/lib/trade-learning';
+import { runBackgroundTradeAnalysis, getLearningContextForAI } from '@/lib/trade-learning';
 import { prisma } from '@/lib/prisma';
 import { isAuthorizedRequest, adminUnauthorized } from "@/lib/adminAuth";
 

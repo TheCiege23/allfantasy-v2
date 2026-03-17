@@ -1,5 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
@@ -7,7 +7,7 @@ const APP_URL = process.env.APP_URL || 'https://allfantasy.ai'
 // Use the exact redirect URI as configured in Yahoo Developer Console
 const YAHOO_REDIRECT_URI = 'https://allfantasy.ai/api/auth/yahoo/callback'
 
-export const GET = withApiUsage({ endpoint: "/api/auth/yahoo", tool: "AuthYahoo" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/auth/yahoo", tool: "AuthYahoo" })(async () => {
   if (!YAHOO_CLIENT_ID) {
     console.error('YAHOO_CLIENT_ID is not configured')
     return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=not_configured`)

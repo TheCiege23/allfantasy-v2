@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getUserSessionFromCookie } from '@/lib/api-auth'
 import { resolveLegacyIdentityForAppUser } from '@/lib/legacy-identity'
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   try {
     const session = (await getServerSession(authOptions as any)) as {
       user?: { id?: string | null; email?: string | null }

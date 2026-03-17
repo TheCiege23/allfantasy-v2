@@ -37,7 +37,7 @@ function extractPlayerNamesFromMessage(message: string, history: Array<{role: st
 
 function buildPlayerAnalyticsContext(analyticsMap: Map<string, PlayerAnalytics>): string {
   const entries: string[] = []
-  for (const [name, analytics] of analyticsMap) {
+  for (const [, analytics] of analyticsMap) {
     const athletic = computeAthleticGrade(analytics)
     const college = computeCollegeProductionGrade(analytics)
     const parts: string[] = [`**${analytics.name}** (${analytics.position}, ${analytics.currentTeam || 'FA'})`]

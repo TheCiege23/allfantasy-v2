@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -8,7 +8,7 @@ function getFromEmail(): string {
   return (process.env.RESEND_FROM_EMAIL || "AllFantasy <no-reply@allfantasy.ai>").trim();
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   try {
     const resendApiKey = process.env.RESEND_API_KEY?.trim() || "";
     const fromEmail = getFromEmail();

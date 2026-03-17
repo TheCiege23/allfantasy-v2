@@ -68,7 +68,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/share-reward", tool: "
   }
 })
 
-export const GET = withApiUsage({ endpoint: "/api/legacy/share-reward", tool: "LegacyShareReward" })(async (req: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/legacy/share-reward", tool: "LegacyShareReward" })(async () => {
   try {
     const session = getUserSessionFromCookie()
     if (!session?.sleeperUsername) {

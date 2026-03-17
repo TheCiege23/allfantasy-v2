@@ -1,5 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/adminAuth";
 
@@ -82,7 +82,7 @@ function getToolLabel(toolKey: string): string {
   return labels[toolKey] || toolKey;
 }
 
-export const GET = withApiUsage({ endpoint: "/api/admin/legacy-usage", tool: "AdminLegacyUsage" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/admin/legacy-usage", tool: "AdminLegacyUsage" })(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 

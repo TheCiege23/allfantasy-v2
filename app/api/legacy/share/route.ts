@@ -280,7 +280,6 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/share", tool: "LegacyS
 
     const body = (await request.json().catch(() => null)) as ShareInput | null
     const sleeper_username = body?.sleeper_username?.trim()?.toLowerCase()
-    const ranking_preview = body?.ranking_preview
     const style = (body?.style ?? 'balanced') as ShareInput['style']
     const platform = (body?.platform ?? 'x') as ShareInput['platform']
 

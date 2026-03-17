@@ -1,8 +1,8 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
-export const GET = withApiUsage({ endpoint: "/api/auth/me", tool: "AuthMe" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/auth/me", tool: "AuthMe" })(async () => {
   const cookieStore = cookies()
   const adminSession = cookieStore.get('admin_session')
 

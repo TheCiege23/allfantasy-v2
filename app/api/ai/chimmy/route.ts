@@ -14,10 +14,6 @@ import {
   unifiedResponseToContract,
 } from '@/lib/ai-tool-registry'
 
-function isRequestContract(body: Record<string, unknown>): boolean {
-  return typeof body.tool === 'string' && typeof body.sport === 'string'
-}
-
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {

@@ -1,11 +1,11 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/adminAuth";
 
 export const dynamic = 'force-dynamic';
 
-export const GET = withApiUsage({ endpoint: "/api/admin/summary", tool: "AdminSummary" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/admin/summary", tool: "AdminSummary" })(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 

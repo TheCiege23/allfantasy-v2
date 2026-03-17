@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { getChimmyPromptStyleBlock } from '@/lib/chimmy-interface'
 import { openaiChatText } from '@/lib/openai-client'
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
-import { deepseekChat, deepseekQuantAnalysis } from '@/lib/deepseek-client'
+import { deepseekChat } from '@/lib/deepseek-client'
 import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enrichment'
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
 import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
@@ -294,8 +294,7 @@ function parseJsonResponse(raw: string): Record<string, any> | null {
 function buildChimmyVoiceAnswer(
   openaiAnswer: string,
   grokResult: GrokResult | null,
-  quantResult: QuantResult | null,
-  _strategyMode?: StrategyMode
+  quantResult: QuantResult | null
 ): string {
   let answer = openaiAnswer
 
@@ -369,8 +368,7 @@ interface ConsensusResult {
 function buildConsensus(
   openaiRaw: string,
   grokRaw: string,
-  deepseekResult: QuantResult | null,
-  strategyMode?: StrategyMode
+  deepseekResult: QuantResult | null
 ): ConsensusResult {
   const openaiJson = parseJsonResponse(openaiRaw)
 
@@ -423,7 +421,7 @@ function buildConsensus(
     confidencePct = undefined
   }
 
-  const answer = buildChimmyVoiceAnswer(primaryAnswer, grokResult, deepseekResult, strategyMode)
+  const answer = buildChimmyVoiceAnswer(primaryAnswer, grokResult, deepseekResult)
 
   return {
     answer,
@@ -857,7 +855,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     })
   }
 
-  const consensus = buildConsensus(openaiRaw, grokRaw, dsResult, strategyMode)
+  const consensus = buildConsensus(openaiRaw, grokRaw, dsResult)
   const providerSignalAudit = summarizeProviderSignalAudit(openaiRaw, grokRaw, dsResult)
 
   const toolLink = consensus.recommendedTool !== 'none' ? TOOL_LINKS[consensus.recommendedTool] : null

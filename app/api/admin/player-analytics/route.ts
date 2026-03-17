@@ -1,5 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/adminAuth";
 import fs from "fs";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const GET = withApiUsage({
   endpoint: "/api/admin/player-analytics",
   tool: "AdminPlayerAnalytics",
-})(async (request: NextRequest) => {
+})(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 
@@ -70,7 +70,7 @@ export const GET = withApiUsage({
 export const POST = withApiUsage({
   endpoint: "/api/admin/player-analytics",
   tool: "AdminPlayerAnalyticsImport",
-})(async (request: NextRequest) => {
+})(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 

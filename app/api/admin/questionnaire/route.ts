@@ -5,7 +5,7 @@ import { requireAdmin, requireAdminOrBearer } from "@/lib/adminAuth";
 
 export const dynamic = 'force-dynamic';
 
-export const GET = withApiUsage({ endpoint: "/api/admin/questionnaire", tool: "AdminQuestionnaire" })(async (request: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/admin/questionnaire", tool: "AdminQuestionnaire" })(async () => {
   const gate = await requireAdmin();
   if (!gate.ok) return gate.res;
 
