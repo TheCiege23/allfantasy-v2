@@ -2,6 +2,16 @@ import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { rateLimit } from "@/lib/rate-limit"
+
+// AUTH-003: Validate NEXTAUTH_SECRET at startup
+const secret = process.env.NEXTAUTH_SECRET
+if (!secret || secret.length < 32) {
+  throw new Error(
+    "[auth] NEXTAUTH_SECRET is missing or too short (minimum 32 characters). " +
+      "Set a strong secret in your environment before starting the server."
+  )
+}
 
 function customPrismaAdapter() {
   return {
@@ -60,8 +70,21 @@ export const authOptions: NextAuthOptions = {
         login: { label: "Email or Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.login || !credentials?.password) return null
+
+        // AUTH-005: Rate limit by IP – 5 attempts per 15 minutes.
+        // Requests with no determinable IP share a single 'unknown' bucket
+        // with a stricter limit to prevent bypass via header omission.
+        const ip =
+          (req?.headers?.["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim() ||
+          (req?.headers?.["x-real-ip"] as string | undefined) ||
+          "unknown"
+        const maxAttempts = ip === "unknown" ? 2 : 5
+        const rl = rateLimit(ip, maxAttempts, 15 * 60 * 1000)
+        if (!rl.success) {
+          throw new Error("TOO_MANY_ATTEMPTS")
+        }
 
         const login = credentials.login.toLowerCase().trim()
         const user = await prisma.appUser.findFirst({

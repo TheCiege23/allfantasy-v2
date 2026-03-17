@@ -44,6 +44,12 @@ export async function POST(req: Request) {
       await tx.passwordResetToken.delete({
         where: { tokenHash },
       })
+
+      // AUTH-004: Invalidate all existing sessions so other active sessions
+      // cannot be used after a password reset.
+      await tx.authSession.deleteMany({
+        where: { userId: row.userId },
+      })
     })
   } catch (txErr) {
     console.error("[password/reset/confirm] Transaction failed:", txErr)
