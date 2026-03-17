@@ -162,27 +162,28 @@ test.describe("Rate limiting", () => {
   })
 
   // ── 5. Password reset endpoint is rate limited ────────────────────────────
-  test("password reset endpoint is rate limited", async ({ request }) => {
+  test("password reset endpoint accepts requests without server error", async ({ request }) => {
     const ip = uniqueIp()
     const headers = spoofIpHeaders(ip)
     const email = uniqueEmail("rl-pwreset")
 
-    // The password reset endpoint rate limits but always returns { ok: true }
-    // so we just verify it doesn't crash under load
-    let got429 = false
-    for (let i = 0; i <= 6; i++) {
+    // The password reset endpoint silently rate-limits (returns 200 even when throttled)
+    // This test verifies the endpoint handles concurrent load without 5xx errors
+    const results: number[] = []
+    for (let i = 0; i < 5; i++) {
       const res = await request.post(ROUTES.api.passwordResetRequest, {
         data: { email },
         headers,
       })
-      if (res.status() === 429) {
-        got429 = true
-        break
-      }
+      results.push(res.status())
     }
-    // The endpoint silently rate-limits (returns 200 even when limited) — both behaviours are valid
-    // This test just verifies no server error occurs
-    expect(true).toBe(true)
+
+    // All responses must be non-5xx (server handled gracefully)
+    for (const status of results) {
+      expect(status).toBeLessThan(500)
+    }
+    // At least one response must be 200 (the endpoint always returns 200 for privacy)
+    expect(results).toContain(200)
   })
 
   // ── 6. First request after rate-limit window passes is allowed ────────────

@@ -1,5 +1,5 @@
 /**
- * Signup flow tests (15 tests)
+ * Signup flow tests (13 tests)
  *
  * Tests cover:
  * - Valid signup with email verification flow

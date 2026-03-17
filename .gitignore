@@ -42,3 +42,8 @@ next-env.d.ts
 # prisma
 prisma/*.db
 prisma/*.db-journal
+
+# Playwright
+playwright-report/
+test-results/
+.playwright-cache/
