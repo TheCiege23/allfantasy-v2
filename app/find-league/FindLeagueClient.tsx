@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Loader2, Inbox, Search } from "lucide-react"
 import { FindLeagueCard } from "@/components/discovery/FindLeagueCard"
+import { RecommendedLeaguesSection } from "@/components/discovery/RecommendedLeaguesSection"
 import { getDiscoverySports } from "@/lib/public-discovery"
 import type {
   DiscoveryCard,
@@ -147,7 +148,8 @@ export function FindLeagueClient() {
   }))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      <RecommendedLeaguesSection sport={sport || undefined} limit={6} />
       {/* Search — mobile first */}
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">

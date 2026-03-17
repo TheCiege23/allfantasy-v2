@@ -171,7 +171,7 @@ export default function LeagueDiscoveryClient() {
               <li key={league.id}>
                 <Link
                   href={`/brackets/leagues/${league.id}`}
-                  className="block rounded-xl border p-4 transition hover:opacity-90"
+                  className="block rounded-xl border p-4 transition hover:opacity-90 touch-manipulation min-h-[44px]"
                   style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel) 80%, transparent)", color: "var(--text)" }}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -213,29 +213,29 @@ export default function LeagueDiscoveryClient() {
           </ul>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-6">
+            <nav className="flex flex-wrap items-center justify-center gap-2 pt-6" aria-label="Pagination">
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
+                className="rounded-lg border px-3 py-2.5 min-h-[44px] text-sm font-medium disabled:opacity-40 touch-manipulation"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
                 Previous
               </button>
-              <span className="text-sm" style={{ color: "var(--muted)" }}>
+              <span className="text-sm px-2" style={{ color: "var(--muted)" }}>
                 Page {page} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40"
+                className="rounded-lg border px-3 py-2.5 min-h-[44px] text-sm font-medium disabled:opacity-40 touch-manipulation"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
                 Next
               </button>
-            </div>
+            </nav>
           )}
         </>
       )}

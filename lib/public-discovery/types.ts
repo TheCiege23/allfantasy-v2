@@ -48,6 +48,10 @@ export interface DiscoveryCard {
   commissionerName: string | null
   /** AI-enabled features for display (e.g. ["ADP", "Trade"]). */
   aiFeatures: string[]
+  /** Creator leagues only: FANTASY | BRACKET. */
+  creatorLeagueType?: string | null
+  /** Creator leagues only: whether creator has verified badge. */
+  isCreatorVerified?: boolean
 }
 
 export interface DiscoverLeaguesInput {

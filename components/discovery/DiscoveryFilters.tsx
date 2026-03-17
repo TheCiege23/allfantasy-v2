@@ -45,11 +45,11 @@ export function DiscoveryFilters({
   const sports = getDiscoverySports()
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Discovery filters">
+    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto" role="group" aria-label="Discovery filters">
       <select
         value={sport}
         onChange={(e) => onSportChange(e.target.value)}
-        className="rounded-lg border px-3 py-2 text-sm"
+        className="rounded-lg border px-3 py-2.5 text-sm min-h-[44px] touch-manipulation flex-1 sm:flex-initial min-w-0"
         style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
         aria-label="Filter by sport"
       >
@@ -63,7 +63,7 @@ export function DiscoveryFilters({
       <select
         value={format}
         onChange={(e) => onFormatChange(e.target.value as DiscoveryFormat)}
-        className="rounded-lg border px-3 py-2 text-sm"
+        className="rounded-lg border px-3 py-2.5 text-sm min-h-[44px] touch-manipulation flex-1 sm:flex-initial min-w-0"
         style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
         aria-label="Filter by format"
       >
@@ -76,7 +76,7 @@ export function DiscoveryFilters({
       <select
         value={sort}
         onChange={(e) => onSortChange(e.target.value as DiscoverySort)}
-        className="rounded-lg border px-3 py-2 text-sm"
+        className="rounded-lg border px-3 py-2.5 text-sm min-h-[44px] touch-manipulation flex-1 sm:flex-initial min-w-0"
         style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
         aria-label="Sort by"
       >
@@ -89,7 +89,7 @@ export function DiscoveryFilters({
       <select
         value={entryFee}
         onChange={(e) => onEntryFeeChange(e.target.value as EntryFeeFilter)}
-        className="rounded-lg border px-3 py-2 text-sm"
+        className="rounded-lg border px-3 py-2.5 text-sm min-h-[44px] touch-manipulation flex-1 sm:flex-initial min-w-0"
         style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
         aria-label="Filter by entry fee"
       >

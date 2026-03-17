@@ -20,6 +20,7 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
     const userAgent = safeStr(req.headers.get("user-agent"), 500) || null;
 
     const toolKey = safeStr(body?.toolKey, 128) || null;
+    const userId = safeStr(body?.userId, 128) || null;
 
     const meta =
       body?.meta && typeof body.meta === "object"
@@ -34,6 +35,7 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
         referrer,
         userAgent,
         toolKey,
+        userId,
         meta,
       },
     });

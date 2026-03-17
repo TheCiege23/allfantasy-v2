@@ -1,5 +1,7 @@
 export { LeagueDiscoveryCard } from "./LeagueDiscoveryCard"
+export { DiscoveryViewTracker } from "./DiscoveryViewTracker"
 export { FindLeagueCard } from "./FindLeagueCard"
+export { CreatorLeagueDiscoveryCard } from "./CreatorLeagueDiscoveryCard"
 export { DiscoverySearchBar } from "./DiscoverySearchBar"
 export { DiscoveryFilters } from "./DiscoveryFilters"
 export { TrendingLeaguesSection } from "./TrendingLeaguesSection"

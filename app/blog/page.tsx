@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 
 const BASE = "https://allfantasy.ai"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "Fantasy Sports Blog – Strategy, Waiver Wire & Rankings | AllFantasy",
   description:

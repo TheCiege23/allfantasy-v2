@@ -4,4 +4,6 @@ export {
   getTrendingLeagues,
   getRecommendedLeagues,
   getDiscoverySports,
+  getDiscoverableLeaguesPool,
+  clearDiscoveryCache,
 } from "./PublicDiscoveryService"

@@ -1,0 +1,51 @@
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+import { prisma } from '@/lib/prisma'
+import { DraftResultsClient } from '@/components/app/draft-results/DraftResultsClient'
+
+export const dynamic = 'force-dynamic'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ leagueId: string }>,
+}): Promise<Metadata> {
+  const { leagueId } = await params
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { name: true },
+  })
+  const title = league?.name ? `Draft Results – ${league.name} | AllFantasy` : 'Draft Results | AllFantasy'
+  return { title }
+}
+
+export default async function DraftResultsPage({
+  params,
+}: {
+  params: Promise<{ leagueId: string }>,
+}) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) redirect('/login')
+
+  const { leagueId } = await params
+  if (!leagueId) redirect('/app')
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, name: true, sport: true },
+  })
+  if (!league) redirect('/app')
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] text-white">
+      <DraftResultsClient
+        leagueId={leagueId}
+        leagueName={league.name ?? 'League'}
+        sport={String(league.sport ?? 'NFL')}
+      />
+    </div>
+  )
+}

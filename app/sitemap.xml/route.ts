@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { SPORT_SLUGS, TOOL_SLUGS } from '@/lib/seo-landing/config'
+import { DISCOVERY_LEAGUES_SLUGS } from '@/lib/seo-landing/discovery-leagues-pages'
 
 export async function GET() {
   const baseUrl = 'https://allfantasy.ai'
@@ -39,6 +40,14 @@ export async function GET() {
   </url>`
   ).join('\n  ')
 
+  const discoveryLeaguesUrls = DISCOVERY_LEAGUES_SLUGS.map(
+    (slug) => `<url>
+    <loc>${baseUrl}/${slug}/leagues</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>`
+  ).join('\n  ')
+
   let blogUrls = ''
   try {
     const published = await prisma.blogArticle.findMany({
@@ -74,6 +83,7 @@ export async function GET() {
   ${staticUrls}
   ${sportUrls}
   ${toolUrls}
+  ${discoveryLeaguesUrls}
   ${blogUrls}
 </urlset>`
 

@@ -189,7 +189,14 @@ export function PostDraftView({
                     <li key={pos}>{pos}: overall #{overall}</li>
                   ))}
               </ul>
-              <p className="mt-2 text-[10px] text-white/50">Full value/reach vs ADP in AI Recap when available.</p>
+              <p className="mt-2 text-[10px] text-white/50">Full value/reach vs ADP in Draft Grades.</p>
+              <Link
+                href={`/app/league/${leagueId}/draft-results`}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-cyan-600/20 px-3 py-2 text-xs font-medium text-cyan-300 hover:bg-cyan-600/30"
+              >
+                View draft grades & rankings
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
             {session.draftType === 'auction' && session.auction && (
               <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -358,10 +365,16 @@ export function PostDraftView({
         )}
       </main>
 
-      <div className="shrink-0 border-t border-white/10 px-4 py-3">
+      <div className="shrink-0 border-t border-white/10 px-4 py-3 flex flex-wrap items-center gap-4">
+        <Link
+          href={`/app/league/${leagueId}/draft-results`}
+          className="inline-flex items-center gap-2 text-cyan-400 hover:underline text-sm"
+        >
+          Draft grades & rankings
+        </Link>
         <Link
           href={`/app/league/${leagueId}`}
-          className="inline-flex items-center gap-2 text-cyan-400 hover:underline text-sm"
+          className="inline-flex items-center gap-2 text-white/60 hover:underline text-sm"
         >
           Back to league
         </Link>

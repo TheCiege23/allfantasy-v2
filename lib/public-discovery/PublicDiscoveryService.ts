@@ -1,11 +1,21 @@
 /**
  * Public League Discovery Engine (PROMPT 144).
  * Aggregates public bracket leagues and creator leagues; ranking, filters, sort.
+ * PROMPT 226: Cached league results, fast queries, fast pagination.
  */
 
 import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
+import {
+  getCachedBracketCards,
+  setCachedBracketCards,
+  getCachedCreatorCards,
+  setCachedCreatorCards,
+  clearDiscoveryCache,
+} from "./DiscoveryCache"
+
+export { clearDiscoveryCache }
 import type {
   DiscoveryCard,
   DiscoverLeaguesInput,
@@ -17,6 +27,9 @@ import type {
 
 const DEFAULT_BASE_URL =
   typeof process !== "undefined" ? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai" : "https://allfantasy.ai"
+
+/** Max leagues per source per request; pagination is in-memory from cached/fetched list. */
+const DISCOVERY_TAKE = 300
 
 function toCard(
   source: "bracket" | "creator",
@@ -41,6 +54,8 @@ function toCard(
     creatorName?: string | null
     draftDate?: Date | null
     draftType?: string | null
+    creatorLeagueType?: string | null
+    isCreatorVerified?: boolean
   },
   baseUrl: string
 ): DiscoveryCard {
@@ -81,10 +96,13 @@ function toCard(
     draftDate: row.draftDate ? row.draftDate.toISOString() : null,
     commissionerName: row.ownerName ?? null,
     aiFeatures: [],
+    creatorLeagueType: row.creatorLeagueType ?? null,
+    isCreatorVerified: row.isCreatorVerified ?? false,
   }
 }
 
-async function fetchPublicBracketLeagues(options: {
+/** Uncached DB fetch for bracket leagues (used when cache miss). */
+async function fetchPublicBracketLeaguesUncached(options: {
   sport: string | null
   query: string | null
   baseUrl: string
@@ -104,13 +122,23 @@ async function fetchPublicBracketLeagues(options: {
 
   const leagues = await prisma.bracketLeague.findMany({
     where: where as Prisma.BracketLeagueWhereInput,
-    include: {
+    select: {
+      id: true,
+      name: true,
+      joinCode: true,
+      isPrivate: true,
+      createdAt: true,
+      deadline: true,
+      maxManagers: true,
+      scoringRules: true,
+      ownerId: true,
+      tournamentId: true,
       owner: { select: { displayName: true, avatarUrl: true } },
       tournament: { select: { name: true, season: true, sport: true } },
       _count: { select: { members: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take: DISCOVERY_TAKE,
   })
 
   return leagues.map((lg) => {
@@ -141,9 +169,21 @@ async function fetchPublicBracketLeagues(options: {
   })
 }
 
-async function fetchPublicCreatorLeagues(options: {
+async function fetchPublicBracketLeagues(options: {
   sport: string | null
   query: string | null
+  baseUrl: string
+}): Promise<DiscoveryCard[]> {
+  const cached = getCachedBracketCards(options.baseUrl, options.sport, options.query)
+  if (cached) return cached
+  const cards = await fetchPublicBracketLeaguesUncached(options)
+  setCachedBracketCards(options.baseUrl, options.sport, options.query, cards)
+  return cards
+}
+
+/** Uncached DB fetch for creator leagues by sport only (query filtered in-memory). */
+async function fetchPublicCreatorLeaguesUncached(options: {
+  sport: string | null
   baseUrl: string
 }): Promise<DiscoveryCard[]> {
   const where: { isPublic: boolean; creator: { visibility: string }; sport?: string } = {
@@ -156,22 +196,35 @@ async function fetchPublicCreatorLeagues(options: {
 
   const leagues = await prisma.creatorLeague.findMany({
     where,
-    include: {
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      sport: true,
+      memberCount: true,
+      maxMembers: true,
+      inviteCode: true,
+      createdAt: true,
+      isPublic: true,
+      type: true,
+      joinDeadline: true,
+      creatorId: true,
       creator: {
         select: {
           slug: true,
-          displayName: true,
           handle: true,
+          displayName: true,
           avatarUrl: true,
+          verifiedAt: true,
           user: { select: { displayName: true, avatarUrl: true } },
         },
       },
     },
     orderBy: { updatedAt: "desc" },
-    take: 500,
+    take: DISCOVERY_TAKE,
   })
 
-  let list = leagues.map((l) =>
+  return leagues.map((l) =>
     toCard(
       "creator",
       {
@@ -189,11 +242,27 @@ async function fetchPublicCreatorLeagues(options: {
         ownerName: l.creator.user?.displayName ?? l.creator.displayName ?? l.creator.handle,
         ownerAvatar: l.creator.avatarUrl ?? l.creator.user?.avatarUrl ?? null,
         draftDate: l.joinDeadline ?? null,
+        creatorLeagueType: l.type ?? null,
+        isCreatorVerified: !!l.creator?.verifiedAt,
       },
       options.baseUrl
     )
   )
+}
 
+async function fetchPublicCreatorLeagues(options: {
+  sport: string | null
+  query: string | null
+  baseUrl: string
+}): Promise<DiscoveryCard[]> {
+  let list = getCachedCreatorCards(options.baseUrl, options.sport)
+  if (!list) {
+    list = await fetchPublicCreatorLeaguesUncached({
+      sport: options.sport,
+      baseUrl: options.baseUrl,
+    })
+    setCachedCreatorCards(options.baseUrl, options.sport, list)
+  }
   if (options.query && options.query.length >= 2) {
     const q = options.query.toLowerCase()
     list = list.filter(
@@ -282,7 +351,7 @@ export async function discoverPublicLeagues(
   const total = combined.length
   const totalPages = Math.ceil(total / limit) || 1
   const start = (page - 1) * limit
-  const leagues = combined.slice(start, start + limit)
+  const leagues = combined.slice(start, start + limit) // fast pagination: in-memory slice from (cached) list
 
   return { leagues, total, page, limit, totalPages }
 }
@@ -318,4 +387,25 @@ export async function getRecommendedLeagues(
 
 export function getDiscoverySports(): { value: string; label: string }[] {
   return SUPPORTED_SPORTS.map((s) => ({ value: s, label: s }))
+}
+
+/**
+ * Fetch a pool of discoverable leagues for recommendation engine (no pagination).
+ * Returns up to maxTotal cards (bracket + creator), public only, sorted by filling_fast.
+ */
+export async function getDiscoverableLeaguesPool(
+  baseUrl: string = DEFAULT_BASE_URL,
+  options: { sport?: string | null; maxTotal?: number } = {}
+): Promise<DiscoveryCard[]> {
+  const maxTotal = Math.min(200, options.maxTotal ?? 100)
+  const sport = options.sport && isSupportedSport(options.sport) ? options.sport : null
+
+  const [bracketCards, creatorCards] = await Promise.all([
+    fetchPublicBracketLeagues({ sport, query: null, baseUrl }),
+    fetchPublicCreatorLeagues({ sport, query: null, baseUrl }),
+  ])
+  let combined = [...bracketCards, ...creatorCards]
+  combined = combined.filter((c) => !c.isPrivate)
+  combined = applySort(combined, "filling_fast")
+  return combined.slice(0, maxTotal)
 }

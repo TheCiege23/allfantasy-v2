@@ -47,8 +47,9 @@ export function DiscoverySearchBar({
       />
       <button
         type="submit"
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-1.5 text-xs font-medium"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-2.5 text-sm font-medium touch-manipulation"
         style={{ background: "var(--accent)", color: "var(--bg)" }}
+        aria-label="Search leagues"
       >
         Search
       </button>

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import CommissionerBroadcastForm from '@/components/chat/CommissionerBroadcastForm'
+import { LeagueRecruitmentTools } from '@/components/app/recruitment'
 
 type DraftSessionStatus = 'pre_draft' | 'in_progress' | 'paused' | 'completed'
 interface SlotOrderEntry { slot: number; rosterId: string; displayName: string }
@@ -260,21 +261,11 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Link2 className="h-4 w-4" /> Invite link
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {invite?.joinUrl ? (
-              <code className="rounded bg-white/10 px-2 py-1 text-xs text-cyan-300">{invite.joinUrl}</code>
-            ) : (
-              <span className="text-xs text-white/50">No invite code set</span>
-            )}
-            <Button size="sm" variant="outline" onClick={regenerateInvite} disabled={saving === 'invite'}>
-              {saving === 'invite' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Regenerate'}
-            </Button>
-          </div>
-        </section>
+        <LeagueRecruitmentTools
+          leagueId={leagueId}
+          initialInvite={invite ? { joinUrl: invite.joinUrl, inviteCode: invite.inviteCode } : null}
+          isCommissioner={true}
+        />
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">

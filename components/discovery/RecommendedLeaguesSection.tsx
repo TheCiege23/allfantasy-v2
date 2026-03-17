@@ -10,8 +10,14 @@ export interface RecommendedLeaguesSectionProps {
   limit?: number
 }
 
+interface RecommendationItem {
+  league: DiscoveryCard
+  explanation: string | null
+}
+
 export function RecommendedLeaguesSection({ sport = null, limit = 6 }: RecommendedLeaguesSectionProps) {
-  const [leagues, setLeagues] = useState<DiscoveryCard[]>([])
+  const [items, setItems] = useState<RecommendationItem[]>([])
+  const [personalized, setPersonalized] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const fetchRecommended = useCallback(() => {
@@ -19,13 +25,22 @@ export function RecommendedLeaguesSection({ sport = null, limit = 6 }: Recommend
     const params = new URLSearchParams()
     if (sport) params.set("sport", sport)
     params.set("limit", String(limit))
-    fetch(`/api/discover/recommended?${params.toString()}`)
+    fetch(`/api/discover/recommendations?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok && Array.isArray(d.leagues)) setLeagues(d.leagues)
-        else setLeagues([])
+        if (d.ok && Array.isArray(d.leagues)) {
+          setItems(
+            d.leagues.map((x: { league: DiscoveryCard; explanation?: string | null }) => ({
+              league: x.league,
+              explanation: x.explanation ?? null,
+            }))
+          )
+          setPersonalized(!!d.personalized)
+        } else {
+          setItems([])
+        }
       })
-      .catch(() => setLeagues([]))
+      .catch(() => setItems([]))
       .finally(() => setLoading(false))
   }, [sport, limit])
 
@@ -47,7 +62,7 @@ export function RecommendedLeaguesSection({ sport = null, limit = 6 }: Recommend
     )
   }
 
-  if (leagues.length === 0) return null
+  if (items.length === 0) return null
 
   return (
     <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
@@ -56,11 +71,20 @@ export function RecommendedLeaguesSection({ sport = null, limit = 6 }: Recommend
         Recommended for you
       </h2>
       <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-        Leagues filling up — join before they’re full.
+        {personalized
+          ? "Based on your favorite sports, past leagues, and league types."
+          : "Leagues filling up — join before they're full."}
       </p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {leagues.map((league) => (
-          <LeagueDiscoveryCard key={`${league.source}-${league.id}`} league={league} />
+        {items.map(({ league, explanation }) => (
+          <div key={`${league.source}-${league.id}`} className="flex flex-col gap-2">
+            <LeagueDiscoveryCard league={league} />
+            {explanation && (
+              <p className="text-xs px-1" style={{ color: "var(--muted)" }}>
+                {explanation}
+              </p>
+            )}
+          </div>
         ))}
       </div>
     </section>

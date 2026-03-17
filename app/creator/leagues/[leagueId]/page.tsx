@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { CreatorLeagueCard, CreatorInvitePanel } from '@/components/creator-system'
+import { DiscoveryViewTracker } from '@/components/discovery/DiscoveryViewTracker'
 import type { CreatorLeagueDto } from '@/lib/creator-system/types'
 
 export default function CreatorLeagueLandingPage() {
@@ -79,6 +80,12 @@ export default function CreatorLeagueLandingPage() {
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
+      <DiscoveryViewTracker
+        leagueId={league.id}
+        source="creator"
+        leagueName={league.name}
+        sport={league.sport ?? undefined}
+      />
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <Link
           href={`/creators/${encodeURIComponent(creatorSlug)}`}

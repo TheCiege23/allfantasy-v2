@@ -7,6 +7,7 @@ import { LeagueHomeTabs } from "@/components/bracket/LeagueHomeTabs"
 import BracketShell from "@/components/bracket/BracketShell"
 import BracketLeagueSummaryCards from "@/components/bracket/BracketLeagueSummaryCards"
 import { LeagueCreatorBadge } from "@/components/creator/LeagueCreatorBadge"
+import { DiscoveryViewTracker } from "@/components/discovery/DiscoveryViewTracker"
 import { Trophy, Settings, ArrowLeft } from "lucide-react"
 
 export default async function LeagueDetailPage({
@@ -97,6 +98,12 @@ export default async function LeagueDetailPage({
 
   return (
     <div className="mode-surface mode-readable min-h-screen">
+      <DiscoveryViewTracker
+        leagueId={league.id}
+        source="bracket"
+        leagueName={league.name}
+        sport={league.tournament?.sport ?? undefined}
+      />
       <BracketShell>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
