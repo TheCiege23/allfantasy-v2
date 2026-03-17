@@ -13,6 +13,7 @@ function VerifyContent() {
   const verified = searchParams?.get("verified")
 
   const methodParam = searchParams?.get("method")
+  const callbackUrl = searchParams?.get("callbackUrl") || "/dashboard"
   const [tab, setTab] = useState<"email" | "phone">(methodParam === "phone" ? "phone" : "email")
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<"sent" | "error" | "already" | "login_required" | "rate_limited" | null>(null)
@@ -113,7 +114,7 @@ function VerifyContent() {
       const data = await res.json()
       if (res.ok) {
         setPhoneResult("verified")
-        setTimeout(() => router.push("/dashboard"), 2000)
+        setTimeout(() => router.push(callbackUrl), 2000)
       } else if (data.error === "INVALID_CODE") {
         setPhoneResult("invalid")
       } else if (res.status === 429) {
@@ -143,12 +144,12 @@ function VerifyContent() {
   useEffect(() => {
     if (state !== "success") return
     if (countdown <= 0) {
-      router.push("/dashboard")
+      router.push(callbackUrl)
       return
     }
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
     return () => clearTimeout(timer)
-  }, [state, countdown, router])
+  }, [state, countdown, router, callbackUrl])
 
   const configs: Record<string, { icon: React.ReactNode; title: string; message: string; color: string }> = {
     success: {
@@ -208,7 +209,7 @@ function VerifyContent() {
 
           {state === "success" && (
             <Link
-              href="/dashboard"
+              href={callbackUrl}
               className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 transition"
             >
               Go to Dashboard
