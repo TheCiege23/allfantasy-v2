@@ -1,0 +1,45 @@
+/**
+ * GET: Fetch AI ADP for a segment (sport, leagueType, formatKey).
+ * Used by draft room when commissioner has enabled AI ADP; also for player list integration.
+ * Query: sport, leagueType?, formatKey?
+ * Response includes entries, totalDrafts, totalPicks, computedAt, lowSampleThreshold; lowSample flag on each entry.
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getAiAdp } from '@/lib/ai-adp-engine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET(req: NextRequest) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') ?? 'NFL')
+  const leagueType = (req.nextUrl.searchParams.get('leagueType') ?? 'redraft').toLowerCase()
+  const formatKey = (req.nextUrl.searchParams.get('formatKey') ?? 'default').toLowerCase()
+  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '300', 10), 500)
+
+  const result = await getAiAdp(sport, leagueType, formatKey)
+  if (!result) {
+    return NextResponse.json({
+      entries: [],
+      totalDrafts: 0,
+      totalPicks: 0,
+      computedAt: null,
+      message: 'No AI ADP snapshot for this segment. Run the daily AI ADP job or use standard ADP.',
+    })
+  }
+
+  return NextResponse.json({
+    entries: result.entries.slice(0, limit),
+    totalDrafts: result.totalDrafts,
+    totalPicks: result.totalPicks,
+    computedAt: result.computedAt?.toISOString() ?? null,
+    lowSampleThreshold: result.lowSampleThreshold,
+  })
+}

@@ -1,0 +1,77 @@
+'use client';
+
+import type { ResolvedPlayerStats, PlayerComparisonScores } from '@/lib/player-comparison-lab/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+export interface PlayerStatCardsProps {
+  players: ResolvedPlayerStats[];
+  scores: PlayerComparisonScores[];
+}
+
+function formatVal(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return '—';
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+export function PlayerStatCards({ players, scores }: PlayerStatCardsProps) {
+  const scoreByPlayer = new Map(scores.map((s) => [s.playerName, s]));
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-audit="player-stat-cards">
+      {players.map((p) => {
+        const s = scoreByPlayer.get(p.name);
+        const last = p.historical[0];
+        return (
+          <Card key={p.name} className="border-white/10 bg-white/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-white">
+                {p.name}
+                {(p.position || p.team) && (
+                  <span className="ml-2 font-normal text-white/60">
+                    {[p.position, p.team].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-white/60">Market value</span>
+                <span className="text-white">{formatVal(p.projection?.value ?? null)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Rank</span>
+                <span className="text-white">{p.projection?.rank ?? '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">VORP diff</span>
+                <span className="text-white">{formatVal(s?.vorpDifference ?? null)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Projection</span>
+                <span className="text-white">{formatVal(s?.projectionDelta ?? null)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Consistency</span>
+                <span className="text-white">{formatVal(s?.consistencyScore ?? null)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Volatility</span>
+                <span className="text-white">{formatVal(s?.volatilityScore ?? null)}</span>
+              </div>
+              {last && (
+                <div className="flex justify-between border-t border-white/10 pt-2">
+                  <span className="text-white/60">Last season FP/G</span>
+                  <span className="text-white">
+                    {last.fantasyPointsPerGame != null
+                      ? last.fantasyPointsPerGame.toFixed(1)
+                      : '—'}
+                  </span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { containsProfanity } from "@/lib/profanity"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
+import { attributeSignup, grantRewardForSignup } from "@/lib/referral"
 
 export const runtime = "nodejs"
 
@@ -42,7 +44,14 @@ export async function POST(req: Request) {
       avatarPreset,
       disclaimerAgreed,
       termsAgreed,
+      referralCode: referralCodeFromBody,
     } = body
+
+    const cookieStore = await cookies()
+    const referralCodeFromCookie = cookieStore.get("af_ref")?.value ?? null
+    const referralCode = typeof referralCodeFromBody === "string" && referralCodeFromBody.trim()
+      ? referralCodeFromBody.trim().toUpperCase()
+      : referralCodeFromCookie?.trim().toUpperCase() || null
 
     const username = normalizeUsername(String(body?.username ?? ""))
     const email = normalizeEmail(String(body?.email ?? ""))
@@ -176,6 +185,13 @@ export async function POST(req: Request) {
       }
       throw err
     })
+
+    if (referralCode) {
+      const attribution = await attributeSignup(user.id, referralCode)
+      if (attribution?.referrerId) {
+        await grantRewardForSignup(attribution.referrerId)
+      }
+    }
 
     if (method === "PHONE") {
       return NextResponse.json({

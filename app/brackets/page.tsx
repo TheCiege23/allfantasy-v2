@@ -3,6 +3,7 @@ import Image from "next/image"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { areBracketChallengesEnabled } from "@/lib/feature-toggle"
 import { Trophy, Plus, Users, ChevronRight, Star, Shield, Zap, Crown, ExternalLink, Sparkles, AlertTriangle, Scale, Heart } from "lucide-react"
 import BracketShell from "@/components/bracket/BracketShell"
 import BracketHomeTabs from "@/components/bracket/BracketHomeTabs"
@@ -29,6 +30,20 @@ export default async function BracketsHomePage() {
 
   const user = session?.user as SessionUser | undefined
   const userId = user?.id
+
+  const bracketsEnabled = await areBracketChallengesEnabled()
+  if (!bracketsEnabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
+          <AlertTriangle className="h-10 w-10 mx-auto mb-3" style={{ color: "var(--muted)" }} />
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>Bracket challenges are temporarily disabled</h1>
+          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>This feature has been turned off by the platform. Check back later.</p>
+          <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>Back to dashboard</Link>
+        </div>
+      </div>
+    )
+  }
 
   const myLeagues = userId
     ? await (prisma as any).bracketLeagueMember.findMany({
@@ -134,6 +149,20 @@ export default async function BracketsHomePage() {
                 >
                   <Users className="w-4 h-4" />
                   Join Pool
+                </Link>
+                <Link
+                  href="/brackets/discover"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all"
+                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                >
+                  Discover leagues
+                </Link>
+                <Link
+                  href="/creators"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all"
+                  style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                >
+                  Creator leagues
                 </Link>
               </div>
 

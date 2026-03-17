@@ -14,6 +14,9 @@ export type NotificationCategoryId =
   | "league_drama"
   | "commissioner_alerts"
   | "system_account"
+  | "injury_alerts"
+  | "performance_alerts"
+  | "lineup_alerts"
 
 export interface NotificationChannelPrefs {
   enabled: boolean
@@ -39,6 +42,9 @@ export const NOTIFICATION_CATEGORY_IDS: NotificationCategoryId[] = [
   "league_drama",
   "commissioner_alerts",
   "system_account",
+  "injury_alerts",
+  "performance_alerts",
+  "lineup_alerts",
 ]
 
 export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string> = {
@@ -53,4 +59,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string
   league_drama: "League drama / storylines",
   commissioner_alerts: "Commissioner alerts",
   system_account: "System & account alerts",
+  injury_alerts: "Player injury alerts",
+  performance_alerts: "Game performance alerts",
+  lineup_alerts: "Starting lineup alerts",
 }

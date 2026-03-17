@@ -6,6 +6,7 @@ import {
   getToolCanonical,
   type ToolSlug,
 } from '@/lib/seo-landing/config'
+import { ToolPageJsonLd } from '@/components/seo/JsonLd'
 import ToolLandingClient from './ToolLandingClient'
 
 export async function generateStaticParams() {
@@ -51,5 +52,10 @@ export default async function ToolPage({
   const { tool } = await params
   if (!TOOL_SLUGS.includes(tool as ToolSlug)) notFound()
   const config = TOOL_CONFIG[tool as ToolSlug]
-  return <ToolLandingClient config={config} />
+  return (
+    <>
+      <ToolPageJsonLd config={config} />
+      <ToolLandingClient config={config} />
+    </>
+  )
 }

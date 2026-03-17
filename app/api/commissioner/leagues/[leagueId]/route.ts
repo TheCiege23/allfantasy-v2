@@ -4,8 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 
-const ALLOWED_KEYS = ['name', 'scoring', 'status', 'avatarUrl', 'rosterSize', 'leagueSize', 'starters'] as const
-const SETTINGS_KEYS = ['description', 'lineupLockRule', 'publicDashboard', 'rankedVisibility', 'orphanSeeking', 'orphanDifficulty', 'leagueChatThreadId'] as const
+const ALLOWED_KEYS = ['name', 'scoring', 'status', 'avatarUrl', 'rosterSize', 'leagueSize', 'starters', 'sport', 'season'] as const
+const SETTINGS_KEYS = ['description', 'lineupLockRule', 'publicDashboard', 'rankedVisibility', 'orphanSeeking', 'orphanDifficulty', 'leagueChatThreadId', 'tradeReviewType', 'vetoThreshold'] as const
 
 export async function PATCH(
   req: NextRequest,

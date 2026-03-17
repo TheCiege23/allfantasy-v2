@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getChimmyPromptStyleBlock } from '@/lib/chimmy-interface'
 import { openaiChatText } from '@/lib/openai-client'
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekChat, deepseekQuantAnalysis } from '@/lib/deepseek-client'
@@ -124,16 +125,9 @@ function buildDomainGuard(strategyMode?: StrategyMode): string {
 
   return `You are Chimmy — AllFantasy's AI fantasy sports co-manager.
 
-PERSONALITY:
-- Intelligent but conversational, never robotic
-- Data-backed but human — explain numbers in plain English
-- Competitive but calm under volatility
-- Warm, direct, supportive
-- Never guarantee outcomes — always show confidence scores
-- Differentiate clearly between projection and certainty
-
 SCOPE: Fantasy sports and real sports only. If asked about anything else, politely redirect.
 ${strategyContext}
+${getChimmyPromptStyleBlock()}
 
 RESPONSE FORMAT (strict JSON):
 {
@@ -144,7 +138,7 @@ RESPONSE FORMAT (strict JSON):
   "strategyNote": "Optional note about how strategy mode affects this advice"
 }
 
-TONE GUIDE:
+TONE EXAMPLE:
 Instead of: "The expected value change is 4.3 points."
 Say: "This move gives you about a 4-point weekly edge. In tight matchups, that's the difference between playoffs and regret."
 
@@ -642,8 +636,8 @@ async function getAIMemorySummary(userId: string): Promise<string> {
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now()
 
-  const session = await getServerSession(authOptions as any)
-  const userId = (session as any)?.user?.id ?? null
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
 
   let message = ''
   let imageFile: File | null = null
@@ -719,7 +713,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult] = await Promise.allSettled([
-    getUserContext(userId),
+    getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
       return null
@@ -857,6 +851,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         providers,
         dataSources,
         processingMs: Date.now() - startMs,
+        confidencePct: 0,
+        providerStatus: providers,
       },
     })
   }

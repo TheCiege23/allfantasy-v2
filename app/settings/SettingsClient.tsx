@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Gift,
 } from "lucide-react"
+import { ReferralSection } from "@/components/settings/ReferralSection"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
@@ -73,6 +75,7 @@ type TabId =
   | "security"
   | "notifications"
   | "connected"
+  | "referral"
   | "legacy"
   | "legal"
   | "account"
@@ -83,6 +86,7 @@ const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: 
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "connected", label: "Connected Accounts", icon: Link2 },
+  { id: "referral", label: "Referrals", icon: Gift },
   { id: "legacy", label: "Legacy Import", icon: Archive },
   { id: "legal", label: "Legal & Agreements", icon: FileText },
   { id: "account", label: "Account", icon: AlertTriangle },
@@ -138,6 +142,7 @@ export default function SettingsClient() {
         {activeTab === "security" && <SecuritySection profile={profile} onRefetch={fetchProfile} />}
         {activeTab === "notifications" && <NotificationsSection profile={profile} onRefetch={fetchProfile} />}
         {activeTab === "connected" && <ConnectedAccountsSection profile={profile} />}
+        {activeTab === "referral" && <ReferralSection />}
         {activeTab === "legacy" && <LegacyImportSection />}
         {activeTab === "legal" && <LegalSection />}
         {activeTab === "account" && <AccountSection />}

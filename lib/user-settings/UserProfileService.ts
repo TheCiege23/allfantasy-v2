@@ -25,6 +25,9 @@ export async function updateUserProfile(
       : null
   if (payload.notificationPreferences !== undefined)
     updateProfile.notificationPreferences = payload.notificationPreferences ?? null
+  if (payload.onboardingStep !== undefined) updateProfile.onboardingStep = payload.onboardingStep ?? null
+  if (payload.onboardingCompletedAt !== undefined)
+    updateProfile.onboardingCompletedAt = payload.onboardingCompletedAt ?? null
 
   try {
     await prisma.userProfile.upsert({

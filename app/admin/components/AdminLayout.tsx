@@ -24,10 +24,15 @@ import {
   Brain,
   Gift,
   Target,
+  Trophy,
+  Flag,
+  Server,
+  ToggleLeft,
+  Zap,
 } from "lucide-react";
 import { AdminTabsBar } from "./AdminTabsBar";
 
-export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users";
+export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "features" | "system" | "providers";
 
 const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus: string }> = {
   overview: {
@@ -100,6 +105,31 @@ const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus:
     description: "Registered user accounts, password resets, and account management.",
     focus: "Send reset links, verify accounts, and manage user data.",
   },
+  leagues: {
+    title: "League Overview",
+    description: "Active leagues by sport, largest leagues, recent and flagged.",
+    focus: "View league and open league in app from row actions.",
+  },
+  moderation: {
+    title: "Moderation",
+    description: "Reported content, reported users, and blocked users.",
+    focus: "Review and resolve reports; unblock when appropriate.",
+  },
+  features: {
+    title: "Feature toggles",
+    description: "Enable or disable features and sports globally.",
+    focus: "Change takes effect immediately; use with care.",
+  },
+  system: {
+    title: "System",
+    description: "API health, database health, and worker queue status.",
+    focus: "Refresh to re-check; address degraded services first.",
+  },
+  providers: {
+    title: "Provider Diagnostics",
+    description: "OpenAI, DeepSeek, xAI, and ClearSports status, failures, fallback, and latency.",
+    focus: "Check configured vs available vs degraded; review failure and fallback summaries.",
+  },
 };
 
 const NAV: Array<{
@@ -123,6 +153,11 @@ const NAV: Array<{
   { tab: "calibration", label: "Calibration", icon: Target, desc: "Trade engine health", color: "from-sky-500 to-blue-600", glow: "sky" },
   { tab: "model_drift", label: "Model Drift", icon: Shield, desc: "Drift & monitoring", color: "from-red-500 to-orange-600", glow: "red" },
   { tab: "users", label: "Users", icon: Users, desc: "Account management", color: "from-indigo-500 to-purple-600", glow: "indigo" },
+  { tab: "leagues", label: "Leagues", icon: Trophy, desc: "By sport & size", color: "from-emerald-500 to-teal-600", glow: "emerald" },
+  { tab: "moderation", label: "Moderation", icon: Flag, desc: "Reports & blocks", color: "from-rose-500 to-red-600", glow: "rose" },
+  { tab: "features", label: "Features", icon: ToggleLeft, desc: "Feature toggles", color: "from-violet-500 to-purple-600", glow: "violet" },
+  { tab: "system", label: "System", icon: Server, desc: "API & DB health", color: "from-slate-500 to-zinc-600", glow: "slate" },
+  { tab: "providers", label: "Providers", icon: Zap, desc: "AI & data diagnostics", color: "from-sky-500 to-indigo-600", glow: "sky" },
   { tab: "tools", label: "Tools", icon: Wrench, desc: "Usage & AI activity", color: "from-fuchsia-500 to-purple-600", glow: "fuchsia" },
 ];
 
@@ -246,6 +281,9 @@ export default function AdminLayout({
     emerald: "shadow-emerald-500/40",
     indigo: "shadow-indigo-500/40",
     fuchsia: "shadow-fuchsia-500/40",
+    rose: "shadow-rose-500/40",
+    slate: "shadow-slate-500/40",
+    sky: "shadow-sky-500/40",
   };
 
   const TabLink = ({

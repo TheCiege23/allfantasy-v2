@@ -1,3 +1,5 @@
+import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
+
 /**
  * TopBarUtilityResolver — which top bar utilities to show and in what order.
  * Used for documentation and consistent ordering (notifications, messages, AI chat, search, language, theme, admin, profile).
@@ -38,12 +40,13 @@ export function getTopBarUtilities(opts: {
       { id: "theme", visible: true, title: "Theme" },
     ]
   }
+  const chimmy = getPrimaryChimmyEntry()
   const list: TopBarUtilitySpec[] = [
     { id: "search", visible: !!hasSearch, title: "Search (Ctrl+K)" },
     { id: "wallet", visible: true, title: "Wallet" },
     { id: "messages", visible: true, href: "/messages", title: "Messages" },
     { id: "notifications", visible: true, title: "Notifications" },
-    { id: "ai_chat", visible: true, href: "/af-legacy?tab=chat", title: "AI Chat" },
+    { id: "ai_chat", visible: true, href: chimmy.href, title: chimmy.label },
     { id: "language", visible: true, title: "Language" },
     { id: "theme", visible: true, title: "Theme" },
     { id: "admin", visible: isAdmin, href: "/admin", title: "Admin" },

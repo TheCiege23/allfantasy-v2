@@ -43,3 +43,25 @@ export const TREND_WINDOW_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 /** Minimum events before we classify direction (vs Stable) */
 export const MIN_EVENTS_FOR_DIRECTION = 3
+
+/** PROMPT 135: trend feed categories for detection engine */
+export const TREND_FEED_TYPES = [
+  'hot_streak',
+  'cold_streak',
+  'breakout_candidate',
+  'sell_high_candidate',
+] as const
+
+export type TrendFeedType = (typeof TREND_FEED_TYPES)[number]
+
+/** Deterministic signals exposed to UI and AI */
+export interface TrendDeterministicSignals {
+  /** Current trendScore minus previousTrendScore (performance delta) */
+  performanceDelta: number | null
+  /** addRate - dropRate (usage change) */
+  usageChange: number
+  /** lineupStartRate as proxy for minutes/snap share */
+  minutesOrSnapShare: number
+  /** Composite efficiency (trendScore; can be broken out per sport later) */
+  efficiencyScore: number
+}

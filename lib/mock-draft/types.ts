@@ -11,6 +11,9 @@ export type MockDraftType = 'snake' | 'linear' | 'auction'
 
 export type MockScoringFormat = 'ppr' | 'half-ppr' | 'standard' | 'sf' | 'tep' | 'default'
 
+/** Player pool filter: all | rookies | vets (sport-dependent) */
+export type MockPoolType = 'all' | 'rookies' | 'vets'
+
 export interface MockDraftConfig {
   sport: MockDraftSport
   leagueType: MockLeagueType
@@ -25,6 +28,10 @@ export interface MockDraftConfig {
   rounds: number
   /** Optional league id when mock is tied to a league */
   leagueId?: string | null
+  /** Roster size (total slots) if configurable */
+  rosterSize?: number
+  /** all | rookies | vets */
+  poolType?: MockPoolType
 }
 
 export const DEFAULT_MOCK_CONFIG: MockDraftConfig = {
@@ -63,5 +70,7 @@ export interface MockDraftMetadata {
   scoringFormat?: string
   timerSeconds?: number
   aiEnabled?: boolean
+  rosterSize?: number
+  poolType?: string
   source?: string
 }

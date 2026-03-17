@@ -1,23 +1,22 @@
 /**
- * Language preference: read/write from localStorage (af_lang) and optionally sync to API.
- * API sync is done via PATCH /api/user/profile (preferredLanguage).
+ * Language preference: read/write from localStorage (af_lang). Sync to API via PATCH /api/user/profile (preferredLanguage).
+ * Uses lib/i18n for constants.
  */
 
-const STORAGE_KEY = "af_lang"
+import { LANG_STORAGE_KEY, DEFAULT_LANG, resolveLanguage, type LanguageCode } from "@/lib/i18n/constants"
 
-export type LanguageCode = "en" | "es"
+export type { LanguageCode }
 
 export function getStoredLanguage(): LanguageCode {
-  if (typeof window === "undefined") return "en"
+  if (typeof window === "undefined") return DEFAULT_LANG
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY)
-    if (v === "en" || v === "es") return v
+    return resolveLanguage(window.localStorage.getItem(LANG_STORAGE_KEY))
   } catch {}
-  return "en"
+  return DEFAULT_LANG
 }
 
 export function setStoredLanguage(lang: LanguageCode): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, lang)
+    window.localStorage.setItem(LANG_STORAGE_KEY, lang)
   } catch {}
 }

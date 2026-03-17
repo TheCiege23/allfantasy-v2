@@ -1,23 +1,23 @@
 /**
- * Theme preference: read/write from localStorage (af_mode) and optionally sync to API.
- * API sync is done via PATCH /api/user/profile (themePreference).
+ * Theme preference: read/write from localStorage (af_mode). Sync to API via PATCH /api/user/profile (themePreference).
+ * Uses lib/theme for constants and resolution.
  */
 
-const STORAGE_KEY = "af_mode"
+import { THEME_STORAGE_KEY, DEFAULT_THEME, resolveTheme, type ThemeId } from "@/lib/theme"
 
-export type ThemeMode = "light" | "dark" | "legacy"
+export type ThemeMode = ThemeId
 
 export function getStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") return "legacy"
+  if (typeof window === "undefined") return DEFAULT_THEME
   try {
-    const v = window.localStorage.getItem(STORAGE_KEY)
-    if (v === "light" || v === "dark" || v === "legacy") return v
+    const v = window.localStorage.getItem(THEME_STORAGE_KEY)
+    return resolveTheme(v)
   } catch {}
-  return "legacy"
+  return DEFAULT_THEME
 }
 
 export function setStoredTheme(mode: ThemeMode): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, mode)
+    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
   } catch {}
 }

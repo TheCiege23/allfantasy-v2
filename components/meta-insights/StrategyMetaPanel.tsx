@@ -123,6 +123,9 @@ export default function StrategyMetaPanel(props: {
         <Link href="/app/meta-insights" className="text-violet-600 hover:underline dark:text-violet-400">
           Meta Insights
         </Link>
+        <Link href="/app/strategy-meta" className="text-violet-600 hover:underline dark:text-violet-400">
+          Strategy meta dashboard
+        </Link>
         <Link href="/af-legacy" className="text-violet-600 hover:underline dark:text-violet-400">
           War Room
         </Link>

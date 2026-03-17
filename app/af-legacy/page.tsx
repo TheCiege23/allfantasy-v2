@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { XP_PER_LEVEL, TIERS } from "@/lib/ranking/config"
 import FeedbackModal from "@/app/components/FeedbackModal"
@@ -39,6 +39,7 @@ import LegacyPulseIntro from '@/app/af-legacy/components/tabs/LegacyPulseIntro'
 import LegacyCompareIntro from '@/app/af-legacy/components/tabs/LegacyCompareIntro'
 import LegacyFinderTab from '@/app/af-legacy/components/tabs/LegacyFinderTab'
 import LegacyChatIntro from '@/app/af-legacy/components/tabs/LegacyChatIntro'
+import ChimmyChatTab from '@/app/af-legacy/components/ChimmyChatTab'
 import LegacyShareIntro from '@/app/af-legacy/components/tabs/LegacyShareIntro'
 import LegacyHeroTabSection from '@/app/af-legacy/components/tabs/LegacyHeroTabSection'
 import { getLegacyFeedbackToolLabel } from '@/app/af-legacy/components/legacy-tab-label'
@@ -1173,6 +1174,8 @@ function AFLegacyContent() {
   
   // URL params for deep linking from email notifications
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname() ?? '/af-legacy'
 
   // Email signup state
   const [emailForAlerts, setEmailForAlerts] = useState('')
@@ -2729,7 +2732,7 @@ function AFLegacyContent() {
     } else if (tab === 'rankings' && sharedLeague) {
       handleActiveTabChange('rankings')
       setPendingShareLeague(sharedLeague)
-    } else if (tab && ['overview', 'trade', 'finder', 'waiver', 'compare', 'chat', 'mock-draft', 'share', 'rankings'].includes(tab)) {
+    } else if (tab && ['overview', 'trade', 'finder', 'player-finder', 'waiver', 'compare', 'chat', 'mock-draft', 'share', 'rankings', 'transfer', 'strategy', 'shop', 'ideas', 'pulse'].includes(tab)) {
       handleActiveTabChange(tab as Tab)
       if (tab === 'chat') {
         const promptParam = searchParams.get('prompt')
@@ -4506,6 +4509,15 @@ function AFLegacyContent() {
     gtagEvent('tab_navigation', { tab: t })
     setActiveTab(t)
     setMobileMainTab(tabToMainTab(t))
+    // Sync URL so refresh preserves tab (QA: deep links and back/forward work)
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search)
+      q.set('tab', t)
+      const next = `${pathname}?${q.toString()}`
+      if (window.location.pathname + window.location.search !== next) {
+        router.replace(next, { scroll: false })
+      }
+    }
   }
 
   const mobileSubTabs = subTabConfigs[mobileMainTab]
@@ -10992,8 +11004,16 @@ function AFLegacyContent() {
                         )}
 
                         {inlineTradeError && (
-                          <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-sm text-rose-400 text-center">
-                            {inlineTradeError}
+                          <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-sm text-rose-400 flex flex-wrap items-center justify-center gap-2">
+                            <span className="flex-1 min-w-0 text-center">{inlineTradeError}</span>
+                            <button
+                              type="button"
+                              onClick={() => { setInlineTradeError(''); analyzeInlineTrade(); }}
+                              disabled={inlineTradeLoading}
+                              className="shrink-0 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/30 text-rose-200 text-xs font-medium disabled:opacity-50"
+                            >
+                              Retry
+                            </button>
                           </div>
                         )}
 
@@ -15441,15 +15461,20 @@ function AFLegacyContent() {
                 )}
 
                 {activeTab === 'chat' && (
+                  <ChimmyChatTab
+                    promptParam={searchParams.get('prompt')}
+                    leagueName={chatLeagueId ? leagues.find(l => l.league_id === chatLeagueId)?.name ?? null : null}
+                  />
+                )}
+                {false && (activeTab as string) === 'chat_legacy' && (
                   <>
-                  {/* Hero Metric */}
+                  {/* Legacy chat UI — replaced by ChimmyChatTab above */}
                   <HeroMetric 
                     value={chatMessages.length > 0 ? `${chatMessages.length}` : '—'}
                     label="Messages"
                     helper="Your most recent AI guidance"
                     accent="purple"
                   />
-                  {/* Tab Headline */}
                   <div
                     className={`bg-black/30 border rounded-2xl p-4 sm:p-6 flex flex-col h-[600px] sm:h-[700px] relative transition-colors ${chatDragActive ? 'border-cyan-400/60 bg-cyan-500/5' : 'border-cyan-500/20'}`}
                     onDragEnter={handleChatDragEnter}
@@ -15621,7 +15646,7 @@ function AFLegacyContent() {
                     
                     {chatImagePreview && (
                       <div className="mb-3 relative inline-block">
-                        <img src={chatImagePreview} alt="Preview" className="max-h-24 rounded-lg border border-cyan-400/30" />
+                        <img src={chatImagePreview ?? undefined} alt="Preview" className="max-h-24 rounded-lg border border-cyan-400/30" />
                         <button
                           onClick={() => setChatImagePreview(null)}
                           className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs hover:bg-red-600 transition"

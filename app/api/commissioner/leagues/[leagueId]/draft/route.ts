@@ -61,7 +61,7 @@ export async function GET(
 }
 
 /** Draft controls: pause, resume, reset_timer, undo_pick, assign_pick.
- * Sleeper API is read-only for draft state; controls are not available via API. Returns acknowledged with platformSupported: false.
+ * When AllFantasy live draft session exists, delegates to live-draft-engine. Otherwise returns stub for Sleeper.
  */
 export async function POST(
   req: NextRequest,
@@ -85,11 +85,74 @@ export async function POST(
     return NextResponse.json({ error: `Invalid action. Use one of: ${supported.join(', ')}` }, { status: 400 })
   }
 
-  // Stub: platform draft API not wired. Return acknowledged with message.
+  const {
+    getDraftSessionByLeague,
+    pauseDraftSession,
+    resumeDraftSession,
+    resetTimer,
+    undoLastPick,
+    buildSessionSnapshot,
+  } = await import('@/lib/live-draft-engine/DraftSessionService')
+  const { submitPick } = await import('@/lib/live-draft-engine/PickSubmissionService')
+  const draftSession = await getDraftSessionByLeague(params.leagueId)
+  if (draftSession && draftSession.status !== 'pre_draft') {
+    try {
+      if (action === 'pause') {
+        const ok = await pauseDraftSession(params.leagueId)
+        if (!ok) return NextResponse.json({ error: 'Cannot pause', platformSupported: true }, { status: 400 })
+        const session = await buildSessionSnapshot(params.leagueId)
+        return NextResponse.json({ status: 'acknowledged', action, platformSupported: true, session })
+      }
+      if (action === 'resume') {
+        const ok = await resumeDraftSession(params.leagueId)
+        if (!ok) return NextResponse.json({ error: 'Cannot resume', platformSupported: true }, { status: 400 })
+        const session = await buildSessionSnapshot(params.leagueId)
+        return NextResponse.json({ status: 'acknowledged', action, platformSupported: true, session })
+      }
+      if (action === 'reset_timer') {
+        const ok = await resetTimer(params.leagueId)
+        if (!ok) return NextResponse.json({ error: 'Cannot reset timer', platformSupported: true }, { status: 400 })
+        const session = await buildSessionSnapshot(params.leagueId)
+        return NextResponse.json({ status: 'acknowledged', action, platformSupported: true, session })
+      }
+      if (action === 'undo_pick') {
+        const ok = await undoLastPick(params.leagueId)
+        if (!ok) return NextResponse.json({ error: 'No pick to undo', platformSupported: true }, { status: 400 })
+        const session = await buildSessionSnapshot(params.leagueId)
+        return NextResponse.json({ status: 'acknowledged', action, platformSupported: true, session })
+      }
+      if (action === 'assign_pick') {
+        const playerName = body.playerName ?? body.player_name
+        const position = body.position ?? ''
+        if (!playerName || !position) {
+          return NextResponse.json({ error: 'assign_pick requires playerName and position', platformSupported: true }, { status: 400 })
+        }
+        const result = await submitPick({
+          leagueId: params.leagueId,
+          playerName: String(playerName).trim(),
+          position: String(position).trim(),
+          team: body.team ?? null,
+          byeWeek: body.byeWeek ?? null,
+          rosterId: body.rosterId ?? undefined,
+          source: 'commissioner',
+        })
+        if (!result.success) return NextResponse.json({ error: result.error, platformSupported: true }, { status: 400 })
+        const session = await buildSessionSnapshot(params.leagueId)
+        return NextResponse.json({ status: 'acknowledged', action: 'assign_pick', platformSupported: true, session })
+      }
+      if (action === 'reorder') {
+        return NextResponse.json({ status: 'acknowledged', action, message: 'Reorder not yet implemented', platformSupported: true })
+      }
+    } catch (e) {
+      console.error('[commissioner/draft POST]', e)
+      return NextResponse.json({ error: (e as Error)?.message, platformSupported: true }, { status: 500 })
+    }
+  }
+
   return NextResponse.json({
     status: 'acknowledged',
     action,
-    message: 'Draft control is not yet wired to your platform. When supported, this will pause/resume draft, reset timer, undo pick, or assign a missed pick.',
+    message: 'No active AllFantasy draft session. Create one at /api/leagues/[leagueId]/draft/session (POST action=start). Sleeper draft controls are read-only.',
     platformSupported: false,
   })
 }

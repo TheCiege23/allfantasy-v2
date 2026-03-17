@@ -1,9 +1,11 @@
+import { prisma } from '@/lib/prisma'
 import { SPORT_SLUGS, TOOL_SLUGS } from '@/lib/seo-landing/config'
 
 export async function GET() {
   const baseUrl = 'https://allfantasy.ai'
 
   const staticPages = [
+    { path: 'blog', priority: '0.8', changefreq: 'weekly' },
     { path: '', priority: '1.0', changefreq: 'weekly' },
     { path: 'app', priority: '0.9', changefreq: 'weekly' },
     { path: 'bracket', priority: '0.9', changefreq: 'weekly' },
@@ -37,6 +39,26 @@ export async function GET() {
   </url>`
   ).join('\n  ')
 
+  let blogUrls = ''
+  try {
+    const published = await prisma.blogArticle.findMany({
+      where: { publishStatus: 'published' },
+      select: { slug: true, updatedAt: true },
+    })
+    blogUrls = published
+      .map(
+        (a) => `<url>
+    <loc>${baseUrl}/blog/${a.slug}</loc>
+    <lastmod>${a.updatedAt.toISOString().slice(0, 10)}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>`
+      )
+      .join('\n  ')
+  } catch {
+    // ignore
+  }
+
   const staticUrls = staticPages
     .map(
       (p) => `<url>
@@ -52,6 +74,7 @@ export async function GET() {
   ${staticUrls}
   ${sportUrls}
   ${toolUrls}
+  ${blogUrls}
 </urlset>`
 
   return new Response(sitemap, {

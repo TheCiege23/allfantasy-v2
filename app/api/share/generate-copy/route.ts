@@ -1,0 +1,47 @@
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import { ACHIEVEMENT_SHARE_TYPES } from '@/lib/social-sharing/types';
+import type { AchievementShareType, AchievementShareContext } from '@/lib/social-sharing/types';
+import { generateShareCopy, getTemplateShareCopy, isGrokShareConfigured } from '@/lib/social-sharing/GrokShareCopyService';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(req: Request) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const shareType = ACHIEVEMENT_SHARE_TYPES.includes(body.shareType as AchievementShareType)
+    ? body.shareType
+    : 'winning_matchup';
+  const sport = normalizeToSupportedSport(body.sport);
+  const context: AchievementShareContext = {
+    leagueName: body.leagueName,
+    leagueId: body.leagueId,
+    score: body.score,
+    opponentName: body.opponentName,
+    week: body.week,
+    teamName: body.teamName,
+    bracketName: body.bracketName,
+    rivalryName: body.rivalryName,
+    playerName: body.playerName,
+    rank: body.rank,
+    tier: body.tier,
+  };
+
+  let copy = isGrokShareConfigured()
+    ? await generateShareCopy(shareType as AchievementShareType, context, sport)
+    : null;
+  if (!copy) copy = getTemplateShareCopy(shareType as AchievementShareType, context);
+
+  return NextResponse.json({
+    caption: copy.caption,
+    headline: copy.headline,
+    cta: copy.cta,
+    hashtags: copy.hashtags,
+    platformVariants: copy.platformVariants,
+    fromGrok: isGrokShareConfigured() && !!copy,
+  });
+}

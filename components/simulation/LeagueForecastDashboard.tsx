@@ -98,7 +98,7 @@ export function LeagueForecastDashboard({
           </h3>
           <p className="text-sm text-white/80 whitespace-pre-wrap">{aiSummary}</p>
           <Link
-            href="/legacy?tab=chat"
+            href="/af-legacy?tab=chat&prompt=Explain%20my%20league's%20playoff%20odds%20and%20what%20I%20should%20do%20next."
             className="mt-2 inline-block text-[11px] text-cyan-400 hover:text-cyan-300"
           >
             Ask Chimmy about playoff odds →

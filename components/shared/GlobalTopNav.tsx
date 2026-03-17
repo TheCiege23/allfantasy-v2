@@ -13,6 +13,7 @@ import { UserMenuDropdown } from "@/components/navigation/UserMenuDropdown"
 import { getPrimaryNavItems } from "@/lib/navigation"
 import { showAdminNav } from "@/lib/navigation"
 import { isNavItemActive } from "@/lib/shell"
+import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
 
 type Props = {
   isAuthenticated: boolean
@@ -28,6 +29,7 @@ function cn(...parts: Array<string | false | null | undefined>) {
 
 export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLabel, onOpenMobileMenu, onOpenSearch }: Props) {
   const pathname = usePathname()
+  const chimmyEntry = getPrimaryChimmyEntry()
   const primaryItems = getPrimaryNavItems(isAdmin)
 
   return (
@@ -72,7 +74,7 @@ export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLab
                   <MessageCircle className="h-4 w-4" />
                 </Link>
                 <NotificationBell />
-                <Link href="/af-legacy?tab=chat" className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }} title="AI Chat">
+                <Link href={chimmyEntry.href} className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }} title={chimmyEntry.label}>
                   <Sparkles className="h-4 w-4" />
                 </Link>
                 <div className="hidden sm:inline-flex">

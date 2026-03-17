@@ -10,6 +10,7 @@ export type LeagueShellTab =
   | "Trades"
   | "Draft"
   | "Standings / Playoffs"
+  | "Rankings"
   | "Divisions"
   | "League"
   | "News"
@@ -36,6 +37,7 @@ export const LEAGUE_SHELL_TABS: LeagueShellTab[] = [
   "Trades",
   "Draft",
   "Standings / Playoffs",
+  "Rankings",
   "Divisions",
   "League",
   "News",

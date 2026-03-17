@@ -1,162 +1,152 @@
 /**
- * League Discovery AI — scores and ranks candidate leagues by skill, sports, activity, competition balance; uses AI for match reasons.
+ * LeagueDiscoveryService — discover bracket leagues with filters, search, and pagination.
  */
 
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
-import { openaiChatJson } from '@/lib/openai-client'
-import type {
-  UserDiscoveryPreferences,
-  CandidateLeague,
-  LeagueMatchSuggestion,
-  DiscoverySuggestInput,
-  DiscoverySuggestResult,
-  SkillLevel,
-  PreferredActivity,
-  CompetitionBalance,
-} from './types'
+import { prisma } from "@/lib/prisma"
+import {
+  buildDiscoveryWhere,
+  resolveFilters,
+  matchesLeagueTypeAndFee,
+} from "./LeagueFilterResolver"
+import { buildSearchWhere } from "./LeagueSearchResolver"
 
-function normSport(s: string | null | undefined): string {
-  if (!s || typeof s !== 'string') return ''
-  return normalizeToSupportedSport(s)
+export interface DiscoverLeaguesInput {
+  query?: string | null
+  sport?: string | null
+  leagueType?: string | null
+  entryFee?: string | null
+  visibility?: string | null
+  difficulty?: string | null
+  page?: number
+  limit?: number
 }
 
-/** Heuristic score 0–100: how well the league matches preferences. */
-function scoreLeague(
-  league: CandidateLeague,
-  prefs: UserDiscoveryPreferences
-): number {
-  let score = 50
-  const sport = normSport(league.sport)
-  const prefsSports = (prefs.sportsPreferences || []).map((x) =>
-    String(x || '').trim().toUpperCase()
-  )
+export interface LeagueCard {
+  id: string
+  name: string
+  joinCode: string
+  sport: string
+  season: number
+  tournamentName: string
+  tournamentId: string
+  scoringMode: string
+  isPaidLeague: boolean
+  isPrivate: boolean
+  memberCount: number
+  entryCount: number
+  maxManagers: number
+  ownerName: string
+  ownerAvatar: string | null
+  joinUrl: string
+}
 
-  // Sport match: +25 if league sport in preferences, +0 if no prefs, -15 if prefs set and no match
-  if (prefsSports.length > 0) {
-    const leagueSportUpper = sport.toUpperCase()
-    const match = prefsSports.some(
-      (p) => p === leagueSportUpper || leagueSportUpper.includes(p)
-    )
-    if (match) score += 25
-    else if (sport) score -= 15
-  } else if (sport) {
-    score += 10
+export interface DiscoverLeaguesResult {
+  leagues: LeagueCard[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+/** Candidate league shape for AI suggestion (preferences + list). */
+export interface CandidateLeague {
+  id: string
+  name: string
+  joinCode?: string
+  memberCount?: number
+  entryCount?: number
+  maxManagers?: number
+  scoringMode?: string
+  tournamentName?: string
+  sport?: string
+  activityLevel?: string
+  competitionSpread?: string
+}
+
+/** User preferences for league suggestion. */
+export type UserDiscoveryPreferences = Record<string, unknown>
+
+export interface SuggestLeaguesResult {
+  suggested: CandidateLeague[]
+}
+
+/** Suggest leagues from a candidate list using preferences (e.g. sport, activity). */
+export function suggestLeagues(input: {
+  preferences: UserDiscoveryPreferences
+  candidates: CandidateLeague[]
+}): SuggestLeaguesResult {
+  const { candidates } = input
+  const sport = typeof input.preferences.sport === 'string' ? input.preferences.sport.trim().toUpperCase() : null
+  let list = candidates
+  if (sport) {
+    list = candidates.filter((c) => !c.sport || c.sport.toUpperCase() === sport)
   }
-
-  // Skill vs league size: beginners → smaller leagues; experts → any
-  const skill = prefs.skillLevel || 'intermediate'
-  const size = league.leagueSize ?? league.maxManagers ?? 12
-  if (skill === 'beginner' && size <= 12) score += 10
-  else if (skill === 'beginner' && size > 14) score -= 10
-  else if ((skill === 'advanced' || skill === 'expert') && size >= 12) score += 5
-
-  // Activity match
-  const activity = (league.activityLevel || 'moderate').toLowerCase()
-  const wantActivity = prefs.preferredActivity || 'moderate'
-  if (wantActivity === 'quiet' && (activity === 'quiet' || activity === 'low')) score += 12
-  else if (wantActivity === 'quiet' && activity === 'active') score -= 12
-  else if (wantActivity === 'active' && (activity === 'active' || activity === 'high')) score += 12
-  else if (wantActivity === 'active' && activity === 'quiet') score -= 8
-  else if (wantActivity === 'moderate') score += 5
-
-  // Competition balance match
-  const balance = (league.competitionSpread || 'balanced').toLowerCase()
-  const wantBalance = prefs.competitionBalance || 'balanced'
-  if (wantBalance === 'casual' && (balance === 'casual' || balance === 'low')) score += 10
-  else if (wantBalance === 'casual' && balance === 'competitive') score -= 10
-  else if (wantBalance === 'competitive' && (balance === 'competitive' || balance === 'high')) score += 10
-  else if (wantBalance === 'competitive' && balance === 'casual') score -= 8
-  else if (wantBalance === 'balanced') score += 5
-
-  return Math.max(0, Math.min(100, Math.round(score)))
+  if (list.length === 0 && candidates.length > 0) list = candidates
+  return { suggested: list }
 }
 
-const DISCOVERY_SYSTEM = `You are a league discovery assistant. Given a user's preferences (skill level, sports, preferred activity, competition balance) and a list of leagues that were already scored for match quality, produce a SHORT summary (1-2 sentences) and 1-3 bullet reasons for each league explaining why it fits the user. Be specific to the league (name, sport, size) and the user's stated preferences. Return only valid JSON. No markdown.
-
-Output shape: { "suggestions": [ { "leagueId": "<id>", "summary": "one sentence", "reasons": ["reason1", "reason2"] } ] }
-Use the exact league "id" from the input so we can merge. Keep reasons to one short sentence each.`
-
-/** Enrich top suggestions with AI-generated summary and reasons. */
-async function enrichWithAI(
-  suggestions: LeagueMatchSuggestion[],
-  prefs: UserDiscoveryPreferences
-): Promise<LeagueMatchSuggestion[]> {
-  const top = suggestions.slice(0, 10)
-  if (top.length === 0) return suggestions
-
-  const prefsStr = [
-    prefs.skillLevel && `Skill: ${prefs.skillLevel}`,
-    prefs.sportsPreferences?.length && `Sports: ${prefs.sportsPreferences.join(', ')}`,
-    prefs.preferredActivity && `Activity: ${prefs.preferredActivity}`,
-    prefs.competitionBalance && `Competition: ${prefs.competitionBalance}`,
-  ]
-    .filter(Boolean)
-    .join('; ')
-
-  const leagueList = top
-    .map(
-      (s) =>
-        `id=${s.league.id} name="${s.league.name}" sport=${s.league.sport || '?'} size=${s.league.leagueSize ?? s.league.maxManagers ?? '?'} activity=${s.league.activityLevel || 'moderate'} competition=${s.league.competitionSpread || 'balanced'} score=${s.matchScore}`
-    )
-    .join('\n')
-
-  const result = await openaiChatJson({
-    messages: [
-      { role: 'system', content: DISCOVERY_SYSTEM },
-      {
-        role: 'user',
-        content: `User preferences: ${prefsStr}\n\nScored leagues:\n${leagueList}\n\nFor each league, output "leagueId", "summary", and "reasons" (array of 1-3 strings).`,
-      },
-    ],
-    temperature: 0.4,
-    maxTokens: 800,
+export async function discoverLeagues(input: DiscoverLeaguesInput): Promise<DiscoverLeaguesResult> {
+  const page = Math.max(1, Number(input.page) || 1)
+  const limit = Math.min(50, Math.max(5, Number(input.limit) || 20))
+  const resolved = resolveFilters({
+    sport: input.sport,
+    leagueType: input.leagueType,
+    entryFee: input.entryFee,
+    visibility: input.visibility,
+    difficulty: input.difficulty,
   })
 
-  if (!result.ok || !result.json) return suggestions
+  const searchWhere = buildSearchWhere(input.query)
+  const where = buildDiscoveryWhere(resolved, searchWhere)
 
-  const raw = result.json as { suggestions?: Array<{ leagueId?: string; summary?: string; reasons?: string[] }> }
-  const byId = new Map<string | undefined, { summary?: string; reasons: string[] }>()
-  for (const s of raw.suggestions || []) {
-    byId.set(s.leagueId, {
-      summary: s.summary,
-      reasons: Array.isArray(s.reasons) ? s.reasons.map(String) : [],
-    })
-  }
+  const allMatching = await (prisma as any).bracketLeague.findMany({
+    where,
+    include: {
+      owner: { select: { displayName: true, avatarUrl: true } },
+      tournament: { select: { id: true, name: true, season: true, sport: true } },
+      _count: { select: { members: true, entries: true } },
+      scoringRules: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 2000,
+  })
 
-  return suggestions.map((s) => {
-    const enriched = byId.get(s.league.id)
-    if (!enriched) return s
+  const filtered = allMatching.filter((lg: any) =>
+    matchesLeagueTypeAndFee(lg.scoringRules as Record<string, unknown>, resolved)
+  )
+  const total = filtered.length
+  const leagues = filtered.slice((page - 1) * limit, page * limit)
+
+  const baseUrl = typeof process !== "undefined" ? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai" : "https://allfantasy.ai"
+  const cards: LeagueCard[] = leagues.map((lg: any) => {
+    const rules = (lg.scoringRules || {}) as any
+    const mode = rules.mode || rules.scoringMode || "momentum"
+    const joinUrl = `${baseUrl}/brackets/join?code=${encodeURIComponent(lg.joinCode)}`
     return {
-      ...s,
-      summary: enriched.summary || s.summary,
-      reasons: enriched.reasons.length > 0 ? enriched.reasons : s.reasons,
+      id: lg.id,
+      name: lg.name,
+      joinCode: lg.joinCode,
+      sport: lg.tournament?.sport ?? "NFL",
+      season: lg.tournament?.season ?? 0,
+      tournamentName: lg.tournament?.name ?? "",
+      tournamentId: lg.tournamentId,
+      scoringMode: mode,
+      isPaidLeague: Boolean(rules.isPaidLeague),
+      isPrivate: Boolean(lg.isPrivate),
+      memberCount: lg._count?.members ?? 0,
+      entryCount: lg._count?.entries ?? 0,
+      maxManagers: Number(lg.maxManagers) || 100,
+      ownerName: lg.owner?.displayName ?? "Anonymous",
+      ownerAvatar: lg.owner?.avatarUrl ?? null,
+      joinUrl,
     }
   })
-}
-
-/**
- * Score and rank candidate leagues by user preferences; optionally enrich with AI reasons.
- */
-export async function suggestLeagues(
-  input: DiscoverySuggestInput
-): Promise<DiscoverySuggestResult> {
-  const { preferences, candidates } = input
-  if (!candidates.length) {
-    return { suggestions: [], generatedAt: new Date().toISOString() }
-  }
-
-  const scored: LeagueMatchSuggestion[] = candidates.map((league) => ({
-    league,
-    matchScore: scoreLeague(league, preferences),
-    reasons: [],
-  }))
-
-  scored.sort((a, b) => b.matchScore - a.matchScore)
-
-  const withReasons = await enrichWithAI(scored, preferences)
 
   return {
-    suggestions: withReasons,
-    generatedAt: new Date().toISOString(),
+    leagues: cards,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit) || 1,
   }
 }

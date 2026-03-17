@@ -12,6 +12,7 @@ import type { NegotiationData } from '@/components/negotiation'
 import type { TradeCandidate as PatchTradeCandidate, TradeAsset as PatchTradeAsset } from '@/lib/trade-finder/apply-counter'
 import { computeValueDeltaPct, previewFairnessLabel, FAIRNESS_DISPLAY } from '@/lib/trade-finder/score-candidate'
 import type { FairnessLabel } from '@/lib/trade-finder/score-candidate'
+import { getTradeAnalyzerAIChatUrl } from '@/lib/trade-analyzer/TradeToAIContextBridge'
 
 type Objective = 'WIN_NOW' | 'REBUILD' | 'BALANCED'
 type FinderMode = 'FAST' | 'DEEP'
@@ -1504,18 +1505,32 @@ export default function TradeFinderV2({
             <p className="text-xs text-white/40 text-center">
               Head to the Chat tab to discuss this trade with your AI assistant
             </p>
-            <Button
-              variant="primary"
-              size="sm"
-              fullWidth
-              onClick={() => {
-                navigator.clipboard.writeText(chatTradeContext)
-                setChatTradeContext(null)
-              }}
-            >
-              <Copy className="w-3.5 h-3.5" />
-              Copy & Go to Chat
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                onClick={() => {
+                  const url = getTradeAnalyzerAIChatUrl(chatTradeContext)
+                  window.location.href = url
+                }}
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                Open Chat with this prompt
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                fullWidth
+                onClick={() => {
+                  navigator.clipboard.writeText(chatTradeContext)
+                  setChatTradeContext(null)
+                }}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy only
+              </Button>
+            </div>
           </div>
         </AIBottomSheet>
       )}

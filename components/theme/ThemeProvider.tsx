@@ -1,8 +1,15 @@
 "use client"
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react"
+import {
+  THEME_STORAGE_KEY,
+  DEFAULT_THEME,
+  resolveTheme,
+  getNextTheme,
+  type ThemeId,
+} from "@/lib/theme"
 
-export type AppMode = "dark" | "light" | "legacy"
+export type AppMode = ThemeId
 
 type ThemeCtx = {
   mode: AppMode
@@ -12,28 +19,27 @@ type ThemeCtx = {
 
 const Ctx = createContext<ThemeCtx | null>(null)
 
-const STORAGE_KEY = "af_mode"
-
 export function ThemeProvider(props: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<AppMode>(() => {
     if (typeof document !== "undefined") {
-      const current = document.documentElement.dataset.mode as AppMode | undefined
-      if (current === "dark" || current === "light" || current === "legacy") return current
+      const current = document.documentElement.dataset.mode
+      return resolveTheme(current)
     }
-    // Default to AF Legacy mode if nothing is set yet
-    return "legacy"
+    return DEFAULT_THEME
   })
 
   useEffect(() => {
-    const saved = (typeof window !== "undefined" && window.localStorage.getItem(STORAGE_KEY)) as AppMode | null
-    if (saved === "dark" || saved === "light" || saved === "legacy") setModeState(saved)
+    if (typeof window === "undefined") return
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY)
+    const resolved = resolveTheme(saved)
+    setModeState(resolved)
   }, [])
 
   useEffect(() => {
     if (typeof document === "undefined") return
     document.documentElement.dataset.mode = mode
     try {
-      window.localStorage.setItem(STORAGE_KEY, mode)
+      window.localStorage.setItem(THEME_STORAGE_KEY, mode)
     } catch {}
   }, [mode])
 
@@ -41,8 +47,7 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     return {
       mode,
       setMode: (m) => setModeState(m),
-      cycleMode: () =>
-        setModeState((prev) => (prev === "light" ? "dark" : prev === "dark" ? "legacy" : "light"))
+      cycleMode: () => setModeState((prev) => getNextTheme(prev)),
     }
   }, [mode])
 

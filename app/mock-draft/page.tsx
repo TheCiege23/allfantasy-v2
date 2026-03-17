@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import MockDraftLobbyPage from '@/components/mock-draft/MockDraftLobbyPage'
+import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,7 +66,9 @@ export default async function MockDraftPage() {
   }))
 
   return (
-    <div className="min-h-screen bg-[#05060b] py-10 pb-20">
+    <>
+      <LandingToolVisitTracker path="/mock-draft" toolName="Draft Helper" />
+      <div className="min-h-screen bg-[#05060b] py-10 pb-20">
       <div className="container mx-auto max-w-7xl px-4">
         <div className="mb-8 text-center">
           <h1 className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-3xl font-bold text-transparent sm:text-4xl">
@@ -78,6 +81,7 @@ export default async function MockDraftPage() {
         <MockDraftLobbyPage leagues={leagueOptions} savedDrafts={saved} />
       </div>
     </div>
+    </>
   )
 }
 

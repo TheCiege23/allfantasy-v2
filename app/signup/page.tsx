@@ -38,6 +38,7 @@ function SignupContent() {
   const searchParams = useSearchParams()
   const nextParam = searchParams?.get("next") ?? undefined
   const redirectAfterSignup = getRedirectAfterSignup(nextParam)
+  const refParam = searchParams?.get("ref")?.trim() || undefined
 
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
@@ -211,6 +212,7 @@ function SignupContent() {
           avatarDataUrl: avatarPreview || undefined,
           disclaimerAgreed,
           termsAgreed,
+          referralCode: refParam,
         }),
       })
 
@@ -657,9 +659,9 @@ function SignupContent() {
           </label>
           <p className="text-[11px] text-white/40">
             Optional:{" "}
-            <button type="button" className="text-cyan-400/80 hover:text-cyan-300 underline" onClick={() => {}}>
+            <Link href="/verify" className="text-cyan-400/80 hover:text-cyan-300 underline">
               Verify with driver&apos;s license
-            </button>{" "}
+            </Link>{" "}
             for future legal protection flows.
           </p>
         </div>

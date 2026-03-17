@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Clock, Plus, Share2, Repeat, History } from 'lucide-react'
 import MockDraftSimulatorWrapper from '@/components/mock-draft/MockDraftSimulatorWrapper'
 import { MockDraftRecap } from '@/components/mock-draft'
@@ -31,8 +32,31 @@ export interface MockDraftLobbyPageProps {
 }
 
 export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLobbyPageProps) {
+  const searchParams = useSearchParams()
+  const urlDraftId = searchParams.get('draftId')
   const [selectedDraftId, setSelectedDraftId] = useState<string | 'new'>('new')
   const [prefillConfig, setPrefillConfig] = useState<MockDraftConfig | null>(null)
+  const [urlSessionDraft, setUrlSessionDraft] = useState<{ id: string; inviteLink: string | null; status: string } | null>(null)
+
+  useEffect(() => {
+    if (!urlDraftId) {
+      setUrlSessionDraft(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/mock-draft/${urlDraftId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data?.id) return
+        setUrlSessionDraft({
+          id: data.id,
+          inviteLink: data.inviteLink ?? null,
+          status: data.status ?? 'pre_draft',
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [urlDraftId])
 
   const selectedDraft = useMemo(
     () => (selectedDraftId === 'new' ? null : savedDrafts.find((d) => d.id === selectedDraftId) || null),
@@ -197,7 +221,10 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
             userManagerName={userManagerName}
           />
         ) : (
-          <MockDraftSimulatorWrapper leagues={leagues} />
+          <MockDraftSimulatorWrapper
+            leagues={leagues}
+            initialSessionDraft={urlSessionDraft}
+          />
         )}
       </main>
     </div>

@@ -2,18 +2,68 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Loader2, Users } from "lucide-react"
+import { ArrowLeft, Loader2, Users, Trophy } from "lucide-react"
+
+type Preview = {
+  leagueId: string
+  name: string
+  tournamentName: string
+  tournamentSeason?: string
+  memberCount: number
+  maxManagers: number
+  isFull: boolean
+  expired: boolean
+  joinCode: string
+}
 
 function JoinLeagueForm() {
   const [code, setCode] = useState("")
   const [loading, setLoading] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(true)
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const sp = useSearchParams()
 
   useEffect(() => {
     const c = sp.get("code")
-    if (c) setCode(c.toUpperCase())
+    if (c) setCode(c.trim().toUpperCase())
+  }, [sp])
+
+  useEffect(() => {
+    const c = sp.get("code")?.trim()
+    if (!c) {
+      setPreviewLoading(false)
+      return
+    }
+    setPreviewLoading(true)
+    setPreviewError(null)
+    setPreview(null)
+    fetch(`/api/league-invite/preview?code=${encodeURIComponent(c)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && data.preview) {
+          setPreview(data.preview)
+          setPreviewError(null)
+        } else {
+          setPreview(null)
+          setPreviewError(
+            data.error === "EXPIRED"
+              ? "This invite has expired."
+              : data.error === "LEAGUE_FULL"
+                ? "This pool is full."
+                : data.error === "ALREADY_MEMBER"
+                  ? "You're already in this pool."
+                  : "Invalid invite code."
+          )
+        }
+      })
+      .catch(() => {
+        setPreview(null)
+        setPreviewError("Could not load invite.")
+      })
+      .finally(() => setPreviewLoading(false))
   }, [sp])
 
   async function handleJoin(e: React.FormEvent) {
@@ -58,8 +108,34 @@ function JoinLeagueForm() {
 
   return (
     <>
+      {previewLoading && code && (
+        <div className="mode-muted text-sm text-center py-2">Loading invite...</div>
+      )}
+      {!previewLoading && preview && !preview.expired && !preview.isFull && (
+        <div
+          className="rounded-xl border p-4 mb-4"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <Trophy className="h-5 w-5" style={{ color: "var(--accent)" }} />
+            <span className="font-semibold" style={{ color: "var(--text)" }}>{preview.name}</span>
+          </div>
+          <p className="text-sm mode-muted">
+            {preview.tournamentName}
+            {preview.tournamentSeason ? ` · ${preview.tournamentSeason}` : ""}
+          </p>
+          <p className="text-xs mode-muted mt-1">
+            {preview.memberCount} / {preview.maxManagers} members
+          </p>
+        </div>
+      )}
+      {!previewLoading && previewError && (
+        <div className="rounded-xl p-3 text-sm mb-4" style={{ background: "color-mix(in srgb, var(--accent-red-strong) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--accent-red-strong) 38%, transparent)", color: "var(--accent-red)" }}>
+          {previewError}
+        </div>
+      )}
       {error && (
-        <div className="rounded-xl p-3 text-sm" style={{ background: 'color-mix(in srgb, var(--accent-red-strong) 14%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-red-strong) 38%, transparent)', color: 'var(--accent-red)' }}>
+        <div className="rounded-xl p-3 text-sm" style={{ background: "color-mix(in srgb, var(--accent-red-strong) 14%, transparent)", border: "1px solid color-mix(in srgb, var(--accent-red-strong) 38%, transparent)", color: "var(--accent-red)" }}>
           {error}
         </div>
       )}
@@ -85,7 +161,7 @@ function JoinLeagueForm() {
         <div className="fixed bottom-0 left-0 right-0 p-4 sm:static sm:p-0">
           <button
             type="submit"
-            disabled={!code.trim() || loading}
+            disabled={!code.trim() || loading || (!!preview && (preview.expired || preview.isFull))}
             className="w-full rounded-xl px-4 py-3.5 text-sm font-bold uppercase tracking-wider text-black disabled:opacity-40 transition"
             style={{ background: "var(--accent)" }}
           >
@@ -95,7 +171,7 @@ function JoinLeagueForm() {
                 Joining...
               </span>
             ) : (
-              "JOIN POOL"
+              "Join league"
             )}
           </button>
         </div>

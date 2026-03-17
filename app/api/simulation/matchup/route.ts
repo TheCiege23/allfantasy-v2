@@ -64,6 +64,10 @@ export async function POST(req: NextRequest) {
       upsetChance: out.upsetChance,
       volatilityTag: out.volatilityTag,
       iterations: out.iterations,
+      upsideScenario: out.upsideScenario ?? null,
+      downsideScenario: out.downsideScenario ?? null,
+      scoreDistributionA: out.scoreDistributionA ?? null,
+      scoreDistributionB: out.scoreDistributionB ?? null,
     })
   } catch (e) {
     console.error('[simulation/matchup]', e)

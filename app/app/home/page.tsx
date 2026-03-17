@@ -14,7 +14,13 @@ export default function AppHomePage() {
           <Link href="/app/discover" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">League Discovery</Link>
           <Link href="/app/power-rankings" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Power Rankings</Link>
           <Link href="/app/simulation-lab" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Simulation Lab</Link>
+          <Link href="/app/advantage" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Advantage Dashboard</Link>
+          <Link href="/app/coach" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Coach Mode</Link>
+          <Link href="/app/share-achievements" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Share achievements</Link>
           <Link href="/app/meta-insights" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Meta Insights</Link>
+          <Link href="/app/strategy-meta" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Strategy Meta</Link>
+          <Link href="/app/dynasty-insights" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Dynasty Intelligence</Link>
+          <Link href="/app/trend-feed" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Player Trend Feed</Link>
           <Link href="/messages" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Messages</Link>
           <Link href="/wallet" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Wallet</Link>
           <Link href="/settings" className="rounded-lg border border-white/20 px-3 py-2 text-sm hover:bg-white/10">Settings</Link>

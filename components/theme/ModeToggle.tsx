@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useThemeMode } from "./ThemeProvider"
+import { getThemeDisplayName, getNextTheme } from "@/lib/theme"
 
 export function ModeToggle(props: { className?: string }) {
   const { data: session } = useSession()
@@ -12,7 +13,7 @@ export function ModeToggle(props: { className?: string }) {
   useEffect(() => setMounted(true), [])
 
   const handleClick = useCallback(() => {
-    const next = mode === "light" ? "dark" : mode === "dark" ? "legacy" : "light"
+    const next = getNextTheme(mode)
     cycleMode()
     if (session?.user) {
       fetch("/api/user/profile", {
@@ -23,9 +24,8 @@ export function ModeToggle(props: { className?: string }) {
     }
   }, [mode, cycleMode, session?.user])
 
-  const label = mode === "dark" ? "Dark" : mode === "light" ? "Light" : "AF Legacy"
-  const title =
-    mode === "dark" ? "Dark Mode" : mode === "light" ? "Light Mode" : "AF Legacy Mode"
+  const label = getThemeDisplayName(mode)
+  const title = `${label} Mode`
 
   return (
     <button

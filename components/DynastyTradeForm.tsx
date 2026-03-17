@@ -15,6 +15,8 @@ import { Skeleton } from '@/components/ui/legacy-ui';
 import { PlayerAutocomplete } from '@/components/PlayerAutocomplete';
 import { useAI } from '@/hooks/useAI';
 import TradeAnalysisBadges from '@/components/TradeAnalysisBadges';
+import AIFailureStateRenderer from '@/components/ai-reliability/AIFailureStateRenderer';
+import StickyAIActions from '@/components/ai-interface/StickyAIActions';
 
 type Player = {
   id: string;
@@ -165,6 +167,7 @@ export default function DynastyTradeForm() {
   const [sections, setSections] = useState<TradeSections | null>(null);
   const [canonicalCtx, setCanonicalCtx] = useState<CanonicalContextMeta | null>(null);
   const [detVerdict, setDetVerdict] = useState<DeterministicVerdictData | null>(null);
+  const [reliability, setReliability] = useState<{ usedDeterministicFallback?: boolean; fallbackExplanation?: string; confidence?: number; providerResults?: { provider: string; status: string; error?: string }[]; dataQualityWarnings?: string[] } | null>(null);
   const [playerValues, setPlayerValues] = useState<Record<string, PlayerValue>>({});
   const [valueLookupLoading, setValueLookupLoading] = useState<string | null>(null);
 
@@ -289,6 +292,11 @@ export default function DynastyTradeForm() {
       if (data.deterministicVerdict) {
         setDetVerdict(data.deterministicVerdict);
       }
+      const rel = (data as { reliability?: { fallbackExplanation?: string }; fallbackExplanation?: string }).reliability;
+      setReliability(rel ? {
+        ...rel,
+        fallbackExplanation: (data as { fallbackExplanation?: string }).fallbackExplanation ?? rel.fallbackExplanation,
+      } : null);
     }
   }
 
@@ -573,9 +581,19 @@ export default function DynastyTradeForm() {
             </div>
           </CardContent>
         </Card>
-      ) : result && sections ? (
+      ) : result && (sections || detVerdict) ? (
         <div id="trade-result" className="space-y-6">
-
+          {reliability?.usedDeterministicFallback && (
+            <AIFailureStateRenderer
+              usedDeterministicFallback
+              fallbackExplanation={reliability.fallbackExplanation}
+              onRetry={handleAnalyze}
+              retryLoading={loading}
+              confidence={reliability.confidence}
+              reliability={reliability as any}
+              showDetails
+            />
+          )}
           {detVerdict && (
             <Card className="glass-card border-emerald-900/50 relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-cyan-500 to-emerald-500" />
@@ -687,6 +705,7 @@ export default function DynastyTradeForm() {
             </Card>
           )}
 
+          {sections && (
           <Card className="glass-card border-purple-900/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-3 text-xl">
@@ -844,7 +863,9 @@ export default function DynastyTradeForm() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {sections && (
           <Card className="glass-card border-cyan-900/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-3 text-xl">
@@ -925,7 +946,9 @@ export default function DynastyTradeForm() {
               )}
             </CardContent>
           </Card>
+          )}
 
+          {sections && (
           <Card className="glass-card border-green-900/50">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-3 text-xl">
@@ -1002,6 +1025,7 @@ export default function DynastyTradeForm() {
               </NextLink>
             </CardContent>
           </Card>
+          )}
         </div>
       ) : result ? (
         <Card id="trade-result" className="glass-card border-purple-900/50">
@@ -1048,26 +1072,44 @@ export default function DynastyTradeForm() {
       )}
 
       {result && (
-        <div className="flex justify-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportAsImage}
-            className="border-gray-600 text-gray-300 hover:text-white"
-          >
-            <Download className="h-4 w-4 mr-1.5" /> Save as Image
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={shareAnalysis}
-            disabled={sharing}
-            className="border-cyan-600/40 text-cyan-300 hover:text-cyan-200"
-          >
-            {sharing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <LinkIcon className="h-4 w-4 mr-1.5" />}
-            Share Link
-          </Button>
-        </div>
+        <>
+          <StickyAIActions
+            copyText={
+              detVerdict
+                ? `${detVerdict.winnerLabel} — ${detVerdict.fairnessGrade} fairness, ${detVerdict.confidence}% confidence. ${sections?.actionPlan?.messageText ?? ''}`.trim()
+                : `${result.winner} — ${result.confidence}% confidence. ${result.valueDelta ?? ''} ${(result.factors ?? []).slice(0, 2).join('; ')}`.trim()
+            }
+            chimmyPrompt={buildTradeSummaryForAI(
+              teamAAssets.map((a) => a.name).join(', '),
+              teamBAssets.map((a) => a.name).join(', '),
+              'dynasty'
+            )}
+            onReRun={handleAnalyze}
+            reRunLoading={loading}
+            onCopied={() => toast.success('Copied to clipboard')}
+            stickyMobileOnly={true}
+          />
+          <div className="flex justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportAsImage}
+              className="border-gray-600 text-gray-300 hover:text-white"
+            >
+              <Download className="h-4 w-4 mr-1.5" /> Save as Image
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={shareAnalysis}
+              disabled={sharing}
+              className="border-cyan-600/40 text-cyan-300 hover:text-cyan-200"
+            >
+              {sharing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <LinkIcon className="h-4 w-4 mr-1.5" />}
+              Share Link
+            </Button>
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,0 +1,114 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import Link from "next/link"
+
+export default function AlertSettingsClient() {
+  const [injuryAlerts, setInjuryAlerts] = useState(true)
+  const [performanceAlerts, setPerformanceAlerts] = useState(true)
+  const [lineupAlerts, setLineupAlerts] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    fetch("/api/alerts/preferences")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mounted) return
+        if (data.injuryAlerts !== undefined) setInjuryAlerts(data.injuryAlerts)
+        if (data.performanceAlerts !== undefined) setPerformanceAlerts(data.performanceAlerts)
+        if (data.lineupAlerts !== undefined) setLineupAlerts(data.lineupAlerts)
+      })
+      .catch(() => { if (mounted) setError("Failed to load preferences") })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false }
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/alerts/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          injuryAlerts,
+          performanceAlerts,
+          lineupAlerts,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? "Failed to save")
+        return
+      }
+    } catch {
+      setError("Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-6 py-8 text-center text-white/50">
+        Loading...
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-6 space-y-4">
+      {error && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {error}
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <span className="text-sm font-medium text-white">Player injury alerts</span>
+          <input
+            type="checkbox"
+            checked={injuryAlerts}
+            onChange={(e) => setInjuryAlerts(e.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <span className="text-sm font-medium text-white">Game performance alerts</span>
+          <input
+            type="checkbox"
+            checked={performanceAlerts}
+            onChange={(e) => setPerformanceAlerts(e.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <span className="text-sm font-medium text-white">Starting lineup alerts</span>
+          <input
+            type="checkbox"
+            checked={lineupAlerts}
+            onChange={(e) => setLineupAlerts(e.target.checked)}
+            className="h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+          />
+        </label>
+      </div>
+
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-50"
+      >
+        {saving ? "Saving..." : "Save preferences"}
+      </button>
+
+      <p className="text-xs text-white/40">
+        Alerts appear in the notification bell and link to the relevant player or league page when you tap them.
+      </p>
+    </div>
+  )
+}

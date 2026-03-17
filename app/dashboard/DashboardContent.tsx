@@ -13,17 +13,27 @@ import {
   Shield,
   Gamepad2,
   Star,
+  Newspaper,
 } from "lucide-react"
 import ProductLauncherCards from "@/components/dashboard/ProductLauncherCards"
 import RecentAIActivity from "@/components/dashboard/RecentAIActivity"
 import { ActiveLeaguesSection } from "@/components/dashboard/ActiveLeaguesSection"
 import {
+  OnboardingProgressWidget,
+  OnboardingChecklist,
+  ReturnPromptCards,
+} from "@/components/onboarding-retention"
+import {
   getDashboardSetupAlerts,
   getDashboardQuickActions,
   needsSetupAction,
 } from "@/lib/dashboard"
+import type { OnboardingChecklistState, RetentionNudge } from "@/lib/onboarding-retention"
 
 interface DashboardProps {
+  onboardingComplete?: boolean
+  checklistState?: OnboardingChecklistState | null
+  retentionNudges?: RetentionNudge[]
   user: {
     id: string
     username: string | null
@@ -53,7 +63,15 @@ interface DashboardProps {
   isAdmin?: boolean
 }
 
-export default function DashboardContent({ user, profile, leagues, entries }: DashboardProps) {
+export default function DashboardContent({
+  user,
+  profile,
+  leagues,
+  entries,
+  onboardingComplete = true,
+  checklistState = null,
+  retentionNudges = [],
+}: DashboardProps) {
   const displayName = user.displayName || user.username || "Player"
   const needsAction = needsSetupAction({
     isVerified: profile.isVerified,
@@ -84,6 +102,19 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
 
       <ProductLauncherCards poolCount={leagues.length} entryCount={entries.length} />
 
+      <OnboardingProgressWidget initialState={checklistState} />
+
+      <Link href="/feed" className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] transition">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+          <Newspaper className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-white">Fantasy feed</p>
+          <p className="text-xs text-white/50">Player news, league updates, AI tips</p>
+        </div>
+        <ChevronRight className="h-4 w-4 text-white/30 ml-auto" />
+      </Link>
+
       {needsAction && setupAlerts.length > 0 && (
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
           <div className="flex items-center gap-2 text-amber-300 font-medium text-sm">
@@ -106,12 +137,31 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
         </div>
       )}
 
-      {!needsAction && (
+      {!needsAction && !onboardingComplete && (
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 flex items-center gap-3">
+          <Star className="h-5 w-5 text-cyan-400 shrink-0" />
+          <div className="text-sm text-cyan-200">
+            Take the quick tour to create a league, try AI tools, or set up a bracket.
+          </div>
+          <Link href="/onboarding/funnel" className="text-cyan-300 hover:text-cyan-200 font-medium text-sm whitespace-nowrap">
+            Get started
+          </Link>
+        </div>
+      )}
+
+      {!needsAction && onboardingComplete && (
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center gap-3">
           <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
           <div className="text-sm text-emerald-300">
             Your account is verified and ready. Jump into Bracket, WebApp, or Legacy.
           </div>
+        </div>
+      )}
+
+      {(checklistState?.tasks?.length || retentionNudges.length > 0) && (
+        <div className="grid md:grid-cols-2 gap-4">
+          <OnboardingChecklist initialState={checklistState} />
+          <ReturnPromptCards initialNudges={retentionNudges.length > 0 ? retentionNudges : undefined} />
         </div>
       )}
 

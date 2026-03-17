@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { createMockDraftSession } from '@/lib/mock-draft-engine/MockDraftSessionService'
 import { prisma } from '@/lib/prisma'
 
-// Lightweight entry endpoint for homepage "Start mock draft" button.
-// It creates (or reuses) a mockDraft row and returns an id + basic config,
-// which can be used by the fuller /api/mock-draft/simulate flows later.
-
+// Create mock draft. Uses mock-draft-engine when slotConfig or useSession provided (invite link, human/CPU slots).
 export async function POST(req: NextRequest) {
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -24,6 +22,38 @@ export async function POST(req: NextRequest) {
     const rounds = Math.min(22, Math.max(12, Number(body?.rounds) || 15))
     const timerSeconds = Number(body?.timerSeconds) ?? 0
     const scoringFormat = String(body?.scoringFormat || 'default')
+    const poolType = String(body?.poolType || 'all')
+    const rosterSize = body?.rosterSize != null ? Number(body.rosterSize) : undefined
+    const slotConfig = Array.isArray(body?.slotConfig) ? body.slotConfig : undefined
+
+    if (slotConfig !== undefined || body?.useSession) {
+      const snapshot = await createMockDraftSession(session.user.id, {
+        leagueId: leagueId || undefined,
+        settings: {
+          sport,
+          leagueType,
+          draftType,
+          numTeams,
+          rounds,
+          timerSeconds,
+          aiEnabled,
+          scoringFormat,
+          leagueId: leagueId || undefined,
+          poolType,
+          rosterSize,
+        },
+        slotConfig,
+      })
+      return NextResponse.json({
+        status: 'ok',
+        draftId: snapshot.id,
+        config: snapshot.settings,
+        inviteToken: snapshot.inviteToken,
+        inviteLink: snapshot.inviteLink,
+        slotConfig: snapshot.slotConfig,
+        draftStatus: snapshot.status,
+      })
+    }
 
     const metadata = {
       sport,
@@ -34,6 +64,8 @@ export async function POST(req: NextRequest) {
       rounds,
       timerSeconds,
       scoringFormat,
+      poolType,
+      rosterSize,
       source: body?.source || 'mock-draft-setup',
     }
 
@@ -44,6 +76,7 @@ export async function POST(req: NextRequest) {
         rounds,
         results: [],
         proposals: [],
+        status: 'pre_draft',
         metadata,
       },
       select: { id: true, createdAt: true },

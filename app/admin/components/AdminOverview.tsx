@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { TrendingUp, Users, Calendar, Clock, RefreshCw, Zap, Trophy, Target, ChevronRight, Globe, MapPin, Activity, AlertTriangle, Timer, Play, BarChart3, Database, Cpu, Brain } from "lucide-react";
+import { TrendingUp, Users, Calendar, Clock, RefreshCw, Zap, Trophy, Target, ChevronRight, Globe, MapPin, Activity, AlertTriangle, Timer, Play, BarChart3, Database, Cpu, Brain, LayoutGrid, Swords, PenTool } from "lucide-react";
 
 type Summary = {
   totalVisits?: number;
@@ -41,6 +41,15 @@ type ActionStatus = {
   result: null | { ok: boolean; message: string };
 };
 
+type PlatformOverview = {
+  totalUsers?: number;
+  activeUsersToday?: number;
+  activeLeagues?: number;
+  bracketsCreated?: number;
+  draftsActive?: number;
+  tradesToday?: number;
+};
+
 function num(n: any) {
   const v = Number(n);
   return Number.isFinite(v) ? v : 0;
@@ -59,7 +68,22 @@ export default function AdminOverview() {
   const [regions, setRegions] = useState<VisitorLocation[]>([]);
   const [regionsLoading, setRegionsLoading] = useState(false);
 
+  const [platformOverview, setPlatformOverview] = useState<PlatformOverview | null>(null);
+  const [platformOverviewLoading, setPlatformOverviewLoading] = useState(false);
+
   const [actionStatus, setActionStatus] = useState<Record<string, ActionStatus>>({});
+
+  const loadPlatformOverview = async () => {
+    setPlatformOverviewLoading(true);
+    try {
+      const res = await fetch("/api/admin/dashboard/overview", { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json) setPlatformOverview(json);
+    } catch {
+    } finally {
+      setPlatformOverviewLoading(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -119,6 +143,7 @@ export default function AdminOverview() {
     load();
     loadRightNow();
     loadRegions();
+    loadPlatformOverview();
   }, []);
 
   const executeAction = useCallback(async (key: string, url: string, method: string = "POST") => {
@@ -263,7 +288,7 @@ export default function AdminOverview() {
         </div>
 
         <button
-          onClick={load}
+          onClick={() => { load(); loadRightNow(); loadRegions(); loadPlatformOverview(); }}
           disabled={loading}
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all disabled:opacity-50"
           style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
@@ -271,6 +296,39 @@ export default function AdminOverview() {
           <RefreshCw className={["h-4 w-4", loading ? "animate-spin" : ""].join(" ")} />
           Refresh
         </button>
+      </div>
+
+      {/* Platform Overview — 6 KPIs */}
+      <div className="rounded-2xl p-4" style={{ background: "var(--panel)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 mb-3">
+          <LayoutGrid className="h-4 w-4 text-violet-400" />
+          <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Platform overview</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Total users", value: platformOverview?.totalUsers ?? 0, icon: Users, color: "from-cyan-500 to-blue-600" },
+            { label: "Active today", value: platformOverview?.activeUsersToday ?? 0, icon: Activity, color: "from-emerald-500 to-teal-600" },
+            { label: "Active leagues", value: platformOverview?.activeLeagues ?? 0, icon: Trophy, color: "from-amber-500 to-orange-600" },
+            { label: "Brackets created", value: platformOverview?.bracketsCreated ?? 0, icon: Target, color: "from-violet-500 to-purple-600" },
+            { label: "Drafts (24h)", value: platformOverview?.draftsActive ?? 0, icon: PenTool, color: "from-pink-500 to-rose-600" },
+            { label: "Trades today", value: platformOverview?.tradesToday ?? 0, icon: Swords, color: "from-indigo-500 to-blue-600" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="flex items-center gap-3 rounded-xl px-3 py-3" style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.color}`}>
+                  <Icon className="h-4 w-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-lg font-bold tabular-nums">
+                    {platformOverviewLoading ? <span className="inline-block h-6 w-8 rounded animate-pulse" style={{ background: "color-mix(in srgb, var(--text) 10%, transparent)" }} /> : item.value.toLocaleString()}
+                  </div>
+                  <div className="text-xs truncate" style={{ color: "var(--muted)" }}>{item.label}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Right Now Strip */}

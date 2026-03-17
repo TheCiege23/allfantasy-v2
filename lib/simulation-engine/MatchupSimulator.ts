@@ -6,12 +6,13 @@
 import type { Prisma } from '@prisma/client'
 import { simulateMatchup } from '@/lib/monte-carlo'
 import { prisma } from '@/lib/prisma'
-import type { MatchupSimulationInput, MatchupSimulationOutput } from './types'
+import type { MatchupSimulationInput, MatchupSimulationOutput, ScenarioScore } from './types'
 import { normalizeSportForSimulation } from './types'
 import { getDefaultScoreStdDev, getVolatilityTag } from './SportSimulationResolver'
-import { sampleScoreDistribution } from './ScoreDistributionModel'
+import { sampleScoreDistribution, percentiles } from './ScoreDistributionModel'
 
 const DEFAULT_ITERATIONS = 2000
+const MIN_ITERATIONS = 1000
 const MAX_ITERATIONS = 5000
 
 export async function runMatchupSimulation(
@@ -22,7 +23,7 @@ export async function runMatchupSimulation(
   const stdDevA = input.teamA.stdDev ?? getDefaultScoreStdDev(sport)
   const stdDevB = input.teamB.stdDev ?? getDefaultScoreStdDev(sport)
   const iterations = Math.min(
-    Math.max(100, input.iterations ?? DEFAULT_ITERATIONS),
+    Math.max(MIN_ITERATIONS, input.iterations ?? DEFAULT_ITERATIONS),
     MAX_ITERATIONS
   )
 
@@ -38,10 +39,24 @@ export async function runMatchupSimulation(
   const upsetChance = Math.round(underdogWinProb * 1000) / 10
   const volTag = getVolatilityTag((stdDevA + stdDevB) / 2)
 
-  const distASamples = sampleScoreDistribution(input.teamA.mean, stdDevA, Math.min(500, iterations))
-  const distBSamples = sampleScoreDistribution(input.teamB.mean, stdDevB, Math.min(500, iterations))
+  const sampleSize = Math.min(iterations, 2000)
+  const distASamples = sampleScoreDistribution(input.teamA.mean, stdDevA, sampleSize)
+  const distBSamples = sampleScoreDistribution(input.teamB.mean, stdDevB, sampleSize)
   distASamples.sort((a, b) => a - b)
   distBSamples.sort((a, b) => a - b)
+
+  const [p10A, p90A] = percentiles(distASamples, [10, 90])
+  const [p10B, p90B] = percentiles(distBSamples, [10, 90])
+  const upsideScenario: ScenarioScore = {
+    teamA: Math.round(p90A * 10) / 10,
+    teamB: Math.round(p90B * 10) / 10,
+    percentile: 90,
+  }
+  const downsideScenario: ScenarioScore = {
+    teamA: Math.round(p10A * 10) / 10,
+    teamB: Math.round(p10B * 10) / 10,
+    percentile: 10,
+  }
 
   const output: MatchupSimulationOutput = {
     sport,
@@ -58,6 +73,8 @@ export async function runMatchupSimulation(
     upsetChance,
     volatilityTag: volTag,
     iterations,
+    upsideScenario,
+    downsideScenario,
   }
 
   if (options?.persist && input.leagueId) {

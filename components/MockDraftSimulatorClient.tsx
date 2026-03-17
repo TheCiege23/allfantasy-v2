@@ -228,19 +228,21 @@ export default function MockDraftSimulatorClient({
   leagues,
   initialLeagueId = '',
   initialConfig,
+  initialDraftId = null,
   onDraftComplete,
   showAIAssistantPanel = false,
 }: {
   leagues: LeagueOption[]
   initialLeagueId?: string
   initialConfig?: InitialMockConfig
+  initialDraftId?: string | null
   onDraftComplete?: (results: DraftPick[], draftId: string | null) => void
   showAIAssistantPanel?: boolean
 }) {
   const { callAI, loading } = useAI<{ draftResults: DraftPick[]; updatedDraft?: DraftPick[] }>()
   const [selectedLeagueId, setSelectedLeagueId] = useState(initialLeagueId)
   const [draftResults, setDraftResults] = useState<DraftPick[]>([])
-  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(initialDraftId ?? null)
   const [isSimulating, setIsSimulating] = useState(false)
   const [customRounds, setCustomRounds] = useState(initialConfig?.rounds ?? 18)
   const [customScoring, setCustomScoring] = useState(initialConfig?.scoring ?? 'default')

@@ -612,7 +612,7 @@ export default function DraftRoom(props: DraftRoomProps) {
             <div className="absolute right-0 top-10 z-50 w-72 rounded-xl shadow-2xl p-4 space-y-3" style={{ background: '#22252e', border: '1px solid rgba(255,255,255,0.1)' }}>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white">Draft Settings</span>
-                <button onClick={() => setSettingsOpen(false)}>
+                <button type="button" onClick={() => setSettingsOpen(false)}>
                   <X className="w-3.5 h-3.5" style={{ color: 'rgba(255,255,255,0.4)' }} />
                 </button>
               </div>
@@ -709,7 +709,7 @@ export default function DraftRoom(props: DraftRoomProps) {
                 <span className="text-[10px] uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.4)' }}>Draft Order</span>
                 <div className="flex gap-1">
                   {(['randomize', 'manual'] as const).map(mode => (
-                    <button key={mode} onClick={() => { onDraftOrderModeChange?.(mode); if (mode === 'randomize') onRandomizeOrder() }}
+                    <button type="button" key={mode} onClick={() => { onDraftOrderModeChange?.(mode); if (mode === 'randomize') onRandomizeOrder() }}
                       className="flex-1 px-2 py-1.5 rounded-lg text-[10px] font-medium transition"
                       style={{ background: draftOrderMode === mode ? 'rgba(14,165,233,0.2)' : 'rgba(255,255,255,0.04)',
                                color: draftOrderMode === mode ? '#0ea5e9' : 'rgba(255,255,255,0.5)',

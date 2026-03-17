@@ -1,12 +1,14 @@
 'use client'
 
-import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
+import { useState, useCallback, useEffect } from 'react'
+import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 type DraftConfig = {
   draft_type?: string
   rounds?: number
   timer_seconds?: number | null
   snake_or_linear?: string
+  pick_order_rules?: string
   third_round_reversal?: boolean
   autopick_behavior?: string
   queue_size_limit?: number | null
@@ -18,11 +20,130 @@ type DraftConfig = {
   leagueSize?: number
 }
 
+type SessionVariantPayload = {
+  keeperConfig?: { maxKeepers: number; deadline?: string | null; maxKeepersPerPosition?: Record<string, number> } | null
+  devyConfig?: { enabled: boolean; devyRounds: number[] } | null
+  c2cConfig?: { enabled: boolean; collegeRounds: number[] } | null
+  auctionBudgetPerTeam?: number | null
+}
+
+type DraftSettingsResponse = {
+  config: DraftConfig | null
+  draftUISettings: DraftUISettings
+  isCommissioner: boolean
+  variantSettings?: { config: DraftConfig | null; sessionVariant?: SessionVariantPayload | null; sessionPreDraft?: boolean }
+  sessionVariant?: SessionVariantPayload | null
+  sessionPreDraft?: boolean
+}
+
+const TIMER_MODE_OPTIONS: { value: TimerMode; label: string }[] = [
+  { value: 'per_pick', label: 'Per pick' },
+  { value: 'soft_pause', label: 'Soft pause' },
+  { value: 'overnight_pause', label: 'Overnight pause' },
+  { value: 'none', label: 'None' },
+]
+
 export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
-  const { data: config, loading, error } = useLeagueSectionData<DraftConfig>(
-    leagueId,
-    'draft/config',
-  )
+  const [data, setData] = useState<DraftSettingsResponse | null>(null)
+  const [loading, setLoading] = useState(!!leagueId)
+  const [error, setError] = useState<string | null>(null)
+  const [uiSettings, setUISettings] = useState<DraftUISettings | null>(null)
+  const [config, setConfig] = useState<DraftConfig | null>(null)
+  const [sessionVariant, setSessionVariant] = useState<SessionVariantPayload | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [sessionPreDraft, setSessionPreDraft] = useState(false)
+  const [orphanStatus, setOrphanStatus] = useState<{
+    orphanRosterIds: string[]
+    orphanTeamAiManagerEnabled: boolean
+    recentActions: Array<{ action: string; createdAt: string; reason: string | null }>
+  } | null>(null)
+
+  const load = useCallback(async () => {
+    if (!leagueId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, { cache: 'no-store' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json.error ?? 'Failed to load draft settings')
+        setData(null)
+        return
+      }
+      setData(json)
+      setUISettings(json.draftUISettings ?? null)
+      if (json.config) setConfig(json.config)
+      if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
+      setSessionPreDraft(!!json.sessionPreDraft)
+      if (json.orphanStatus) setOrphanStatus(json.orphanStatus)
+    } catch {
+      setError('Failed to load draft settings')
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    load()
+  }, [load])
+
+  const handleSave = useCallback(async () => {
+    if (!leagueId || !data?.isCommissioner) return
+    setSaving(true)
+    setSaveSuccess(false)
+    try {
+      const payload: Record<string, unknown> = {}
+      if (uiSettings) Object.assign(payload, uiSettings)
+      if (config && (config.draft_type || config.rounds != null || config.timer_seconds !== undefined || config.third_round_reversal !== undefined || config.snake_or_linear || config.autopick_behavior || config.queue_size_limit !== undefined || config.pre_draft_ranking_source)) {
+        payload.draft_type = config.draft_type
+        payload.rounds = config.rounds
+        payload.timer_seconds = config.timer_seconds
+        payload.pick_order_rules = config.pick_order_rules ?? config.snake_or_linear
+        payload.snake_or_linear = config.snake_or_linear
+        payload.third_round_reversal = config.third_round_reversal
+        payload.autopick_behavior = config.autopick_behavior
+        payload.queue_size_limit = config.queue_size_limit
+        payload.pre_draft_ranking_source = config.pre_draft_ranking_source
+        payload.roster_fill_order = config.roster_fill_order
+        payload.position_filter_behavior = config.position_filter_behavior
+      }
+      if (sessionPreDraft && sessionVariant && Object.keys(sessionVariant).length > 0) {
+        payload.sessionVariant = sessionVariant
+      }
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(json.error ?? 'Failed to save')
+        return
+      }
+      setData((prev) => (prev ? { ...prev, draftUISettings: json.draftUISettings, config: json.config } : null))
+      setUISettings(json.draftUISettings)
+      if (json.config) setConfig(json.config)
+      if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }, [leagueId, uiSettings, config, sessionVariant, sessionPreDraft, data?.isCommissioner])
+
+  const setUI = useCallback(<K extends keyof DraftUISettings>(key: K, value: DraftUISettings[K]) => {
+    setUISettings((prev) => (prev ? { ...prev, [key]: value } : null))
+  }, [])
+
+  const setConfigField = useCallback(<K extends keyof DraftConfig>(key: K, value: DraftConfig[K]) => {
+    setConfig((prev) => (prev ? { ...prev, [key]: value } : null))
+  }, [])
+
+  const setSessionVariantField = useCallback((patch: Partial<SessionVariantPayload>) => {
+    setSessionVariant((prev) => ({ ...(prev ?? {}), ...patch }))
+  }, [])
 
   if (!leagueId) {
     return (
@@ -33,7 +154,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
     )
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h3 className="text-sm font-semibold text-white">Draft Settings</h3>
@@ -42,69 +163,397 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
     )
   }
 
-  if (error || !config) {
+  if (error && !data) {
     return (
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h3 className="text-sm font-semibold text-white">Draft Settings</h3>
-        <p className="mt-2 text-xs text-red-400/90">{error ?? 'Failed to load draft config.'}</p>
+        <p className="mt-2 text-xs text-red-400/90">{error}</p>
       </section>
     )
   }
 
+  const effectiveConfig = config ?? data?.config ?? null
+  const isCommissioner = data?.isCommissioner ?? false
+  const ui = uiSettings ?? data?.draftUISettings
+  const effectiveSessionVariant = sessionVariant ?? data?.sessionVariant ?? null
+
   return (
-    <section className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <h3 className="text-sm font-semibold text-white">Draft Settings</h3>
-      <p className="mt-1 text-xs text-white/65">
-        Sport-aware defaults from league creation. Commissioner overrides can be applied via league settings.
+    <section className="space-y-6 rounded-xl border border-white/10 bg-black/20 p-4">
+      <h3 className="text-sm font-semibold text-white">Draft Variant Settings Hub</h3>
+      <p className="text-xs text-white/65">
+        One place for all draft variants: live, mock, auction, slow, keeper, devy, C2C. Commissioner can edit; settings apply deterministically.
       </p>
-      <dl className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
-        <div>
-          <dt className="text-white/50">Draft type</dt>
-          <dd className="text-white/90">{config.draft_type ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Rounds</dt>
-          <dd className="text-white/90">{config.rounds ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Timer (seconds)</dt>
-          <dd className="text-white/90">{config.timer_seconds ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Order</dt>
-          <dd className="text-white/90">{config.snake_or_linear ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Third-round reversal</dt>
-          <dd className="text-white/90">{config.third_round_reversal ? 'Yes' : 'No'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Autopick</dt>
-          <dd className="text-white/90">{config.autopick_behavior ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Queue size limit</dt>
-          <dd className="text-white/90">{config.queue_size_limit ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Ranking source</dt>
-          <dd className="text-white/90">{config.pre_draft_ranking_source ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Roster fill order</dt>
-          <dd className="text-white/90">{config.roster_fill_order ?? '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-white/50">Position filter</dt>
-          <dd className="text-white/90">{config.position_filter_behavior ?? '—'}</dd>
-        </div>
-        {config.sport && (
-          <div>
-            <dt className="text-white/50">Sport / variant</dt>
-            <dd className="text-white/90">{config.sport}{config.variant ? ` · ${config.variant}` : ''}</dd>
+
+      {effectiveConfig && (
+        <>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Draft type & timer</h4>
+          <dl className="grid gap-2 text-xs sm:grid-cols-2">
+            <div><dt className="text-white/50">Sport / variant</dt><dd className="text-white/90">{effectiveConfig.sport ?? '—'}{effectiveConfig.variant ? ` · ${effectiveConfig.variant}` : ''}</dd></div>
+            <div>
+              <dt className="text-white/50">Draft type</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={effectiveConfig.draft_type ?? 'snake'}
+                    onChange={(e) => setConfigField('draft_type', e.target.value as 'snake' | 'linear' | 'auction')}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    <option value="snake">Snake</option>
+                    <option value="linear">Linear</option>
+                    <option value="auction">Auction</option>
+                  </select>
+                ) : (effectiveConfig.draft_type ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Rounds</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={effectiveConfig.rounds ?? 15}
+                    onChange={(e) => setConfigField('rounds', parseInt(e.target.value, 10) || 15)}
+                    className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  />
+                ) : (effectiveConfig.rounds ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Draft timer (seconds)</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <input
+                    type="number"
+                    min={0}
+                    max={86400}
+                    value={effectiveConfig.timer_seconds ?? ''}
+                    onChange={(e) => setConfigField('timer_seconds', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                    placeholder="—"
+                    className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  />
+                ) : (effectiveConfig.timer_seconds ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Snake / linear</dt>
+              <dd className="text-white/90">
+                {isCommissioner && effectiveConfig.draft_type !== 'auction' ? (
+                  <select
+                    value={effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? 'snake'}
+                    onChange={(e) => {
+                      const v = e.target.value as string
+                      setConfigField('snake_or_linear', v)
+                      setConfigField('pick_order_rules', v)
+                    }}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    <option value="snake">Snake</option>
+                    <option value="linear">Linear</option>
+                  </select>
+                ) : (effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Third-round reversal</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <input
+                    type="checkbox"
+                    checked={!!effectiveConfig.third_round_reversal}
+                    onChange={(e) => setConfigField('third_round_reversal', e.target.checked)}
+                    className="rounded border-white/20"
+                  />
+                ) : (effectiveConfig.third_round_reversal ? 'Yes' : 'No')}
+              </dd>
+            </div>
+            <div><dt className="text-white/50">Autopick</dt><dd className="text-white/90">{effectiveConfig.autopick_behavior ?? '—'}</dd></div>
+            <div><dt className="text-white/50">Queue size limit</dt><dd className="text-white/90">{effectiveConfig.queue_size_limit ?? '—'}</dd></div>
+            <div><dt className="text-white/50">Ranking source</dt><dd className="text-white/90">{effectiveConfig.pre_draft_ranking_source ?? '—'}</dd></div>
+          </dl>
+        </>
+      )}
+
+      {ui && (
+        <>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Draft room display & behavior</h4>
+          <div className="space-y-3">
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Draft order randomization</span>
+              <input
+                type="checkbox"
+                checked={ui.draftOrderRandomizationEnabled}
+                onChange={(e) => setUI('draftOrderRandomizationEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Pick trade allowed</span>
+              <input
+                type="checkbox"
+                checked={ui.pickTradeEnabled}
+                onChange={(e) => setUI('pickTradeEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Traded-pick color mode</span>
+              <input
+                type="checkbox"
+                checked={ui.tradedPickColorModeEnabled}
+                onChange={(e) => setUI('tradedPickColorModeEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Traded-pick owner name in red</span>
+              <input
+                type="checkbox"
+                checked={ui.tradedPickOwnerNameRedEnabled}
+                onChange={(e) => setUI('tradedPickOwnerNameRedEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>AI ADP enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.aiAdpEnabled}
+                onChange={(e) => setUI('aiAdpEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>AI queue reorder enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.aiQueueReorderEnabled}
+                onChange={(e) => setUI('aiQueueReorderEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Orphan team AI manager enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.orphanTeamAiManagerEnabled}
+                onChange={(e) => setUI('orphanTeamAiManagerEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            {ui.orphanTeamAiManagerEnabled && (
+              <div className="flex items-center justify-between gap-4 text-xs text-white/90">
+                <span>Orphan drafter mode</span>
+                <select
+                  value={ui.orphanDrafterMode ?? 'cpu'}
+                  onChange={(e) => setUI('orphanDrafterMode', e.target.value as 'cpu' | 'ai')}
+                  disabled={!isCommissioner}
+                  className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  aria-label="CPU or AI drafter for orphan teams"
+                >
+                  <option value="cpu">CPU (rules-based, no API)</option>
+                  <option value="ai">AI (strategy/narrative, fallback to CPU)</option>
+                </select>
+              </div>
+            )}
+            {isCommissioner && orphanStatus && (
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80">
+                <p>
+                  Orphan rosters: <strong className="text-white">{orphanStatus.orphanRosterIds.length}</strong>
+                  {ui.orphanTeamAiManagerEnabled
+                    ? (ui.orphanDrafterMode === 'ai'
+                        ? ' · AI manager will draft (fallback to CPU if unavailable).'
+                        : ' · CPU manager will draft for them when on the clock.')
+                    : ' · Enable toggle above to let CPU or AI draft for orphan teams.'}
+                </p>
+                {orphanStatus.recentActions.length > 0 && (
+                  <p className="mt-1 text-white/60">
+                    Last action: {orphanStatus.recentActions[0].action} at {new Date(orphanStatus.recentActions[0].createdAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Live draft chat sync with league chat</span>
+              <input
+                type="checkbox"
+                checked={ui.liveDraftChatSyncEnabled}
+                onChange={(e) => setUI('liveDraftChatSyncEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Auto-pick enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.autoPickEnabled}
+                onChange={(e) => setUI('autoPickEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
+            <div className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Timer mode</span>
+              <select
+                value={ui.timerMode}
+                onChange={(e) => setUI('timerMode', e.target.value as TimerMode)}
+                disabled={!isCommissioner}
+                className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+              >
+                {TIMER_MODE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            {ui.timerMode === 'overnight_pause' && isCommissioner && (
+              <div className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2 text-xs">
+                <p className="text-white/80 font-medium">Slow draft overnight pause window</p>
+                <p className="text-white/50">Timer does not count down during this window (e.g. 10pm–8am).</p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-white/60">Start</span>
+                    <input
+                      type="text"
+                      placeholder="22:00"
+                      value={ui.slowDraftPauseWindow?.start ?? ''}
+                      onChange={(e) => setUI('slowDraftPauseWindow', { ...(ui.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), start: e.target.value })}
+                      className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-white/60">End</span>
+                    <input
+                      type="text"
+                      placeholder="08:00"
+                      value={ui.slowDraftPauseWindow?.end ?? ''}
+                      onChange={(e) => setUI('slowDraftPauseWindow', { ...(ui.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), end: e.target.value })}
+                      className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <span className="text-white/60">Timezone</span>
+                    <input
+                      type="text"
+                      placeholder="America/New_York"
+                      value={ui.slowDraftPauseWindow?.timezone ?? ''}
+                      onChange={(e) => setUI('slowDraftPauseWindow', { ...(ui.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), timezone: e.target.value })}
+                      className="w-40 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Commissioner force auto-pick enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.commissionerForceAutoPickEnabled}
+                onChange={(e) => setUI('commissionerForceAutoPickEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+              />
+            </label>
           </div>
-        )}
-      </dl>
+
+          {sessionPreDraft && effectiveSessionVariant && (
+            <>
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Keeper rules</h4>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70">Max keepers</span>
+                  {isCommissioner ? (
+                    <input
+                      type="number"
+                      min={0}
+                      max={50}
+                      value={effectiveSessionVariant.keeperConfig?.maxKeepers ?? 0}
+                      onChange={(e) => setSessionVariantField({ keeperConfig: { ...(effectiveSessionVariant?.keeperConfig ?? { maxKeepers: 0 }), maxKeepers: parseInt(e.target.value, 10) || 0 } })}
+                      className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                    />
+                  ) : (
+                    <span className="text-white/90">{effectiveSessionVariant.keeperConfig?.maxKeepers ?? 0}</span>
+                  )}
+                </div>
+              </div>
+
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Devy rules</h4>
+              <div className="space-y-2 text-xs">
+                <label className="flex items-center gap-2 text-white/90">
+                  <input
+                    type="checkbox"
+                    checked={!!effectiveSessionVariant.devyConfig?.enabled}
+                    onChange={(e) => setSessionVariantField({ devyConfig: e.target.checked ? { enabled: true, devyRounds: effectiveSessionVariant?.devyConfig?.devyRounds ?? [] } : { enabled: false, devyRounds: [] } })}
+                    disabled={!isCommissioner}
+                    className="rounded border-white/20"
+                  />
+                  Devy rounds enabled (rounds as comma list, e.g. 14,15)
+                </label>
+              </div>
+
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">C2C rules</h4>
+              <div className="space-y-2 text-xs">
+                <label className="flex items-center gap-2 text-white/90">
+                  <input
+                    type="checkbox"
+                    checked={!!effectiveSessionVariant.c2cConfig?.enabled}
+                    onChange={(e) => setSessionVariantField({ c2cConfig: e.target.checked ? { enabled: true, collegeRounds: effectiveSessionVariant?.c2cConfig?.collegeRounds ?? [] } : { enabled: false, collegeRounds: [] } })}
+                    disabled={!isCommissioner}
+                    className="rounded border-white/20"
+                  />
+                  College vs pro rounds enabled
+                </label>
+              </div>
+
+              {effectiveConfig?.draft_type === 'auction' && (
+                <>
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Auction budget rules</h4>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-white/70">Budget per team</span>
+                    {isCommissioner ? (
+                      <input
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={effectiveSessionVariant.auctionBudgetPerTeam ?? 200}
+                        onChange={(e) => setSessionVariantField({ auctionBudgetPerTeam: parseInt(e.target.value, 10) || 200 })}
+                        className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      />
+                    ) : (
+                      <span className="text-white/90">{effectiveSessionVariant.auctionBudgetPerTeam ?? 200}</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Import</h4>
+          <p className="text-xs text-white/50">Draft import is available from the commissioner control center in the draft room (Import draft data).</p>
+
+          {isCommissioner && (
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-4 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save draft variant settings'}
+              </button>
+              {saveSuccess && <span className="text-xs text-emerald-400">Saved.</span>}
+            </div>
+          )}
+        </>
+      )}
     </section>
   )
 }

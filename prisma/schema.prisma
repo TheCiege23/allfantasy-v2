@@ -2332,6 +2332,7 @@ model AppUser {
   sleeperLeagues          SleeperLeague[]
   mockDrafts              MockDraft[]
   activeLeagueId          String?
+  leagueChatMessages      LeagueChatMessage[]
   bracketLeagueMessages   BracketLeagueMessage[]   @relation("BracketLeagueMessages")
   bracketMessageReactions BracketMessageReaction[] @relation("BracketMessageReactions")
   bracketPayments         BracketPayment[]         @relation("BracketPayments")
@@ -2341,6 +2342,13 @@ model AppUser {
   platformChatThreadMemberships PlatformChatThreadMember[]
   platformChatMessages          PlatformChatMessage[]      @relation("PlatformChatMessageSender")
   platformNotifications         PlatformNotification[]
+  engagementEvents               EngagementEvent[]
+  podcastEpisodes                PodcastEpisode[]
+  fantasyMediaEpisodes          FantasyMediaEpisode[]
+  socialClips                   SocialClip[]
+  socialContentAssets           SocialContentAsset[]
+  socialPublishTargets          SocialPublishTarget[]
+  shareableMoments              ShareableMoment[]
   platformBlockedUsers          PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
   platformBlockedBy             PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
   platformMessageReports       PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
@@ -2348,8 +2356,204 @@ model AppUser {
   platformUserReportsAgainst   PlatformUserReport[]       @relation("PlatformUserReportReported")
   walletAccount                 PlatformWalletAccount?
   walletLedgerEntries           WalletLedgerEntry[]
+  referralCodes                 ReferralCode[]
+  referralEventsAsReferrer      ReferralEvent[]            @relation("ReferralEventReferrer")
+  referralRewards               ReferralReward[]
+  referredByEvent               ReferralEvent?             @relation("ReferralEventReferred")
+  creatorProfile                CreatorProfile?
+  inviteLinksCreated            InviteLink[]
+  leagueTemplates               LeagueTemplate[]
 
   @@map("app_users")
+}
+
+/// Viral Invite Engine (PROMPT 142) — unified invite links for league, bracket, creator league, referral, reactivation, waitlist.
+model InviteLink {
+  id              String    @id @default(uuid())
+  type            String    @db.VarChar(24) // league | bracket | creator_league | referral | reactivation | waitlist
+  token           String    @unique @db.VarChar(32)
+  createdByUserId String
+  targetId        String?   @db.VarChar(128) // leagueId | bracketLeagueId | creatorLeagueId etc
+  expiresAt       DateTime?
+  maxUses         Int       @default(0) // 0 = unlimited
+  useCount        Int       @default(0)
+  status          String    @default("active") @db.VarChar(16) // active | expired | revoked | max_used
+  metadata        Json?     // e.g. label, channel, sport
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  createdBy AppUser           @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  events    InviteLinkEvent[]
+
+  @@index([createdByUserId])
+  @@index([type])
+  @@index([status])
+  @@index([token])
+  @@map("invite_links")
+}
+
+model InviteLinkEvent {
+  id          String   @id @default(uuid())
+  inviteLinkId String
+  eventType   String   @db.VarChar(32) // viewed | shared | accepted | expired_shown | copy_link | sms | email | twitter | discord | reddit | whatsapp
+  channel     String?  @db.VarChar(24)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  inviteLink InviteLink @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
+
+  @@index([inviteLinkId, createdAt])
+  @@index([eventType])
+  @@map("invite_link_events")
+}
+
+/// Creator League System (PROMPT 141) — public creators run branded leagues and brackets.
+model CreatorProfile {
+  id         String    @id @default(uuid())
+  userId     String    @unique
+  handle     String    @unique
+  slug       String    @unique @db.VarChar(128)
+  displayName String?  @db.VarChar(128)
+  bio        String?   @db.Text
+  avatarUrl  String?   @db.VarChar(512)
+  bannerUrl  String?   @db.VarChar(512)
+  websiteUrl String?   @db.VarChar(512)
+  socialHandles Json?  // { twitter?, youtube?, twitch?, instagram? }
+  verifiedAt DateTime?
+  verificationBadge String? @db.VarChar(32) // e.g. "verified" | "partner"
+  visibility String   @default("public") @db.VarChar(16) // public | unlisted | private
+  branding   Json?    // CreatorBranding: logoUrl, primaryColor, accentColor
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user    AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leagues CreatorLeague[]
+  invites CreatorInvite[]
+
+  @@index([handle])
+  @@index([slug])
+  @@index([visibility])
+  @@map("creator_profiles")
+}
+
+model CreatorLeague {
+  id            String   @id @default(uuid())
+  creatorId     String
+  type          String   @db.VarChar(16) // FANTASY | BRACKET
+  leagueId      String?   @db.VarChar(64) // League.id when type=FANTASY
+  bracketLeagueId String? @db.VarChar(64) // BracketLeague.id when type=BRACKET
+  name          String   @db.VarChar(256)
+  slug          String   @db.VarChar(128)
+  description   String?  @db.Text
+  sport         String   @db.VarChar(12) // NFL | NHL | NBA | MLB | NCAAB | NCAAF | SOCCER
+  inviteCode    String   @unique @db.VarChar(32)
+  isPublic      Boolean  @default(true)
+  maxMembers    Int      @default(100)
+  memberCount   Int      @default(0)
+  joinDeadline  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  creator CreatorProfile        @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  invites CreatorInvite[]
+  members CreatorLeagueMember[]
+
+  @@unique([creatorId, slug])
+  @@index([creatorId])
+  @@index([inviteCode])
+  @@index([sport])
+  @@index([isPublic])
+  @@map("creator_leagues")
+}
+
+model CreatorInvite {
+  id              String   @id @default(uuid())
+  creatorId       String
+  creatorLeagueId String?
+  code            String   @unique @db.VarChar(32)
+  expiresAt       DateTime?
+  maxUses         Int      @default(0) // 0 = unlimited
+  useCount        Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  creator CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  league  CreatorLeague?  @relation(fields: [creatorLeagueId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([code])
+  @@map("creator_invites")
+}
+
+model CreatorLeagueMember {
+  id              String   @id @default(uuid())
+  creatorLeagueId String
+  userId          String
+  joinedAt        DateTime @default(now())
+  joinedViaCode   String?  @db.VarChar(32)
+
+  league CreatorLeague @relation(fields: [creatorLeagueId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorLeagueId, userId])
+  @@index([userId])
+  @@map("creator_league_members")
+}
+
+/// Analytics-safe event log for creator views, follows, joins (no PII in payload).
+model CreatorAnalyticsEvent {
+  id        String   @id @default(uuid())
+  creatorId String
+  eventType String   @db.VarChar(32) // profile_view | follow | league_join | invite_share
+  leagueId  String?  @db.VarChar(64)
+  metadata  Json?    // e.g. { source: "card" }
+  createdAt DateTime @default(now())
+
+  @@index([creatorId, createdAt])
+  @@index([eventType])
+  @@map("creator_analytics_events")
+}
+
+model ReferralCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   @unique
+  createdAt DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("referral_codes")
+}
+
+model ReferralEvent {
+  id              String   @id @default(uuid())
+  referrerId      String
+  referredUserId String?  @unique
+  type            String   // click | signup | reward_eligible
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  referrer  AppUser  @relation("ReferralEventReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred  AppUser? @relation("ReferralEventReferred", fields: [referredUserId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId])
+  @@index([referrerId, type])
+  @@map("referral_events")
+}
+
+model ReferralReward {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String    // e.g. referral_signup
+  status    String    @default("pending") // pending | redeemed
+  metadata  Json?
+  grantedAt DateTime  @default(now())
+  redeemedAt DateTime?
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("referral_rewards")
 }
 
 model AuthAccount {
@@ -2437,17 +2641,18 @@ model BracketNode {
 }
 
 model BracketLeague {
-  id           String    @id @default(uuid())
-  tournamentId String
-  ownerId      String
-  name         String
-  joinCode     String    @unique
-  isPrivate    Boolean   @default(true)
-  maxManagers  Int       @default(100)
-  deadline     DateTime?
-  scoringRules Json?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  tournamentId    String
+  ownerId         String
+  name            String
+  joinCode        String    @unique
+  isPrivate       Boolean   @default(true)
+  maxManagers     Int       @default(100)
+  deadline        DateTime?
+  inviteExpiresAt DateTime?
+  scoringRules    Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   tournament BracketTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   owner      AppUser           @relation("BracketLeagueOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -3088,6 +3293,48 @@ model MediaArticle {
   @@map("media_articles")
 }
 
+/// Automated Blog Engine — SEO blog articles (strategy, waiver, draft, rankings, etc.).
+model BlogArticle {
+  articleId    String    @id @default(cuid())
+  title        String    @db.VarChar(512)
+  slug         String    @unique @db.VarChar(512)
+  sport        String    @db.VarChar(16)
+  category     String    @db.VarChar(64)
+  excerpt      String?   @db.VarChar(1024)
+  body         String    @db.Text
+  seoTitle     String?   @db.VarChar(512)
+  seoDescription String? @db.VarChar(512)
+  tags         Json      @default("[]")
+  publishStatus String   @db.VarChar(24)
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  publishLogs  BlogPublishLog[]
+
+  @@index([publishStatus])
+  @@index([sport])
+  @@index([category])
+  @@index([publishedAt])
+  @@index([createdAt])
+  @@map("blog_articles")
+}
+
+/// Blog publish lifecycle log (publish, schedule, draft save).
+model BlogPublishLog {
+  publishId String   @id @default(cuid())
+  articleId String   @db.VarChar(64)
+  actionType String  @db.VarChar(32)
+  status    String   @db.VarChar(32)
+  createdAt DateTime @default(now())
+
+  article BlogArticle @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([createdAt])
+  @@map("blog_publish_logs")
+}
+
 /// League Broadcast Mode — session for watch parties / streams / big screens.
 model BroadcastSession {
   id        String   @id @default(cuid())
@@ -3143,6 +3390,10 @@ model UserProfile {
   bio                String?             @db.Text
   preferredSports         Json?   // string[] e.g. ["NFL","NBA"]
   notificationPreferences  Json?   // NotificationPreferences shape
+  onboardingStep          String?  // welcome | sport_selection | tool_suggestions | league_prompt | completed
+  onboardingCompletedAt   DateTime?
+  /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
+  retentionNudgeDismissedAt Json?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -3220,6 +3471,8 @@ model League {
   waiverTransactions WaiverTransaction[]
   waiverSettings     LeagueWaiverSettings?
   mockDrafts         MockDraft[]
+  draftSessions      DraftSession[]
+  chatMessages       LeagueChatMessage[]
   user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
   legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
   legacyLeagueId     String?               @unique
@@ -3234,6 +3487,43 @@ model League {
   @@index([status])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+/// User-created league templates: save and reuse league settings, draft settings, AI/automation toggles (PROMPT 209).
+model LeagueTemplate {
+  id          String   @id @default(uuid())
+  userId      String
+  user        AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(500)
+  /// Full wizard-compatible payload: sport, leagueType, draftType, name, teamCount, rosterSize, scoringPreset, leagueVariant, draftSettings, aiSettings, automationSettings, privacySettings.
+  payload     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("league_templates")
+}
+
+/// League chat (main app League). Syncs with draft chat when liveDraftChatSyncEnabled during active draft.
+model LeagueChatMessage {
+  id        String   @id @default(cuid())
+  leagueId  String
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId    String
+  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String   @db.Text
+  type      String   @default("text") @db.VarChar(32)
+  imageUrl  String?  @db.Text
+  metadata  Json?
+  /// 'draft' = draft-only (when sync off); null = league chat (or draft when sync on)
+  source    String?  @db.VarChar(16)
+  createdAt DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, source])
+  @@index([createdAt])
+  @@map("league_chat_messages")
 }
 
 enum LeagueSport {
@@ -3763,22 +4053,190 @@ model RookieRanking {
 }
 
 model MockDraft {
-  id        String   @id @default(uuid())
-  shareId   String?  @unique
-  leagueId  String?
-  league    League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId    String
-  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rounds    Int      @default(15)
-  results   Json
-  proposals Json?
-  metadata  Json? // sport, leagueType, draftType, numTeams, scoring, timerSeconds, aiEnabled
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  shareId      String?  @unique
+  inviteToken  String?  @unique
+  leagueId     String?
+  league       League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId       String
+  user         AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rounds       Int      @default(15)
+  results      Json     @default("[]")
+  proposals    Json?
+  status       String   @default("pre_draft") // pre_draft | in_progress | paused | completed
+  metadata     Json?    // sport, leagueType, draftType, numTeams, scoring, timerSeconds, aiEnabled, rosterSize, poolType
+  slotConfig   Json?    // [{ slot, type: 'human'|'cpu', userId?, displayName? }]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  chatMessages MockDraftChat[]
 
   @@index([leagueId])
   @@index([userId])
+  @@index([status])
+  @@index([inviteToken])
   @@map("mock_drafts")
+}
+
+model MockDraftChat {
+  id         String    @id @default(uuid())
+  mockDraftId String
+  mockDraft   MockDraft @relation(fields: [mockDraftId], references: [id], onDelete: Cascade)
+  userId     String?
+  displayName String?
+  content    String    @db.Text
+  createdAt  DateTime  @default(now())
+
+  @@index([mockDraftId])
+  @@map("mock_draft_chats")
+}
+
+/// Live draft session for a league. One active session per league at a time.
+model DraftSession {
+  id                    String    @id @default(uuid())
+  leagueId              String
+  league                League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  status                String    @default("pre_draft") // pre_draft | in_progress | paused | completed
+  draftType             String    @default("snake")    // snake | linear | auction
+  rounds                Int       @default(15)
+  teamCount             Int       @default(12)
+  thirdRoundReversal    Boolean   @default(false)
+  timerSeconds          Int?      // null = no timer
+  /// When status=in_progress, server time when current pick expires (UTC).
+  timerEndAt            DateTime?
+  /// When status=paused, remaining seconds for current pick.
+  pausedRemainingSeconds Int?
+  /// Draft order: JSON array of { slot: number, rosterId: string, displayName: string }
+  slotOrder             Json      @default("[]")
+  /// Draft pick trades: JSON array of { round, originalRosterId, previousOwnerName, newRosterId, newOwnerName } for ownership resolution
+  tradedPicks            Json?     @default("[]")
+  /// Auction: default budget per team (e.g. 200).
+  auctionBudgetPerTeam   Int?
+  /// Auction: optional per-roster remaining budget { [rosterId]: number }. Initialized from auctionBudgetPerTeam on start.
+  auctionBudgets         Json?
+  /// Auction: current nomination/bid state { nominationOrderIndex, currentNomination?, currentBid?, currentBidderRosterId?, bidTimerEndAt?, minNextBid? }
+  auctionState           Json?
+  /// Keeper: config { maxKeepers, deadline?: ISO string, maxKeepersPerPosition?: Record<position, number> }
+  keeperConfig           Json?
+  /// Keeper: selections [{ rosterId, roundCost, playerName, position, team, playerId }] (roundCost = which round pick is spent)
+  keeperSelections       Json?
+  /// Devy: { enabled: boolean, devyRounds: number[] } (1-based round numbers that are devy-only; e.g. [14, 15])
+  devyConfig             Json?
+  /// C2C: { enabled: boolean, collegeRounds: number[] } (1-based rounds that are college-only; rest are pro-only)
+  c2cConfig              Json?
+  version               Int       @default(0)          // optimistic lock
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  picks   DraftPick[]
+  queues  DraftQueue[]
+  tradeProposals DraftPickTradeProposal[]
+
+  @@unique([leagueId])
+  @@index([leagueId])
+  @@index([status])
+  @@map("draft_sessions")
+}
+
+/// Single pick in a live draft.
+model DraftPick {
+  id          String   @id @default(uuid())
+  sessionId   String
+  session     DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  overall     Int      // 1-based
+  round       Int
+  slot        Int      // 1-based slot in round (after snake/3RR)
+  rosterId    String   // owner at time of pick (our Roster.id or stable id)
+  displayName String?  // manager display name
+  playerName  String
+  position    String
+  team        String?
+  byeWeek     Int?     // for display where data exists
+  playerId    String?  // optional external id
+  /// Optional UI metadata when pick was traded: { originalRosterId, previousOwnerName, newOwnerName, showNewOwnerInRed?, tintColor? }
+  tradedPickMeta Json?
+  source       String? @default("user") // user | auto | commissioner
+  /// Auction: winning bid amount (dollars or nominal units).
+  amount       Int?
+  createdAt    DateTime @default(now())
+
+  @@unique([sessionId, overall])
+  @@index([sessionId])
+  @@index([sessionId, rosterId])
+  @@map("draft_picks")
+}
+
+/// Draft pick trade proposal during live draft. Accept creates entries in session.tradedPicks.
+model DraftPickTradeProposal {
+  id               String   @id @default(cuid())
+  sessionId        String
+  session          DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  proposerRosterId String
+  receiverRosterId String
+  /// Pick proposer gives: round, slot, originalRosterId (must equal proposerRosterId)
+  giveRound        Int
+  giveSlot         Int
+  giveOriginalRosterId String
+  /// Pick proposer receives: round, slot, originalRosterId (must equal receiverRosterId)
+  receiveRound     Int
+  receiveSlot      Int
+  receiveOriginalRosterId String
+  proposerName     String?
+  receiverName     String?
+  status           String   @default("pending")   // pending | accepted | rejected | countered
+  respondedAt      DateTime?
+  responsePayload Json?     // optional counter details or decline reason
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([sessionId, receiverRosterId])
+  @@index([sessionId, status])
+  @@map("draft_pick_trade_proposals")
+}
+
+/// Audit log for orphan/empty team AI manager actions (draft picks, trade decisions). Deterministic reasoning only.
+model AiManagerAuditLog {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  rosterId   String   @db.VarChar(64)
+  action     String   @db.VarChar(32)   // draft_pick | trade_accept | trade_reject | trade_counter | trade_send
+  payload    Json     @default("{}")    // action-specific (e.g. playerName, round, pick; or trade summary)
+  reason     String?  @db.Text         // deterministic reasoning / context
+  triggeredBy String? @db.VarChar(64)  // userId if commissioner-triggered; null if auto
+  createdAt  DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, rosterId])
+  @@index([leagueId, action])
+  @@index([createdAt])
+  @@map("ai_manager_audit_log")
+}
+
+/// Per-user draft queue for a session. One row per (session, userId).
+model DraftQueue {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String   // app user id
+  /// JSON array of { playerName, position, team?, playerId? } in order
+  order     Json     @default("[]")
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@map("draft_queues")
+}
+
+/// Backup of draft session state before import (for rollback). One per league; overwritten on each import.
+model DraftImportBackup {
+  id        String   @id @default(cuid())
+  leagueId  String   @unique
+  /// Snapshot before import: { sessionPatch: Partial<DraftSession>, pickIdsToKeep: string[] }
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@index([leagueId])
+  @@map("draft_import_backups")
 }
 
 model RankingsBacktestResult {
@@ -3861,6 +4319,27 @@ model LeagueDraftCalibration {
   @@unique([leagueId, season])
   @@index([leagueId])
   @@map("league_draft_calibrations")
+}
+
+/// AI ADP snapshot: computed from app draft picks (DraftPick + MockDraft results), segmented by sport/leagueType/format.
+/// Updated daily by cron; used when commissioner enables AI ADP for draft room.
+model AiAdpSnapshot {
+  id           String   @id @default(uuid())
+  sport        String   @db.VarChar(16)
+  leagueType   String   @db.VarChar(16)   // redraft | dynasty
+  formatKey    String   @db.VarChar(32)   // default | ppr | sf | etc.
+  /// Array of { playerName, position, team?, adp, sampleSize }; sorted by adp ascending
+  snapshotData Json     @default("[]")
+  totalDrafts  Int      @default(0)
+  totalPicks   Int      @default(0)
+  computedAt   DateTime @default(now())
+  /// Optional: { minSampleSize, lowSampleThreshold, segmentLabel }
+  meta         Json?
+
+  @@unique([sport, leagueType, formatKey])
+  @@index([sport])
+  @@index([computedAt])
+  @@map("ai_adp_snapshots")
 }
 
 model ShareEngagement {
@@ -3953,6 +4432,188 @@ model PlatformNotification {
   @@map("platform_notifications")
 }
 
+/// Retention & engagement — app user activity for recaps and personalization.
+model EngagementEvent {
+  id         String   @id @default(uuid())
+  userId     String
+  eventType  String
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, eventType])
+  @@index([eventType])
+  @@map("engagement_events")
+}
+
+/// AI-generated fantasy podcast episode (weekly recap, waiver targets, performance).
+model PodcastEpisode {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String    @db.VarChar(256)
+  script          String    @db.Text
+  audioUrl        String?   @db.VarChar(1024)
+  durationSeconds Int?
+  createdAt       DateTime  @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("podcast_episodes")
+}
+
+/// AI fantasy media episode (video or podcast): HeyGen video, weekly recap, waiver, etc.
+model FantasyMediaEpisode {
+  id              String    @id @default(cuid())
+  userId          String
+  sport           String    @db.VarChar(16)
+  leagueId        String?   @db.VarChar(64)
+  mediaType       String    @db.VarChar(32)
+  title           String    @db.VarChar(512)
+  script          String    @db.Text
+  status          String    @db.VarChar(32)
+  provider        String?   @db.VarChar(64)
+  providerJobId   String?   @db.VarChar(256)
+  playbackUrl     String?   @db.VarChar(1024)
+  meta            Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user     AppUser                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishLogs FantasyMediaPublishLog[]
+
+  @@index([userId])
+  @@index([userId, mediaType])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("fantasy_media_episodes")
+}
+
+/// Publish log for fantasy media (e.g. YouTube, social).
+model FantasyMediaPublishLog {
+  id                String   @id @default(cuid())
+  episodeId         String
+  destinationType    String   @db.VarChar(64)
+  status            String   @db.VarChar(32)
+  responseMetadata  Json?
+  createdAt         DateTime @default(now())
+
+  episode FantasyMediaEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([episodeId])
+  @@map("fantasy_media_publish_logs")
+}
+
+/// Social media clip (shareable graphic): league winners, biggest upset, top scoring team.
+model SocialClip {
+  id        String   @id @default(cuid())
+  userId    String
+  clipType  String   @db.VarChar(64)
+  title     String   @db.VarChar(256)
+  subtitle  String?  @db.VarChar(512)
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("social_clips")
+}
+
+/// Grok-generated social content asset (captions, hashtags, card copy, etc.) — Prompt 116.
+model SocialContentAsset {
+  id          String   @id @default(cuid())
+  userId      String
+  sport       String   @db.VarChar(16)
+  assetType   String   @db.VarChar(64)
+  title       String   @db.VarChar(512)
+  contentBody String   @db.Text
+  provider    String?  @db.VarChar(64)
+  metadata    Json?
+  approvedForPublish Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  user   AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishLogs SocialPublishLog[]
+
+  @@index([userId])
+  @@index([userId, assetType])
+  @@index([userId, createdAt])
+  @@map("social_content_assets")
+}
+
+/// Connected social account / publish target (X, Instagram, TikTok, etc.) — Prompt 116.
+model SocialPublishTarget {
+  id                 String   @id @default(cuid())
+  userId             String
+  platform           String   @db.VarChar(32)
+  accountIdentifier  String?  @db.VarChar(256)
+  autoPostingEnabled Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@map("social_publish_targets")
+}
+
+/// Log of each publish attempt (asset + platform) — Prompt 116.
+model SocialPublishLog {
+  id                String   @id @default(cuid())
+  assetId           String
+  platform          String   @db.VarChar(32)
+  status            String   @db.VarChar(32)
+  responseMetadata  Json?
+  createdAt         DateTime @default(now())
+
+  asset SocialContentAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@index([assetId, platform])
+  @@map("social_publish_logs")
+}
+
+/// Viral share moment (achievement/milestone) — Prompt 121.
+model ShareableMoment {
+  id        String   @id @default(cuid())
+  userId    String
+  sport     String   @db.VarChar(16)
+  shareType String   @db.VarChar(64)
+  title     String   @db.VarChar(512)
+  summary   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user         AppUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  publishLogs  SharePublishLog[]
+
+  @@index([userId])
+  @@index([userId, shareType])
+  @@index([userId, createdAt])
+  @@map("shareable_moments")
+}
+
+/// Publish log for a shareable moment (X, Instagram, etc.) — Prompt 121.
+model SharePublishLog {
+  id                String   @id @default(cuid())
+  shareId           String
+  platform          String   @db.VarChar(32)
+  status            String   @db.VarChar(32)
+  responseMetadata  Json?
+  createdAt         DateTime @default(now())
+
+  share ShareableMoment @relation(fields: [shareId], references: [id], onDelete: Cascade)
+
+  @@index([shareId])
+  @@index([shareId, platform])
+  @@map("share_publish_logs")
+}
+
 model PlatformBlockedUser {
   id             String   @id @default(uuid())
   blockerUserId  String
@@ -3998,6 +4659,22 @@ model PlatformUserReport {
   @@index([reporterUserId])
   @@index([reportedUserId])
   @@map("platform_user_reports")
+}
+
+/// Platform-level moderation: warning, mute, suspension, ban. Admin-only.
+model PlatformModerationAction {
+  id               String    @id @default(uuid())
+  userId           String
+  actionType       String    // warning | mute | suspend | ban
+  reason           String?   @db.Text
+  expiresAt        DateTime?
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, actionType])
+  @@index([expiresAt])
+  @@map("platform_moderation_actions")
 }
 
 model PlatformWalletAccount {
@@ -4421,4 +5098,14 @@ model DynastyProjection {
   @@index([teamId])
   @@index([sport])
   @@map("dynasty_projections")
+}
+
+/// Platform-wide feature toggles and config (admin-editable without deployment).
+model PlatformConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_config")
 }

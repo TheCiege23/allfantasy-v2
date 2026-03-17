@@ -9,6 +9,8 @@ import type { ToolConfig } from '@/lib/seo-landing/config'
 import { SPORT_SLUGS } from '@/lib/seo-landing/config'
 import { ROUTES } from '@/lib/tool-hub'
 import { AppWindow, ArrowRight } from 'lucide-react'
+import { ShareButtons } from '@/components/seo/ShareButtons'
+import { getToolCanonical } from '@/lib/seo-landing/config'
 
 export default function ToolLandingClient({ config }: { config: ToolConfig }) {
   const relatedSlugs = config.relatedToolSlugs
@@ -35,6 +37,13 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
               primaryLabel={`Open ${config.headline}`}
               showSignInSignUp
             />
+            <div className="mt-4">
+              <ShareButtons
+                path={getToolCanonical(config.slug)}
+                title={config.title}
+                description={config.description}
+              />
+            </div>
           </section>
 
           <section className="mt-10">

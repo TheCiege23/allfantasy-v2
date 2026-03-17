@@ -4,25 +4,24 @@ import { useCallback, useState } from 'react'
 import { Sparkles, Loader2, Target, Zap } from 'lucide-react'
 import type {
   UserDiscoveryPreferences,
-  LeagueMatchSuggestion,
   CandidateLeague,
 } from '@/lib/league-discovery'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
-const SKILL_OPTIONS: { value: UserDiscoveryPreferences['skillLevel']; label: string }[] = [
+const SKILL_OPTIONS: { value: string; label: string }[] = [
   { value: 'beginner', label: 'Beginner' },
   { value: 'intermediate', label: 'Intermediate' },
   { value: 'advanced', label: 'Advanced' },
   { value: 'expert', label: 'Expert' },
 ]
 
-const ACTIVITY_OPTIONS: { value: UserDiscoveryPreferences['preferredActivity']; label: string }[] = [
+const ACTIVITY_OPTIONS: { value: string; label: string }[] = [
   { value: 'quiet', label: 'Quiet (low chat/trades)' },
   { value: 'moderate', label: 'Moderate' },
   { value: 'active', label: 'Active (lots of trades/chat)' },
 ]
 
-const BALANCE_OPTIONS: { value: UserDiscoveryPreferences['competitionBalance']; label: string }[] = [
+const BALANCE_OPTIONS: { value: string; label: string }[] = [
   { value: 'casual', label: 'Casual' },
   { value: 'balanced', label: 'Balanced' },
   { value: 'competitive', label: 'Competitive' },
@@ -39,7 +38,7 @@ export default function LeagueDiscoverySuggest() {
     preferredActivity: 'moderate',
     competitionBalance: 'balanced',
   })
-  const [suggestions, setSuggestions] = useState<LeagueMatchSuggestion[]>([])
+  const [suggestions, setSuggestions] = useState<CandidateLeague[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discoveredLeagues, setDiscoveredLeagues] = useState<CandidateLeague[]>([])
@@ -116,7 +115,7 @@ export default function LeagueDiscoverySuggest() {
   }, [prefs, sourceMode, tournamentId, discoveredLeagues])
 
   const toggleSport = (sport: string) => {
-    const next = prefs.sportsPreferences ?? []
+    const next = Array.isArray(prefs.sportsPreferences) ? prefs.sportsPreferences : []
     const set = new Set(next)
     if (set.has(sport)) set.delete(sport)
     else set.add(sport)
@@ -138,7 +137,7 @@ export default function LeagueDiscoverySuggest() {
           <label className="mb-1 block text-xs font-medium text-white/80">Skill level</label>
           <select
             className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            value={prefs.skillLevel ?? 'intermediate'}
+            value={String(prefs.skillLevel ?? 'intermediate')}
             onChange={(e) => setPrefs({ ...prefs, skillLevel: e.target.value as UserDiscoveryPreferences['skillLevel'] })}
           >
             {SKILL_OPTIONS.map((o) => (
@@ -150,7 +149,7 @@ export default function LeagueDiscoverySuggest() {
           <label className="mb-1 block text-xs font-medium text-white/80">Preferred activity</label>
           <select
             className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            value={prefs.preferredActivity ?? 'moderate'}
+            value={String(prefs.preferredActivity ?? 'moderate')}
             onChange={(e) => setPrefs({ ...prefs, preferredActivity: e.target.value as UserDiscoveryPreferences['preferredActivity'] })}
           >
             {ACTIVITY_OPTIONS.map((o) => (
@@ -162,7 +161,7 @@ export default function LeagueDiscoverySuggest() {
           <label className="mb-1 block text-xs font-medium text-white/80">Competition balance</label>
           <select
             className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white"
-            value={prefs.competitionBalance ?? 'balanced'}
+            value={String(prefs.competitionBalance ?? 'balanced')}
             onChange={(e) => setPrefs({ ...prefs, competitionBalance: e.target.value as UserDiscoveryPreferences['competitionBalance'] })}
           >
             {BALANCE_OPTIONS.map((o) => (
@@ -178,7 +177,7 @@ export default function LeagueDiscoverySuggest() {
                 key={s}
                 type="button"
                 onClick={() => toggleSport(s)}
-                className={`rounded-lg border px-2 py-1 text-xs ${(prefs.sportsPreferences ?? []).includes(s) ? 'border-cyan-500 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'}`}
+                className={`rounded-lg border px-2 py-1 text-xs ${(Array.isArray(prefs.sportsPreferences) && prefs.sportsPreferences.includes(s)) ? 'border-cyan-500 bg-cyan-500/20 text-cyan-200' : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'}`}
               >
                 {s}
               </button>
@@ -262,38 +261,22 @@ export default function LeagueDiscoverySuggest() {
         <div className="space-y-3">
           <h3 className="text-sm font-semibold text-white">Suggested for you</h3>
           <ul className="space-y-3">
-            {suggestions.map((s, i) => (
+            {suggestions.map((s) => (
               <li
-                key={s.league.id}
+                key={s.id}
                 className="rounded-xl border border-white/10 bg-black/20 p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="font-medium text-white">{s.league.name}</p>
+                    <p className="font-medium text-white">{s.name}</p>
                     <p className="text-xs text-white/60">
-                      {s.league.sport || '?'} · {s.league.leagueSize ?? s.league.maxManagers ?? '?'} teams
-                      {s.league.tournamentName && ` · ${s.league.tournamentName}`}
+                      {s.sport || '?'} · {s.entryCount ?? s.maxManagers ?? s.memberCount ?? '?'} teams
+                      {s.tournamentName && ` · ${s.tournamentName}`}
                     </p>
                   </div>
-                  <span className="rounded bg-cyan-500/20 px-2 py-0.5 text-xs font-medium text-cyan-200">
-                    Match {s.matchScore}%
-                  </span>
                 </div>
-                {s.summary && (
-                  <p className="mt-2 text-sm text-white/80">{s.summary}</p>
-                )}
-                {s.reasons.length > 0 && (
-                  <ul className="mt-2 flex flex-wrap gap-2">
-                    {s.reasons.map((r, j) => (
-                      <li key={j} className="flex items-center gap-1 text-xs text-white/60">
-                        <Zap className="h-3 w-3 text-amber-400" />
-                        {r}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {s.league.joinCode && (
-                  <p className="mt-2 text-xs text-white/50">Join code: {s.league.joinCode}</p>
+                {s.joinCode && (
+                  <p className="mt-2 text-xs text-white/50">Join code: {s.joinCode}</p>
                 )}
               </li>
             ))}

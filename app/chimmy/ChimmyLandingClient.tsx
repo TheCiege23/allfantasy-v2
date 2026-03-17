@@ -103,11 +103,18 @@ export default function ChimmyLandingClient() {
                 {t('home.chimmy.cta')}
               </Link>
               <Link
-                href="/af-legacy"
+                href="/ai"
                 className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium"
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
               >
                 <Zap className="h-4 w-4" />
+                AI Hub
+              </Link>
+              <Link
+                href="/af-legacy"
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              >
                 Open AllFantasy Legacy
               </Link>
             </div>

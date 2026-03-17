@@ -31,6 +31,8 @@ export async function getSettingsProfile(userId: string): Promise<UserProfileFor
           bio: true,
           preferredSports: true,
           notificationPreferences: true,
+          onboardingStep: true,
+          onboardingCompletedAt: true,
           updatedAt: true,
         },
       },
@@ -69,6 +71,8 @@ export async function getSettingsProfile(userId: string): Promise<UserProfileFor
         ? [profile.preferredSports as string]
         : null,
     notificationPreferences: (profile?.notificationPreferences as Record<string, unknown> | null) ?? null,
+    onboardingStep: profile?.onboardingStep ?? null,
+    onboardingCompletedAt: profile?.onboardingCompletedAt ?? null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }

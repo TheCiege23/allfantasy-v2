@@ -1,0 +1,53 @@
+/**
+ * Draft order: slot in round from overall index.
+ * Handles snake and third-round reversal (3RR).
+ */
+
+import type { DraftType } from './types'
+
+export interface DraftOrderParams {
+  overall: number
+  teamCount: number
+  draftType: DraftType
+  thirdRoundReversal: boolean
+}
+
+/**
+ * Get 1-based slot in round for a given overall pick (1-based).
+ * Snake: even rounds reverse (12,11,...,1). 3RR: round 3 also reverses when enabled.
+ */
+export function getSlotInRoundForOverall(params: DraftOrderParams): number {
+  const { overall, teamCount, draftType, thirdRoundReversal } = params
+  const round = Math.ceil(overall / teamCount)
+  let slot1Based = ((overall - 1) % teamCount) + 1
+  const isSnakeReversed = draftType === 'snake' && round % 2 === 0
+  const is3RR = thirdRoundReversal && draftType === 'snake' && round >= 3 && round % 2 === 1
+  if (isSnakeReversed || is3RR) {
+    slot1Based = teamCount - slot1Based + 1
+  }
+  return slot1Based
+}
+
+/**
+ * Format pick label (e.g. 1.01, 2.12).
+ */
+export function formatPickLabel(overall: number, teamCount: number): string {
+  const round = Math.ceil(overall / teamCount)
+  const pickInRound = ((overall - 1) % teamCount) + 1
+  return `${round}.${pickInRound.toString().padStart(2, '0')}`
+}
+
+/**
+ * Get rosterId for the manager who has the given overall pick from slot order.
+ */
+export function getRosterIdForOverall(
+  overall: number,
+  teamCount: number,
+  draftType: DraftType,
+  thirdRoundReversal: boolean,
+  slotOrder: { slot: number; rosterId: string; displayName: string }[]
+): { rosterId: string; displayName: string } | null {
+  const slot = getSlotInRoundForOverall({ overall, teamCount, draftType, thirdRoundReversal })
+  const entry = slotOrder.find((e) => e.slot === slot)
+  return entry ? { rosterId: entry.rosterId, displayName: entry.displayName } : null
+}

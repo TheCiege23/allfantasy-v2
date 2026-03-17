@@ -6,17 +6,21 @@ import TeamSettingsPanel from '@/components/app/settings/TeamSettingsPanel'
 import RosterSettingsPanel from '@/components/app/settings/RosterSettingsPanel'
 import ScoringSettingsPanel from '@/components/app/settings/ScoringSettingsPanel'
 import DraftSettingsPanel from '@/components/app/settings/DraftSettingsPanel'
+import AISettingsPanel from '@/components/app/settings/AISettingsPanel'
+import AutomationSettingsPanel from '@/components/app/settings/AutomationSettingsPanel'
 import WaiverSettingsPanel from '@/components/app/settings/WaiverSettingsPanel'
 import PlayoffSettingsPanel from '@/components/app/settings/PlayoffSettingsPanel'
 import ScheduleSettingsPanel from '@/components/app/settings/ScheduleSettingsPanel'
 import DivisionSettingsPanel from '@/components/app/settings/DivisionSettingsPanel'
 import MemberSettingsPanel from '@/components/app/settings/MemberSettingsPanel'
 import CommissionerControlsPanel from '@/components/app/settings/CommissionerControlsPanel'
+import LeaguePrivacyAndInvitesPanel from '@/components/app/settings/LeaguePrivacyAndInvitesPanel'
 import BehaviorProfilesPanel from '@/components/app/settings/BehaviorProfilesPanel'
 import LeagueDramaPanel from '@/components/app/settings/LeagueDramaPanel'
 import ReputationPanel from '@/components/app/settings/ReputationPanel'
 import GMEconomyPanel from '@/components/app/settings/GMEconomyPanel'
 import RulesInfoPanel from '@/components/app/settings/RulesInfoPanel'
+import LeagueTemplatesPanel from '@/components/app/settings/LeagueTemplatesPanel'
 import PreviousLeaguesPanel from '@/components/app/settings/PreviousLeaguesPanel'
 import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
 import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
@@ -24,10 +28,14 @@ import type { LeagueTabProps } from '@/components/app/tabs/types'
 
 const SUBTABS = [
   'General',
+  'Templates',
+  'Privacy & invites',
   'Team Settings',
   'Roster Settings',
   'Scoring Settings',
   'Draft Settings',
+  'AI Settings',
+  'Automation Settings',
   'Waiver Settings',
   'Playoff Settings',
   'Schedule Settings',
@@ -64,24 +72,28 @@ export default function LeagueSettingsTab({ leagueId }: LeagueTabProps) {
         ))}
       </div>
 
-      {active === 'General' && <GeneralSettingsPanel />}
+      {active === 'General' && <GeneralSettingsPanel leagueId={leagueId} />}
+      {active === 'Templates' && <LeagueTemplatesPanel leagueId={leagueId} />}
+      {active === 'Privacy & invites' && <LeaguePrivacyAndInvitesPanel leagueId={leagueId} />}
       {active === 'Team Settings' && <TeamSettingsPanel />}
       {active === 'Roster Settings' && <RosterSettingsPanel />}
       {active === 'Scoring Settings' && <ScoringSettingsPanel />}
       {active === 'Draft Settings' && <DraftSettingsPanel leagueId={leagueId} />}
+      {active === 'AI Settings' && <AISettingsPanel leagueId={leagueId} />}
+      {active === 'Automation Settings' && <AutomationSettingsPanel leagueId={leagueId} />}
       {active === 'Waiver Settings' && <WaiverSettingsPanel leagueId={leagueId} />}
       {active === 'Playoff Settings' && <PlayoffSettingsPanel leagueId={leagueId} />}
       {active === 'Schedule Settings' && <ScheduleSettingsPanel leagueId={leagueId} />}
       {active === 'Division Settings' && <DivisionSettingsPanel />}
       {active === 'Member Settings' && <MemberSettingsPanel />}
-      {active === 'Commissioner Controls' && <CommissionerControlsPanel />}
+      {active === 'Commissioner Controls' && <CommissionerControlsPanel leagueId={leagueId} />}
       {active === 'Behavior Profiles' && <BehaviorProfilesPanel leagueId={leagueId} />}
       {active === 'League Drama' && <LeagueDramaPanel leagueId={leagueId} />}
       {active === 'Reputation' && <ReputationPanel leagueId={leagueId} />}
       {active === 'GM Economy' && <GMEconomyPanel leagueId={leagueId} />}
       {active === 'Rules & Info' && <RulesInfoPanel />}
       {active === 'Previous Leagues' && <PreviousLeaguesPanel />}
-      {active === 'Reset League' && <ResetLeaguePanel />}
+      {active === 'Reset League' && <ResetLeaguePanel leagueId={leagueId} />}
       {active === 'Delete League' && <DeleteLeaguePanel />}
     </section>
   )

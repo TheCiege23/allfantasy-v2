@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { PlatformAnalyticsPanel } from "./PlatformAnalyticsPanel";
 
 type AnalyticsRow = {
   id: string;
@@ -1370,6 +1371,8 @@ export default function AdminAnalytics() {
 
   return (
     <div className="w-full">
+      <PlatformAnalyticsPanel />
+
       <RetentionPanel />
 
       {/* Legacy Tool Usage Dashboard */}

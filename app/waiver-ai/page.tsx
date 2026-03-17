@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import WaiverSuggestionCard from '@/app/components/WaiverSuggestionCard'
+import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 import type { WaiverResult } from '@/lib/types/WaiverResult'
 
 interface Player {
@@ -270,7 +271,9 @@ export default function WaiverAI() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <>
+      <LandingToolVisitTracker path="/waiver-ai" toolName="Waiver AI" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
           <div className="flex items-center gap-3">
@@ -546,5 +549,6 @@ export default function WaiverAI() {
         </div>
       </div>
     </div>
+    </>
   )
 }

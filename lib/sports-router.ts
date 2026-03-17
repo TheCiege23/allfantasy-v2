@@ -28,9 +28,13 @@ import {
   fetchClearSportsTeams,
   fetchClearSportsPlayers,
   fetchClearSportsGames,
+  normalizeClearSportsTeams,
+  normalizeClearSportsPlayers,
+  normalizeClearSportsGames,
   type ClearSportsSport,
 } from './clear-sports';
 import { normalizeTeamAbbrev } from './team-abbrev';
+import { isClearSportsAvailable } from './provider-config';
 
 export type Sport = 'NFL' | 'NBA' | 'MLB';
 export type DataType = 'teams' | 'players' | 'games' | 'stats' | 'standings' | 'schedule' | 'depth_charts' | 'team_stats';
@@ -448,67 +452,30 @@ async function fetchFromClearSports(
   identifier?: string,
   season?: string,
 ): Promise<unknown | null> {
-  if (!process.env.CLEAR_SPORTS_API_BASE || !process.env.CLEAR_SPORTS_API_KEY) return null;
+  if (!isClearSportsAvailable()) return null;
   const csSport = sport as ClearSportsSport;
 
   try {
     switch (dataType) {
       case 'teams': {
         const teams = await fetchClearSportsTeams(csSport);
-        return teams.map((t): NormalizedTeam => ({
-          id: t.id,
-          name: t.name,
-          shortName: normalizeTeamAbbrev(t.shortName || t.name) || t.name,
-          mascot: t.mascot || undefined,
-          city: t.city || undefined,
-          logo: t.logo || null,
-          source: 'clear_sports',
-        }));
+        return normalizeClearSportsTeams(teams, csSport);
       }
       case 'players': {
         if (!identifier) return null;
         const players = await fetchClearSportsPlayers(csSport, identifier);
-        return players.map((p): NormalizedPlayer => ({
-          id: p.id,
-          name: p.name,
-          position: p.position ?? null,
-          team: p.teamAbbrev ? normalizeTeamAbbrev(p.teamAbbrev) || p.teamAbbrev : null,
-          teamId: p.teamId ?? null,
-          number: p.number ?? null,
-          height: p.height ?? null,
-          weight: p.weight ?? null,
-          college: p.college ?? null,
-          dob: p.dob ?? null,
-          status: p.status ?? null,
-          img: p.imageUrl ?? null,
-          fantasyPoints: null,
-          seasonStats: [],
-          source: 'clear_sports',
-        }));
+        return normalizeClearSportsPlayers(players, csSport);
       }
       case 'games':
       case 'schedule': {
         const games = await fetchClearSportsGames(csSport, season);
-        return games.map((g): NormalizedGame => ({
-          id: g.id,
-          homeTeam: g.homeTeamAbbrev
-            ? normalizeTeamAbbrev(g.homeTeamAbbrev) || g.homeTeamAbbrev
-            : g.homeTeamId,
-          awayTeam: g.awayTeamAbbrev
-            ? normalizeTeamAbbrev(g.awayTeamAbbrev) || g.awayTeamAbbrev
-            : g.awayTeamId,
-          date: g.date ?? null,
-          status: g.status ?? null,
-          season: g.season ?? season ?? null,
-          venue: g.venue ?? null,
-          source: 'clear_sports',
-        }));
+        return normalizeClearSportsGames(games, csSport, season);
       }
       default:
         return null;
     }
   } catch (error) {
-    console.error('[SportsRouter] Clear Sports fetch failed:', error);
+    console.error('[SportsRouter] ClearSports fetch failed:', error);
     return null;
   }
 }

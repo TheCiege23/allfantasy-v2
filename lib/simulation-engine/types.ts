@@ -38,6 +38,14 @@ export interface MatchupSimulationInput {
   iterations?: number
 }
 
+/** Upside/downside scenario (Prompt 133). */
+export interface ScenarioScore {
+  teamA: number
+  teamB: number
+  /** e.g. 90 = upside, 10 = downside */
+  percentile: number
+}
+
 export interface MatchupSimulationOutput {
   simulationId?: string
   sport: string
@@ -55,6 +63,10 @@ export interface MatchupSimulationOutput {
   volatilityTag: 'low' | 'medium' | 'high'
   iterations: number
   createdAt?: string
+  /** Upside scenario (e.g. 90th percentile scores). */
+  upsideScenario?: ScenarioScore
+  /** Downside scenario (e.g. 10th percentile scores). */
+  downsideScenario?: ScenarioScore
 }
 
 export interface SeasonSimulationInput {

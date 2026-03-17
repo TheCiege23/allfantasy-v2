@@ -38,10 +38,10 @@ export async function fetchImportPreview(
 
   if (provider === 'sleeper') {
     try {
-      const res = await fetch('/api/league/import/sleeper/preview', {
+      const res = await fetch('/api/leagues/import/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leagueId: trimmed }),
+        body: JSON.stringify({ provider: 'sleeper', sourceId: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -76,14 +76,10 @@ export async function submitImportCreation(
 
   if (provider === 'sleeper') {
     try {
-      const res = await fetch('/api/league/create', {
+      const res = await fetch('/api/leagues/import/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          createFromSleeperImport: true,
-          sleeperLeagueId: trimmed,
-          userId,
-        }),
+        body: JSON.stringify({ provider: 'sleeper', sourceId: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) {

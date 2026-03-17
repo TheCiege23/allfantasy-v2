@@ -1,0 +1,65 @@
+/**
+ * Social share metadata: OG image URL, share text, and share URL.
+ * Used for open graph and Twitter cards and share buttons.
+ */
+
+const BASE = "https://allfantasy.ai"
+
+export interface SocialShareConfig {
+  url: string
+  title: string
+  description: string
+  imageUrl: string
+  twitterCard: "summary" | "summary_large_image"
+}
+
+/** Default OG image path. */
+export const DEFAULT_OG_IMAGE_PATH = "/og-image.jpg"
+
+/** Build full image URL for OG/twitter. */
+export function getOgImageUrl(path?: string | null): string {
+  const p = path && path.trim() ? path : DEFAULT_OG_IMAGE_PATH
+  return p.startsWith("http") ? p : `${BASE}${p}`
+}
+
+/** Build social share config for a page. */
+export function getSocialShareConfig(opts: {
+  path: string
+  title: string
+  description: string
+  imagePath?: string | null
+}): SocialShareConfig {
+  const url = opts.path.startsWith("http") ? opts.path : `${BASE}${opts.path}`
+  return {
+    url,
+    title: opts.title,
+    description: opts.description,
+    imageUrl: getOgImageUrl(opts.imagePath),
+    twitterCard: "summary_large_image",
+  }
+}
+
+/** Share URL for Twitter intent. */
+export function getTwitterShareUrl(config: SocialShareConfig): string {
+  const params = new URLSearchParams({
+    text: `${config.title} – ${config.description.slice(0, 100)}`,
+    url: config.url,
+  })
+  return `https://twitter.com/intent/tweet?${params.toString()}`
+}
+
+/** Share URL for Facebook. */
+export function getFacebookShareUrl(config: SocialShareConfig): string {
+  const params = new URLSearchParams({ u: config.url })
+  return `https://www.facebook.com/sharer/sharer.php?${params.toString()}`
+}
+
+/** Share URL for LinkedIn. */
+export function getLinkedInShareUrl(config: SocialShareConfig): string {
+  const params = new URLSearchParams({
+    url: config.url,
+    summary: config.description,
+    title: config.title,
+  })
+  return `https://www.linkedin.com/sharing/share-offsite/?${params.toString()}`
+}

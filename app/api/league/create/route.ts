@@ -18,6 +18,12 @@ const createSchema = z.object({
   /** Create league from full Sleeper import; requires sleeperLeagueId */
   createFromSleeperImport: z.boolean().optional(),
   sleeperLeagueId: z.string().optional(),
+  /** League creation wizard: league type (redraft, dynasty, keeper, etc.) */
+  league_type: z.string().max(32).optional(),
+  /** League creation wizard: draft type (snake, linear, auction, slow_draft) */
+  draft_type: z.string().max(32).optional(),
+  /** League creation wizard: merged into League.settings (AI, automation, privacy, draft defaults) */
+  settings: z.record(z.unknown()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -53,6 +59,9 @@ export async function POST(req: Request) {
     leagueVariant: leagueVariantInput,
     createFromSleeperImport,
     sleeperLeagueId,
+    league_type: leagueTypeWizard,
+    draft_type: draftTypeWizard,
+    settings: settingsWizard,
   } = parsed.data;
 
   const sport = sportInput ?? 'NFL';
@@ -168,7 +177,20 @@ export async function POST(req: Request) {
     const initialSettings = getInitialSettingsForCreation(sport as string, leagueVariantInput ?? undefined, {
       superflex: isSuperflex ?? false,
       roster_mode: isDynasty ? 'dynasty' : undefined,
-    });
+    }) as Record<string, unknown>;
+    if (leagueTypeWizard) initialSettings.league_type = leagueTypeWizard;
+    if (draftTypeWizard) initialSettings.draft_type = draftTypeWizard;
+    if (settingsWizard && typeof settingsWizard === 'object') {
+      Object.assign(initialSettings, settingsWizard);
+    }
+    const { validateLeagueSettings } = await import('@/lib/league-settings-validation');
+    const validation = validateLeagueSettings(initialSettings);
+    if (!validation.valid) {
+      return NextResponse.json(
+        { error: validation.errors[0] ?? 'Invalid league configuration', errors: validation.errors },
+        { status: 400 }
+      );
+    }
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -180,7 +202,7 @@ export async function POST(req: Request) {
         isDynasty,
         sport,
         leagueVariant: leagueVariantInput ?? null,
-        settings: initialSettings as Record<string, unknown>,
+        settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
       },
     });

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
 import TabDataState from '@/components/app/tabs/TabDataState'
 import LegacyAIPanel from '@/components/app/tabs/LegacyAIPanel'
@@ -53,6 +54,12 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
   return (
     <TabDataState title="Draft" loading={loading} error={error} onReload={() => void reload()}>
       <div className="space-y-4">
+        <Link
+          href={`/app/league/${leagueId}/draft`}
+          className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/25"
+        >
+          Open draft room
+        </Link>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.2fr)]">
           <LeagueDraftBoard
             leagueId={leagueId}

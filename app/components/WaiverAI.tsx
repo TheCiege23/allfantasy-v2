@@ -54,6 +54,7 @@ export default function WaiverAI() {
   const [userContention, setUserContention] = useState<'win-now' | 'contender' | 'rebuild' | 'unknown'>('unknown');
   const [userFAAB, setUserFAAB] = useState(100);
   const [useRealTimeNews, setUseRealTimeNews] = useState(true);
+  const [feedbackSentForIndex, setFeedbackSentForIndex] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetch('/api/user/active-league')
@@ -450,12 +451,32 @@ export default function WaiverAI() {
               )}
 
               <div className="flex gap-4 mt-5 pt-4 border-t border-slate-700">
-                <button className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors">
-                  <ThumbsUp className="w-5 h-5" /> Helpful
-                </button>
-                <button className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors">
-                  <ThumbsDown className="w-5 h-5" /> Not helpful
-                </button>
+                {feedbackSentForIndex.has(i) ? (
+                  <span className="text-sm text-slate-400">Thanks for your feedback!</span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedbackSentForIndex((prev) => new Set(prev).add(i));
+                        toast.success('Thanks for your feedback!');
+                      }}
+                      className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      <ThumbsUp className="w-5 h-5" /> Helpful
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFeedbackSentForIndex((prev) => new Set(prev).add(i));
+                        toast.success('Thanks for your feedback!');
+                      }}
+                      className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      <ThumbsDown className="w-5 h-5" /> Not helpful
+                    </button>
+                  </>
+                )}
               </div>
             </motion.div>
           ))}

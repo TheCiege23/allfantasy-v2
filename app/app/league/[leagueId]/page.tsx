@@ -14,6 +14,7 @@ import WaiversTab from '@/components/app/tabs/WaiversTab'
 import TradesTab from '@/components/app/tabs/TradesTab'
 import DraftTab from '@/components/app/tabs/DraftTab'
 import StandingsTab from '@/components/app/tabs/StandingsTab'
+import PowerRankingsTab from '@/components/app/tabs/PowerRankingsTab'
 import LeagueInfoTab from '@/components/app/tabs/LeagueInfoTab'
 import LeagueChatTab from '@/components/app/tabs/LeagueChatTab'
 import LeagueSettingsTab from '@/components/app/tabs/LeagueSettingsTab'
@@ -34,7 +35,7 @@ type LeagueSummary = { id: string; name: string }
 
 const VALID_TABS = new Set<LeagueShellTab>([
   'Overview', 'Team', 'Matchups', 'Roster', 'Players', 'Waivers', 'Trades', 'Draft',
-  'Standings / Playoffs', 'Divisions', 'League', 'News', 'Hall of Fame', 'Legacy', 'Career', 'Awards', 'Record Books', 'Store', 'Intelligence', 'Chat',
+  'Standings / Playoffs', 'Rankings', 'Divisions', 'League', 'News', 'Hall of Fame', 'Legacy', 'Career', 'Awards', 'Record Books', 'Store', 'Intelligence', 'Chat',
   'Settings', 'Commissioner', 'Previous Leagues',
 ])
 
@@ -105,6 +106,7 @@ export default function AppLeaguePage() {
       if (tab === 'Trades') return <TradesTab leagueId={leagueId} />
       if (tab === 'Draft') return <DraftTab leagueId={leagueId} />
       if (tab === 'Standings / Playoffs') return <StandingsTab leagueId={leagueId} />
+      if (tab === 'Rankings') return <PowerRankingsTab leagueId={leagueId} />
       if (tab === 'Divisions') return <DivisionsTab leagueId={leagueId} />
       if (tab === 'League') return <LeagueInfoTab leagueId={leagueId} />
       if (tab === 'News') return <NewsTab leagueId={leagueId} />

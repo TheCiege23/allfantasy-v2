@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { gtagEvent } from '@/lib/gtag'
+import { trackLandingSignupComplete } from '@/lib/landing-analytics'
 
 const SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER']
 const LEAGUE_TYPES = ['Redraft', 'Dynasty', 'Keeper', 'Best Ball', 'Guillotine', 'Survivor', 'Tournament']
@@ -65,10 +66,7 @@ function SuccessContent() {
 
   useEffect(() => {
     if (!isExisting) {
-      gtagEvent('signup_complete', {
-        event_category: 'engagement',
-        event_label: 'Early Access Signup',
-      });
+      trackLandingSignupComplete({ existing_user: false, source: 'early_access' });
     }
 
     const duration = 3000

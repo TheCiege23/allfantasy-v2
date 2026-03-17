@@ -6,6 +6,7 @@ import { getEntryBracketData } from "@/lib/brackets/getEntryBracketData"
 import { LeagueHomeTabs } from "@/components/bracket/LeagueHomeTabs"
 import BracketShell from "@/components/bracket/BracketShell"
 import BracketLeagueSummaryCards from "@/components/bracket/BracketLeagueSummaryCards"
+import { LeagueCreatorBadge } from "@/components/creator/LeagueCreatorBadge"
 import { Trophy, Settings, ArrowLeft } from "lucide-react"
 
 export default async function LeagueDetailPage({
@@ -110,11 +111,14 @@ export default async function LeagueDetailPage({
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)" }}>
                 <Trophy className="w-4 h-4" style={{ color: "var(--accent)" }} />
               </div>
-              <h1 className="text-lg sm:text-xl font-bold truncate">
-                {league.name}
-              </h1>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl font-bold truncate">
+                  {league.name}
+                </h1>
+                <LeagueCreatorBadge leagueId={league.id} />
+              </div>
             </div>
-            <button className="p-2 rounded-full transition mode-muted">
+            <button type="button" className="p-2 rounded-full transition mode-muted" aria-label="League settings (coming soon)">
               <Settings className="w-5 h-5" />
             </button>
           </div>

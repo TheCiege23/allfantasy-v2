@@ -7,7 +7,9 @@ import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
+import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
+import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import './globals.css';
 
 const inter = Inter({
@@ -75,7 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
       <head>
         <Script id="af-init-mode" strategy="beforeInteractive">
-          {`
+          {`/* Global theme: Light, Dark, AF Legacy. Key af_mode; default legacy. See lib/theme. */
             try {
               var m = localStorage.getItem('af_mode');
               if (m === 'dark' || m === 'light' || m === 'legacy') {
@@ -85,6 +87,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }
             } catch (e) {
               document.documentElement.setAttribute('data-mode', 'legacy');
+            }
+          `}
+        </Script>
+        <Script id="af-init-lang" strategy="beforeInteractive">
+          {`/* Language: English, Spanish. Key af_lang; default en. See lib/i18n. */
+            try {
+              var lang = localStorage.getItem('af_lang');
+              if (lang === 'en' || lang === 'es') {
+                document.documentElement.setAttribute('data-lang', lang);
+              } else {
+                document.documentElement.setAttribute('data-lang', 'en');
+              }
+            } catch (e) {
+              document.documentElement.setAttribute('data-lang', 'en');
             }
           `}
         </Script>
@@ -108,6 +124,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </>
         )}
 
+        <DefaultJsonLd />
         <Script id="analytics-healthcheck" strategy="afterInteractive">
           {`
             (function() {
@@ -200,6 +217,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionAppProvider>
           <ThemeProvider>
             <LanguageProviderClient>
+              <ReferralTracker />
               <SyncProfilePreferences />
               {children}
               <Toaster position="top-center" richColors closeButton />

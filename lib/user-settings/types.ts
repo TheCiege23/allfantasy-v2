@@ -30,6 +30,8 @@ export interface UserProfileForSettings {
   preferredSports: PreferredSportCode[] | null
   /** Notification preferences (NotificationPreferences shape from lib/notification-settings). */
   notificationPreferences: Record<string, unknown> | null
+  onboardingStep: string | null
+  onboardingCompletedAt: Date | null
   updatedAt: Date
 }
 
@@ -43,4 +45,6 @@ export interface ProfileUpdatePayload {
   bio?: string | null
   preferredSports?: PreferredSportCode[] | null
   notificationPreferences?: Record<string, unknown> | null
+  onboardingStep?: string | null
+  onboardingCompletedAt?: Date | null
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdmin } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +36,8 @@ function parseNullableDate(value: unknown): Date | null | undefined {
 }
 
 export async function GET() {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.res;
   try {
     const feedback = await prisma.legacyFeedback.findMany({
       orderBy: {
@@ -63,6 +66,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const gate = await requireAdmin();
+  if (!gate.ok) return gate.res;
   try {
     const body = (await req.json()) as FeedbackPatchBody;
     const id = body.id;

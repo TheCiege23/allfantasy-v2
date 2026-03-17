@@ -8,6 +8,8 @@ export { resolveDraftPreset } from './DraftPresetResolver'
 export type { DraftPresetResult } from './DraftPresetResolver'
 export { getDraftConfigForLeague } from './DraftRoomConfigResolver'
 export type { DraftRoomConfig } from './DraftRoomConfigResolver'
+export { getDraftUISettingsForLeague, updateDraftUISettings } from './DraftUISettingsResolver'
+export type { DraftUISettings, TimerMode, OrphanDrafterMode } from './DraftUISettingsResolver'
 export { getDraftOrderRule, isSnakeDraft } from './DraftOrderRuleResolver'
 export type { DraftOrderRule, DraftOrderRuleDescription } from './DraftOrderRuleResolver'
 export { getDraftPlayerPoolContext } from './DraftPlayerPoolResolver'
@@ -16,3 +18,17 @@ export { getDraftRankingContext } from './DraftRankingContextResolver'
 export type { DraftRankingContext } from './DraftRankingContextResolver'
 export { bootstrapLeagueDraftConfig } from './LeagueDraftBootstrapService'
 export type { LeagueDraftBootstrapResult } from './LeagueDraftBootstrapService'
+export {
+  getDraftVariantSettings,
+  updateDraftVariantSettings,
+  updateDraftConfigForLeague,
+  updateSessionVariant,
+} from './DraftVariantSettingsHub'
+export type {
+  DraftVariantSettings,
+  SessionVariantSettings,
+  KeeperVariantSettings,
+  DevyVariantSettings,
+  C2CVariantSettings,
+  AuctionVariantSettings,
+} from './DraftVariantSettingsHub'

@@ -15,6 +15,11 @@ import AdminShareRewards from "./components/AdminShareRewards";
 import AdminCalibration from "./components/AdminCalibration";
 import AdminModelDrift from "./components/AdminModelDrift";
 import AdminUsers from "./components/AdminUsers";
+import AdminLeagueOverview from "./components/AdminLeagueOverview";
+import AdminModerationPanel from "./components/AdminModerationPanel";
+import AdminFeatureToggles from "./components/AdminFeatureToggles";
+import AdminSystemPanel from "./components/AdminSystemPanel";
+import AdminProviderDiagnostics from "./components/AdminProviderDiagnostics";
 import { UsageAnalyticsPanel } from "@/components/admin/UsageAnalyticsPanel";
 import { verifyAdminSessionCookie } from "@/lib/adminSession";
 
@@ -72,6 +77,10 @@ function parseTab(tab?: string | string[]): AdminTab {
     "calibration",
     "model_drift",
     "users",
+    "leagues",
+    "moderation",
+    "features",
+    "system",
   ];
   return allowed.includes(t as AdminTab) ? (t as AdminTab) : "overview";
 }
@@ -114,6 +123,11 @@ export default async function AdminPage({
       {tab === "calibration" && <AdminCalibration />}
       {tab === "model_drift" && <AdminModelDrift />}
       {tab === "users" && <AdminUsers />}
+      {tab === "leagues" && <AdminLeagueOverview />}
+      {tab === "moderation" && <AdminModerationPanel />}
+      {tab === "features" && <AdminFeatureToggles />}
+      {tab === "system" && <AdminSystemPanel />}
+      {tab === "providers" && <AdminProviderDiagnostics />}
     </AdminLayout>
   );
 }

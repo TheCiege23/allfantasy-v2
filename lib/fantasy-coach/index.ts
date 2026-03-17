@@ -1,0 +1,10 @@
+export * from './types';
+export { getStrategyRecommendation } from './StrategyRecommendationEngine';
+export { getCoachAdvice } from './FantasyCoachAI';
+export { getCoachEvaluation } from './CoachEvaluationService';
+export {
+  getTradeAnalyzerHref,
+  getWaiverToolHref,
+  getRankingsToolHref,
+  getPlayerPageHref,
+} from './CoachToolResolver';

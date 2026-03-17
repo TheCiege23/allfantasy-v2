@@ -50,8 +50,9 @@ export const GET = withApiUsage({ endpoint: "/api/sports", tool: "Sports" })(asy
     });
   } catch (error) {
     console.error('Sports data error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch sports data';
     return NextResponse.json(
-      { error: 'Failed to fetch sports data', details: String(error) },
+      { success: false, error: 'Failed to fetch sports data', details: message },
       { status: 500 }
     );
   }
@@ -87,8 +88,9 @@ export const POST = withApiUsage({ endpoint: "/api/sports", tool: "Sports" })(as
     });
   } catch (error) {
     console.error('Sports data error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to fetch sports data';
     return NextResponse.json(
-      { error: 'Failed to fetch sports data', details: String(error) },
+      { success: false, error: 'Failed to fetch sports data', details: message },
       { status: 500 }
     );
   }

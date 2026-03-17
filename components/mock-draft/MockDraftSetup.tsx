@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Play, Loader2 } from 'lucide-react'
-import type { MockDraftConfig, MockDraftSport, MockLeagueType, MockDraftType, MockScoringFormat } from '@/lib/mock-draft/types'
+import type { MockDraftConfig, MockDraftSport, MockLeagueType, MockDraftType, MockScoringFormat, MockPoolType } from '@/lib/mock-draft/types'
 import { DEFAULT_MOCK_CONFIG } from '@/lib/mock-draft/types'
 
 const SPORTS: { value: MockDraftSport; label: string }[] = [
@@ -42,6 +42,12 @@ const TIMER_OPTIONS = [
   { value: 120, label: '2 min' },
 ]
 
+const POOL_OPTIONS: { value: MockPoolType; label: string }[] = [
+  { value: 'all', label: 'All players' },
+  { value: 'vets', label: 'Vets only' },
+  { value: 'rookies', label: 'Rookies only' },
+]
+
 export interface MockDraftSetupProps {
   /** Initial config (e.g. from league) */
   initialConfig?: Partial<MockDraftConfig>
@@ -66,6 +72,8 @@ export function MockDraftSetup({
   const [aiEnabled, setAiEnabled] = useState(initialConfig?.aiEnabled ?? DEFAULT_MOCK_CONFIG.aiEnabled)
   const [rounds, setRounds] = useState(initialConfig?.rounds ?? DEFAULT_MOCK_CONFIG.rounds)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(initialConfig?.leagueId ?? null)
+  const [poolType, setPoolType] = useState<MockPoolType>(initialConfig?.poolType ?? 'all')
+  const [rosterSize, setRosterSize] = useState(initialConfig?.rosterSize ?? 16)
 
   const handleUseLeague = (leagueId: string) => {
     if (leagueId === 'none') {
@@ -93,6 +101,8 @@ export function MockDraftSetup({
       aiEnabled,
       rounds,
       leagueId: selectedLeagueId || null,
+      poolType,
+      rosterSize,
     })
   }
 
@@ -207,6 +217,32 @@ export function MockDraftSetup({
             </Select>
           </div>
         )}
+        <div className="space-y-2 sm:col-span-2">
+          <Label className="text-white/80">Player pool</Label>
+          <Select value={poolType} onValueChange={(v) => setPoolType(v as MockPoolType)}>
+            <SelectTrigger className="border-white/15 bg-black/40 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POOL_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-white/80">Roster size</Label>
+          <Select value={String(rosterSize)} onValueChange={(v) => setRosterSize(Number(v))}>
+            <SelectTrigger className="border-white/15 bg-black/40 text-white">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[12, 14, 16, 18, 20].map((n) => (
+                <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="flex items-center gap-3 sm:col-span-2">
           <input
             type="checkbox"

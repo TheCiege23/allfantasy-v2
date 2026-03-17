@@ -2,7 +2,20 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        'fs/promises': false,
+        path: false,
+      };
+    }
+    return config;
+  },
+
   experimental: {
+    instrumentationHook: true,
     outputFileTracingIncludes: {
       "/api/**": ["./data/**"],
     },

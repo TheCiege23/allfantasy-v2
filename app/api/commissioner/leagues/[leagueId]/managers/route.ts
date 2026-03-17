@@ -21,18 +21,30 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const teams = await prisma.leagueTeam.findMany({
-    where: { leagueId: params.leagueId },
-    select: { id: true, externalId: true, ownerName: true, teamName: true, avatarUrl: true },
-  })
-  const rosters = await prisma.roster.findMany({
-    where: { leagueId: params.leagueId },
-    select: { id: true, platformUserId: true },
+  const [teams, rosters] = await Promise.all([
+    prisma.leagueTeam.findMany({
+      where: { leagueId: params.leagueId },
+      select: { id: true, externalId: true, ownerName: true, teamName: true, avatarUrl: true },
+    }),
+    prisma.roster.findMany({
+      where: { leagueId: params.leagueId },
+      select: { id: true, platformUserId: true },
+    }),
+  ])
+  const teamByExtId = new Map(teams.map((t) => [t.externalId, t]))
+  const managers = rosters.map((r) => {
+    const team = teamByExtId.get(r.platformUserId)
+    return {
+      rosterId: r.id,
+      userId: r.platformUserId,
+      displayName: team?.ownerName ?? team?.teamName ?? r.platformUserId,
+    }
   })
 
   return NextResponse.json({
     teams,
     rosters: rosters.map((r) => ({ id: r.id, platformUserId: r.platformUserId })),
+    managers,
   })
 }
 

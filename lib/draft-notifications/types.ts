@@ -1,0 +1,38 @@
+/**
+ * Draft notification event types. Deterministic, event-driven.
+ * Supports NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer.
+ */
+
+export const DRAFT_NOTIFICATION_EVENT_TYPES = [
+  'draft_on_the_clock',
+  'draft_approaching_timeout',
+  'draft_auto_pick_fired',
+  'draft_queue_player_unavailable',
+  'draft_paused',
+  'draft_resumed',
+  'draft_trade_offer_received',
+  'draft_ai_trade_review_available',
+  'draft_orphan_ai_assigned',
+  'draft_auction_outbid',
+  'draft_slow_reminder',
+  'draft_starting_soon',
+] as const
+
+export type DraftNotificationEventType = (typeof DRAFT_NOTIFICATION_EVENT_TYPES)[number]
+
+export interface DraftNotificationPayload {
+  leagueId: string
+  leagueName?: string
+  pickLabel?: string
+  round?: number
+  slot?: number
+  rosterId?: string
+  displayName?: string
+  playerName?: string
+  source?: string
+  tradeProposalId?: string
+  /** For auction_outbid: previous bid amount. */
+  previousBid?: number
+  /** For slow_reminder: minutes until pick due. */
+  minutesRemaining?: number
+}

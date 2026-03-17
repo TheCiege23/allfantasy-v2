@@ -30,6 +30,9 @@ const ALLOWED_DEEP_LINK_PREFIXES = [
   "/onboarding",
   "/login",
   "/signup",
+  "/alerts",
+  "/feed",
+  "/podcast",
 ]
 
 /**

@@ -5,6 +5,8 @@ import { redirect } from "next/navigation"
 import DashboardContent from "./DashboardContent"
 import SyncedRosters from "@/app/components/SyncedRosters"
 import RosterLegacyReport from "@/app/components/RosterLegacyReport"
+import { getChecklistState } from "@/lib/onboarding-retention"
+import { getNudges } from "@/lib/onboarding-retention"
 
 export const dynamic = "force-dynamic"
 
@@ -53,6 +55,8 @@ export default async function DashboardPage() {
         ageConfirmedAt: true,
         phoneVerifiedAt: true,
         profileComplete: true,
+        onboardingStep: true,
+        onboardingCompletedAt: true,
       },
     })
     .catch(() => null)
@@ -104,9 +108,19 @@ export default async function DashboardPage() {
   const isAgeConfirmed = !!profile?.ageConfirmedAt
   const isAdmin = resolveAdmin(email)
 
+  const onboardingComplete =
+    profile?.onboardingCompletedAt != null ||
+    (profile as { onboardingStep?: string } | null)?.onboardingStep === "completed"
+
+  const [checklistState, nudges] = await Promise.all([
+    getChecklistState(userId).catch(() => null),
+    getNudges(userId).catch(() => []),
+  ])
+
   return (
     <>
       <DashboardContent
+        onboardingComplete={!!onboardingComplete}
         user={{
           id: appUser?.id || userId,
           username: appUser?.username || null,
@@ -134,6 +148,8 @@ export default async function DashboardPage() {
           score: e.score || 0,
         }))}
         isAdmin={isAdmin}
+        checklistState={checklistState}
+        retentionNudges={nudges}
       />
       <div className="max-w-6xl mx-auto px-4 pb-12 space-y-12">
         <RosterLegacyReport />

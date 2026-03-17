@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
+import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface';
 
 const HEART_EMOJI = '\u{1F496}';
 
@@ -48,26 +49,16 @@ function renderContentWithLinks(content: string) {
   return <div className="whitespace-pre-wrap">{nodes.length ? nodes : content}</div>;
 }
 
-function selectFeminineVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
-  if (!voices.length) return null;
-  const preferred = voices.find((v) => {
-    const n = `${v.name} ${v.lang}`.toLowerCase();
-    return n.includes('female') || n.includes('woman') || n.includes('samantha') || n.includes('zira') || n.includes('aria');
-  });
-  return preferred || voices.find((v) => v.lang.toLowerCase().startsWith('en')) || voices[0] || null;
-}
+const CHIMMY_GREETING = `Hi, I'm Chimmy ${HEART_EMOJI} I'm your calm, evidence-based fantasy assistant. Ask me about your roster, league, trades, waivers, or upload a screenshot and I'll break it down clearly.`;
 
 export default function ChimmyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content:
-        `Hi, I'm Chimmy ${HEART_EMOJI} I'm warm and supportive, but I'll be direct with results. Ask me about your roster, league, trades, waivers, or upload a screenshot and I'll break it down.`,
-    },
+    { role: 'assistant', content: CHIMMY_GREETING },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -75,9 +66,18 @@ export default function ChimmyChat() {
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const suggestedChips = useMemo(() => getDefaultChimmyChips(), []);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!isChimmyVoicePlaying() && isVoicePlaying) setIsVoicePlaying(false);
+    }, 500);
+    return () => clearInterval(t);
+  }, [isVoicePlaying]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -112,18 +112,15 @@ export default function ChimmyChat() {
 
   const speak = (text: string) => {
     if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+    setIsVoicePlaying(true);
+    speakChimmy(text, 'calm', {
+      onEnd: () => setIsVoicePlaying(false),
+    });
+  };
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.02;
-    utterance.pitch = 1.12;
-    utterance.volume = 0.95;
-
-    const voices = window.speechSynthesis.getVoices();
-    const chosen = selectFeminineVoice(voices);
-    if (chosen) utterance.voice = chosen;
-
-    window.speechSynthesis.speak(utterance);
+  const handleStopVoice = () => {
+    stopChimmyVoice();
+    setIsVoicePlaying(false);
   };
 
   const toggleListening = () => {
@@ -218,6 +215,20 @@ export default function ChimmyChat() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.length <= 1 && suggestedChips.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {suggestedChips.slice(0, 4).map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setInput(chip.prompt)}
+                className="px-4 py-2 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 text-sm hover:border-cyan-500/50 hover:bg-slate-700 transition"
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-5 rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
@@ -260,7 +271,7 @@ export default function ChimmyChat() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
             placeholder="Ask about your roster, league, trades, waivers, or upload a screenshot"
             className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white placeholder-slate-500 focus:border-cyan-400 outline-none"
           />

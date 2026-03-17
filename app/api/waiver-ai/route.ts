@@ -16,6 +16,11 @@ import { trackLegacyToolUsage } from "@/lib/analytics-server"
 import { enrichRawWaiverSuggestionsWithGrok } from "@/lib/waiver-engine/waiver-grok-adapter"
 import { logAiOutput } from "@/lib/ai/output-logger"
 import { buildSportContextString } from "@/lib/ai/AISportContextResolver"
+import {
+  buildWaiverEnvelope,
+  getMandatorySystemPromptSuffix,
+  normalizeToContract,
+} from "@/lib/ai-context-envelope"
 
 type AnyObj = Record<string, any>
 
@@ -573,9 +578,26 @@ export const POST = withApiUsage({
     const sportContext = buildSportContextString(leagueMeta)
     const userMessage = `${sportContext}\n\n${enrichedPrompt}`
 
+    const quantNames = new Set(
+      (quantResult?.playerScores ?? []).map((p: { playerName: string }) => p.playerName?.trim?.() ?? '')
+    )
+    const missingQuantCandidates = candidateNames.filter((n) => !quantNames.has(n.trim()))
+    const envelope = buildWaiverEnvelope({
+      sport: leagueMeta.sport ?? undefined,
+      leagueId: safeStr(bodyAny?.league_id) || safeStr(bodyAny?.league?.league_id) || undefined,
+      userId: session?.user?.id ?? undefined,
+      candidateCount: candidateNames.length,
+      hasQuantResult: (quantResult?.playerScores?.length ?? 0) > 0,
+      hasTrendResult: (trendResult?.playerSignals?.length ?? 0) > 0,
+      missingQuantCandidates: missingQuantCandidates.length > 0 ? missingQuantCandidates.slice(0, 10) : undefined,
+      strategyMode: leagueMeta.strategyMode,
+    })
+    const mandatorySuffix = getMandatorySystemPromptSuffix(envelope)
+    const systemPrompt = [WAIVER_AI_SYSTEM_PROMPT, mandatorySuffix].filter(Boolean).join('\n\n')
+
     const completion = await openaiChatJson({
       messages: [
-        { role: 'system', content: WAIVER_AI_SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
       temperature: OPENAI_TEMP,
@@ -664,11 +686,32 @@ export const POST = withApiUsage({
       processingMs: Date.now() - startMs,
     })
 
+    const primaryAnswer =
+      validatedData.summary ?? validatedData.recommendation ?? (validatedData.top_adds?.[0]?.name ? `Top add: ${validatedData.top_adds[0].name}` : 'See top adds below.')
+    const keyEvidence: string[] = []
+    if (quantResult?.topPickByExpectedValue)
+      keyEvidence.push(`Top by expected value: ${quantResult.topPickByExpectedValue}`)
+    if (trendResult?.mustAddAlerts?.length) keyEvidence.push(`Must-add alerts: ${trendResult.mustAddAlerts!.slice(0, 2).join(', ')}`)
+    const normalizedOutput = normalizeToContract(
+      {
+        primaryAnswer,
+        verdict: validatedData.verdict ?? primaryAnswer,
+        keyEvidence: keyEvidence.length ? keyEvidence : undefined,
+        confidencePct: envelope.confidence?.scorePct,
+        confidenceLabel: envelope.confidence?.label,
+        risksCaveats: envelope.uncertainty?.items?.length ? ['Some candidates lacked quantitative data; priority is partially estimated.'] : undefined,
+        suggestedNextAction: validatedData.suggested_next_action ?? validatedData.next_action,
+      },
+      envelope,
+      { includeTrace: false, traceProvider: 'openai' }
+    )
+
     return NextResponse.json({
       success: true,
       data: validatedData,
       validated: true,
       providers,
+      normalizedOutput,
       rate_limit: { remaining, retryAfterSec },
       ...(process.env.NODE_ENV === 'development' && {
         _debug: {

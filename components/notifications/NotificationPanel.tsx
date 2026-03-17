@@ -12,6 +12,9 @@ import {
   AtSign,
   Loader2,
   AlertCircle,
+  Clock,
+  Pause,
+  Play,
 } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import type { PlatformNotification } from "@/types/platform-shared"
@@ -30,6 +33,25 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   chat_message: MessageSquare,
   trade: Handshake,
   notification: Bell,
+  daily_digest: Bell,
+  league_reminder: Bell,
+  ai_insight: Bell,
+  weekly_recap: Bell,
+  injury_alert: AlertCircle,
+  performance_alert: Bell,
+  lineup_alert: MessageSquare,
+  draft_on_the_clock: Clock,
+  draft_approaching_timeout: Clock,
+  draft_auto_pick_fired: Bell,
+  draft_queue_player_unavailable: AlertCircle,
+  draft_paused: Pause,
+  draft_resumed: Play,
+  draft_trade_offer_received: Handshake,
+  draft_ai_trade_review_available: Bell,
+  draft_orphan_ai_assigned: Bell,
+  draft_auction_outbid: Bell,
+  draft_slow_reminder: Bell,
+  draft_starting_soon: Bell,
 }
 
 function getIcon(type: string) {

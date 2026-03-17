@@ -45,3 +45,16 @@ export function buildDraftSummaryForAI(ctx: DraftContextForAI): string {
   parts.push('What should I consider for my next pick?')
   return parts.join(' ')
 }
+
+/**
+ * Build prompt for "Ask Chimmy about this pick" (recommended player).
+ */
+export function buildAskChimmyAboutPickPrompt(ctx: DraftContextForAI & { recommendedPlayer?: string; recommendedPosition?: string; explanation?: string }): string {
+  const parts = ['I’m on the clock and the draft helper recommended a player.']
+  if (ctx.recommendedPlayer) parts.push(`Recommended: ${ctx.recommendedPlayer}${ctx.recommendedPosition ? ` (${ctx.recommendedPosition})` : ''}.`)
+  if (ctx.explanation) parts.push(`Reason: ${ctx.explanation.slice(0, 200)}.`)
+  if (ctx.sport) parts.push(`Sport: ${ctx.sport}.`)
+  if (ctx.round != null) parts.push(`Round ${ctx.round}, Pick ${ctx.pick}.`)
+  parts.push('Should I take this pick or consider someone else?')
+  return parts.join(' ')
+}

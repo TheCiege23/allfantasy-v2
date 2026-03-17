@@ -11,9 +11,15 @@ import {
   runPeerReviewAnalysis,
 } from '@/lib/trade-engine/dual-brain-trade-analyzer';
 import { runQualityGate } from '@/lib/trade-engine/quality-gate';
-import { formatTradeResponse } from '@/lib/trade-engine/trade-response-formatter';
+import { formatTradeResponse, computeDeterministicVerdict } from '@/lib/trade-engine/trade-response-formatter';
 import type { TradeDecisionContextV1 } from '@/lib/trade-engine/trade-decision-context';
-import { buildTradeAnalyzerIntelPrompt } from '@/lib/trade-engine/trade-analyzer-intel'
+import { buildTradeAnalyzerIntelPrompt } from '@/lib/trade-engine/trade-analyzer-intel';
+import { buildStableFallbackResponse, buildReliabilityMetadata } from '@/lib/ai-reliability';
+import {
+  tradeContextToEnvelope,
+  getMandatorySystemPromptSuffix,
+  normalizeToContract,
+} from '@/lib/ai-context-envelope';
 
 function parseLeagueContext(raw: string | undefined): LeagueContextInput {
   if (!raw) return {}
@@ -43,6 +49,17 @@ function buildDataGapsPrompt(ctx: TradeDecisionContextV1): string {
   return `DATA GAPS (reduce confidence accordingly):\n${flags.map(f => `- ${f}`).join('\n')}`
 }
 
+function wantsDebugTrace(req: Request): boolean {
+  try {
+    const url = new URL(req.url);
+    if (url.searchParams.get('debug') === '1' || url.searchParams.get('trace') === '1') return true;
+    if (req.headers.get('x-af-debug') === '1' || req.headers.get('x-af-trace') === '1') return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as any)) as {
     user?: { id?: string };
@@ -52,6 +69,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const includeTrace = wantsDebugTrace(req);
   const { sideA, sideB, leagueContext, leagueId } = await req.json();
 
   if (!sideA || !sideB) {
@@ -77,8 +95,13 @@ export async function POST(req: Request) {
 
     console.log(`[dynasty-trade-analyzer] Stage A assembled in ${stageALatency}ms — ctx=${tradeContext.contextId}, ${tradeContext.dataQuality.assetsCovered}/${tradeContext.dataQuality.assetsTotal} assets (${tradeContext.dataQuality.coveragePercent}%), ${tradeContext.dataQuality.warnings.length} warnings`)
 
+    const envelope = tradeContextToEnvelope(tradeContext, {
+      leagueId: leagueId ?? parsedLeague.leagueId ?? null,
+      userId: session.user?.id ?? null,
+    });
+    const mandatorySuffix = getMandatorySystemPromptSuffix(envelope);
     const intelPrompt = await buildTradeAnalyzerIntelPrompt(tradeContext).catch(() => '')
-    const factLayerPrompt = [contextToPromptV1(tradeContext), intelPrompt].filter(Boolean).join('\n\n')
+    const factLayerPrompt = [mandatorySuffix, contextToPromptV1(tradeContext), intelPrompt].filter(Boolean).join('\n\n')
     const dataGapsPrompt = buildDataGapsPrompt(tradeContext)
 
     const stageBStart = Date.now()
@@ -91,7 +114,39 @@ export async function POST(req: Request) {
     console.log(`[dynasty-trade-analyzer] Stage B completed in ${stageBLatency}ms`)
 
     if (!consensus) {
-      return NextResponse.json({ error: 'Analysis failed — all AI providers returned empty results' }, { status: 500 });
+      const { deterministicFallback, fallbackExplanation, reliability } = buildStableFallbackResponse(tradeContext);
+      const detVerdictOnly = computeDeterministicVerdict(tradeContext).verdict;
+      const normalizedOutput = normalizeToContract(
+        {
+          primaryAnswer: fallbackExplanation ?? detVerdictOnly,
+          verdict: deterministicFallback.verdict ?? detVerdictOnly,
+          confidencePct: deterministicFallback.confidence,
+          confidenceLabel: deterministicFallback.confidence >= 70 ? 'high' : deterministicFallback.confidence >= 45 ? 'medium' : 'low',
+          suggestedNextAction: 'Review the evidence above; re-run when AI is available for narrative.',
+        },
+        envelope,
+        { includeTrace: includeTrace, traceProvider: 'deterministic_fallback' }
+      );
+      return NextResponse.json({
+        sections: null,
+        deterministicVerdict: detVerdictOnly,
+        analysis: {
+          winner: deterministicFallback.winner ?? 'Even',
+          valueDelta: `Data-only result (AI unavailable). Confidence: ${deterministicFallback.confidence}%.`,
+          factors: deterministicFallback.reasons,
+          confidence: deterministicFallback.confidence,
+          dynastyVerdict: deterministicFallback.verdict,
+          vetoRisk: null,
+          agingConcerns: deterministicFallback.warnings,
+          recommendations: [],
+        },
+        deterministicFallback,
+        fallbackExplanation,
+        reliability,
+        normalizedOutput,
+        ...(includeTrace && { trace: normalizedOutput.trace }),
+        hasAiConsensus: false,
+      });
     }
 
     const gate = runQualityGate(consensus, tradeContext)
@@ -105,9 +160,26 @@ export async function POST(req: Request) {
 
     const detVerdict = sections.deterministicVerdict
 
+    const primaryAnswer = [detVerdict.winnerLabel, gate.filteredReasons?.slice(0, 2).join('; ')].filter(Boolean).join(' — ') || consensus.verdict;
+    const normalizedOutput = normalizeToContract(
+      {
+        primaryAnswer,
+        verdict: consensus.verdict ?? detVerdict.winnerLabel,
+        keyEvidence: gate.filteredReasons,
+        confidencePct: gate.adjustedConfidence,
+        confidenceLabel: gate.adjustedConfidence >= 70 ? 'high' : gate.adjustedConfidence >= 45 ? 'medium' : 'low',
+        risksCaveats: gate.filteredWarnings,
+        suggestedNextAction: gate.filteredCounters?.[0],
+      },
+      envelope,
+      { includeTrace: includeTrace, traceProvider: consensus.meta?.consensusMethod ?? 'peer-review' }
+    );
+
     return NextResponse.json({
       sections,
       deterministicVerdict: detVerdict,
+      normalizedOutput,
+      ...(includeTrace && { trace: normalizedOutput.trace }),
       analysis: {
         winner: detVerdict.winner === 'Even' ? 'Even' : `Side ${detVerdict.winner}`,
         verdict: detVerdict.winnerLabel,
@@ -189,6 +261,19 @@ export async function POST(req: Request) {
         confidenceAdjustment: consensus.meta.confidenceAdjustment,
         qualityGatePassed: gate.passed,
       },
+      reliability: buildReliabilityMetadata({
+        providerResults: consensus.meta.providers.map(p => ({
+          provider: p.provider,
+          status: p.schemaValid && !p.error ? 'ok' : 'failed',
+          error: p.error ?? undefined,
+          latencyMs: p.latencyMs,
+        })),
+        confidence: gate.adjustedConfidence,
+        usedDeterministicFallback: false,
+        dataQualityWarnings: gate.filteredWarnings.slice(0, 5),
+        hardViolation: gate.violations.some(v => v.severity === 'hard'),
+      }),
+      hasAiConsensus: true,
     });
   } catch (err) {
     console.error('[dynasty-trade-analyzer] Error:', err);

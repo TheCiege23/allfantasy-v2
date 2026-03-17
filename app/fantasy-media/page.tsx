@@ -1,0 +1,32 @@
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { redirect } from "next/navigation"
+import Link from "next/link"
+import FantasyMediaListClient from "./FantasyMediaListClient"
+
+export const dynamic = "force-dynamic"
+
+export default async function FantasyMediaPage() {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) redirect("/login?callbackUrl=/fantasy-media")
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900">
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+        <div className="mb-6 flex items-center gap-3">
+          <Link href="/dashboard" className="text-sm text-white/60 hover:text-white/80 transition">
+            ← Dashboard
+          </Link>
+          <Link href="/podcast" className="text-sm text-white/60 hover:text-white/80 transition">
+            Podcast
+          </Link>
+        </div>
+        <h1 className="text-2xl font-bold text-white">Fantasy video</h1>
+        <p className="mt-1 text-sm text-white/60">
+          AI recap scripts + HeyGen video: weekly recaps, waiver targets, league recaps, and more.
+        </p>
+        <FantasyMediaListClient />
+      </div>
+    </div>
+  )
+}
