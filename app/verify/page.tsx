@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Suspense, useState, useEffect } from "react"
 import { CheckCircle2, XCircle, Clock, AlertTriangle, Mail, Loader2, Phone, ArrowLeft } from "lucide-react"
+import { validateCallbackUrl } from "@/lib/url-validation"
 
 function VerifyContent() {
   const searchParams = useSearchParams()
@@ -11,6 +12,7 @@ function VerifyContent() {
   const status = searchParams?.get("status")
   const error = searchParams?.get("error")
   const verified = searchParams?.get("verified")
+  const callbackUrl = validateCallbackUrl(searchParams?.get("callbackUrl"))
 
   const methodParam = searchParams?.get("method")
   const [tab, setTab] = useState<"email" | "phone">(methodParam === "phone" ? "phone" : "email")
@@ -113,7 +115,7 @@ function VerifyContent() {
       const data = await res.json()
       if (res.ok) {
         setPhoneResult("verified")
-        setTimeout(() => router.push("/dashboard"), 2000)
+        setTimeout(() => router.push(callbackUrl), 2000)
       } else if (data.error === "INVALID_CODE") {
         setPhoneResult("invalid")
       } else if (res.status === 429) {
@@ -143,18 +145,18 @@ function VerifyContent() {
   useEffect(() => {
     if (state !== "success") return
     if (countdown <= 0) {
-      router.push("/dashboard")
+      router.push(callbackUrl)
       return
     }
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
     return () => clearTimeout(timer)
-  }, [state, countdown, router])
+  }, [state, countdown, router, callbackUrl])
 
   const configs: Record<string, { icon: React.ReactNode; title: string; message: string; color: string }> = {
     success: {
       icon: <CheckCircle2 className="h-8 w-8 text-emerald-400" />,
       title: "Verified!",
-      message: `Your account has been verified successfully. Redirecting to dashboard in ${countdown}s...`,
+      message: `Your account has been verified successfully. Redirecting in ${countdown}s...`,
       color: "border-emerald-500/20 bg-emerald-500/10",
     },
     expired: {
@@ -208,10 +210,10 @@ function VerifyContent() {
 
           {state === "success" && (
             <Link
-              href="/dashboard"
+              href={callbackUrl}
               className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 transition"
             >
-              Go to Dashboard
+              Continue
             </Link>
           )}
 
