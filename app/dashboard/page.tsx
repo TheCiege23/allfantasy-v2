@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
+import { requireVerifiedSession } from "@/lib/require-verified"
 import DashboardContent from "./DashboardContent"
 import SyncedRosters from "@/app/components/SyncedRosters"
 import RosterLegacyReport from "@/app/components/RosterLegacyReport"
@@ -16,6 +17,8 @@ export default async function DashboardPage() {
   if (!session?.user?.id || !session?.user?.email) {
     redirect("/login?callbackUrl=/dashboard")
   }
+
+  await requireVerifiedSession("/dashboard")
 
   const userId = session.user.id
   const email = session.user.email
