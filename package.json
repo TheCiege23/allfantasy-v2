@@ -12,6 +12,9 @@
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test __tests__/auth/",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "qa:legacy-smoke": "node scripts/legacy-feature-smoke-test.mjs",
     "qa:legacy-report": "node scripts/legacy-qa-report.mjs"
   },
@@ -65,6 +68,7 @@
     "zod-validation-error": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",

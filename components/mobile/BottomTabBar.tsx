@@ -26,6 +26,7 @@ interface BottomTabBarProps {
 export default function BottomTabBar({ activeTab, onChange, alertCount = 0 }: BottomTabBarProps) {
   return (
     <nav
+      data-testid="navbar-user-menu"
       className="fixed bottom-0 left-0 right-0 z-[100] bg-slate-950/95 backdrop-blur-xl border-t border-white/8 safe-area-bottom lg:hidden"
       role="tablist"
       aria-label="Main navigation"
