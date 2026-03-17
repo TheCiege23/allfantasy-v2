@@ -223,7 +223,7 @@ export default function LoginContent() {
             )}
 
             {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+              <div data-testid="signin-error" className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
                 <div className="flex items-start gap-2">
                   <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
                   <div>{error}</div>
@@ -236,6 +236,7 @@ export default function LoginContent() {
                 <div>
                   <label className="text-xs text-white/60">Email or Username</label>
                   <input
+                    data-testid="signin-login"
                     value={login}
                     onChange={(e) => setLogin(e.target.value)}
                     type="text"
@@ -254,6 +255,7 @@ export default function LoginContent() {
                   </div>
                   <div className="relative">
                     <input
+                      data-testid="signin-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       type={showPassword ? "text" : "password"}
@@ -272,6 +274,7 @@ export default function LoginContent() {
                   </div>
                 </div>
                 <button
+                  data-testid="signin-submit"
                   type="submit"
                   disabled={loading || !login.trim() || !password}
                   className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"

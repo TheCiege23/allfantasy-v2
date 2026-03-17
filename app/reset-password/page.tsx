@@ -123,7 +123,7 @@ function ResetPasswordContent() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+          <div data-testid="reset-password-error" className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
             <div className="flex items-start gap-2">
               <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
               <div>{error}</div>
@@ -137,6 +137,7 @@ function ResetPasswordContent() {
               <label className="text-xs text-white/60">New password</label>
               <div className="relative">
                 <input
+                  data-testid="reset-password-new"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   type={showPassword ? "text" : "password"}
@@ -158,6 +159,7 @@ function ResetPasswordContent() {
             <div>
               <label className="text-xs text-white/60">Confirm password</label>
               <input
+                data-testid="reset-password-confirm"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 type="password"
@@ -168,6 +170,7 @@ function ResetPasswordContent() {
               />
             </div>
             <button
+              data-testid="reset-password-submit"
               type="submit"
               disabled={loading || !password || !confirmPassword}
               className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
