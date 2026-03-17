@@ -29,6 +29,7 @@ export default function SignupPage() {
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [displayName, setDisplayName] = useState("")
   const [phone, setPhone] = useState("")
@@ -60,6 +61,12 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     setError("")
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.")
+      setLoading(false)
+      return
+    }
 
     try {
       const res = await fetch("/api/auth/register", {
@@ -170,7 +177,7 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+          <div data-testid="signup-error" className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
             <div className="flex items-start gap-2">
               <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
               <div>{error}</div>
@@ -182,6 +189,7 @@ export default function SignupPage() {
           <div>
             <label className="block text-xs text-white/60 mb-1">Username *</label>
             <input
+              data-testid="signup-username"
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
@@ -196,6 +204,7 @@ export default function SignupPage() {
           <div>
             <label className="block text-xs text-white/60 mb-1">Display Name</label>
             <input
+              data-testid="signup-display-name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
@@ -207,6 +216,7 @@ export default function SignupPage() {
           <div>
             <label className="block text-xs text-white/60 mb-1">Email *</label>
             <input
+              data-testid="signup-email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               type="email"
@@ -221,6 +231,7 @@ export default function SignupPage() {
             <label className="block text-xs text-white/60 mb-1">Password *</label>
             <div className="relative">
               <input
+                data-testid="signup-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
@@ -241,8 +252,24 @@ export default function SignupPage() {
           </div>
 
           <div>
+            <label className="block text-xs text-white/60 mb-1">Confirm Password *</label>
+            <input
+              data-testid="signup-confirm-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              type="password"
+              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
+              placeholder="Repeat your password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+            />
+          </div>
+
+          <div>
             <label className="block text-xs text-white/60 mb-1">Phone {verificationMethod === "PHONE" ? "*" : "(optional)"}</label>
             <input
+              data-testid="signup-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               type="tel"
@@ -263,6 +290,7 @@ export default function SignupPage() {
           </p>
           <div className="flex gap-2">
             <input
+              data-testid="signup-sleeper-username"
               value={sleeperUsername}
               onChange={(e) => {
                 setSleeperUsername(e.target.value)
@@ -335,6 +363,7 @@ export default function SignupPage() {
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
+              data-testid="signup-age-confirm"
               type="checkbox"
               checked={ageConfirmed}
               onChange={(e) => setAgeConfirmed(e.target.checked)}
@@ -347,6 +376,7 @@ export default function SignupPage() {
         </div>
 
         <button
+          data-testid="signup-submit"
           type="submit"
           disabled={loading || !username.trim() || !email.trim() || !password || !ageConfirmed || (verificationMethod === "PHONE" && !phone.trim())}
           className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"

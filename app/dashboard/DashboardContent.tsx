@@ -74,7 +74,7 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
               Join League
             </Link>
 
-            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <div data-testid="navbar-user-menu" className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="h-6 w-6 rounded-full" />
               ) : (
@@ -84,6 +84,7 @@ export default function DashboardContent({ user, profile, leagues, entries }: Da
               )}
               <span className="text-sm font-medium hidden sm:block">{displayName}</span>
               <button
+                data-testid="navbar-logout"
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="ml-1 text-white/40 hover:text-white/70 transition"
                 title="Sign out"

@@ -75,6 +75,7 @@ export default function ForgotPasswordPage() {
               <label className="text-xs text-white/60">Email address</label>
               <div className="relative">
                 <input
+                  data-testid="forgot-password-email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   type="email"
@@ -88,6 +89,7 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
             <button
+              data-testid="forgot-password-submit"
               type="submit"
               disabled={loading || !email.trim()}
               className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
