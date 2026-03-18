@@ -14,14 +14,20 @@ export async function GET(
 
   const leagueId = params.leagueId
   const [league, rosterAsMember] = await Promise.all([
-    (prisma as any).league.findFirst({ where: { id: leagueId }, select: { id: true, sport: true, userId: true } }),
+    (prisma as any).league.findFirst({ where: { id: leagueId }, select: { id: true, sport: true, leagueVariant: true, userId: true } }),
     (prisma as any).roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } }),
   ])
   const hasAccess = league && (league.userId === userId || rosterAsMember)
   if (!hasAccess) return NextResponse.json({ error: "League not found" }, { status: 404 })
 
   const settings = await getEffectiveLeagueWaiverSettings(leagueId)
-  return NextResponse.json({ ...settings, sport: (league as { sport?: string })?.sport ?? null })
+  const variant = (league as { leagueVariant?: string })?.leagueVariant ?? ""
+  const formatType = (variant === "IDP" || variant === "DYNASTY_IDP" || variant === "idp") ? "IDP" : undefined
+  return NextResponse.json({
+    ...settings,
+    sport: (league as { sport?: string })?.sport ?? null,
+    formatType: formatType ?? undefined,
+  })
 }
 
 export async function PUT(

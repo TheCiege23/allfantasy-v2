@@ -15,12 +15,16 @@ import { normalizeDraftPlayerList } from '@/lib/draft-sports-models/normalize-dr
 import { isDevyLeague } from '@/lib/devy'
 import { getPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/devy'
 import { isC2CLeague, getC2CPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/merged-devy-c2c'
+import { isIdpLeague } from '@/lib/idp'
 import type { LeagueSport } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 const DEFAULT_LIMIT = 300
 const DEVY_POOL_LIMIT = 200
+const IDP_POOL_LIMIT = 200
+/** IDP defensive positions for merging into draft pool when league is IDP. */
+const IDP_POSITIONS = ['DE', 'DT', 'LB', 'CB', 'S']
 type PoolType = 'startup_vet' | 'rookie' | 'devy' | 'startup_pro' | 'startup_college' | 'startup_merged' | 'college' | 'merged_rookie_college'
 
 function normalizeNameForDedupe(name: string): string {
@@ -45,7 +49,7 @@ export async function GET(
     const [league, draftSession] = await Promise.all([
       prisma.league.findUnique({
         where: { id: leagueId },
-        select: { sport: true },
+        select: { sport: true, leagueVariant: true },
       }),
       prisma.draftSession.findUnique({
         where: { leagueId },
@@ -53,6 +57,7 @@ export async function GET(
       }),
     ])
     const sport = (league?.sport as LeagueSport) ?? 'NFL'
+    const isIdp = await isIdpLeague(leagueId)
     const limit = Math.min(
       parseInt(req.nextUrl.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
       500
@@ -113,7 +118,7 @@ export async function GET(
         playerId: p.id ?? null,
         ...(isC2C ? { poolType: 'college' as const } : {}),
       }))
-    } else if (sport === 'NFL' || sport === 'NBA') {
+    } else if (sport === 'NFL') {
       const adpEntries = await getLiveADP('redraft', limit).catch(() => [])
       rawList = adpEntries.map((e) => ({
         name: e.name,
@@ -122,6 +127,26 @@ export async function GET(
         adp: e.adp,
         bye: e.bye,
       }))
+      if (isIdp) {
+        const { getPlayerPoolForLeague } = await import('@/lib/sport-teams/SportPlayerPoolResolver')
+        const idpPlayers = await getPlayerPoolForLeague(leagueId, 'NFL', { limit: IDP_POOL_LIMIT })
+        const idpFiltered = idpPlayers.filter((p) => IDP_POSITIONS.includes(p.position?.trim()?.toUpperCase() ?? ''))
+        const seenNames = new Set(rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')))
+        for (const p of idpFiltered) {
+          const norm = normalizeNameForDedupe(p.full_name ?? '')
+          if (norm && !seenNames.has(norm)) {
+            seenNames.add(norm)
+            rawList.push({
+              name: p.full_name,
+              position: p.position ?? '—',
+              team: p.team_abbreviation ?? null,
+              playerId: p.external_source_id ?? p.player_id,
+              adp: null,
+              bye: null,
+            })
+          }
+        }
+      }
       if (strictPoolSeparation && poolType === 'rookie') {
         const excludedProIds = isC2C
           ? await getC2CPromotedProPlayerIdsExcludedFromRookiePool(leagueId)
@@ -185,6 +210,7 @@ export async function GET(
       poolType: strictPoolSeparation ? poolType ?? undefined : undefined,
       devyConfig: devyEnabled ? { enabled: true, devyRounds: rawDevyConfig?.devyRounds ?? [] } : undefined,
       c2cConfig: c2cEnabled ? { enabled: true, collegeRounds: rawC2cConfig?.collegeRounds ?? [] } : undefined,
+      isIdp: isIdp || undefined,
     })
     res.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120')
     return res

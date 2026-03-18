@@ -21,11 +21,13 @@ export default async function LeagueDraftPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, sport: true, isDynasty: true },
+    select: { id: true, name: true, sport: true, isDynasty: true, leagueVariant: true },
   })
   if (!league) redirect('/app')
 
   const commissioner = await isCommissioner(leagueId, userId)
+  const variant = (league.leagueVariant ?? '').toUpperCase()
+  const formatType = variant === 'IDP' || variant === 'DYNASTY_IDP' ? 'IDP' : undefined
 
   return (
     <div className="min-h-screen">
@@ -35,6 +37,7 @@ export default async function LeagueDraftPage({
         sport={String(league.sport ?? 'NFL')}
         isDynasty={league.isDynasty ?? false}
         isCommissioner={commissioner}
+        formatType={formatType}
       />
     </div>
   )

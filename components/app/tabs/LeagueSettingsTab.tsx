@@ -27,6 +27,7 @@ import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
 import { DevySettingsPanel } from '@/components/devy/DevySettingsPanel'
 import { MergedDevyC2CCommissionerSettings } from '@/components/merged-devy-c2c/MergedDevyC2CCommissionerSettings'
 import { BigBrotherSettingsPanel } from '@/components/big-brother/BigBrotherSettingsPanel'
+import { IDPSettingsPanel } from '@/components/idp/IDPSettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 
 const SUBTABS_BASE = [
@@ -55,7 +56,7 @@ const SUBTABS_BASE = [
   'Delete League',
 ] as const
 
-const SUBTABS = [...SUBTABS_BASE, 'Devy Settings', 'C2C Settings', 'Big Brother Settings'] as const
+const SUBTABS = [...SUBTABS_BASE, 'Devy Settings', 'C2C Settings', 'Big Brother Settings', 'IDP Settings'] as const
 type SettingsSubtab = (typeof SUBTABS)[number]
 
 export default function LeagueSettingsTab({
@@ -63,14 +64,16 @@ export default function LeagueSettingsTab({
   isDevyDynasty,
   isMergedDevyC2C,
   isBigBrother,
+  isIdp,
   isCommissioner,
-}: LeagueTabProps & { isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isCommissioner?: boolean }) {
+}: LeagueTabProps & { isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
   const [active, setActive] = useState<SettingsSubtab>('General')
   const visibleSubtabs = SUBTABS.filter(
     (tab) =>
       (tab !== 'Devy Settings' || isDevyDynasty) &&
       (tab !== 'C2C Settings' || isMergedDevyC2C) &&
-      (tab !== 'Big Brother Settings' || isBigBrother)
+      (tab !== 'Big Brother Settings' || isBigBrother) &&
+      (tab !== 'IDP Settings' || isIdp)
   )
 
   return (
@@ -119,6 +122,9 @@ export default function LeagueSettingsTab({
       )}
       {active === 'Big Brother Settings' && isBigBrother && (
         <BigBrotherSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+      )}
+      {active === 'IDP Settings' && isIdp && (
+        <IDPSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
       )}
     </section>
   )

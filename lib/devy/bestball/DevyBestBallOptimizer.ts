@@ -19,6 +19,18 @@ export interface BestBallPlayerInput {
   isProRookie?: boolean
 }
 
+/** IDP slot counts for best ball (grouped: DL/LB/DB/IDP_FLEX; split: DE/DT/LB/CB/S). */
+export interface IdpBestBallSlots {
+  de?: number
+  dt?: number
+  lb: number
+  cb?: number
+  s?: number
+  dl?: number
+  db?: number
+  idpFlex?: number
+}
+
 export interface DevyBestBallSlotsNFL {
   qb: number
   rb: number
@@ -26,6 +38,8 @@ export interface DevyBestBallSlotsNFL {
   te: number
   flex: number
   superflex: boolean
+  /** When set, optimizer fills IDP slots (grouped or split) with highest-scoring eligible players. */
+  idp?: IdpBestBallSlots
 }
 
 export interface DevyBestBallSlotsNBA {
@@ -37,6 +51,10 @@ export interface DevyBestBallSlotsNBA {
 
 const NFL_FLEX_ELIGIBLE = new Set(['RB', 'WR', 'TE'])
 const NFL_SUPERFLEX_ELIGIBLE = new Set(['QB', 'RB', 'WR', 'TE'])
+const IDP_POSITIONS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
+const DL_ELIGIBLE = new Set(['DE', 'DT'])
+const DB_ELIGIBLE = new Set(['CB', 'S', 'SS', 'FS'])
+const IDP_FLEX_ELIGIBLE = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
 const NBA_G = new Set(['PG', 'SG', 'G'])
 const NBA_F = new Set(['SF', 'PF', 'F'])
 const NBA_C = new Set(['C'])
@@ -78,9 +96,16 @@ export function optimizeNflBestBallLineup(
     .filter((p) => eligibleForBestBall(p, config))
     .map((p) => ({ ...p, pos: p.position.toUpperCase() }))
 
-  const byPos: Record<string, typeof eligible> = { QB: [], RB: [], WR: [], TE: [] }
+  const byPos: Record<string, typeof eligible> = {
+    QB: [], RB: [], WR: [], TE: [],
+    DE: [], DT: [], LB: [], CB: [], S: [], SS: [], FS: [],
+  }
   for (const p of eligible) {
     if (byPos[p.pos]) byPos[p.pos].push(p)
+    else if (IDP_POSITIONS.has(p.pos)) {
+      const slot = p.pos === 'SS' || p.pos === 'FS' ? 'S' : p.pos
+      if (byPos[slot]) byPos[slot].push(p)
+    }
   }
   for (const pos of Object.keys(byPos)) {
     byPos[pos].sort((a, b) => b.points - a.points)
@@ -121,6 +146,32 @@ export function optimizeNflBestBallLineup(
       used.add(sfPool[0].playerId)
       starters.push(sfPool[0])
     }
+  }
+
+  const idp = slots.idp
+  if (idp) {
+    const idpEligible = eligible.filter((p) => !used.has(p.playerId) && IDP_POSITIONS.has(p.pos))
+    idpEligible.sort((a, b) => b.points - a.points)
+
+    const takeIdp = (pred: (pos: string) => boolean, count: number) => {
+      let n = 0
+      for (const p of idpEligible) {
+        if (n >= count) break
+        if (used.has(p.playerId) || !pred(p.pos)) continue
+        used.add(p.playerId)
+        starters.push(p)
+        n++
+      }
+    }
+
+    if ((idp.de ?? 0) > 0) take('DE', idp.de!)
+    if ((idp.dt ?? 0) > 0) take('DT', idp.dt!)
+    if (idp.lb > 0) take('LB', idp.lb)
+    if ((idp.cb ?? 0) > 0) take('CB', idp.cb!)
+    if ((idp.s ?? 0) > 0) take('S', idp.s)
+    if ((idp.dl ?? 0) > 0) takeIdp((pos) => DL_ELIGIBLE.has(pos), idp.dl!)
+    if ((idp.db ?? 0) > 0) takeIdp((pos) => DB_ELIGIBLE.has(pos), idp.db!)
+    if ((idp.idpFlex ?? 0) > 0) takeIdp((pos) => IDP_FLEX_ELIGIBLE.has(pos), idp.idpFlex!)
   }
 
   const totalPoints = starters.reduce((s, p) => s + p.points, 0)

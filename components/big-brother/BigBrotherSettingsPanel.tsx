@@ -38,6 +38,8 @@ interface BigBrotherConfig {
   antiCollusionLogging: boolean
   inactivePlayerHandling: string
   autoNominationFallback: string
+  evictionTieBreakMode?: string
+  weekProgressionPaused?: boolean
 }
 
 interface Props {
@@ -527,6 +529,30 @@ export function BigBrotherSettingsPanel({ leagueId, isCommissioner, onSaved }: P
             <option value="random">Random</option>
             <option value="commissioner">Commissioner</option>
           </select>
+        </label>
+        <label className="block">
+          <span className={labelCls}>Eviction tie-break (when vote is tied)</span>
+          <select
+            value={config.evictionTieBreakMode ?? 'season_points'}
+            onChange={(e) => update({ evictionTieBreakMode: e.target.value })}
+            disabled={!isCommissioner}
+            className={inputCls}
+          >
+            <option value="hoh_vote">HOH vote breaks tie</option>
+            <option value="season_points">Lowest season points evicted</option>
+            <option value="random">Random (seeded)</option>
+            <option value="commissioner">Commissioner decides</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={config.weekProgressionPaused ?? false}
+            onChange={(e) => update({ weekProgressionPaused: e.target.checked })}
+            disabled={!isCommissioner}
+            className="rounded border-white/20"
+          />
+          <span className="text-sm text-white/80">Pause week progression (automation will not advance)</span>
         </label>
       </div>
 

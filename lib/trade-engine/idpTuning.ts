@@ -72,19 +72,26 @@ export function adjustIdpValue(
 }
 
 export function computeLeagueIdpScarcity(
-  rosterPositions: string[],
+  rosterPositions: string[] | undefined,
   numTeams: number
 ): IdpScarcityIndex[] {
-  const idpPositions = ['DL', 'LB', 'DB', 'EDGE', 'IDP']
+  if (!Array.isArray(rosterPositions) || rosterPositions.length === 0) return []
+  const rp = rosterPositions.map((p) => (p || '').toUpperCase())
   const scarcityList: IdpScarcityIndex[] = []
+  const grouped = ['DL', 'LB', 'DB', 'EDGE', 'IDP']
+  const split = ['DE', 'DT', 'CB', 'S']
 
-  for (const pos of idpPositions) {
-    const count = rosterPositions.filter(
-      rp => rp.toUpperCase() === pos || rp.toUpperCase() === 'IDP_FLEX'
-    ).length
-
+  for (const pos of grouped) {
+    const count = rp.filter((p) => p === pos || p === 'IDP_FLEX').length
     if (count > 0) {
       const poolSize = pos === 'LB' ? 80 : pos === 'DL' ? 60 : pos === 'DB' ? 100 : 50
+      scarcityList.push(computeIdpScarcityIndex(pos, count, numTeams, poolSize))
+    }
+  }
+  for (const pos of split) {
+    const count = rp.filter((p) => p === pos).length
+    if (count > 0) {
+      const poolSize = pos === 'DE' ? 40 : pos === 'DT' ? 28 : 50
       scarcityList.push(computeIdpScarcityIndex(pos, count, numTeams, poolSize))
     }
   }

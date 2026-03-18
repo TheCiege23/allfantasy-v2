@@ -81,6 +81,15 @@ export async function POST(req: NextRequest) {
       where: { id: leagueId, userId: session.user.id },
     })
 
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    }
+    if (String((league as any).sport || 'NFL').toUpperCase() !== 'NFL') {
+      return NextResponse.json(
+        { proposals: [], message: 'Draft-day trade proposals are currently available for NFL mock drafts only.' },
+      )
+    }
+
     const userManager = draftResults.find((p: any) => p.isUser)?.manager
     if (!userManager) {
       return NextResponse.json({ error: 'No user picks found in draft' }, { status: 400 })

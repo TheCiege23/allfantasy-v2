@@ -11,6 +11,7 @@ import { releaseEvictedRoster } from './BigBrotherRosterReleaseEngine'
 import { appendBigBrotherAudit } from './BigBrotherAuditLog'
 import { announceEviction } from './BigBrotherChatAnnouncements'
 import { transitionPhase } from './BigBrotherPhaseStateMachine'
+import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { BigBrotherEvictionResult } from './types'
 
 export interface CloseEvictionOptions {
@@ -68,6 +69,28 @@ export async function closeEviction(
 
   await releaseEvictedRoster(cycle.leagueId, evictedRosterId)
 
+  const [league, evictedRoster] = await Promise.all([
+    prisma.league.findUnique({ where: { id: cycle.leagueId }, select: { sport: true } }),
+    prisma.roster.findUnique({ where: { id: evictedRosterId }, select: { playerData: true } }),
+  ])
+  const sport = (league?.sport ?? 'NFL') as string
+  const releasedPlayerIds = evictedRoster ? getRosterPlayerIds(evictedRoster.playerData) : []
+  try {
+    await (prisma as any).transactionFact.create({
+      data: {
+        leagueId: cycle.leagueId,
+        sport,
+        type: 'big_brother_eviction',
+        rosterId: evictedRosterId,
+        payload: { cycleId, week: cycle.week, voteCount: tally.votesByTarget, tied: tally.tied, releasedPlayerCount: releasedPlayerIds.length },
+        weekOrPeriod: cycle.week,
+        season: new Date().getFullYear(),
+      },
+    })
+  } catch {
+    // non-fatal: transaction log optional
+  }
+
   let juryEnrolled = false
   if (await shouldJoinJury(cycle.leagueId, cycle.week, remainingAfter)) {
     await enrollJuryMember(cycle.leagueId, cycle.configId, evictedRosterId, cycle.week)
@@ -81,6 +104,7 @@ export async function closeEviction(
     voteCount: tally.votesByTarget,
     tied: tally.tied,
     juryEnrolled,
+    releasedPlayerCount: releasedPlayerIds.length,
   })
 
   if (options?.postToChat !== false) {

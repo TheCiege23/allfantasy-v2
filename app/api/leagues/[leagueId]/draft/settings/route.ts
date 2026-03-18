@@ -31,9 +31,20 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    const [variant, commissioner] = await Promise.all([
+    const [variant, commissioner, league, idpRosterSummary] = await Promise.all([
       getDraftVariantSettings(leagueId),
       isCommissioner(leagueId, userId),
+      prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { sport: true, leagueVariant: true },
+      }),
+      (async () => {
+        const { isIdpLeague, getRosterDefaultsForIdpLeague } = await import('@/lib/idp')
+        if (!(await isIdpLeague(leagueId))) return null
+        const def = await getRosterDefaultsForIdpLeague(leagueId)
+        if (!def) return null
+        return { starterSlots: def.starter_slots, benchSlots: def.bench_slots }
+      })(),
     ])
 
     let orphanStatus: { orphanRosterIds: string[]; recentActions: Array<{ action: string; createdAt: string; reason: string | null }> } | null = null
@@ -60,6 +71,8 @@ export async function GET(
       sessionVariant: variant.sessionVariant ?? null,
       sessionPreDraft: variant.sessionPreDraft ?? false,
       orphanStatus,
+      formatType: league?.sport === 'NFL' && (league?.leagueVariant === 'IDP' || league?.leagueVariant === 'DYNASTY_IDP' || league?.leagueVariant === 'idp') ? 'IDP' : undefined,
+      idpRosterSummary: idpRosterSummary ?? undefined,
     })
     res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
     return res

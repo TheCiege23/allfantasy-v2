@@ -5,7 +5,9 @@ import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { getLiveADP } from '@/lib/adp-data'
 import { applyRealtimeAdpAdjustments } from '@/lib/mock-draft/adp-realtime-adjuster'
+import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
 import { summarizeDraftValidation, type DraftType } from '@/lib/mock-draft/draft-engine'
+import { runDraft } from '@/lib/mock-draft-simulator'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
 
@@ -176,6 +178,116 @@ export async function POST(req: NextRequest) {
 
     const userTeamIdx = 0
 
+    if (!isNfl && draftType !== 'auction') {
+      const playerPool = await loadSportAwareDraftPlayerPool({
+        leagueId,
+        sport,
+        limit: numTeams * rounds + 50,
+      })
+
+      if (playerPool.length < numTeams * rounds) {
+        return NextResponse.json(
+          { error: `Player pool too small for this ${sport} mock draft size` },
+          { status: 400 }
+        )
+      }
+
+      const avatarMap: Record<string, string> = {}
+      for (const t of league.teams) {
+        const name = t.teamName || t.ownerName || ''
+        if (name && t.avatarUrl) avatarMap[name.toLowerCase()] = t.avatarUrl
+      }
+
+      const simulated = await runDraft({
+        config: {
+          sport,
+          numTeams,
+          rounds,
+          draftType: draftType === 'linear' ? 'linear' : 'snake',
+          teamNames,
+          userSlot: userTeamIdx,
+        },
+        playerPool,
+      })
+
+      const absentManagerSet = new Set<string>(
+        (Array.isArray(absentManagers) ? absentManagers : [])
+          .map((m: any) => String(m || '').toLowerCase())
+          .filter(Boolean)
+      )
+
+      const valueByPlayer = new Map(
+        playerPool.map((player) => [`${player.name.toLowerCase()}|${player.position}`, player.value ?? null])
+      )
+
+      const draftResults = simulated.picks.map((pick) => {
+        const managerKey = String(pick.manager || '').toLowerCase()
+        const isAbsentManager = absentManagerSet.has(managerKey)
+        return {
+          ...pick,
+          pick: ((pick.overall - 1) % numTeams) + 1,
+          team: pick.team ?? '',
+          managerAvatar: avatarMap[managerKey] || null,
+          confidence: pick.isUser ? 100 : 74,
+          value: valueByPlayer.get(`${pick.playerName.toLowerCase()}|${pick.position}`) ?? null,
+          notes: `Simulated from the imported ${sport} player pool.`,
+          isBotPick: Boolean(!pick.isUser && (replaceAbsentWithAi || isAbsentManager)),
+        }
+      })
+
+      const validation = summarizeDraftValidation({
+        picks: draftResults,
+        constraints: { strict: !casualMode },
+      })
+
+      if (!validation.valid) {
+        return NextResponse.json({
+          error: 'Draft validation failed',
+          details: validation.errors.slice(0, 10),
+        }, { status: 422 })
+      }
+
+      let draftId: string | null = null
+      try {
+        const saved = await prisma.mockDraft.create({
+          data: {
+            leagueId,
+            userId: session.user.id,
+            rounds,
+            results: draftResults,
+            proposals: [],
+          },
+        })
+        draftId = saved.id
+      } catch (saveErr) {
+        console.error('[mock-draft] Failed to save draft:', saveErr)
+      }
+
+      return NextResponse.json({
+        legacyEnvelope: {
+          status: 'ok',
+          screen: 'draft_war_room',
+          data: null,
+          meta: {
+            confidence: 0.8,
+            usedLiveNewsOverlay: false,
+            usedSimulation: true,
+            generatedAt: new Date().toISOString(),
+            requestId: `req_${Date.now()}_mock_sim_${String(sport).toLowerCase()}`,
+            aiStack: { orchestrator: 'mock-draft-engine', structuredEvaluator: 'deterministic', liveNewsOverlay: 'none' },
+          },
+          errors: [],
+        },
+        draftResults,
+        draftId,
+        proposals: [],
+        validationWarnings: validation.warnings,
+        draftPool,
+        replaceAbsentWithAi,
+        sport,
+      })
+    }
+
     let rosterContext = ''
     if (league.rosters.length > 0) {
       const summaries = league.rosters.slice(0, numTeams).map((r, i) => {
@@ -216,7 +328,20 @@ ${adjustmentNotes || 'No significant adjustments'}`
         console.log('[mock-draft] ADP fetch failed, AI will use internal knowledge:', adpErr)
       }
     } else {
-      adpContext = `\n\nSport: ${sport}. Draft only real ${sport === 'NBA' ? 'NBA' : 'MLB'} players with correct positions (${sport === 'NBA' ? 'PG, SG, SF, PF, C' : 'P, C, 1B, 2B, 3B, SS, OF, etc.'}). Use your knowledge of current player values and team needs.`
+      const importedPlayers = await loadSportAwareDraftPlayerPool({
+        leagueId,
+        sport,
+        limit: 200,
+      })
+      const importedSummary = importedPlayers
+        .slice(0, 200)
+        .map((player) => `${player.name} (${player.position}, ${player.team || 'FA'}) - board slot ${player.adp}`)
+        .join('\n')
+
+      adpContext = `\n\n=== IMPORTED ${sport} PLAYER POOL (${importedPlayers.length} players) ===
+Draft only players from this imported ${sport} pool. Keep positions and teams accurate.
+
+${importedSummary}`
     }
 
     const draftTypeLabel = (['snake', 'linear', 'auction'].includes(draftType) ? draftType : 'snake') as DraftType

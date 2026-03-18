@@ -13,6 +13,8 @@ import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContext
 import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
 import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
 import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tournamentContextForChimmy'
+import { buildBigBrotherContextForChimmy } from '@/lib/big-brother/ai/bigBrotherContextForChimmy'
+import { buildIdpContextForChimmy } from '@/lib/idp/ai/idpContextForChimmy'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 
@@ -99,6 +101,8 @@ const SPORTS_KEYWORDS = [
   'standings', 'bench', 'injury', 'bye week', 'matchup', 'projection',
   'qb', 'rb', 'wr', 'te', 'flex', 'superflex', 'ppr', 'dynasty', 'keeper',
   'faab', 'auction', 'nfl', 'nba', 'mlb', 'basketball', 'baseball', 'football',
+  'idp', 'linebacker', 'defensive end', 'defensive tackle', 'cornerback', 'safety',
+  'dl', 'lb', 'db', 'tackle floor', 'big play', 'best ball',
 ]
 
 const STRATEGY_MODE_CONTEXT: Record<StrategyMode, string> = {
@@ -725,7 +729,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, devyContextResult, c2cContextResult, tournamentContextResult] = await Promise.allSettled([
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult] = await Promise.allSettled([
     getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
@@ -737,6 +741,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     leagueId && userId ? buildDevyContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildC2CContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildTournamentContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildBigBrotherContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildIdpContextForChimmy(leagueId, userId) : Promise.resolve(''),
   ])
 
   let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
@@ -764,6 +770,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (tournamentContextStr && typeof tournamentContextStr === 'string') {
     userContextStr = userContextStr ? `${userContextStr}\n\n${tournamentContextStr}` : tournamentContextStr
     dataSources.push('tournament_league')
+  }
+  const bigBrotherContextStr = bigBrotherContextResult.status === 'fulfilled' ? bigBrotherContextResult.value : ''
+  if (bigBrotherContextStr && typeof bigBrotherContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${bigBrotherContextStr}` : bigBrotherContextStr
+    dataSources.push('big_brother_league')
+  }
+  const idpContextStr = idpContextResult.status === 'fulfilled' ? idpContextResult.value : ''
+  if (idpContextStr && typeof idpContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${idpContextStr}` : idpContextStr
+    dataSources.push('idp_league')
   }
   const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
   const enrichmentStr = enrichment?.context ?? ''

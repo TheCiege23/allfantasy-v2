@@ -76,6 +76,24 @@ export async function PUT(
     playerId: e.playerId ?? e.player_id ?? null,
   }))
 
+  const { getAllowedPositionsAndRosterSize } = await import('@/lib/live-draft-engine/RosterFitValidation')
+  const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
+  if (rosterRules?.allowedPositions) {
+    const invalid = normalized.filter((e: { position: string }) => {
+      const pos = (e.position ?? '').trim().toUpperCase()
+      return pos && !rosterRules!.allowedPositions.has(pos)
+    })
+    if (invalid.length > 0) {
+      const positions = [...new Set(invalid.map((e: { position: string }) => (e.position || '').trim() || '?'))]
+      return NextResponse.json(
+        {
+          error: `Queue contains players with positions not allowed in this league: ${positions.join(', ')}. Allowed positions: ${[...rosterRules.allowedPositions].sort().join(', ')}.`,
+        },
+        { status: 400 }
+      )
+    }
+  }
+
   await prisma.draftQueue.upsert({
     where: { sessionId_userId: { sessionId: draftSession.id, userId } },
     create: { sessionId: draftSession.id, userId, order: normalized as any },

@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
 import { prisma } from '@/lib/prisma'
 import { getLiveADP } from '@/lib/adp-data'
 import { runDraft } from '@/lib/mock-draft-simulator'
@@ -63,17 +64,25 @@ export async function POST(req: Request) {
         playerId: p.playerId ?? null,
       })).filter((p: DraftPlayer) => p.name)
     }
-    if (playerPool.length === 0 && (sport === 'NFL' || !body.playerPool)) {
-      const adpType = body.isDynasty ? 'dynasty' : 'redraft'
-      const adpEntries = await getLiveADP(adpType as 'dynasty' | 'redraft', numTeams * rounds + 50)
-      playerPool = adpEntries.map((p) => ({
-        name: p.name,
-        position: p.position,
-        team: p.team ?? null,
-        adp: p.adp ?? null,
-        value: p.value ?? null,
-        playerId: null,
-      }))
+    if (playerPool.length === 0) {
+      if (sport === 'NFL') {
+        const adpType = body.isDynasty ? 'dynasty' : 'redraft'
+        const adpEntries = await getLiveADP(adpType as 'dynasty' | 'redraft', numTeams * rounds + 50)
+        playerPool = adpEntries.map((p) => ({
+          name: p.name,
+          position: p.position,
+          team: p.team ?? null,
+          adp: p.adp ?? null,
+          value: p.value ?? null,
+          playerId: null,
+        }))
+      } else {
+        playerPool = await loadSportAwareDraftPlayerPool({
+          leagueId,
+          sport,
+          limit: numTeams * rounds + 50,
+        })
+      }
     }
 
     if (playerPool.length < numTeams * rounds) {

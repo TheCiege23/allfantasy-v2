@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getLiveADP, fetchFFCADP, fetchAllFFCFormats, FFCScoringFormat } from '@/lib/adp-data'
+import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
 import { resolveSleeperIds } from '@/lib/sleeper/players-cache'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { findMultiADP, type ADPFormat } from '@/lib/multi-platform-adp'
 
 export const runtime = "nodejs"
@@ -49,16 +51,36 @@ export async function GET(req: NextRequest) {
 
     const type = (req.nextUrl.searchParams.get('type') || 'redraft') as 'dynasty' | 'redraft'
     const pool = req.nextUrl.searchParams.get('pool') || 'all'
-    const sport = (req.nextUrl.searchParams.get('sport') || 'nfl').toLowerCase()
+    const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') || 'NFL')
 
-    if (sport !== 'nfl') {
+    if (sport !== 'NFL') {
+      const players = await loadSportAwareDraftPlayerPool({ sport, limit })
       return NextResponse.json({
-        entries: [],
-        count: 0,
+        entries: players.map((player) => ({
+          name: player.name,
+          position: player.position,
+          team: player.team,
+          adp: player.adp,
+          adpFormatted: player.adp != null ? Number(player.adp).toFixed(1) : null,
+          adpTrend: null,
+          value: player.value ?? null,
+          sleeperId: player.playerId ?? null,
+          ffcPlayerId: null,
+          timesDrafted: null,
+          adpHigh: null,
+          adpLow: null,
+          adpStdev: null,
+          bye: null,
+          isRookie: false,
+          multiPlatformADP: null,
+        })),
+        count: players.length,
         type,
         pool,
-        sport,
-        message: 'ADP data for NBA/MLB is not yet available; use sport=nfl for football.',
+        sport: sport.toLowerCase(),
+        message: players.length > 0
+          ? `Loaded ${players.length} ${sport} players from the sport-specific player pool.`
+          : `No ${sport} players are available in the imported player pool yet.`,
       })
     }
 

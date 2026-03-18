@@ -44,6 +44,7 @@ export {
   transitionPhase,
   canTransition,
   isValidPhase,
+  createFirstCycleIfNeeded,
 } from './BigBrotherPhaseStateMachine'
 export { getEligibility, canRosterCompete, isJuryRoster } from './BigBrotherEligibilityEngine'
 export {
@@ -67,3 +68,14 @@ export { runAutoNomination, runAutoReplacementNominee } from './BigBrotherNomina
 export { runAutomation } from './BigBrotherAutomationService'
 export type { AutomationRunInput, AutomationRunResult } from './BigBrotherAutomationService'
 export { isFinaleReached, runFinaleTallyAndAnnounce } from './BigBrotherFinaleService'
+export { getChallengeThemeSportLabel, getHOHChallengeThemeHints, getVetoChallengeThemeHints, getBigBrotherSupportedSports } from './sport-adapter'
+export { runBigBrotherAdminAction } from './BigBrotherAdminService'
+export type { BigBrotherAdminAction, BigBrotherAdminInput, BigBrotherAdminResult } from './BigBrotherAdminService'
+export {
+  isDoubleEvictionWeek,
+  isAmericasVoteActive,
+  hasSecretPowers,
+  isAnonymousHOH,
+  isBattleBackAvailable,
+  haveNotPunishmentsActive,
+} from './extensibility'

@@ -113,22 +113,36 @@ export async function tallyEvictionVotes(
   let tieBreakSeasonPoints: Record<string, number> | null = null
 
   const config = await getBigBrotherConfig(cycle.leagueId)
-  const hohVotesOnlyInTie = config?.hohVotesOnlyInTie ?? true
+  const tieBreakMode = config?.evictionTieBreakMode ?? 'season_points'
 
   if (tiedTargets.length === 1) {
     evictedRosterId = tiedTargets[0]
   } else if (tiedTargets.length > 1) {
-    const points: Record<string, number> = {}
-    for (const rosterId of tiedTargets) {
-      points[rosterId] = await seasonPointsSource.getSeasonPointsForRoster(
-        cycle.leagueId,
-        rosterId,
-        cycle.week
-      )
+    if (tieBreakMode === 'hoh_vote' && cycle.hohRosterId) {
+      const hohVote = cycle.votes.find((v) => v.voterRosterId === cycle.hohRosterId)
+      if (hohVote && tiedTargets.includes(hohVote.targetRosterId)) {
+        evictedRosterId = hohVote.targetRosterId
+      }
     }
-    tieBreakSeasonPoints = points
-    const minPoints = Math.min(...Object.values(points))
-    evictedRosterId = tiedTargets.find((t) => points[t] === minPoints) ?? tiedTargets[0]
+    if (tieBreakMode === 'random' && tiedTargets.length > 0) {
+      const seed = [cycle.leagueId, cycle.configId, cycle.week, ...tiedTargets.sort()].join(':')
+      let h = 0
+      for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0
+      evictedRosterId = tiedTargets[Math.abs(h) % tiedTargets.length]
+    }
+    if (!evictedRosterId) {
+      const points: Record<string, number> = {}
+      for (const rosterId of tiedTargets) {
+        points[rosterId] = await seasonPointsSource.getSeasonPointsForRoster(
+          cycle.leagueId,
+          rosterId,
+          cycle.week
+        )
+      }
+      tieBreakSeasonPoints = points
+      const minPoints = Math.min(...Object.values(points))
+      evictedRosterId = tiedTargets.find((t) => points[t] === minPoints) ?? tiedTargets[0]
+    }
   }
 
   return {

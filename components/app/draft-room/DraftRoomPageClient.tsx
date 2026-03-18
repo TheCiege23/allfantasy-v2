@@ -39,6 +39,7 @@ const KeeperPanel = dynamic(
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
+import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 
 export type DraftRoomPageClientProps = {
   leagueId: string
@@ -46,6 +47,8 @@ export type DraftRoomPageClientProps = {
   sport: string
   isDynasty?: boolean
   isCommissioner: boolean
+  /** When IDP league, pass 'IDP' for position filters and roster template. */
+  formatType?: string
 }
 
 const POLL_MS = 8000
@@ -58,6 +61,7 @@ export function DraftRoomPageClient({
   sport,
   isDynasty = false,
   isCommissioner,
+  formatType,
 }: DraftRoomPageClientProps) {
   const [session, setSession] = useState<DraftSessionSnapshot | null>(null)
   const [queue, setQueue] = useState<QueueEntry[]>([])
@@ -101,7 +105,7 @@ export function DraftRoomPageClient({
   const [showTradePanel, setShowTradePanel] = useState(false)
   const [pendingTradesCount, setPendingTradesCount] = useState(0)
   const [pickError, setPickError] = useState<string | null>(null)
-  const [draftPool, setDraftPool] = useState<{ entries: NormalizedDraftEntry[]; sport: string; devyConfig?: { enabled: boolean; devyRounds: number[] }; c2cConfig?: { enabled: boolean; collegeRounds: number[] } } | null>(null)
+  const [draftPool, setDraftPool] = useState<{ entries: NormalizedDraftEntry[]; sport: string; devyConfig?: { enabled: boolean; devyRounds: number[] }; c2cConfig?: { enabled: boolean; collegeRounds: number[] }; isIdp?: boolean } | null>(null)
   const [auctionNominateLoading, setAuctionNominateLoading] = useState(false)
   const [auctionBidLoading, setAuctionBidLoading] = useState(false)
   const [auctionResolveLoading, setAuctionResolveLoading] = useState(false)
@@ -110,6 +114,7 @@ export function DraftRoomPageClient({
   /** Draft room uses normalized pool from fetchDraftPool only; skip useLeagueSectionData to avoid duplicate /api/mock-draft/adp. */
   const draftData = null as { entries?: PlayerEntry[] } | null
   const poolLoading = loading && draftPool === null
+  const effectiveDraftSport = draftPool?.sport ?? sport
 
   const draftedNames = useMemo(
     () => new Set(session?.picks?.map((p) => p.playerName) ?? []),
@@ -185,6 +190,7 @@ export function DraftRoomPageClient({
           sport: data.sport ?? sport,
           devyConfig: data.devyConfig,
           c2cConfig: data.c2cConfig,
+          isIdp: data.isIdp,
         })
       } else {
         setDraftPool(null)
@@ -194,13 +200,42 @@ export function DraftRoomPageClient({
     }
   }, [leagueId, sport])
 
+  const [idpRosterSummary, setIdpRosterSummary] = useState<{ starterSlots: Record<string, number>; benchSlots: number } | null>(null)
+  const effectiveRosterSlots = useMemo(() => {
+    if (formatType === 'IDP' && idpRosterSummary) {
+      const slots: string[] = []
+      for (const [slotName, count] of Object.entries(idpRosterSummary.starterSlots)) {
+        for (let i = 0; i < count; i += 1) slots.push(slotName)
+      }
+      for (let i = 0; i < (idpRosterSummary.benchSlots ?? 0); i += 1) {
+        slots.push('BENCH')
+      }
+      return slots
+    }
+
+    return getDefaultRosterSlotsForSport(effectiveDraftSport)
+  }, [effectiveDraftSport, formatType, idpRosterSummary])
+  const isSuperflexFormat = useMemo(() => {
+    const normalizedSlots = effectiveRosterSlots.map((slot) => String(slot || '').toUpperCase())
+    return (
+      normalizedSlots.includes('SUPER_FLEX') ||
+      normalizedSlots.includes('SUPERFLEX') ||
+      normalizedSlots.includes('OP') ||
+      normalizedSlots.filter((slot) => slot === 'QB').length >= 2
+    )
+  }, [effectiveRosterSlots])
+
   const fetchDraftSettings = useCallback(async () => {
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && data.draftUISettings) setDraftUISettings(data.draftUISettings)
+      if (res.ok) {
+        if (data.draftUISettings) setDraftUISettings(data.draftUISettings)
+        setIdpRosterSummary(data.idpRosterSummary ?? null)
+      }
     } catch {
       setDraftUISettings(null)
+      setIdpRosterSummary(null)
     }
   }, [leagueId])
 
@@ -390,13 +425,13 @@ export function DraftRoomPageClient({
         body: JSON.stringify({
           available,
           teamRoster: myRoster,
-          rosterSlots: [],
+          rosterSlots: effectiveRosterSlots,
           round: session.currentPick.round,
           pick: session.currentPick.slot,
           totalTeams: session.teamCount,
-          sport,
+          sport: effectiveDraftSport,
           isDynasty,
-          isSF: false,
+          isSF: isSuperflexFormat,
           mode: 'needs',
           aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
         }),
@@ -421,7 +456,21 @@ export function DraftRoomPageClient({
     } finally {
       setRecommendationLoading(false)
     }
-  }, [session?.currentPick, session?.teamCount, session?.picks, session, draftPool, draftData, draftUISettings?.aiAdpEnabled, leagueAiAdp, sport, isDynasty])
+  }, [
+    session?.currentPick,
+    session?.teamCount,
+    session?.picks,
+    session,
+    draftPool,
+    draftData,
+    draftUISettings?.aiAdpEnabled,
+    leagueAiAdp,
+    effectiveDraftSport,
+    effectiveRosterSlots,
+    isSuperflexFormat,
+    isDynasty,
+    currentUserRosterId,
+  ])
 
   useEffect(() => {
     if (!session?.currentPick || !session.teamCount || players.length === 0) return
@@ -867,7 +916,7 @@ export function DraftRoomPageClient({
         <PostDraftView
           leagueId={leagueId}
           leagueName={leagueName}
-          sport={sport}
+          sport={effectiveDraftSport}
           session={session}
           currentUserRosterId={currentUserRosterId ?? null}
           slotOrder={slotOrder}
@@ -890,9 +939,34 @@ export function DraftRoomPageClient({
       </div>
     ) : null
 
+  const OFFENSE_POS = new Set(['QB', 'RB', 'WR', 'TE', 'K'])
+  const IDP_POS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
+  const idpNeeds = formatType === 'IDP' && idpRosterSummary && (() => {
+    const slots = idpRosterSummary.starterSlots
+    let offenseNeed = 0
+    let idpNeed = 0
+    for (const [name, count] of Object.entries(slots)) {
+      if (name === 'FLEX' || OFFENSE_POS.has(name)) offenseNeed += count
+      else if (name === 'DL' || name === 'DB' || name === 'IDP_FLEX' || IDP_POS.has(name)) idpNeed += count
+    }
+    const benchNeed = idpRosterSummary.benchSlots ?? 0
+    const myOffense = myDraftedPicks.filter((p) => OFFENSE_POS.has(p.position ?? '') || p.position === 'FLEX').length
+    const myIdp = myDraftedPicks.filter((p) => IDP_POS.has(p.position ?? '')).length
+    const myBench = Math.max(0, myDraftedPicks.length - myOffense - myIdp)
+    return { offenseNeed, idpNeed, benchNeed, myOffense, myIdp, myBench }
+  })()
+
   const rosterPanel = (
     <div className="space-y-2 p-2">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">My roster</h3>
+      {formatType === 'IDP' && idpNeeds && (
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-2 py-1.5 text-xs text-cyan-200">
+          <div className="font-medium text-cyan-100 mb-1">Starters remaining</div>
+          <div>Offense: {idpNeeds.myOffense} / {idpNeeds.offenseNeed}</div>
+          <div>IDP: {idpNeeds.myIdp} / {idpNeeds.idpNeed}</div>
+          <div>Bench: {idpNeeds.myBench} / {idpNeeds.benchNeed}</div>
+        </div>
+      )}
       {myDraftedPicks.length === 0 ? (
         <p className="text-white/50 text-sm">No picks yet.</p>
       ) : (
@@ -940,7 +1014,7 @@ export function DraftRoomPageClient({
           )}
           <DraftTopBar
             leagueName={leagueName}
-            sport={sport}
+            sport={effectiveDraftSport}
             draftType={session.draftType}
             currentManagerOnClock={currentPick?.displayName ?? null}
             pickLabel={currentPick?.pickLabel ?? null}
@@ -1001,7 +1075,7 @@ export function DraftRoomPageClient({
         <PlayerPanel
           players={players}
           draftedNames={draftedNames}
-          sport={sport}
+          sport={effectiveDraftSport}
           canDraft={!isAuction && canDraft}
           onAddToQueue={handleAddToQueue}
           onMakePick={handleMakePick}
@@ -1016,6 +1090,7 @@ export function DraftRoomPageClient({
           devyConfig={draftPool?.devyConfig ?? (session as DraftSessionSnapshot).devy ? { enabled: true, devyRounds: (session as DraftSessionSnapshot).devy!.devyRounds } : undefined}
           c2cConfig={draftPool?.c2cConfig ?? (session as DraftSessionSnapshot).c2c ? { enabled: true, collegeRounds: (session as DraftSessionSnapshot).c2c!.collegeRounds } : undefined}
           currentRound={session?.currentPick?.round}
+          formatType={formatType ?? (draftPool as { isIdp?: boolean })?.isIdp ? 'IDP' : undefined}
         />
       }
       queuePanel={
@@ -1047,10 +1122,11 @@ export function DraftRoomPageClient({
           byeNote={recommendationResult?.byeNote ?? null}
           explanation={recommendationResult?.explanation ?? ''}
           caveats={recommendationResult?.caveats ?? []}
-          sport={sport}
+          sport={effectiveDraftSport}
           round={session?.currentPick?.round ?? 1}
           pick={session?.currentPick?.slot ?? 1}
           leagueName={leagueName}
+          rosterSlots={effectiveRosterSlots}
           queueLength={queueFiltered.length}
           onRefresh={fetchRecommendation}
         />

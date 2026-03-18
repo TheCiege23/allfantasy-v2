@@ -117,5 +117,35 @@ export async function getProcessedClaimsAndTransactions(leagueId: string, limit:
       include: { roster: { select: { id: true, platformUserId: true } } },
     }),
   ])
-  return { claims, transactions }
+  const enriched = await enrichTransactionsWithPositions(transactions)
+  return { claims, transactions: enriched }
+}
+
+const IDP_POSITIONS = new Set(["DE", "DT", "LB", "CB", "S", "SS", "FS"])
+
+async function enrichTransactionsWithPositions(
+  transactions: { addPlayerId: string; dropPlayerId: string | null }[]
+): Promise<{ addPlayerId: string; dropPlayerId: string | null; addPlayerPosition?: string; dropPlayerPosition?: string; isDefensiveAdd?: boolean; isDefensiveDrop?: boolean }[]> {
+  const ids = new Set<string>()
+  for (const t of transactions) {
+    if (t.addPlayerId) ids.add(t.addPlayerId)
+    if (t.dropPlayerId) ids.add(t.dropPlayerId)
+  }
+  if (ids.size === 0) return transactions.map((t) => ({ ...t, isDefensiveAdd: false, isDefensiveDrop: false }))
+  const players = await (prisma as any).sportsPlayer.findMany({
+    where: { id: { in: Array.from(ids) } },
+    select: { id: true, position: true },
+  })
+  const posById = new Map<string, string>(players.map((p: { id: string; position: string | null }) => [p.id, (p.position ?? "").toUpperCase()]))
+  return transactions.map((t) => {
+    const addPos = posById.get(t.addPlayerId) ?? ""
+    const dropPos = posById.get(t.dropPlayerId ?? "") ?? ""
+    return {
+      ...t,
+      addPlayerPosition: addPos || undefined,
+      dropPlayerPosition: dropPos || undefined,
+      isDefensiveAdd: addPos ? IDP_POSITIONS.has(addPos) : false,
+      isDefensiveDrop: dropPos ? IDP_POSITIONS.has(dropPos) : false,
+    }
+  })
 }

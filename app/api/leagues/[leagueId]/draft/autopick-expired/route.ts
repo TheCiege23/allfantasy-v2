@@ -65,13 +65,24 @@ export async function POST(
   const queueRow = draftSession.queues.find((q) => q.userId === userId)
   const order = (queueRow?.order as Array<{ playerName: string; position: string; team?: string | null; playerId?: string | null }>) ?? []
   const draftedNames = new Set(draftSession.picks.map((p) => p.playerName.trim().toLowerCase()))
-  const firstAvailable = order.find(
+  const availableInQueue = order.filter(
     (e) => e.playerName && !draftedNames.has(e.playerName.trim().toLowerCase())
   )
 
+  const { getAllowedPositionsAndRosterSize } = await import('@/lib/live-draft-engine/RosterFitValidation')
+  const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
+  const allowedPositions = rosterRules?.allowedPositions
+  const firstAvailable = allowedPositions
+    ? availableInQueue.find((e) => e.position && allowedPositions.has((e.position || '').trim().toUpperCase()))
+    : availableInQueue[0]
+
   if (!firstAvailable?.playerName || !firstAvailable?.position) {
     return NextResponse.json(
-      { error: 'No available player in queue. Add players to your queue or make a manual pick.' },
+      {
+        error: allowedPositions
+          ? 'No available player in queue with an allowed position for this league. Add eligible players or make a manual pick.'
+          : 'No available player in queue. Add players to your queue or make a manual pick.',
+      },
       { status: 400 }
     )
   }

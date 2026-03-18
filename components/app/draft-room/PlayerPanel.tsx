@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Search, User, Plus } from 'lucide-react'
-import { getPositionFilterOptionsForSport } from '@/lib/draft-room'
+import { getPositionFilterOptionsForSport, filterByPosition } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 
@@ -60,6 +60,8 @@ export type PlayerPanelProps = {
   c2cConfig?: { enabled: boolean; collegeRounds: number[] }
   /** Current draft round (for devy/C2C round hints) */
   currentRound?: number
+  /** When 'IDP', position filter includes Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX */
+  formatType?: string
 }
 
 type SortKey = 'adp' | 'name'
@@ -185,6 +187,7 @@ function PlayerPanelInner({
   devyConfig,
   c2cConfig,
   currentRound,
+  formatType,
 }: PlayerPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
@@ -198,8 +201,8 @@ function PlayerPanelInner({
   const showPoolFilter = Boolean(devyConfig?.enabled || c2cConfig?.enabled)
 
   const positionOptions = useMemo(
-    () => getPositionFilterOptionsForSport(sport),
-    [sport],
+    () => getPositionFilterOptionsForSport(sport, formatType),
+    [sport, formatType],
   )
 
   const teamOptions = useMemo(() => {
@@ -221,11 +224,9 @@ function PlayerPanelInner({
       )
     }
     if (positionFilter !== 'All') {
-      if (positionFilter === 'FLEX') {
-        list = list.filter((p) => ['RB', 'WR', 'TE'].includes(p.position))
-      } else {
-        list = list.filter((p) => p.position === positionFilter)
-      }
+      const asDraft = list.map((p) => ({ name: p.name, position: p.position, team: p.team }))
+      const filteredDraft = filterByPosition(asDraft, positionFilter)
+      list = list.filter((p) => filteredDraft.some((d) => d.name === p.name && d.position === p.position))
     }
     if (teamFilter !== 'All') {
       list = list.filter((p) => p.team === teamFilter)

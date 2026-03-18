@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getRosterIdForOverall } from './DraftOrderService'
 import { computeTimerEndAt } from './DraftTimerService'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
+import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
 import type { SlotOrderEntry } from './types'
@@ -70,6 +71,14 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     sessionStatus: session.status,
   })
   if (!validation.valid) return { success: false, error: validation.error }
+
+  const rosterFit = await validateRosterFitForDraftPick({
+    leagueId: input.leagueId,
+    rosterId: effectiveRosterId,
+    existingPicks: session.picks.map((p) => ({ rosterId: p.rosterId, position: p.position })),
+    newPickPosition: input.position,
+  })
+  if (!rosterFit.valid) return { success: false, error: rosterFit.error }
 
   const roundForEligibility = Math.ceil((picksCount + 1) / teamCount) || 1
   const rawC2cConfig = session.c2cConfig ?? (session as any).c2cConfig

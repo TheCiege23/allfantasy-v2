@@ -18,6 +18,8 @@ type Props = {
   teams?: string[]
   /** Sport for position filters (e.g. NFL, NBA). When set, position options are sport-specific. */
   sport?: string | null
+  /** When 'IDP' for NFL, position options include Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX. */
+  formatType?: string | null
 }
 
 export default function WaiverFilters({
@@ -33,8 +35,9 @@ export default function WaiverFilters({
   onSortChange,
   teams = [],
   sport,
+  formatType,
 }: Props) {
-  const positionFilters = getPositionFiltersForSport(sport ?? undefined)
+  const positionFilters = getPositionFiltersForSport(sport ?? undefined, formatType)
   return (
     <div className="sticky top-0 z-10 -mx-4 mb-3 border-b border-white/10 bg-black/70 px-4 pb-2 pt-2 backdrop-blur sm:-mx-0 sm:rounded-xl sm:border sm:bg-black/60 sm:px-3 sm:pt-3">
       <div className="flex items-center gap-2 text-xs text-white/60">

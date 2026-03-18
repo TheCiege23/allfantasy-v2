@@ -17,7 +17,7 @@ export interface AIAssistantState {
   bestPick: AISuggestion | null
   /** Explanation (aiInsight) */
   explanation: string
-  /** Top 2–3 options for comparison */
+  /** Top 2-3 options for comparison */
   compareOptions: AISuggestion[]
   /** Positional run warning: e.g. "RB run: 4 of last 5 picks" */
   positionalRunWarning: string | null
@@ -37,9 +37,23 @@ const defaultState: AIAssistantState = {
   error: null,
 }
 
-/**
- * Detects if the last N picks are heavily one position (positional run).
- */
+function normalizeRosterPosition(position: string, sport?: string): string {
+  const normalized = String(position || '').toUpperCase().trim()
+  const normalizedSport = String(sport || '').toUpperCase().trim()
+  if (!normalized) return ''
+
+  if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && (normalized === 'DST' || normalized === 'D/ST')) {
+    return 'DEF'
+  }
+
+  if (normalizedSport === 'MLB') {
+    if (normalized === 'SP' || normalized === 'RP') return 'P'
+    if (normalized === 'LF' || normalized === 'CF' || normalized === 'RF') return 'OF'
+  }
+
+  return normalized
+}
+
 function detectPositionalRun(
   recentPicks: { position: string }[],
   windowSize = 5,
@@ -48,29 +62,48 @@ function detectPositionalRun(
   if (recentPicks.length < threshold) return null
   const last = recentPicks.slice(-windowSize)
   const byPos: Record<string, number> = {}
-  for (const p of last) {
-    const pos = p.position || 'OTHER'
-    byPos[pos] = (byPos[pos] || 0) + 1
+  for (const pick of last) {
+    const position = pick.position || 'OTHER'
+    byPos[position] = (byPos[position] || 0) + 1
   }
   const entry = Object.entries(byPos).find(([, count]) => count >= threshold)
   if (entry) return `${entry[0]} run: ${entry[1]} of last ${last.length} picks`
   return null
 }
 
-/**
- * Simple roster warning from roster counts vs typical starter counts.
- */
 function getRosterWarning(
   rosterCounts: Record<string, number>,
   rosterSlots: string[],
+  sport?: string,
 ): string | null {
-  const need = (pos: string, min: number) => (rosterCounts[pos] || 0) < min
-  if (need('QB', 1)) return 'No QB yet — consider targeting one soon.'
-  const rb = rosterCounts.RB || 0
-  const wr = rosterCounts.WR || 0
-  if (rb >= 5 && wr < 2) return 'WR depth is light compared to RB.'
-  if (wr >= 5 && rb < 2) return 'RB depth is light compared to WR.'
-  if (rb < 2 && wr < 2) return 'Consider adding RB or WR depth.'
+  const normalizedSport = String(sport || '').toUpperCase().trim()
+  const starterTargets = rosterSlots.reduce<Record<string, number>>((acc, slot) => {
+    const normalized = normalizeRosterPosition(slot, sport)
+    if (!normalized || ['FLEX', 'SUPER_FLEX', 'SUPERFLEX', 'OP', 'UTIL', 'BENCH', 'BN', 'IR', 'TAXI'].includes(normalized)) {
+      return acc
+    }
+    if ((normalizedSport === 'NBA' || normalizedSport === 'NCAAB') && (normalized === 'G' || normalized === 'F')) return acc
+    if (normalizedSport === 'MLB' && normalized === 'DH') return acc
+    if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && ['DL', 'DB', 'IDP_FLEX'].includes(normalized)) return acc
+    acc[normalized] = (acc[normalized] || 0) + 1
+    return acc
+  }, {})
+
+  const underfilled = Object.entries(starterTargets)
+    .map(([position, required]) => ({
+      position,
+      required,
+      current: rosterCounts[position] || 0,
+    }))
+    .filter((entry) => entry.current < entry.required)
+    .sort((a, b) => (a.current / Math.max(1, a.required)) - (b.current / Math.max(1, b.required)))
+
+  if (underfilled[0]) {
+    const top = underfilled[0]
+    if (top.current === 0) return `No ${top.position} yet - consider targeting one soon.`
+    return `${top.position} depth is light for this build.`
+  }
+
   return null
 }
 
@@ -82,6 +115,7 @@ export interface FetchSuggestionParams {
   pick: number
   totalTeams: number
   managerName: string
+  sport?: string
   isDynasty?: boolean
   isSF?: boolean
   isRookieDraft?: boolean
@@ -94,7 +128,7 @@ export function useAIDraftAssistant() {
   const [state, setState] = useState<AIAssistantState>(defaultState)
 
   const fetchSuggestion = useCallback(async (params: FetchSuggestionParams): Promise<void> => {
-    setState((s) => ({ ...s, loading: true, error: null }))
+    setState((current) => ({ ...current, loading: true, error: null }))
     try {
       const res = await fetch('/api/mock-draft/ai-pick', {
         method: 'POST',
@@ -108,6 +142,7 @@ export function useAIDraftAssistant() {
           pick: params.pick,
           totalTeams: params.totalTeams,
           managerName: params.managerName,
+          sport: params.sport,
           isDynasty: params.isDynasty ?? false,
           isSF: params.isSF ?? false,
           isRookieDraft: params.isRookieDraft ?? false,
@@ -120,24 +155,24 @@ export function useAIDraftAssistant() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setState((s) => ({ ...s, loading: false, error: data.error || 'Request failed' }))
+        setState((current) => ({ ...current, loading: false, error: data.error || 'Request failed' }))
         return
       }
 
-      const suggestions: AISuggestion[] = (data.suggestions || []).slice(0, 3).map((s: any) => ({
-        player: s.player,
-        position: s.position,
-        team: s.team,
-        adp: s.adp,
-        reason: s.reason,
-        confidence: s.confidence,
-        type: s.type,
+      const suggestions: AISuggestion[] = (data.suggestions || []).slice(0, 3).map((suggestion: any) => ({
+        player: suggestion.player,
+        position: suggestion.position,
+        team: suggestion.team,
+        adp: suggestion.adp,
+        reason: suggestion.reason,
+        confidence: suggestion.confidence,
+        type: suggestion.type,
       }))
       const rosterCounts = data.rosterCounts || {}
       const positionalRunWarning = params.recentPicks
         ? detectPositionalRun(params.recentPicks)
         : null
-      const rosterWarning = getRosterWarning(rosterCounts, params.rosterSlots)
+      const rosterWarning = getRosterWarning(rosterCounts, params.rosterSlots, params.sport)
 
       setState({
         bestPick: suggestions[0] || null,
@@ -148,11 +183,11 @@ export function useAIDraftAssistant() {
         loading: false,
         error: null,
       })
-    } catch (e: any) {
-      setState((s) => ({
-        ...s,
+    } catch (error: any) {
+      setState((current) => ({
+        ...current,
         loading: false,
-        error: e?.message || 'AI suggestion failed',
+        error: error?.message || 'AI suggestion failed',
       }))
     }
   }, [])

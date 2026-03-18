@@ -38,6 +38,7 @@ type SessionDraft = {
   id: string
   inviteLink: string | null
   status: string
+  canManage?: boolean
 }
 
 interface MockDraftSimulatorWrapperProps {
@@ -56,10 +57,9 @@ export default function MockDraftSimulatorWrapper({ leagues, initialSessionDraft
       setSessionDraft(initialSessionDraft)
       setShowSetup(false)
     }
-  }, [initialSessionDraft?.id, initialSessionDraft?.inviteLink, initialSessionDraft?.status])
+  }, [initialSessionDraft?.id, initialSessionDraft?.inviteLink, initialSessionDraft?.status, initialSessionDraft?.canManage])
   const [showRecap, setShowRecap] = useState(false)
   const [recapResults, setRecapResults] = useState<DraftPick[]>([])
-  const [recapDraftId, setRecapDraftId] = useState<string | null>(null)
   const [userManagerName, setUserManagerName] = useState<string | null>(null)
   const [startResetLoading, setStartResetLoading] = useState(false)
 
@@ -85,6 +85,7 @@ export default function MockDraftSimulatorWrapper({ leagues, initialSessionDraft
           id: data.draftId,
           inviteLink: data.inviteLink ?? null,
           status: data.status ?? 'pre_draft',
+          canManage: true,
         })
       }
     } catch {
@@ -93,9 +94,8 @@ export default function MockDraftSimulatorWrapper({ leagues, initialSessionDraft
     setShowSetup(false)
   }, [])
 
-  const handleDraftComplete = useCallback((results: DraftPick[], draftId: string | null) => {
+  const handleDraftComplete = useCallback((results: DraftPick[], _draftId: string | null) => {
     setRecapResults(results)
-    setRecapDraftId(draftId)
     setUserManagerName(results.find((p) => p.isUser)?.manager ?? null)
     setShowRecap(true)
   }, [])
@@ -178,12 +178,14 @@ export default function MockDraftSimulatorWrapper({ leagues, initialSessionDraft
     <div className="space-y-4">
       {sessionDraft && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/12 bg-black/25 p-3">
-          <MockDraftInviteLink
-            inviteLink={sessionDraft.inviteLink}
-            draftId={sessionDraft.id}
-            status={sessionDraft.status}
-          />
-          {sessionDraft.status === 'pre_draft' && (
+          {sessionDraft.canManage !== false && (
+            <MockDraftInviteLink
+              inviteLink={sessionDraft.inviteLink}
+              draftId={sessionDraft.id}
+              status={sessionDraft.status}
+            />
+          )}
+          {sessionDraft.canManage !== false && sessionDraft.status === 'pre_draft' && (
             <>
               <button
                 type="button"

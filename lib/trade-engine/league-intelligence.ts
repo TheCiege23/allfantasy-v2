@@ -21,7 +21,10 @@ import {
 
 export function isIdpPos(pos?: string): boolean {
   const p = (pos || '').toUpperCase()
-  return p === 'DL' || p === 'LB' || p === 'DB' || p === 'EDGE' || p === 'IDP'
+  return (
+    p === 'DL' || p === 'LB' || p === 'DB' || p === 'EDGE' || p === 'IDP' ||
+    p === 'DE' || p === 'DT' || p === 'CB' || p === 'S' || p === 'SS' || p === 'FS'
+  )
 }
 
 export function computeStarterStrengthIndex(assets: Asset[], starterSlots: number): number {
@@ -82,7 +85,8 @@ export function classifyCornerstone(
   }
 
   if (isIdpPos(pos) && settings.idpEnabled) {
-    const idpThreshold = pos === 'LB' ? 4000 : pos === 'DL' ? 4500 : 5000
+    const idpThreshold =
+      pos === 'LB' ? 4000 : pos === 'DL' || pos === 'DE' || pos === 'DT' ? 4500 : 5000
     if (asset.value >= idpThreshold) {
       isCornerstone = true
       reason = `Elite IDP ${pos} cornerstone.`
@@ -175,10 +179,37 @@ export function computeNeedsSurplus(
     QB: settings.startingQB ?? 1,
     RB: (settings.startingRB ?? 2) + Math.floor((settings.startingFlex ?? 1) * 0.4),
     WR: (settings.startingWR ?? 2) + Math.floor((settings.startingFlex ?? 1) * 0.5),
-    TE: settings.startingTE ?? 1
+    TE: settings.startingTE ?? 1,
+  }
+
+  if (settings.idpEnabled && Array.isArray(settings.rosterPositions)) {
+    const rp = (settings.rosterPositions as string[]).map((p) => (p || '').toUpperCase())
+    for (const pos of ['DE', 'DT', 'LB', 'CB', 'S', 'DL', 'DB', 'IDP_FLEX']) {
+      const count = rp.filter((p) => p === pos).length
+      if (count > 0) requirements[pos] = count
+    }
+    for (const pos of ['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS']) {
+      posCount[pos] = posCount[pos] ?? 0
+      startableByPos[pos] = startableByPos[pos] ?? 0
+    }
+    const idpFlexCount = rp.filter((p) => p === 'IDP_FLEX').length
+    const dlCount = rp.filter((p) => p === 'DL').length
+    const dbCount = rp.filter((p) => p === 'DB').length
+    if (idpFlexCount > 0 || dlCount > 0 || dbCount > 0) {
+      const idpStartable =
+        (startableByPos['DE'] || 0) + (startableByPos['DT'] || 0) + (startableByPos['LB'] || 0) +
+        (startableByPos['CB'] || 0) + (startableByPos['S'] || 0) + (startableByPos['SS'] || 0) + (startableByPos['FS'] || 0)
+      const idpRequired =
+        (requirements['DE'] || 0) + (requirements['DT'] || 0) + (requirements['LB'] || 0) +
+        (requirements['CB'] || 0) + (requirements['S'] || 0) + (requirements['DL'] || 0) * 2 +
+        (requirements['DB'] || 0) * 2 + (requirements['IDP_FLEX'] || 0)
+      if (idpStartable < idpRequired) needs.push('IDP')
+      if (idpStartable > idpRequired + 4) surplus.push('IDP')
+    }
   }
 
   for (const [pos, required] of Object.entries(requirements)) {
+    if (pos === 'DL' || pos === 'DB' || pos === 'IDP_FLEX') continue
     const startable = startableByPos[pos] || 0
     if (startable < required) needs.push(pos)
     if (startable > required + 2) surplus.push(pos)

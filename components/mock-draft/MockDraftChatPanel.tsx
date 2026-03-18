@@ -20,6 +20,7 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const fetchMessages = async () => {
@@ -28,9 +29,13 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
       if (res.ok) {
         const data = await res.json()
         setMessages(data.messages ?? [])
+        setError(null)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || 'Unable to load chat for this draft.')
       }
     } catch {
-      // ignore
+      setError('Unable to load chat for this draft.')
     }
   }
 
@@ -59,6 +64,10 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
         const msg = await res.json()
         setMessages((prev) => [...prev, msg])
         setInput('')
+        setError(null)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || 'Unable to send message.')
       }
     } finally {
       setSending(false)
@@ -72,6 +81,11 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
         <span className="font-medium text-white">Mock chat (isolated)</span>
       </header>
       <div className="flex min-h-[120px] max-h-[220px] flex-1 flex-col overflow-y-auto p-2">
+        {error && (
+          <p className="mb-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">
+            {error}
+          </p>
+        )}
         {messages.length === 0 ? (
           <p className="py-4 text-center text-white/50">No messages yet. Mock chat does not sync with league chat.</p>
         ) : (

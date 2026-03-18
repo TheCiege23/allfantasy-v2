@@ -43,6 +43,16 @@ export async function POST(req: NextRequest) {
       where: { id: leagueId, userId: session.user.id },
     })
 
+    if (!league) {
+      return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    }
+    if (String((league as any).sport || 'NFL').toUpperCase() !== 'NFL') {
+      return NextResponse.json(
+        { error: 'Draft-day trade simulation is currently available for NFL mock drafts only.' },
+        { status: 400 },
+      )
+    }
+
     let tradePartner: any
 
     if (tradePartnerPick) {

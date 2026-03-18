@@ -16,8 +16,8 @@ import type { BigBrotherWeekPhase } from './types'
 
 export interface AutomationRunInput {
   leagueId: string
-  /** Optional: force action (e.g. 'close_eviction', 'auto_nominate', 'veto_draw'). If not set, automation infers from phase and time. */
-  action?: 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'auto_replacement' | 'lock_voting'
+  /** Optional: force action (e.g. 'close_eviction', 'auto_nominate', 'veto_draw', 'veto_decision_timeout'). If not set, automation infers from phase and time. PROMPT 5. */
+  action?: 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'veto_decision_timeout' | 'auto_replacement' | 'lock_voting'
   systemUserId?: string | null
 }
 
@@ -38,11 +38,18 @@ export async function runAutomation(input: AutomationRunInput): Promise<Automati
 
   const config = await getBigBrotherConfig(leagueId)
   if (!config) return { ok: false, error: 'Not a Big Brother league' }
+  if (config.weekProgressionPaused) return { ok: true, cycleId: undefined, phase: undefined, actionTaken: 'skipped_paused' }
 
   const current = await getCurrentCycleForLeague(leagueId)
   if (!current) return { ok: false, error: 'No current cycle' }
 
   const phase = current.phase as BigBrotherWeekPhase
+
+  if (action === 'veto_decision_timeout') {
+    if (phase !== 'VETO_DECISION_OPEN') return { ok: false, error: 'Cycle not in VETO_DECISION_OPEN' }
+    await transitionPhase(current.id, 'VOTING_OPEN')
+    return { ok: true, cycleId: current.id, phase: 'VOTING_OPEN', actionTaken: 'veto_decision_timeout' }
+  }
 
   if (action === 'auto_nominate') {
     const res = await runAutoNomination(current.id, { systemUserId })

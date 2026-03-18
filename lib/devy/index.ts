@@ -93,6 +93,7 @@ export {
   type BestBallPlayerInput,
   type DevyBestBallSlotsNFL,
   type DevyBestBallSlotsNBA,
+  type IdpBestBallSlots,
 } from './bestball/DevyBestBallOptimizer'
 export {
   getDevyScoringPresets,

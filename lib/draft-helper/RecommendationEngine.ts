@@ -12,6 +12,8 @@ const POSITION_TARGETS: Record<string, { starter: number; ideal: number }> = {
   TE: { starter: 1, ideal: 2 }, K: { starter: 1, ideal: 1 }, DEF: { starter: 1, ideal: 1 },
 }
 
+const FLEX_SLOT_NAMES = new Set(['FLEX', 'SUPER_FLEX', 'OP', 'UTIL', 'BENCH', 'BN', 'IR', 'G', 'F'])
+
 export interface RecommendationPlayer {
   name: string
   position: string
@@ -59,27 +61,121 @@ function getAdp(p: RecommendationPlayer, overall: number, aiAdpByKey?: Record<st
   return p.adp != null ? Number(p.adp) : overall + 20
 }
 
-function computeNeeds(roster: { position: string }[], rosterSlots: string[], isSF: boolean): Record<string, number> {
+function defaultTargetsForSport(sport: string): Record<string, { starter: number; ideal: number }> {
+  switch (sport.toUpperCase()) {
+    case 'NBA':
+      return {
+        PG: { starter: 1, ideal: 2 },
+        SG: { starter: 1, ideal: 2 },
+        SF: { starter: 1, ideal: 2 },
+        PF: { starter: 1, ideal: 2 },
+        C: { starter: 1, ideal: 2 },
+      }
+    case 'MLB':
+      return {
+        C: { starter: 1, ideal: 1 },
+        '1B': { starter: 1, ideal: 2 },
+        '2B': { starter: 1, ideal: 2 },
+        '3B': { starter: 1, ideal: 2 },
+        SS: { starter: 1, ideal: 2 },
+        OF: { starter: 3, ideal: 5 },
+        P: { starter: 3, ideal: 6 },
+      }
+    default:
+      return POSITION_TARGETS
+  }
+}
+
+function normalizeSlot(slot: string, sport: string): string {
+  const normalized = String(slot || '').toUpperCase().trim()
+  if (!normalized) return ''
+  if (normalized === 'SUPERFLEX') return 'SUPER_FLEX'
+  if (sport.toUpperCase() === 'NFL' && (normalized === 'DST' || normalized === 'D/ST')) return 'DEF'
+  if (sport.toUpperCase() === 'MLB' && ['SP', 'RP'].includes(normalized)) return 'P'
+  if (sport.toUpperCase() === 'MLB' && ['LF', 'CF', 'RF'].includes(normalized)) return 'OF'
+  return normalized
+}
+
+function buildPositionTargets(
+  rosterSlots: string[],
+  available: RecommendationPlayer[],
+  sport: string,
+): Record<string, { starter: number; ideal: number }> {
+  const defaults = defaultTargetsForSport(sport)
+  const targets: Record<string, { starter: number; ideal: number }> = {}
+
+  for (const rawSlot of rosterSlots || []) {
+    const slot = normalizeSlot(rawSlot, sport)
+    if (!slot || FLEX_SLOT_NAMES.has(slot)) continue
+    const existing = targets[slot] || { starter: 0, ideal: 0 }
+    existing.starter += 1
+    existing.ideal = Math.max(existing.starter + 1, defaults[slot]?.ideal ?? existing.ideal ?? 0)
+    targets[slot] = existing
+  }
+
+  if (Object.keys(targets).length === 0) {
+    for (const [position, config] of Object.entries(defaults)) {
+      targets[position] = { ...config }
+    }
+  }
+
+  if (Object.keys(targets).length === 0) {
+    for (const player of available) {
+      const position = normalizeSlot(player.position, sport)
+      if (!position || FLEX_SLOT_NAMES.has(position) || targets[position]) continue
+      targets[position] = { starter: 1, ideal: 2 }
+    }
+  }
+
+  return targets
+}
+
+function computeNeeds(
+  roster: { position: string }[],
+  rosterSlots: string[],
+  isSF: boolean,
+  available: RecommendationPlayer[],
+  sport: string,
+): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const p of roster) {
-    const pos = String(p.position || '').toUpperCase()
+    const pos = normalizeSlot(p.position, sport)
     counts[pos] = (counts[pos] || 0) + 1
   }
+
+  const targetsByPosition = buildPositionTargets(rosterSlots, available, sport)
   const needs: Record<string, number> = {}
-  for (const [pos, targets] of Object.entries(POSITION_TARGETS)) {
+  for (const [pos, targets] of Object.entries(targetsByPosition)) {
     const count = counts[pos] || 0
     if (count < targets.starter) needs[pos] = clamp(88 + (targets.starter - count) * 10, 0, 100)
     else if (count < targets.ideal) needs[pos] = clamp(42 + (targets.ideal - count) * 12, 0, 100)
     else needs[pos] = 10
   }
-  if (isSF) needs.QB = clamp((needs.QB || 50) + 18, 0, 100)
+
+  if (sport.toUpperCase() === 'NFL' && isSF) {
+    needs.QB = clamp((needs.QB || 50) + 18, 0, 100)
+  }
+
   for (const s of rosterSlots || []) {
-    if (s === 'FLEX') {
-      needs.RB = clamp((needs.RB || 20) + 8, 0, 100)
-      needs.WR = clamp((needs.WR || 20) + 8, 0, 100)
-      needs.TE = clamp((needs.TE || 20) + 4, 0, 100)
+    const slot = normalizeSlot(s, sport)
+    if (slot === 'FLEX') {
+      for (const pos of ['RB', 'WR', 'TE']) {
+        if (needs[pos] != null) needs[pos] = clamp((needs[pos] || 20) + 8, 0, 100)
+      }
     }
-    if (s === 'SUPER_FLEX' || s === 'OP') needs.QB = clamp((needs.QB || 50) + 12, 0, 100)
+    if (slot === 'G') {
+      for (const pos of ['PG', 'SG']) {
+        if (needs[pos] != null) needs[pos] = clamp((needs[pos] || 20) + 8, 0, 100)
+      }
+    }
+    if (slot === 'F') {
+      for (const pos of ['SF', 'PF']) {
+        if (needs[pos] != null) needs[pos] = clamp((needs[pos] || 20) + 8, 0, 100)
+      }
+    }
+    if ((slot === 'SUPER_FLEX' || slot === 'OP') && needs.QB != null) {
+      needs.QB = clamp((needs.QB || 50) + 12, 0, 100)
+    }
   }
   return needs
 }
@@ -114,20 +210,21 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     }
   }
 
-  const needs = computeNeeds(teamRoster, rosterSlots, isSF)
+  const normalizedSport = sport.toUpperCase()
+  const needs = computeNeeds(teamRoster, rosterSlots, isSF, available, normalizedSport)
   const overall = (round - 1) * totalTeams + pick
   const playerKey = (p: RecommendationPlayer) =>
     `${(p.name || '').toLowerCase()}|${(p.position || '').toLowerCase()}|${(p.team || '').toLowerCase()}`
 
   const scored = available.slice(0, 80).map((p) => {
-    const pos = String(p.position || '').toUpperCase()
+    const pos = normalizeSlot(p.position, normalizedSport)
     const needScore = needs[pos] ?? 20
     const key = playerKey(p)
     const adp = getAdp(p, overall, aiAdpByKey, key)
     const adpEdge = clamp((overall - adp) * 1.4, -20, 25)
     let formatBoost = 0
-    if (isSF && pos === 'QB') formatBoost += 14
-    if (pos === 'TE' && (rosterSlots.includes('TE') || rosterSlots.some((s) => s?.includes('TE')))) formatBoost += 4
+    if (normalizedSport === 'NFL' && isSF && pos === 'QB') formatBoost += 14
+    if (normalizedSport === 'NFL' && pos === 'TE' && (rosterSlots.includes('TE') || rosterSlots.some((s) => s?.includes('TE')))) formatBoost += 4
     const modeAdjustment = mode === 'bpa' ? 0 : needScore * 0.55
     const totalScore = modeAdjustment + adpEdge * 0.9 + formatBoost
     const confidence = clamp(Math.round(55 + totalScore * 0.6), 40, 92)
@@ -167,7 +264,7 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
   if (samePosCount <= 3 && (best.needScore ?? 0) > 50) scarcityInsight = `Few ${pos}s left in pool; consider securing one.`
 
   let byeNote: string | null = null
-  if (sport.toUpperCase() === 'NFL') {
+  if (normalizedSport === 'NFL') {
     const bye = best.player.byeWeek ?? (byeByKey ? byeByKey[playerKey(best.player)] : null)
     if (bye != null) byeNote = `Bye week ${bye}; plan coverage if needed.`
   }
@@ -176,7 +273,7 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
   if ((needs[pos] ?? 0) >= 70) reasonParts.push(`fills critical ${pos} need`)
   else if ((needs[pos] ?? 0) >= 40) reasonParts.push(`improves ${pos} depth`)
   if (best.adpEdge > 5) reasonParts.push('good value vs ADP')
-  if (isSF && pos === 'QB') reasonParts.push('Superflex QB premium')
+  if (normalizedSport === 'NFL' && isSF && pos === 'QB') reasonParts.push('Superflex QB premium')
   const reason = reasonParts.length ? reasonParts.join('; ') : 'Best fit for roster and draft position'
 
   const alternatives = scored.slice(1, 4).map((item, idx) => ({

@@ -14,6 +14,7 @@ import {
   WAIVER_EMPTY_HISTORY_TITLE,
   getWaiverAIChatUrl,
   buildWaiverSummaryForAI,
+  waiverPositionMatches,
 } from "@/lib/waiver-wire"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 
@@ -28,6 +29,7 @@ const WAIVER_TYPES = [
 type WaiverSettings = {
   leagueId?: string
   sport?: string | null
+  formatType?: string | null
   waiverType?: string
   processingDayOfWeek?: number | null
   processingTimeUtc?: string | null
@@ -53,6 +55,10 @@ type Transaction = {
   dropPlayerId: string | null
   faabSpent: number | null
   processedAt: string
+  addPlayerPosition?: string
+  dropPlayerPosition?: string
+  isDefensiveAdd?: boolean
+  isDefensiveDrop?: boolean
 }
 
 export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
@@ -187,7 +193,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.team?.toLowerCase().includes(q))
     }
     if (positionFilter !== "ALL") {
-      list = list.filter((p) => (p.position || "").toUpperCase().startsWith(positionFilter))
+      list = list.filter((p) => waiverPositionMatches(p.position, positionFilter))
     }
     if (statusFilter === "available") {
       list = list
@@ -269,6 +275,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             onSortChange={setSort}
             teams={uniqueTeams}
             sport={settings?.sport ?? undefined}
+            formatType={settings?.formatType ?? undefined}
           />
           <ul className="max-h-[480px] space-y-1.5 overflow-y-auto px-1 pb-3 pt-1 sm:px-0">
             {filteredPlayers.length === 0 ? (
@@ -411,12 +418,19 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                 {history.transactions.map((t) => (
                   <li
                     key={t.id}
-                    className="flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-white/90"
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-white/90"
                   >
-                    <CheckCircle className="h-4 w-4 text-emerald-400" />
+                    <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
                     <span>
+                      {t.isDefensiveAdd && <span className="mr-1 rounded bg-amber-500/20 px-1 text-amber-300 text-xs">Defensive add</span>}
                       Add {t.addPlayerId}
-                      {t.dropPlayerId && <> · Drop {t.dropPlayerId}</>}
+                      {t.dropPlayerId && (
+                        <>
+                          {" · "}
+                          {t.isDefensiveDrop && <span className="mr-1 rounded bg-amber-500/20 px-1 text-amber-300 text-xs">Defensive drop</span>}
+                          Drop {t.dropPlayerId}
+                        </>
+                      )}
                     </span>
                     {t.faabSpent != null && <span className="text-cyan-300">${t.faabSpent}</span>}
                     <span className="ml-auto text-xs text-white/50">

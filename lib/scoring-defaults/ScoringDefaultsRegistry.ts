@@ -172,6 +172,7 @@ const SOCCER_STANDARD: ScoringRuleDefinition[] = [
  * idp_solo_tackle, idp_assist_tackle, idp_tackle_for_loss, idp_qb_hit, idp_sack, idp_interception,
  * idp_pass_defended, idp_forced_fumble, idp_fumble_recovery, idp_defensive_touchdown, idp_safety, idp_blocked_kick.
  */
+/** NFL IDP Balanced: solo/assist meaningful, sack/INT strong, PD moderate, FF/FR/defensive TD/safety high. */
 const NFL_IDP_RULES: ScoringRuleDefinition[] = [
   ...NFL_PPR,
   rule('idp_tackle_solo', 1),
@@ -189,6 +190,46 @@ const NFL_IDP_RULES: ScoringRuleDefinition[] = [
   rule('idp_defensive_touchdown', 6),
   rule('idp_safety', 2),
   rule('idp_blocked_kick', 2),
+]
+
+/** Tackle-heavy: emphasize solo and assist tackles; big plays still count but do not dominate. */
+const NFL_IDP_TACKLE_HEAVY: ScoringRuleDefinition[] = [
+  ...NFL_PPR,
+  rule('idp_solo_tackle', 1.5),
+  rule('idp_assist_tackle', 0.75),
+  rule('idp_tackle_solo', 1.5),
+  rule('idp_tackle_assist', 0.75),
+  rule('idp_tackle_for_loss', 1.5),
+  rule('idp_qb_hit', 0.5),
+  rule('idp_sack', 3),
+  rule('idp_interception', 2),
+  rule('idp_pass_defended', 0.5),
+  rule('idp_forced_fumble', 2),
+  rule('idp_fumble_recovery', 1),
+  rule('idp_defensive_touchdown', 4),
+  rule('idp_td', 4),
+  rule('idp_safety', 1.5),
+  rule('idp_blocked_kick', 1.5),
+]
+
+/** Big-play-heavy: sacks, INT, FF, FR, TDs carry stronger weight; tackles still count but less dominant. */
+const NFL_IDP_BIG_PLAY: ScoringRuleDefinition[] = [
+  ...NFL_PPR,
+  rule('idp_solo_tackle', 0.5),
+  rule('idp_assist_tackle', 0.25),
+  rule('idp_tackle_solo', 0.5),
+  rule('idp_tackle_assist', 0.25),
+  rule('idp_tackle_for_loss', 3),
+  rule('idp_qb_hit', 1.5),
+  rule('idp_sack', 5),
+  rule('idp_interception', 5),
+  rule('idp_pass_defended', 1.5),
+  rule('idp_forced_fumble', 4),
+  rule('idp_fumble_recovery', 3),
+  rule('idp_defensive_touchdown', 8),
+  rule('idp_td', 8),
+  rule('idp_safety', 4),
+  rule('idp_blocked_kick', 3),
 ]
 
 const REGISTRY: Record<
@@ -209,8 +250,11 @@ const REGISTRY: Record<
   'NCAAB-points': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS },
   'NCAAB-standard': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS },
   'SOCCER-standard': { name: 'Default Soccer Standard', rules: SOCCER_STANDARD },
-  'NFL-IDP': { name: 'Default NFL IDP', rules: NFL_IDP_RULES },
-  'NFL-idp': { name: 'Default NFL IDP', rules: NFL_IDP_RULES },
+  'NFL-IDP': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES },
+  'NFL-idp': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES },
+  'NFL-IDP-balanced': { name: 'NFL IDP Balanced', rules: NFL_IDP_RULES },
+  'NFL-IDP-tackle_heavy': { name: 'NFL IDP Tackle-Heavy', rules: NFL_IDP_TACKLE_HEAVY },
+  'NFL-IDP-big_play_heavy': { name: 'NFL IDP Big-Play-Heavy', rules: NFL_IDP_BIG_PLAY },
   'NFL-ppr': { name: 'Default NFL PPR', rules: NFL_PPR },
 }
 
@@ -228,6 +272,9 @@ function normalizeFormatForLookup(sport: SportType, format: string): string {
   const f = (format || 'standard').trim()
   const lower = f.toLowerCase()
   if (sport === 'NFL') {
+    if (lower === 'idp-balanced' || lower === 'idp_balanced') return 'IDP-balanced'
+    if (lower === 'idp-tackle_heavy' || lower === 'idp_tackle_heavy') return 'IDP-tackle_heavy'
+    if (lower === 'idp-big_play_heavy' || lower === 'idp_big_play_heavy') return 'IDP-big_play_heavy'
     if (lower === 'idp' || lower === 'dynasty_idp') return 'IDP'
     if (lower === 'ppr') return 'PPR'
     if (lower === 'half_ppr' || lower === 'half ppr') return 'half_ppr'
@@ -252,7 +299,12 @@ export function getDefaultScoringTemplate(
   const format = normalizeFormatForLookup(sport, formatType || 'standard')
   const key = `${sport}-${format}`
   let fallbackKey = `${sport}-standard`
-  if (sport === 'NFL') fallbackKey = format === 'IDP' ? 'NFL-IDP' : 'NFL-PPR'
+  if (sport === 'NFL') {
+    if (format === 'IDP' || format === 'IDP-balanced') fallbackKey = 'NFL-IDP'
+    else if (format === 'IDP-tackle_heavy') fallbackKey = 'NFL-IDP-tackle_heavy'
+    else if (format === 'IDP-big_play_heavy') fallbackKey = 'NFL-IDP-big_play_heavy'
+    else if (format !== 'IDP') fallbackKey = 'NFL-PPR'
+  }
   else if (sport === 'NBA' || sport === 'NCAAB') fallbackKey = `${sport}-points`
   else if (sport === 'SOCCER') fallbackKey = 'SOCCER-standard'
   else if (sport === 'NCAAF') fallbackKey = 'NCAAF-PPR'

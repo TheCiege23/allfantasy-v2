@@ -58,6 +58,11 @@ function toAutoNominationFallback(s: unknown): AutoNominationFallback {
   return 'lowest_season_points'
 }
 
+function toEvictionTieBreakMode(s: unknown): string {
+  if (s === 'hoh_vote' || s === 'random' || s === 'commissioner') return s
+  return 'season_points'
+}
+
 export async function isBigBrotherLeague(leagueId: string): Promise<boolean> {
   const config = await prisma.bigBrotherLeagueConfig.findUnique({
     where: { leagueId },
@@ -116,6 +121,8 @@ export async function getBigBrotherConfig(leagueId: string): Promise<BigBrotherC
       antiCollusionLogging: row.antiCollusionLogging,
       inactivePlayerHandling: toInactivePlayerHandling(row.inactivePlayerHandling),
       autoNominationFallback: toAutoNominationFallback(row.autoNominationFallback),
+      evictionTieBreakMode: toEvictionTieBreakMode((row as { evictionTieBreakMode?: string }).evictionTieBreakMode),
+      weekProgressionPaused: (row as { weekProgressionPaused?: boolean }).weekProgressionPaused ?? false,
     }
   }
 
@@ -153,6 +160,8 @@ export async function getBigBrotherConfig(leagueId: string): Promise<BigBrotherC
     antiCollusionLogging: true,
     inactivePlayerHandling: 'commissioner_only',
     autoNominationFallback: 'lowest_season_points',
+    evictionTieBreakMode: 'season_points',
+    weekProgressionPaused: false,
   }
 }
 
@@ -231,6 +240,8 @@ export async function upsertBigBrotherConfig(
   if (input.evictionVoteOpenTimeUtc !== undefined) data.evictionVoteOpenTimeUtc = input.evictionVoteOpenTimeUtc
   if (input.evictionVoteCloseDayOfWeek !== undefined) data.evictionVoteCloseDayOfWeek = input.evictionVoteCloseDayOfWeek
   if (input.evictionVoteCloseTimeUtc !== undefined) data.evictionVoteCloseTimeUtc = input.evictionVoteCloseTimeUtc
+  if (input.evictionTieBreakMode !== undefined) (data as Record<string, unknown>).evictionTieBreakMode = input.evictionTieBreakMode
+  if (input.weekProgressionPaused !== undefined) (data as Record<string, unknown>).weekProgressionPaused = input.weekProgressionPaused
 
   await prisma.bigBrotherLeagueConfig.upsert({
     where: { leagueId },

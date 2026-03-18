@@ -21,6 +21,7 @@ import { pricePlayer, pricePick, compositeScore, compositeTotal, ValuationContex
 import { computeLineupDelta, computeLineupFairness, computeValueFairness, type LineupPlayer, type RosterSlots, type LineupDelta } from '@/lib/lineup-optimizer'
 import { parseSleeperRosterPositions } from '@/lib/trade-engine/sleeper-converter'
 import { computeTradeDrivers } from '@/lib/trade-engine/trade-engine'
+import { getTotalIdpStarterSlots, canFieldLegalIdpLineup } from '@/lib/trade-engine/idp-lineup-check'
 import { buildNegotiationToolkit, negotiationToolkitToLegacy } from '@/lib/trade-engine/negotiation-builder'
 import { buildNegotiationGptContract, buildNegotiationGptUserPrompt, validateNegotiationGptOutput, shouldSkipNegotiationGpt, NEGOTIATION_GPT_SYSTEM_PROMPT } from '@/lib/trade-engine/negotiation-gpt-contract'
 import { buildGptInputContract, buildGptUserPrompt, validateGptNarrativeOutput, shouldSkipGpt, AI_OUTPUT_INVALID_FALLBACK, GPT_NARRATIVE_SYSTEM_PROMPT } from '@/lib/trade-engine/gpt-input-contract'
@@ -574,6 +575,35 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       }
     } else {
       fairnessScore = computeValueFairness(senderReceivedComposite, senderGivenComposite)
+    }
+
+    let idpLineupWarning: string | null = null
+    if (data.league?.idp_enabled && data.league_id && hasFullRosters) {
+      try {
+        const requiredIdp = await getTotalIdpStarterSlots(data.league_id)
+        if (requiredIdp > 0) {
+          const senderGiveSet = new Set(senderPlayerNames.map((n) => (n || '').toLowerCase()))
+          const receiverGiveSet = new Set(receiverPlayerNames.map((n) => (n || '').toLowerCase()))
+          const senderKeptPositions = senderRoster
+            .filter((r: any) => !senderGiveSet.has((typeof r === 'string' ? r : r?.name || r?.id || String(r) || '').toLowerCase()))
+            .map((r: any) => (typeof r === 'object' ? r?.position : null))
+          const receiverGivenPositions = receiverPlayerNames.map((_, i) => (receiverPlayerPrices[i]?.position ?? (data.receiver.gives_players[i] as any)?.position))
+          const senderPostTrade = [...senderKeptPositions, ...receiverGivenPositions]
+          const receiverKeptPositions = receiverRoster
+            .filter((r: any) => !receiverGiveSet.has((typeof r === 'string' ? r : r?.name || r?.id || String(r) || '').toLowerCase()))
+            .map((r: any) => (typeof r === 'object' ? r?.position : null))
+          const senderGivenPositions = senderPlayerNames.map((_, i) => (senderPlayerPrices[i]?.position ?? (data.sender.gives_players[i] as any)?.position))
+          const receiverPostTrade = [...receiverKeptPositions, ...senderGivenPositions]
+          const senderOk = canFieldLegalIdpLineup(senderPostTrade, requiredIdp)
+          const receiverOk = canFieldLegalIdpLineup(receiverPostTrade, requiredIdp)
+          if (!senderOk || !receiverOk) {
+            const who: string[] = []
+            if (!senderOk) who.push('Sender')
+            if (!receiverOk) who.push('Receiver')
+            idpLineupWarning = `After this trade, ${who.join(' and ')} would not have enough IDP-eligible players to field a legal lineup (${requiredIdp} IDP starter slots required).`
+          }
+        }
+      } catch (_) { /* non-critical */ }
     }
 
     const tradeLabels = detectTradeLabels({
@@ -1273,6 +1303,7 @@ Fairness score: ${fairnessScore}/100
       veto: vetoResult.veto,
       vetoReason: vetoResult.vetoReason,
       expertWarning: vetoResult.warning ? vetoResult.warningText : null,
+      ...(idpLineupWarning && { idpLineupWarning }),
     }
 
     const acceptProbData = tradeDriverData ? {

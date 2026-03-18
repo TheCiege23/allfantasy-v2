@@ -38,6 +38,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
 
+    const sport = String((league as any).sport || 'NFL').toUpperCase()
+    if (sport !== 'NFL') {
+      return NextResponse.json(
+        { error: `Weekly re-simulation is currently available for NFL mock drafts only. ${sport} mocks already use the imported ${sport} player pool.` },
+        { status: 400 },
+      )
+    }
+
+    const latestMock = await prisma.mockDraft.findFirst({
+      where: { leagueId, userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      select: { rounds: true, metadata: true },
+    })
+
     const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     const recentNews = await prisma.sportsNews.findMany({
       where: {
@@ -58,7 +72,7 @@ export async function POST(req: NextRequest) {
       .join('; ') || 'No major injuries reported recently'
 
     const numTeams = league.leagueSize || league.teams.length || 12
-    const rounds = 15
+    const rounds = Math.max(1, Number((latestMock?.metadata as any)?.rounds ?? latestMock?.rounds ?? 15))
     const teamNames = league.teams.length > 0
       ? league.teams.map(t => t.teamName || t.ownerName || 'Unknown')
       : Array.from({ length: numTeams }, (_, i) => `Team ${i + 1}`)

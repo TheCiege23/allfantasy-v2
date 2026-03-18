@@ -256,6 +256,65 @@ function buildDefaultSlotsFromRosterDefaults(
 }
 
 /**
+ * Build roster template slots from a RosterDefaults object (e.g. IDP config-driven).
+ */
+function buildSlotsFromRosterDefaultsDef(
+  def: { starter_slots: Record<string, number>; bench_slots: number; IR_slots: number; flex_definitions: Array<{ slotName: string; allowedPositions: string[] }> },
+  allPositionsFallback: string[]
+): RosterTemplateSlotDto[] {
+  const slots: RosterTemplateSlotDto[] = []
+  let order = 0
+  const playerPositions = new Set<string>()
+  for (const [slotName, count] of Object.entries(def.starter_slots)) {
+    if (count <= 0) continue
+    const flexDef = def.flex_definitions.find((f) => f.slotName === slotName)
+    const allowedPositions = flexDef?.allowedPositions ?? [slotName]
+    const isFlex = !!flexDef || FLEX_SLOT_NAMES.has(slotName)
+    if (flexDef) flexDef.allowedPositions.forEach((p) => playerPositions.add(p))
+    else if (!FLEX_SLOT_NAMES.has(slotName)) playerPositions.add(slotName)
+    slots.push({
+      slotName,
+      allowedPositions,
+      starterCount: count,
+      benchCount: 0,
+      reserveCount: 0,
+      taxiCount: 0,
+      devyCount: 0,
+      isFlexibleSlot: isFlex,
+      slotOrder: order++,
+    })
+  }
+  const allPositions = playerPositions.size > 0 ? [...playerPositions] : allPositionsFallback
+  if (def.bench_slots > 0) {
+    slots.push({
+      slotName: 'BENCH',
+      allowedPositions: allPositions,
+      starterCount: 0,
+      benchCount: def.bench_slots,
+      reserveCount: 0,
+      taxiCount: 0,
+      devyCount: 0,
+      isFlexibleSlot: false,
+      slotOrder: order++,
+    })
+  }
+  if (def.IR_slots > 0) {
+    slots.push({
+      slotName: 'IR',
+      allowedPositions: allPositions,
+      starterCount: 0,
+      benchCount: 0,
+      reserveCount: def.IR_slots,
+      taxiCount: 0,
+      devyCount: 0,
+      isFlexibleSlot: false,
+      slotOrder: order++,
+    })
+  }
+  return slots
+}
+
+/**
  * Build default slots for a sport (and optional format). NFL and SOCCER use custom builders; others use registry.
  */
 function defaultSlotsForSport(sportType: SportType, formatType?: string): RosterTemplateSlotDto[] {
@@ -319,12 +378,33 @@ function defaultSoccerSlots(): RosterTemplateSlotDto[] {
 
 /**
  * Get roster template for sport (and optional format). Prefer DB; else in-memory default.
+ * When leagueId is provided and league is IDP with config, uses commissioner IDP preset (roster slots from IdpLeagueConfig).
  */
 export async function getRosterTemplate(
   sportType: SportType | string,
-  formatType: string = 'standard'
+  formatType: string = 'standard',
+  leagueId?: string
 ): Promise<RosterTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  if (leagueId && sport === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
+    try {
+      const { getRosterDefaultsForIdpLeague } = await import('@/lib/idp/IDPLeagueConfig')
+      const idpDefaults = await getRosterDefaultsForIdpLeague(leagueId)
+      if (idpDefaults) {
+        const positions = getPositionsForSport('NFL', 'IDP')
+        const slots = buildSlotsFromRosterDefaultsDef(idpDefaults, positions)
+        return {
+          templateId: `default-NFL-IDP-${leagueId}`,
+          sportType: 'NFL',
+          name: 'IDP League Roster',
+          formatType: 'IDP',
+          slots,
+        }
+      }
+    } catch {
+      // fall through to default
+    }
+  }
   const template = await prisma.rosterTemplate.findUnique({
     where: {
       uniq_roster_template_sport_format: { sportType: sport, formatType },

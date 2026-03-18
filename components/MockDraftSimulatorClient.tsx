@@ -132,6 +132,165 @@ const POSITION_COLORS: Record<string, string> = {
   TE: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
   K: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
   DEF: 'text-slate-400 bg-slate-500/15 border-slate-500/30',
+  PG: 'text-sky-400 bg-sky-500/15 border-sky-500/30',
+  SG: 'text-orange-400 bg-orange-500/15 border-orange-500/30',
+  SF: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+  PF: 'text-fuchsia-400 bg-fuchsia-500/15 border-fuchsia-500/30',
+  C: 'text-yellow-400 bg-yellow-500/15 border-yellow-500/30',
+  OF: 'text-teal-400 bg-teal-500/15 border-teal-500/30',
+  P: 'text-rose-400 bg-rose-500/15 border-rose-500/30',
+  '1B': 'text-blue-400 bg-blue-500/15 border-blue-500/30',
+  '2B': 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
+  '3B': 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
+  SS: 'text-violet-400 bg-violet-500/15 border-violet-500/30',
+}
+
+const FLEXISH_SLOTS = new Set(['FLEX', 'SUPER_FLEX', 'OP', 'UTIL', 'BENCH', 'BN', 'IR', 'G', 'F'])
+
+function normalizeMockSport(sport?: string | null): string {
+  return String(sport || 'NFL').toUpperCase()
+}
+
+function clampMetric(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function getDefaultRosterSlotsForSport(sport?: string | null, isDynasty?: boolean): string[] {
+  switch (normalizeMockSport(sport)) {
+    case 'NBA':
+      return ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
+    case 'MLB':
+      return ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'UTIL', 'P', 'P']
+    default:
+      return isDynasty
+        ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
+        : ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX']
+  }
+}
+
+function getPrimaryPositionsForSport(sport?: string | null): string[] {
+  switch (normalizeMockSport(sport)) {
+    case 'NBA':
+      return ['PG', 'SG', 'SF', 'PF', 'C']
+    case 'MLB':
+      return ['C', '1B', '2B', '3B', 'SS', 'OF', 'P']
+    default:
+      return ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
+  }
+}
+
+function normalizeAnalyticsPosition(position: string | null | undefined, sport?: string | null): string {
+  const normalizedSport = normalizeMockSport(sport)
+  const raw = String(position || '').toUpperCase().trim()
+  if (!raw) return 'UTIL'
+  const parts = raw.split(/[\/,]/).map((part) => part.trim()).filter(Boolean)
+
+  if (normalizedSport === 'NFL') {
+    const first = parts[0] || raw
+    return first === 'DST' || first === 'D/ST' ? 'DEF' : first
+  }
+
+  if (normalizedSport === 'NBA') {
+    const known = new Set(['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL'])
+    return parts.find((part) => known.has(part)) || parts[0] || raw
+  }
+
+  if (normalizedSport === 'MLB') {
+    const first = parts[0] || raw
+    if (['SP', 'RP'].includes(first)) return 'P'
+    if (['LF', 'CF', 'RF'].includes(first)) return 'OF'
+    return first
+  }
+
+  return parts[0] || raw
+}
+
+function buildAnalyticsPositions(args: {
+  sport?: string | null
+  rosterSlots: string[]
+  adpData: ADPPlayer[]
+  draftResults: DraftPick[]
+}): string[] {
+  const normalizedSport = normalizeMockSport(args.sport)
+  const seen = new Set<string>()
+  const ordered: string[] = []
+  const add = (position: string | null | undefined) => {
+    const normalized = normalizeAnalyticsPosition(position, normalizedSport)
+    if (!normalized || normalized === 'UTIL' || seen.has(normalized)) return
+    seen.add(normalized)
+    ordered.push(normalized)
+  }
+
+  for (const position of getPrimaryPositionsForSport(normalizedSport)) {
+    add(position)
+  }
+  for (const slot of args.rosterSlots || []) {
+    const normalized = normalizeAnalyticsPosition(slot, normalizedSport)
+    if (!normalized || FLEXISH_SLOTS.has(normalized)) continue
+    add(normalized)
+  }
+  for (const player of args.adpData || []) {
+    add(player.position)
+  }
+  for (const pick of args.draftResults || []) {
+    add(pick.position)
+  }
+
+  return ordered
+}
+
+function defaultStarterTargetsForSport(sport?: string | null): Record<string, number> {
+  switch (normalizeMockSport(sport)) {
+    case 'NBA':
+      return { PG: 1, SG: 1, SF: 1, PF: 1, C: 1 }
+    case 'MLB':
+      return { C: 1, '1B': 1, '2B': 1, '3B': 1, SS: 1, OF: 3, P: 3 }
+    default:
+      return { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DEF: 1 }
+  }
+}
+
+function buildStarterTargets(args: {
+  sport?: string | null
+  rosterSlots: string[]
+  positions: string[]
+}): Record<string, number> {
+  const defaults = defaultStarterTargetsForSport(args.sport)
+  const targets: Record<string, number> = {}
+
+  for (const rawSlot of args.rosterSlots || []) {
+    const slot = normalizeAnalyticsPosition(rawSlot, args.sport)
+    if (!slot || FLEXISH_SLOTS.has(slot)) continue
+    targets[slot] = (targets[slot] || 0) + 1
+  }
+
+  return args.positions.reduce<Record<string, number>>((acc, position) => {
+    acc[position] = targets[position] || defaults[position] || 1
+    return acc
+  }, {})
+}
+
+function getPositionBarColor(position: string): string {
+  const map: Record<string, string> = {
+    QB: 'bg-red-500',
+    RB: 'bg-cyan-500',
+    WR: 'bg-green-500',
+    TE: 'bg-purple-500',
+    K: 'bg-amber-500',
+    DEF: 'bg-slate-500',
+    PG: 'bg-sky-500',
+    SG: 'bg-orange-500',
+    SF: 'bg-emerald-500',
+    PF: 'bg-fuchsia-500',
+    C: 'bg-yellow-500',
+    OF: 'bg-teal-500',
+    P: 'bg-rose-500',
+    '1B': 'bg-blue-500',
+    '2B': 'bg-cyan-500',
+    '3B': 'bg-indigo-500',
+    SS: 'bg-violet-500',
+  }
+  return map[position] || 'bg-gray-500'
 }
 
 function DnaStat({ label, value, suffix, color, sub, hideBar }: { label: string; value: number; suffix: string; color: string; sub: string; hideBar?: boolean }) {
@@ -308,6 +467,37 @@ export default function MockDraftSimulatorClient({
   const [liveSuggestion, setLiveSuggestion] = useState<any>(null)
   const [liveIntelLoading, setLiveIntelLoading] = useState(false)
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId)
+  const selectedSport = useMemo(() => normalizeMockSport(selectedLeague?.sport), [selectedLeague?.sport])
+  const defaultRosterSlots = useMemo(
+    () => getDefaultRosterSlotsForSport(selectedLeague?.sport, selectedLeague?.isDynasty),
+    [selectedLeague?.sport, selectedLeague?.isDynasty],
+  )
+  const analyticsPositions = useMemo(
+    () => buildAnalyticsPositions({
+      sport: selectedSport,
+      rosterSlots: defaultRosterSlots,
+      adpData,
+      draftResults,
+    }),
+    [selectedSport, defaultRosterSlots, adpData, draftResults],
+  )
+  const starterTargets = useMemo(
+    () => buildStarterTargets({
+      sport: selectedSport,
+      rosterSlots: defaultRosterSlots,
+      positions: analyticsPositions,
+    }),
+    [selectedSport, defaultRosterSlots, analyticsPositions],
+  )
+  const availableFilterOptions = useMemo(
+    () => ['All', ...analyticsPositions],
+    [analyticsPositions],
+  )
+  const requireNflAdvancedTool = useCallback(() => {
+    if (selectedSport === 'NFL') return true
+    toast.error('This advanced AI tool is currently available for NFL mock drafts only.')
+    return false
+  }, [selectedSport])
   const managerNames = useMemo(() => Array.from(new Set(draftResults.map((p) => p.manager))).filter(Boolean), [draftResults])
 
   useEffect(() => {
@@ -318,6 +508,11 @@ export default function MockDraftSimulatorClient({
     if (initialConfig?.scoring != null) setCustomScoring(initialConfig.scoring)
     if (initialConfig?.draftType != null) setDraftType(initialConfig.draftType)
   }, [initialConfig?.rounds, initialConfig?.scoring, initialConfig?.draftType])
+  useEffect(() => {
+    if (selectedFilter !== 'All' && !availableFilterOptions.includes(selectedFilter)) {
+      setSelectedFilter('All')
+    }
+  }, [availableFilterOptions, selectedFilter])
 
   useEffect(() => {
     if (draftResults.length === 0) setHasFiredComplete(false)
@@ -370,20 +565,18 @@ export default function MockDraftSimulatorClient({
         value: p.value ?? undefined,
         isRookie: /rookie|devy/i.test(String(draftPool)),
       }))
-    const rosterSlots = selectedLeague.isDynasty
-      ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
-      : ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX']
     const recentPicks = draftedSoFar.slice(-5).map((p) => ({ position: p.position }))
     return {
       available,
       teamRoster: userRoster,
-      rosterSlots,
+      rosterSlots: defaultRosterSlots,
       round,
       pick: pickNum,
       totalTeams: selectedLeague.leagueSize || 12,
       managerName,
+      sport: selectedSport,
       isDynasty: !!selectedLeague.isDynasty,
-      isSF: true,
+      isSF: selectedSport === 'NFL',
       isRookieDraft: draftPool === 'rookie',
       mode: (autopickMode === 'bpa' ? 'bpa' : 'needs') as 'bpa' | 'needs',
       recentPicks,
@@ -398,6 +591,8 @@ export default function MockDraftSimulatorClient({
     normalizeName,
     draftPool,
     autopickMode,
+    defaultRosterSlots,
+    selectedSport,
   ])
 
   const adpMap = useMemo(() => {
@@ -415,15 +610,18 @@ export default function MockDraftSimulatorClient({
     const result: Record<number, { manager: string; counts: Record<string, number>; isUser: boolean }[]> = {}
     for (let r = 1; r <= maxRound; r++) {
       result[r] = managers.map(mgr => {
-        const counts: Record<string, number> = { QB: 0, RB: 0, WR: 0, TE: 0, K: 0, DEF: 0 }
+        const counts = Object.fromEntries(analyticsPositions.map((position) => [position, 0])) as Record<string, number>
         for (const p of draftedSoFar) {
-          if (p.round <= r && p.manager === mgr && counts[p.position] !== undefined) counts[p.position]++
+          if (p.round <= r && p.manager === mgr) {
+            const position = normalizeAnalyticsPosition(p.position, selectedSport)
+            if (counts[position] !== undefined) counts[position]++
+          }
         }
         return { manager: mgr, counts, isUser: draftedSoFar.some(p => p.round <= r && p.manager === mgr && p.isUser) }
       })
     }
     return result
-  }, [draftResults, draftedSoFar])
+  }, [draftResults, draftedSoFar, analyticsPositions, selectedSport])
 
   const managerAvatars = useMemo(() => {
     const map: Record<string, string> = {}
@@ -436,37 +634,48 @@ export default function MockDraftSimulatorClient({
   }, [draftResults])
 
   const calculateTeamNeeds = useCallback((teamData: { manager: string; counts: Record<string, number> }, round: number) => {
-    const roster = teamData.counts
-    return {
-      QB: round < 5 && (roster.QB || 0) < 2 ? 85 : 30,
-      RB: (roster.RB || 0) < 4 ? 75 : 25,
-      WR: (roster.WR || 0) < 5 ? 70 : 20,
-      TE: (roster.TE || 0) < 2 ? 60 : 15,
-    }
-  }, [])
+    const positions = analyticsPositions.length > 0 ? analyticsPositions : Object.keys(teamData.counts || {})
+    const earlyWindow = Math.max(2, Math.ceil(customRounds * 0.4))
+    return positions.reduce<Record<string, number>>((needs, position) => {
+      const target = Math.max(1, starterTargets[position] || 1)
+      const current = teamData.counts[position] || 0
+      let need = 12
+      if (current === 0) {
+        need = round <= earlyWindow ? 86 : 72
+      } else if (current < target) {
+        need = 55 + (target - current) * 16
+      } else {
+        need = Math.max(5, 24 - (current - target) * 6)
+      }
+      needs[position] = clampMetric(Math.round(need), 0, 100)
+      return needs
+    }, {})
+  }, [analyticsPositions, customRounds, starterTargets])
 
   const calculateTeamGrade = useCallback((manager: string, picks: DraftPick[]) => {
     const drafted = picks.filter(p => p.manager === manager)
     if (drafted.length === 0) return { letter: 'N/A', color: '#6b7280', title: 'No picks', strengths: [] as string[], weaknesses: [] as string[], valueAdded: '+$0' }
 
-    const qbCount = drafted.filter(p => p.position === 'QB').length
-    const rbCount = drafted.filter(p => p.position === 'RB').length
-    const wrCount = drafted.filter(p => p.position === 'WR').length
-    const teCount = drafted.filter(p => p.position === 'TE').length
+    const counts = Object.fromEntries(analyticsPositions.map((position) => [position, 0])) as Record<string, number>
+    for (const pick of drafted) {
+      const position = normalizeAnalyticsPosition(pick.position, selectedSport)
+      counts[position] = (counts[position] || 0) + 1
+    }
 
-    let score = 75
+    let score = 65
     let totalAdpDelta = 0
     let adpHits = 0
 
-    if (qbCount >= 2) score += 15
-    if (rbCount >= 4) score += 10
-    if (wrCount >= 5) score += 8
-    if (teCount >= 2) score += 5
-
-    if (qbCount === 0) score -= 10
-    if (rbCount < 3) score -= 8
-    if (wrCount < 3) score -= 6
-    if (teCount === 0) score -= 4
+    const coverageRatios = analyticsPositions.map((position) => {
+      const target = Math.max(1, starterTargets[position] || 1)
+      return Math.min(1, (counts[position] || 0) / target)
+    })
+    const coverageScore = coverageRatios.length
+      ? coverageRatios.reduce((sum, ratio) => sum + ratio, 0) / coverageRatios.length
+      : 0.5
+    score += coverageScore * 20
+    if (coverageScore >= 0.95) score += 8
+    else if (coverageScore >= 0.8) score += 4
 
     for (const pick of drafted) {
       const adp = adpMap.get(normalizeName(pick.playerName))
@@ -477,7 +686,7 @@ export default function MockDraftSimulatorClient({
         if (delta > 10) score += 3
         if (delta < -10) score -= 3
       }
-      score += Math.min((pick.value || 0) / 20, 5)
+      score += Math.min((pick.value || 0) / 30, 4)
     }
 
     score = Math.max(40, Math.min(100, score))
@@ -485,17 +694,32 @@ export default function MockDraftSimulatorClient({
     const strengths: string[] = []
     const weaknesses: string[] = []
 
-    if (qbCount >= 2) strengths.push('Solid QB depth')
-    if (rbCount >= 4) strengths.push('Deep RB room')
-    if (wrCount >= 5) strengths.push('Loaded at WR')
+    if (coverageScore >= 0.95) strengths.push('Covered every core starting slot')
+    else if (coverageScore >= 0.8) strengths.push('Strong positional balance')
     if (adpHits > 0 && totalAdpDelta / adpHits > 5) strengths.push('Strong value picks')
-    if (teCount >= 2) strengths.push('TE advantage')
 
-    if (rbCount < 3) weaknesses.push('Thin RB room')
-    if (wrCount < 3) weaknesses.push('WR depth concern')
-    if (qbCount === 0) weaknesses.push('No QB drafted')
-    if (teCount === 0) weaknesses.push('No TE rostered')
+    const biggestSurplus = analyticsPositions
+      .map((position) => ({
+        position,
+        surplus: (counts[position] || 0) - (starterTargets[position] || 1),
+      }))
+      .sort((a, b) => b.surplus - a.surplus)[0]
+    if (biggestSurplus && biggestSurplus.surplus > 0) {
+      strengths.push(`Built extra ${biggestSurplus.position} depth`)
+    }
+
+    const biggestNeed = analyticsPositions
+      .map((position) => ({
+        position,
+        deficit: Math.max(0, (starterTargets[position] || 1) - (counts[position] || 0)),
+      }))
+      .sort((a, b) => b.deficit - a.deficit)[0]
+    if (biggestNeed && biggestNeed.deficit > 0) weaknesses.push(`${biggestNeed.position} depth still needs work`)
+    if (coverageScore < 0.65) weaknesses.push('Too many core roster spots are still thin')
     if (adpHits > 0 && totalAdpDelta / adpHits < -5) weaknesses.push('Too many reaches')
+
+    if (strengths.length === 0) strengths.push('Stable draft foundation')
+    if (weaknesses.length === 0) weaknesses.push('No major structural issues')
 
     let letter: string
     let color: string
@@ -514,22 +738,24 @@ export default function MockDraftSimulatorClient({
     const valueAdded = `+$${totalValue.toLocaleString()}`
 
     return { letter, color, title, strengths: strengths.slice(0, 3), weaknesses: weaknesses.slice(0, 3), valueAdded }
-  }, [adpMap, normalizeName])
+  }, [adpMap, normalizeName, analyticsPositions, selectedSport, starterTargets])
 
   const [bestAvailable, setBestAvailable] = useState<ADPPlayer[]>([])
 
   useEffect(() => {
-    if (!adpData.length || draftResults.length === 0) return
+    if (!adpData.length) return
 
     const drafted = new Set(draftedSoFar.map(p => p.playerName))
     let remaining = adpData.filter(p => !drafted.has(p.name))
 
     if (selectedFilter !== 'All') {
-      remaining = remaining.filter(p => p.position === selectedFilter)
+      remaining = remaining.filter(
+        p => normalizeAnalyticsPosition(p.position, selectedSport) === selectedFilter
+      )
     }
 
     setBestAvailable(remaining.slice(0, 15))
-  }, [draftedSoFar, adpData, selectedFilter])
+  }, [draftedSoFar, adpData, selectedFilter, selectedSport])
 
   const openComparison = useCallback((pick: any) => {
     const bap = adpData.find(p => !draftedSoFar.some(d => d.playerName === p.name))
@@ -543,7 +769,7 @@ export default function MockDraftSimulatorClient({
       try {
         const type = selectedLeague.isDynasty ? 'dynasty' : 'redraft'
         const pool = selectedLeague.isDynasty ? draftPool : 'vet'
-        const res = await fetch(`/api/mock-draft/adp?type=${type}&pool=${pool}&limit=300`)
+        const res = await fetch(`/api/mock-draft/adp?type=${type}&pool=${pool}&limit=300&sport=${selectedSport.toLowerCase()}`)
         if (res.ok) {
           const data = await res.json()
           setAdpData(data.entries || [])
@@ -553,13 +779,13 @@ export default function MockDraftSimulatorClient({
       }
     }
     fetchADP()
-  }, [selectedLeagueId, selectedLeague, draftPool])
+  }, [selectedLeagueId, selectedLeague, draftPool, selectedSport])
 
   useEffect(() => {
-    if (adpData.length > 0 || draftResults.length === 0 || !selectedLeagueId) return
+    if (adpData.length > 0 || draftResults.length === 0 || !selectedLeagueId || selectedSport !== 'NFL') return
     const fetchADP = async () => {
       try {
-        const res = await fetch(`/api/mock-draft/adp?type=redraft&pool=vet&limit=300`)
+        const res = await fetch(`/api/mock-draft/adp?type=redraft&pool=vet&limit=300&sport=nfl`)
         if (res.ok) {
           const data = await res.json()
           setAdpData(data.entries || [])
@@ -567,7 +793,7 @@ export default function MockDraftSimulatorClient({
       } catch {}
     }
     fetchADP()
-  }, [draftResults, adpData.length, selectedLeagueId])
+  }, [draftResults, adpData.length, selectedLeagueId, selectedSport])
 
   useEffect(() => {
     if (draftResults.length === 0 || adpData.length === 0) {
@@ -648,19 +874,18 @@ export default function MockDraftSimulatorClient({
         const basePayload = {
           available: availableBoard,
           teamRoster: managerRoster,
-          rosterSlots: selectedLeague?.isDynasty
-            ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
-            : ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX'],
+          rosterSlots: defaultRosterSlots,
           round: currentOnClockPick.round,
           pick: currentOnClockPick.pick,
           totalTeams: selectedLeague?.leagueSize || 12,
           managerName: currentOnClockPick.manager,
+          sport: selectedSport,
           isDynasty: !!selectedLeague?.isDynasty,
-          isSF: true,
+          isSF: selectedSport === 'NFL',
           isRookieDraft: draftPool === 'rookie',
           mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
           leagueContext: {
-            rosterPositions: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+            rosterPositions: defaultRosterSlots,
             scoringSettings: {},
           },
         }
@@ -708,7 +933,7 @@ export default function MockDraftSimulatorClient({
     return () => {
       active = false
     }
-  }, [livePlayback, selectedLeagueId, currentOnClockPick, adpData, draftedSoFar, normalizeName, draftPool, autopickMode, selectedLeague, draftResults])
+  }, [livePlayback, selectedLeagueId, currentOnClockPick, adpData, draftedSoFar, normalizeName, draftPool, autopickMode, selectedLeague, draftResults, defaultRosterSlots, selectedSport])
 
   const stepLiveDraft = useCallback(() => {
     if (draftResults.length === 0) return
@@ -778,6 +1003,7 @@ export default function MockDraftSimulatorClient({
 
   const updateWeekly = async () => {
     if (!selectedLeagueId) return
+    if (!requireNflAdvancedTool()) return
     setIsSimulating(true)
     const { data } = await callAI('/api/mock-draft/update-weekly', {
       leagueId: selectedLeagueId,
@@ -814,6 +1040,7 @@ export default function MockDraftSimulatorClient({
 
   const generatePickPath = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     setPickPathLoading(true)
     try {
       const target = bestAvailableTop[0]?.name || ''
@@ -837,6 +1064,7 @@ export default function MockDraftSimulatorClient({
 
   const loadManagerDNA = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     setDnaLoading(true)
     try {
       const res = await fetch('/api/mock-draft/manager-dna', {
@@ -859,6 +1087,7 @@ export default function MockDraftSimulatorClient({
 
   const loadSnipeRadar = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     setSnipeRadarLoading(true)
     try {
       const res = await fetch('/api/mock-draft/snipe-radar', {
@@ -880,6 +1109,7 @@ export default function MockDraftSimulatorClient({
 
   const loadTradeOptimizer = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     setTradeOptimizerLoading(true)
     try {
       const res = await fetch('/api/mock-draft/trade-optimizer', {
@@ -902,6 +1132,7 @@ export default function MockDraftSimulatorClient({
 
   const loadBoardDrift = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     setBoardDriftLoading(true)
     try {
       const res = await fetch('/api/mock-draft/board-drift', {
@@ -933,6 +1164,7 @@ export default function MockDraftSimulatorClient({
 
   const runScenarioLab = async () => {
     if (!selectedLeagueId) return toast.error('Select a league first')
+    if (!requireNflAdvancedTool()) return
     if (activeScenarios.size === 0) return toast.error('Toggle at least one scenario')
     setScenarioLabLoading(true)
     try {
@@ -991,17 +1223,18 @@ export default function MockDraftSimulatorClient({
           action: 'dm-suggestion',
           available: availableBoard,
           teamRoster: userRoster,
-          rosterSlots: selectedLeague?.isDynasty ? ['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SUPER_FLEX'] : ['QB','RB','RB','WR','WR','TE','FLEX'],
+          rosterSlots: defaultRosterSlots,
           round: Math.ceil(pickOverall / Math.max(1, selectedLeague?.leagueSize || 12)),
           pick: ((pickOverall - 1) % Math.max(1, selectedLeague?.leagueSize || 12)) + 1,
           totalTeams: selectedLeague?.leagueSize || 12,
           managerName: userManager || 'You',
+          sport: selectedSport,
           isDynasty: !!selectedLeague?.isDynasty,
-          isSF: true,
+          isSF: selectedSport === 'NFL',
           isRookieDraft: draftPool === 'rookie',
           mode: autopickMode === 'bpa' ? 'bpa' : 'needs',
           leagueContext: {
-            rosterPositions: ['QB','RB','RB','WR','WR','TE','FLEX','FLEX','SUPER_FLEX'],
+            rosterPositions: defaultRosterSlots,
             scoringSettings: {},
           },
         }),
@@ -1070,6 +1303,7 @@ export default function MockDraftSimulatorClient({
 
   const loadRetrospective = async () => {
     if (!selectedLeagueId) return
+    if (!requireNflAdvancedTool()) return
     setRetroLoading(true)
     try {
       const checkRes = await fetch(`/api/mock-draft/retrospective?leagueId=${selectedLeagueId}`)
@@ -1126,6 +1360,7 @@ export default function MockDraftSimulatorClient({
 
   const simulateTrade = async (direction: 'up' | 'down', pickNumber: number) => {
     if (draftResults.length === 0 || !selectedLeagueId) return
+    if (!requireNflAdvancedTool()) return
     setIsTrading(true)
     setTradeResult(null)
     toast.info(`Simulating ${direction === 'up' ? 'trade up' : 'trade down'}...`)
@@ -1158,6 +1393,7 @@ export default function MockDraftSimulatorClient({
 
 
   const handleTradeAction = async (pickNumber: number, action: 'accept' | 'reject') => {
+    if (!requireNflAdvancedTool()) return
     const { data } = await callAI('/api/mock-draft/trade-action', {
       leagueId: selectedLeagueId,
       pickNumber,
@@ -1343,7 +1579,9 @@ export default function MockDraftSimulatorClient({
             <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
             <div className="text-left">
               <p className="text-lg font-semibold text-white">AI is drafting...</p>
-              <p className="text-sm text-gray-400">Analyzing live ADP, team needs &amp; real draft tendencies</p>
+              <p className="text-sm text-gray-400">
+                Analyzing {selectedSport === 'NFL' ? 'live ADP' : `the imported ${selectedSport} player pool`}, team needs &amp; real draft tendencies
+              </p>
             </div>
           </div>
         </div>
@@ -1366,7 +1604,11 @@ export default function MockDraftSimulatorClient({
                 <Button onClick={exportPDF} variant="ghost" size="sm" className="h-7 text-xs text-gray-400 hover:text-white"><Download className="mr-1.5 h-3.5 w-3.5" /> PDF</Button>
                 <Button onClick={copyShareLink} variant="ghost" size="sm" className="h-7 text-xs text-gray-400 hover:text-white"><Link className="mr-1.5 h-3.5 w-3.5" /> Share</Button>
               </div>
-              <Button onClick={updateWeekly} variant="outline" size="sm" className="h-7 text-xs" disabled={isSimulating || loading}><RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Update Weekly</Button>
+              {selectedSport === 'NFL' && (
+                <Button onClick={updateWeekly} variant="outline" size="sm" className="h-7 text-xs" disabled={isSimulating || loading}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Update Weekly
+                </Button>
+              )}
               <Button onClick={() => { setDraftResults([]); setCurrentDraftId(null); setIsSimulating(false); setBestAvailableTop([]); setTradeProposals({}); setDismissedProposals(new Set()); setCompletedPicks(0); setIsLivePlaying(false); setClockSecondsLeft(secondsPerPick); setLivePredictions([]); setLiveSuggestion(null) }} variant="outline" size="sm" className="h-7 text-xs border-red-900/40 text-red-400 hover:text-red-300 hover:bg-red-950/30">
                 <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
               </Button>
@@ -1442,7 +1684,7 @@ export default function MockDraftSimulatorClient({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {bestAvailableTop.map((player, i) => {
-                    const posColor = player.position === 'QB' ? 'text-red-400' : player.position === 'RB' ? 'text-cyan-400' : player.position === 'WR' ? 'text-green-400' : 'text-purple-400'
+                    const posColor = POSITION_COLORS[player.position]?.split(' ')[0] || 'text-gray-400'
                     return (
                       <div key={player.name} className={`flex items-center gap-4 bg-black/50 p-4 rounded-xl border ${i === 0 ? 'border-yellow-500/40 ring-1 ring-yellow-500/20' : 'border-gray-800/50'}`}>
                         <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 ${i === 0 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-gray-800 text-gray-400'}`}>
@@ -1597,26 +1839,30 @@ export default function MockDraftSimulatorClient({
 
                           {isOnClockUserPick && (
                             <div className="flex gap-2 mt-4 justify-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); simulateTrade('up', pick.overall) }}
-                                disabled={isTrading}
-                                className="border-green-500/50 text-green-400 hover:bg-green-950/40 text-xs"
-                              >
-                                {isTrading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ArrowUp className="mr-1 h-3 w-3" />}
-                                Trade Up
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); simulateTrade('down', pick.overall) }}
-                                disabled={isTrading}
-                                className="border-red-500/50 text-red-400 hover:bg-red-950/40 text-xs"
-                              >
-                                {isTrading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ArrowDown className="mr-1 h-3 w-3" />}
-                                Trade Down
-                              </Button>
+                              {selectedSport === 'NFL' && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); simulateTrade('up', pick.overall) }}
+                                    disabled={isTrading}
+                                    className="border-green-500/50 text-green-400 hover:bg-green-950/40 text-xs"
+                                  >
+                                    {isTrading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ArrowUp className="mr-1 h-3 w-3" />}
+                                    Trade Up
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => { e.stopPropagation(); simulateTrade('down', pick.overall) }}
+                                    disabled={isTrading}
+                                    className="border-red-500/50 text-red-400 hover:bg-red-950/40 text-xs"
+                                  >
+                                    {isTrading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <ArrowDown className="mr-1 h-3 w-3" />}
+                                    Trade Down
+                                  </Button>
+                                </>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -1630,7 +1876,7 @@ export default function MockDraftSimulatorClient({
                             </div>
                           )}
 
-                          {pick.isUser && tradeProposals[pick.overall] && !dismissedProposals.has(pick.overall) && (
+                          {selectedSport === 'NFL' && pick.isUser && tradeProposals[pick.overall] && !dismissedProposals.has(pick.overall) && (
                             <motion.div
                               initial={{ opacity: 0, height: 0 }}
                               animate={{ opacity: 1, height: 'auto' }}
@@ -1675,9 +1921,9 @@ export default function MockDraftSimulatorClient({
                   <div className="mt-6">
                     {(() => {
                       const rNum = round + 1
-                      const TARGETS: Record<string, number> = { QB: 1, RB: 4, WR: 4, TE: 1, K: 1, DEF: 1 }
                       const quickNeeds = perRoundRosters[rNum] || []
                       const userTeam = quickNeeds.find(t => t.isUser)
+                      const summaryPositions = analyticsPositions.slice(0, 6)
 
                       return (
                         <>
@@ -1702,12 +1948,12 @@ export default function MockDraftSimulatorClient({
                                   )
                                 })()}
                               </div>
-                              <div className="grid grid-cols-4 gap-2">
-                                {(['QB', 'RB', 'WR', 'TE'] as const).map(pos => {
-                                  const count = userTeam.counts[pos]
-                                  const target = TARGETS[pos]
+                              <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+                                {summaryPositions.map(pos => {
+                                  const count = userTeam.counts[pos] || 0
+                                  const target = starterTargets[pos] || 1
                                   const pct = Math.min(100, (count / target) * 100)
-                                  const posColor = pos === 'QB' ? 'bg-red-500' : pos === 'RB' ? 'bg-cyan-500' : pos === 'WR' ? 'bg-green-500' : 'bg-purple-500'
+                                  const posColor = getPositionBarColor(pos)
                                   return (
                                     <div key={pos} className="text-center">
                                       <div className="text-[10px] text-gray-500 mb-1">{pos}</div>
@@ -1715,7 +1961,7 @@ export default function MockDraftSimulatorClient({
                                       <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden mt-1">
                                         <div className={`h-full rounded-full ${posColor} transition-all`} style={{ width: `${pct}%` }} />
                                       </div>
-                                      {count < (pos === 'QB' || pos === 'TE' ? 1 : 2) && (
+                                      {count < target && (
                                         <div className="text-[9px] text-orange-400 mt-0.5 font-bold">NEED</div>
                                       )}
                                     </div>
@@ -1835,7 +2081,9 @@ export default function MockDraftSimulatorClient({
           <div>
             <Users className="h-12 w-12 mx-auto mb-4 text-gray-700" />
             <p className="text-lg mb-1">Ready to draft</p>
-            <p className="text-sm text-gray-600">AI will draft for all managers based on live ADP data and real tendencies</p>
+            <p className="text-sm text-gray-600">
+              AI will draft for all managers based on {selectedSport === 'NFL' ? 'live ADP data' : `the imported ${selectedSport} player pool`} and real tendencies
+            </p>
           </div>
         </div>
       )}
@@ -1924,7 +2172,7 @@ export default function MockDraftSimulatorClient({
           </h3>
 
           <div className="flex gap-2 mb-4 flex-wrap">
-            {['All', 'QB', 'RB', 'WR', 'TE'].map(pos => (
+            {availableFilterOptions.map(pos => (
               <Button
                 key={pos}
                 variant={selectedFilter === pos ? 'default' : 'outline'}
@@ -2994,4 +3242,3 @@ export default function MockDraftSimulatorClient({
     </div>
   )
 }
-

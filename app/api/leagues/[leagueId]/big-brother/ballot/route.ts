@@ -36,7 +36,7 @@ export async function GET(
   if (!config) return NextResponse.json({ error: 'Not a Big Brother league' }, { status: 404 })
 
   const roster = await prisma.roster.findFirst({
-    where: { leagueId, userId },
+    where: { leagueId, platformUserId: userId },
     select: { id: true },
   })
   if (!roster) return NextResponse.json({ ballot: null, error: 'Not a league member' })

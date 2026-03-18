@@ -11,6 +11,7 @@ export * from "./roster-utils"
 export {
   getPositionFiltersForSport,
   getSportDisplayLabel,
+  waiverPositionMatches,
   WAIVER_WIRE_SPORTS,
 } from "./SportWaiverResolver"
 export {

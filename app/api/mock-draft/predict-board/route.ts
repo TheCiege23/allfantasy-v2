@@ -4,7 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLiveADP, type ADPEntry } from '@/lib/adp-data'
 import { applyRealtimeAdpAdjustments } from '@/lib/mock-draft/adp-realtime-adjuster'
+import { loadSportAwareDraftPlayerPool, toSyntheticAdpEntries } from '@/lib/mock-draft/sport-player-pool'
 import { buildManagerDNAFromLeague, type ManagerDNA } from '@/lib/mock-draft/manager-dna'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { resolveSleeperIds } from '@/lib/sleeper/players-cache'
 
 type ScenarioPreset = {
@@ -95,6 +97,33 @@ type PickForecast = {
 }
 
 const POSITION_TARGETS: Record<string, number> = { QB: 2, RB: 5, WR: 5, TE: 2 }
+
+function buildPositionTargets(pool: ADPEntry[], sport: string): Record<string, number> {
+  if (sport === 'NFL') return { ...POSITION_TARGETS }
+
+  const positions = Array.from(
+    new Set(
+      pool
+        .map((player) => String(player.position || '').toUpperCase())
+        .filter(Boolean)
+    )
+  )
+
+  if (positions.length === 0) return { ...POSITION_TARGETS }
+
+  return Object.fromEntries(positions.slice(0, 10).map((position) => [position, 2]))
+}
+
+function describeTopTargetReason(sport: string, position: string): string {
+  if (sport === 'NFL') {
+    if (position === 'RB') return 'Historical roster construction and scarcity pressure point toward RB here.'
+    if (position === 'WR') return 'Manager tendency and ADP board value suggest WR is likely.'
+    if (position === 'QB') return 'QB timing window is open based on league and manager style.'
+    return 'TE leverage pick profile appears in this simulation cluster.'
+  }
+
+  return `${position} is the strongest fit from the current ${sport} board and manager trend mix.`
+}
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
@@ -252,9 +281,23 @@ export async function POST(req: NextRequest) {
 
     if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-    const adp = await getLiveADP(league.isDynasty ? 'dynasty' : 'redraft', 220)
-    const adjusted = await applyRealtimeAdpAdjustments(adp, { isDynasty: league.isDynasty })
-    const pool = adjusted.entries.filter(p => ['QB', 'RB', 'WR', 'TE'].includes(p.position)).slice(0, 180)
+    const sport = normalizeToSupportedSport((league as any).sport || 'NFL')
+    const isNfl = sport === 'NFL'
+    const baseEntries = isNfl
+      ? await getLiveADP(league.isDynasty ? 'dynasty' : 'redraft', 220)
+      : toSyntheticAdpEntries(
+          await loadSportAwareDraftPlayerPool({
+            leagueId: league.id,
+            sport,
+            limit: 220,
+          })
+        )
+    const adjusted = isNfl
+      ? await applyRealtimeAdpAdjustments(baseEntries, { isDynasty: league.isDynasty })
+      : { entries: baseEntries, adjustments: [] as Array<{ name: string; delta: number; reasons: string[] }> }
+    const pool = adjusted.entries
+      .filter((player) => (isNfl ? ['QB', 'RB', 'WR', 'TE'].includes(player.position) : Boolean(player.position)))
+      .slice(0, 180)
 
     const teamCount = Math.max(league.leagueSize || 0, league.teams.length || 0, 12)
 
@@ -282,12 +325,17 @@ export async function POST(req: NextRequest) {
       dnaCards[i]?.manager || `Manager ${i + 1}`
     )
 
+    const basePositionTargets = buildPositionTargets(pool, sport)
+    const baseRosterCounts = Object.fromEntries(
+      Object.keys(basePositionTargets).map((position) => [position, 0])
+    ) as Record<string, number>
+
     const managerProfiles = Array.from({ length: teamCount }, (_, i) => {
       const dna = dnaCards[i]
       return {
         manager: teamNames[i],
-        tendency: dna?.tendency || { QB: 1, RB: 1, WR: 1, TE: 1 },
-        rosterCounts: { QB: 0, RB: 0, WR: 0, TE: 0 },
+        tendency: dna?.tendency || Object.fromEntries(Object.keys(baseRosterCounts).map((position) => [position, 1])),
+        rosterCounts: { ...baseRosterCounts, ...(dna?.rosterCounts || {}) },
         panicScore: dna?.panicScore || 0.3,
         reachFrequency: dna?.reachFrequency || 0.3,
       }
@@ -319,7 +367,7 @@ export async function POST(req: NextRequest) {
       newsMul: calibration?.newsWeight ?? 1,
       rookieMul: calibration?.rookieWeight ?? 1,
     }
-    const posTargets = { ...POSITION_TARGETS }
+    const posTargets = { ...basePositionTargets }
     for (const sId of activeScenarios) {
       const preset = SCENARIO_PRESETS[sId]
       if (!preset) continue
@@ -348,7 +396,10 @@ export async function POST(req: NextRequest) {
 
     for (let s = 0; s < simulations; s++) {
       const available = [...scenarioAdpPool]
-      const counts = managerProfiles.map(m => ({ ...m, rosterCounts: { QB: 0, RB: 0, WR: 0, TE: 0 } }))
+      const counts = managerProfiles.map((manager) => ({
+        ...manager,
+        rosterCounts: { ...baseRosterCounts, ...(manager.rosterCounts || {}) },
+      }))
       const recentPicks: string[] = []
 
       let overall = 1
@@ -421,13 +472,7 @@ export async function POST(req: NextRequest) {
           .map(([key, cnt]) => {
             const [player, position] = key.split('|')
             const probability = Math.round((cnt / simulations) * 100)
-            const why = position === 'RB'
-              ? 'Historical roster construction and scarcity pressure point toward RB here.'
-              : position === 'WR'
-                ? 'Manager tendency and ADP board value suggest WR is likely.'
-                : position === 'QB'
-                  ? 'QB timing window is open based on league and manager style.'
-                  : 'TE leverage pick profile appears in this simulation cluster.'
+            const why = describeTopTargetReason(sport, position)
 
             const bd = bdMap.get(key)
             const scorecard: ScoreBreakdown = bd && bd.count > 0
@@ -585,7 +630,7 @@ export async function POST(req: NextRequest) {
       forecasts,
       userGuidance,
       adpAdjustments: adjusted.adjustments.slice(0, 20),
-      signalSources: adjusted.sourcesUsed,
+      signalSources: 'sourcesUsed' in adjusted ? adjusted.sourcesUsed : { importedPlayerPool: pool.length },
       ...(snapshotId ? { snapshotId } : {}),
       ...(calibration ? { calibration: { adp: calibration.adpWeight, need: calibration.needWeight, tendency: calibration.tendencyWeight, news: calibration.newsWeight, rookie: calibration.rookieWeight, sampleSize: calibration.sampleSize } } : {}),
       ...(activeScenarios.length > 0 ? { scenarioLabels: activeScenarios.map(s => SCENARIO_PRESETS[s]?.label || s) } : {}),

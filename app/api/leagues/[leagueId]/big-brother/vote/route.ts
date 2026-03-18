@@ -33,7 +33,7 @@ export async function POST(
   }
 
   const roster = await prisma.roster.findFirst({
-    where: { leagueId, userId },
+    where: { leagueId, platformUserId: userId },
     select: { id: true },
   })
   if (!roster) return NextResponse.json({ error: 'Not a league member' }, { status: 403 })

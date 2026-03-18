@@ -42,6 +42,8 @@ export interface BigBrotherAIContext {
   challengeMode: string
   /** For Chimmy host: next deadline or action due */
   nextActionHint: string | null
+  /** Sport for challenge theme hints (multi-sport). PROMPT 5. */
+  sport: string
 }
 
 /**
@@ -128,5 +130,6 @@ export async function buildBigBrotherAIContext(
     eliminatedRosterIds,
     challengeMode: config.challengeMode,
     nextActionHint,
+    sport: config.sport,
   }
 }

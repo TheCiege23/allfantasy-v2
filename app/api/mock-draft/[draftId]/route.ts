@@ -10,15 +10,16 @@ import { getMockDraftById } from '@/lib/mock-draft-engine/MockDraftSessionServic
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   ctx: { params: Promise<{ draftId: string }> }
 ) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { draftId } = await ctx.params
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const snapshot = await getMockDraftById(draftId, userId ?? undefined)
+  const snapshot = await getMockDraftById(draftId, userId)
   if (!snapshot) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
   return NextResponse.json({ draft: snapshot })
 }

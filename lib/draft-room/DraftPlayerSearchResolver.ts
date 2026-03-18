@@ -26,8 +26,18 @@ export function filterBySearch(
   )
 }
 
+/** Offensive positions (NFL). */
+const OFFENSE_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K'])
+/** DL family: DE, DT. */
+const DL_POSITIONS = new Set(['DE', 'DT'])
+/** DB family: CB, S (and SS, FS). */
+const DB_POSITIONS = new Set(['CB', 'S', 'SS', 'FS'])
+/** IDP FLEX: any IDP position. */
+const IDP_FLEX_POSITIONS = new Set(['DE', 'DT', 'LB', 'CB', 'S', 'SS', 'FS'])
+
 /**
  * Filter players by position. Use 'All' for no filter; 'FLEX' for RB/WR/TE.
+ * IDP: Offense (QB,RB,WR,TE,K), DL (DE,DT), LB, DB (CB,S), DE, DT, CB, S, IDP_FLEX (any IDP).
  */
 export function filterByPosition(
   players: DraftPlayer[],
@@ -35,9 +45,19 @@ export function filterByPosition(
 ): DraftPlayer[] {
   if (!positionFilter || positionFilter === 'All') return players
   if (positionFilter === 'FLEX') {
-    return players.filter((p) =>
-      ['RB', 'WR', 'TE'].includes(p.position)
-    )
+    return players.filter((p) => ['RB', 'WR', 'TE'].includes(p.position))
+  }
+  if (positionFilter === 'Offense') {
+    return players.filter((p) => OFFENSE_POSITIONS.has(p.position?.toUpperCase() ?? ''))
+  }
+  if (positionFilter === 'DL') {
+    return players.filter((p) => DL_POSITIONS.has(p.position?.toUpperCase() ?? ''))
+  }
+  if (positionFilter === 'DB') {
+    return players.filter((p) => DB_POSITIONS.has(p.position?.toUpperCase() ?? ''))
+  }
+  if (positionFilter === 'IDP_FLEX') {
+    return players.filter((p) => IDP_FLEX_POSITIONS.has(p.position?.toUpperCase() ?? ''))
   }
   return players.filter((p) => p.position === positionFilter)
 }

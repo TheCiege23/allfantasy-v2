@@ -68,6 +68,8 @@ export async function GET(
       antiCollusionLogging: config.antiCollusionLogging,
       inactivePlayerHandling: config.inactivePlayerHandling,
       autoNominationFallback: config.autoNominationFallback,
+      evictionTieBreakMode: config.evictionTieBreakMode,
+      weekProgressionPaused: config.weekProgressionPaused,
     },
   })
 }
@@ -120,6 +122,8 @@ export async function PATCH(
     ...(body.antiCollusionLogging !== undefined && { antiCollusionLogging: Boolean(body.antiCollusionLogging) }),
     ...(body.inactivePlayerHandling !== undefined && { inactivePlayerHandling: String(body.inactivePlayerHandling) }),
     ...(body.autoNominationFallback !== undefined && { autoNominationFallback: String(body.autoNominationFallback) }),
+    ...(body.evictionTieBreakMode !== undefined && { evictionTieBreakMode: String(body.evictionTieBreakMode) }),
+    ...(body.weekProgressionPaused !== undefined && { weekProgressionPaused: Boolean(body.weekProgressionPaused) }),
   })
   return NextResponse.json({ ok: true, config: updated })
 }

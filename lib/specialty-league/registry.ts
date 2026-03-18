@@ -49,6 +49,11 @@ import {
   upsertBigBrotherConfig,
 } from '@/lib/big-brother/BigBrotherLeagueConfig'
 import { isEliminated, getExcludedRosterIds } from '@/lib/big-brother/bigBrotherGuard'
+import {
+  isIdpLeague,
+  getIdpLeagueConfig,
+  upsertIdpLeagueConfig,
+} from '@/lib/idp'
 
 const registry = new Map<SpecialtyLeagueId, SpecialtyLeagueSpec>()
 
@@ -62,10 +67,11 @@ export function getSpecialtySpec(id: SpecialtyLeagueId): SpecialtyLeagueSpec | u
   return registry.get(id)
 }
 
-/** Get spec by League.leagueVariant (e.g. "guillotine"). */
+/** Get spec by League.leagueVariant (e.g. "guillotine"). IDP and DYNASTY_IDP both map to idp spec. */
 export function getSpecialtySpecByVariant(variant: string | null): SpecialtyLeagueSpec | undefined {
   if (!variant) return undefined
-  const v = variant.toLowerCase().trim()
+  let v = variant.toLowerCase().trim()
+  if (v === 'dynasty_idp') v = 'idp'
   for (const spec of registry.values()) {
     if (spec.leagueVariant.toLowerCase() === v) return spec
   }
@@ -330,10 +336,40 @@ function registerBigBrother(): void {
   })
 }
 
+function registerIdp(): void {
+  registerSpecialtyLeague({
+    id: 'idp',
+    leagueVariant: 'idp',
+    label: 'IDP',
+    wizardLeagueTypeId: 'idp',
+
+    detect: isIdpLeague,
+    getConfig: getIdpLeagueConfig,
+    upsertConfig: upsertIdpLeagueConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/idp/IDPHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/idp/config',
+    aiRoutePath: null,
+
+    capabilities: {
+      // IDP: offense + defensive roster/scoring; no rosterGuard; draft/waiver/trade/rankings reuse standard flow.
+    },
+  })
+}
+
 registerGuillotine()
 registerSurvivor()
 registerZombie()
 registerBigBrother()
+registerIdp()
 registerDevy()
 registerC2C()
 registerTournament()

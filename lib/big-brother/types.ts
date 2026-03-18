@@ -90,6 +90,8 @@ export interface BigBrotherConfig {
   antiCollusionLogging: boolean
   inactivePlayerHandling: InactivePlayerHandling
   autoNominationFallback: AutoNominationFallback
+  evictionTieBreakMode: string
+  weekProgressionPaused: boolean
 }
 
 /** Cycle row for a single week. */
@@ -132,7 +134,7 @@ export interface BigBrotherEvictionResult {
   juryEnrolled: boolean
 }
 
-/** Tie-break mode for eviction (when vote count is tied). */
+/** Tie-break mode for eviction (when vote count is tied). PROMPT 5. */
 export type EvictionTieBreakMode = 'hoh_vote' | 'random' | 'season_points' | 'commissioner'
 
 /** Challenge resolution mode: deterministic only. AI may theme/narrate; outcome is never AI-decided. */

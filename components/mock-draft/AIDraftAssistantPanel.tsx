@@ -34,7 +34,7 @@ export function AIDraftAssistantPanel({
     if (!params || !autoFetch) return
     fetchSuggestion(params)
     return () => clear()
-  }, [params?.round, params?.pick, autoFetch])
+  }, [params, autoFetch, fetchSuggestion, clear])
 
   return (
     <section
@@ -49,7 +49,7 @@ export function AIDraftAssistantPanel({
         <div>
           <p className="font-semibold text-white">AI Draft Assistant</p>
           <p className="text-[10px] text-white/55">
-            Suggestions only — not a guarantee. You decide.
+            Suggestions only - not a guarantee. You decide.
           </p>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function AIDraftAssistantPanel({
       )}
 
       {loading && (
-        <p className="text-white/55">Loading suggestion…</p>
+        <p className="text-white/55">Loading suggestion...</p>
       )}
 
       {!loading && bestPick && (
@@ -73,7 +73,7 @@ export function AIDraftAssistantPanel({
               {bestPick.player}
               <span className="ml-2 text-white/60">
                 {bestPick.position}
-                {bestPick.team ? ` · ${bestPick.team}` : ''}
+                {bestPick.team ? ` - ${bestPick.team}` : ''}
               </span>
             </p>
             {bestPick.reason && (
@@ -94,13 +94,13 @@ export function AIDraftAssistantPanel({
                 Compare options
               </p>
               <ul className="space-y-1.5">
-                {compareOptions.slice(0, 3).map((opt, i) => (
+                {compareOptions.slice(0, 3).map((option, index) => (
                   <li
-                    key={`${opt.player}-${i}`}
+                    key={`${option.player}-${index}`}
                     className="flex justify-between gap-2 rounded-lg border border-white/10 bg-black/30 px-2.5 py-1.5 text-[11px]"
                   >
-                    <span className="font-medium text-white">{opt.player}</span>
-                    <span className="text-white/55">{opt.position}</span>
+                    <span className="font-medium text-white">{option.player}</span>
+                    <span className="text-white/55">{option.position}</span>
                   </li>
                 ))}
               </ul>

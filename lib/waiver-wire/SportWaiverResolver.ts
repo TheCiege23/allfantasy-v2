@@ -15,14 +15,32 @@ const POSITIONS_BY_SPORT: Record<string, string[]> = {
   SOCCER: ["GKP", "DEF", "MID", "FWD", "UTIL"],
 }
 
+/** NFL IDP: offense + IDP position filters for waiver wire. */
+const NFL_IDP_WAIVER_POSITIONS = ["QB", "RB", "WR", "TE", "FLEX", "K", "Offense", "DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP FLEX"]
+
 const DEFAULT_POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST"]
 
 export const WAIVER_WIRE_SPORTS = SUPPORTED_SPORTS
 
-export function getPositionFiltersForSport(sport: string | null | undefined): string[] {
+/**
+ * Get position filter options for waiver wire. When formatType is 'IDP' for NFL, includes Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX.
+ */
+export function getPositionFiltersForSport(sport: string | null | undefined, formatType?: string | null): string[] {
   const key = sport?.trim().toUpperCase()
+  if (key === "NFL" && (formatType === "IDP" || formatType === "idp")) return ["ALL", ...NFL_IDP_WAIVER_POSITIONS]
   if (key && POSITIONS_BY_SPORT[key]) return ["ALL", ...POSITIONS_BY_SPORT[key]]
   return DEFAULT_POSITIONS
+}
+
+/** Filter waiver player by position filter (supports IDP groups: Offense, DL, DB, IDP FLEX). */
+export function waiverPositionMatches(playerPosition: string | null, positionFilter: string): boolean {
+  if (!positionFilter || positionFilter === "ALL") return true
+  const pos = (playerPosition ?? "").toUpperCase()
+  if (positionFilter === "Offense") return ["QB", "RB", "WR", "TE", "K"].includes(pos)
+  if (positionFilter === "DL") return ["DE", "DT"].includes(pos)
+  if (positionFilter === "DB") return ["CB", "S", "SS", "FS"].includes(pos)
+  if (positionFilter === "IDP FLEX") return ["DE", "DT", "LB", "CB", "S", "SS", "FS"].includes(pos)
+  return pos === positionFilter.toUpperCase()
 }
 
 export function getSportDisplayLabel(sport: string): string {

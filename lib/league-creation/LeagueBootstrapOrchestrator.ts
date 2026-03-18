@@ -35,6 +35,7 @@ export async function runLeagueBootstrap(
 ): Promise<BootstrapResult> {
   const config = resolveSportConfigForLeague(leagueSport)
   const format = scoringFormat ?? config.defaultFormat
+  const isIdp = leagueSport === 'NFL' && (format === 'IDP' || format === 'idp')
 
   const [rosterResult, settingsResult, scoringResult, poolResult, draftResult, waiverResult, playoffResult, scheduleResult] = await Promise.all([
     attachRosterConfigForLeague(leagueId, leagueSport, format).then((r) => ({ templateId: r.templateId })),
@@ -72,6 +73,15 @@ export async function runLeagueBootstrap(
       variant: null,
     })),
   ])
+
+  if (isIdp) {
+    try {
+      const { upsertIdpLeagueConfig } = await import('@/lib/idp')
+      await upsertIdpLeagueConfig(leagueId, {})
+    } catch {
+      // non-fatal; league still works with in-memory IDP defaults
+    }
+  }
 
   return {
     roster: rosterResult,

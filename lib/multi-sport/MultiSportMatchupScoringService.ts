@@ -4,7 +4,7 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { resolveScoringRulesForLeague } from './MultiSportScoringResolver'
+import { resolveScoringRulesForLeague, type LeagueSettingsForScoring } from './MultiSportScoringResolver'
 import { computeFantasyPoints } from '@/lib/scoring-defaults/FantasyPointCalculator'
 import type { PlayerStatsRecord } from '@/lib/scoring-defaults/types'
 import type { ScoringRuleDto } from './ScoringTemplateResolver'
@@ -19,6 +19,8 @@ export interface RosterScoreInput {
   /** If set, only sum points for these IDs (e.g. starters only). Otherwise sum all rosterPlayerIds. */
   starterPlayerIds?: string[]
   formatType?: string
+  /** Optional league settings (e.g. from getLeagueSettingsForScoring) for IDP scoring preset resolution. */
+  leagueSettings?: LeagueSettingsForScoring | null
 }
 
 export interface RosterScoreResult {
@@ -37,7 +39,8 @@ export async function computeRosterScoreForWeek(
   const rules = await resolveScoringRulesForLeague(
     input.leagueId,
     input.leagueSport,
-    input.formatType
+    input.formatType,
+    input.leagueSettings
   )
   const idsToScore = input.starterPlayerIds ?? input.rosterPlayerIds
   if (idsToScore.length === 0) {

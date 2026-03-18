@@ -7,6 +7,7 @@ import {
   rosterContainsPlayer,
 } from "./roster-utils"
 import { onWaiverRunComplete } from "./run-hooks"
+import { getSpecialtySpecByVariant } from "@/lib/specialty-league/registry"
 import type { ProcessedClaimResult } from "./types"
 
 type ClaimRow = {
@@ -32,7 +33,7 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
     getEffectiveLeagueWaiverSettings(leagueId),
     (prisma as any).league.findUnique({
       where: { id: leagueId },
-      select: { id: true, rosterSize: true },
+      select: { id: true, rosterSize: true, leagueVariant: true },
     }),
     (prisma as any).waiverClaim.findMany({
       where: { leagueId, status: "pending" },
@@ -84,6 +85,21 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
 
   for (const claim of ordered) {
     const roster = claim.roster
+    if (rosterGuard && !(await rosterGuard(leagueId, claim.rosterId))) {
+      await (prisma as any).waiverClaim.update({
+        where: { id: claim.id },
+        data: { status: "failed", processedAt: new Date(), resultMessage: "Roster cannot make waiver claims (eliminated or inactive)." },
+      })
+      results.push({
+        claimId: claim.id,
+        rosterId: claim.rosterId,
+        success: false,
+        addPlayerId: claim.addPlayerId,
+        dropPlayerId: claim.dropPlayerId ?? undefined,
+        message: "Roster cannot make waiver claims (eliminated or inactive).",
+      })
+      continue
+    }
     const currentPlayerIds = getRosterPlayerIds(roster.playerData)
     const addId = claim.addPlayerId
     const dropId = claim.dropPlayerId

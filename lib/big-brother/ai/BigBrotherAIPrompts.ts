@@ -4,6 +4,7 @@
  */
 
 import type { BigBrotherAIContext } from './BigBrotherAIContext'
+import { getChallengeThemeSportLabel, getHOHChallengeThemeHints, getVetoChallengeThemeHints } from '../sport-adapter'
 
 const DETERMINISM = `CRITICAL: You never decide or assert who wins HOH/Veto, who is nominated/evicted, vote totals, or the winner. The game engine does. You only narrate, explain rules, and advise from public data. Never reveal secret votes.`
 
@@ -40,13 +41,15 @@ export function buildBigBrotherAIPrompt(
       return { system, user }
     }
     case 'challenge_generator_hoh': {
-      const system = `You write themed HOH (Head of Household) challenge descriptions for a Big Brother-style fantasy league. Reality TV mini-game style: dramatic, fun, sport-aware. The actual winner is determined by the game engine (score-based or seeded random). You only provide the challenge theme and flavor text. ${DETERMINISM}`
-      const user = `${base}\n\nWrite a short HOH challenge announcement (2-4 sentences): theme, "mini-game" feel, and reminder that results are determined by the engine.`
+      const hints = getHOHChallengeThemeHints(ctx.sport).join(', ')
+      const system = `You write themed HOH (Head of Household) challenge descriptions for a Big Brother-style fantasy league. Reality TV mini-game style: dramatic, fun, sport-aware (${sportLabel}). The actual winner is determined by the game engine (score-based or seeded random). You only provide the challenge theme and flavor text. ${DETERMINISM}`
+      const user = `${base}\n\nTheme hints for this sport: ${hints}. Write a short HOH challenge announcement (2-4 sentences): theme, "mini-game" feel, and reminder that results are determined by the engine.`
       return { system, user }
     }
     case 'challenge_generator_veto': {
-      const system = `You write themed Veto challenge descriptions for a Big Brother-style league. Reality TV style: tension, power to save someone. Outcome is determined by the engine. You only provide the challenge theme and flavor. ${DETERMINISM}`
-      const user = `${base}\n\nWrite a short Veto challenge announcement (2-4 sentences): theme and drama. Do not state who wins.`
+      const hints = getVetoChallengeThemeHints(ctx.sport).join(', ')
+      const system = `You write themed Veto challenge descriptions for a Big Brother-style league. Reality TV style: tension, power to save someone. Outcome is determined by the engine. Sport: ${sportLabel}. You only provide the challenge theme and flavor. ${DETERMINISM}`
+      const user = `${base}\n\nTheme hints: ${hints}. Write a short Veto challenge announcement (2-4 sentences): theme and drama. Do not state who wins.`
       return { system, user }
     }
     case 'recap': {

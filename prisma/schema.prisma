@@ -3527,6 +3527,7 @@ model League {
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
   tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
   bigBrotherConfig   BigBrotherLeagueConfig?
+  idpConfig          IdpLeagueConfig?
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -4436,6 +4437,10 @@ model BigBrotherLeagueConfig {
   inactivePlayerHandling    String   @default("commissioner_only") @db.VarChar(32)
   /// Auto-nomination fallback if HOH times out: lowest_season_points | random | commissioner
   autoNominationFallback    String   @default("lowest_season_points") @db.VarChar(32)
+  /// Eviction tie-break when vote is tied: hoh_vote | season_points | random | commissioner
+  evictionTieBreakMode       String   @default("season_points") @db.VarChar(24)
+  /// When true, automation does not advance week (commissioner can still force).
+  weekProgressionPaused     Boolean  @default(false)
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
@@ -4624,6 +4629,35 @@ model ZombieLeagueConfig {
   updatedAt               DateTime @updatedAt
 
   @@map("zombie_league_configs")
+}
+
+// ========== IDP League (Individual Defensive Player) — PROMPT 2/6 ==========
+
+/// IDP league config (1:1 with League when leagueVariant is idp / IDP / DYNASTY_IDP). NFL only.
+/// Position mode: standard (DL/LB/DB), advanced (DE/DT/LB/CB/S), hybrid (grouped + split).
+/// Roster preset: beginner | standard | advanced | custom (then use slotOverrides).
+/// Scoring preset: balanced | tackle_heavy | big_play_heavy.
+model IdpLeagueConfig {
+  id                String   @id @default(uuid())
+  leagueId          String   @unique @db.VarChar(64)
+  league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  /// standard = DL/LB/DB only; advanced = DE/DT/LB/CB/S only; hybrid = both grouped and split slots
+  positionMode      String   @default("standard") @db.VarChar(24)
+  /// beginner | standard | advanced | custom (custom uses slotOverrides)
+  rosterPreset      String   @default("standard") @db.VarChar(24)
+  /// Custom slot counts when rosterPreset = custom. JSON: { DL?: number, LB?: number, DB?: number, IDP_FLEX?: number, DE?: number, DT?: number, CB?: number, S?: number }
+  slotOverrides     Json?
+  /// balanced | tackle_heavy | big_play_heavy
+  scoringPreset     String   @default("balanced") @db.VarChar(24)
+  bestBallEnabled   Boolean  @default(false)
+  /// snake | linear | auction
+  draftType         String   @default("snake") @db.VarChar(16)
+  benchSlots        Int      @default(7)
+  irSlots           Int      @default(2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("idp_league_configs")
 }
 
 // ========== Devy Dynasty League Engine (PROMPT 2/6) ==========

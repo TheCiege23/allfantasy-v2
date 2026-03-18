@@ -34,10 +34,10 @@ export async function POST(
 
   const result = await runAutomation({
     leagueId,
-    action: ['tick', 'close_eviction', 'auto_nominate', 'veto_draw', 'auto_replacement', 'lock_voting'].includes(
+    action: ['tick', 'close_eviction', 'auto_nominate', 'veto_draw', 'veto_decision_timeout', 'auto_replacement', 'lock_voting'].includes(
       String(action)
     )
-      ? (action as 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'auto_replacement' | 'lock_voting')
+      ? (action as 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'veto_decision_timeout' | 'auto_replacement' | 'lock_voting')
       : 'tick',
     systemUserId: body.systemUserId ?? userId,
   })

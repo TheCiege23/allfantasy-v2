@@ -101,3 +101,37 @@ export async function transitionPhase(
   })
   return { ok: true }
 }
+
+/**
+ * Create the first cycle (week 1) for a Big Brother league. Idempotent: if week 1 exists, returns it.
+ * Commissioner uses this to start the game. PROMPT 6.
+ */
+export async function createFirstCycleIfNeeded(leagueId: string): Promise<{ ok: boolean; cycleId?: string; week?: number; error?: string }> {
+  const config = await prisma.bigBrotherLeagueConfig.findUnique({
+    where: { leagueId },
+    select: { id: true },
+  })
+  if (!config) return { ok: false, error: 'Big Brother config not found' }
+
+  const existing = await prisma.bigBrotherCycle.findFirst({
+    where: { leagueId },
+    orderBy: { week: 'desc' },
+    select: { id: true, week: true },
+  })
+  if (existing) {
+    if (existing.week === 1) return { ok: true, cycleId: existing.id, week: 1 }
+    return { ok: false, error: 'League already has cycles; use advance to start next week' }
+  }
+
+  const cycle = await prisma.bigBrotherCycle.create({
+    data: {
+      leagueId,
+      configId: config.id,
+      week: 1,
+      phase: 'HOH_OPEN',
+    },
+    select: { id: true, week: true },
+  })
+  await appendBigBrotherAudit(leagueId, config.id, 'phase_transition', { event: 'first_cycle_created', cycleId: cycle.id, week: 1 })
+  return { ok: true, cycleId: cycle.id, week: cycle.week }
+}

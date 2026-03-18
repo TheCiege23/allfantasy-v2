@@ -9,14 +9,16 @@ import { getPositionsForSport } from './SportRegistry'
 
 /**
  * Get roster template for a league's sport (and optional format).
+ * When leagueId is provided and league is IDP, uses commissioner IDP config for roster slots.
  */
 export async function getRosterTemplateForLeague(
   leagueSport: LeagueSport,
-  formatType?: string
+  formatType?: string,
+  leagueId?: string
 ): Promise<RosterTemplateDto> {
   const sportType = leagueSportToSportType(leagueSport)
   const format = formatType ?? 'standard'
-  return getRosterTemplate(sportType, format)
+  return getRosterTemplate(sportType, format, leagueId)
 }
 
 /**

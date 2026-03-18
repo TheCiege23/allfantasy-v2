@@ -11,12 +11,30 @@ export type PositionFilterOption = { value: string; label: string }
 /**
  * Get position filter options for draft room (All + sport positions).
  * FLEX included when sport has RB/WR/TE (e.g. NFL).
+ * For NFL IDP (formatType IDP): adds Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX.
  */
 export function getPositionFilterOptionsForSport(
   sport: string,
   formatType?: string
 ): PositionFilterOption[] {
   const normalized = normalizeToSupportedSport(sport)
+  const isIdp = normalized === 'NFL' && (formatType === 'IDP' || formatType === 'idp')
+  if (isIdp) {
+    const options: PositionFilterOption[] = [
+      { value: 'All', label: 'All' },
+      { value: 'Offense', label: 'Offense' },
+      { value: 'DL', label: 'DL' },
+      { value: 'LB', label: 'LB' },
+      { value: 'DB', label: 'DB' },
+      { value: 'DE', label: 'DE' },
+      { value: 'DT', label: 'DT' },
+      { value: 'CB', label: 'CB' },
+      { value: 'S', label: 'S' },
+      { value: 'IDP_FLEX', label: 'IDP FLEX' },
+      { value: 'FLEX', label: 'FLEX' },
+    ]
+    return options
+  }
   const positions = getPositionsForSport(normalized, formatType)
   const options: PositionFilterOption[] = [{ value: 'All', label: 'All' }]
   const added = new Set<string>()
@@ -26,7 +44,6 @@ export function getPositionFilterOptionsForSport(
       options.push({ value: p, label: p })
     }
   }
-  // Add FLEX for football-style sports if we have RB, WR, TE
   if (
     ['NFL', 'NCAAF'].includes(normalized) &&
     positions.some((x) => ['RB', 'WR', 'TE'].includes(x)) &&

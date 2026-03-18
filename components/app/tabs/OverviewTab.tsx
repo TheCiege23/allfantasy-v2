@@ -17,8 +17,9 @@ import { ZombieHome } from '@/components/zombie/ZombieHome'
 import { DevyHome } from '@/components/devy/DevyHome'
 import { MergedDevyC2CHome } from '@/components/merged-devy-c2c/MergedDevyC2CHome'
 import { BigBrotherHome } from '@/components/big-brother/BigBrotherHome'
+import IDPHome from '@/components/idp/IDPHome'
 
-export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isBigBrother, isCommissioner }: LeagueTabProps & { isGuillotine?: boolean; isSalaryCap?: boolean; isSurvivor?: boolean; isZombie?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isCommissioner?: boolean }) {
+export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isBigBrother, isIdp, isCommissioner }: LeagueTabProps & { isGuillotine?: boolean; isSalaryCap?: boolean; isSurvivor?: boolean; isZombie?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
   const [storyModalOpen, setStoryModalOpen] = useState(false)
   const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'overview')
   const roster = Array.isArray(data?.roster) ? data?.roster : []
@@ -78,7 +79,15 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
   if (isBigBrother) {
     return (
       <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
-        <BigBrotherHome leagueId={leagueId} />
+        <BigBrotherHome leagueId={leagueId} isCommissioner={isCommissioner} />
+      </TabDataState>
+    )
+  }
+
+  if (isIdp) {
+    return (
+      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+        <IDPHome leagueId={leagueId} />
       </TabDataState>
     )
   }

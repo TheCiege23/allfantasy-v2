@@ -35,82 +35,90 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
   const searchParams = useSearchParams()
   const urlDraftId = searchParams.get('draftId')
   const [selectedDraftId, setSelectedDraftId] = useState<string | 'new'>('new')
-  const [prefillConfig, setPrefillConfig] = useState<MockDraftConfig | null>(null)
-  const [urlSessionDraft, setUrlSessionDraft] = useState<{ id: string; inviteLink: string | null; status: string } | null>(null)
+  const [urlSessionDraft, setUrlSessionDraft] = useState<{
+    id: string
+    inviteLink: string | null
+    status: string
+    canManage?: boolean
+  } | null>(null)
 
   useEffect(() => {
     if (!urlDraftId) {
       setUrlSessionDraft(null)
       return
     }
+
     let cancelled = false
     fetch(`/api/mock-draft/${urlDraftId}`)
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled || !data?.id) return
+        const draft = data?.draft
+        if (cancelled || !draft?.id) return
         setUrlSessionDraft({
-          id: data.id,
-          inviteLink: data.inviteLink ?? null,
-          status: data.status ?? 'pre_draft',
+          id: draft.id,
+          inviteLink: draft.inviteLink ?? null,
+          status: draft.status ?? 'pre_draft',
+          canManage: draft.canManage ?? false,
         })
       })
       .catch(() => {})
-    return () => { cancelled = true }
+
+    return () => {
+      cancelled = true
+    }
   }, [urlDraftId])
 
   const selectedDraft = useMemo(
-    () => (selectedDraftId === 'new' ? null : savedDrafts.find((d) => d.id === selectedDraftId) || null),
+    () => (selectedDraftId === 'new' ? null : savedDrafts.find((draft) => draft.id === selectedDraftId) || null),
     [selectedDraftId, savedDrafts],
   )
 
   const parsedConfig: MockDraftConfig | null = useMemo(() => {
     if (!selectedDraft?.metadata) return null
-    const m = selectedDraft.metadata || {}
+    const metadata = selectedDraft.metadata || {}
     return {
-      sport: (m.sport as any) || 'NFL',
-      leagueType: (m.leagueType as any) || 'redraft',
-      draftType: (m.draftType as any) || 'snake',
-      numTeams: Number(m.numTeams || 12),
-      scoringFormat: (m.scoringFormat as any) || 'default',
-      timerSeconds: Number(m.timerSeconds || 0),
-      aiEnabled: Boolean(m.aiEnabled),
-      rounds: Number(m.rounds || selectedDraft.rounds || 15),
-      leagueId: (m.leagueId as string | null) ?? null,
+      sport: (metadata.sport as any) || 'NFL',
+      leagueType: (metadata.leagueType as any) || 'redraft',
+      draftType: (metadata.draftType as any) || 'snake',
+      numTeams: Number(metadata.numTeams || 12),
+      scoringFormat: (metadata.scoringFormat as any) || 'default',
+      timerSeconds: Number(metadata.timerSeconds || 0),
+      aiEnabled: Boolean(metadata.aiEnabled),
+      rounds: Number(metadata.rounds || selectedDraft.rounds || 15),
+      leagueId: (metadata.leagueId as string | null) ?? null,
     }
   }, [selectedDraft])
 
   const userManagerName = useMemo(() => {
     if (!selectedDraft) return null
-    const userPick = (selectedDraft.results || []).find((p: any) => p.isUser)
+    const userPick = (selectedDraft.results || []).find((pick: any) => pick.isUser)
     return userPick?.manager ?? null
   }, [selectedDraft])
 
   const handleNewMock = () => {
     setSelectedDraftId('new')
-    setPrefillConfig(null)
   }
 
-  const handleRestartFromSaved = (d: SavedDraft) => {
-    if (!d.metadata) return
-    const m = d.metadata || {}
-    const cfg: MockDraftConfig = {
-      sport: (m.sport as any) || 'NFL',
-      leagueType: (m.leagueType as any) || 'redraft',
-      draftType: (m.draftType as any) || 'snake',
-      numTeams: Number(m.numTeams || 12),
-      scoringFormat: (m.scoringFormat as any) || 'default',
-      timerSeconds: Number(m.timerSeconds || 0),
-      aiEnabled: Boolean(m.aiEnabled),
-      rounds: Number(m.rounds || d.rounds || 15),
-      leagueId: (m.leagueId as string | null) ?? null,
+  const handleRestartFromSaved = (draft: SavedDraft) => {
+    if (!draft.metadata) return
+    const metadata = draft.metadata || {}
+    const config: MockDraftConfig = {
+      sport: (metadata.sport as any) || 'NFL',
+      leagueType: (metadata.leagueType as any) || 'redraft',
+      draftType: (metadata.draftType as any) || 'snake',
+      numTeams: Number(metadata.numTeams || 12),
+      scoringFormat: (metadata.scoringFormat as any) || 'default',
+      timerSeconds: Number(metadata.timerSeconds || 0),
+      aiEnabled: Boolean(metadata.aiEnabled),
+      rounds: Number(metadata.rounds || draft.rounds || 15),
+      leagueId: (metadata.leagueId as string | null) ?? null,
     }
-    setPrefillConfig(cfg)
     setSelectedDraftId('new')
   }
 
-  const handleCopyShare = (d: SavedDraft) => {
+  const handleCopyShare = (draft: SavedDraft) => {
     const urlBase = process.env.NEXT_PUBLIC_APP_URL || window.location.origin
-    const url = d.shareId ? `${urlBase}/mock-draft/share/${d.shareId}` : urlBase
+    const url = draft.shareId ? `${urlBase}/mock-draft/share/${draft.shareId}` : urlBase
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).catch(() => {})
     }
@@ -118,7 +126,6 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1.7fr)] xl:grid-cols-[260px_minmax(0,2fr)]">
-      {/* Left rail: lobby & history */}
       <aside className="space-y-4 rounded-2xl border border-white/12 bg-black/30 p-4 text-xs text-white/75">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -148,34 +155,33 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
             </p>
           ) : (
             <ul className="space-y-1.5">
-              {savedDrafts.map((d) => {
-                const m = d.metadata || {}
-                const isActive = selectedDraftId === d.id
+              {savedDrafts.map((draft) => {
+                const metadata = draft.metadata || {}
+                const isActive = selectedDraftId === draft.id
                 return (
-                  <li key={d.id}>
+                  <li key={draft.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedDraftId(d.id)}
+                      onClick={() => setSelectedDraftId(draft.id)}
                       className={`w-full rounded-lg border px-2.5 py-2 text-left text-[11px] ${
                         isActive ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-white/10 bg-black/40 hover:bg-white/5'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate font-medium text-white">
-                          {m.sport || 'NFL'} · {m.leagueType || 'redraft'} · {m.draftType || 'snake'}
+                          {metadata.sport || 'NFL'} - {metadata.leagueType || 'redraft'} - {metadata.draftType || 'snake'}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[10px] text-white/55">
-                        {m.numTeams || 12}-team · {d.rounds} rounds ·{' '}
-                        {new Date(d.createdAt).toLocaleDateString()}
+                        {metadata.numTeams || 12}-team - {draft.rounds} rounds - {new Date(draft.createdAt).toLocaleDateString()}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-white/60">
-                        {d.shareId && (
+                        {draft.shareId && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleCopyShare(d)
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleCopyShare(draft)
                             }}
                             className="inline-flex items-center gap-1 rounded-full border border-white/20 px-1.5 py-0.5 hover:bg-white/10"
                           >
@@ -183,12 +189,12 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
                             Share
                           </button>
                         )}
-                        {d.metadata && (
+                        {draft.metadata && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleRestartFromSaved(d)
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              handleRestartFromSaved(draft)
                             }}
                             className="inline-flex items-center gap-1 rounded-full border border-white/20 px-1.5 py-0.5 hover:bg-white/10"
                           >
@@ -212,7 +218,6 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
         </div>
       </aside>
 
-      {/* Main area: either run a new mock or view recap of a saved mock */}
       <main className="space-y-6">
         {selectedDraft && selectedDraft.results.length > 0 && parsedConfig ? (
           <MockDraftRecap
@@ -230,4 +235,3 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
     </div>
   )
 }
-

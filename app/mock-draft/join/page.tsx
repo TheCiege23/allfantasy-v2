@@ -16,7 +16,7 @@ export default function MockDraftJoinPage() {
     settings: { sport: string; numTeams: number; draftType: string }
     inviteLink: string | null
   } | null>(null)
-  const [loading, setLoading] = useState(!!token)
+  const [loading, setLoading] = useState(Boolean(token))
   const [joining, setJoining] = useState(false)
   const [joined, setJoined] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,7 +106,7 @@ export default function MockDraftJoinPage() {
           {draft?.settings?.sport ?? 'Mock'} Mock Draft
         </h1>
         <p className="mb-4 text-sm text-white/60">
-          {draft?.settings?.numTeams ?? 12}-team · {draft?.settings?.draftType ?? 'snake'}
+          {draft?.settings?.numTeams ?? 12}-team - {draft?.settings?.draftType ?? 'snake'}
         </p>
         {draft?.status !== 'pre_draft' && (
           <p className="mb-4 text-amber-400">This draft has already started.</p>

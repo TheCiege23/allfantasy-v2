@@ -34,6 +34,7 @@ export interface MockDraftSessionSnapshot {
   status: MockDraftStatus
   inviteToken: string | null
   inviteLink: string | null
+  canManage?: boolean
   shareId: string | null
   settings: MockDraftSettings
   slotConfig: MockSlotConfigEntry[]

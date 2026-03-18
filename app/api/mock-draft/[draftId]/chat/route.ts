@@ -5,26 +5,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { canAccessMockDraft } from '@/lib/mock-draft-engine/MockDraftSessionService'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   ctx: { params: Promise<{ draftId: string }> }
 ) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   const { draftId } = await ctx.params
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const draft = await prisma.mockDraft.findFirst({
-    where: { id: draftId },
-    select: { id: true, userId: true },
-  })
-  if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  const allowed = await canAccessMockDraft(draftId, userId)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const since = req.nextUrl.searchParams.get('since')
   const messages = await prisma.mockDraftChat.findMany({
     where: { mockDraftId: draftId },
     orderBy: { createdAt: 'asc' },
@@ -51,11 +49,8 @@ export async function POST(
   const { draftId } = await ctx.params
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const draft = await prisma.mockDraft.findFirst({
-    where: { id: draftId },
-    select: { id: true },
-  })
-  if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  const allowed = await canAccessMockDraft(draftId, userId)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const content = String(body.content ?? body.message ?? '').trim().slice(0, 2000)

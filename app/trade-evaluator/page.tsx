@@ -7,6 +7,7 @@ import React, { Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI, getSportOptions, getFairnessScore as getFairnessScoreUtil, getFairnessColorClass, getWinnerLabel as getWinnerLabelUtil } from '@/lib/trade-analyzer'
+import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
 
 interface PlayerInput {
   name: string
@@ -46,6 +47,7 @@ interface TradeInsights {
   veto: boolean
   vetoReason: string | null
   expertWarning: string | null
+  idpLineupWarning?: string | null
 }
 
 interface EvaluationResult {
@@ -647,6 +649,9 @@ function TradeEvaluatorInner() {
                     </div>
                   </div>
                 )}
+
+                {/* IDP lineup warning (deterministic) */}
+                <IdpTradeLineupWarning idpLineupWarning={result.tradeInsights.idpLineupWarning} />
 
                 {/* Positive Labels */}
                 {result.tradeInsights.labels.length > 0 && (
