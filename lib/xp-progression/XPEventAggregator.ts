@@ -4,11 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import {
-  buildLeagueScopedRosterIdFilters,
-  mergeSeasonResultAliases,
-  resolveSeasonResultRosterIds,
-} from '@/lib/season-results/SeasonResultRosterIdentity'
+import { getMergedHistoricalSeasonResultsForManager } from '@/lib/season-results/HistoricalSeasonResultService'
 import { XP_VALUES } from './types'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 
@@ -42,32 +38,12 @@ export async function aggregateXPForManager(
 
   const rosters = await prisma.roster.findMany({
     where: { platformUserId: managerId },
-    select: { id: true, leagueId: true, playerData: true },
+    select: { id: true, leagueId: true, platformUserId: true, playerData: true },
   })
-  const seasonResultRosterIds = resolveSeasonResultRosterIds(rosters)
-  const seasonResultFilters = buildLeagueScopedRosterIdFilters(
-    seasonResultRosterIds
-  )
-
-  const seasonResultsByRosterId = await prisma.seasonResult.findMany({
-    where: { rosterId: managerId },
-    select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
+  const combined = await getMergedHistoricalSeasonResultsForManager({
+    managerId,
+    rosters,
   })
-
-  const seasonResultsByRoster =
-    seasonResultFilters.length > 0
-      ? await prisma.seasonResult.findMany({
-          where: {
-            OR: seasonResultFilters,
-          },
-          select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
-        })
-      : []
-
-  const combined = mergeSeasonResultAliases([
-    ...seasonResultsByRosterId,
-    ...seasonResultsByRoster,
-  ])
 
   let totalXP = 0
   const eventsToCreate: { managerId: string; eventType: string; xpValue: number; sport: string }[] = []
@@ -92,14 +68,16 @@ export async function aggregateXPForManager(
         sport,
       })
     }
-    totalXP += XP_MAKE_PLAYOFFS
-    if (writeEvents) {
-      eventsToCreate.push({
-        managerId,
-        eventType: 'make_playoffs',
-        xpValue: XP_MAKE_PLAYOFFS,
-        sport,
-      })
+    if (rec.madePlayoffs || rec.champion) {
+      totalXP += XP_MAKE_PLAYOFFS
+      if (writeEvents) {
+        eventsToCreate.push({
+          managerId,
+          eventType: 'make_playoffs',
+          xpValue: XP_MAKE_PLAYOFFS,
+          sport,
+        })
+      }
     }
     if (rec.champion) {
       totalXP += XP_CHAMPIONSHIP
@@ -129,13 +107,13 @@ export async function aggregateXPForManager(
       }
 
       await tx.xPEvent.createMany({
-          data: eventsToCreate.map((e) => ({
-            managerId: e.managerId,
-            eventType: e.eventType,
-            xpValue: e.xpValue,
-            sport: e.sport,
-          })),
-        })
+        data: eventsToCreate.map((e) => ({
+          managerId: e.managerId,
+          eventType: e.eventType,
+          xpValue: e.xpValue,
+          sport: e.sport,
+        })),
+      })
     })
   }
 

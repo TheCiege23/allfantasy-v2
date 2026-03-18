@@ -28,7 +28,7 @@ export async function DELETE(
     await prisma.league.delete({ where: { id: leagueId } })
 
     await logAdminAudit({
-      adminUserId: gate.user.id,
+      adminUserId: gate.user.id ?? '',
       action: "delete_league",
       targetType: "league",
       targetId: leagueId,

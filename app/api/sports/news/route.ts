@@ -114,8 +114,9 @@ export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNew
 
     const hasMore = news.length > take;
     const items = hasMore ? news.slice(0, limit) : news;
-    const nextCursor = hasMore && items.length > 0
-      ? encodeCursor(items[items.length - 1].publishedAt)
+    const lastPublished = items.length > 0 ? items[items.length - 1].publishedAt : null;
+    const nextCursor = hasMore && lastPublished != null
+      ? encodeCursor(lastPublished)
       : null;
 
     const sources = [...new Set(items.map(n => n.source))];

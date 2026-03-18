@@ -1,12 +1,9 @@
 import "server-only"
 import { createPlatformNotification } from "@/lib/platform/notification-service"
 import { getSettingsProfile } from "@/lib/user-settings"
-import {
-  resolveNotificationPreferences,
-  type NotificationPreferences,
-} from "@/lib/notification-settings/NotificationPreferenceResolver"
+import { resolveNotificationPreferences } from "@/lib/notification-settings/NotificationPreferenceResolver"
 import { getDeliveryMethodAvailability } from "@/lib/notification-settings/DeliveryMethodResolver"
-import type { NotificationCategoryId } from "@/lib/notification-settings/types"
+import type { NotificationCategoryId, NotificationPreferences } from "@/lib/notification-settings/types"
 import { sendNotificationEmail } from "@/lib/resend-client"
 import { sendSms } from "@/lib/twilio-client"
 import { sendPushToUser, isPushCategory } from "@/lib/push-notifications"
@@ -53,7 +50,7 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
       )
       if (!prefs.globalEnabled) continue
 
-      const catPrefs = prefs.categories[category]
+      const catPrefs = prefs.categories?.[category]
       if (!catPrefs?.enabled) continue
 
       const availability = getDeliveryMethodAvailability({

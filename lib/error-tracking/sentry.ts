@@ -28,7 +28,8 @@ export function initSentryClient(): void {
   if (!dsn?.trim()) return
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Sentry = require('@sentry/nextjs')
+    const sentryPkg = '@sentry' + '/nextjs'
+    const Sentry = require(sentryPkg)
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,
@@ -55,7 +56,8 @@ export function initSentryServer(): void {
   if (!dsn?.trim()) return
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Sentry = require('@sentry/nextjs')
+    const sentryPkg = '@sentry' + '/nextjs'
+    const Sentry = require(sentryPkg)
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,

@@ -31,7 +31,6 @@ export function logApiFailure(ctx: ApiFailureContext): void {
     captureException(error, {
       context: 'api_failure',
       path: endpoint,
-      status,
       ...payload,
       tags: { type: 'api', status: String(status) },
     })
@@ -40,7 +39,6 @@ export function logApiFailure(ctx: ApiFailureContext): void {
     captureException(new Error(`API ${method} ${endpoint} returned ${status}`), {
       context: 'api_failure',
       path: endpoint,
-      status,
       ...payload,
       tags: { type: 'api', status: String(status) },
     })

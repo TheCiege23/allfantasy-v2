@@ -1,0 +1,147 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
+import { useEntitlement } from '@/hooks/useEntitlement'
+
+type ZombieUniverseAIType =
+  | 'promotion_relegation_outlook'
+  | 'level_storylines'
+  | 'top_survivor_runs'
+  | 'fastest_spread_analysis'
+  | 'league_health_summary'
+  | 'commissioner_anomaly_summary'
+
+const TYPE_LABELS: Record<ZombieUniverseAIType, string> = {
+  promotion_relegation_outlook: 'Promotion / relegation outlook',
+  level_storylines: 'Alpha / Beta / Gamma storylines',
+  top_survivor_runs: 'Top survivor runs',
+  fastest_spread_analysis: 'Fastest spread analysis',
+  league_health_summary: 'League health summary',
+  commissioner_anomaly_summary: 'Commissioner anomaly summary',
+}
+
+export interface ZombieUniverseAIPanelProps {
+  universeId: string
+}
+
+export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps) {
+  const [type, setType] = useState<ZombieUniverseAIType>('promotion_relegation_outlook')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+  const [deterministic, setDeterministic] = useState<{
+    standings: { levelName: string; rosterId: string; status: string; totalPoints: number }[]
+    movementProjections: { rosterId: string; reason: string }[]
+    rosterDisplayNames: Record<string, string>
+  } | null>(null)
+
+  const { hasAccess, loading: entitlementLoading } = useEntitlement('zombie_ai')
+
+  const runAI = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    setDeterministic(null)
+    try {
+      const res = await fetch(`/api/zombie-universe/${encodeURIComponent(universeId)}/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? `Error ${res.status}`)
+        return
+      }
+      const det = data.deterministic
+      if (det) {
+        setDeterministic({
+          standings: Array.isArray(det.standings) ? det.standings.slice(0, 20) : [],
+          movementProjections: Array.isArray(det.movementProjections) ? det.movementProjections.slice(0, 15) : [],
+          rosterDisplayNames: det.rosterDisplayNames ?? {},
+        })
+      }
+      setResult(typeof data.narrative === 'string' ? data.narrative : JSON.stringify(data))
+    } catch {
+      setError('Request failed')
+    } finally {
+      setLoading(false)
+    }
+  }, [universeId, type])
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-rose-500/30 bg-rose-950/10 p-4 sm:p-6">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-rose-200">
+          <Sparkles className="h-5 w-5" />
+          Universe AI
+        </h2>
+        <p className="mb-4 text-sm text-white/70">
+          Promotion/relegation outlook, level storylines, and league health. Requires zombie AI entitlement.
+        </p>
+
+        {entitlementLoading && <p className="text-sm text-white/50">Checking access…</p>}
+        {!entitlementLoading && !hasAccess('zombie_ai') && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-200">
+            Unlock Zombie AI for universe-wide narrative tools.
+          </p>
+        )}
+
+        {hasAccess('zombie_ai') && (
+          <>
+            <div className="mb-4">
+              <label className="mb-2 block text-xs text-white/50">Topic</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as ZombieUniverseAIType)}
+                className="w-full rounded-xl border border-white/20 bg-white/5 py-2 pl-3 pr-8 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+              >
+                {(Object.keys(TYPE_LABELS) as ZombieUniverseAIType[]).map((t) => (
+                  <option key={t} value={t}>
+                    {TYPE_LABELS[t]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={() => void runAI()}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/30 px-4 py-2.5 text-sm font-medium text-rose-200 hover:bg-rose-950/50 disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Generate
+            </button>
+          </>
+        )}
+
+        {error && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        {deterministic && (
+          <div className="mt-4 rounded-xl border border-white/20 bg-white/5 p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">Deterministic data (rules-driven)</h3>
+            <p className="mb-2 text-sm text-white/70">Standings sample: {deterministic.standings.length} rows. Movement: {deterministic.movementProjections.length} projections.</p>
+            <ul className="max-h-32 space-y-1 overflow-y-auto text-xs text-white/60">
+              {deterministic.standings.slice(0, 8).map((s, i) => (
+                <li key={i}>{s.levelName} · {deterministic.rosterDisplayNames[s.rosterId] ?? s.rosterId} · {s.status} · {s.totalPoints} pts</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {result && (
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-white/50">AI narrative</h3>
+            <p className="whitespace-pre-wrap text-sm text-white/80">{result}</p>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

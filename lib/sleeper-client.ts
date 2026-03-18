@@ -97,6 +97,8 @@ export interface SleeperRoster {
     ppts_decimal?: number;
     rank?: number;
     final_rank?: number;
+    playoff_seed?: number;
+    seed?: number;
   };
 }
 
@@ -202,6 +204,16 @@ export async function getLeagueMatchups(leagueId: string, week: number): Promise
 export async function getPlayoffBracket(leagueId: string): Promise<SleeperPlayoffBracket[]> {
   try {
     const response = await fetch(`${SLEEPER_API_BASE}/league/${leagueId}/winners_bracket`);
+    if (!response.ok) return [];
+    return await response.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getLosersBracket(leagueId: string): Promise<SleeperPlayoffBracket[]> {
+  try {
+    const response = await fetch(`${SLEEPER_API_BASE}/league/${leagueId}/losers_bracket`);
     if (!response.ok) return [];
     return await response.json();
   } catch {

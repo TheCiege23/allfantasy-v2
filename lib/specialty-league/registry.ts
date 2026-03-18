@@ -17,6 +17,17 @@ import {
   GUILLOTINE_INTRO_VIDEO,
 } from '@/lib/guillotine/constants'
 import { isRosterChopped, getChoppedRosterIds } from '@/lib/guillotine/guillotineGuard'
+import {
+  isSurvivorLeague,
+  getSurvivorConfig,
+  upsertSurvivorConfig,
+} from '@/lib/survivor/SurvivorLeagueConfig'
+import {
+  isZombieLeague,
+  getZombieLeagueConfig,
+  upsertZombieLeagueConfig,
+} from '@/lib/zombie/ZombieLeagueConfig'
+import { getStatus } from '@/lib/zombie/ZombieOwnerStatusService'
 
 const registry = new Map<SpecialtyLeagueId, SpecialtyLeagueSpec>()
 
@@ -93,4 +104,95 @@ function registerGuillotine(): void {
   })
 }
 
+function registerSurvivor(): void {
+  registerSpecialtyLeague({
+    id: 'survivor',
+    leagueVariant: 'survivor',
+    label: 'Survivor',
+    wizardLeagueTypeId: 'survivor',
+
+    detect: isSurvivorLeague,
+    getConfig: getSurvivorConfig,
+    upsertConfig: upsertSurvivorConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/survivor/SurvivorHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/survivor/summary',
+    aiRoutePath: '/api/leagues/[leagueId]/survivor/ai',
+
+    capabilities: {
+      tribeOrchestration: true,
+      hiddenPowerSystem: true,
+      privateVoting: true,
+      eliminationPipeline: true,
+      sidecarLeague: true,
+      tokenizedReturn: true,
+      miniGameRegistry: true,
+      mergeJuryPhases: true,
+      officialCommandParsing: true,
+      aiHostHooks: true,
+    },
+
+    // rosterGuard / getExcludedRosterIds: optional; Survivor excludes voted-out/jury for lineup/waiver per product wiring.
+    // AI: lib/survivor/ai; entitlement survivor_ai. Automation: council close, token award, jury enrollment in engine.
+  })
+}
+
+function registerZombie(): void {
+  registerSpecialtyLeague({
+    id: 'zombie',
+    leagueVariant: 'zombie',
+    label: 'Zombie',
+    wizardLeagueTypeId: 'zombie',
+
+    detect: isZombieLeague,
+    getConfig: getZombieLeagueConfig,
+    upsertConfig: upsertZombieLeagueConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/zombie/ZombieHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/zombie/summary',
+    aiRoutePath: '/api/leagues/[leagueId]/zombie/ai',
+
+    rosterGuard: async (leagueId, rosterId) => {
+      const [config, status] = await Promise.all([
+        getZombieLeagueConfig(leagueId),
+        getStatus(leagueId, rosterId),
+      ])
+      return !(config?.zombieTradeBlocked && status === 'Zombie')
+    },
+
+    capabilities: {
+      statusTransformation: true,
+      resourceInventoryLedger: true,
+      oneToManyUniverse: true,
+      crossLeagueStandings: true,
+      promotionRelegationEngine: true,
+      weeklyBoardGeneration: true,
+      antiCollusionFlagRegistry: true,
+      antiNeglectReplacementWorkflow: true,
+      aiRecapHooks: true,
+    },
+
+    // AI: lib/zombie/ai; entitlement zombie_ai. Universe AI: /api/zombie-universe/[universeId]/ai.
+    // Automation: finalize route → ZombieResultFinalizationService (infection, serum, weapon, winnings).
+  })
+}
+
 registerGuillotine()
+registerSurvivor()
+registerZombie()

@@ -35,7 +35,7 @@ export async function runElimination(input: RunEliminationInput): Promise<Guillo
   const config = await getGuillotineConfig(input.leagueId)
   if (!config) return null
 
-  const { weekOrPeriod, eliminationStartWeek, eliminationEndWeek, teamsPerChop } = config
+  const { eliminationStartWeek, eliminationEndWeek, teamsPerChop } = config
   if (input.weekOrPeriod < eliminationStartWeek) {
     return { leagueId: input.leagueId, weekOrPeriod: input.weekOrPeriod, choppedRosterIds: [], tiebreakStepUsed: null, reason: 'before elimination start' }
   }

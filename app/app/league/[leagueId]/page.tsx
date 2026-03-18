@@ -52,6 +52,8 @@ export default function AppLeaguePage() {
   const [isCommissioner, setIsCommissioner] = useState<boolean>(false)
   const [isGuillotine, setIsGuillotine] = useState<boolean>(false)
   const [isSalaryCap, setIsSalaryCap] = useState<boolean>(false)
+  const [isSurvivor, setIsSurvivor] = useState<boolean>(false)
+  const [isZombie, setIsZombie] = useState<boolean>(false)
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
 
   useEffect(() => {
@@ -65,9 +67,11 @@ export default function AppLeaguePage() {
         if (active && leagueRes.ok) {
           const leagueData = await leagueRes.json().catch(() => ({})) as { name?: string; leagueVariant?: string }
           if (leagueData?.name) setLeagueName(leagueData.name)
-          const guillotine = String(leagueData?.leagueVariant ?? '').toLowerCase() === 'guillotine'
-          setIsGuillotine(guillotine)
-          setShowFirstEntryModal(guillotine)
+          const variant = String(leagueData?.leagueVariant ?? '').toLowerCase()
+          setIsGuillotine(variant === 'guillotine')
+          setShowFirstEntryModal(variant === 'guillotine')
+          setIsSurvivor(variant === 'survivor')
+          setIsZombie(variant === 'zombie')
           return
         }
         // Fallback: bracket list
@@ -113,7 +117,7 @@ export default function AppLeaguePage() {
 
   const renderTab = useMemo(() => {
     return (tab: LeagueShellTab) => {
-      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} />
+      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} />
       if (tab === 'Team') return <TeamTab leagueId={leagueId} />
       if (tab === 'Matchups') return <MatchupsTab leagueId={leagueId} />
       if (tab === 'Roster') return <RosterTab leagueId={leagueId} />
@@ -139,7 +143,7 @@ export default function AppLeaguePage() {
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine, isSalaryCap])
+  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie])
 
   return (
     <div className="space-y-3">

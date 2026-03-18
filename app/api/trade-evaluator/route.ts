@@ -14,7 +14,7 @@ import {
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekQuantAnalysis } from '@/lib/deepseek-client'
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
+import { consumeRateLimit } from '@/lib/rate-limit'
 import { checkAiRateLimit, getCachedResponse, setCachedResponse, buildCacheKey, getAiActionConfig } from '@/lib/ai-protection'
 import { buildHistoricalTradeContext, getDataInfo, calculateTradeConfidence, computeDualModeGrades } from '@/lib/historical-values'
 import { pricePlayer, pricePick, compositeScore, compositeTotal, ValuationContext, type PricedAsset } from '@/lib/hybrid-valuation'
@@ -250,8 +250,6 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     const body = await request.json()
     const data = TradeRequestSchema.parse(body)
 
-    const ip = getClientIp(request)
-
     const sId = (data.sender.team_id || data.sender.manager_name || '').trim().toLowerCase()
     const rId = (data.receiver.team_id || data.receiver.manager_name || '').trim().toLowerCase()
     const evalPair = [sId, rId].sort()
@@ -261,7 +259,6 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     const config = getAiActionConfig('trade_eval')
     const rl = checkAiRateLimit(request, 'trade_eval', {
       sleeperUsername: evalKey,
-      ip,
       maxRequests: config.maxRequests,
       windowMs: config.windowMs,
       includeIpInKey: true,

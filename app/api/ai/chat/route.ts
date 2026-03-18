@@ -2,7 +2,6 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getClientIp } from '@/lib/rate-limit'
 import { checkAiRateLimit } from '@/lib/ai-protection'
 import { logAiFailure } from '@/lib/error-tracking'
 import { getOpenAIConfig } from '@/lib/openai-client'
@@ -200,8 +199,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
     }
 
-    const ip = getClientIp(request)
-    const rl = checkAiRateLimit(request, 'chat', { sleeperUsername, ip, includeIpInKey: true })
+    const rl = checkAiRateLimit(request, 'chat', { sleeperUsername, includeIpInKey: true })
 
     if (!rl.allowed) {
       return NextResponse.json(

@@ -4,7 +4,7 @@
  */
 
 import { consumeRateLimit, getClientIp, type RateLimitResult } from '@/lib/rate-limit'
-import type { Request } from 'next/server'
+import type { NextRequest } from 'next/server'
 import type { AiProtectionAction } from './config'
 import { getAiActionConfig } from './config'
 
@@ -15,7 +15,7 @@ export type AiRateLimitResult = RateLimitResult & { allowed: boolean }
  * fall back to IP when unauthenticated.
  */
 export function checkAiRateLimit(
-  req: Request,
+  req: NextRequest,
   action: AiProtectionAction,
   options: {
     userId?: string | null

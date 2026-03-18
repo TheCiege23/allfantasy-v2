@@ -134,6 +134,53 @@ export type SpecialtyCommissionerActions = Record<
   (args: { leagueId: string; payload?: unknown }) => Promise<{ ok: boolean; error?: string }>
 >
 
+// --- Reusable capability flags (PROMPT 350) ---
+
+/** Optional: which reusable modules this specialty implements. Used for docs and QA harness. */
+export interface SpecialtyLeagueCapabilities {
+  tribeOrchestration?: boolean
+  hiddenPowerSystem?: boolean
+  privateVoting?: boolean
+  eliminationPipeline?: boolean
+  sidecarLeague?: boolean
+  tokenizedReturn?: boolean
+  miniGameRegistry?: boolean
+  mergeJuryPhases?: boolean
+  officialCommandParsing?: boolean
+  aiHostHooks?: boolean
+  /** Status transformation (e.g. Survivor/Zombie/Whisperer, infection, revive). */
+  statusTransformation?: boolean
+  /** Resource inventory ledger (serum, weapons, ambush — balance + audit). */
+  resourceInventoryLedger?: boolean
+  /** One-to-many universe (universe → levels → leagues). */
+  oneToManyUniverse?: boolean
+  /** Cross-league standings aggregation. */
+  crossLeagueStandings?: boolean
+  /** Promotion/relegation engine. */
+  promotionRelegationEngine?: boolean
+  /** Weekly board generation (risk list, movement watch). */
+  weeklyBoardGeneration?: boolean
+  /** Anti-collusion flag registry. */
+  antiCollusionFlagRegistry?: boolean
+  /** Anti-neglect / replacement workflows. */
+  antiNeglectReplacementWorkflow?: boolean
+  /** AI recap hooks (league + optional scope). */
+  aiRecapHooks?: boolean
+}
+
+// --- QA harness ---
+
+/** QA harness: run standard checks for a specialty league (creation, config, guards, automation, AI). */
+export type SpecialtyQAHarness = (args: {
+  leagueId: string
+  specId: SpecialtyLeagueId
+  options?: { week?: number; skipAutomation?: boolean }
+}) => Promise<{
+  passed: string[]
+  failed: { check: string; reason: string }[]
+  skipped: string[]
+}>
+
 // --- Full spec (per league type) ---
 
 export interface SpecialtyLeagueSpec<
@@ -188,4 +235,10 @@ export interface SpecialtyLeagueSpec<
 
   /** Commissioner-only actions. */
   commissionerActions?: SpecialtyCommissionerActions
+
+  /** Optional: reusable capability flags (tribe, voting, sidecar, etc.). */
+  capabilities?: SpecialtyLeagueCapabilities
+
+  /** Optional: QA harness for this specialty. */
+  qaHarness?: SpecialtyQAHarness
 }

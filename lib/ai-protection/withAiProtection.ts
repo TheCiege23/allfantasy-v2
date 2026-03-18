@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { buildRateLimit429 } from '@/lib/rate-limit'
-import type { Request } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { checkAiRateLimit } from './rate-limit'
 import { checkTokenBalance } from './tokens'
 import type { AiProtectionAction } from './config'
@@ -21,9 +21,9 @@ export type AiProtectionOptions = {
   /** If true, check token balance (when implemented) and return 429 when insufficient. */
   enforceTokens?: boolean
   /** Extract userId from request (e.g. from session). */
-  getUserId?: (req: Request) => Promise<string | null>
+  getUserId?: (req: NextRequest) => Promise<string | null>
   /** Extract sleeperUsername from request body or headers; used when getUserId not available. */
-  getSleeperUsername?: (req: Request) => Promise<string | null>
+  getSleeperUsername?: (req: NextRequest) => Promise<string | null>
 }
 
 const DEFAULT_MESSAGE = 'Too many requests. Please wait before trying again.'
@@ -62,7 +62,7 @@ export function buildAiLimit429(args: {
  * or a NextResponse to return immediately (429) if not.
  */
 export async function runAiProtection(
-  req: Request,
+  req: NextRequest,
   options: AiProtectionOptions
 ): Promise<NextResponse | null> {
   const userId = options.getUserId ? await options.getUserId(req) : null

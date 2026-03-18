@@ -65,6 +65,7 @@ export async function POST(
   const settings = (league.settings as Record<string, unknown>) || {}
   const inviteCode = regenerate ? crypto.randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : (settings.inviteCode as string) ?? crypto.randomBytes(6).toString('base64url').slice(0, 8)
   const joinUrl = buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } })
+  const inviteLink = joinUrl
 
   const updated = await prisma.league.update({
     where: { id: params.leagueId },

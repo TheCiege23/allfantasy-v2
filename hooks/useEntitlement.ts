@@ -85,7 +85,7 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
     (fid: SubscriptionFeatureId): boolean => {
       if (fid === featureId && hasFeatureAccess !== undefined) return hasFeatureAccess
       if (!entitlement || !isActiveOrGrace) return false
-      const pro = ['trade_analyzer', 'ai_chat', 'ai_waivers', 'planning_tools', 'player_ai_recommendations', 'matchup_explanations', 'player_comparison_explanations']
+      const pro = ['trade_analyzer', 'ai_chat', 'ai_waivers', 'planning_tools', 'player_ai_recommendations', 'matchup_explanations', 'player_comparison_explanations', 'guillotine_ai', 'salary_cap_ai', 'survivor_ai', 'zombie_ai']
       const comm = ['advanced_scoring', 'advanced_playoff_setup', 'ai_collusion_detection', 'ai_tanking_detection', 'storyline_creation', 'league_rankings', 'draft_rankings', 'ai_team_managers', 'commissioner_automation']
       const war = ['draft_strategy_build', 'draft_prep', 'future_planning', 'multi_year_strategy', 'draft_board_intelligence', 'roster_construction_planning', 'ai_planning_3_5_year']
       const plans = entitlement.plans

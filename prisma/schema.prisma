@@ -628,6 +628,24 @@ model AITeamStateSnapshot {
   @@index([computedAt])
 }
 
+/// User/league key-value store for AI context (Chimmy preferences, coaching notes). PROMPT 234.
+model AiMemory {
+  id        String   @id @default(uuid())
+  userId   String
+  leagueId String?
+  scope    String
+  key      String   @default("")
+  value    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, leagueId, scope, key])
+  @@index([userId])
+  @@index([leagueId])
+  @@index([scope])
+  @@map("ai_memories")
+}
+
 model AIMemoryEvent {
   id         String    @id @default(uuid())
   userId     String?
@@ -3495,6 +3513,8 @@ model League {
   guillotineConfig   GuillotineLeagueConfig?
   salaryCapConfig    SalaryCapLeagueConfig?
   survivorConfig     SurvivorLeagueConfig?
+  zombieConfig       ZombieLeagueConfig?
+  zombieLeague       ZombieLeague?   // when league is in a zombie universe
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -4173,6 +4193,249 @@ model SurvivorTribeChatMember {
   @@unique([tribeId, userId], name: "uniq_tribe_user")
   @@index([tribeId])
   @@map("survivor_tribe_chat_members")
+}
+
+// ========== Zombie League Engine (PROMPT 353) ==========
+
+/// Zombie universe: groups multiple leagues into levels (e.g. Gamma, Beta, Alpha).
+model ZombieUniverse {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(128)
+  sport     String   @default("NFL") @db.VarChar(12)
+  settings  Json?    // leagueCount, levelNames, teamsPerLeague, movementRules, tieBreakers
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  levels  ZombieUniverseLevel[]
+  leagues ZombieLeague[]
+  audit   ZombieAuditLog[]
+
+  @@map("zombie_universes")
+}
+
+/// Level within a Zombie universe (e.g. Gamma, Beta, Alpha).
+model ZombieUniverseLevel {
+  id          String   @id @default(uuid())
+  universeId  String
+  universe    ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(64)
+  rankOrder   Int      @default(1)   // 1 = bottom (Gamma), higher = top (Alpha)
+  leagueCount Int     @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leagues ZombieLeague[]
+
+  @@unique([universeId, rankOrder])
+  @@index([universeId])
+  @@map("zombie_universe_levels")
+}
+
+/// Links a League to a Zombie universe and level. One league belongs to at most one universe.
+model ZombieLeague {
+  id          String   @id @default(uuid())
+  universeId  String
+  universe    ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  levelId     String
+  level       ZombieUniverseLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  leagueId    String   @unique @db.VarChar(64)
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  name        String?  @db.VarChar(128)
+  orderInLevel Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teams     ZombieLeagueTeam[]
+  infections ZombieInfectionLog[]
+  resources ZombieResourceLedger[]
+  winnings  ZombieWeeklyWinnings[]
+  ambushes  ZombieAmbushEvent[]
+  audit     ZombieAuditLog[]
+
+  @@index([universeId])
+  @@index([levelId])
+  @@map("zombie_leagues")
+}
+
+/// Zombie league config (1:1 with League when leagueVariant is zombie). Can exist without universe.
+model ZombieLeagueConfig {
+  id                      String   @id @default(uuid())
+  leagueId                String   @unique @db.VarChar(64)
+  league                  League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  universeId              String?  @db.VarChar(64)   // optional; if set, league is in this universe
+  whispererSelection      String   @default("random") @db.VarChar(32)   // random | veteran_priority
+  infectionLossToWhisperer Boolean @default(true)
+  infectionLossToZombie   Boolean  @default(true)
+  serumReviveCount        Int      @default(2)   // serums needed to revive
+  serumAwardHighScore     Boolean  @default(true)
+  serumAwardOnBashMaul    Boolean  @default(true)
+  serumUseBeforeLastStarter Boolean @default(true)
+  weaponScoreThresholds   Json?    // e.g. [ { minPoints: 120, weaponType: "base" } ]
+  weaponTopTwoActive      Boolean  @default(true)
+  bombOneTimeOverride     Boolean  @default(false)
+  ambushCountPerWeek      Int      @default(1)
+  ambushRemapMatchup      Boolean  @default(true)
+  noWaiverFreeAgency      Boolean  @default(true)
+  statCorrectionReversal  Boolean  @default(false)
+  zombieTradeBlocked      Boolean  @default(true)
+  dangerousDropThreshold  Float?   // points threshold for dangerous drop flag
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("zombie_league_configs")
+}
+
+/// Per-roster status in a Zombie league (Survivor | Zombie | Whisperer).
+model ZombieLeagueTeam {
+  id               String    @id @default(uuid())
+  leagueId         String    @db.VarChar(64)
+  zombieLeagueId   String?
+  zombieLeague     ZombieLeague? @relation(fields: [zombieLeagueId], references: [id], onDelete: SetNull)
+  rosterId         String    @db.VarChar(64)
+  status           String    @default("Survivor") @db.VarChar(24)   // Survivor | Zombie | Whisperer
+  weekBecameZombie Int?      // first week as Zombie
+  killedByRosterId String?   @db.VarChar(64)
+  revivedAt        DateTime? // when revived from Zombie to Survivor
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([leagueId, rosterId])
+  @@index([leagueId])
+  @@index([zombieLeagueId])
+  @@index([rosterId])
+  @@index([status])
+  @@map("zombie_league_teams")
+}
+
+/// Infection event: Survivor -> Zombie (loss to Whisperer or Zombie).
+model ZombieInfectionLog {
+  id              String   @id @default(cuid())
+  leagueId        String   @db.VarChar(64)
+  zombieLeagueId  String?
+  zombieLeague    ZombieLeague? @relation(fields: [zombieLeagueId], references: [id], onDelete: SetNull)
+  week            Int
+  survivorRosterId String  @db.VarChar(64)
+  infectedByRosterId String @db.VarChar(64)
+  matchupId       String?  @db.VarChar(64)
+  reversedAt      DateTime?   // stat correction reversal
+  createdAt       DateTime @default(now())
+
+  @@index([leagueId, week])
+  @@index([zombieLeagueId])
+  @@index([survivorRosterId])
+  @@map("zombie_infection_logs")
+}
+
+/// Serums, weapons, ambush balance and ledger (per league or universe).
+model ZombieResourceLedger {
+  id             String   @id @default(uuid())
+  leagueId       String   @db.VarChar(64)
+  zombieLeagueId String?
+  zombieLeague   ZombieLeague? @relation(fields: [zombieLeagueId], references: [id], onDelete: SetNull)
+  rosterId       String   @db.VarChar(64)
+  resourceType   String   @db.VarChar(32)   // serum | weapon | ambush
+  resourceKey    String?  @db.VarChar(64)   // e.g. weapon tier
+  balance        Int      @default(0)
+  awardedInWeek  Int?     // week awarded (for ledger line)
+  spentAt        DateTime?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([leagueId, rosterId, resourceType])
+  @@index([zombieLeagueId])
+  @@map("zombie_resource_ledgers")
+}
+
+/// Ledger line for resource award/spend (append-only).
+model ZombieResourceLedgerEntry {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  rosterId       String   @db.VarChar(64)
+  resourceType   String   @db.VarChar(32)
+  resourceKey    String?  @db.VarChar(64)
+  delta          Int      // +1 award, -1 spend
+  reason         String   @db.VarChar(64)   // high_score | bash | maul | revive | ambush | transfer
+  week           Int?
+  targetRosterId String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
+
+  @@index([leagueId, rosterId])
+  @@index([leagueId, week])
+  @@map("zombie_resource_ledger_entries")
+}
+
+/// Weekly winnings per roster (from matchups, bonuses).
+model ZombieWeeklyWinnings {
+  id        String   @id @default(uuid())
+  leagueId  String   @db.VarChar(64)
+  zombieLeagueId String?
+  zombieLeague    ZombieLeague? @relation(fields: [zombieLeagueId], references: [id], onDelete: SetNull)
+  rosterId  String   @db.VarChar(64)
+  week      Int
+  amount    Float    @default(0)
+  source    String?  @db.VarChar(64)   // matchup | bonus | bash | maul
+  createdAt DateTime @default(now())
+
+  @@unique([leagueId, rosterId, week])
+  @@index([zombieLeagueId])
+  @@index([leagueId, week])
+  @@map("zombie_weekly_winnings")
+}
+
+/// Movement projection: who moves up/down next year (computed or stored).
+model ZombieMovementProjection {
+  id            String   @id @default(uuid())
+  universeId    String   @db.VarChar(64)
+  rosterId      String   @db.VarChar(64)
+  leagueId      String   @db.VarChar(64)
+  currentLevelId String? @db.VarChar(64)
+  projectedLevelId String? @db.VarChar(64)
+  reason        String?  @db.VarChar(64)   // promotion | relegation | watch
+  season        Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([universeId, rosterId, season])
+  @@index([universeId])
+  @@index([leagueId])
+  @@map("zombie_movement_projections")
+}
+
+/// Ambush event: Whisperer remapped matchup (logged).
+model ZombieAmbushEvent {
+  id              String   @id @default(cuid())
+  zombieLeagueId  String
+  zombieLeague    ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  week            Int
+  whispererRosterId String @db.VarChar(64)
+  fromMatchupId   String?  @db.VarChar(64)
+  toMatchupId     String?  @db.VarChar(64)
+  targetRosterId  String?  @db.VarChar(64)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([zombieLeagueId, week])
+  @@map("zombie_ambush_events")
+}
+
+/// Zombie audit log: infection, revive, serum/weapon/ambush, movement, overrides.
+model ZombieAuditLog {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  universeId     String?  @db.VarChar(64)
+  universe       ZombieUniverse? @relation(fields: [universeId], references: [id], onDelete: SetNull)
+  zombieLeagueId String?
+  zombieLeague   ZombieLeague? @relation(fields: [zombieLeagueId], references: [id], onDelete: SetNull)
+  eventType      String   @db.VarChar(64)
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([universeId])
+  @@index([zombieLeagueId])
+  @@index([eventType])
+  @@map("zombie_audit_logs")
 }
 
 /// Multi-sport: roster template per sport/format (slot definitions)

@@ -25,6 +25,50 @@ export interface BasicSeasonResultAliasRow {
   wins?: number | null
   losses?: number | null
   champion?: boolean | null
+  madePlayoffs?: boolean | null
+  playoffSeed?: number | null
+  playoffFinish?: string | null
+  playoffWins?: number | null
+  playoffLosses?: number | null
+  bestFinish?: number | null
+}
+
+function toPositiveFiniteNumber(value: unknown): number | null {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null
+  }
+
+  return parsed
+}
+
+function derivePlayoffFinishLabel(args: {
+  champion: boolean
+  playoffFinish?: string | null
+  bestFinish?: number | null
+  madePlayoffs: boolean
+}): string | null {
+  if (args.champion) {
+    return 'Champion'
+  }
+
+  if (typeof args.playoffFinish === 'string' && args.playoffFinish.trim()) {
+    return args.playoffFinish.trim()
+  }
+
+  if (args.bestFinish === 2) {
+    return 'Runner-up'
+  }
+
+  if (args.bestFinish != null && args.bestFinish > 0 && args.bestFinish <= 4) {
+    return 'Semifinalist'
+  }
+
+  if (args.madePlayoffs) {
+    return 'Playoff Team'
+  }
+
+  return null
 }
 
 function extractSourceTeamId(playerData: unknown): string | null {
@@ -102,10 +146,28 @@ export function mergeSeasonResultAliases<T extends BasicSeasonResultAliasRow>(
   wins: number
   losses: number
   champion: boolean
+  madePlayoffs: boolean
+  playoffSeed: number | null
+  playoffFinish: string | null
+  playoffWins: number
+  playoffLosses: number
+  bestFinish: number | null
 }> {
   const bySeason = new Map<
     string,
-    { leagueId: string; season: string; wins: number; losses: number; champion: boolean }
+    {
+      leagueId: string
+      season: string
+      wins: number
+      losses: number
+      champion: boolean
+      madePlayoffs: boolean
+      playoffSeed: number | null
+      playoffFinish: string | null
+      playoffWins: number
+      playoffLosses: number
+      bestFinish: number | null
+    }
   >()
 
   for (const row of rows) {
@@ -114,6 +176,17 @@ export function mergeSeasonResultAliases<T extends BasicSeasonResultAliasRow>(
     const wins = row.wins ?? 0
     const losses = row.losses ?? 0
     const champion = row.champion ?? false
+    const playoffSeed = toPositiveFiniteNumber(row.playoffSeed)
+    const bestFinish = toPositiveFiniteNumber(row.bestFinish)
+    const playoffWins = Math.max(0, row.playoffWins ?? 0)
+    const playoffLosses = Math.max(0, row.playoffLosses ?? 0)
+    const madePlayoffs = !!row.madePlayoffs || champion || playoffSeed != null || bestFinish != null
+    const playoffFinish = derivePlayoffFinishLabel({
+      champion,
+      playoffFinish: row.playoffFinish,
+      bestFinish,
+      madePlayoffs,
+    })
 
     if (!existing) {
       bySeason.set(key, {
@@ -122,6 +195,12 @@ export function mergeSeasonResultAliases<T extends BasicSeasonResultAliasRow>(
         wins,
         losses,
         champion,
+        madePlayoffs,
+        playoffSeed,
+        playoffFinish,
+        playoffWins,
+        playoffLosses,
+        bestFinish,
       })
       continue
     }
@@ -129,6 +208,27 @@ export function mergeSeasonResultAliases<T extends BasicSeasonResultAliasRow>(
     existing.wins = Math.max(existing.wins, wins)
     existing.losses = Math.max(existing.losses, losses)
     existing.champion = existing.champion || champion
+    existing.madePlayoffs = existing.madePlayoffs || madePlayoffs || existing.champion
+    existing.playoffWins = Math.max(existing.playoffWins, playoffWins)
+    existing.playoffLosses = Math.max(existing.playoffLosses, playoffLosses)
+    existing.playoffSeed =
+      existing.playoffSeed == null
+        ? playoffSeed
+        : playoffSeed == null
+          ? existing.playoffSeed
+          : Math.min(existing.playoffSeed, playoffSeed)
+    existing.bestFinish =
+      existing.bestFinish == null
+        ? bestFinish
+        : bestFinish == null
+          ? existing.bestFinish
+          : Math.min(existing.bestFinish, bestFinish)
+    existing.playoffFinish = derivePlayoffFinishLabel({
+      champion: existing.champion,
+      playoffFinish: existing.playoffFinish ?? playoffFinish,
+      bestFinish: existing.bestFinish,
+      madePlayoffs: existing.madePlayoffs,
+    })
   }
 
   return Array.from(bySeason.values())

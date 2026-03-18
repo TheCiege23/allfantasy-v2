@@ -161,3 +161,73 @@ export function isSurvivorDeterministicFeature(featureId: string): boolean {
 export function isSurvivorAIOptionalFeature(featureId: string): boolean {
   return (SURVIVOR_AI_OPTIONAL_FEATURES as readonly string[]).includes(featureId)
 }
+
+// --- Zombie League (PROMPT 352) ---
+
+/** Zombie league: features that must be 100% deterministic (no AI in path). */
+export const ZOMBIE_DETERMINISTIC_FEATURES = [
+  'whisperer_selection',
+  'draft_order_randomization',
+  'matchup_schedule_ingestion',
+  'status_changes',
+  'infection_after_result_finalization',
+  'stat_correction_reversals',
+  'weekly_winnings_ledger',
+  'serum_award_by_high_score',
+  'serum_usage_legality_window',
+  'serum_revive_trigger',
+  'weapon_awards_by_score_thresholds',
+  'weapon_auto_equip_rules',
+  'bomb_legality',
+  'weapon_transfer_on_matchup_result',
+  'survivor_bash_logic',
+  'zombie_maul_logic',
+  'whisperer_outcome_logic',
+  'ambush_availability_count',
+  'ambush_legality_window',
+  'zombie_trade_restriction',
+  'lineups_roster_legality',
+  'no_waiver_free_agency_rules',
+  'universe_spreadsheet_stat_generation',
+  'promotion_relegation',
+  'movement_tie_break_logic',
+  'owner_replacement_inactivity_workflow',
+  'anti_drop_enforcement_flags',
+  'collusion_event_flags',
+  'weekly_board_update_generation',
+] as const
+
+/** Zombie league: AI-optional features (gated; explanation/narrative/advice only). */
+export const ZOMBIE_AI_OPTIONAL_FEATURES = [
+  'weekly_zombie_themed_recap',
+  'whisperer_flavor_narration',
+  'weekly_chompin_block_explanation',
+  'serum_weapon_strategy_suggestions',
+  'survivor_escape_strategy_advice',
+  'zombie_swarm_strategy_advice',
+  'ambush_planning_advice',
+  'movement_projection_commentary',
+  'universe_storyline_summaries',
+  'commissioner_anomaly_summaries',
+  'inactivity_risk_coaching_nudges',
+  'replacement_owner_onboarding_recaps',
+] as const
+
+/** Zombie hybrid: deterministic core + optional AI layer. Key = feature; value = [deterministicId, aiOptionalId]. */
+export const ZOMBIE_HYBRID_FEATURES: Record<string, [string, string]> = {
+  anti_collusion_detection: ['collusion_event_flags', 'commissioner_anomaly_summaries'],
+  dangerous_drop_detection: ['anti_drop_enforcement_flags', 'commissioner_anomaly_summaries'],
+  movement_outlook: ['universe_spreadsheet_stat_generation', 'movement_projection_commentary'],
+  weekly_forum_updates: ['weekly_board_update_generation', 'weekly_zombie_themed_recap'],
+}
+
+export type ZombieDeterministicFeatureId = (typeof ZOMBIE_DETERMINISTIC_FEATURES)[number]
+export type ZombieAIOptionalFeatureId = (typeof ZOMBIE_AI_OPTIONAL_FEATURES)[number]
+
+export function isZombieDeterministicFeature(featureId: string): boolean {
+  return (ZOMBIE_DETERMINISTIC_FEATURES as readonly string[]).includes(featureId)
+}
+
+export function isZombieAIOptionalFeature(featureId: string): boolean {
+  return (ZOMBIE_AI_OPTIONAL_FEATURES as readonly string[]).includes(featureId)
+}

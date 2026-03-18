@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getEffectiveLeagueWaiverSettings, upsertLeagueWaiverSettings } from '@/lib/waiver-wire'
 import { getPendingClaims, getProcessedClaimsAndTransactions } from '@/lib/waiver-wire'
-import { processWaiverClaimsForLeague } from '@/lib/waiver-wire'
+import { processWaiverClaimsForLeague } from '@/lib/waiver-wire/process-engine'
 
 export async function GET(
   req: NextRequest,

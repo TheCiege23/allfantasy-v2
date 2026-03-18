@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   })
 
-  const userIds = users.map((u) => u.id)
+  const userIds = users.map((u: { id: string }) => u.id)
   if (userIds.length > 0) {
     const isLeague = typeof threadId === 'string' && threadId.startsWith('league:')
     const bodyText = isLeague

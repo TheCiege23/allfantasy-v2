@@ -2,7 +2,7 @@
  * Dynasty historical import — normalize and persist: SeasonResult, LeagueDynastySeason, LeagueTrade.
  */
 
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { upsertSeasonResults } from "@/lib/rankings-engine/hall-of-fame";
 import type { NormalizedStandingRow, NormalizedTradeFact } from "./types";
@@ -51,14 +51,22 @@ export async function persistDynastySeason(
       platformLeagueId,
       provider,
       importedAt: new Date(),
-      ...(metadataJson !== undefined ? { metadata: metadataJson } : {}),
+      ...(metadataJson === null
+        ? { metadata: Prisma.JsonNull }
+        : metadataJson !== undefined
+          ? { metadata: metadataJson }
+          : {}),
     },
     create: {
       leagueId,
       season,
       platformLeagueId,
       provider,
-      ...(metadataJson !== undefined ? { metadata: metadataJson } : {}),
+      ...(metadataJson === null
+        ? { metadata: Prisma.JsonNull }
+        : metadataJson !== undefined
+          ? { metadata: metadataJson }
+          : {}),
     },
   });
 }

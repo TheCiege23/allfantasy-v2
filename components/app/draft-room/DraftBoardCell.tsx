@@ -35,7 +35,7 @@ export type DraftBoardCellProps = {
   isCollegeRound?: boolean
 }
 
-export function DraftBoardCell({
+function DraftBoardCellInner({
   pick,
   isEmpty,
   tradedPickColorMode = false,

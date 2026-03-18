@@ -22,7 +22,7 @@ export async function detectRecords(
     prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } }),
     prisma.roster.findMany({
       where: { leagueId },
-      select: { id: true, platformUserId: true, playerData: true },
+      select: { id: true, leagueId: true, platformUserId: true, playerData: true },
     }),
     prisma.seasonResult.findMany({
       where: season === 'all' ? { leagueId } : { leagueId, season },

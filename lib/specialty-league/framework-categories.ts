@@ -19,6 +19,13 @@ export const DETERMINISTIC_ENGINE_CATEGORIES = [
   'bestball_optimization',
   'offseason_lifecycle',
   'contract_lifecycle',
+  'status_transformation',
+  'resource_inventory_ledger',
+  'universe_standings_aggregation',
+  'promotion_relegation',
+  'weekly_board_generation',
+  'anti_collusion_flags',
+  'anti_neglect_dangerous_drops',
 ] as const
 
 export type DeterministicEngineCategory = (typeof DETERMINISTIC_ENGINE_CATEGORIES)[number]

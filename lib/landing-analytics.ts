@@ -11,7 +11,7 @@ const CONVERSION_CATEGORY = 'landing_conversion'
 export function trackLandingCtaClick(params: {
   cta_label: string
   cta_destination: string
-  cta_type: 'primary' | 'secondary' | 'tool_card' | 'feature_card'
+  cta_type: 'primary' | 'secondary' | 'tool_card' | 'feature_card' | 'ai_value'
   source?: string
 }) {
   gtagEvent('landing_cta_click', {

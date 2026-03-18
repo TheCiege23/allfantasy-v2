@@ -220,7 +220,10 @@ export async function POST(req: Request) {
     const isSalaryCap =
       String(leagueVariantInput ?? '').toLowerCase() === 'salary_cap' ||
       String(leagueTypeWizard ?? '').toLowerCase() === 'salary_cap';
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : (leagueVariantInput ?? null);
+    const isSurvivor =
+      String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'survivor';
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : (leagueVariantInput ?? null);
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -265,6 +268,20 @@ export async function POST(req: Request) {
         });
       } catch (err) {
         console.warn('[league/create] Salary cap config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isSurvivor) {
+      try {
+        const { upsertSurvivorConfig } = await import('@/lib/survivor/SurvivorLeagueConfig');
+        const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'redraft').toLowerCase();
+        await upsertSurvivorConfig(league.id, {
+          mode: mode === 'bestball' ? 'bestball' : 'redraft',
+          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.tribeCount != null && { tribeCount: Number((settingsWizard as Record<string, unknown>).tribeCount) }),
+          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.tribeSize != null && { tribeSize: Number((settingsWizard as Record<string, unknown>).tribeSize) }),
+        });
+      } catch (err) {
+        console.warn('[league/create] Survivor config bootstrap non-fatal:', err);
       }
     }
 

@@ -1,0 +1,97 @@
+'use client'
+
+import { Clock, Vote, Shield, Skull } from 'lucide-react'
+import type { SurvivorSummary } from './types'
+import { SurvivorCommandHelp } from './SurvivorCommandHelp'
+
+export interface SurvivorTribalCouncilViewProps {
+  leagueId: string
+  summary: SurvivorSummary
+  names: Record<string, string>
+}
+
+/**
+ * Tribal Council View: countdown, voting instructions, @Chimmy usage examples, immunity markers, scroll reveal history, vote result recap.
+ */
+export function SurvivorTribalCouncilView({ summary, names }: SurvivorTribalCouncilViewProps) {
+  const { council, votedOutHistory, currentWeek } = summary
+  const deadline = council?.voteDeadlineAt ? new Date(council.voteDeadlineAt) : null
+  const isClosed = !!council?.closedAt
+  const eliminated = council?.eliminatedRosterId
+
+  return (
+    <div className="space-y-6">
+      {/* Countdown */}
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Clock className="h-5 w-5 text-amber-400" />
+          Tribal Council · Week {currentWeek}
+        </h2>
+        {!council ? (
+          <p className="text-sm text-white/50">No council scheduled for this week.</p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-white/70">
+              Phase: <span className="font-medium text-amber-300">{council.phase}</span>
+              {council.attendingTribeId && ' · One tribe attending'}
+            </p>
+            {isClosed ? (
+              <p className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-sm text-rose-200">
+                Council closed. {eliminated ? `Eliminated: ${names[eliminated] ?? eliminated}` : 'Votes read.'}
+              </p>
+            ) : deadline ? (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm text-amber-200">
+                Vote deadline: {deadline.toLocaleString()}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      {/* Voting instructions */}
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Vote className="h-5 w-5 text-cyan-400" />
+          Voting instructions
+        </h2>
+        <p className="mb-4 text-sm text-white/70">
+          Cast your vote in league or tribe chat using the official command. Only one vote per roster. Self-vote may be disallowed by league settings.
+        </p>
+        <SurvivorCommandHelp compact />
+      </section>
+
+      {/* Immunity markers (placeholder – backend can expose who has immunity) */}
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold text-white">
+          <Shield className="h-5 w-5 text-emerald-400" />
+          Immunity
+        </h2>
+        <p className="text-sm text-white/50">Individual immunity (from challenges) and tribe immunity are shown on the Tribe Board when active.</p>
+      </section>
+
+      {/* Voted-out history (scroll reveal) */}
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          <Skull className="h-5 w-5 text-rose-400" />
+          Voted out history
+        </h2>
+        {votedOutHistory.length === 0 ? (
+          <p className="text-sm text-white/50">No one has been voted out yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {votedOutHistory.map((entry, i) => (
+              <li
+                key={`${entry.rosterId}-${entry.week}-${i}`}
+                className="flex items-center justify-between rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-sm"
+              >
+                <span className="text-white/80">
+                  Week {entry.week ?? '?'} · {entry.rosterId ? (names[entry.rosterId] ?? entry.rosterId) : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}

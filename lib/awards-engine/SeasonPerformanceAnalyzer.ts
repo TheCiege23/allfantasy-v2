@@ -28,7 +28,7 @@ export async function analyzeSeasonPerformance(
     }),
     prisma.roster.findMany({
       where: { leagueId },
-      select: { id: true, platformUserId: true, playerData: true },
+      select: { id: true, leagueId: true, platformUserId: true, playerData: true },
     }),
     prisma.seasonResult.findMany({
       where: { leagueId, season },

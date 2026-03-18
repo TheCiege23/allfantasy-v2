@@ -88,7 +88,7 @@ export function MatchupShareModal({
     projectedScore2,
     winProbabilityA,
     winProbabilityB,
-    keyPlayers: resolvedKeyPlayers.length ? resolvedKeyPlayers : keyPlayers,
+    resolvedKeyPlayers.length ? resolvedKeyPlayers : keyPlayers,
     sport,
     weekOrRound,
     keyPlayersInput,

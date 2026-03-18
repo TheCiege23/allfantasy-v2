@@ -32,12 +32,19 @@ export {
   SURVIVOR_HYBRID_FEATURES,
   isSurvivorDeterministicFeature,
   isSurvivorAIOptionalFeature,
+  ZOMBIE_DETERMINISTIC_FEATURES,
+  ZOMBIE_AI_OPTIONAL_FEATURES,
+  ZOMBIE_HYBRID_FEATURES,
+  isZombieDeterministicFeature,
+  isZombieAIOptionalFeature,
 } from './automation-ai-policy'
 export type {
   SalaryCapDeterministicFeatureId,
   SalaryCapAIOptionalFeatureId,
   SurvivorDeterministicFeatureId,
   SurvivorAIOptionalFeatureId,
+  ZombieDeterministicFeatureId,
+  ZombieAIOptionalFeatureId,
 } from './automation-ai-policy'
 export {
   DETERMINISTIC_ENGINE_CATEGORIES,
@@ -53,3 +60,64 @@ export type {
   SportsAPIRequirement,
   QATemplateSection,
 } from './framework-categories'
+export type {
+  TribeOrchestrationContract,
+  GroupRow,
+  GroupMemberRow,
+  GroupWithMembers,
+  HiddenPowerContract,
+  PrivateVotingContract,
+  SeasonPointsSource,
+  VoteTallyResult,
+  EliminationPipelineContract,
+  EliminationResult,
+  SidecarLeagueContract,
+  TokenizedReturnContract,
+  MiniGameRegistryContract,
+  ChallengeRow,
+  MergeJuryPhaseContract,
+  OfficialCommandParserContract,
+  CommandIntent,
+  ParsedCommand,
+  AIHostContextContract,
+  AIHostPromptContract,
+  AIHostGenerateContract,
+  ChimmyContextBuilder,
+  StatusTransformationContract,
+  ResourceInventoryLedgerContract,
+  OneToManyUniverseContract,
+  CrossLeagueStandingsContract,
+  CrossLeagueStandingsRow,
+  PromotionRelegationEngineContract,
+  WeeklyBoardGenerationContract,
+  AntiCollusionFlagRegistryContract,
+  AntiNeglectReplacementContract,
+  AIRecapHooksContract,
+} from './reusable-modules'
+export {
+  COMMON_AUTOMATION_HOOKS,
+} from './common-automation'
+export type {
+  WeeklyAutomationRunner,
+  AppendEventFn,
+  SeasonPointsSourceFactory,
+  CommonAutomationHookId,
+} from './common-automation'
+export {
+  SPECIALTY_AI_RULE,
+  COMMON_AI_HOST_TYPES,
+  COMMON_AI_HELPER_TYPES,
+  COMMON_AI_RECAP_TYPES,
+} from './common-ai'
+export type {
+  SpecialtyAIEntitlementCheck,
+  BuildAIContextFn,
+  BuildAIPromptFn,
+  GenerateAIFn,
+  BuildChimmyContextFn,
+  CommonAIHostType,
+  CommonAIHelperType,
+  CommonAIRecapType,
+} from './common-ai'
+export { runSpecialtyQAHarness, QA_HARNESS_CHECKS } from './qa-harness'
+export type { QACheckResult } from './qa-harness'

@@ -30,6 +30,8 @@ export type SubscriptionFeatureId =
   | 'ai_planning_3_5_year'
   | 'guillotine_ai'
   | 'salary_cap_ai'
+  | 'survivor_ai'
+  | 'zombie_ai'
 
 /** Plan slugs returned by entitlements API; used for hasAccess. */
 export type SubscriptionPlanId = 'pro' | 'commissioner' | 'war_room' | 'all_access'

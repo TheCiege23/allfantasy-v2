@@ -4,11 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import {
-  buildLeagueScopedRosterIdFilters,
-  mergeSeasonResultAliases,
-  resolveSeasonResultRosterIds,
-} from '@/lib/season-results/SeasonResultRosterIdentity'
+import { getMergedHistoricalSeasonResultsForManager } from '@/lib/season-results/HistoricalSeasonResultService'
 import type { ManagerFranchiseProfileInput } from './types'
 
 /**
@@ -20,34 +16,12 @@ export async function aggregateCareerForManager(
 ): Promise<ManagerFranchiseProfileInput> {
   const rosters = await prisma.roster.findMany({
     where: { platformUserId: managerId },
-    select: { id: true, leagueId: true, playerData: true },
+    select: { id: true, leagueId: true, platformUserId: true, playerData: true },
   })
-
-  const seasonResultRosterIds = resolveSeasonResultRosterIds(rosters)
-  const seasonResultFilters = buildLeagueScopedRosterIdFilters(seasonResultRosterIds)
-
-  // SeasonResults where rosterId = managerId (when app uses platform user id as rosterId)
-  const seasonResultsByManagerId = await prisma.seasonResult.findMany({
-    where: { rosterId: managerId },
-    select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
+  const combined = await getMergedHistoricalSeasonResultsForManager({
+    managerId,
+    rosters,
   })
-
-  // SeasonResults where (leagueId, rosterId) matches either internal Roster ids
-  // or imported provider roster ids like Sleeper source_team_id.
-  const seasonResultsByRosterId =
-    seasonResultFilters.length > 0
-      ? await prisma.seasonResult.findMany({
-          where: {
-            OR: seasonResultFilters,
-          },
-          select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
-        })
-      : []
-
-  const combined = mergeSeasonResultAliases([
-    ...seasonResultsByManagerId,
-    ...seasonResultsByRosterId,
-  ])
 
   const totalCareerSeasons = combined.length
   const leagueIdsSeen = new Set(combined.map((row) => row.leagueId))
@@ -59,7 +33,7 @@ export async function aggregateCareerForManager(
 
   for (const row of combined) {
     if (row.champion) championshipCount++
-    if (row.wins + row.losses > 0) playoffAppearances++ // treat any completed season as "appearance" for simplicity
+    if (row.madePlayoffs || row.champion) playoffAppearances++
     totalWins += row.wins
     totalLosses += row.losses
   }

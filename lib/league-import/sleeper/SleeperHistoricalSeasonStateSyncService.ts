@@ -203,9 +203,9 @@ export async function syncSleeperHistoricalSeasonStateAfterImport(args: {
             sport,
             weekOrPeriod: SEASON_END_ROSTER_SNAPSHOT_PERIOD,
             season: seasonState.season,
-            rosterPlayers: rosterPlayers as Prisma.InputJsonValue,
-            lineupPlayers: lineupPlayers as Prisma.InputJsonValue,
-            benchPlayers: benchPlayers as Prisma.InputJsonValue,
+            rosterPlayers: rosterPlayers as unknown as Prisma.InputJsonValue,
+            lineupPlayers: lineupPlayers as unknown as Prisma.InputJsonValue,
+            benchPlayers: benchPlayers as unknown as Prisma.InputJsonValue,
           },
         })
       })

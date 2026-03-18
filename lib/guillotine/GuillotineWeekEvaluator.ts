@@ -38,7 +38,8 @@ export function isPastCorrectionCutoff(args: {
       const [h, m] = args.customCutoffTimeUtc.split(':').map(Number)
       const nextCutoff = new Date(now)
       nextCutoff.setUTCDate(nextCutoff.getUTCDate() + 1)
-      nextCutoff.setUTCDay(args.customCutoffDayOfWeek)
+      const dayOffset = (args.customCutoffDayOfWeek - nextCutoff.getUTCDay() + 7) % 7
+      nextCutoff.setUTCDate(nextCutoff.getUTCDate() + dayOffset)
       nextCutoff.setUTCHours(h ?? 0, m ?? 0, 0, 0)
       return now >= nextCutoff
     }

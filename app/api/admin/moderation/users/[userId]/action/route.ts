@@ -38,7 +38,7 @@ export async function POST(
   if (!created) return NextResponse.json({ error: "Failed to apply action" }, { status: 500 })
 
   await logAdminAudit({
-    adminUserId: gate.user.id,
+    adminUserId: gate.user.id ?? '',
     action: actionType === "ban" ? "ban_user" : actionType === "mute" ? "mute_user" : "moderation_action",
     targetType: "user",
     targetId: userId,

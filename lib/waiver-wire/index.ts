@@ -5,9 +5,8 @@ export {
   upsertLeagueWaiverSettings,
 } from "./settings-service"
 export * from "./claim-service"
-export * from "./process-engine"
+/** process-engine imports server-only run-hooks. For processWaiverClaimsForLeague use: import from @/lib/waiver-wire/process-engine */
 export * from "./roster-utils"
-export * from "./run-hooks"
 
 export {
   getPositionFiltersForSport,

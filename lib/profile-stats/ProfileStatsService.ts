@@ -122,7 +122,7 @@ export async function getProfileStats(userId: string): Promise<ProfileStats> {
     const allGrades = await prisma.draftGrade.findMany({
       where: {
         leagueId: { in: leagueIdsWithMe.map((l) => l.id) },
-        season: { in: [...new Set(leagueIdsWithMe.map((l) => String(l.season ?? new Date().getFullYear())))]) },
+        season: { in: [...new Set(leagueIdsWithMe.map((l) => String(l.season ?? new Date().getFullYear())))] },
       },
       select: { leagueId: true, season: true, grade: true, score: true, breakdown: true, rosterId: true },
     })

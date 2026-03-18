@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Link2, Users, Share2, Copy, Check, UserPlus } from 'lucide-react'
 import { InviteModal } from './InviteModal'
 import { ReferralShareBar } from '@/components/referral/ReferralShareBar'
@@ -78,14 +78,14 @@ export function ReferralDashboard() {
     )
   }
 
-  const s = stats ?? {
+  const statsSafe = (stats ?? {
     totalCreated: 0,
     totalAccepted: 0,
     byType: {},
     recentEvents: [],
-  }
+  }) as InviteStats
 
-  return (
+  const content = (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
@@ -102,35 +102,35 @@ export function ReferralDashboard() {
         </button>
       </div>
 
-      {referralLink && (
-        <div
-          className="rounded-xl border p-4 flex flex-wrap items-center gap-2"
-          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
-        >
-          <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Your referral link</span>
-          <input
-            type="text"
-            readOnly
-            value={referralLink}
-            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
-            style={{ borderColor: 'var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
-          />
-          <button
-            type="button"
-            onClick={copyReferralLink}
-            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+      {referralLink ? (
+        <>
+          <div
+            className="rounded-xl border p-4 flex flex-wrap items-center gap-2"
+            style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
           >
-            {referralCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {referralCopied ? 'Copied' : 'Copy link'}
-          </button>
-        </div>
-        {referralLink && (
+            <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Your referral link</span>
+            <input
+              type="text"
+              readOnly
+              value={referralLink}
+              className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
+              style={{ borderColor: 'var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
+            />
+            <button
+              type="button"
+              onClick={copyReferralLink}
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              {referralCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {referralCopied ? 'Copied' : 'Copy link'}
+            </button>
+          </div>
           <div className="mt-3">
             <ReferralShareBar referralLink={referralLink} />
           </div>
-        )}
-      )}
+        </>
+      ) : null}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div
@@ -141,7 +141,7 @@ export function ReferralDashboard() {
             <Link2 className="h-4 w-4" style={{ color: 'var(--muted)' }} />
             <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Links created</span>
           </div>
-          <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{s.totalCreated}</p>
+          <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{statsSafe.totalCreated}</p>
         </div>
         <div
           className="rounded-xl border p-4"
@@ -151,7 +151,7 @@ export function ReferralDashboard() {
             <Users className="h-4 w-4" style={{ color: 'var(--muted)' }} />
             <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Accepted</span>
           </div>
-          <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{s.totalAccepted}</p>
+          <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{statsSafe.totalAccepted}</p>
         </div>
       </div>
 
@@ -175,7 +175,7 @@ export function ReferralDashboard() {
         </div>
       )}
 
-      {s.recentEvents.length > 0 && (
+      {statsSafe.recentEvents.length > 0 && (
         <div
           className="rounded-xl border p-4"
           style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
@@ -184,7 +184,7 @@ export function ReferralDashboard() {
             Recent activity
           </h3>
           <ul className="space-y-1 text-sm">
-            {s.recentEvents.slice(0, 10).map((e, i) => (
+            {statsSafe.recentEvents.slice(0, 10).map((e, i) => (
               <li key={i} className="flex justify-between" style={{ color: 'var(--muted)' }}>
                 <span>{e.eventType}{e.channel ? ` (${e.channel})` : ''} · {e.type}</span>
                 <span className="text-xs">{new Date(e.createdAt).toLocaleString()}</span>
@@ -202,4 +202,5 @@ export function ReferralDashboard() {
       />
     </div>
   )
+  return content
 }

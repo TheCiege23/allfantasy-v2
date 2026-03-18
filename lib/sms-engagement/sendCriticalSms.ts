@@ -4,12 +4,9 @@
  */
 
 import { getSettingsProfile } from "@/lib/user-settings"
-import {
-  resolveNotificationPreferences,
-  type NotificationPreferences,
-} from "@/lib/notification-settings/NotificationPreferenceResolver"
+import { resolveNotificationPreferences } from "@/lib/notification-settings/NotificationPreferenceResolver"
 import { getDeliveryMethodAvailability } from "@/lib/notification-settings/DeliveryMethodResolver"
-import type { NotificationCategoryId } from "@/lib/notification-settings/types"
+import type { NotificationCategoryId, NotificationPreferences } from "@/lib/notification-settings/types"
 import { sendSms } from "@/lib/twilio-client"
 import type { SmsSendResult } from "./types"
 

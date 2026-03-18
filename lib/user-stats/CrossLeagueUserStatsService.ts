@@ -5,11 +5,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
-import {
-  buildLeagueScopedRosterIdFilters,
-  mergeSeasonResultAliases,
-  resolveSeasonResultRosterIds,
-} from "@/lib/season-results/SeasonResultRosterIdentity"
+import { getMergedHistoricalSeasonResultsForManager } from "@/lib/season-results/HistoricalSeasonResultService"
 
 export interface CrossLeagueUserStatsResult {
   wins: number
@@ -71,30 +67,21 @@ export async function getCrossLeagueUserStats(appUserId: string): Promise<CrossL
     leaguesPlayed: 0,
   }
 
-  if (rosterPairs.length === 0) return result
+  if (!platformUserId || rosterPairs.length === 0) return result
 
-  const seasonResultRosterIds = resolveSeasonResultRosterIds(
-    rosterPairs.map((pair) => ({
-      id: pair.rosterId,
-      leagueId: pair.leagueId,
-      playerData: pair.playerData,
-    }))
-  )
   const rosterIds = rosterPairs.map((p) => p.rosterId)
-  const leagueIds = seasonResultRosterIds.leagueIds
-  const seasonResultFilters = buildLeagueScopedRosterIdFilters(
-    seasonResultRosterIds
-  )
+  const leagueIds = Array.from(new Set(rosterPairs.map((pair) => pair.leagueId)))
 
   const [seasonResults, draftGrades, tradeTendencies] = await Promise.all([
-    seasonResultFilters.length > 0
-      ? prisma.seasonResult.findMany({
-          where: {
-            OR: seasonResultFilters,
-          },
-          select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
-        })
-      : Promise.resolve([]),
+    getMergedHistoricalSeasonResultsForManager({
+      managerId: platformUserId,
+      rosters: rosterPairs.map((pair) => ({
+        id: pair.rosterId,
+        leagueId: pair.leagueId,
+        platformUserId,
+        playerData: pair.playerData,
+      })),
+    }),
     prisma.draftGrade.findMany({
       where: {
         leagueId: { in: leagueIds },
@@ -110,20 +97,19 @@ export async function getCrossLeagueUserStats(appUserId: string): Promise<CrossL
       : Promise.resolve(null),
   ])
 
-  const mergedSeasonResults = mergeSeasonResultAliases(seasonResults)
   const seasonsSeen = new Set<string>()
-  for (const s of mergedSeasonResults) {
+  for (const s of seasonResults) {
     result.wins += s.wins ?? 0
     result.losses += s.losses ?? 0
     if (s.champion) result.championships += 1
     const key = `${s.leagueId}:${s.season}`
-    if (!seasonsSeen.has(key)) {
+    if (!seasonsSeen.has(key) && (s.madePlayoffs || s.champion)) {
       seasonsSeen.add(key)
       result.playoffAppearances += 1
     }
   }
-  result.seasonsPlayed = seasonsSeen.size
-  result.leaguesPlayed = new Set(mergedSeasonResults.map((s) => s.leagueId)).size
+  result.seasonsPlayed = seasonResults.length
+  result.leaguesPlayed = new Set(seasonResults.map((s) => s.leagueId)).size
 
   if (draftGrades.length > 0) {
     const scores = draftGrades.map((g) => Number(g.score))

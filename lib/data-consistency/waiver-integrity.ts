@@ -29,11 +29,12 @@ export async function findWaiverClaimRosterMismatches(limit = 500): Promise<Waiv
     where: { id: { in: rosterIds } },
     select: { id: true, leagueId: true },
   })
-  const rosterByLeague = new Map(rosters.map((r: { id: string; leagueId: string }) => [r.id, r.leagueId]))
+  const rosterByLeague = new Map(rosters.map((r: { id: string; leagueId: unknown }) => [r.id, r.leagueId]))
 
   const mismatches: WaiverClaimMismatch[] = []
   for (const c of claims) {
-    const rosterLeagueId = rosterByLeague.get(c.rosterId) ?? null
+    const raw = rosterByLeague.get(c.rosterId)
+    const rosterLeagueId: string | null = typeof raw === 'string' ? raw : null
     if (rosterLeagueId !== c.leagueId) {
       mismatches.push({
         claimId: c.id,

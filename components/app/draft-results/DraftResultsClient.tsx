@@ -27,6 +27,7 @@ export function DraftResultsClient({
   leagueId,
   leagueName,
   sport,
+  isGuillotine,
 }: DraftResultsClientProps) {
   const [data, setData] = useState<DraftResultsPayload | null>(null)
   const [loading, setLoading] = useState(true)

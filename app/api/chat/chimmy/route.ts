@@ -9,6 +9,7 @@ import { deepseekChat } from '@/lib/deepseek-client'
 import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enrichment'
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
 import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
+import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 
@@ -653,6 +654,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let conversation: ConversationTurn[] = []
   let strategyMode: StrategyMode | undefined
   let sleeperUsername: string | undefined
+  let leagueId: string | undefined
 
   try {
     const formData = await req.formData()
@@ -660,6 +662,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     privateMode    = formData.get('privateMode') === 'true'
     targetUsername  = ((formData.get('targetUsername') as string) ?? '').trim()
     sleeperUsername = ((formData.get('sleeperUsername') as string) ?? '').trim() || undefined
+    leagueId        = ((formData.get('leagueId') as string) ?? '').trim() || undefined
 
     const rawStrategy = (formData.get('strategyMode') as string) ?? ''
     if (rawStrategy && rawStrategy in STRATEGY_MODE_CONTEXT) {
@@ -719,7 +722,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult] = await Promise.allSettled([
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult] = await Promise.allSettled([
     getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
@@ -727,6 +730,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }),
     userId ? getAIMemorySummary(userId) : Promise.resolve(''),
     userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
+    leagueId && userId ? buildSurvivorContextForChimmy(leagueId, userId) : Promise.resolve(''),
   ])
 
   let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
@@ -735,6 +739,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userContextStr = userContextStr ? `${userContextStr}\n\n${simWarehouseStr}` : simWarehouseStr
   }
   if (simWarehouseStr) dataSources.push('simulation_warehouse')
+  const survivorContextStr = survivorContextResult.status === 'fulfilled' ? survivorContextResult.value : ''
+  if (survivorContextStr && typeof survivorContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${survivorContextStr}` : survivorContextStr
+    dataSources.push('survivor_league')
+  }
   const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
   const enrichmentStr = enrichment?.context ?? ''
   const aiMemoryStr = aiMemoryResult.status === 'fulfilled' ? aiMemoryResult.value : ''
@@ -869,9 +878,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     throw e
   }
 
-  const openaiRaw = settled[0]?.status === 'fulfilled' ? settled[0].value : ''
-  const grokRaw = settled[1]?.status === 'fulfilled' ? settled[1].value : ''
-  const dsResult = settled[2]?.status === 'fulfilled' ? settled[2].value : null
+  const openaiRaw: string = settled[0]?.status === 'fulfilled' ? (typeof settled[0].value === 'string' ? settled[0].value : '') : ''
+  const grokRaw: string = settled[1]?.status === 'fulfilled' ? (typeof settled[1].value === 'string' ? settled[1].value : '') : ''
+  const dsResult: QuantResult | null = settled[2]?.status === 'fulfilled' && settled[2].value !== null && typeof settled[2].value === 'object' ? (settled[2].value as QuantResult) : null
 
   if (!openaiRaw && !grokRaw) {
     return NextResponse.json({

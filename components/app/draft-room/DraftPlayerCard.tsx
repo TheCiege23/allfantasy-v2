@@ -110,7 +110,7 @@ function TeamLogoOrFallback({
   )
 }
 
-export function DraftPlayerCard({
+function DraftPlayerCardInner({
   display,
   name,
   position,

@@ -4,7 +4,7 @@
  * PROMPT 341 — Supported sports: NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER.
  */
 
-import type { SalaryCapAIDeterministicContext } from './SalaryCapAIContext'
+import type { SalaryCapAIDeterministicContext, SalaryCapAIContextType } from './SalaryCapAIContext'
 
 const SPORT_LABELS: Record<string, string> = {
   NFL: 'NFL',

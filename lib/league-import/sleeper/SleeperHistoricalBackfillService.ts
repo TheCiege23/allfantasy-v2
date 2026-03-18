@@ -9,6 +9,10 @@ import {
   syncSleeperHistoricalSeasonStateAfterImport,
   type SleeperHistoricalSeasonStateSyncSummary,
 } from './SleeperHistoricalSeasonStateSyncService'
+import {
+  syncSleeperHistoricalMatchupsAfterImport,
+  type SleeperHistoricalMatchupSyncSummary,
+} from './SleeperHistoricalMatchupSyncService'
 
 export interface SleeperHistoricalBackfillSummary {
   attempted: boolean
@@ -16,6 +20,7 @@ export interface SleeperHistoricalBackfillSummary {
   reason?: string
   drafts?: SleeperHistoricalDraftSyncSummary
   seasonState?: SleeperHistoricalSeasonStateSyncSummary
+  matchups?: SleeperHistoricalMatchupSyncSummary
   backfill?: {
     success: boolean
     status: string
@@ -50,6 +55,8 @@ function getErrorMessage(error: unknown): string {
 /**
  * Reuse the existing dynasty backfill pipeline after a Sleeper league import so
  * standings/trades history actually lands in the core models used by the app.
+ * This now runs for all Sleeper imports; non-dynasty leagues use the backfill
+ * force flag so prior records and trades are still captured when history exists.
  */
 export async function syncSleeperHistoricalBackfillAfterImport(args: {
   leagueId: string
@@ -61,20 +68,14 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
   const seasonState = await syncSleeperHistoricalSeasonStateAfterImport({
     leagueId: args.leagueId,
   })
-
-  if (!args.isDynasty) {
-    return {
-      attempted: false,
-      skipped: true,
-      reason: 'Historical auto-backfill currently runs only for Sleeper dynasty leagues.',
-      drafts,
-      seasonState,
-    }
-  }
+  const matchups = await syncSleeperHistoricalMatchupsAfterImport({
+    leagueId: args.leagueId,
+  })
 
   try {
     const backfill = await runDynastyBackfill({
       leagueId: args.leagueId,
+      force: !args.isDynasty,
       skipExistingSeasons: true,
     })
 
@@ -83,6 +84,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
       skipped: false,
       drafts,
       seasonState,
+      matchups,
       backfill: {
         success: backfill.success,
         status: backfill.status,
@@ -158,6 +160,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
       },
       drafts,
       seasonState,
+      matchups,
       graph: {
         refreshed: false,
       },

@@ -55,11 +55,11 @@ export function StartupAuctionView({
             <p className="text-sm text-white/70">
               Draft order is set by weighted lottery. Seed is stored for audit.
             </p>
-            {summary.lottery?.order && (
+            {summary.lottery?.order != null ? (
               <p className="mt-2 text-xs text-white/50">
                 Result for this year: {Array.isArray(summary.lottery.order) ? `${(summary.lottery.order as unknown[]).length} slots` : '—'}
               </p>
-            )}
+            ) : null}
           </div>
         )}
 
