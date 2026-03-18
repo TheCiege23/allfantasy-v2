@@ -54,6 +54,7 @@ export default function AppLeaguePage() {
   const [isSalaryCap, setIsSalaryCap] = useState<boolean>(false)
   const [isSurvivor, setIsSurvivor] = useState<boolean>(false)
   const [isZombie, setIsZombie] = useState<boolean>(false)
+  const [isDevyDynasty, setIsDevyDynasty] = useState<boolean>(false)
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
 
   useEffect(() => {
@@ -72,6 +73,7 @@ export default function AppLeaguePage() {
           setShowFirstEntryModal(variant === 'guillotine')
           setIsSurvivor(variant === 'survivor')
           setIsZombie(variant === 'zombie')
+          setIsDevyDynasty(variant === 'devy_dynasty')
           return
         }
         // Fallback: bracket list
@@ -117,7 +119,7 @@ export default function AppLeaguePage() {
 
   const renderTab = useMemo(() => {
     return (tab: LeagueShellTab) => {
-      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} />
+      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} isDevyDynasty={isDevyDynasty} />
       if (tab === 'Team') return <TeamTab leagueId={leagueId} />
       if (tab === 'Matchups') return <MatchupsTab leagueId={leagueId} />
       if (tab === 'Roster') return <RosterTab leagueId={leagueId} />
@@ -139,11 +141,11 @@ export default function AppLeaguePage() {
       if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
-      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} />
+      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isCommissioner={isCommissioner} />
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie])
+  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty])
 
   return (
     <div className="space-y-3">

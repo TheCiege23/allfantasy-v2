@@ -27,6 +27,7 @@ function getImportApiErrorMessage(
   if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing a league.';
   if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing a league.';
   if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized') return 'Sign in to import a league.';
+  if (data?.error?.includes('Connect Yahoo')) return 'Connect Yahoo in League Sync before importing from Yahoo.';
   return data?.error ?? fallback;
 }
 
@@ -46,12 +47,12 @@ export async function fetchImportPreview(
     return { ok: false, error: 'League ID is required.' };
   }
 
-  if (provider === 'sleeper') {
+  if (provider === 'sleeper' || provider === 'yahoo') {
     try {
       const res = await fetch('/api/leagues/import/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'sleeper', sourceId: trimmed }),
+        body: JSON.stringify({ provider, sourceId: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -88,12 +89,12 @@ export async function submitImportCreation(
     return { ok: false, error: 'League ID is required.' };
   }
 
-  if (provider === 'sleeper') {
+  if (provider === 'sleeper' || provider === 'yahoo') {
     try {
       const res = await fetch('/api/leagues/import/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'sleeper', sourceId: trimmed }),
+        body: JSON.stringify({ provider, sourceId: trimmed }),
       });
       const data = await res.json();
       if (!res.ok) {

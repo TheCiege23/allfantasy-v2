@@ -28,6 +28,11 @@ import {
   upsertZombieLeagueConfig,
 } from '@/lib/zombie/ZombieLeagueConfig'
 import { getStatus } from '@/lib/zombie/ZombieOwnerStatusService'
+import {
+  isDevyLeague,
+  getDevyConfig,
+  upsertDevyConfig,
+} from '@/lib/devy/DevyLeagueConfig'
 
 const registry = new Map<SpecialtyLeagueId, SpecialtyLeagueSpec>()
 
@@ -193,6 +198,34 @@ function registerZombie(): void {
   })
 }
 
+function registerDevy(): void {
+  registerSpecialtyLeague({
+    id: 'devy',
+    leagueVariant: 'devy_dynasty',
+    label: 'Devy Dynasty',
+    wizardLeagueTypeId: 'devy',
+
+    detect: isDevyLeague,
+    getConfig: getDevyConfig,
+    upsertConfig: upsertDevyConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/devy/DevyHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/devy/summary',
+    aiRoutePath: null,
+
+    // No rosterGuard / getExcludedRosterIds for devy; all rosters can act. Optional: exclude if league phase locks.
+  })
+}
+
 registerGuillotine()
 registerSurvivor()
 registerZombie()
+registerDevy()

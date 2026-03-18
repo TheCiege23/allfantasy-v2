@@ -32,9 +32,9 @@ const PROVIDER_INPUT_CONFIG: Record<
     help: 'Import from ESPN will be available in a future update.',
   },
   yahoo: {
-    label: 'Yahoo League ID',
-    placeholder: 'e.g. 12345',
-    help: 'Import from Yahoo will be available in a future update.',
+    label: 'Yahoo League Key',
+    placeholder: 'e.g. 461.l.12345 or 12345',
+    help: 'Connect Yahoo in League Sync first, then paste the full Yahoo league key or numeric league ID.',
   },
   fantrax: {
     label: 'Fantrax League ID',

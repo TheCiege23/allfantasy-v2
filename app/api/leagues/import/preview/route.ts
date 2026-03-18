@@ -16,6 +16,13 @@ import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePr
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import type { ImportProvider } from '@/lib/league-import/types'
 
+function mapImportPreviewErrorStatus(code: string): number {
+  if (code === 'LEAGUE_NOT_FOUND') return 404
+  if (code === 'UNAUTHORIZED') return 401
+  if (code === 'CONNECTION_REQUIRED') return 400
+  return 500
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireVerifiedUser()
   if (!auth.ok) {
@@ -43,21 +50,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Sleeper: deterministic fetch + normalize (no AI)
-  if (provider === 'sleeper') {
-    const result = await runImportedLeagueNormalizationPipeline(sourceId)
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.code === 'LEAGUE_NOT_FOUND' ? 404 : 500 }
-      )
-    }
-    const preview = buildImportedLeaguePreview(result.normalized)
-    return NextResponse.json(preview)
+  const result = await runImportedLeagueNormalizationPipeline({
+    provider,
+    sourceId,
+    userId: auth.userId,
+  })
+  if (!result.success) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: mapImportPreviewErrorStatus(result.code) }
+    )
   }
 
-  return NextResponse.json(
-    { error: `Import from ${provider} is not yet available.` },
-    { status: 400 }
-  )
+  const preview = buildImportedLeaguePreview(result.normalized)
+  return NextResponse.json(preview)
 }

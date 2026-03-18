@@ -197,7 +197,11 @@ export async function POST(req: Request) {
     }
 
     const { getInitialSettingsForCreation } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
-    const initialSettings = getInitialSettingsForCreation(sport as string, leagueVariantInput ?? undefined, {
+    const presetVariant =
+      String(leagueTypeWizard ?? leagueVariantInput ?? '').toLowerCase() === 'devy'
+        ? 'devy_dynasty'
+        : (leagueVariantInput ?? undefined);
+    const initialSettings = getInitialSettingsForCreation(sport as string, presetVariant, {
       superflex: isSuperflex ?? false,
       roster_mode: isDynasty ? 'dynasty' : undefined,
     }) as Record<string, unknown>;
@@ -223,7 +227,11 @@ export async function POST(req: Request) {
     const isSurvivor =
       String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
       String(leagueTypeWizard ?? '').toLowerCase() === 'survivor';
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : (leagueVariantInput ?? null);
+    const isDevy =
+      String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'devy';
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isDevy ? 'devy_dynasty' : (leagueVariantInput ?? null);
+    const effectiveDynasty = isDevy ? true : isDynasty;
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -232,7 +240,7 @@ export async function POST(req: Request) {
         platformLeagueId: platformLeagueId || `manual-${Date.now()}`,
         leagueSize,
         scoring,
-        isDynasty,
+        isDynasty: effectiveDynasty,
         sport,
         leagueVariant: resolvedVariant,
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
@@ -282,6 +290,15 @@ export async function POST(req: Request) {
         });
       } catch (err) {
         console.warn('[league/create] Survivor config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isDevy) {
+      try {
+        const { upsertDevyConfig } = await import('@/lib/devy/DevyLeagueConfig');
+        await upsertDevyConfig(league.id, {});
+      } catch (err) {
+        console.warn('[league/create] Devy config bootstrap non-fatal:', err);
       }
     }
 

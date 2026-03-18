@@ -35,8 +35,8 @@ export async function resolveLeaguePreset(
   const overlay = getRosterOverlayForVariant(sportType, variant)
   const isIdp = sportType === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')
 
-  let rosterDefaults: RosterDefaults = getRosterDefaults(sportType)
-  if (overlay && Object.keys(overlay).length > 0) {
+  let rosterDefaults: RosterDefaults = getRosterDefaults(sportType, formatType)
+  if (formatType !== 'devy_dynasty' && overlay && Object.keys(overlay).length > 0) {
     rosterDefaults = {
       ...rosterDefaults,
       starter_slots: { ...rosterDefaults.starter_slots, ...overlay },

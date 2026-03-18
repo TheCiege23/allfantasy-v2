@@ -81,13 +81,16 @@ export function isLiveDraftType(draftType: DraftTypeId): boolean {
 }
 
 /**
- * League types allowed for a sport. C2C and Devy are primarily NFL/NCAAF; others available for all.
+ * League types allowed for a sport. Devy: NFL (NCAA Football) and NBA (NCAA Basketball). C2C: NFL/NCAAF.
  */
 export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): LeagueTypeId[] {
   const s = String(sport).toUpperCase()
   const all: LeagueTypeId[] = ['redraft', 'dynasty', 'keeper', 'best_ball', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap']
   if (s === 'NFL' || s === 'NCAAF') {
     return [...all, 'devy', 'c2c']
+  }
+  if (s === 'NBA') {
+    return [...all, 'devy']
   }
   return all
 }

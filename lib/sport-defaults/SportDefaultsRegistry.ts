@@ -149,6 +149,35 @@ const ROSTER_DEFAULTS: Record<SportType, RosterDefaults> = {
   },
 }
 
+/** Devy Dynasty roster defaults by sport (PROMPT 2/6). NFL: 12 teams, SUPER_FLEX optional ON; NBA: G/F/C + FLEX. */
+const DEVY_DYNASTY_ROSTER_DEFAULTS: Record<'NFL' | 'NBA', RosterDefaults> = {
+  NFL: {
+    sport_type: 'NFL',
+    starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 2, SUPER_FLEX: 1 },
+    bench_slots: 12,
+    IR_slots: 3,
+    taxi_slots: 6,
+    devy_slots: 6,
+    flex_definitions: [
+      { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
+      { slotName: 'SUPER_FLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+    ],
+  },
+  NBA: {
+    sport_type: 'NBA',
+    starter_slots: { G: 2, F: 2, C: 1, FLEX: 2 },
+    bench_slots: 10,
+    IR_slots: 3,
+    taxi_slots: 4,
+    devy_slots: 5,
+    flex_definitions: [
+      { slotName: 'G', allowedPositions: ['PG', 'SG'] },
+      { slotName: 'F', allowedPositions: ['SF', 'PF'] },
+      { slotName: 'FLEX', allowedPositions: ['PG', 'SG', 'SF', 'PF', 'C'] },
+    ],
+  },
+}
+
 const SCORING_DEFAULTS: Record<SportType, ScoringDefaults> = {
   NFL: { sport_type: 'NFL', scoring_template_id: 'default-NFL-PPR', scoring_format: 'PPR', category_type: 'points' },
   NBA: { sport_type: 'NBA', scoring_template_id: 'default-NBA-points', scoring_format: 'points', category_type: 'points' },
@@ -414,10 +443,14 @@ export function getLeagueDefaults(sportType: SportType): LeagueDefaults {
 }
 
 /**
- * Get roster defaults for a sport. When formatType is 'IDP' for NFL, returns base NFL + IDP slots and flex definitions.
+ * Get roster defaults for a sport. When formatType is 'IDP' for NFL, returns base NFL + IDP slots.
+ * When formatType is 'devy_dynasty' for NFL or NBA, returns Devy Dynasty roster (devy slots, taxi, etc.).
  */
 export function getRosterDefaults(sportType: SportType, formatType?: string): RosterDefaults {
   const base = ROSTER_DEFAULTS[sportType] ?? ROSTER_DEFAULTS.NFL
+  if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
+    return DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
+  }
   if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
@@ -441,10 +474,25 @@ export function getScoringDefaults(sportType: SportType): ScoringDefaults {
 
 /**
  * Get draft defaults for a sport. When formatType is 'IDP' (or 'DYNASTY_IDP') for NFL,
- * returns base NFL defaults with IDP-specific rounds and behavior (more rounds for defensive slots).
+ * returns base NFL defaults with IDP-specific rounds. When formatType is 'devy_dynasty',
+ * returns rounds sufficient for startup vet (active + bench + taxi); rookie/devy rounds come from DevyLeagueConfig.
  */
 export function getDraftDefaults(sportType: SportType, formatType?: string | null): DraftDefaults {
   const base = DRAFT_DEFAULTS[sportType] ?? DRAFT_DEFAULTS.NFL
+  if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
+    const roster = DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
+    const totalProSlots =
+      Object.values(roster.starter_slots).reduce((a, b) => a + b, 0) + roster.bench_slots + roster.taxi_slots
+    return {
+      ...base,
+      rounds_default: totalProSlots,
+      queue_size_limit: Math.max(base.queue_size_limit ?? 50, 60),
+      pre_draft_ranking_source: 'adp',
+      draft_order_rules: 'snake',
+      snake_or_linear_behavior: 'snake',
+      keeper_dynasty_carryover_supported: true,
+    }
+  }
   if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
     return {
       ...base,

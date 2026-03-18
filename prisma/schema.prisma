@@ -3514,6 +3514,7 @@ model League {
   salaryCapConfig    SalaryCapLeagueConfig?
   survivorConfig     SurvivorLeagueConfig?
   zombieConfig       ZombieLeagueConfig?
+  devyConfig         DevyLeagueConfig?
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
@@ -4283,6 +4284,49 @@ model ZombieLeagueConfig {
   updatedAt               DateTime @updatedAt
 
   @@map("zombie_league_configs")
+}
+
+// ========== Devy Dynasty League Engine (PROMPT 2/6) ==========
+
+/// Devy Dynasty league config. Sport adapter derived from League.sport (nfl_devy | nba_devy).
+model DevyLeagueConfig {
+  id                          String   @id @default(uuid())
+  leagueId                    String   @unique @db.VarChar(64)
+  league                      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  /// Format flags (all true for devy_dynasty).
+  dynastyOnly                 Boolean  @default(true)
+  supportsStartupVetDraft     Boolean  @default(true)
+  supportsRookieDraft         Boolean  @default(true)
+  supportsDevyDraft           Boolean  @default(true)
+  supportsBestBall            Boolean  @default(true)
+  supportsSnakeDraft          Boolean  @default(true)
+  supportsLinearDraft         Boolean  @default(true)
+  supportsTaxi                Boolean  @default(true)
+  supportsFuturePicks         Boolean  @default(true)
+  supportsTradeableDevyPicks  Boolean  @default(true)
+  supportsTradeableRookiePicks Boolean  @default(true)
+  /// Commissioner-controlled roster/draft settings.
+  devySlotCount               Int      @default(6)
+  taxiSize                    Int      @default(6)
+  rookieDraftRounds           Int      @default(4)
+  devyDraftRounds             Int      @default(4)
+  startupVetRounds            Int?     // null = derive from roster (active + bench + taxi)
+  bestBallEnabled             Boolean  @default(false)
+  startupDraftType            String   @default("snake") @db.VarChar(16)   // snake | linear
+  rookieDraftType             String   @default("snake") @db.VarChar(16)
+  devyDraftType               String   @default("snake") @db.VarChar(16)
+  maxYearlyDevyPromotions     Int?     // null = no hard cap
+  earlyDeclareBehavior        String   @default("allow") @db.VarChar(24)   // allow | block | commissioner
+  rookiePickOrderMethod       String   @default("reverse_standings") @db.VarChar(32)   // reverse_standings | lottery | consolation | custom
+  devyPickOrderMethod         String   @default("reverse_standings") @db.VarChar(32)
+  devyPickTradeRules          String   @default("allowed") @db.VarChar(24)   // allowed | locked_until_draft | commissioner_only
+  rookiePickTradeRules        String   @default("allowed") @db.VarChar(24)
+  /// NFL-only: exclude K/DST from devy pool (default false = include eligible only; devy pool is QB/RB/WR/TE).
+  nflDevyExcludeKDST          Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@map("devy_league_configs")
 }
 
 /// Per-roster status in a Zombie league (Survivor | Zombie | Whisperer).

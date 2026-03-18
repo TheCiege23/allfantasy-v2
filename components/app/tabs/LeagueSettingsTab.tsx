@@ -24,9 +24,10 @@ import LeagueTemplatesPanel from '@/components/app/settings/LeagueTemplatesPanel
 import PreviousLeaguesPanel from '@/components/app/settings/PreviousLeaguesPanel'
 import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
 import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
+import { DevySettingsPanel } from '@/components/devy/DevySettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 
-const SUBTABS = [
+const SUBTABS_BASE = [
   'General',
   'Templates',
   'Privacy & invites',
@@ -52,15 +53,21 @@ const SUBTABS = [
   'Delete League',
 ] as const
 
+const SUBTABS = [...SUBTABS_BASE, 'Devy Settings'] as const
 type SettingsSubtab = (typeof SUBTABS)[number]
 
-export default function LeagueSettingsTab({ leagueId }: LeagueTabProps) {
+export default function LeagueSettingsTab({
+  leagueId,
+  isDevyDynasty,
+  isCommissioner,
+}: LeagueTabProps & { isDevyDynasty?: boolean; isCommissioner?: boolean }) {
   const [active, setActive] = useState<SettingsSubtab>('General')
+  const visibleSubtabs = SUBTABS.filter((tab) => tab !== 'Devy Settings' || isDevyDynasty)
 
   return (
     <section className="space-y-4">
       <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
-        {SUBTABS.map((tab) => (
+        {visibleSubtabs.map((tab) => (
           <button
             key={tab}
             type="button"
@@ -95,6 +102,9 @@ export default function LeagueSettingsTab({ leagueId }: LeagueTabProps) {
       {active === 'Previous Leagues' && <PreviousLeaguesPanel />}
       {active === 'Reset League' && <ResetLeaguePanel leagueId={leagueId} />}
       {active === 'Delete League' && <DeleteLeaguePanel />}
+      {active === 'Devy Settings' && isDevyDynasty && (
+        <DevySettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+      )}
     </section>
   )
 }

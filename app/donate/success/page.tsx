@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useEffect, useRef } from "react"
+import { Suspense, useMemo, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { useEntitlement } from "@/hooks/useEntitlement"
 import { useTokenBalance } from "@/hooks/useTokenBalance"
@@ -10,7 +10,7 @@ function getMode(searchParams: URLSearchParams | null): "donate" | "lab" {
   return searchParams.get("mode") === "lab" ? "lab" : "donate"
 }
 
-export default function DonateSuccessPage() {
+function DonateSuccessContent() {
   const searchParams = useSearchParams()
   const mode = useMemo(() => getMode(searchParams), [searchParams])
   const { refetch: refetchEntitlement } = useEntitlement()
@@ -59,5 +59,19 @@ export default function DonateSuccessPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DonateSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-white flex items-center justify-center">
+          <div className="text-white/60">Loading...</div>
+        </div>
+      }
+    >
+      <DonateSuccessContent />
+    </Suspense>
   )
 }

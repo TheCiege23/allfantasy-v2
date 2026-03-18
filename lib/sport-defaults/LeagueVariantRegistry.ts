@@ -43,6 +43,8 @@ export function getFormatTypeForVariant(
 ): string {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
   const v = (variant ?? 'STANDARD').toUpperCase()
+  const vLower = (variant ?? '').toLowerCase()
+  if (vLower === 'devy_dynasty' || vLower === 'devy') return 'devy_dynasty'
   if (sport !== 'NFL') return 'standard'
   if (v === 'IDP' || v === 'DYNASTY_IDP') return 'IDP'
   if (v === 'HALF_PPR') return 'Half PPR'
@@ -71,6 +73,14 @@ export function getRosterOverlayForVariant(
 export function isIdpVariant(variant: string | null | undefined): boolean {
   const v = (variant ?? '').toUpperCase()
   return v === 'IDP' || v === 'DYNASTY_IDP'
+}
+
+/**
+ * Check if variant is Devy Dynasty (specialty format with devy/rookie/startup drafts).
+ */
+export function isDevyDynastyVariant(variant: string | null | undefined): boolean {
+  const v = (variant ?? '').toLowerCase()
+  return v === 'devy_dynasty'
 }
 
 /**
