@@ -1,12 +1,16 @@
 'use client'
 
 /**
- * Devy Dynasty league Overview home. PROMPT 2/6.
- * Fetches summary from /api/leagues/[leagueId]/devy/summary; mobile-first.
+ * Devy Dynasty league Overview home. PROMPT 2/6 + 3/6.
+ * Fetches summary from /api/leagues/[leagueId]/devy/summary; promotion panel and commissioner tools.
  */
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { DevyPromotionPanel } from './DevyPromotionPanel'
+import { DevyCommissionerTools } from './DevyCommissionerTools'
+import { DevyDraftCenter } from './DevyDraftCenter'
+import { DevyLeagueHomeCards } from './DevyLeagueHomeCards'
 
 interface DevySummary {
   leagueId: string
@@ -17,6 +21,7 @@ interface DevySummary {
     taxiSize: number
     rookieDraftRounds: number
     devyDraftRounds: number
+    startupVetRounds?: number | null
     bestBallEnabled: boolean
     startupDraftType: string
     rookieDraftType: string
@@ -27,7 +32,13 @@ interface DevySummary {
   sessionId: string | null
 }
 
-export function DevyHome({ leagueId }: { leagueId: string }) {
+interface DevyHomeProps {
+  leagueId: string
+  isCommissioner?: boolean
+  rosterId?: string
+}
+
+export function DevyHome({ leagueId, isCommissioner, rosterId }: DevyHomeProps) {
   const [summary, setSummary] = useState<DevySummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -104,6 +115,9 @@ export function DevyHome({ leagueId }: { leagueId: string }) {
         {config.bestBallEnabled && (
           <p className="mt-2 text-xs text-emerald-400">Best ball enabled</p>
         )}
+        <p className="mt-2 text-xs text-white/50">
+          Best Ball auto-optimizes your highest scoring legal lineup each scoring period. Devy college players do not score until they become active pro assets.
+        </p>
       </div>
 
       {draftPhaseInfo && (
@@ -119,6 +133,28 @@ export function DevyHome({ leagueId }: { leagueId: string }) {
           </Link>
         </div>
       )}
+
+      <DevyDraftCenter
+        leagueId={leagueId}
+        startupRounds={summary.config.startupVetRounds ?? undefined}
+        rookieRounds={summary.config.rookieDraftRounds}
+        devyRounds={summary.config.devyDraftRounds}
+        startupType={summary.config.startupDraftType}
+        rookieType={summary.config.rookieDraftType}
+        devyType={summary.config.devyDraftType}
+        devySlotsUsed={0}
+        devySlotCount={summary.config.devySlotCount}
+        bestBallEnabled={summary.config.bestBallEnabled}
+      />
+
+      <DevyLeagueHomeCards
+        leagueId={leagueId}
+        promotionEligibleCount={0}
+      />
+
+      <DevyPromotionPanel leagueId={leagueId} rosterId={rosterId} isCommissioner={isCommissioner} />
+
+      {isCommissioner && <DevyCommissionerTools leagueId={leagueId} />}
 
       <Link
         href={`/app/league/${leagueId}?tab=Settings`}

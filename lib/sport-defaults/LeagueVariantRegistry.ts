@@ -45,6 +45,7 @@ export function getFormatTypeForVariant(
   const v = (variant ?? 'STANDARD').toUpperCase()
   const vLower = (variant ?? '').toLowerCase()
   if (vLower === 'devy_dynasty' || vLower === 'devy') return 'devy_dynasty'
+  if (vLower === 'tournament_mode') return sport === 'NFL' ? 'PPR' : 'standard'
   if (sport !== 'NFL') return 'standard'
   if (v === 'IDP' || v === 'DYNASTY_IDP') return 'IDP'
   if (v === 'HALF_PPR') return 'Half PPR'

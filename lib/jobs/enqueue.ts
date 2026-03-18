@@ -3,8 +3,8 @@
  */
 
 import "server-only";
-import { getNotificationsQueue, getAiQueue, getSimulationQueue } from "@/lib/queues/bullmq";
-import type { NotificationJobPayload } from "./types";
+import { getNotificationsQueue, getAiQueue, getSimulationQueue, getDevyQueue } from "@/lib/queues/bullmq";
+import type { NotificationJobPayload, DevyJobPayload } from "./types";
 import type { AiJobPayload } from "./types";
 import type { SimulationJobPayload } from "./types";
 
@@ -98,6 +98,34 @@ export async function enqueueSimulation(
       options?.jobName ?? "simulation",
       payload,
       { ...DEFAULT_JOB_OPTS, delay: options?.delay }
+    );
+    return { ok: true, jobId: job.id ?? "" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: message };
+  }
+}
+
+export type EnqueueDevyResult =
+  | { ok: true; jobId: string }
+  | { ok: false; error: string };
+
+/**
+ * Enqueue a Devy Dynasty job (NCAA sync, graduation, pools, snapshots, rankings).
+ */
+export async function enqueueDevy(
+  payload: DevyJobPayload,
+  options?: { jobId?: string; delay?: number }
+): Promise<EnqueueDevyResult> {
+  const queue = getDevyQueue();
+  if (!queue) {
+    return { ok: false, error: "Devy queue not configured (Redis required)." };
+  }
+  try {
+    const job = await queue.add(
+      payload.type,
+      payload,
+      { ...DEFAULT_JOB_OPTS, jobId: options?.jobId, delay: options?.delay }
     );
     return { ok: true, jobId: job.id ?? "" };
   } catch (e) {

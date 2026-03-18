@@ -12,12 +12,16 @@ import { prisma } from '@/lib/prisma'
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { normalizeDraftPlayerList } from '@/lib/draft-sports-models/normalize-draft-player'
+import { isDevyLeague } from '@/lib/devy'
+import { getPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/devy'
+import { isC2CLeague, getC2CPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/merged-devy-c2c'
 import type { LeagueSport } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 const DEFAULT_LIMIT = 300
 const DEVY_POOL_LIMIT = 200
+type PoolType = 'startup_vet' | 'rookie' | 'devy' | 'startup_pro' | 'startup_college' | 'startup_merged' | 'college' | 'merged_rookie_college'
 
 function normalizeNameForDedupe(name: string): string {
   return (name ?? '').trim().toLowerCase()
@@ -53,11 +57,17 @@ export async function GET(
       parseInt(req.nextUrl.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
       500
     )
+    let poolType = req.nextUrl.searchParams.get('poolType') as PoolType | null
+    const isDevyDynasty = await isDevyLeague(leagueId)
+    const isC2C = await isC2CLeague(leagueId)
+    if (isDevyDynasty && !isC2C && poolType == null) poolType = 'startup_vet'
+    if (isC2C && poolType == null) poolType = 'startup_merged'
     const rawDevyConfig = draftSession?.devyConfig as { enabled?: boolean; devyRounds?: number[] } | null
     const rawC2cConfig = draftSession?.c2cConfig as { enabled?: boolean; collegeRounds?: number[] } | null
     const devyEnabled = Boolean(rawDevyConfig?.enabled)
-    const c2cEnabled = Boolean(rawC2cConfig?.enabled)
-    const mergeCollegePool = (devyEnabled || c2cEnabled) && sport === 'NFL'
+    const c2cEnabled = Boolean(rawC2cConfig?.enabled) || isC2C
+    const mergeCollegePool = (devyEnabled || c2cEnabled) && (sport === 'NFL' || sport === 'NBA')
+    const strictPoolSeparation = (isDevyDynasty && poolType != null) || (isC2C && poolType != null)
 
     type RawRow = {
       name?: string
@@ -84,7 +94,26 @@ export async function GET(
     }
     let rawList: RawRow[] = []
 
-    if (sport === 'NFL') {
+    if (strictPoolSeparation && (poolType === 'devy' || poolType === 'college' || poolType === 'startup_college')) {
+      const devyPlayers = await (prisma as any).devyPlayer.findMany({
+        where: { devyEligible: true, graduatedToNFL: false },
+        take: DEVY_POOL_LIMIT,
+        orderBy: { devyAdp: 'asc' },
+      }).catch(() => [] as any[])
+      rawList = devyPlayers.map((p: any) => ({
+        name: p.name,
+        position: p.position ?? '—',
+        team: p.school ?? p.nflTeam ?? null,
+        adp: p.devyAdp != null ? Number(p.devyAdp) : null,
+        college: p.school ?? null,
+        isDevy: true,
+        school: p.school ?? null,
+        draftEligibleYear: p.draftEligibleYear ?? null,
+        graduatedToNFL: false,
+        playerId: p.id ?? null,
+        ...(isC2C ? { poolType: 'college' as const } : {}),
+      }))
+    } else if (sport === 'NFL' || sport === 'NBA') {
       const adpEntries = await getLiveADP('redraft', limit).catch(() => [])
       rawList = adpEntries.map((e) => ({
         name: e.name,
@@ -93,6 +122,17 @@ export async function GET(
         adp: e.adp,
         bye: e.bye,
       }))
+      if (strictPoolSeparation && poolType === 'rookie') {
+        const excludedProIds = isC2C
+          ? await getC2CPromotedProPlayerIdsExcludedFromRookiePool(leagueId)
+          : await getPromotedProPlayerIdsExcludedFromRookiePool(leagueId)
+        if (excludedProIds.size > 0) {
+          rawList = rawList.filter((r: RawRow) => {
+            const id = r.playerId ?? r.id ?? (r as any).sleeperId
+            return id == null || !excludedProIds.has(String(id))
+          })
+        }
+      }
     } else {
       const pool = await getPlayerPoolForLeague(leagueId, sport, { limit })
       rawList = pool.map((p) => ({
@@ -106,8 +146,11 @@ export async function GET(
     }
 
     const proNames = new Set(rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')))
+    const includeCollegeInPool =
+      mergeCollegePool &&
+      !(strictPoolSeparation && (poolType === 'startup_vet' || poolType === 'startup_pro'))
 
-    if (mergeCollegePool) {
+    if (includeCollegeInPool) {
       const devyPlayers = await (prisma as any).devyPlayer.findMany({
         where: { devyEligible: true, graduatedToNFL: false },
         take: DEVY_POOL_LIMIT,
@@ -139,6 +182,7 @@ export async function GET(
       entries,
       sport,
       count: entries.length,
+      poolType: strictPoolSeparation ? poolType ?? undefined : undefined,
       devyConfig: devyEnabled ? { enabled: true, devyRounds: rawDevyConfig?.devyRounds ?? [] } : undefined,
       c2cConfig: c2cEnabled ? { enabled: true, collegeRounds: rawC2cConfig?.collegeRounds ?? [] } : undefined,
     })

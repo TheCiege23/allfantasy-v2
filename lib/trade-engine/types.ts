@@ -59,6 +59,9 @@ export type Asset = {
   devyAdp?: number
   draftEligibleYear?: number
 
+  // C2C (Merged Devy) asset subtype for trade economy
+  c2cAssetType?: 'PRO_PLAYER' | 'COLLEGE_PLAYER' | 'ROOKIE_PICK' | 'COLLEGE_PICK' | 'FUTURE_ROOKIE_PICK' | 'FUTURE_COLLEGE_PICK' | 'PROMOTION_RIGHT' | 'STARTUP_PICK'
+
   // Tags
   tags?: string[]
 }

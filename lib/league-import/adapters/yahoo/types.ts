@@ -86,5 +86,11 @@ export interface YahooImportPayload {
   settings: YahooImportSettings | null
   teams: YahooImportTeam[]
   schedule: YahooImportScheduleWeek[]
+  scheduleWeeksExpected: number | null
+  scheduleWeeksCovered: number
   transactions: YahooImportTransaction[]
+  previousSeasons: Array<{
+    season: string
+    sourceLeagueId: string
+  }>
 }

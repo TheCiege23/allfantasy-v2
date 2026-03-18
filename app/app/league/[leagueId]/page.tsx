@@ -7,6 +7,7 @@ import LiveScoringWidget from '@/components/live/LiveScoringWidget'
 import LeagueTabNav, { type LeagueShellTab, LEAGUE_SHELL_TABS } from '@/components/app/LeagueTabNav'
 import OverviewTab from '@/components/app/tabs/OverviewTab'
 import TeamTab from '@/components/app/tabs/TeamTab'
+import { C2CTeamTab } from '@/components/merged-devy-c2c/C2CTeamTab'
 import MatchupsTab from '@/components/app/tabs/MatchupsTab'
 import RosterTab from '@/components/app/tabs/RosterTab'
 import PlayersTab from '@/components/app/tabs/PlayersTab'
@@ -31,6 +32,8 @@ import StoreTab from '@/components/app/tabs/StoreTab'
 import NewsTab from '@/components/app/tabs/NewsTab'
 import DivisionsTab from '@/components/app/tabs/DivisionsTab'
 import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
+import { TournamentLeagueHome, TournamentTeamView } from '@/components/tournament'
+import { useSession } from 'next-auth/react'
 
 type LeagueSummary = { id: string; name: string }
 
@@ -55,7 +58,10 @@ export default function AppLeaguePage() {
   const [isSurvivor, setIsSurvivor] = useState<boolean>(false)
   const [isZombie, setIsZombie] = useState<boolean>(false)
   const [isDevyDynasty, setIsDevyDynasty] = useState<boolean>(false)
+  const [isMergedDevyC2C, setIsMergedDevyC2C] = useState<boolean>(false)
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ''
 
   useEffect(() => {
     let active = true
@@ -74,6 +80,7 @@ export default function AppLeaguePage() {
           setIsSurvivor(variant === 'survivor')
           setIsZombie(variant === 'zombie')
           setIsDevyDynasty(variant === 'devy_dynasty')
+          setIsMergedDevyC2C(variant === 'merged_devy_c2c')
           return
         }
         // Fallback: bracket list
@@ -119,8 +126,8 @@ export default function AppLeaguePage() {
 
   const renderTab = useMemo(() => {
     return (tab: LeagueShellTab) => {
-      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} isDevyDynasty={isDevyDynasty} />
-      if (tab === 'Team') return <TeamTab leagueId={leagueId} />
+      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isCommissioner={isCommissioner} />
+      if (tab === 'Team') return isMergedDevyC2C ? <C2CTeamTab leagueId={leagueId} /> : <TeamTab leagueId={leagueId} />
       if (tab === 'Matchups') return <MatchupsTab leagueId={leagueId} />
       if (tab === 'Roster') return <RosterTab leagueId={leagueId} />
       if (tab === 'Players') return <PlayersTab leagueId={leagueId} />
@@ -141,11 +148,11 @@ export default function AppLeaguePage() {
       if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
-      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isCommissioner={isCommissioner} />
+      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isCommissioner={isCommissioner} />
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty])
+  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isCommissioner])
 
   return (
     <div className="space-y-3">
@@ -156,6 +163,10 @@ export default function AppLeaguePage() {
           onClose={() => setShowFirstEntryModal(false)}
         />
       )}
+      <div className="px-4 sm:px-0 space-y-3">
+        <TournamentLeagueHome leagueId={leagueId} />
+        {userId && <TournamentTeamView leagueId={leagueId} userId={userId} />}
+      </div>
       <div className="px-4 pt-3 sm:px-0">
         <LiveScoringWidget leagueId={leagueId} />
       </div>

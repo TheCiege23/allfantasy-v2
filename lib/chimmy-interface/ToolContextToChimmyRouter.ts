@@ -13,6 +13,8 @@ export type ToolContextSource =
   | 'waiver'
   | 'league_forecast'
   | 'rankings'
+  | 'devy'
+  | 'c2c'
   | 'generic'
 
 /**
@@ -69,6 +71,36 @@ export function getToolContextForChimmy(
       const leagueName = payload.leagueName ? ` in "${payload.leagueName}"` : ''
       const prompt = `How do my team and league${leagueName} look? What moves should I consider?`
       return { toolId: 'rankings', suggestedPrompt: prompt.slice(0, 500), contextHint: payload.leagueName as string | undefined }
+    }
+    case 'devy': {
+      const leagueId = payload.leagueId as string | undefined
+      const hint = leagueId ? `Devy league ${leagueId}` : 'Devy Dynasty'
+      const prompt = (payload.promptType as string) === 'promotion'
+        ? 'Who should I promote from my devy rights, and what is the roster impact?'
+        : (payload.promptType as string) === 'trade_pick'
+        ? 'Should I trade this devy pick? Compare to rookie capital and my pipeline.'
+        : (payload.promptType as string) === 'pipeline'
+        ? 'Is my devy class pipeline healthy? Rookie vs devy capital?'
+        : 'Help with my Devy Dynasty league: promotion, devy picks, or pipeline.'
+      return { toolId: 'devy_league', suggestedPrompt: prompt.slice(0, 500), contextHint: hint }
+    }
+    case 'c2c': {
+      const leagueId = payload.leagueId as string | undefined
+      const hint = leagueId ? `C2C league ${leagueId}` : 'College-to-Canton'
+      const promptType = payload.promptType as string
+      const prompt =
+        promptType === 'promotion'
+          ? 'Should I promote this player now or later? What is the impact on college vs pro standings?'
+          : promptType === 'college_depth'
+          ? 'Do I need more college depth? How does my pipeline look?'
+          : promptType === 'pro_age'
+          ? 'Am I too old on the pro side? Should I balance with college assets?'
+          : promptType === 'trade_picks'
+          ? 'Should I trade rookie picks for college assets (or vice versa)?'
+          : promptType === 'build_direction'
+          ? 'Should I build for college points now or pro points later?'
+          : 'Help with my C2C league: promotion, college vs pro balance, pipeline, or draft strategy.'
+      return { toolId: 'c2c_league', suggestedPrompt: prompt.slice(0, 500), contextHint: hint }
     }
     default:
       return { toolId: 'generic', suggestedPrompt: 'I have a fantasy sports question.', contextHint: undefined }

@@ -1,0 +1,119 @@
+'use client'
+
+/**
+ * PROMPT 4: Draft Center — Startup Vet Draft, Rookie Draft, Devy Draft tabs.
+ * Snake/linear visualization note, traded picks, current roster, devy slots used/remaining, class depth sidebar, best ball tips.
+ */
+
+import { useState } from 'react'
+import Link from 'next/link'
+
+export type DevyDraftTab = 'startup' | 'rookie' | 'devy'
+
+interface DevyDraftCenterProps {
+  leagueId: string
+  startupRounds?: number
+  rookieRounds: number
+  devyRounds: number
+  startupType: string
+  rookieType: string
+  devyType: string
+  devySlotsUsed: number
+  devySlotCount: number
+  bestBallEnabled: boolean
+  classDepthByYear?: Record<number, { qb: number; rb: number; wr: number; te: number }>
+}
+
+export function DevyDraftCenter({
+  leagueId,
+  startupRounds,
+  rookieRounds,
+  devyRounds,
+  startupType,
+  rookieType,
+  devyType,
+  devySlotsUsed,
+  devySlotCount,
+  bestBallEnabled,
+  classDepthByYear = {},
+}: DevyDraftCenterProps) {
+  const [tab, setTab] = useState<DevyDraftTab>('startup')
+
+  const tabs: { id: DevyDraftTab; label: string; rounds: number; type: string }[] = [
+    { id: 'startup', label: 'Startup Vet Draft', rounds: startupRounds ?? 0, type: startupType },
+    { id: 'rookie', label: 'Rookie Draft', rounds: rookieRounds, type: rookieType },
+    { id: 'devy', label: 'Devy Draft', rounds: devyRounds, type: devyType },
+  ]
+
+  const years = Object.keys(classDepthByYear)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .slice(0, 5)
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-white/5 p-4 lg:flex-row">
+      <div className="flex-1 space-y-3">
+        <h3 className="text-base font-semibold text-white">Draft Center</h3>
+        <div className="flex gap-2">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                tab === t.id ? 'bg-white/15 text-white' : 'text-white/60 hover:bg-white/10'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="rounded-lg bg-white/5 p-3">
+          <p className="text-sm text-white/80">
+            {tab === 'startup' && 'Startup vet draft: veterans only. No NCAA or rookies.'}
+            {tab === 'rookie' && 'Rookie draft: first-year pros. Devy-held promoted players are excluded.'}
+            {tab === 'devy' && 'Devy draft: NCAA-eligible prospects only.'}
+          </p>
+          <p className="mt-1 text-xs text-white/50">
+            {tabs.find((t) => t.id === tab)?.rounds} rounds · {tabs.find((t) => t.id === tab)?.type}
+          </p>
+          <Link
+            href={`/app/league/${leagueId}?tab=Draft`}
+            className="mt-3 inline-block rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
+          >
+            Go to Draft
+          </Link>
+        </div>
+        {bestBallEnabled && (
+          <p className="text-xs text-white/50">
+            Best ball roster construction: prioritize ceiling and depth; lineup is auto-optimized each period.
+          </p>
+        )}
+      </div>
+      <div className="w-full space-y-3 lg:w-64">
+        <div className="rounded-lg bg-white/5 p-3">
+          <h4 className="text-xs font-medium text-white/80">Devy slots</h4>
+          <p className="mt-1 text-sm text-white">
+            {devySlotsUsed} / {devySlotCount} used
+          </p>
+        </div>
+        {years.length > 0 && (
+          <div className="rounded-lg bg-white/5 p-3">
+            <h4 className="text-xs font-medium text-white/80">Class depth (by year)</h4>
+            <ul className="mt-2 space-y-1 text-xs text-white/70">
+              {years.map((y) => {
+                const d = classDepthByYear[y]
+                if (!d) return null
+                return (
+                  <li key={y}>
+                    {y}: QB {d.qb} · RB {d.rb} · WR {d.wr} · TE {d.te}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

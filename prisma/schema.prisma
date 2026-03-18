@@ -2158,6 +2158,8 @@ model DevyPlayer {
   devyAdpHistory DevyAdp[]
 
   source           String    @default("cfbd")
+  /// Sport-aware NCAA source tag (e.g. cfbd, ncaab_stats) for multi-sport devy.
+  ncaaSourceTag    String?   @db.VarChar(24)
   lastClassifiedAt DateTime?
   lastSyncedAt     DateTime  @default(now())
   createdAt        DateTime  @default(now())
@@ -2386,6 +2388,7 @@ model AppUser {
   inviteLinksCreated            InviteLink[]
   leagueTemplates               LeagueTemplate[]
   growthAttributions            GrowthAttribution[]
+  tournamentsCreated            Tournament[]       @relation("TournamentCreator")
 
   @@map("app_users")
 }
@@ -3515,7 +3518,14 @@ model League {
   survivorConfig     SurvivorLeagueConfig?
   zombieConfig       ZombieLeagueConfig?
   devyConfig         DevyLeagueConfig?
+  devyRights         DevyRights[]
+  devyLifecycleEvents         DevyLifecycleEvent[]
+  devyCommissionerOverrides   DevyCommissionerOverride[]
+  devyDraftHistories  DevyDraftHistory[]
+  devyBestBallLineupSnapshots DevyBestBallLineupSnapshot[]
+  c2cConfig           C2CLeagueConfig?
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
+  tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -3550,6 +3560,180 @@ model LeagueTemplate {
 
   @@index([userId])
   @@map("league_templates")
+}
+
+// ========== Tournament Mode (PROMPT 2) — multi-league elimination ==========
+
+/// Tournament: one parent record; creator is commissioner of all child leagues.
+model Tournament {
+  id          String   @id @default(uuid())
+  name        String   @db.VarChar(120)
+  sport       String   @db.VarChar(8)   // NFL first
+  season      Int      @default(0)
+  variant     String   @default("black_vs_gold") @db.VarChar(32)
+  creatorId   String
+  /// qualificationWeeks, advancementPerLeague, redraftWeeks, draftType, participantPoolSize, leagueNamingMode, faabResetByRound, benchByRound, etc.
+  settings    Json     @default("{}")
+  /// visibility: public | unlisted | private. forumAnnouncements: boolean. bannerTheme: string.
+  hubSettings Json     @default("{}")
+  status      String   @default("setup") @db.VarChar(24)   // setup | qualification | elimination | finals | completed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Set when tournament is completed; prevents duplicate champion.
+  championUserId String?  @db.VarChar(64)
+  /// Locked at start of competition; no rebalance after this.
+  lockedAt       DateTime?
+
+  creator      AppUser                @relation("TournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  conferences  TournamentConference[]
+  leagues      TournamentLeague[]
+  rounds       TournamentRound[]
+  announcements TournamentAnnouncement[]
+  participants TournamentParticipant[]
+  auditLogs    TournamentAuditLog[]
+
+  @@index([creatorId])
+  @@index([sport, season])
+  @@index([status])
+  @@map("tournaments")
+}
+
+/// Conference: e.g. Black / Gold; themed names and styling.
+model TournamentConference {
+  id           String   @id @default(uuid())
+  tournamentId String
+  name         String   @db.VarChar(64)
+  theme        String   @default("black") @db.VarChar(24)   // black | gold | custom
+  themePayload Json?    // { primaryColor, secondaryColor, iconName }
+  orderIndex   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament   Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  leagues      TournamentLeague[]
+  participants TournamentParticipant[]
+
+  @@index([tournamentId])
+  @@map("tournament_conferences")
+}
+
+/// Join: League belongs to one Tournament and one Conference; round/phase tracked.
+model TournamentLeague {
+  id             String   @id @default(uuid())
+  tournamentId   String
+  conferenceId   String
+  leagueId       String   @unique
+  roundIndex     Int      @default(0)   // 0 = qualification
+  phase          String   @default("qualification") @db.VarChar(24)   // qualification | elimination | elite_eight | championship
+  orderInConference Int   @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tournament Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  conference TournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  league     League             @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
+  @@index([conferenceId])
+  @@map("tournament_leagues")
+}
+
+/// Round container: qualification round, elimination rounds, finals.
+model TournamentRound {
+  id           String   @id @default(uuid())
+  tournamentId String
+  roundIndex   Int      // 0 = qualification, 1+ = elimination/finals
+  phase        String   @db.VarChar(24)   // qualification | elimination | elite_eight | championship
+  name         String?  @db.VarChar(64)   // e.g. "Qualification", "Elite Eight"
+  startWeek    Int?     @default(0)
+  endWeek      Int?     @default(0)
+  status       String   @default("pending") @db.VarChar(24)   // pending | active | completed | archived
+  settings     Json?    // advancementCount, redraftSchedule, faabReset, benchSpots
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, roundIndex])
+  @@index([tournamentId])
+  @@map("tournament_rounds")
+}
+
+/// Tournament-wide announcements (hub/forum).
+model TournamentAnnouncement {
+  id           String   @id @default(uuid())
+  tournamentId String
+  authorId     String?
+  title        String?  @db.VarChar(200)
+  body         String   @db.Text
+  type         String   @default("general") @db.VarChar(32)   // general | round_start | round_end | redraft | league_disband | champion_story
+  metadata     Json?    // roundIndex, leagueIds, linkedLeagueId
+  pinned       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
+  @@index([tournamentId, createdAt])
+  @@map("tournament_announcements")
+}
+
+/// PROMPT 5: Audit log for advancement, elimination, redraft, overrides, tie resolution, lock, rebalance.
+model TournamentAuditLog {
+  id            String   @id @default(uuid())
+  tournamentId  String
+  actorId       String?  // commissioner userId
+  action        String   @db.VarChar(48)   // advancement_run | elimination | force_advance | tie_resolution | lock | rebalance | rerun_standings | rerun_seeding | redraft_regenerate | draft_reopen | archive_round | resolve_state | bulk_update
+  targetType    String?  @db.VarChar(24)   // participant | league | round | tournament
+  targetId      String?  @db.VarChar(128)
+  metadata      Json?    // userId, leagueId, roundIndex, before/after, reason
+  createdAt     DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
+  @@index([tournamentId, createdAt])
+  @@map("tournament_audit_logs")
+}
+
+/// PROMPT 3: Participant progression — one row per user in a tournament; tracks qualification rank, current league, elimination.
+model TournamentParticipant {
+  id                        String   @id @default(uuid())
+  tournamentId               String
+  userId                     String   // AppUser.id (or platform user id that joined)
+  conferenceId               String
+  /// Qualification league/roster (feeder).
+  qualificationLeagueId      String?
+  qualificationRosterId      String?
+  qualificationRankInConference Int?   // 1-based within conference
+  qualificationWins         Int      @default(0)
+  qualificationLosses        Int      @default(0)
+  qualificationPointsFor     Float    @default(0)
+  qualificationPointsAgainst Float   @default(0)
+  /// Current league/roster (null if eliminated).
+  currentLeagueId            String?
+  currentRosterId             String?
+  /// Last round index from which they advanced (0 = from qualification).
+  advancedAtRoundIndex       Int      @default(0)
+  /// Set when eliminated; null if still active.
+  eliminatedAtRoundIndex     Int?
+  status                     String   @default("active") @db.VarChar(24)   // active | eliminated
+  bubbleAdvanced             Boolean  @default(false)
+  /// For bracket display: which elimination round league (NORTH/SOUTH/EAST/WEST) they were assigned.
+  bracketLabel               String?  @db.VarChar(32)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  tournament  Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  conference  TournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+  @@index([conferenceId])
+  @@index([tournamentId, status])
+  @@map("tournament_participants")
 }
 
 /// League chat (main app League). Syncs with draft chat when liveDraftChatSyncEnabled during active draft.
@@ -3596,6 +3780,7 @@ model Roster {
 
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
+  devyRights         DevyRights[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
@@ -4323,10 +4508,214 @@ model DevyLeagueConfig {
   rookiePickTradeRules        String   @default("allowed") @db.VarChar(24)
   /// NFL-only: exclude K/DST from devy pool (default false = include eligible only; devy pool is QB/RB/WR/TE).
   nflDevyExcludeKDST          Boolean  @default(false)
+  /// PROMPT 3: When to apply promotion: immediate_after_pro_draft | rollover | manager_choice_before_rookie_draft
+  promotionTiming             String   @default("manager_choice_before_rookie_draft") @db.VarChar(48)
+  /// Allow devy players (NCAA, not rostered) on waivers/FA when enabled; FAAB or priority per league.
+  supplementalDevyFAEnabled   Boolean  @default(false)
+  /// If enabled, rights expire after configured period when not promoted (commissioner tool to clean).
+  rightsExpirationEnabled     Boolean  @default(false)
+  /// PROMPT 4: When best ball is ON, if true then taxi-eligible pro rookies can contribute to best ball lineup; otherwise taxi players do not score.
+  taxiProRookiesScoreInBestBall Boolean @default(false)
+  /// PROMPT 4: Superflex slot in best ball (NFL). When true, lineup has SUPER_FLEX in addition to FLEX.
+  bestBallSuperflex           Boolean  @default(false)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
   @@map("devy_league_configs")
+}
+
+/// PROMPT 3: Per-roster devy rights and lifecycle state. One row per (league, roster, devyPlayer) when a manager holds devy rights.
+model DevyRights {
+  id                  String   @id @default(uuid())
+  leagueId             String   @db.VarChar(64)
+  rosterId             String   @db.VarChar(64)
+  devyPlayerId         String   @db.VarChar(64)
+  /// Lifecycle: NCAA_DEVY_ACTIVE | NCAA_DEVY_TAXI | NCAA_DEVY_LOCKED | DECLARED | DRAFTED_RIGHTS_HELD | PROMOTION_ELIGIBLE | PROMOTED_TO_PRO | RETURNED_TO_SCHOOL | RIGHTS_EXPIRED | ORPHANED_RIGHTS
+  state                String   @db.VarChar(32)
+  seasonYear           Int?     // year of declaration/draft when relevant
+  /// After promotion, pro player id (SportsPlayer or platform) when mapped
+  promotedProPlayerId  String?  @db.VarChar(64)
+  promotedAt           DateTime?
+  /// When manager chose promotion (if timing = manager_choice_before_rookie_draft)
+  managerPromotedAt    DateTime?
+  /// If returned to school, restored to NCAA devy state
+  returnedToSchoolAt   DateTime?
+  /// Source confidence for declare/draft mapping (0-100)
+  sourceConfidence     Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  league  League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster  Roster  @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, devyPlayerId])
+  @@index([leagueId])
+  @@index([rosterId])
+  @@index([devyPlayerId])
+  @@index([state])
+  @@index([leagueId, state])
+  @@map("devy_rights")
+}
+
+/// PROMPT 3: Audit log for every graduation, promotion, pool assignment, and commissioner action.
+model DevyLifecycleEvent {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  eventType   String   @db.VarChar(48)   // graduation | promotion | return_to_school | rights_expired | orphaned | pool_assignment | commissioner_override
+  rosterId    String?  @db.VarChar(64)
+  devyPlayerId String? @db.VarChar(64)
+  proPlayerId String?  @db.VarChar(64)
+  payload     Json?    // state before/after, reason, etc.
+  createdAt   DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("devy_lifecycle_events")
+}
+
+/// PROMPT 3: Commissioner override queue for ambiguous devy-to-pro player mapping.
+model DevyCommissionerOverride {
+  id              String   @id @default(uuid())
+  leagueId        String   @db.VarChar(64)
+  devyPlayerId    String   @db.VarChar(64)
+  proPlayerId     String?  @db.VarChar(64)   // resolved mapping
+  action          String   @db.VarChar(32)   // resolve_mapping | force_promote | revoke_promotion | reopen_window
+  status          String   @default("pending") @db.VarChar(24)   // pending | applied | rejected
+  resolvedAt      DateTime?
+  resolvedBy      String?  @db.VarChar(64)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@index([status])
+  @@map("devy_commissioner_overrides")
+}
+
+/// PROMPT 5: Draft history (startup vet, rookie, devy) for audit and AI/rankings.
+model DevyDraftHistory {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  draftKind   String   @db.VarChar(24)   // startup_vet | rookie | devy
+  seasonYear  Int?
+  round       Int
+  pick        Int
+  rosterId    String?  @db.VarChar(64)
+  playerId   String?  @db.VarChar(64)   // DevyPlayer or pro player id
+  isDevy      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@index([leagueId, draftKind])
+  @@index([seasonYear])
+  @@map("devy_draft_histories")
+}
+
+/// PROMPT 5: Class strength snapshot by sport and season (deterministic input for AI storytelling).
+model DevyClassStrengthSnapshot {
+  id          String   @id @default(uuid())
+  sport       String   @db.VarChar(8)   // NFL | NBA
+  seasonYear  Int
+  payload     Json     // { year: { qb, rb, wr, te } } or NBA position counts
+  createdAt   DateTime @default(now())
+
+  @@unique([sport, seasonYear])
+  @@index([sport])
+  @@map("devy_class_strength_snapshots")
+}
+
+/// PROMPT 5: Best ball auto-lineup snapshot per roster/period (deterministic result).
+model DevyBestBallLineupSnapshot {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  rosterId    String   @db.VarChar(64)
+  periodKey   String   @db.VarChar(32)   // e.g. "2024_w1" or "2024_season"
+  totalPoints Float?
+  starterIds  Json     // array of player ids in optimal lineup
+  createdAt   DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, periodKey])
+  @@index([leagueId])
+  @@index([rosterId])
+  @@map("devy_best_ball_lineup_snapshots")
+}
+
+// ========== Merged Devy / C2C (College to Canton) PROMPT 2/6 ==========
+
+/// Merged Devy / C2C league config. Sport adapter: nfl_c2c | nba_c2c. Dynasty only; merged college + pro pipeline.
+model C2CLeagueConfig {
+  id                                String   @id @default(uuid())
+  leagueId                          String   @unique @db.VarChar(64)
+  league                            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  dynastyOnly                       Boolean  @default(true)
+  supportsMergedCollegeAndProAssets Boolean  @default(true)
+  supportsCollegeScoring             Boolean  @default(true)
+  supportsBestBall                  Boolean  @default(true)
+  supportsSnakeDraft                 Boolean  @default(true)
+  supportsLinearDraft               Boolean  @default(true)
+  supportsTaxi                      Boolean  @default(true)
+  supportsFuturePicks               Boolean  @default(true)
+  supportsTradeableCollegeAssets    Boolean  @default(true)
+  supportsTradeableCollegePicks      Boolean  @default(true)
+  supportsTradeableRookiePicks      Boolean  @default(true)
+  supportsPromotionRules            Boolean  @default(true)
+  /// Startup: merged (one draft pro+college) | separate (pro draft then college draft)
+  startupFormat                     String   @default("merged") @db.VarChar(24)
+  mergedStartupDraft                Boolean  @default(true)
+  separateStartupCollegeDraft       Boolean  @default(false)
+  collegeRosterSize                 Int      @default(20)
+  collegeActiveLineupSlots          Json?    // e.g. { qb:1, rb:2, wr:3, te:1, flex:2 } NFL; { g:2, f:2, c:1, flex:2 } NBA
+  taxiSize                          Int      @default(6)
+  rookieDraftRounds                 Int      @default(4)
+  collegeDraftRounds                Int      @default(6)
+  bestBallPro                       Boolean  @default(true)
+  bestBallCollege                   Boolean  @default(false)
+  promotionTiming                   String   @default("manager_choice_before_rookie_draft") @db.VarChar(48)
+  maxPromotionsPerYear              Int?
+  earlyDeclareBehavior              String   @default("allow") @db.VarChar(24)
+  returnToSchoolHandling            String   @default("restore_rights") @db.VarChar(32)
+  rookiePickTradeRules              String   @default("allowed") @db.VarChar(24)
+  collegePickTradeRules             String   @default("allowed") @db.VarChar(24)
+  collegeScoringUntilDeadline       Boolean  @default(true)
+  /// unified | separate | hybrid
+  standingsModel                    String   @default("unified") @db.VarChar(24)
+  mergedRookieCollegeDraft          Boolean  @default(false)
+  /// NFL only: exclude K/DST from college pool (default true = exclude)
+  nflCollegeExcludeKDST             Boolean  @default(true)
+  /// Pro lineup/bench/IR stored in League.settings or here; optional override
+  proLineupSlots                    Json?
+  proBenchSize                      Int      @default(12)
+  proIRSize                         Int      @default(3)
+  startupDraftType                  String   @default("snake") @db.VarChar(16)
+  rookieDraftType                   String   @default("snake") @db.VarChar(16)
+  collegeDraftType                  String   @default("snake") @db.VarChar(16)
+  rookiePickOrderMethod             String   @default("reverse_standings") @db.VarChar(32)
+  collegePickOrderMethod            String   @default("reverse_standings") @db.VarChar(32)
+  /// PROMPT 3: Hybrid championship — weight for pro season (0–100); college = 100 - hybridProWeight.
+  hybridProWeight                   Int      @default(60)
+  /// PROMPT 3: Hybrid championship — playoff qualification: pro_only | college_only | combined | weighted.
+  hybridPlayoffQualification        String   @default("weighted") @db.VarChar(32)
+  /// PROMPT 3: Hybrid championship tie-breaker: pro_first | college_first | total_points | head_to_head.
+  hybridChampionshipTieBreaker      String   @default("total_points") @db.VarChar(32)
+  /// PROMPT 3: College free agency enabled (NCAA-eligible, unrostered only).
+  collegeFAEnabled                  Boolean  @default(false)
+  /// PROMPT 3: Separate college FAAB budget when true; otherwise shared with pro.
+  collegeFAABSeparate               Boolean  @default(false)
+  /// PROMPT 3: College FAAB budget per roster when collegeFAABSeparate (optional cap).
+  collegeFAABBudget                 Int?
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime @updatedAt
+
+  @@map("c2c_league_configs")
 }
 
 /// Per-roster status in a Zombie league (Survivor | Zombie | Whisperer).

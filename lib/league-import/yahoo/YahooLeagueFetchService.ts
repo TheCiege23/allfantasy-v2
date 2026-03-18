@@ -24,6 +24,8 @@ type YahooLeagueLookup = {
   leagueKey: string
   season: number | null
   sport: string | null
+  name: string | null
+  numTeams: number | null
 }
 
 type YahooStandingDetails = {
@@ -218,6 +220,15 @@ function createImportTeam(
   }
 }
 
+function buildYahooWeekRange(startWeek: number | null, endWeek: number | null): number[] {
+  if (startWeek == null || endWeek == null || endWeek < startWeek) return []
+  const weeks: number[] = []
+  for (let week = startWeek; week <= endWeek; week += 1) {
+    weeks.push(week)
+  }
+  return weeks
+}
+
 async function getYahooAuthForUser(userId: string): Promise<YahooApiFetchContext> {
   const auth = await (prisma as any).leagueAuth.findUnique({
     where: { userId_platform: { userId, platform: 'yahoo' } },
@@ -318,6 +329,8 @@ async function listYahooLeaguesForUser(context: YahooApiFetchContext): Promise<Y
           leagueKey: String(leagueData.league_key),
           season: parseNumber(leagueData.season, null),
           sport: typeof gameInfo?.code === 'string' ? gameInfo.code.toUpperCase() : null,
+          name: typeof leagueData?.name === 'string' ? leagueData.name : null,
+          numTeams: parseNumber(leagueData?.num_teams, null),
         })
       }
     }
@@ -356,6 +369,35 @@ async function resolveYahooLeagueLookup(
     sport: match.sport,
     resolvedFromLeagueList: true,
   }
+}
+
+async function discoverYahooPreviousSeasons(
+  currentLeague: YahooImportLeague,
+  context: YahooApiFetchContext
+): Promise<Array<{ season: string; sourceLeagueId: string }>> {
+  const currentName = currentLeague.name.trim().toLowerCase()
+  if (!currentName) return []
+
+  const candidates = await listYahooLeaguesForUser(context)
+  const previousSeasons = candidates
+    .filter((league) => {
+      if (!league.leagueKey || league.leagueKey === currentLeague.leagueKey) return false
+      if ((league.sport ?? '').toUpperCase() !== currentLeague.sport.toUpperCase()) return false
+      if ((league.name ?? '').trim().toLowerCase() !== currentName) return false
+      if (league.season == null || currentLeague.season == null) return true
+      return league.season < currentLeague.season
+    })
+    .filter((league) => {
+      if (currentLeague.numTeams <= 0 || league.numTeams == null) return true
+      return league.numTeams === currentLeague.numTeams
+    })
+    .sort((a, b) => (b.season ?? 0) - (a.season ?? 0))
+    .map((league) => ({
+      season: String(league.season ?? 'unknown'),
+      sourceLeagueId: league.leagueKey,
+    }))
+
+  return previousSeasons
 }
 
 function parseYahooSettings(settingsData: any): YahooImportSettings | null {
@@ -558,6 +600,44 @@ function parseYahooScoreboard(scoreboardData: any, season: number): YahooImportS
   return [{ week, season, matchups }]
 }
 
+function parseYahooTeamMatchups(matchupsData: any, season: number): YahooImportScheduleWeek[] {
+  const teamNode = matchupsData?.fantasy_content?.team
+  const matchupWrappers = getYahooCollectionItems(getYahooProperty(teamNode, 'matchups'))
+  const weeks = new Map<number, YahooImportScheduleWeek['matchups']>()
+
+  for (const wrapper of matchupWrappers) {
+    const matchup = mergeYahooEntityFragments(wrapper, 'matchup')
+    const week = parseNumber(matchup.week, null)
+    if (week == null) continue
+
+    const teams = getYahooCollectionItems(getYahooProperty(matchup, 'teams'))
+      .map((teamWrapper) => mergeYahooEntityFragments(teamWrapper, 'team'))
+      .filter((team) => team.team_key)
+
+    if (teams.length !== 2) continue
+    const points1 = parseNumber(getYahooProperty(teams[0], 'team_points')?.total, null)
+    const points2 = parseNumber(getYahooProperty(teams[1], 'team_points')?.total, null)
+
+    if (!weeks.has(week)) {
+      weeks.set(week, [])
+    }
+    weeks.get(week)!.push({
+      teamKey1: String(teams[0].team_key),
+      teamKey2: String(teams[1].team_key),
+      points1: points1 ?? undefined,
+      points2: points2 ?? undefined,
+    })
+  }
+
+  return Array.from(weeks.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([week, matchups]) => ({
+      week,
+      season,
+      matchups,
+    }))
+}
+
 function parseYahooTransactions(transactionsData: any): YahooImportTransaction[] {
   const leagueNode = transactionsData?.fantasy_content?.league
   const transactionWrappers = getYahooCollectionItems(getYahooProperty(leagueNode, 'transactions'))
@@ -680,6 +760,13 @@ export async function fetchYahooLeagueForImport(
     )
   }
 
+  const expectedScheduleWeeks = buildYahooWeekRange(
+    league.startWeek,
+    league.isFinished
+      ? league.endWeek
+      : (league.currentWeek ?? league.endWeek)
+  )
+
   const rosterResults = await Promise.allSettled(
     teamKeys.map(async (teamKey) => {
       const rosterData = await yahooApiFetchJson(`${YAHOO_API_BASE}/team/${teamKey}/roster/players?format=json`, context)
@@ -702,12 +789,81 @@ export async function fetchYahooLeagueForImport(
     )
   )
 
-  const schedule =
-    scoreboardResult.status === 'fulfilled'
-      ? parseYahooScoreboard(scoreboardResult.value, league.season ?? new Date().getFullYear())
-      : []
+  const scheduleByWeek = new Map<number, YahooImportScheduleWeek['matchups']>()
+  if (expectedScheduleWeeks.length > 0) {
+    const weekParam = expectedScheduleWeeks.join(',')
+    const matchupResults = await Promise.allSettled(
+      teamKeys.map(async (teamKey) => {
+        const matchupData = await yahooApiFetchJson(
+          `${YAHOO_API_BASE}/team/${teamKey}/matchups;weeks=${weekParam}?format=json`,
+          context
+        )
+        return parseYahooTeamMatchups(matchupData, league.season ?? new Date().getFullYear())
+      })
+    )
+
+    for (const result of matchupResults) {
+      if (result.status !== 'fulfilled') continue
+      for (const week of result.value) {
+        if (!scheduleByWeek.has(week.week)) {
+          scheduleByWeek.set(week.week, [])
+        }
+        const weekEntries = scheduleByWeek.get(week.week)!
+        for (const matchup of week.matchups) {
+          const matchupKey = [matchup.teamKey1, matchup.teamKey2].sort().join('::')
+          const exists = weekEntries.some((existing) => {
+            const existingKey = [existing.teamKey1, existing.teamKey2].sort().join('::')
+            return existingKey === matchupKey
+          })
+          if (!exists) {
+            weekEntries.push(matchup)
+          }
+        }
+      }
+    }
+  }
+
+  if (scheduleByWeek.size === 0 && scoreboardResult.status === 'fulfilled') {
+    for (const week of parseYahooScoreboard(scoreboardResult.value, league.season ?? new Date().getFullYear())) {
+      scheduleByWeek.set(week.week, week.matchups)
+    }
+  }
+
+  const schedule = Array.from(scheduleByWeek.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([week, matchups]) => ({
+      week,
+      season: league.season ?? new Date().getFullYear(),
+      matchups,
+    }))
+
+  const pointsAgainstByTeam = new Map<string, number>()
+  for (const week of schedule) {
+    for (const matchup of week.matchups) {
+      if (typeof matchup.points2 === 'number') {
+        pointsAgainstByTeam.set(
+          matchup.teamKey1,
+          (pointsAgainstByTeam.get(matchup.teamKey1) ?? 0) + matchup.points2
+        )
+      }
+      if (typeof matchup.points1 === 'number') {
+        pointsAgainstByTeam.set(
+          matchup.teamKey2,
+          (pointsAgainstByTeam.get(matchup.teamKey2) ?? 0) + matchup.points1
+        )
+      }
+    }
+  }
+  for (const team of teams) {
+    const pointsAgainst = pointsAgainstByTeam.get(team.teamKey)
+    if (typeof pointsAgainst === 'number') {
+      team.pointsAgainst = pointsAgainst
+    }
+  }
+
   const transactions =
     transactionsResult.status === 'fulfilled' ? parseYahooTransactions(transactionsResult.value) : []
+  const previousSeasons = await discoverYahooPreviousSeasons(league, context)
 
   return {
     sourceInput,
@@ -716,6 +872,9 @@ export async function fetchYahooLeagueForImport(
     settings,
     teams,
     schedule,
+    scheduleWeeksExpected: expectedScheduleWeeks.length > 0 ? expectedScheduleWeeks.length : null,
+    scheduleWeeksCovered: schedule.length,
     transactions,
+    previousSeasons,
   }
 }

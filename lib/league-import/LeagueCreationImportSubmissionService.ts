@@ -1,6 +1,5 @@
 /**
  * Client-side service for league creation import: preview fetch and create-from-import submit.
- * Provider-ready: Sleeper wired; other providers return errors for graceful UX.
  */
 
 import { isImportProviderAvailable } from './provider-ui-config';
@@ -28,12 +27,13 @@ function getImportApiErrorMessage(
   if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing a league.';
   if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized') return 'Sign in to import a league.';
   if (data?.error?.includes('Connect Yahoo')) return 'Connect Yahoo in League Sync before importing from Yahoo.';
+  if (data?.error?.includes('Connect ESPN')) return 'Connect ESPN in League Sync before importing private ESPN leagues.';
+  if (data?.error?.includes('saved ESPN cookies')) return 'Reconnect ESPN in League Sync, then try importing again.';
   return data?.error ?? fallback;
 }
 
 /**
  * Fetch import preview for the given provider and source input.
- * Only Sleeper is implemented; others return { ok: false, error: '...' }.
  */
 export async function fetchImportPreview(
   provider: ImportProvider,
@@ -47,34 +47,29 @@ export async function fetchImportPreview(
     return { ok: false, error: 'League ID is required.' };
   }
 
-  if (provider === 'sleeper' || provider === 'yahoo') {
-    try {
-      const res = await fetch('/api/leagues/import/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, sourceId: trimmed }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return {
-          ok: false,
-          error: getImportApiErrorMessage(data, 'Failed to load league'),
-          status: res.status,
-        };
-      }
-      return { ok: true, data };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Network error';
-      return { ok: false, error: message };
+  try {
+    const res = await fetch('/api/leagues/import/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, sourceId: trimmed }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: getImportApiErrorMessage(data, 'Failed to load league'),
+        status: res.status,
+      };
     }
+    return { ok: true, data };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Network error';
+    return { ok: false, error: message };
   }
-
-  return { ok: false, error: `Import from ${provider} is not yet available.` };
 }
 
 /**
  * Submit create-from-import for the given provider and source input.
- * Only Sleeper is implemented; others return { ok: false, error: '...' }.
  */
 export async function submitImportCreation(
   provider: ImportProvider,
@@ -89,27 +84,23 @@ export async function submitImportCreation(
     return { ok: false, error: 'League ID is required.' };
   }
 
-  if (provider === 'sleeper' || provider === 'yahoo') {
-    try {
-      const res = await fetch('/api/leagues/import/commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, sourceId: trimmed }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return {
-          ok: false,
-          error: getImportApiErrorMessage(data, 'Failed to create league'),
-          status: res.status,
-        };
-      }
-      return { ok: true, data };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Network error';
-      return { ok: false, error: message };
+  try {
+    const res = await fetch('/api/leagues/import/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, sourceId: trimmed }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: getImportApiErrorMessage(data, 'Failed to create league'),
+        status: res.status,
+      };
     }
+    return { ok: true, data };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Network error';
+    return { ok: false, error: message };
   }
-
-  return { ok: false, error: `Import from ${provider} is not yet available.` };
 }

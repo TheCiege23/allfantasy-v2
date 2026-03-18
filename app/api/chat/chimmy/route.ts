@@ -10,6 +10,9 @@ import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enr
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
 import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
 import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
+import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
+import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
+import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tournamentContextForChimmy'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 
@@ -722,7 +725,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult] = await Promise.allSettled([
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, devyContextResult, c2cContextResult, tournamentContextResult] = await Promise.allSettled([
     getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
@@ -731,6 +734,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userId ? getAIMemorySummary(userId) : Promise.resolve(''),
     userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
     leagueId && userId ? buildSurvivorContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildDevyContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildC2CContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildTournamentContextForChimmy(leagueId, userId) : Promise.resolve(''),
   ])
 
   let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
@@ -743,6 +749,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (survivorContextStr && typeof survivorContextStr === 'string') {
     userContextStr = userContextStr ? `${userContextStr}\n\n${survivorContextStr}` : survivorContextStr
     dataSources.push('survivor_league')
+  }
+  const devyContextStr = devyContextResult.status === 'fulfilled' ? devyContextResult.value : ''
+  if (devyContextStr && typeof devyContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${devyContextStr}` : devyContextStr
+    dataSources.push('devy_league')
+  }
+  const c2cContextStr = c2cContextResult.status === 'fulfilled' ? c2cContextResult.value : ''
+  if (c2cContextStr && typeof c2cContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${c2cContextStr}` : c2cContextStr
+    dataSources.push('c2c_league')
+  }
+  const tournamentContextStr = tournamentContextResult.status === 'fulfilled' ? tournamentContextResult.value : ''
+  if (tournamentContextStr && typeof tournamentContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${tournamentContextStr}` : tournamentContextStr
+    dataSources.push('tournament_league')
   }
   const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
   const enrichmentStr = enrichment?.context ?? ''

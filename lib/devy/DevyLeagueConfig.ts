@@ -57,6 +57,11 @@ function defaultCommissionerSettings(sport: LeagueSport): DevyCommissionerSettin
     devyPickTradeRules: 'allowed',
     rookiePickTradeRules: 'allowed',
     nflDevyExcludeKDST: false,
+    promotionTiming: 'manager_choice_before_rookie_draft',
+    supplementalDevyFAEnabled: false,
+    rightsExpirationEnabled: false,
+    taxiProRookiesScoreInBestBall: false,
+    bestBallSuperflex: false,
   }
 }
 
@@ -107,6 +112,11 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
       devyPickTradeRules: row.devyPickTradeRules as DevyCommissionerSettings['devyPickTradeRules'],
       rookiePickTradeRules: row.rookiePickTradeRules as DevyCommissionerSettings['rookiePickTradeRules'],
       nflDevyExcludeKDST: row.nflDevyExcludeKDST,
+      promotionTiming: (row as any).promotionTiming ?? 'manager_choice_before_rookie_draft',
+      supplementalDevyFAEnabled: (row as any).supplementalDevyFAEnabled ?? false,
+      rightsExpirationEnabled: (row as any).rightsExpirationEnabled ?? false,
+      taxiProRookiesScoreInBestBall: (row as any).taxiProRookiesScoreInBestBall ?? false,
+      bestBallSuperflex: (row as any).bestBallSuperflex ?? false,
     }
   }
 
@@ -141,6 +151,11 @@ export async function upsertDevyConfig(
     devyPickTradeRules: string
     rookiePickTradeRules: string
     nflDevyExcludeKDST: boolean
+    promotionTiming: string
+    supplementalDevyFAEnabled: boolean
+    rightsExpirationEnabled: boolean
+    taxiProRookiesScoreInBestBall: boolean
+    bestBallSuperflex: boolean
   }>
 ): Promise<DevyLeagueConfigShape | null> {
   const league = await prisma.league.findUnique({
@@ -182,6 +197,11 @@ export async function upsertDevyConfig(
       devyPickTradeRules: input.devyPickTradeRules ?? 'allowed',
       rookiePickTradeRules: input.rookiePickTradeRules ?? 'allowed',
       nflDevyExcludeKDST: input.nflDevyExcludeKDST ?? false,
+      promotionTiming: input.promotionTiming ?? 'manager_choice_before_rookie_draft',
+      supplementalDevyFAEnabled: input.supplementalDevyFAEnabled ?? false,
+      rightsExpirationEnabled: input.rightsExpirationEnabled ?? false,
+      taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall ?? false,
+      bestBallSuperflex: input.bestBallSuperflex ?? false,
     },
     update: {
       ...(input.devySlotCount !== undefined && { devySlotCount: input.devySlotCount }),
@@ -200,6 +220,11 @@ export async function upsertDevyConfig(
       ...(input.devyPickTradeRules !== undefined && { devyPickTradeRules: input.devyPickTradeRules }),
       ...(input.rookiePickTradeRules !== undefined && { rookiePickTradeRules: input.rookiePickTradeRules }),
       ...(input.nflDevyExcludeKDST !== undefined && { nflDevyExcludeKDST: input.nflDevyExcludeKDST }),
+      ...(input.promotionTiming !== undefined && { promotionTiming: input.promotionTiming }),
+      ...(input.supplementalDevyFAEnabled !== undefined && { supplementalDevyFAEnabled: input.supplementalDevyFAEnabled }),
+      ...(input.rightsExpirationEnabled !== undefined && { rightsExpirationEnabled: input.rightsExpirationEnabled }),
+      ...(input.taxiProRookiesScoreInBestBall !== undefined && { taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall }),
+      ...(input.bestBallSuperflex !== undefined && { bestBallSuperflex: input.bestBallSuperflex }),
     },
   })
   return getDevyConfig(leagueId)

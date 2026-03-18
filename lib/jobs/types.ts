@@ -6,6 +6,7 @@ export const QUEUE_NAMES = {
   AI: "ai",
   NOTIFICATIONS: "notifications",
   SIMULATIONS: "simulations",
+  DEVY: "devy",
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -43,5 +44,30 @@ export interface SimulationJobPayload {
   leagueId?: string
   rounds?: number
   draftType?: string
+  [key: string]: unknown
+}
+
+/** Devy Dynasty / C2C background job types (NCAA sync, graduation, pools, snapshots, rankings, C2C). */
+export type DevyJobType =
+  | "ncaa_player_sync"
+  | "declare_status_refresh"
+  | "auto_graduation_after_draft"
+  | "rookie_pool_generation"
+  | "devy_pool_generation"
+  | "promotion_window_sync"
+  | "rookie_draft_exclusion_list"
+  | "best_ball_lineup_snapshot"
+  | "rankings_refresh_after_promotions"
+  | "class_strength_snapshot"
+  | "hybrid_standings_recompute"
+  | "c2c_pipeline_recalculation"
+
+export interface DevyJobPayload {
+  type: DevyJobType
+  leagueId?: string
+  sport?: string
+  seasonYear?: number
+  rosterId?: string
+  periodKey?: string
   [key: string]: unknown
 }

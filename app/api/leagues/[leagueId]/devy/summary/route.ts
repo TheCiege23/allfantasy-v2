@@ -44,6 +44,7 @@ export async function GET(
       taxiSize: config.taxiSize,
       rookieDraftRounds: config.rookieDraftRounds,
       devyDraftRounds: config.devyDraftRounds,
+      startupVetRounds: config.startupVetRounds ?? null,
       bestBallEnabled: config.bestBallEnabled,
       startupDraftType: config.startupDraftType,
       rookieDraftType: config.rookieDraftType,

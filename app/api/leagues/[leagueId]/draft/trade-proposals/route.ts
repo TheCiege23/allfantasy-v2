@@ -10,6 +10,7 @@ import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/liv
 import { getDraftSessionByLeague } from '@/lib/live-draft-engine/DraftSessionService'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
+import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,11 @@ export async function POST(
 
   const myRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   if (!myRosterId) return NextResponse.json({ error: 'You do not have a roster in this league' }, { status: 403 })
+
+  const draftPickTradingAllowed = await isDraftPickTradingAllowedForLeague(leagueId)
+  if (!draftPickTradingAllowed) {
+    return NextResponse.json({ error: 'Draft pick trading is disabled in Tournament Mode leagues.' }, { status: 403 })
+  }
 
   const draftSession = await getDraftSessionByLeague(leagueId)
   if (!draftSession || draftSession.status !== 'in_progress') {

@@ -89,8 +89,8 @@ export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): Leag
   if (s === 'NFL' || s === 'NCAAF') {
     return [...all, 'devy', 'c2c']
   }
-  if (s === 'NBA') {
-    return [...all, 'devy']
+  if (s === 'NBA' || s === 'NCAAB') {
+    return [...all, 'devy', 'c2c']
   }
   return all
 }

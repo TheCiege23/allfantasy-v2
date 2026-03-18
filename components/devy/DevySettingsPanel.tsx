@@ -24,6 +24,11 @@ interface DevyConfig {
   devyPickTradeRules: string
   rookiePickTradeRules: string
   nflDevyExcludeKDST: boolean
+  promotionTiming: string
+  supplementalDevyFAEnabled: boolean
+  rightsExpirationEnabled: boolean
+  taxiProRookiesScoreInBestBall: boolean
+  bestBallSuperflex: boolean
 }
 
 interface Props {
@@ -161,6 +166,31 @@ export function DevySettingsPanel({ leagueId, isCommissioner, onSaved }: Props) 
         />
         <span className="text-sm text-white/80">Best ball</span>
       </label>
+      {config.bestBallEnabled && (
+        <p className="text-xs text-white/50">
+          Best Ball auto-optimizes your highest scoring legal lineup each scoring period. Devy college players do not score until they become active pro assets.
+        </p>
+      )}
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={config.taxiProRookiesScoreInBestBall ?? false}
+          onChange={(e) => update({ taxiProRookiesScoreInBestBall: e.target.checked })}
+          disabled={!isCommissioner}
+          className="rounded border-white/20"
+        />
+        <span className="text-sm text-white/80">Taxi pro rookies count in best ball</span>
+      </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={config.bestBallSuperflex ?? false}
+          onChange={(e) => update({ bestBallSuperflex: e.target.checked })}
+          disabled={!isCommissioner}
+          className="rounded border-white/20"
+        />
+        <span className="text-sm text-white/80">Best ball Superflex (NFL)</span>
+      </label>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
@@ -228,6 +258,40 @@ export function DevySettingsPanel({ leagueId, isCommissioner, onSaved }: Props) 
           <option value="consolation">Consolation-based</option>
           <option value="custom">Custom (commissioner)</option>
         </select>
+      </label>
+
+      <label className="block">
+        <span className="text-xs text-white/60">Promotion timing</span>
+        <select
+          value={config.promotionTiming ?? 'manager_choice_before_rookie_draft'}
+          onChange={(e) => update({ promotionTiming: e.target.value })}
+          disabled={!isCommissioner}
+          className="mt-1 w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white disabled:opacity-50"
+        >
+          <option value="immediate_after_pro_draft">Immediate after pro draft</option>
+          <option value="rollover">At league rollover</option>
+          <option value="manager_choice_before_rookie_draft">Manager must choose before rookie draft</option>
+        </select>
+      </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={config.supplementalDevyFAEnabled ?? false}
+          onChange={(e) => update({ supplementalDevyFAEnabled: e.target.checked })}
+          disabled={!isCommissioner}
+          className="rounded border-white/20"
+        />
+        <span className="text-sm text-white/80">Supplemental devy FA (waivers for NCAA devy)</span>
+      </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={config.rightsExpirationEnabled ?? false}
+          onChange={(e) => update({ rightsExpirationEnabled: e.target.checked })}
+          disabled={!isCommissioner}
+          className="rounded border-white/20"
+        />
+        <span className="text-sm text-white/80">Rights expiration (commissioner cleanup)</span>
       </label>
 
       {error && <p className="text-sm text-red-300">{error}</p>}

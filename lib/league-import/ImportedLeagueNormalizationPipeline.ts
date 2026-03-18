@@ -5,6 +5,11 @@
 
 import { fetchSleeperLeagueForImport } from './sleeper/SleeperLeagueFetchService'
 import {
+  EspnImportConnectionError,
+  EspnImportLeagueNotFoundError,
+  fetchEspnLeagueForImport,
+} from './espn/EspnLeagueFetchService'
+import {
   fetchYahooLeagueForImport,
   YahooImportConnectionError,
   YahooImportLeagueNotFoundError,
@@ -59,6 +64,15 @@ export async function runImportedLeagueNormalizationPipeline(
         }
       }
       payload = await fetchYahooLeagueForImport(input.userId, sourceId)
+    } else if (provider === 'espn') {
+      if (typeof input === 'string' || !input.userId) {
+        return {
+          success: false,
+          error: 'Sign in before importing from ESPN.',
+          code: 'UNAUTHORIZED',
+        }
+      }
+      payload = await fetchEspnLeagueForImport(input.userId, sourceId)
     } else {
       return {
         success: false,
@@ -73,6 +87,12 @@ export async function runImportedLeagueNormalizationPipeline(
     })
     return { success: true, normalized }
   } catch (e) {
+    if (e instanceof EspnImportConnectionError) {
+      return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
+    }
+    if (e instanceof EspnImportLeagueNotFoundError) {
+      return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
+    }
     if (e instanceof YahooImportConnectionError) {
       return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
     }

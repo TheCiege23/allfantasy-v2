@@ -64,6 +64,11 @@ export async function GET(
       devyPickTradeRules: config.devyPickTradeRules,
       rookiePickTradeRules: config.rookiePickTradeRules,
       nflDevyExcludeKDST: config.nflDevyExcludeKDST,
+      promotionTiming: config.promotionTiming,
+      supplementalDevyFAEnabled: config.supplementalDevyFAEnabled,
+      rightsExpirationEnabled: config.rightsExpirationEnabled,
+      taxiProRookiesScoreInBestBall: config.taxiProRookiesScoreInBestBall,
+      bestBallSuperflex: config.bestBallSuperflex,
     },
   })
 }
@@ -103,6 +108,11 @@ export async function PUT(
     ...(body.devyPickTradeRules != null && { devyPickTradeRules: String(body.devyPickTradeRules) }),
     ...(body.rookiePickTradeRules != null && { rookiePickTradeRules: String(body.rookiePickTradeRules) }),
     ...(body.nflDevyExcludeKDST != null && { nflDevyExcludeKDST: Boolean(body.nflDevyExcludeKDST) }),
+    ...(body.promotionTiming != null && { promotionTiming: String(body.promotionTiming) }),
+    ...(body.supplementalDevyFAEnabled != null && { supplementalDevyFAEnabled: Boolean(body.supplementalDevyFAEnabled) }),
+    ...(body.rightsExpirationEnabled != null && { rightsExpirationEnabled: Boolean(body.rightsExpirationEnabled) }),
+    ...(body.taxiProRookiesScoreInBestBall != null && { taxiProRookiesScoreInBestBall: Boolean(body.taxiProRookiesScoreInBestBall) }),
+    ...(body.bestBallSuperflex != null && { bestBallSuperflex: Boolean(body.bestBallSuperflex) }),
   })
   if (!updated) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   return NextResponse.json({ ok: true, config: updated })

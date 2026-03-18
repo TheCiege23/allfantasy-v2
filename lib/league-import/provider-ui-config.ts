@@ -8,11 +8,11 @@ import type { ImportProvider } from './types';
 export const IMPORT_PROVIDER_UI_OPTIONS: {
   provider: ImportProvider;
   label: string;
-  /** True if preview + create-from-import are implemented (e.g. Sleeper). */
+  /** True if preview + create-from-import are implemented. */
   available: boolean;
 }[] = [
   { provider: 'sleeper', label: 'Sleeper', available: true },
-  { provider: 'espn', label: 'ESPN', available: false },
+  { provider: 'espn', label: 'ESPN', available: true },
   { provider: 'yahoo', label: 'Yahoo', available: true },
   { provider: 'fantrax', label: 'Fantrax', available: false },
   { provider: 'mfl', label: 'MyFantasyLeague (MFL)', available: false },

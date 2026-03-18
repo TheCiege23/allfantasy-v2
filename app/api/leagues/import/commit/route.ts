@@ -11,8 +11,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireVerifiedUser } from '@/lib/auth-guard'
-import { prisma } from '@/lib/prisma'
 import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
+import {
+  ImportedLeagueConflictError,
+  persistImportedLeagueFromNormalization,
+} from '@/lib/league-import/ImportedLeagueCommitService'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import type { ImportProvider } from '@/lib/league-import/types'
 
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   if (!isImportProviderAvailable(provider)) {
     return NextResponse.json(
-      { error: `Import from ${provider} is not yet available. Use Sleeper.` },
+      { error: `Import from ${provider} is not yet available.` },
       { status: 400 }
     )
   }
@@ -62,105 +65,28 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { normalized } = result
-  const platformLeagueId = normalized.source.source_league_id
-
-  const existing = await (prisma as any).league.findFirst({
-    where: {
-      userId: auth.userId,
-      platform: provider,
-      platformLeagueId,
-    },
-  })
-  if (existing) {
-    return NextResponse.json(
-      { error: 'This league already exists in your account' },
-      { status: 409 }
-    )
-  }
-
-  const normalizedSport = String(normalized.league.sport ?? '').toUpperCase()
-  const leagueSport =
-    (normalizedSport === 'NFL' ||
-      normalizedSport === 'NBA' ||
-      normalizedSport === 'MLB' ||
-      normalizedSport === 'NHL' ||
-      normalizedSport === 'NCAAF' ||
-      normalizedSport === 'NCAAB' ||
-      normalizedSport === 'SOCCER')
-      ? normalizedSport
-      : 'NFL'
-
-  const settingsFromImport: Record<string, unknown> = {
-    ...(normalized.league as Record<string, unknown>),
-    playoff_team_count: normalized.league.playoff_team_count,
-    roster_positions: (normalized.league as Record<string, unknown>).roster_positions,
-    scoring_settings: (normalized.league as Record<string, unknown>).scoring_settings,
-  }
-
-  const league = await (prisma as any).league.create({
-    data: {
-      userId: auth.userId,
-      name: normalized.league.name,
-      platform: provider,
-      platformLeagueId,
-      leagueSize: normalized.league.leagueSize,
-      scoring: normalized.league.scoring ?? undefined,
-      isDynasty: normalized.league.isDynasty,
-      sport: leagueSport,
-      leagueVariant: null,
-      season: normalized.league.season ?? undefined,
-      rosterSize: normalized.league.rosterSize ?? undefined,
-      starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
-      avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
-      settings: settingsFromImport,
-      syncStatus: 'pending',
-      importBatchId: normalized.source.import_batch_id ?? undefined,
-      importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
-    },
-  })
-
   try {
-    const { bootstrapLeagueFromImport } = await import('@/lib/league-import/LeagueCreationBootstrapService')
-    await bootstrapLeagueFromImport(league.id, normalized)
-  } catch (err) {
-    console.warn(`[leagues/import/commit] ${provider} import bootstrap non-fatal:`, err)
-  }
-  try {
-    const { bootstrapLeagueDraftConfig } = await import('@/lib/draft-defaults/LeagueDraftBootstrapService')
-    const { bootstrapLeagueWaiverSettings } = await import('@/lib/waiver-defaults/LeagueWaiverBootstrapService')
-    const { bootstrapLeaguePlayoffConfig } = await import('@/lib/playoff-defaults/LeaguePlayoffBootstrapService')
-    const { bootstrapLeagueScheduleConfig } = await import('@/lib/schedule-defaults/LeagueScheduleBootstrapService')
-    await Promise.all([
-      bootstrapLeagueDraftConfig(league.id),
-      bootstrapLeagueWaiverSettings(league.id),
-      bootstrapLeaguePlayoffConfig(league.id),
-      bootstrapLeagueScheduleConfig(league.id),
-    ])
-  } catch (err) {
-    console.warn('[leagues/import/commit] Gap-fill (draft/waiver/playoff/schedule) non-fatal:', err)
-  }
+    const persisted = await persistImportedLeagueFromNormalization({
+      userId: auth.userId,
+      provider,
+      normalized: result.normalized,
+      allowUpdateExisting: false,
+    })
 
-  let historicalBackfill: unknown = null
-  if (provider === 'sleeper') {
-    try {
-      const { syncSleeperHistoricalBackfillAfterImport } = await import(
-        '@/lib/league-import/sleeper/SleeperHistoricalBackfillService'
+    return NextResponse.json({
+      leagueId: persisted.league.id,
+      name: persisted.league.name,
+      sport: persisted.league.sport,
+      league: persisted.league,
+      historicalBackfill: persisted.historicalBackfill,
+    })
+  } catch (error) {
+    if (error instanceof ImportedLeagueConflictError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
       )
-      historicalBackfill = await syncSleeperHistoricalBackfillAfterImport({
-        leagueId: league.id,
-        isDynasty: normalized.league.isDynasty,
-      })
-    } catch (err) {
-      console.warn('[leagues/import/commit] Historical Sleeper backfill non-fatal:', err)
     }
+    throw error
   }
-
-  return NextResponse.json({
-    leagueId: league.id,
-    name: league.name,
-    sport: league.sport,
-    league: { id: league.id, name: league.name, sport: league.sport },
-    historicalBackfill,
-  })
 }

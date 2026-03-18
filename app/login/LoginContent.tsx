@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import {
   ArrowLeft,
@@ -44,6 +44,20 @@ export default function LoginContent() {
   const [adminError, setAdminError] = useState<string | null>(null)
   const [adminRemaining, setAdminRemaining] = useState<number | null>(null)
 
+  const [configError, setConfigError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/auth/config-check")
+      .then((res) => {
+        if (res.status === 503) return res.json()
+        return null
+      })
+      .then((data) => {
+        if (data?.ok === false && data?.message) setConfigError(data.message)
+      })
+      .catch(() => {})
+  }, [])
+
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -61,6 +75,9 @@ export default function LoginContent() {
     setLoading(true)
 
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'LoginContent.tsx:handlePasswordLogin', message: 'before signIn', data: { loginLen: login.trim().length }, hypothesisId: 'H5', timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       const result = await signIn("credentials", {
         login: login.trim(),
         password,
@@ -70,6 +87,9 @@ export default function LoginContent() {
         keepSignedIn: keepSignedIn ? "1" : "0",
       })
 
+      // #region agent log
+      fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'LoginContent.tsx:handlePasswordLogin', message: 'after signIn', data: { ok: result?.ok, error: result?.error ?? null, hasUrl: !!result?.url }, hypothesisId: 'H5', timestamp: Date.now() }) }).catch(() => {});
+      // #endregion
       if (result?.error) {
         if (result.error.includes("SLEEPER_ONLY_ACCOUNT")) {
           setError("This account was created with Sleeper. Please use the Sleeper sign-in below instead.")
@@ -227,6 +247,17 @@ export default function LoginContent() {
           <>
             <AuthHero title="Welcome back" subtitle="Sign in once to access WebApp, Bracket, and Legacy." />
             <p className="-mt-3 mb-1 text-center text-xs text-white/45">After sign in: {destinationLabel}</p>
+
+            {configError && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+                <div className="flex items-start gap-2">
+                  <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
+                  <div>
+                    <strong>Sign-in unavailable:</strong> {configError}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {passwordReset && !error && (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">

@@ -8,6 +8,12 @@ import type { LeagueSport } from '@prisma/client'
 /** League subtype for specialty registry. */
 export const DEVY_DYNASTY_VARIANT = 'devy_dynasty'
 
+/** PROMPT 3: When to apply promotion after pro draft. */
+export type PromotionTiming =
+  | 'immediate_after_pro_draft'
+  | 'rollover'
+  | 'manager_choice_before_rookie_draft'
+
 /** Sport adapter ids used to resolve eligibility and pool by League.sport. */
 export type DevySportAdapterId = 'nfl_devy' | 'nba_devy'
 
@@ -52,6 +58,14 @@ export interface DevyCommissionerSettings {
   devyPickTradeRules: 'allowed' | 'locked_until_draft' | 'commissioner_only'
   rookiePickTradeRules: 'allowed' | 'locked_until_draft' | 'commissioner_only'
   nflDevyExcludeKDST: boolean
+  /** PROMPT 3: When to apply promotion. */
+  promotionTiming: PromotionTiming
+  supplementalDevyFAEnabled: boolean
+  rightsExpirationEnabled: boolean
+  /** PROMPT 4: Taxi-eligible pro rookies count toward best ball when true. */
+  taxiProRookiesScoreInBestBall: boolean
+  /** PROMPT 4: NFL best ball superflex slot. */
+  bestBallSuperflex: boolean
 }
 
 /** Full devy league config (loader return type). */
@@ -87,3 +101,33 @@ export interface DevyEligibilityAdapter {
   /** Optional: map combo tags to positions (e.g. PG/SG -> G for NBA). */
   mapPositionToDevyPosition?(position: string): string
 }
+
+// ========== PROMPT 3: Lifecycle states ==========
+
+export const DEVY_LIFECYCLE_STATE = {
+  NCAA_DEVY_ACTIVE: 'NCAA_DEVY_ACTIVE',
+  NCAA_DEVY_TAXI: 'NCAA_DEVY_TAXI',
+  NCAA_DEVY_LOCKED: 'NCAA_DEVY_LOCKED',
+  DECLARED: 'DECLARED',
+  DRAFTED_RIGHTS_HELD: 'DRAFTED_RIGHTS_HELD',
+  PROMOTION_ELIGIBLE: 'PROMOTION_ELIGIBLE',
+  PROMOTED_TO_PRO: 'PROMOTED_TO_PRO',
+  RETURNED_TO_SCHOOL: 'RETURNED_TO_SCHOOL',
+  RIGHTS_EXPIRED: 'RIGHTS_EXPIRED',
+  ORPHANED_RIGHTS: 'ORPHANED_RIGHTS',
+} as const
+
+export type DevyLifecycleState = (typeof DEVY_LIFECYCLE_STATE)[keyof typeof DEVY_LIFECYCLE_STATE]
+
+// ========== PROMPT 3: Tradeable asset types (devy/rookie/vet picks) ==========
+
+export const DEVY_ASSET_TYPE = {
+  DEVY_PLAYER: 'DEVY_PLAYER',
+  DEVY_PICK: 'DEVY_PICK',
+  ROOKIE_PICK: 'ROOKIE_PICK',
+  VET_PICK: 'VET_PICK',
+  FUTURE_DEVY_PICK: 'FUTURE_DEVY_PICK',
+  FUTURE_ROOKIE_PICK: 'FUTURE_ROOKIE_PICK',
+} as const
+
+export type DevyAssetType = (typeof DEVY_ASSET_TYPE)[keyof typeof DEVY_ASSET_TYPE]

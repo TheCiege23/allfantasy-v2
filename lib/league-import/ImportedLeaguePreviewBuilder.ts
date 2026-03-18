@@ -182,7 +182,13 @@ function buildDataQuality(normalized: NormalizedImportResult): ImportPreviewData
 export function buildImportedLeaguePreview(normalized: NormalizedImportResult): ImportPreviewResponse {
   const leagueSettings = normalized.league as Record<string, unknown>
   const rosterPositions = (leagueSettings.roster_positions as string[]) ?? []
-  const ppr = (leagueSettings.scoring_settings as Record<string, number>)?.rec ?? 0
+  const ppr =
+    (leagueSettings.scoring_settings as Record<string, number>)?.rec ??
+    (normalized.scoring?.scoring_format === 'ppr' || normalized.scoring?.scoring_format === 'half'
+      ? 1
+      : normalized.league.scoring === 'ppr' || normalized.league.scoring === 'half'
+        ? 1
+        : 0)
   const superflex = rosterPositions.filter((p: string) => p === 'SUPER_FLEX').length > 0
   const tep = (leagueSettings.scoring_settings as Record<string, number>)?.bonus_rec_te ?? 0
 

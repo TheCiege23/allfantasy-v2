@@ -166,7 +166,10 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
       transactions,
       standings,
       player_map: playerMap,
-      previous_seasons: [],
+      previous_seasons: raw.previousSeasons.map((season) => ({
+        season: season.season,
+        source_league_id: season.sourceLeagueId,
+      })),
       coverage: {
         leagueSettings: {
           state: 'full',
@@ -177,8 +180,12 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
           count: rosters.length,
         },
         historicalRosterSnapshots: {
-          state: 'missing',
-          note: 'Historical Yahoo roster snapshots are not imported yet.',
+          state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',
+          count: raw.previousSeasons.length,
+          note:
+            raw.previousSeasons.length > 0
+              ? 'Historical Yahoo season-end roster snapshots are completed during post-import backfill.'
+              : 'No prior Yahoo seasons were discovered for historical roster backfill.',
         },
         scoringSettings: {
           state: raw.settings?.statModifiers.length ? 'full' : raw.settings ? 'partial' : 'missing',
@@ -200,25 +207,46 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
           count: standings.length,
         },
         currentSchedule: {
-          state: schedule.length > 0 ? 'partial' : 'missing',
+          state:
+            schedule.length === 0
+              ? 'missing'
+              : raw.scheduleWeeksExpected != null && raw.scheduleWeeksCovered >= raw.scheduleWeeksExpected
+                ? 'full'
+                : 'partial',
           count: schedule.length,
           note:
-            schedule.length > 0
-              ? 'Yahoo import currently captures the available in-season scoreboard snapshot, not the full season schedule.'
-              : 'No Yahoo scoreboard data was available for this league preview.',
+            schedule.length === 0
+              ? 'No Yahoo matchup data was available for this league preview.'
+              : raw.scheduleWeeksExpected != null && raw.scheduleWeeksCovered >= raw.scheduleWeeksExpected
+                ? null
+                : 'Yahoo import captured part of the current-season matchup history, but not every expected week.',
         },
         draftHistory: {
           state: 'missing',
           note: 'Yahoo draft history import is not wired into the unified import pipeline yet.',
         },
         tradeHistory: {
-          state: 'partial',
+          state:
+            raw.transactions.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : 'missing',
           count: transactions.length,
-          note: 'Yahoo import currently captures available league transactions, but not full historical trade history across prior seasons.',
+          note:
+            raw.previousSeasons.length > 0
+              ? 'Yahoo preview includes current-league transactions; discovered historical transaction import is completed during post-import backfill.'
+              : raw.transactions.length > 0
+                ? null
+                : 'No Yahoo transactions were available for this league preview.',
         },
         previousSeasons: {
-          state: 'missing',
-          note: 'Previous Yahoo seasons are not linked into the unified import pipeline yet.',
+          state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',
+          count: raw.previousSeasons.length,
+          note:
+            raw.previousSeasons.length > 0
+              ? 'Yahoo previous seasons were inferred from the connected account using matching league name, sport, and team count, then used during post-import backfill.'
+              : 'No matching prior Yahoo seasons were discovered for this connected league.',
         },
         playerIdentityMap: {
           state: Object.keys(playerMap).length > 0 ? 'partial' : 'missing',

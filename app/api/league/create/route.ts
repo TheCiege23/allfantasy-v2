@@ -70,6 +70,18 @@ export async function POST(req: Request) {
   }
 
   const sport = sportInput ?? 'NFL';
+  const isDevyRequested =
+    String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
+    String(leagueTypeWizard ?? '').toLowerCase() === 'devy';
+  const isC2CRequested =
+    String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
+    String(leagueTypeWizard ?? '').toLowerCase() === 'c2c';
+  if ((isDevyRequested || isC2CRequested) && isDynastyInput === false) {
+    return NextResponse.json(
+      { error: 'Devy and C2C (Merged Devy) leagues cannot be created as redraft. They are dynasty-only.' },
+      { status: 400 }
+    );
+  }
   let name = nameInput;
   let leagueSize = leagueSizeInput;
   let scoring = scoringInput;
@@ -230,8 +242,11 @@ export async function POST(req: Request) {
     const isDevy =
       String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
       String(leagueTypeWizard ?? '').toLowerCase() === 'devy';
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isDevy ? 'devy_dynasty' : (leagueVariantInput ?? null);
-    const effectiveDynasty = isDevy ? true : isDynasty;
+    const isC2C =
+      String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'c2c';
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : (leagueVariantInput ?? null);
+    const effectiveDynasty = isDevy || isC2C ? true : isDynasty;
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -251,7 +266,7 @@ export async function POST(req: Request) {
 
     try {
       const { runPostCreateInitialization } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
-      await runPostCreateInitialization(league.id, sport as string, leagueVariantInput ?? undefined);
+      await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
     }
@@ -299,6 +314,26 @@ export async function POST(req: Request) {
         await upsertDevyConfig(league.id, {});
       } catch (err) {
         console.warn('[league/create] Devy config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isC2C) {
+      try {
+        const { upsertC2CConfig } = await import('@/lib/merged-devy-c2c/C2CLeagueConfig');
+        const s = settingsWizard as Record<string, unknown> | undefined;
+        await upsertC2CConfig(league.id, {
+          startupFormat: (s?.c2c_startup_mode as string) ?? 'merged',
+          mergedStartupDraft: (s?.c2c_startup_mode as string) !== 'separate',
+          separateStartupCollegeDraft: (s?.c2c_startup_mode as string) === 'separate',
+          standingsModel: (s?.c2c_standings_model as string) ?? 'unified',
+          bestBallPro: s?.c2c_best_ball_pro !== false,
+          bestBallCollege: Boolean(s?.c2c_best_ball_college),
+          collegeRosterSize: typeof s?.c2c_college_roster_size === 'number' ? s.c2c_college_roster_size : 20,
+          rookieDraftRounds: typeof s?.c2c_rookie_draft_rounds === 'number' ? s.c2c_rookie_draft_rounds : 4,
+          collegeDraftRounds: typeof s?.c2c_college_draft_rounds === 'number' ? s.c2c_college_draft_rounds : 6,
+        });
+      } catch (err) {
+        console.warn('[league/create] C2C config bootstrap non-fatal:', err);
       }
     }
 

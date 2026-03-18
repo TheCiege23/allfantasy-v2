@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher';
+import { getTradeBlockReason } from '@/lib/tournament-mode/safety';
 
 const proposeSchema = z.object({
   leagueId: z.string(),
@@ -35,6 +36,11 @@ export async function POST(req: Request) {
   }
 
   const { leagueId, offerFrom, offerTo, drops, adds } = parsed.data;
+
+  const tradeBlockReason = await getTradeBlockReason(leagueId);
+  if (tradeBlockReason) {
+    return NextResponse.json({ error: tradeBlockReason }, { status: 403 });
+  }
 
   try {
     const share = await (prisma as any).tradeShare.create({

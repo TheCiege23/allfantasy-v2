@@ -16,6 +16,7 @@ export type SpecialtyLeagueId =
   | 'salary_cap'
   | 'devy'
   | 'merged_devy'
+  | 'merged_devy_c2c'
   | 'tournament'
   | 'best_ball'
   | 'idp'

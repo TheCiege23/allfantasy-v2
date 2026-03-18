@@ -62,7 +62,7 @@ export default function EspnImportForm() {
           Import from ESPN
         </CardTitle>
         <CardDescription>
-          Enter your ESPN league ID to import one league&apos;s teams and weekly scores. Full roster, trade, and draft history are not imported yet.
+          Enter your ESPN league ID to import league settings, manager rosters, schedule data, and discovered prior seasons. Full draft and trade history are not imported yet.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -131,7 +131,7 @@ export default function EspnImportForm() {
               />
             </div>
             <p className="text-xs text-gray-600">
-              Open fantasy.espn.com, press F12, then go to Application and Cookies to find these values.
+              Open fantasy.espn.com, press F12, then go to Application and Cookies to find these values. If you enter them here, they&apos;ll be saved securely for future ESPN imports.
             </p>
           </div>
         </details>
@@ -141,7 +141,7 @@ export default function EspnImportForm() {
           disabled={loading || !leagueId.trim()}
           className="w-full bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 disabled:opacity-50"
         >
-          {loading ? 'Importing...' : 'Import League & Weekly Data'}
+          {loading ? 'Importing...' : 'Import League & History'}
         </Button>
       </CardContent>
     </Card>

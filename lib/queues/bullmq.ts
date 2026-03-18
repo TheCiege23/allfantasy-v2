@@ -133,6 +133,10 @@ export function getNotificationsQueue(): Queue | null {
   return getQueue(QUEUE_NAMES.NOTIFICATIONS);
 }
 
+export function getDevyQueue(): Queue | null {
+  return getQueue(QUEUE_NAMES.DEVY);
+}
+
 /**
  * Named exports to support existing route imports like:
  * import { simulationQueue, redis } from "@/lib/queues/bullmq"

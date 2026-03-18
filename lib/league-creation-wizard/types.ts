@@ -44,6 +44,15 @@ export interface WizardDraftSettings {
   devyRounds: number[]
   /** C2C only */
   c2cCollegeRounds: number[]
+  /** C2C: merged | separate */
+  c2cStartupMode?: 'merged' | 'separate'
+  /** C2C: unified | separate | hybrid */
+  c2cStandingsModel?: 'unified' | 'separate' | 'hybrid'
+  c2cBestBallPro?: boolean
+  c2cBestBallCollege?: boolean
+  c2cCollegeRosterSize?: number
+  c2cRookieDraftRounds?: number
+  c2cCollegeDraftRounds?: number
 }
 
 export interface WizardAISettings {
@@ -100,6 +109,13 @@ export const DEFAULT_DRAFT_SETTINGS: WizardDraftSettings = {
   keeperMaxKeepers: 3,
   devyRounds: [],
   c2cCollegeRounds: [],
+  c2cStartupMode: 'merged',
+  c2cStandingsModel: 'unified',
+  c2cBestBallPro: true,
+  c2cBestBallCollege: false,
+  c2cCollegeRosterSize: 20,
+  c2cRookieDraftRounds: 4,
+  c2cCollegeDraftRounds: 6,
 }
 
 export const DEFAULT_AI_SETTINGS: WizardAISettings = {

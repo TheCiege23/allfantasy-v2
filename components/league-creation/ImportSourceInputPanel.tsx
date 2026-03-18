@@ -9,7 +9,7 @@ import type { ImportProvider } from '@/lib/league-import/types';
 
 export interface ImportSourceInputPanelProps {
   provider: ImportProvider | null;
-  /** For Sleeper: league ID. For others: future connection input. */
+  /** For available providers: league ID or provider-specific source input. */
   sourceInput: string;
   onSourceInputChange: (value: string) => void;
   onFetchPreview: () => void;
@@ -28,8 +28,8 @@ const PROVIDER_INPUT_CONFIG: Record<
   },
   espn: {
     label: 'ESPN League ID',
-    placeholder: 'e.g. 12345678',
-    help: 'Import from ESPN will be available in a future update.',
+    placeholder: 'e.g. 12345678, 2025:12345678, or a full ESPN league URL',
+    help: 'Paste an ESPN league ID or full league URL. Public leagues work directly; private leagues require saved SWID and ESPN_S2 cookies in League Sync first.',
   },
   yahoo: {
     label: 'Yahoo League Key',
@@ -70,7 +70,7 @@ export function ImportSourceInputPanel({
         <Info className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
         <div className="text-sm text-white/90">
           <p className="font-medium text-amber-200">Import from {getImportProviderLabel(provider)} is not yet available</p>
-          <p className="mt-1 text-white/60">We’re working on it. Use Sleeper for now, or build a new league manually.</p>
+          <p className="mt-1 text-white/60">We&apos;re working on it. Use one of the available providers for now, or build a new league manually.</p>
         </div>
       </div>
     );

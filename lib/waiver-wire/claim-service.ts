@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma"
 import type { WaiverClaimInput } from "./types"
 import { isRosterChopped } from "@/lib/guillotine/guillotineGuard"
+import { validateDevyWaiverClaim } from "@/lib/devy/waiver/DevyWaiverRules"
 
 /**
  * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
  * Guillotine: chopped (eliminated) rosters cannot submit claims.
+ * Devy: devy players not claimable unless league has supplemental devy FA enabled.
  */
 export async function createClaim(
   leagueId: string,
@@ -22,6 +24,11 @@ export async function createClaim(
   const chopped = await isRosterChopped(leagueId, rosterId)
   if (chopped) {
     throw new Error("This team has been eliminated and cannot submit waiver claims")
+  }
+
+  const devyCheck = await validateDevyWaiverClaim({ leagueId, addPlayerId: input.addPlayerId })
+  if (!devyCheck.allowed) {
+    throw new Error(devyCheck.reason ?? "This player cannot be claimed via waivers.")
   }
 
   const maxOrder = await (prisma as any).waiverClaim.aggregate({

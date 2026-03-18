@@ -33,6 +33,16 @@ import {
   getDevyConfig,
   upsertDevyConfig,
 } from '@/lib/devy/DevyLeagueConfig'
+import {
+  isC2CLeague,
+  getC2CConfig,
+  upsertC2CConfig,
+} from '@/lib/merged-devy-c2c/C2CLeagueConfig'
+import {
+  isTournamentLeague,
+  getTournamentConfigForLeague,
+  upsertTournamentConfig,
+} from '@/lib/tournament-mode/TournamentConfigService'
 
 const registry = new Map<SpecialtyLeagueId, SpecialtyLeagueSpec>()
 
@@ -219,9 +229,63 @@ function registerDevy(): void {
     homeComponent: '@/components/devy/DevyHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/devy/summary',
-    aiRoutePath: null,
+    aiRoutePath: '/api/leagues/[leagueId]/devy/ai',
 
     // No rosterGuard / getExcludedRosterIds for devy; all rosters can act. Optional: exclude if league phase locks.
+  })
+}
+
+function registerC2C(): void {
+  registerSpecialtyLeague({
+    id: 'merged_devy_c2c',
+    leagueVariant: 'merged_devy_c2c',
+    label: 'Merged Devy / C2C',
+    wizardLeagueTypeId: 'c2c',
+
+    detect: isC2CLeague,
+    getConfig: getC2CConfig,
+    upsertConfig: upsertC2CConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/merged-devy-c2c/MergedDevyC2CHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/merged-devy-c2c/summary',
+    aiRoutePath: '/api/leagues/[leagueId]/merged-devy-c2c/ai',
+  })
+}
+
+function registerTournament(): void {
+  registerSpecialtyLeague({
+    id: 'tournament',
+    leagueVariant: 'tournament_mode',
+    label: 'Tournament Mode',
+    wizardLeagueTypeId: 'tournament',
+
+    detect: isTournamentLeague,
+    getConfig: getTournamentConfigForLeague,
+    upsertConfig: upsertTournamentConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/tournament/TournamentLeagueHome',
+
+    summaryRoutePath: '/api/tournament/[tournamentId]',
+    aiRoutePath: '/api/tournament/[tournamentId]/ai',
+
+    capabilities: {
+      crossLeagueStandings: true,
+    },
   })
 }
 
@@ -229,3 +293,5 @@ registerGuillotine()
 registerSurvivor()
 registerZombie()
 registerDevy()
+registerC2C()
+registerTournament()

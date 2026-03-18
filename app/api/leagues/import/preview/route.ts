@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   if (!isImportProviderAvailable(provider)) {
     return NextResponse.json(
-      { error: `Import from ${provider} is not yet available. Use Sleeper.` },
+      { error: `Import from ${provider} is not yet available.` },
       { status: 400 }
     )
   }

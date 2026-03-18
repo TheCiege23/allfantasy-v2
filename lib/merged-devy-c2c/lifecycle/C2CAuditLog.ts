@@ -1,0 +1,81 @@
+/**
+ * PROMPT 3: C2C audit log — reuse DevyLifecycleEvent for declare, draft, promotion, return-to-school, pool, commissioner.
+ */
+
+import { prisma } from '@/lib/prisma'
+
+export type C2CLifecycleEventType =
+  | 'graduation'
+  | 'promotion'
+  | 'return_to_school'
+  | 'rights_expired'
+  | 'orphaned'
+  | 'pool_assignment'
+  | 'commissioner_override'
+  | 'declare_detected'
+  | 'draft_detected'
+  | 'force_promote'
+  | 'revoke_promotion'
+  | 'reopen_window'
+  | 'recalc_status'
+  | 'regenerate_pool'
+  | 'repair_duplicate_rights'
+  | 'resolve_mapping'
+  | 'hybrid_standings_recalc'
+
+export interface AppendC2CEventInput {
+  leagueId: string
+  eventType: C2CLifecycleEventType
+  rosterId?: string
+  devyPlayerId?: string
+  proPlayerId?: string
+  payload?: Record<string, unknown>
+}
+
+export async function appendC2CLifecycleEvent(input: AppendC2CEventInput): Promise<void> {
+  await prisma.devyLifecycleEvent.create({
+    data: {
+      leagueId: input.leagueId,
+      eventType: input.eventType,
+      rosterId: input.rosterId ?? null,
+      devyPlayerId: input.devyPlayerId ?? null,
+      proPlayerId: input.proPlayerId ?? null,
+      payload: input.payload ?? undefined,
+    },
+  })
+}
+
+export async function getC2CLifecycleEvents(args: {
+  leagueId: string
+  eventType?: C2CLifecycleEventType
+  limit?: number
+  offset?: number
+}): Promise<
+  Array<{
+    id: string
+    eventType: string
+    rosterId: string | null
+    devyPlayerId: string | null
+    proPlayerId: string | null
+    payload: unknown
+    createdAt: Date
+  }>
+> {
+  const { leagueId, eventType, limit = 100, offset = 0 } = args
+  const rows = await prisma.devyLifecycleEvent.findMany({
+    where: { leagueId, ...(eventType && { eventType }) },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    skip: offset,
+    select: {
+      id: true,
+      eventType: true,
+      rosterId: true,
+      devyPlayerId: true,
+      proPlayerId: true,
+      payload: true,
+      createdAt: true,
+    },
+  })
+  return rows
+}
