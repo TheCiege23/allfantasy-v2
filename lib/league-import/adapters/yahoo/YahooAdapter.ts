@@ -122,6 +122,18 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
       })
       .filter((transaction) => transaction.roster_ids.length > 0 || transaction.type === 'trade')
 
+    const draftPicks = raw.draftPicks.map((pick) => ({
+      round: pick.round,
+      pick_no: pick.pickNumber,
+      source_roster_id: pick.teamKey,
+      source_player_id: pick.playerId,
+      season: raw.league.season,
+      source_draft_id: `${raw.league.leagueKey}:${raw.league.season ?? 'unknown'}`,
+      player_name: pick.playerName ?? null,
+      position: pick.position ?? null,
+      team: pick.team ?? null,
+    }))
+
     const standings = raw.teams.map((team) => ({
       source_team_id: team.teamKey,
       rank: team.rank ?? raw.teams.length,
@@ -162,7 +174,7 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
       rosters,
       scoring,
       schedule,
-      draft_picks: [],
+      draft_picks: draftPicks,
       transactions,
       standings,
       player_map: playerMap,
@@ -222,8 +234,19 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
                 : 'Yahoo import captured part of the current-season matchup history, but not every expected week.',
         },
         draftHistory: {
-          state: 'missing',
-          note: 'Yahoo draft history import is not wired into the unified import pipeline yet.',
+          state:
+            draftPicks.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : 'missing',
+          count: draftPicks.length,
+          note:
+            draftPicks.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'Yahoo preview includes current-league draft results; discovered historical Yahoo draft facts are completed during post-import backfill.'
+                : null
+              : 'No Yahoo draft results were available for this league preview.',
         },
         tradeHistory: {
           state:

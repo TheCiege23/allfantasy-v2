@@ -78,6 +78,16 @@ async function runHistoricalBackfill(args: {
     })
   }
 
+  if (args.provider === 'mfl') {
+    const { syncMflHistoricalBackfillAfterImport } = await import(
+      '@/lib/league-import/mfl/MflHistoricalBackfillService'
+    )
+    return syncMflHistoricalBackfillAfterImport({
+      leagueId: args.leagueId,
+      userId: args.userId,
+    })
+  }
+
   return null
 }
 

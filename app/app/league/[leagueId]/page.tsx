@@ -59,6 +59,7 @@ export default function AppLeaguePage() {
   const [isZombie, setIsZombie] = useState<boolean>(false)
   const [isDevyDynasty, setIsDevyDynasty] = useState<boolean>(false)
   const [isMergedDevyC2C, setIsMergedDevyC2C] = useState<boolean>(false)
+  const [isBigBrother, setIsBigBrother] = useState<boolean>(false)
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
@@ -126,7 +127,7 @@ export default function AppLeaguePage() {
 
   const renderTab = useMemo(() => {
     return (tab: LeagueShellTab) => {
-      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isCommissioner={isCommissioner} />
+      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} isSurvivor={isSurvivor} isZombie={isZombie} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isBigBrother={isBigBrother} isCommissioner={isCommissioner} />
       if (tab === 'Team') return isMergedDevyC2C ? <C2CTeamTab leagueId={leagueId} /> : <TeamTab leagueId={leagueId} />
       if (tab === 'Matchups') return <MatchupsTab leagueId={leagueId} />
       if (tab === 'Roster') return <RosterTab leagueId={leagueId} />
@@ -148,11 +149,11 @@ export default function AppLeaguePage() {
       if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
-      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isCommissioner={isCommissioner} />
+      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isBigBrother={isBigBrother} isCommissioner={isCommissioner} />
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isCommissioner])
+  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isBigBrother, isCommissioner])
 
   return (
     <div className="space-y-3">

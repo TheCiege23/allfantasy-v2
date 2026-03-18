@@ -62,7 +62,7 @@ export default function EspnImportForm() {
           Import from ESPN
         </CardTitle>
         <CardDescription>
-          Enter your ESPN league ID to import league settings, manager rosters, schedule data, and discovered prior seasons. Full draft and trade history are not imported yet.
+          Enter your ESPN league ID to import league settings, manager rosters, schedule data, current draft and transaction activity, and discovered prior seasons.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

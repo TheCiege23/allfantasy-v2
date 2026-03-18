@@ -28,6 +28,8 @@ export interface EspnHistoricalBackfillSummary {
   standingsPersisted?: number
   rosterSnapshotsPersisted?: number
   matchupFactsPersisted?: number
+  transactionFactsPersisted?: number
+  draftFactsPersisted?: number
   graph?: {
     refreshed: boolean
     nodeCount?: number
@@ -76,6 +78,10 @@ function buildEspnSeasonMetadata(payload: EspnImportPayload): Record<string, unk
       acquisitionBudget: payload.settings?.acquisitionBudget ?? null,
       waiverProcessDay: payload.settings?.waiverProcessDay ?? null,
     },
+    transactionCount: payload.transactions.length,
+    draftResultsCount: payload.draftPicks.length,
+    transactionsFetched: payload.transactionsFetched,
+    draftFetched: payload.draftFetched,
     previousSeasons: payload.previousSeasons,
     rawSettings: payload.settings?.raw ?? null,
   }
@@ -106,12 +112,86 @@ function inferChampionFromEspnStandings(payload: EspnImportPayload, team: EspnIm
   return team.rank === 1
 }
 
+function buildEspnTransactionEntries(transaction: EspnImportPayload['transactions'][number]): Array<{
+  type: string
+  playerId?: string
+  rosterId?: string
+  payload: Record<string, unknown>
+  createdAt?: Date
+}> {
+  const entries: Array<{
+    type: string
+    playerId?: string
+    rosterId?: string
+    payload: Record<string, unknown>
+    createdAt?: Date
+  }> = []
+
+  const createdAt = transaction.createdAt ? new Date(transaction.createdAt) : undefined
+  for (const [playerId, rosterId] of Object.entries(transaction.adds)) {
+    entries.push({
+      type: transaction.type === 'trade' ? 'trade' : transaction.type === 'waiver' ? 'waiver_add' : 'add',
+      playerId,
+      rosterId,
+      payload: {
+        espnTransactionId: transaction.transactionId,
+        status: transaction.status,
+        typeDescription: transaction.typeDescription,
+        teamIds: transaction.teamIds,
+        bidAmount: transaction.bidAmount,
+        tradePartnerTeamId: transaction.tradePartnerTeamId,
+        messageTypeId: transaction.messageTypeId,
+        direction: 'add',
+      },
+      createdAt,
+    })
+  }
+  for (const [playerId, rosterId] of Object.entries(transaction.drops)) {
+    entries.push({
+      type: transaction.type === 'trade' ? 'trade' : transaction.type === 'waiver' ? 'waiver_drop' : 'drop',
+      playerId,
+      rosterId,
+      payload: {
+        espnTransactionId: transaction.transactionId,
+        status: transaction.status,
+        typeDescription: transaction.typeDescription,
+        teamIds: transaction.teamIds,
+        bidAmount: transaction.bidAmount,
+        tradePartnerTeamId: transaction.tradePartnerTeamId,
+        messageTypeId: transaction.messageTypeId,
+        direction: 'drop',
+      },
+      createdAt,
+    })
+  }
+
+  if (entries.length === 0) {
+    entries.push({
+      type: transaction.type,
+      payload: {
+        espnTransactionId: transaction.transactionId,
+        status: transaction.status,
+        typeDescription: transaction.typeDescription,
+        teamIds: transaction.teamIds,
+        bidAmount: transaction.bidAmount,
+        tradePartnerTeamId: transaction.tradePartnerTeamId,
+        messageTypeId: transaction.messageTypeId,
+      },
+      createdAt,
+    })
+  }
+
+  return entries
+}
+
 async function persistEspnSeasonWarehouseFacts(args: {
   leagueId: string
   payload: EspnImportPayload
 }): Promise<{
   rosterSnapshotsPersisted: number
   matchupFactsPersisted: number
+  transactionFactsPersisted: number
+  draftFactsPersisted: number
 }> {
   const season = getSeasonFromPayload(args.payload)
   const snapshotCreates = args.payload.teams.map((team) => {
@@ -156,6 +236,39 @@ async function persistEspnSeasonWarehouseFacts(args: {
     )
   )
 
+  const transactionCreates = args.payload.transactions.flatMap((transaction) =>
+    buildEspnTransactionEntries(transaction).map((entry) =>
+      prisma.transactionFact.create({
+        data: {
+          leagueId: args.leagueId,
+          sport: args.payload.league.sport,
+          type: entry.type,
+          playerId: entry.playerId ?? null,
+          managerId: entry.rosterId ?? null,
+          rosterId: entry.rosterId ?? null,
+          payload: entry.payload as Prisma.InputJsonValue,
+          season,
+          weekOrPeriod: null,
+          createdAt: entry.createdAt ?? undefined,
+        },
+      })
+    )
+  )
+
+  const draftCreates = args.payload.draftPicks.map((pick) =>
+    prisma.draftFact.create({
+      data: {
+        leagueId: args.leagueId,
+        sport: args.payload.league.sport,
+        round: pick.round,
+        pickNumber: pick.pickNumber,
+        playerId: pick.playerId,
+        managerId: pick.teamId,
+        season,
+      },
+    })
+  )
+
   await prisma.$transaction([
     prisma.rosterSnapshot.deleteMany({
       where: {
@@ -170,13 +283,29 @@ async function persistEspnSeasonWarehouseFacts(args: {
         season,
       },
     }),
+    prisma.transactionFact.deleteMany({
+      where: {
+        leagueId: args.leagueId,
+        season,
+      },
+    }),
+    prisma.draftFact.deleteMany({
+      where: {
+        leagueId: args.leagueId,
+        season,
+      },
+    }),
     ...snapshotCreates,
     ...matchupCreates,
+    ...transactionCreates,
+    ...draftCreates,
   ])
 
   return {
     rosterSnapshotsPersisted: snapshotCreates.length,
     matchupFactsPersisted: matchupCreates.length,
+    transactionFactsPersisted: transactionCreates.length,
+    draftFactsPersisted: draftCreates.length,
   }
 }
 
@@ -249,6 +378,8 @@ export async function syncEspnHistoricalBackfillAfterImport(args: {
     let standingsPersisted = 0
     let rosterSnapshotsPersisted = 0
     let matchupFactsPersisted = 0
+    let transactionFactsPersisted = 0
+    let draftFactsPersisted = 0
 
     for (const payload of dedupedPayloads.values()) {
       const season = getSeasonFromPayload(payload)
@@ -317,6 +448,8 @@ export async function syncEspnHistoricalBackfillAfterImport(args: {
 
       rosterSnapshotsPersisted += warehouse.rosterSnapshotsPersisted
       matchupFactsPersisted += warehouse.matchupFactsPersisted
+      transactionFactsPersisted += warehouse.transactionFactsPersisted
+      draftFactsPersisted += warehouse.draftFactsPersisted
       seasonsImported += 1
     }
 
@@ -328,13 +461,15 @@ export async function syncEspnHistoricalBackfillAfterImport(args: {
       standingsPersisted,
       rosterSnapshotsPersisted,
       matchupFactsPersisted,
+      transactionFactsPersisted,
+      draftFactsPersisted,
     }
 
     try {
       const graph = await buildLeagueGraph({
         leagueId: args.leagueId,
         season: null,
-        includeTrades: false,
+        includeTrades: true,
         includeRivalries: true,
       })
       summary.graph = {

@@ -26,6 +26,7 @@ import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
 import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
 import { DevySettingsPanel } from '@/components/devy/DevySettingsPanel'
 import { MergedDevyC2CCommissionerSettings } from '@/components/merged-devy-c2c/MergedDevyC2CCommissionerSettings'
+import { BigBrotherSettingsPanel } from '@/components/big-brother/BigBrotherSettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 
 const SUBTABS_BASE = [
@@ -54,20 +55,22 @@ const SUBTABS_BASE = [
   'Delete League',
 ] as const
 
-const SUBTABS = [...SUBTABS_BASE, 'Devy Settings', 'C2C Settings'] as const
+const SUBTABS = [...SUBTABS_BASE, 'Devy Settings', 'C2C Settings', 'Big Brother Settings'] as const
 type SettingsSubtab = (typeof SUBTABS)[number]
 
 export default function LeagueSettingsTab({
   leagueId,
   isDevyDynasty,
   isMergedDevyC2C,
+  isBigBrother,
   isCommissioner,
-}: LeagueTabProps & { isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isCommissioner?: boolean }) {
+}: LeagueTabProps & { isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isCommissioner?: boolean }) {
   const [active, setActive] = useState<SettingsSubtab>('General')
   const visibleSubtabs = SUBTABS.filter(
     (tab) =>
       (tab !== 'Devy Settings' || isDevyDynasty) &&
-      (tab !== 'C2C Settings' || isMergedDevyC2C)
+      (tab !== 'C2C Settings' || isMergedDevyC2C) &&
+      (tab !== 'Big Brother Settings' || isBigBrother)
   )
 
   return (
@@ -113,6 +116,9 @@ export default function LeagueSettingsTab({
       )}
       {active === 'C2C Settings' && isMergedDevyC2C && (
         <MergedDevyC2CCommissionerSettings leagueId={leagueId} />
+      )}
+      {active === 'Big Brother Settings' && isBigBrother && (
+        <BigBrotherSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
       )}
     </section>
   )

@@ -43,6 +43,12 @@ import {
   getTournamentConfigForLeague,
   upsertTournamentConfig,
 } from '@/lib/tournament-mode/TournamentConfigService'
+import {
+  isBigBrotherLeague,
+  getBigBrotherConfig,
+  upsertBigBrotherConfig,
+} from '@/lib/big-brother/BigBrotherLeagueConfig'
+import { isEliminated, getExcludedRosterIds } from '@/lib/big-brother/bigBrotherGuard'
 
 const registry = new Map<SpecialtyLeagueId, SpecialtyLeagueSpec>()
 
@@ -289,9 +295,45 @@ function registerTournament(): void {
   })
 }
 
+function registerBigBrother(): void {
+  registerSpecialtyLeague({
+    id: 'big_brother',
+    leagueVariant: 'big_brother',
+    label: 'Big Brother',
+    wizardLeagueTypeId: 'big_brother',
+
+    detect: isBigBrotherLeague,
+    getConfig: getBigBrotherConfig,
+    upsertConfig: upsertBigBrotherConfig,
+
+    assets: () => ({
+      leagueImage: '',
+      firstEntryVideo: undefined,
+      introVideo: undefined,
+    }),
+
+    firstEntryModal: undefined,
+    homeComponent: '@/components/big-brother/BigBrotherHome',
+
+    summaryRoutePath: '/api/leagues/[leagueId]/big-brother/summary',
+    aiRoutePath: '/api/leagues/[leagueId]/big-brother/ai',
+
+    rosterGuard: async (leagueId, rosterId) => !(await isEliminated(leagueId, rosterId)),
+    getExcludedRosterIds,
+
+    capabilities: {
+      privateVoting: true,
+      eliminationPipeline: true,
+      mergeJuryPhases: true,
+      aiHostHooks: true,
+    },
+  })
+}
+
 registerGuillotine()
 registerSurvivor()
 registerZombie()
+registerBigBrother()
 registerDevy()
 registerC2C()
 registerTournament()

@@ -4447,12 +4447,15 @@ model BigBrotherLeagueConfig {
 }
 
 /// One eviction cycle per week: HOH, nominees, veto, vote, eviction.
+/// PROMPT 3: phase drives week state machine (HOH_OPEN .. EVICTION_RESOLVED, JURY_UPDATE, RESET_NEXT_WEEK).
 model BigBrotherCycle {
   id                    String   @id @default(uuid())
   leagueId              String   @db.VarChar(64)
   configId              String
   config                BigBrotherLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   week                  Int
+  /// Week state machine: HOH_OPEN | HOH_LOCKED | NOMINATION_OPEN | NOMINATION_LOCKED | VETO_DRAW | VETO_CHALLENGE_OPEN | VETO_DECISION_OPEN | REPLACEMENT_NOMINATION_OPEN | VOTING_OPEN | VOTING_LOCKED | EVICTION_RESOLVED | JURY_UPDATE | RESET_NEXT_WEEK
+  phase                 String   @default("HOH_OPEN") @db.VarChar(40)
   hohRosterId           String?  @db.VarChar(64)
   nominee1RosterId      String?  @db.VarChar(64)
   nominee2RosterId      String?  @db.VarChar(64)

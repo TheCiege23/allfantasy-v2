@@ -92,6 +92,39 @@ export const EspnAdapter: ILeagueImportAdapter<EspnImportPayload> = {
       })),
     }))
 
+    const transactions = raw.transactions
+      .map((transaction) => ({
+        source_transaction_id: transaction.transactionId,
+        type:
+          transaction.type === 'trade'
+            ? ('trade' as const)
+            : transaction.type === 'waiver'
+              ? ('waiver' as const)
+              : transaction.type === 'drop'
+                ? ('drop' as const)
+                : ('free_agent' as const),
+        status: transaction.status,
+        created_at: transaction.createdAt ?? source.imported_at,
+        adds: Object.keys(transaction.adds).length > 0 ? transaction.adds : undefined,
+        drops: Object.keys(transaction.drops).length > 0 ? transaction.drops : undefined,
+        roster_ids: transaction.teamIds,
+        draft_picks: [],
+      }))
+      .filter((transaction) => transaction.roster_ids.length > 0 || transaction.type === 'trade')
+
+    const draftPicks = raw.draftPicks.map((pick) => ({
+      round: pick.round,
+      pick_no: pick.pickNumber,
+      source_roster_id: pick.teamId,
+      source_player_id: pick.playerId,
+      season: raw.league.season,
+      source_draft_id:
+        pick.sourceDraftId ?? `${raw.league.leagueId}:${raw.league.season ?? 'unknown'}`,
+      player_name: pick.playerName ?? null,
+      position: pick.position ?? null,
+      team: pick.team ?? null,
+    }))
+
     const standings = raw.teams.map((team) => ({
       source_team_id: team.teamId,
       rank: team.rank ?? raw.teams.length,
@@ -137,8 +170,8 @@ export const EspnAdapter: ILeagueImportAdapter<EspnImportPayload> = {
       rosters,
       scoring,
       schedule,
-      draft_picks: [],
-      transactions: [],
+      draft_picks: draftPicks,
+      transactions,
       standings,
       player_map: playerMap,
       previous_seasons: raw.previousSeasons.map((season) => ({
@@ -200,12 +233,46 @@ export const EspnAdapter: ILeagueImportAdapter<EspnImportPayload> = {
               : 'No ESPN matchup schedule data was available for this league preview.',
         },
         draftHistory: {
-          state: 'missing',
-          note: 'ESPN draft history import is not wired into the unified import pipeline yet.',
+          state:
+            draftPicks.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : raw.draftFetched
+                ? 'missing'
+                : 'partial',
+          count: draftPicks.length,
+          note:
+            draftPicks.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'ESPN preview includes current-season draft results; discovered prior-season draft facts are completed during post-import backfill.'
+                : null
+              : raw.draftFetched
+                ? 'The ESPN draft detail endpoint returned no picks for this league preview.'
+                : 'ESPN draft detail was not available from the provider response for this league preview.',
         },
         tradeHistory: {
-          state: 'missing',
-          note: 'ESPN trade history import is not wired into the unified import pipeline yet.',
+          state:
+            transactions.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : raw.transactionsFetched
+                ? 'missing'
+                : raw.league.season != null && raw.league.season < 2019
+                  ? 'missing'
+                  : 'partial',
+          count: transactions.length,
+          note:
+            transactions.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'ESPN preview includes current-season transactions; discovered prior-season transaction facts are completed during post-import backfill.'
+                : null
+              : raw.league.season != null && raw.league.season < 2019
+                ? 'ESPN transaction activity is not available for seasons before 2019.'
+                : raw.transactionsFetched
+                  ? 'No ESPN transaction activity matched the supported add, drop, waiver, or trade message types for this league preview.'
+                  : 'ESPN transaction activity requires a provider response from the communication feed and may need league authentication.',
         },
         previousSeasons: {
           state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',

@@ -79,6 +79,16 @@ export interface YahooImportTransaction {
   drops: Record<string, string>
 }
 
+export interface YahooImportDraftPick {
+  round: number
+  pickNumber: number
+  teamKey: string
+  playerId: string
+  playerName?: string | null
+  position?: string | null
+  team?: string | null
+}
+
 export interface YahooImportPayload {
   sourceInput: string
   resolvedFromLeagueList: boolean
@@ -89,6 +99,7 @@ export interface YahooImportPayload {
   scheduleWeeksExpected: number | null
   scheduleWeeksCovered: number
   transactions: YahooImportTransaction[]
+  draftPicks: YahooImportDraftPick[]
   previousSeasons: Array<{
     season: string
     sourceLeagueId: string

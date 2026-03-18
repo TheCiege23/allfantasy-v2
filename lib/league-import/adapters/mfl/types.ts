@@ -83,4 +83,8 @@ export interface MflImportPayload {
   draftPicks: MflImportDraftPick[]
   playerMap: Record<string, { name: string; position: string; team: string }>
   lineupBreakdownAvailable: boolean
+  previousSeasons: Array<{
+    season: string
+    sourceLeagueId: string
+  }>
 }

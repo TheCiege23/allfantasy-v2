@@ -163,6 +163,10 @@ export const MflAdapter: ILeagueImportAdapter<MflImportPayload> = {
       transactions,
       standings,
       player_map: raw.playerMap,
+      previous_seasons: raw.previousSeasons.map((season) => ({
+        season: season.season,
+        source_league_id: season.sourceLeagueId,
+      })),
       coverage: {
         leagueSettings: {
           state: raw.settings ? 'full' : 'partial',
@@ -185,8 +189,12 @@ export const MflAdapter: ILeagueImportAdapter<MflImportPayload> = {
                 : 'MFL roster players were imported, but starter versus bench status was not fully exposed by the fetched roster payload.',
         },
         historicalRosterSnapshots: {
-          state: 'missing',
-          note: 'Historical MFL roster snapshots are not wired into the unified import pipeline yet.',
+          state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',
+          count: raw.previousSeasons.length,
+          note:
+            raw.previousSeasons.length > 0
+              ? 'Historical MFL season-end roster snapshots are completed during post-import backfill for discovered prior seasons.'
+              : 'No prior MFL seasons were discovered for historical roster backfill.',
         },
         scoringSettings: {
           state: raw.settings ? 'partial' : 'missing',
@@ -221,24 +229,42 @@ export const MflAdapter: ILeagueImportAdapter<MflImportPayload> = {
               : 'No MFL schedule data was available for this league preview.',
         },
         draftHistory: {
-          state: draftPicks.length > 0 ? 'partial' : 'missing',
+          state:
+            draftPicks.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : 'missing',
           count: draftPicks.length,
           note:
             draftPicks.length > 0
-              ? 'MFL import currently captures the accessible league draft results, but not prior-season draft history.'
+              ? raw.previousSeasons.length > 0
+                ? 'MFL preview includes accessible current-league draft results; discovered prior-season draft facts are completed during post-import backfill.'
+                : null
               : 'No MFL draft results were available for this league preview.',
         },
         tradeHistory: {
-          state: transactions.length > 0 ? 'partial' : 'missing',
+          state:
+            transactions.length > 0
+              ? raw.previousSeasons.length > 0
+                ? 'partial'
+                : 'full'
+              : 'missing',
           count: transactions.length,
           note:
             transactions.length > 0
-              ? 'MFL import currently captures accessible current-league transactions, but not full historical trade backfill.'
+              ? raw.previousSeasons.length > 0
+                ? 'MFL preview includes accessible current-league transactions; discovered prior-season transaction facts are completed during post-import backfill.'
+                : null
               : 'No MFL transactions were available for this league preview.',
         },
         previousSeasons: {
-          state: 'missing',
-          note: 'Previous-season discovery for MFL is not wired into the unified import pipeline yet.',
+          state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',
+          count: raw.previousSeasons.length,
+          note:
+            raw.previousSeasons.length > 0
+              ? 'MFL previous seasons were discovered by checking the same league ID across earlier seasons, then used during post-import backfill.'
+              : 'No prior MFL seasons were discovered for this league ID.',
         },
         playerIdentityMap: {
           state:

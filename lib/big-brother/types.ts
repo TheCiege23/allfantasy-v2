@@ -6,7 +6,7 @@
 
 import type { LeagueSport } from '@prisma/client'
 
-/** Phase of the weekly eviction cycle. */
+/** Phase of the weekly eviction cycle (legacy / display). */
 export type BigBrotherPhase =
   | 'hoh_challenge'
   | 'nomination'
@@ -18,6 +18,22 @@ export type BigBrotherPhase =
   | 'eviction'
   | 'jury_transition'
   | 'finale'
+
+/** Week state machine phases (deterministic automation). PROMPT 3. */
+export type BigBrotherWeekPhase =
+  | 'HOH_OPEN'
+  | 'HOH_LOCKED'
+  | 'NOMINATION_OPEN'
+  | 'NOMINATION_LOCKED'
+  | 'VETO_DRAW'
+  | 'VETO_CHALLENGE_OPEN'
+  | 'VETO_DECISION_OPEN'
+  | 'REPLACEMENT_NOMINATION_OPEN'
+  | 'VOTING_OPEN'
+  | 'VOTING_LOCKED'
+  | 'EVICTION_RESOLVED'
+  | 'JURY_UPDATE'
+  | 'RESET_NEXT_WEEK'
 
 /** Jury start mode. */
 export type JuryStartMode = 'after_eliminations' | 'when_remaining' | 'fixed_week'
@@ -115,3 +131,9 @@ export interface BigBrotherEvictionResult {
   tieBreakUsed: boolean
   juryEnrolled: boolean
 }
+
+/** Tie-break mode for eviction (when vote count is tied). */
+export type EvictionTieBreakMode = 'hoh_vote' | 'random' | 'season_points' | 'commissioner'
+
+/** Challenge resolution mode: deterministic only. AI may theme/narrate; outcome is never AI-decided. */
+export type ChallengeResolutionMode = 'score_based' | 'seeded_random' | 'hybrid'

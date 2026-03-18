@@ -1,6 +1,7 @@
 import { decrypt, encrypt } from '@/lib/league-auth-crypto'
 import { prisma } from '@/lib/prisma'
 import type {
+  YahooImportDraftPick,
   YahooImportLeague,
   YahooImportPayload,
   YahooImportScheduleWeek,
@@ -685,6 +686,64 @@ function parseYahooTransactions(transactionsData: any): YahooImportTransaction[]
     .filter(Boolean) as YahooImportTransaction[]
 }
 
+function parseYahooDraftResults(draftResultsData: any): YahooImportDraftPick[] {
+  const leagueNode = draftResultsData?.fantasy_content?.league
+  const draftResultWrappers = getYahooCollectionItems(getYahooProperty(leagueNode, 'draft_results'))
+
+  return draftResultWrappers
+    .map((wrapper) => {
+      const draftResult = mergeYahooEntityFragments(wrapper, 'draft_result')
+      const player = mergeYahooEntityFragments(getYahooProperty(draftResult, 'player'), 'player')
+      const playerNameData = getYahooProperty(player, 'name')
+      const playerId = String(
+        draftResult.player_key ??
+          draftResult.player_id ??
+          player.player_key ??
+          player.player_id ??
+          ''
+      )
+      const teamKey = String(
+        draftResult.team_key ??
+          draftResult.destination_team_key ??
+          draftResult.owner_team_key ??
+          ''
+      )
+      const round = parseNumber(draftResult.round, null)
+      const pickNumber =
+        parseNumber(draftResult.pick, null) ??
+        parseNumber(draftResult.pick_number, null) ??
+        parseNumber(draftResult.overall_pick, null)
+
+      if (!playerId || !teamKey || round == null || pickNumber == null) return null
+
+      return {
+        round,
+        pickNumber,
+        teamKey,
+        playerId,
+        playerName:
+          typeof playerNameData?.full === 'string'
+            ? playerNameData.full
+            : typeof player.full_name === 'string'
+              ? player.full_name
+              : null,
+        position:
+          typeof player.display_position === 'string'
+            ? player.display_position
+            : typeof player.primary_position === 'string'
+              ? player.primary_position
+              : null,
+        team:
+          typeof player.editorial_team_abbr === 'string'
+            ? player.editorial_team_abbr
+            : typeof player.editorial_team_key === 'string'
+              ? player.editorial_team_key
+              : null,
+      }
+    })
+    .filter(Boolean) as YahooImportDraftPick[]
+}
+
 export async function fetchYahooLeagueForImport(
   userId: string,
   sourceInput: string
@@ -705,7 +764,7 @@ export async function fetchYahooLeagueForImport(
     throw error
   }
 
-  const [settingsResult, standingsResult, teamsResult, scoreboardResult, transactionsResult] =
+  const [settingsResult, standingsResult, teamsResult, scoreboardResult, transactionsResult, draftResultsResult] =
     await Promise.allSettled([
       yahooApiFetchJson(`${YAHOO_API_BASE}/league/${leagueKey}/settings?format=json`, context),
       yahooApiFetchJson(`${YAHOO_API_BASE}/league/${leagueKey}/standings?format=json`, context),
@@ -715,6 +774,7 @@ export async function fetchYahooLeagueForImport(
         `${YAHOO_API_BASE}/league/${leagueKey}/transactions;types=add,drop,trade;count=100?format=json`,
         context
       ),
+      yahooApiFetchJson(`${YAHOO_API_BASE}/league/${leagueKey}/draftresults?format=json`, context),
     ])
 
   const leagueNode = mergeYahooEntityFragments({ league: metadataData?.fantasy_content?.league }, 'league')
@@ -863,6 +923,8 @@ export async function fetchYahooLeagueForImport(
 
   const transactions =
     transactionsResult.status === 'fulfilled' ? parseYahooTransactions(transactionsResult.value) : []
+  const draftPicks =
+    draftResultsResult.status === 'fulfilled' ? parseYahooDraftResults(draftResultsResult.value) : []
   const previousSeasons = await discoverYahooPreviousSeasons(league, context)
 
   return {
@@ -875,6 +937,7 @@ export async function fetchYahooLeagueForImport(
     scheduleWeeksExpected: expectedScheduleWeeks.length > 0 ? expectedScheduleWeeks.length : null,
     scheduleWeeksCovered: schedule.length,
     transactions,
+    draftPicks,
     previousSeasons,
   }
 }

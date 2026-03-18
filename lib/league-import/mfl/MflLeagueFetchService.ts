@@ -19,6 +19,12 @@ type MflApiContext = {
   apiKey: string
 }
 
+export interface MflFetchOptions {
+  includePreviousSeasons?: boolean
+  maxPreviousSeasons?: number
+  minSeason?: number
+}
+
 type MflFranchiseProfile = {
   franchiseId: string
   managerId: string
@@ -55,6 +61,12 @@ class MflApiResponseError extends Error {
 export class MflImportConnectionError extends Error {}
 
 export class MflImportLeagueNotFoundError extends Error {}
+
+const DEFAULT_FETCH_OPTIONS: Required<MflFetchOptions> = {
+  includePreviousSeasons: true,
+  maxPreviousSeasons: 8,
+  minSeason: 2010,
+}
 
 function isRecord(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -279,6 +291,45 @@ async function fetchMflEndpoint(args: {
   }
 
   return parsed
+}
+
+async function discoverMflPreviousSeasons(args: {
+  leagueId: string
+  season: number
+  apiKey: string
+  maxPreviousSeasons: number
+  minSeason: number
+}): Promise<Array<{ season: string; sourceLeagueId: string }>> {
+  const previousSeasons: Array<{ season: string; sourceLeagueId: string }> = []
+
+  for (
+    let candidateSeason = args.season - 1;
+    candidateSeason >= args.minSeason && previousSeasons.length < args.maxPreviousSeasons;
+    candidateSeason -= 1
+  ) {
+    try {
+      await fetchMflEndpoint({
+        season: candidateSeason,
+        leagueId: args.leagueId,
+        type: 'league',
+        apiKey: args.apiKey,
+      })
+      previousSeasons.push({
+        season: String(candidateSeason),
+        sourceLeagueId: args.leagueId,
+      })
+    } catch (error) {
+      if (error instanceof MflImportLeagueNotFoundError) {
+        break
+      }
+      if (error instanceof MflImportConnectionError) {
+        break
+      }
+      throw error
+    }
+  }
+
+  return previousSeasons
 }
 
 function parseMflSettings(leagueRaw: any): MflImportSettings | null {
@@ -785,8 +836,10 @@ function attachMflPlayerDetailsToDraftPicks(args: {
 
 export async function fetchMflLeagueForImport(
   userId: string,
-  sourceInput: string
+  sourceInput: string,
+  options: MflFetchOptions = {}
 ): Promise<MflImportPayload> {
+  const opts = { ...DEFAULT_FETCH_OPTIONS, ...options }
   const source = parseMflSourceInput(sourceInput)
   const auth = await getMflAuthForUser(userId)
 
@@ -854,6 +907,15 @@ export async function fetchMflLeagueForImport(
     picks: draftRaw ? parseMflDraftResults(draftRaw) : [],
     playerMap,
   })
+  const previousSeasons = opts.includePreviousSeasons
+    ? await discoverMflPreviousSeasons({
+        leagueId: source.leagueId,
+        season: source.season,
+        apiKey: auth.apiKey,
+        maxPreviousSeasons: opts.maxPreviousSeasons,
+        minSeason: opts.minSeason,
+      })
+    : []
 
   return {
     sourceInput,
@@ -865,5 +927,6 @@ export async function fetchMflLeagueForImport(
     draftPicks,
     playerMap,
     lineupBreakdownAvailable,
+    previousSeasons,
   }
 }

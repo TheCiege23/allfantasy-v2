@@ -55,12 +55,48 @@ export interface EspnImportScheduleWeek {
   }>
 }
 
+export interface EspnImportTransaction {
+  transactionId: string
+  type: string
+  typeDescription: string | null
+  status: string
+  createdAt: string | null
+  teamIds: string[]
+  adds: Record<string, string>
+  drops: Record<string, string>
+  playerId?: string | null
+  playerName?: string | null
+  position?: string | null
+  team?: string | null
+  bidAmount?: number | null
+  tradePartnerTeamId?: string | null
+  messageTypeId?: number | null
+}
+
+export interface EspnImportDraftPick {
+  round: number
+  pickNumber: number
+  overallPickNumber: number
+  teamId: string
+  playerId: string
+  playerName?: string | null
+  position?: string | null
+  team?: string | null
+  sourceDraftId?: string | null
+  bidAmount?: number | null
+  isKeeper?: boolean | null
+}
+
 export interface EspnImportPayload {
   sourceInput: string
   league: EspnImportLeague
   settings: EspnImportSettings | null
   teams: EspnImportTeam[]
   schedule: EspnImportScheduleWeek[]
+  transactions: EspnImportTransaction[]
+  draftPicks: EspnImportDraftPick[]
+  transactionsFetched: boolean
+  draftFetched: boolean
   previousSeasons: Array<{
     season: string
     sourceLeagueId: string

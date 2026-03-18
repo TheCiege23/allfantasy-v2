@@ -245,7 +245,10 @@ export async function POST(req: Request) {
     const isC2C =
       String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
       String(leagueTypeWizard ?? '').toLowerCase() === 'c2c';
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : (leagueVariantInput ?? null);
+    const isBigBrother =
+      String(leagueVariantInput ?? '').toLowerCase() === 'big_brother' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'big_brother';
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : (leagueVariantInput ?? null);
     const effectiveDynasty = isDevy || isC2C ? true : isDynasty;
     const league = await (prisma as any).league.create({
       data: {
@@ -314,6 +317,15 @@ export async function POST(req: Request) {
         await upsertDevyConfig(league.id, {});
       } catch (err) {
         console.warn('[league/create] Devy config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isBigBrother) {
+      try {
+        const { upsertBigBrotherConfig } = await import('@/lib/big-brother/BigBrotherLeagueConfig');
+        await upsertBigBrotherConfig(league.id, {});
+      } catch (err) {
+        console.warn('[league/create] Big Brother config bootstrap non-fatal:', err);
       }
     }
 
