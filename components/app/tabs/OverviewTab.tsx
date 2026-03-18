@@ -11,8 +11,9 @@ import { LeagueDramaWidget } from '@/components/app/league/LeagueDramaWidget'
 import { ShareLeagueLinkCard } from '@/components/social/ShareLeagueLinkCard'
 import { LeagueStoryModal } from '@/components/league-story'
 import { GuillotineHome } from '@/components/guillotine/GuillotineHome'
+import { SalaryCapHome } from '@/components/salary-cap/SalaryCapHome'
 
-export default function OverviewTab({ leagueId, isGuillotine }: LeagueTabProps & { isGuillotine?: boolean }) {
+export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap }: LeagueTabProps & { isGuillotine?: boolean; isSalaryCap?: boolean }) {
   const [storyModalOpen, setStoryModalOpen] = useState(false)
   const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'overview')
   const roster = Array.isArray(data?.roster) ? data?.roster : []
@@ -25,6 +26,14 @@ export default function OverviewTab({ leagueId, isGuillotine }: LeagueTabProps &
     return (
       <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
         <GuillotineHome leagueId={leagueId} />
+      </TabDataState>
+    )
+  }
+
+  if (isSalaryCap) {
+    return (
+      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+        <SalaryCapHome leagueId={leagueId} />
       </TabDataState>
     )
   }

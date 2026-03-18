@@ -26,7 +26,8 @@ export async function getFranchiseTagEligibility(
     where: { id: contractId, leagueId, configId: config.configId, rosterId },
   })
   if (!contract) return null
-  if (contract.status !== 'active' && contract.contractYear < contract.yearsTotal) {
+  const inFinalYear = contract.contractYear >= contract.yearsTotal
+  if (!inFinalYear) {
     return { eligible: false, tagCost: 0, alreadyUsed: false, reason: 'Contract not in final year' }
   }
   const tagCost = Math.ceil(contract.salary * TAG_PREMIUM_MULTIPLIER)

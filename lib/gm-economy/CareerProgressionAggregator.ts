@@ -4,6 +4,11 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import {
+  buildLeagueScopedRosterIdFilters,
+  mergeSeasonResultAliases,
+  resolveSeasonResultRosterIds,
+} from '@/lib/season-results/SeasonResultRosterIdentity'
 import type { ManagerFranchiseProfileInput } from './types'
 
 /**
@@ -15,13 +20,11 @@ export async function aggregateCareerForManager(
 ): Promise<ManagerFranchiseProfileInput> {
   const rosters = await prisma.roster.findMany({
     where: { platformUserId: managerId },
-    select: { id: true, leagueId: true },
+    select: { id: true, leagueId: true, playerData: true },
   })
 
-  const rosterIdsByLeague = new Map<string, string>()
-  for (const r of rosters) {
-    rosterIdsByLeague.set(r.leagueId, r.id)
-  }
+  const seasonResultRosterIds = resolveSeasonResultRosterIds(rosters)
+  const seasonResultFilters = buildLeagueScopedRosterIdFilters(seasonResultRosterIds)
 
   // SeasonResults where rosterId = managerId (when app uses platform user id as rosterId)
   const seasonResultsByManagerId = await prisma.seasonResult.findMany({
@@ -29,61 +32,36 @@ export async function aggregateCareerForManager(
     select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
   })
 
-  // SeasonResults where (leagueId, rosterId) matches our Roster ids
-  const leagueIds = Array.from(rosterIdsByLeague.keys())
-  const seasonResultsByRosterId = await prisma.seasonResult.findMany({
-    where: {
-      leagueId: { in: leagueIds },
-      rosterId: { in: Array.from(rosterIdsByLeague.values()) },
-    },
-    select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
-  })
+  // SeasonResults where (leagueId, rosterId) matches either internal Roster ids
+  // or imported provider roster ids like Sleeper source_team_id.
+  const seasonResultsByRosterId =
+    seasonResultFilters.length > 0
+      ? await prisma.seasonResult.findMany({
+          where: {
+            OR: seasonResultFilters,
+          },
+          select: { leagueId: true, season: true, wins: true, losses: true, champion: true },
+        })
+      : []
 
-  const combined = new Map<string, { wins: number; losses: number; champion: boolean }>()
-  for (const s of seasonResultsByManagerId) {
-    const key = `${s.leagueId}:${s.season}`
-    if (!combined.has(key)) {
-      combined.set(key, {
-        wins: s.wins ?? 0,
-        losses: s.losses ?? 0,
-        champion: s.champion ?? false,
-      })
-    } else {
-      const ex = combined.get(key)!
-      ex.wins += s.wins ?? 0
-      ex.losses += s.losses ?? 0
-      ex.champion = ex.champion || (s.champion ?? false)
-    }
-  }
-  for (const s of seasonResultsByRosterId) {
-    const key = `${s.leagueId}:${s.season}`
-    if (!combined.has(key)) {
-      combined.set(key, {
-        wins: s.wins ?? 0,
-        losses: s.losses ?? 0,
-        champion: s.champion ?? false,
-      })
-    } else {
-      const ex = combined.get(key)!
-      ex.wins += s.wins ?? 0
-      ex.losses += s.losses ?? 0
-      ex.champion = ex.champion || (s.champion ?? false)
-    }
-  }
+  const combined = mergeSeasonResultAliases([
+    ...seasonResultsByManagerId,
+    ...seasonResultsByRosterId,
+  ])
 
-  const totalCareerSeasons = combined.size
-  const leagueIdsSeen = new Set(combined.keys().map((k) => k.split(':')[0]))
+  const totalCareerSeasons = combined.length
+  const leagueIdsSeen = new Set(combined.map((row) => row.leagueId))
   const totalLeaguesPlayed = leagueIdsSeen.size
   let championshipCount = 0
   let playoffAppearances = 0
   let totalWins = 0
   let totalLosses = 0
 
-  for (const [, v] of combined) {
-    if (v.champion) championshipCount++
-    if (v.wins + v.losses > 0) playoffAppearances++ // treat any completed season as "appearance" for simplicity
-    totalWins += v.wins
-    totalLosses += v.losses
+  for (const row of combined) {
+    if (row.champion) championshipCount++
+    if (row.wins + row.losses > 0) playoffAppearances++ // treat any completed season as "appearance" for simplicity
+    totalWins += row.wins
+    totalLosses += row.losses
   }
 
   const careerWinPercentage =

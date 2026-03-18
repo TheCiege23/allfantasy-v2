@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { requireVerifiedUser } from '@/lib/auth-guard';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -64,6 +65,10 @@ export async function POST(req: Request) {
     settings: settingsWizard,
   } = parsed.data;
 
+  if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
+    return NextResponse.json({ error: 'sleeperLeagueId is required' }, { status: 400 });
+  }
+
   const sport = sportInput ?? 'NFL';
   let name = nameInput;
   let leagueSize = leagueSizeInput;
@@ -85,10 +90,15 @@ export async function POST(req: Request) {
   try {
     // --- Sleeper full import path ---
     if (createFromSleeperImport && sleeperLeagueId?.trim()) {
+      const verifiedAuth = await requireVerifiedUser();
+      if (!verifiedAuth.ok) {
+        return verifiedAuth.response;
+      }
+
       const cleanSleeperId = sleeperLeagueId.trim();
       const existing = await (prisma as any).league.findFirst({
         where: {
-          userId: session.user.id,
+          userId: verifiedAuth.userId,
           platform: 'sleeper',
           platformLeagueId: cleanSleeperId,
         },
@@ -116,7 +126,7 @@ export async function POST(req: Request) {
       };
       const league = await (prisma as any).league.create({
         data: {
-          userId: session.user.id,
+          userId: verifiedAuth.userId,
           name: normalized.league.name,
           platform: 'sleeper',
           platformLeagueId: cleanSleeperId,
@@ -155,7 +165,20 @@ export async function POST(req: Request) {
       } catch (err) {
         console.warn('[league/create] Import gap-fill (draft/waiver/playoff/schedule) non-fatal:', err);
       }
-      return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });
+      let historicalBackfill: unknown = null;
+      try {
+        const { syncSleeperHistoricalBackfillAfterImport } = await import('@/lib/league-import/sleeper/SleeperHistoricalBackfillService');
+        historicalBackfill = await syncSleeperHistoricalBackfillAfterImport({
+          leagueId: league.id,
+          isDynasty: normalized.league.isDynasty,
+        });
+      } catch (err) {
+        console.warn('[league/create] Historical Sleeper backfill non-fatal:', err);
+      }
+      return NextResponse.json({
+        league: { id: league.id, name: league.name, sport: league.sport },
+        historicalBackfill,
+      });
     }
 
     // --- Native creation path (unchanged) ---

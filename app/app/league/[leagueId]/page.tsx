@@ -51,6 +51,7 @@ export default function AppLeaguePage() {
   const [leagueName, setLeagueName] = useState<string>('League')
   const [isCommissioner, setIsCommissioner] = useState<boolean>(false)
   const [isGuillotine, setIsGuillotine] = useState<boolean>(false)
+  const [isSalaryCap, setIsSalaryCap] = useState<boolean>(false)
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
 
   useEffect(() => {
@@ -112,7 +113,7 @@ export default function AppLeaguePage() {
 
   const renderTab = useMemo(() => {
     return (tab: LeagueShellTab) => {
-      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} />
+      if (tab === 'Overview') return <OverviewTab leagueId={leagueId} isGuillotine={isGuillotine} isSalaryCap={isSalaryCap} />
       if (tab === 'Team') return <TeamTab leagueId={leagueId} />
       if (tab === 'Matchups') return <MatchupsTab leagueId={leagueId} />
       if (tab === 'Roster') return <RosterTab leagueId={leagueId} />
@@ -138,7 +139,7 @@ export default function AppLeaguePage() {
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine])
+  }, [leagueId, isGuillotine, isSalaryCap])
 
   return (
     <div className="space-y-3">

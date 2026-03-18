@@ -130,11 +130,25 @@ export async function POST(req: NextRequest) {
       console.warn('[leagues/import/commit] Gap-fill (draft/waiver/playoff/schedule) non-fatal:', err)
     }
 
+    let historicalBackfill: unknown = null
+    try {
+      const { syncSleeperHistoricalBackfillAfterImport } = await import(
+        '@/lib/league-import/sleeper/SleeperHistoricalBackfillService'
+      )
+      historicalBackfill = await syncSleeperHistoricalBackfillAfterImport({
+        leagueId: league.id,
+        isDynasty: normalized.league.isDynasty,
+      })
+    } catch (err) {
+      console.warn('[leagues/import/commit] Historical Sleeper backfill non-fatal:', err)
+    }
+
     return NextResponse.json({
       leagueId: league.id,
       name: league.name,
       sport: league.sport,
       league: { id: league.id, name: league.name, sport: league.sport },
+      historicalBackfill,
     })
   }
 

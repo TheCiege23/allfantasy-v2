@@ -3,6 +3,10 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import {
+  buildSeasonResultManagerMap,
+  getSeasonResultKeysForRoster,
+} from '@/lib/season-results/SeasonResultRosterIdentity'
 import type { SeasonPerformanceInput } from './types'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 
@@ -24,7 +28,7 @@ export async function analyzeSeasonPerformance(
     }),
     prisma.roster.findMany({
       where: { leagueId },
-      select: { id: true, platformUserId: true },
+      select: { id: true, platformUserId: true, playerData: true },
     }),
     prisma.seasonResult.findMany({
       where: { leagueId, season },
@@ -42,15 +46,9 @@ export async function analyzeSeasonPerformance(
   ])
 
   const resolvedSport = (league?.sport ?? sport) as string
-  const rosterIdToManager = new Map(rosters.map((r) => [r.id, r.platformUserId]))
-  const managerToRosterIds = new Map<string, string[]>()
-  for (const r of rosters) {
-    const list = managerToRosterIds.get(r.platformUserId) ?? []
-    list.push(r.id)
-    managerToRosterIds.set(r.platformUserId, list)
-  }
+  const rosterIdToManager = buildSeasonResultManagerMap(rosters)
 
-  // Season results: rosterId might be Roster.id or platformUserId
+  // Season results: rosterId might be Roster.id, platformUserId, or imported source_team_id.
   const srByKey = new Map<string, { wins: number; losses: number; pointsFor: number; pointsAgainst: number; champion: boolean }>()
   for (const sr of seasonResults) {
     const key = sr.rosterId
@@ -76,12 +74,28 @@ export async function analyzeSeasonPerformance(
     where: { leagueId },
     select: { rosterId: true, season: true, champion: true },
   })
-  const rosterSeasons = new Map<string, { seasons: number; championships: number }>()
+  const managerSeasonHistory = new Map<string, { managerId: string; champion: boolean }>()
   for (const s of allSeasonResultsInLeague) {
-    const cur = rosterSeasons.get(s.rosterId) ?? { seasons: 0, championships: 0 }
+    const managerId = rosterIdToManager.get(s.rosterId) ?? s.rosterId
+    const key = `${managerId}:${s.season}`
+    const existing = managerSeasonHistory.get(key)
+    if (!existing) {
+      managerSeasonHistory.set(key, {
+        managerId,
+        champion: s.champion ?? false,
+      })
+      continue
+    }
+
+    existing.champion = existing.champion || (s.champion ?? false)
+  }
+
+  const managerSeasons = new Map<string, { seasons: number; championships: number }>()
+  for (const { managerId, champion } of managerSeasonHistory.values()) {
+    const cur = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
     cur.seasons += 1
-    if (s.champion) cur.championships += 1
-    rosterSeasons.set(s.rosterId, cur)
+    if (champion) cur.championships += 1
+    managerSeasons.set(managerId, cur)
   }
 
   const draftScoreByRoster = new Map<string, number>()
@@ -130,17 +144,40 @@ export async function analyzeSeasonPerformance(
   }
 
   for (const r of rosters) {
-    const rosterIds = [r.id]
     const managerId = r.platformUserId
-    const hist = rosterSeasons.get(r.id) ?? { seasons: 0, championships: 0 }
+    const hist = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
     const isRookie = hist.seasons === 1
 
-    const sr = srByKey.get(r.id) ?? srByKey.get(managerId)
-    const wins = sr?.wins ?? 0
-    const losses = sr?.losses ?? 0
-    const pointsFor = sr?.pointsFor ?? 0
-    const pointsAgainst = sr?.pointsAgainst ?? 0
-    const champion = sr?.champion ?? false
+    const seasonRowsForRoster = getSeasonResultKeysForRoster({
+        id: r.id,
+        leagueId,
+        playerData: r.playerData,
+      })
+        .map((key) => srByKey.get(key))
+        .filter((row): row is NonNullable<typeof row> => Boolean(row))
+
+    const fallbackSeasonRow = srByKey.get(managerId)
+    if (seasonRowsForRoster.length === 0 && fallbackSeasonRow) {
+      seasonRowsForRoster.push(fallbackSeasonRow)
+    }
+
+    const wins = seasonRowsForRoster.reduce(
+      (best, row) => Math.max(best, row.wins),
+      0
+    )
+    const losses = seasonRowsForRoster.reduce(
+      (best, row) => Math.max(best, row.losses),
+      0
+    )
+    const pointsFor = seasonRowsForRoster.reduce(
+      (best, row) => Math.max(best, row.pointsFor),
+      0
+    )
+    const pointsAgainst = seasonRowsForRoster.reduce(
+      (best, row) => Math.max(best, row.pointsAgainst),
+      0
+    )
+    const champion = seasonRowsForRoster.some((row) => row.champion)
 
     addToManager(managerId, {
       wins,
@@ -160,7 +197,7 @@ export async function analyzeSeasonPerformance(
   for (const [rosterIdKey, sr] of srByKey) {
     const managerId = rosterIdToManager.get(rosterIdKey) ?? rosterIdKey
     if (byManager[managerId]) continue
-    const hist = rosterSeasons.get(rosterIdKey) ?? { seasons: 0, championships: 0 }
+    const hist = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
     addToManager(managerId, {
       wins: sr.wins,
       losses: sr.losses,

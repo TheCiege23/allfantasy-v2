@@ -45,13 +45,25 @@ export async function fetchSleeperStandings(
   try {
     const bracket = await getPlayoffBracket(platformLeagueId);
     if (Array.isArray(bracket) && bracket.length > 0) {
-      const lastRound = bracket.filter((b: any) => b.r === Math.max(...bracket.map((x: any) => x.r)));
-      const winner = lastRound.find((b: any) => b.w === 1);
-      if (winner?.t1) championRosterId = String(winner.t1);
-      else if (winner?.t2) championRosterId = String(winner.t2);
+      const highestRound = Math.max(
+        ...bracket
+          .map((round: any) => Number(round?.r))
+          .filter((round: number) => Number.isFinite(round))
+      );
+      const championshipMatch = bracket.find(
+        (matchup: any) =>
+          Number(matchup?.r) === highestRound && matchup?.w != null
+      );
+
+      if (championshipMatch?.w != null) {
+        championRosterId = String(championshipMatch.w);
+      }
     }
   } catch {
-    // fallback: champion = roster with final_rank 1
+    // ignore and fall back to roster standings below
+  }
+
+  if (!championRosterId) {
     const champ = (rosters as SleeperRoster[]).find(
       (r) => (r.settings?.final_rank ?? r.settings?.rank) === 1
     );
@@ -70,16 +82,11 @@ export async function fetchSleeperStandings(
       rosterId: String(r.roster_id),
       wins: typeof wins === "number" ? wins : null,
       losses: typeof losses === "number" ? losses : null,
-      pointsFor: typeof fpts === "number" ? fpts + fptsDec / 1000 : null,
-      pointsAgainst: typeof fptsAgainst === "number" ? fptsAgainst + fptsAgainstDec / 1000 : null,
+      pointsFor: typeof fpts === "number" ? fpts + fptsDec / 100 : null,
+      pointsAgainst: typeof fptsAgainst === "number" ? fptsAgainst + fptsAgainstDec / 100 : null,
       champion: championRosterId === String(r.roster_id),
     };
   });
-
-  if (!championRosterId && rows.length > 0) {
-    const byWins = [...rows].sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0));
-    if (byWins[0]?.wins != null) byWins[0].champion = true;
-  }
 
   return { rows, championRosterId };
 }

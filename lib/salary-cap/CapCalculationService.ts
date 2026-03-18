@@ -29,15 +29,12 @@ export async function getTotalCapHitForRoster(
       status: { in: ['active', 'tagged', 'option_exercised'] },
       yearSigned: { lte: capYear },
     },
-    select: { salary: true, yearsTotal: true, yearSigned: true, contractYear: true, deadMoneyRemaining: true },
+    select: { salary: true, yearsTotal: true, yearSigned: true },
   })
   let totalCapHit = 0
   for (const c of contracts) {
     const endYear = c.yearSigned + c.yearsTotal - 1
-    if (capYear >= c.yearSigned && capYear <= endYear) {
-      const yearIndex = capYear - c.yearSigned + 1
-      if (yearIndex >= 1 && yearIndex <= c.yearsTotal) totalCapHit += c.salary
-    }
+    if (capYear >= c.yearSigned && capYear <= endYear) totalCapHit += c.salary
   }
   const deadRows = await prisma.playerContract.findMany({
     where: { configId, rosterId, status: 'cut' },

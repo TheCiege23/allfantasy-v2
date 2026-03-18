@@ -3,6 +3,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { buildSeasonResultManagerMap } from '@/lib/season-results/SeasonResultRosterIdentity'
 import type { RecordCandidate, RecordType } from './types'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 
@@ -19,7 +20,10 @@ export async function detectRecords(
 
   const [league, rosters, seasonResults, draftGrades, waiverByRoster] = await Promise.all([
     prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } }),
-    prisma.roster.findMany({ where: { leagueId }, select: { id: true, platformUserId: true } }),
+    prisma.roster.findMany({
+      where: { leagueId },
+      select: { id: true, platformUserId: true, playerData: true },
+    }),
     prisma.seasonResult.findMany({
       where: season === 'all' ? { leagueId } : { leagueId, season },
       select: { rosterId: true, season: true, wins: true, pointsFor: true, pointsAgainst: true, champion: true },
@@ -38,7 +42,7 @@ export async function detectRecords(
   ])
 
   const resolvedSport = (league?.sport ?? sport) as string
-  const rosterToManager = new Map(rosters.map((r) => [r.id, r.platformUserId]))
+  const rosterToManager = buildSeasonResultManagerMap(rosters)
 
   function holder(rosterId: string): string {
     return rosterToManager.get(rosterId) ?? rosterId
@@ -48,9 +52,13 @@ export async function detectRecords(
 
   if (season === 'all') {
     const champsByHolder = new Map<string, number>()
+    const countedChampionships = new Set<string>()
     for (const sr of seasonResults) {
       if (!sr.champion) continue
       const h = holder(sr.rosterId)
+      const key = `${h}:${sr.season}`
+      if (countedChampionships.has(key)) continue
+      countedChampionships.add(key)
       champsByHolder.set(h, (champsByHolder.get(h) ?? 0) + 1)
     }
     let bestHolder = ''
@@ -80,9 +88,9 @@ export async function detectRecords(
   for (const sr of seasonResults) {
     const h = holder(sr.rosterId)
     const cur = srByHolder.get(h) ?? { wins: 0, pointsFor: 0, pointsAgainst: 0 }
-    cur.wins += sr.wins ?? 0
-    cur.pointsFor += Number(sr.pointsFor ?? 0)
-    cur.pointsAgainst += Number(sr.pointsAgainst ?? 0)
+    cur.wins = Math.max(cur.wins, sr.wins ?? 0)
+    cur.pointsFor = Math.max(cur.pointsFor, Number(sr.pointsFor ?? 0))
+    cur.pointsAgainst = Math.max(cur.pointsAgainst, Number(sr.pointsAgainst ?? 0))
     srByHolder.set(h, cur)
   }
 
