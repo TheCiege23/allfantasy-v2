@@ -821,32 +821,44 @@ export async function fetchRollingInsights(
         },
       })) as SportsPlayerRow[]
 
+      let statsByPlayerId = new Map<string, PlayerSeasonStatsRow>()
+      if (includeStats && dbPlayers.length > 0) {
+        const playerIds = dbPlayers.map((p) => p.externalId)
+        const allStats = (await deps.prisma.playerSeasonStats.findMany({
+          where: {
+            sport,
+            playerId: { in: playerIds },
+            source: 'rolling_insights',
+            seasonType: 'regular',
+          },
+          orderBy: { season: 'desc' },
+          select: {
+            playerId: true,
+            stats: true,
+            fantasyPointsPerGame: true,
+            gamesPlayed: true,
+          },
+        })) as (PlayerSeasonStatsRow & { playerId: string })[]
+        for (const stat of allStats) {
+          if (!statsByPlayerId.has(stat.playerId)) {
+            statsByPlayerId.set(stat.playerId, {
+              stats: stat.stats,
+              fantasyPointsPerGame: stat.fantasyPointsPerGame,
+              gamesPlayed: stat.gamesPlayed,
+            })
+          }
+        }
+      }
+
       for (const player of dbPlayers) {
+        const stat = statsByPlayerId.get(player.externalId)
         let seasonStats: Record<string, unknown> | null = null
         let fantasyPointsPerGame: number | null = null
         let gamesPlayed: number | null = null
-
-        if (includeStats) {
-          const stat = (await deps.prisma.playerSeasonStats.findFirst({
-            where: {
-              sport,
-              playerId: player.externalId,
-              source: 'rolling_insights',
-              seasonType: 'regular',
-            },
-            orderBy: { season: 'desc' },
-            select: {
-              stats: true,
-              fantasyPointsPerGame: true,
-              gamesPlayed: true,
-            },
-          })) as PlayerSeasonStatsRow | null
-
-          if (stat) {
-            seasonStats = asObjectRecord(stat.stats)
-            fantasyPointsPerGame = stat.fantasyPointsPerGame ?? null
-            gamesPlayed = stat.gamesPlayed ?? null
-          }
+        if (stat) {
+          seasonStats = asObjectRecord(stat.stats)
+          fantasyPointsPerGame = stat.fantasyPointsPerGame ?? null
+          gamesPlayed = stat.gamesPlayed ?? null
         }
 
         players.push({

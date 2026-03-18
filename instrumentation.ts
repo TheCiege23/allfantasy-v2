@@ -11,4 +11,10 @@ export async function register(): Promise<void> {
   } catch {
     // Non-fatal; do not block startup
   }
+  try {
+    const { initSentryServer } = await import("./lib/error-tracking");
+    initSentryServer();
+  } catch {
+    // Optional; do not block startup
+  }
 }

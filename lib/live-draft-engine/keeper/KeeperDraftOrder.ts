@@ -24,9 +24,12 @@ export function getRoundSlotForRoster(
   const rosterSlot = slotOrder.findIndex((e) => e.rosterId === rosterId) + 1
   if (rosterSlot <= 0 || rosterSlot > teamCount) return null
 
-  const isSnakeReversed = draftType === 'snake' && round % 2 === 0
-  const is3RR = thirdRoundReversal && draftType === 'snake' && round >= 3 && round % 2 === 1
-  const pickInRound = isSnakeReversed || is3RR ? teamCount - rosterSlot + 1 : rosterSlot
+  const isReversed =
+    draftType === 'snake' &&
+    (thirdRoundReversal
+      ? round === 2 || round === 3 || (round >= 4 && round % 2 === 1)
+      : round % 2 === 0)
+  const pickInRound = isReversed ? teamCount - rosterSlot + 1 : rosterSlot
   const overall = (round - 1) * teamCount + pickInRound
   return { overall, slot: pickInRound }
 }

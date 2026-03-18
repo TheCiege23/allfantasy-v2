@@ -67,42 +67,62 @@ export function useBracketLive(opts: {
     if (!enabled) return
 
     if (useSSE && typeof EventSource !== "undefined") {
-      const qs = new URLSearchParams({ tournamentId })
-      if (leagueId) qs.set("leagueId", leagueId)
-      const es = new EventSource(`/api/bracket/live/stream?${qs.toString()}`)
-      eventSourceRef.current = es
+      const maxReconnectRetries = 5
+      const reconnectDelayMs = 2000
+      let es: EventSource | null = null
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+      let retries = 0
 
-      es.addEventListener("connected", () => {
-        setConnected(true)
-        setError(null)
-      })
+      const open = () => {
+        const qs = new URLSearchParams({ tournamentId })
+        if (leagueId) qs.set("leagueId", leagueId)
+        es = new EventSource(`/api/bracket/live/stream?${qs.toString()}`)
+        eventSourceRef.current = es
 
-      es.addEventListener("update", (e) => {
-        try {
-          const payload = JSON.parse(e.data)
-          setData((prev) => ({
-            ...prev,
-            ok: true,
-            tournamentId,
-            games: payload.games ?? prev?.games ?? [],
-            standings: payload.standings ?? prev?.standings ?? null,
-            hasLiveGames: payload.hasLive,
-          }))
+        es.addEventListener("connected", () => {
+          setConnected(true)
           setError(null)
-        } catch {}
-      })
+        })
 
-      es.addEventListener("error", () => {
-        setConnected(false)
-        setError("Connection lost, reconnecting...")
-      })
+        es.addEventListener("update", (e) => {
+          try {
+            const payload = JSON.parse(e.data)
+            setData((prev) => ({
+              ...prev,
+              ok: true,
+              tournamentId,
+              games: payload.games ?? prev?.games ?? [],
+              standings: payload.standings ?? prev?.standings ?? null,
+              hasLiveGames: payload.hasLive,
+            }))
+            setError(null)
+          } catch {}
+        })
 
-      es.onerror = () => {
-        setConnected(false)
+        es.addEventListener("error", () => {
+          setConnected(false)
+          setError("Connection lost, reconnecting...")
+          es?.close()
+          es = null
+          eventSourceRef.current = null
+          if (retries < maxReconnectRetries) {
+            timeoutId = setTimeout(() => {
+              retries += 1
+              open()
+            }, reconnectDelayMs)
+          }
+        })
+
+        es.onerror = () => {
+          setConnected(false)
+        }
       }
 
+      open()
+
       return () => {
-        es.close()
+        if (timeoutId) clearTimeout(timeoutId)
+        es?.close()
         eventSourceRef.current = null
         setConnected(false)
       }

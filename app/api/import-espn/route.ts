@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getServerSession } from "next-auth";
 import { LeagueSport } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CURRENT_IMPORT_SEASON = new Date().getFullYear();
+
 const bodySchema = z.object({
   leagueId: z.string().min(1),
-  season: z.number().int().default(2025),
+  season: z.number().int().default(CURRENT_IMPORT_SEASON),
   espnS2: z.string().optional(),
   swid: z.string().optional(),
 });
@@ -107,15 +108,11 @@ function getEspnScoring(scoringType: string | undefined): string {
 
 export async function POST(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
-    const userId = session?.user?.id ?? null;
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const auth = await requireVerifiedUser();
+    if (!auth.ok) {
+      return auth.response;
     }
+    const userId = auth.userId;
 
     const json = await req.json().catch(() => null);
     const parsed = bodySchema.safeParse(json);

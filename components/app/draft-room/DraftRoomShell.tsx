@@ -88,7 +88,7 @@ export function DraftRoomShell({
 
       {/* Mobile layout: sticky current-pick area + scrollable content + nav */}
       <div className="flex md:hidden flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto min-h-0">
+        <div className="flex-1 overflow-auto min-h-0 overscroll-contain">
           {mobileStickyBar && (
             <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-sm">
               {mobileStickyBar}
@@ -99,7 +99,7 @@ export function DraftRoomShell({
               {auctionStrip}
             </div>
           )}
-          <div className="p-2 min-h-[200px] text-sm">
+          <div className="p-3 sm:p-4 min-h-[200px] text-sm">
             {mobileTab === 'board' && draftBoard}
             {mobileTab === 'players' && playerPanel}
             {mobileTab === 'queue' && queuePanel}
@@ -109,13 +109,13 @@ export function DraftRoomShell({
             {keeperPanel && mobileTab === 'keepers' && keeperPanel}
           </div>
         </div>
-        <nav className="flex shrink-0 border-t border-white/10 bg-black/40" aria-label="Draft sections">
+        <nav className="flex shrink-0 border-t border-white/10 bg-black/40 safe-area-bottom" aria-label="Draft sections">
           {visibleTabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => onMobileTabChange(id)}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[44px] py-2.5 text-[11px] touch-manipulation ${
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] py-3 text-[11px] touch-manipulation active:scale-[0.98] ${
                 mobileTab === id ? 'text-cyan-400' : 'text-white/60'
               }`}
               aria-pressed={mobileTab === id}

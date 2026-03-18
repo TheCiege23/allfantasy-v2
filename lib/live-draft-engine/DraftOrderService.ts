@@ -14,15 +14,18 @@ export interface DraftOrderParams {
 
 /**
  * Get 1-based slot in round for a given overall pick (1-based).
- * Snake: even rounds reverse (12,11,...,1). 3RR: round 3 also reverses when enabled.
+ * Snake: even rounds reverse (12,11,...,1). 3RR: round 2 and 3 reversed, then normal snake from round 4 (4 norm, 5 rev, 6 norm, ...).
  */
 export function getSlotInRoundForOverall(params: DraftOrderParams): number {
   const { overall, teamCount, draftType, thirdRoundReversal } = params
   const round = Math.ceil(overall / teamCount)
   let slot1Based = ((overall - 1) % teamCount) + 1
-  const isSnakeReversed = draftType === 'snake' && round % 2 === 0
-  const is3RR = thirdRoundReversal && draftType === 'snake' && round >= 3 && round % 2 === 1
-  if (isSnakeReversed || is3RR) {
+  const isReversed =
+    draftType === 'snake' &&
+    (thirdRoundReversal
+      ? round === 2 || round === 3 || (round >= 4 && round % 2 === 1)
+      : round % 2 === 0)
+  if (isReversed) {
     slot1Based = teamCount - slot1Based + 1
   }
   return slot1Based

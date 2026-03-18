@@ -6,11 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
+const CURRENT_IMPORT_SEASON = new Date().getFullYear();
+const SEASON_OPTIONS = Array.from({ length: 4 }, (_, index) => CURRENT_IMPORT_SEASON - index);
+
+function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
+  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing leagues.';
+  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing leagues.';
+  if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized' || data?.error === 'Authentication required') {
+    return 'Sign in to import leagues.';
+  }
+  return data?.error || fallback;
+}
+
 export default function EspnImportForm() {
   const [leagueId, setLeagueId] = useState('');
   const [espnS2, setEspnS2] = useState('');
   const [swid, setSwid] = useState('');
-  const [season, setSeason] = useState(2025);
+  const [season, setSeason] = useState(CURRENT_IMPORT_SEASON);
   const [loading, setLoading] = useState(false);
 
   const handleImport = async () => {
@@ -33,7 +45,7 @@ export default function EspnImportForm() {
       if (res.ok) {
         toast.success(`Imported "${data.leagueName}"! View it on the Rankings page.`);
       } else {
-        toast.error(data.error || 'ESPN import failed');
+        toast.error(getImportErrorMessage(data, 'ESPN import failed'));
       }
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -50,7 +62,7 @@ export default function EspnImportForm() {
           Import from ESPN
         </CardTitle>
         <CardDescription>
-          Enter your ESPN league ID to import teams and weekly scores
+          Enter your ESPN league ID to import one league&apos;s teams and weekly scores. Full roster, trade, and draft history are not imported yet.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -79,9 +91,9 @@ export default function EspnImportForm() {
             className="w-full rounded-md border border-purple-600/40 bg-gray-900 px-4 py-2 text-white focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
             disabled={loading}
           >
-            <option value={2025}>2025</option>
-            <option value={2024}>2024</option>
-            <option value={2023}>2023</option>
+            {SEASON_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
           </select>
         </div>
 
@@ -119,7 +131,7 @@ export default function EspnImportForm() {
               />
             </div>
             <p className="text-xs text-gray-600">
-              Open fantasy.espn.com, press F12, go to Application → Cookies to find these values.
+              Open fantasy.espn.com, press F12, then go to Application and Cookies to find these values.
             </p>
           </div>
         </details>

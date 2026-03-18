@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe-client"
 import Stripe from "stripe"
 
@@ -32,17 +31,19 @@ export async function POST(req: NextRequest) {
 
     switch (event.type) {
       case "checkout.session.completed": {
-        console.log("[stripe webhook] checkout.session.completed", event.id)
+        // Main app donate/lab: metadata has userId, tournamentId, purchase_type. Persist when
+        // UserSubscription or payment table exists; until then Stripe has the source of truth.
+        const session = event.data.object as Stripe.Checkout.Session
+        const meta = session?.metadata as { userId?: string; purchase_type?: string } | undefined
+        if (meta?.userId && meta?.purchase_type) {
+          // Optional: future persistence for lab/donation entitlement
+        }
         break
       }
-      case "payment_intent.succeeded": {
-        console.log("[stripe webhook] payment_intent.succeeded", event.id)
+      case "payment_intent.succeeded":
         break
-      }
-      default: {
-        console.log("[stripe webhook] unhandled event", event.type)
+      default:
         break
-      }
     }
 
     return NextResponse.json({ received: true })

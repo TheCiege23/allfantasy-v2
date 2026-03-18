@@ -20,7 +20,7 @@ export default function LandingFinalCTA() {
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
           <Link
             href={CONVERSION_CTA.primary.href}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] transition-colors"
+            className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-8 py-4 text-base font-semibold text-black shadow-lg hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] transition-colors touch-manipulation"
             onClick={() => trackLandingCtaClick({ cta_label: CONVERSION_CTA.primary.label, cta_destination: CONVERSION_CTA.primary.href, cta_type: 'primary', source: 'final_cta' })}
           >
             <AppWindow className="h-5 w-5 shrink-0" />
@@ -28,7 +28,7 @@ export default function LandingFinalCTA() {
           </Link>
           <Link
             href={CONVERSION_CTA.secondary.href}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border-2 px-6 py-3.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[var(--bg)]"
+            className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border-2 px-8 py-4 text-base font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation"
             style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--panel)' }}
             onClick={() => trackLandingCtaClick({ cta_label: CONVERSION_CTA.secondary.label, cta_destination: CONVERSION_CTA.secondary.href, cta_type: 'secondary', source: 'final_cta' })}
           >

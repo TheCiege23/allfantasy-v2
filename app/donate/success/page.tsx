@@ -1,14 +1,29 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
+import { useEntitlement } from "@/hooks/useEntitlement"
+import { useTokenBalance } from "@/hooks/useTokenBalance"
 
-function getMode(): "donate" | "lab" {
-  if (typeof window === "undefined") return "donate"
-  return new URLSearchParams(window.location.search).get("mode") === "lab" ? "lab" : "donate"
+function getMode(searchParams: URLSearchParams | null): "donate" | "lab" {
+  if (!searchParams) return "donate"
+  return searchParams.get("mode") === "lab" ? "lab" : "donate"
 }
 
 export default function DonateSuccessPage() {
-  const mode = useMemo(getMode, [])
+  const searchParams = useSearchParams()
+  const mode = useMemo(() => getMode(searchParams), [searchParams])
+  const { refetch: refetchEntitlement } = useEntitlement()
+  const { refetch: refetchTokens } = useTokenBalance()
+  const didRefetch = useRef(false)
+
+  // After Stripe redirect we land with ?mode=donate|lab; refetch entitlement + tokens so UI shows updated state
+  useEffect(() => {
+    if (didRefetch.current || !searchParams?.get("mode")) return
+    didRefetch.current = true
+    refetchEntitlement()
+    refetchTokens()
+  }, [searchParams, refetchEntitlement, refetchTokens])
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-white">
       <div className="mx-auto w-full max-w-2xl px-4 py-16 sm:px-6">

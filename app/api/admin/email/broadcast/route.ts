@@ -128,7 +128,19 @@ export const POST = withApiUsage({ endpoint: "/api/admin/email/broadcast", tool:
       });
     }
 
-    const { client: resend, fromEmail } = await getResendClient();
+    let resend: Awaited<ReturnType<typeof getResendClient>>["client"];
+    let fromEmail: string;
+    try {
+      const client = getResendClient();
+      resend = client.client;
+      fromEmail = client.fromEmail;
+    } catch (e) {
+      console.error("[admin/email/broadcast] Resend not configured:", e);
+      return NextResponse.json(
+        { error: "Email service not configured. Set RESEND_API_KEY." },
+        { status: 503 }
+      );
+    }
     const from = (body.from || fromEmail || process.env.RESEND_FROM || "").trim();
     if (!from) return bad("Missing from address");
 

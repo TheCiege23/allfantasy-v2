@@ -34,7 +34,7 @@ export type OnboardingMilestoneEventType =
 
 export interface RetentionNudge {
   id: string
-  type: "recap" | "return_nudge" | "unfinished_reminder" | "weekly_summary" | "creator_recommendation" | "sport_season_prompt"
+  type: "recap" | "return_nudge" | "unfinished_reminder" | "weekly_summary" | "creator_recommendation" | "sport_season_prompt" | "ai_check_in"
   title: string
   body: string
   href: string

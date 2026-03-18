@@ -1,11 +1,17 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchEspnLeague, findTeamByName } from '@/lib/espn-client'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 
 export const dynamic = 'force-dynamic'
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/espn-import", tool: "LegacyEspnImport" })(async (req: NextRequest) => {
   try {
+    const auth = await requireVerifiedUser()
+    if (!auth.ok) {
+      return auth.response
+    }
+
     const body = await req.json()
     const leagueIdRaw = String(body.league_id || '').trim()
     const teamName = String(body.team_name || '').trim()

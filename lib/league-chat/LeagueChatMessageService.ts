@@ -30,15 +30,21 @@ export async function getLeagueChatMessages(
     take: limit,
     include: includeUser,
   })
-  return rows.reverse().map((m) => ({
-    id: m.id,
-    threadId: `league:${leagueId}`,
-    senderUserId: m.user?.id ?? null,
-    senderName: m.user?.displayName || m.user?.email || 'User',
-    messageType: m.type || 'text',
-    body: m.message || '',
-    createdAt: m.createdAt.toISOString(),
-  }))
+  return rows.reverse().map((m) => {
+    const base = {
+      id: m.id,
+      threadId: `league:${leagueId}`,
+      senderUserId: m.user?.id ?? null,
+      senderName: m.user?.displayName || m.user?.email || 'User',
+      messageType: m.type || 'text',
+      body: m.message || '',
+      createdAt: m.createdAt.toISOString(),
+    }
+    const meta = (m as { imageUrl?: string | null; metadata?: Record<string, unknown> }).imageUrl
+      ? { ...((m as { metadata?: Record<string, unknown> }).metadata ?? {}), imageUrl: (m as { imageUrl?: string | null }).imageUrl }
+      : ((m as { metadata?: Record<string, unknown> }).metadata ?? undefined)
+    return meta ? { ...base, metadata: meta } : base
+  })
 }
 
 export async function createLeagueChatMessage(
@@ -60,7 +66,7 @@ export async function createLeagueChatMessage(
     include: includeUser,
   })
   const withUser = created as typeof created & { user?: { id: string; displayName: string | null; email: string | null; avatarUrl: string | null } }
-  return {
+  const out: PlatformChatMessage = {
     id: created.id,
     threadId: `league:${leagueId}`,
     senderUserId: withUser.user?.id ?? created.userId,
@@ -69,4 +75,11 @@ export async function createLeagueChatMessage(
     body: created.message || '',
     createdAt: created.createdAt.toISOString(),
   }
+  if (created.imageUrl || (created as { metadata?: Record<string, unknown> }).metadata) {
+    out.metadata = {
+      ...((created as { metadata?: Record<string, unknown> }).metadata ?? {}),
+      ...(created.imageUrl && { imageUrl: created.imageUrl }),
+    }
+  }
+  return out
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { GuillotinePostDraftIntro } from '@/components/guillotine/GuillotinePostDraftIntro'
 import {
   Trophy,
   Award,
@@ -19,6 +20,7 @@ export interface DraftResultsClientProps {
   leagueId: string
   leagueName: string
   sport: string
+  isGuillotine?: boolean
 }
 
 export function DraftResultsClient({
@@ -140,6 +142,11 @@ export function DraftResultsClient({
           ))}
         </ul>
       </section>
+
+      {/* Guillotine post-draft intro (after rankings, before recap) */}
+      {isGuillotine && (
+        <GuillotinePostDraftIntro leagueId={leagueId} onContinue={() => {}} />
+      )}
 
       {/* Draft board recap */}
       <section>

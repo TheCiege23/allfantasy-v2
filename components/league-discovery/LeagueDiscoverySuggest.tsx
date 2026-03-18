@@ -29,6 +29,13 @@ const BALANCE_OPTIONS: { value: string; label: string }[] = [
 
 type SourceMode = 'pools' | 'discovered'
 
+function getDiscoveryErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
+  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before discovering leagues.'
+  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before discovering leagues.'
+  if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized') return 'Sign in to discover leagues.'
+  return data?.error || fallback
+}
+
 export default function LeagueDiscoverySuggest() {
   const [sourceMode, setSourceMode] = useState<SourceMode>('pools')
   const [tournamentId, setTournamentId] = useState('')
@@ -69,7 +76,7 @@ export default function LeagueDiscoverySuggest() {
         setDiscoveredLeagues(candidates)
         setSourceMode('discovered')
       } else {
-        setError(data.error || 'Discovery failed')
+        setError(getDiscoveryErrorMessage(data, 'Discovery failed'))
       }
     } catch {
       setError('Failed to discover leagues')

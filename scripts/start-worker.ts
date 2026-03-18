@@ -1,17 +1,22 @@
-import { startSimulationWorker } from "../lib/workers/simulation-worker"
+import { startSimulationWorker, stopSimulationWorker } from "../lib/workers/simulation-worker"
+import { startNotificationWorker, stopNotificationWorker } from "../lib/workers/notification-worker"
+import { startAiWorker, stopAiWorker } from "../lib/workers/ai-worker"
 
-console.log("[Worker] Starting simulation worker process...")
+console.log("[Worker] Starting background job workers (simulations, notifications, ai)...")
 
-const worker = startSimulationWorker()
+startSimulationWorker()
+startNotificationWorker()
+startAiWorker()
 
-process.on("SIGTERM", async () => {
-  console.log("[Worker] SIGTERM received, shutting down...")
-  await worker.close()
+async function shutdown() {
+  console.log("[Worker] Shutting down...")
+  await Promise.all([
+    stopSimulationWorker(),
+    stopNotificationWorker(),
+    stopAiWorker(),
+  ])
   process.exit(0)
-})
+}
 
-process.on("SIGINT", async () => {
-  console.log("[Worker] SIGINT received, shutting down...")
-  await worker.close()
-  process.exit(0)
-})
+process.on("SIGTERM", shutdown)
+process.on("SIGINT", shutdown)

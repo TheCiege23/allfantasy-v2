@@ -52,7 +52,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       config: variant.config ? { ...variant.config, leagueSize: variant.leagueSize } : null,
       draftUISettings: variant.draftUISettings,
       isCommissioner: !!commissioner,
@@ -61,6 +61,8 @@ export async function GET(
       sessionPreDraft: variant.sessionPreDraft ?? false,
       orphanStatus,
     })
+    res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
+    return res
   } catch (e) {
     console.error('[draft/settings GET]', e)
     return NextResponse.json({ error: 'Failed to load draft settings' }, { status: 500 })

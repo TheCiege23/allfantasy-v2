@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { DraftBoardCell, type DraftBoardCellPick } from './DraftBoardCell'
 import type { DraftPickSnapshot, SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
 import type { KeeperSessionSnapshot } from '@/lib/live-draft-engine/types'
@@ -25,7 +25,7 @@ export type DraftBoardProps = {
   c2cCollegeRounds?: number[]
 }
 
-export function DraftBoard({
+function DraftBoardInner({
   picks,
   slotOrder,
   tradedPicks = [],
@@ -151,3 +151,5 @@ export function DraftBoard({
     </section>
   )
 }
+
+export const DraftBoard = React.memo(DraftBoardInner)

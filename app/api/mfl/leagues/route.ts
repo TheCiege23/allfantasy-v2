@@ -1,8 +1,9 @@
 import { withApiUsage } from "@/lib/telemetry/usage";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 import { prisma } from "@/lib/prisma";
+import { requireVerifiedUser } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,8 +67,13 @@ async function fetchMFLLeagues(year: number, mflCookie: string) {
 export const GET = withApiUsage({
   endpoint: "/api/mfl/leagues",
   tool: "MflLeagues",
-})(async (_req: NextRequest) => {
+})(async () => {
   try {
+    const auth = await requireVerifiedUser();
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const connection = await getMFLConnection();
 
     if (!connection) {

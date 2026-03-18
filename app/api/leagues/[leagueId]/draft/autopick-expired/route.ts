@@ -41,7 +41,9 @@ export async function POST(
   }
 
   const { resolveCurrentOnTheClock } = await import('@/lib/live-draft-engine/CurrentOnTheClockResolver')
+  const { resolvePickOwner } = await import('@/lib/live-draft-engine/PickOwnershipResolver')
   const slotOrder = (draftSession.slotOrder as { slot: number; rosterId: string; displayName: string }[]) ?? []
+  const tradedPicks = Array.isArray(draftSession.tradedPicks) ? (draftSession.tradedPicks as { round: number; originalRosterId: string; previousOwnerName: string; newRosterId: string; newOwnerName: string }[]) : []
   const teamCount = draftSession.teamCount
   const totalPicks = draftSession.rounds * teamCount
   const picksCount = draftSession.picks.length
@@ -53,8 +55,10 @@ export async function POST(
     thirdRoundReversal: draftSession.thirdRoundReversal,
     slotOrder,
   })
-
-  if (!current || current.rosterId !== rosterId) {
+  if (!current) return NextResponse.json({ error: 'No current pick' }, { status: 400 })
+  const resolvedOwner = resolvePickOwner(current.round, current.slot, slotOrder, tradedPicks)
+  const onClockRosterId = resolvedOwner?.rosterId ?? current.rosterId
+  if (rosterId !== onClockRosterId) {
     return NextResponse.json({ error: 'You are not on the clock' }, { status: 400 })
   }
 

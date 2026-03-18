@@ -304,7 +304,7 @@ export default function ChimmyChatShell({
 
   return (
     <div
-      className={`flex flex-col rounded-2xl border border-white/10 bg-black/30 overflow-hidden ${compact ? 'min-h-[400px]' : 'h-[calc(100vh-180px)] min-h-[420px]'} ${className}`}
+      className={`flex flex-col rounded-2xl border border-white/10 bg-black/30 overflow-hidden touch-scroll ${compact ? 'min-h-[400px]' : 'h-fill-dynamic min-h-[420px]'} ${className}`}
     >
       <header className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-white/10 bg-white/[0.03]">
         <div className="flex items-center gap-3 min-w-0 flex-1">

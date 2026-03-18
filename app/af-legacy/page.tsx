@@ -881,6 +881,7 @@ function AFLegacyContent() {
   const [mflEndYear, setMflEndYear] = useState(new Date().getFullYear())
   const [mflImporting, setMflImporting] = useState(false)
   const [mflImportResult, setMflImportResult] = useState<any>(null)
+  const mflHistoricalImportAvailable = false
 
   const [error, setError] = useState('')
   const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'complete'>('idle')
@@ -4573,7 +4574,7 @@ function AFLegacyContent() {
                 </h2>
 
                 <p className="mt-2 sm:mt-3 text-sm sm:text-base text-white/65">
-                  Import your real leagues from Sleeper, Yahoo, MFL, or Fantrax to see career rankings, playoff accuracy, and how the AllFantasy AI evaluates your decisions over time.
+                  Import your fantasy history from Sleeper today. Yahoo, MFL, and Fantrax tools are still limited and do not yet support full historical imports.
                 </p>
 
                 {/* Trust line */}
@@ -4913,11 +4914,11 @@ function AFLegacyContent() {
                                   </li>
                                   <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs font-bold">3</span>
-                                    <span>Once connected, select a <strong className="text-amber-300">year range</strong> to import. We'll pull all your leagues, rosters, and trade history.</span>
+                                    <span>Once connected, select a <strong className="text-amber-300">year range</strong> to review what MFL exposes. Full multi-year historical import is still in progress.</span>
                                   </li>
                                   <li className="flex gap-3">
                                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs font-bold">4</span>
-                                    <span>MFL is the <strong className="text-amber-300">gold standard for dynasty</strong> — we import everything from records to transactions.</span>
+                                    <span>MFL is important for dynasty players, but full records, trades, and transaction import is <strong className="text-amber-300">not live yet</strong>.</span>
                                   </li>
                                 </ul>
 
@@ -4975,7 +4976,7 @@ function AFLegacyContent() {
                                 </select>
                               </div>
                               <p className="text-[10px] text-white/40 mt-2">
-                                Imports leagues, rosters, standings, and trade history for all selected years
+                                Historical MFL import is not live yet. Right now this connection supports account auth and league listing only.
                               </p>
                             </div>
                             
@@ -5047,12 +5048,14 @@ function AFLegacyContent() {
                                     setMflImporting(false)
                                   }
                                 }}
-                                disabled={mflLoading || mflImporting}
+                                disabled={!mflHistoricalImportAvailable || mflLoading || mflImporting}
                                 className="flex-[2] py-3 rounded-2xl font-bold text-white transition disabled:opacity-50
                                   bg-gradient-to-r from-amber-500/80 to-orange-500/80 hover:from-amber-400/90 hover:to-orange-400/90
                                   shadow-[0_12px_35px_rgba(0,0,0,0.35)]"
                               >
-                                {mflImporting ? 'Importing All Years...' : `🔥 Import ${mflStartYear}–${mflEndYear}`}
+                                {mflHistoricalImportAvailable
+                                  ? (mflImporting ? 'Importing All Years...' : `Import ${mflStartYear}-${mflEndYear}`)
+                                  : 'Historical MFL Import Not Live'}
                               </button>
                             </div>
                             
@@ -18033,7 +18036,7 @@ function AFLegacyContent() {
                     <span className="text-lg">📊</span>
                     <h4 className="font-semibold text-cyan-200">1. Data Collection</h4>
                   </div>
-                  <p className="text-sm text-white/70 leading-relaxed">We pull your complete Sleeper history — leagues, rosters, win/loss records, playoff appearances, championships, and transaction history across all seasons.</p>
+                  <p className="text-sm text-white/70 leading-relaxed">We pull the Sleeper league data we can verify today, including league structure, rosters, and season results. Full cross-season draft, trade, and playoff history is still being expanded.</p>
                 </div>
 
                 <div className="rounded-2xl bg-purple-500/10 border border-purple-500/20 p-4">
@@ -18095,4 +18098,3 @@ export default function AFLegacyPage() {
     </>
   )
 }
-

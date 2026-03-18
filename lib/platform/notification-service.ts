@@ -110,11 +110,11 @@ export async function getPlatformNotifications(appUserId: string, limit = 40): P
 
 export async function markPlatformNotificationRead(appUserId: string, notificationId: string): Promise<boolean> {
   try {
-    await (prisma as any).platformNotification.updateMany({
+    const result = await (prisma as any).platformNotification.updateMany({
       where: { id: notificationId, userId: appUserId },
       data: { readAt: new Date() },
     })
-    return true
+    return (result?.count ?? 0) > 0
   } catch {
     return false
   }

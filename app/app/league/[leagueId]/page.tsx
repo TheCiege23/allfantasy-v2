@@ -30,6 +30,7 @@ import RecordBooksTab from '@/components/app/tabs/RecordBooksTab'
 import StoreTab from '@/components/app/tabs/StoreTab'
 import NewsTab from '@/components/app/tabs/NewsTab'
 import DivisionsTab from '@/components/app/tabs/DivisionsTab'
+import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
 
 type LeagueSummary = { id: string; name: string }
 
@@ -49,12 +50,26 @@ export default function AppLeaguePage() {
 
   const [leagueName, setLeagueName] = useState<string>('League')
   const [isCommissioner, setIsCommissioner] = useState<boolean>(false)
+  const [isGuillotine, setIsGuillotine] = useState<boolean>(false)
+  const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
 
   useEffect(() => {
     let active = true
 
     async function loadName() {
+      if (!leagueId) return
       try {
+        // Always fetch app league detail for name and leagueVariant (guillotine)
+        const leagueRes = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
+        if (active && leagueRes.ok) {
+          const leagueData = await leagueRes.json().catch(() => ({})) as { name?: string; leagueVariant?: string }
+          if (leagueData?.name) setLeagueName(leagueData.name)
+          const guillotine = String(leagueData?.leagueVariant ?? '').toLowerCase() === 'guillotine'
+          setIsGuillotine(guillotine)
+          setShowFirstEntryModal(guillotine)
+          return
+        }
+        // Fallback: bracket list
         const res = await fetch('/api/bracket/my-leagues', { cache: 'no-store' })
         const data = await res.json().catch(() => ({}))
         if (!active) return
@@ -66,7 +81,7 @@ export default function AppLeaguePage() {
       }
     }
 
-    if (leagueId) void loadName()
+    void loadName()
     return () => {
       active = false
     }
@@ -123,10 +138,17 @@ export default function AppLeaguePage() {
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId])
+  }, [leagueId, isGuillotine])
 
   return (
     <div className="space-y-3">
+      {isGuillotine && (
+        <GuillotineFirstEntryModal
+          leagueId={leagueId}
+          show={showFirstEntryModal}
+          onClose={() => setShowFirstEntryModal(false)}
+        />
+      )}
       <div className="px-4 pt-3 sm:px-0">
         <LiveScoringWidget leagueId={leagueId} />
       </div>

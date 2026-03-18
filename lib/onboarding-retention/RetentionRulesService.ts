@@ -142,6 +142,22 @@ export async function getWeeklySummaryNudges(userId: string): Promise<RetentionN
 }
 
 /**
+ * AI check-in: friendly prompt to chat with Chimmy for a tip or league check-in.
+ */
+export async function getAICheckInNudges(userId: string): Promise<RetentionNudge[]> {
+  return [
+    {
+      id: "ai_check_in",
+      type: "ai_check_in",
+      title: "Chimmy check-in",
+      body: "Get a quick tip or ask how your league is doing. Your AI assistant is here to help.",
+      href: "/chimmy",
+      ctaLabel: "Check in with Chimmy",
+    },
+  ]
+}
+
+/**
  * Creator league recommendations (public creator leagues by user's preferred sports).
  */
 export async function getCreatorLeagueRecommendations(userId: string): Promise<RetentionNudge[]> {
@@ -222,6 +238,7 @@ export async function getAllRetentionNudges(userId: string): Promise<RetentionNu
     reminders,
     recaps,
     weeklySummary,
+    aiCheckIn,
     creatorRecs,
     sportPrompts,
   ] = await Promise.all([
@@ -229,6 +246,7 @@ export async function getAllRetentionNudges(userId: string): Promise<RetentionNu
     getUnfinishedReminders(userId),
     getRecapCards(userId),
     getWeeklySummaryNudges(userId),
+    getAICheckInNudges(userId),
     getCreatorLeagueRecommendations(userId),
     getSportSeasonPrompts(userId),
   ])
@@ -238,6 +256,7 @@ export async function getAllRetentionNudges(userId: string): Promise<RetentionNu
     ...returnNudges,
     ...recaps,
     ...weeklySummary,
+    ...aiCheckIn,
     ...creatorRecs,
     ...sportPrompts,
   ]

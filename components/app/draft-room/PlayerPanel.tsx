@@ -1,10 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Search, User, Plus } from 'lucide-react'
 import { getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
+
+const PLAYER_ROW_ESTIMATE_HEIGHT = 56
 
 export type PlayerEntry = {
   id?: string
@@ -61,7 +64,109 @@ export type PlayerPanelProps = {
 
 type SortKey = 'adp' | 'name'
 
-export function PlayerPanel({
+function PlayerListVirtualized({
+  filtered,
+  draftedNames,
+  canDraft,
+  canNominate,
+  useAiAdp,
+  onMakePick,
+  onAddToQueue,
+  onNominate,
+  scrollRef,
+}: {
+  filtered: PlayerEntry[]
+  draftedNames: Set<string>
+  canDraft: boolean
+  canNominate: boolean
+  useAiAdp: boolean
+  onMakePick: (player: PlayerEntry) => void
+  onAddToQueue: (player: PlayerEntry) => void
+  onNominate?: (player: PlayerEntry) => void
+  scrollRef: React.RefObject<HTMLDivElement | null>
+}) {
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => PLAYER_ROW_ESTIMATE_HEIGHT,
+    overscan: 5,
+  })
+
+  const items = virtualizer.getVirtualItems()
+
+  return (
+    <div
+      style={{
+        height: `${virtualizer.getTotalSize()}px`,
+        width: '100%',
+        position: 'relative',
+      }}
+    >
+      {items.map((virtualRow) => {
+        const p = filtered[virtualRow.index]
+        return (
+          <div
+            key={p.id ?? p.name}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+            data-index={virtualRow.index}
+          >
+            <DraftPlayerCard
+              display={p.display ?? null}
+              name={p.name}
+              position={p.position}
+              team={p.team}
+              adp={useAiAdp ? p.aiAdp : p.adp}
+              byeWeek={p.byeWeek}
+              isDrafted={draftedNames.has(p.name)}
+              variant="row"
+              isDevy={p.isDevy}
+              school={p.school}
+              graduatedToNFL={p.graduatedToNFL}
+              poolType={p.poolType}
+              primaryAction={
+                canNominate && onNominate ? (
+                  <button
+                    type="button"
+                    onClick={() => onNominate(p)}
+                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-amber-500/40 bg-amber-500/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-500/30 touch-manipulation"
+                  >
+                    Nominate
+                  </button>
+                ) : canDraft ? (
+                  <button
+                    type="button"
+                    onClick={() => onMakePick(p)}
+                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/30 touch-manipulation"
+                  >
+                    Draft
+                  </button>
+                ) : undefined
+              }
+              secondaryAction={
+                <button
+                  type="button"
+                  onClick={() => onAddToQueue(p)}
+                  className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-white/20 text-white/70 hover:bg-white/10 touch-manipulation"
+                  aria-label={`Add ${p.name} to queue`}
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              }
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function PlayerPanelInner({
   players,
   draftedNames,
   sport,
@@ -101,6 +206,8 @@ export function PlayerPanel({
     const teams = new Set(players.map((p) => p.team).filter(Boolean) as string[])
     return ['All', ...Array.from(teams).sort()]
   }, [players])
+
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const filtered = useMemo(() => {
     let list = players.filter((p) => !draftedNames.has(p.name))
@@ -142,22 +249,22 @@ export function PlayerPanel({
 
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-black/25">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 p-2">
-        <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5">
-          <Search className="h-3.5 w-3.5 text-white/50" />
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 p-2.5">
+        <div className="flex flex-1 min-h-[44px] items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2 touch-manipulation">
+          <Search className="h-4 w-4 shrink-0 text-white/50" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search players..."
-            className="min-w-0 flex-1 bg-transparent text-xs text-white placeholder:text-white/40"
+            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40"
             aria-label="Search players"
           />
         </div>
         <select
           value={positionFilter}
           onChange={(e) => setPositionFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white"
+          className="min-h-[44px] rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white touch-manipulation"
           aria-label="Position filter"
         >
           {positionOptions.map((o) => (
@@ -167,7 +274,7 @@ export function PlayerPanel({
         <select
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white"
+          className="min-h-[44px] rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white touch-manipulation"
           aria-label="Team filter"
         >
           {teamOptions.slice(0, 32).map((t) => (
@@ -178,7 +285,7 @@ export function PlayerPanel({
           <select
             value={poolFilter}
             onChange={(e) => setPoolFilter(e.target.value as 'All' | 'Pro' | 'Devy' | 'College')}
-            className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-xs text-white"
+            className="min-h-[44px] rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white touch-manipulation"
             aria-label="Pool filter"
           >
             <option value="All">All</option>
@@ -211,19 +318,19 @@ export function PlayerPanel({
           Devy round — select a college/devy-eligible player.
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-2.5 py-2">
         <span className="text-[10px] text-white/50">Sort:</span>
         <button
           type="button"
           onClick={() => setSortBy('adp')}
-          className={`rounded px-2 py-1 text-[10px] ${sortBy === 'adp' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/70 hover:bg-white/10'}`}
+          className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'adp' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/70 hover:bg-white/10'}`}
         >
           ADP
         </button>
         <button
           type="button"
           onClick={() => setSortBy('name')}
-          className={`rounded px-2 py-1 text-[10px] ${sortBy === 'name' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/70 hover:bg-white/10'}`}
+          className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'name' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/70 hover:bg-white/10'}`}
         >
           Name
         </button>
@@ -233,12 +340,13 @@ export function PlayerPanel({
           </span>
         )}
         {onUseAiAdpChange && (
-          <label className="flex items-center gap-1.5 text-[10px] text-white/70">
+          <label className="min-h-[44px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation">
             <input
               type="checkbox"
               checked={useAiAdp}
               onChange={(e) => onUseAiAdpChange(e.target.checked)}
-              className="rounded border-white/20"
+              className="rounded border-white/20 w-4 h-4 shrink-0"
+              aria-label="Use AI ADP for sort order"
             />
             Use AI ADP
           </label>
@@ -256,13 +364,13 @@ export function PlayerPanel({
         <button
           type="button"
           onClick={() => setShowRosterView((v) => !v)}
-          className="ml-auto flex items-center gap-1 rounded px-2 py-1 text-[10px] text-white/70 hover:bg-white/10"
+          className="ml-auto min-h-[44px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation"
         >
-          <User className="h-3 w-3" />
+          <User className="h-3.5 w-3.5" />
           {showRosterView ? 'Pool' : 'My roster'}
         </button>
       </div>
-      <div className="flex-1 overflow-auto p-2">
+      <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain p-2.5">
         {loading ? (
           <p className="py-4 text-center text-xs text-white/50">Loading pool…</p>
         ) : showRosterView ? (
@@ -282,56 +390,21 @@ export function PlayerPanel({
             )}
           </ul>
         ) : (
-          <ul className="space-y-1">
-            {filtered.slice(0, 150).map((p) => (
-              <DraftPlayerCard
-                key={p.id ?? p.name}
-                display={p.display ?? null}
-                name={p.name}
-                position={p.position}
-                team={p.team}
-                adp={useAiAdp ? p.aiAdp : p.adp}
-                byeWeek={p.byeWeek}
-                isDrafted={draftedNames.has(p.name)}
-                variant="row"
-                isDevy={p.isDevy}
-                school={p.school}
-                graduatedToNFL={p.graduatedToNFL}
-                poolType={p.poolType}
-                primaryAction={
-                  canNominate && onNominate ? (
-                    <button
-                      type="button"
-                      onClick={() => onNominate(p)}
-                      className="rounded border border-amber-500/40 bg-amber-500/20 px-2 py-1 text-[10px] text-amber-200 hover:bg-amber-500/30"
-                    >
-                      Nominate
-                    </button>
-                  ) : canDraft ? (
-                    <button
-                      type="button"
-                      onClick={() => onMakePick(p)}
-                      className="rounded border border-cyan-500/40 bg-cyan-500/20 px-2 py-1 text-[10px] text-cyan-200 hover:bg-cyan-500/30"
-                    >
-                      Draft
-                    </button>
-                  ) : undefined
-                }
-                secondaryAction={
-                  <button
-                    type="button"
-                    onClick={() => onAddToQueue(p)}
-                    className="rounded border border-white/20 p-1 text-white/70 hover:bg-white/10"
-                    aria-label={`Add ${p.name} to queue`}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                }
-              />
-            ))}
-          </ul>
+          <PlayerListVirtualized
+            filtered={filtered}
+            draftedNames={draftedNames}
+            canDraft={canDraft}
+            canNominate={canNominate}
+            useAiAdp={useAiAdp}
+            onMakePick={onMakePick}
+            onAddToQueue={onAddToQueue}
+            onNominate={onNominate}
+            scrollRef={scrollRef}
+          />
         )}
       </div>
     </section>
   )
 }
+
+export const PlayerPanel = React.memo(PlayerPanelInner)

@@ -379,6 +379,8 @@ model LegacyRoster {
 
   @@unique([leagueId, rosterId])
   @@index([leagueId])
+  @@index([ownerId])
+  @@index([leagueId, ownerId])
 }
 
 model LegacySeasonSummary {
@@ -1531,6 +1533,7 @@ model PlayerSeasonStats {
 
   @@unique([sport, playerId, season, seasonType, source])
   @@index([sport, playerId])
+  @@index([sport, playerId, source, seasonType])
   @@index([sport, playerName])
   @@index([sport, position])
   @@index([season])
@@ -2342,6 +2345,7 @@ model AppUser {
   platformChatThreadMemberships PlatformChatThreadMember[]
   platformChatMessages          PlatformChatMessage[]      @relation("PlatformChatMessageSender")
   platformNotifications         PlatformNotification[]
+  webPushSubscriptions          WebPushSubscription[]
   engagementEvents               EngagementEvent[]
   podcastEpisodes                PodcastEpisode[]
   fantasyMediaEpisodes          FantasyMediaEpisode[]
@@ -2363,8 +2367,26 @@ model AppUser {
   creatorProfile                CreatorProfile?
   inviteLinksCreated            InviteLink[]
   leagueTemplates               LeagueTemplate[]
+  growthAttributions            GrowthAttribution[]
 
   @@map("app_users")
+}
+
+/// Viral Loop Engine (PROMPT 291) — growth attribution: how each user entered (referral, league_invite, draft_share, ai_share, organic).
+model GrowthAttribution {
+  id         String   @id @default(uuid())
+  userId     String
+  source     String   @db.VarChar(32) // referral | league_invite | draft_share | ai_share | competition_invite | organic
+  sourceId   String?  @db.VarChar(128) // referrerId | leagueId | shareId | momentId
+  metadata   Json?    // e.g. inviteCode, utm_campaign, channel
+  createdAt  DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([source])
+  @@index([source, sourceId])
+  @@map("growth_attributions")
 }
 
 /// Viral Invite Engine (PROMPT 142) — unified invite links for league, bracket, creator league, referral, reactivation, waitlist.
@@ -3390,7 +3412,7 @@ model UserProfile {
   bio                String?             @db.Text
   preferredSports         Json?   // string[] e.g. ["NFL","NBA"]
   notificationPreferences  Json?   // NotificationPreferences shape
-  onboardingStep          String?  // welcome | sport_selection | tool_suggestions | league_prompt | completed
+  onboardingStep          String?  // welcome | app_walkthrough | sport_selection | tool_suggestions | league_prompt | completed
   onboardingCompletedAt   DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
   retentionNudgeDismissedAt Json?
@@ -3470,6 +3492,8 @@ model League {
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
   waiverSettings     LeagueWaiverSettings?
+  guillotineConfig   GuillotineLeagueConfig?
+  salaryCapConfig    SalaryCapLeagueConfig?
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -3482,6 +3506,7 @@ model League {
 
   @@unique([userId, platform, platformLeagueId])
   @@index([userId])
+  @@index([userId, updatedAt])
   @@index([userId, isDynasty])
   @@index([sport, season])
   @@index([status])
@@ -3675,6 +3700,212 @@ model LeagueWaiverSettings {
   updatedAt           DateTime  @updatedAt
 
   @@map("league_waiver_settings")
+}
+
+// ========== Guillotine League Engine (PROMPT 332) ==========
+
+/// Guillotine league config (1:1 with League when leagueVariant/format is guillotine).
+model GuillotineLeagueConfig {
+  id                    String   @id @default(uuid())
+  leagueId              String   @unique
+  league                League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  /// First scoring period when elimination runs (1-based).
+  eliminationStartWeek  Int      @default(1)
+  /// Last scoring period for elimination (e.g. week 17); after this, no more chops.
+  eliminationEndWeek    Int?
+  /// Number of teams chopped per period (1 = classic).
+  teamsPerChop          Int      @default(1)
+  /// When to run chop: immediate | after_stat_corrections | custom_cutoff
+  correctionWindow      String   @default("after_stat_corrections") @db.VarChar(32)
+  /// Custom cutoff: ISO weekday (1–7) and/or time UTC (e.g. "Wednesday 14:00").
+  customCutoffDayOfWeek Int?
+  customCutoffTimeUtc   String?  @db.VarChar(16)
+  /// Hours after period end to wait for stat corrections (if correctionWindow = after_stat_corrections).
+  statCorrectionHours   Int?     @default(48)
+  /// Tiebreaker order: season_points | previous_period | draft_slot | commissioner | random
+  tiebreakerOrder       Json?
+  /// Danger tier: points margin below lowest projected to count as "in danger".
+  dangerMarginPoints    Float?   @default(10)
+  /// Release chopped roster to waivers: immediate | next_waiver_run | custom_time
+  rosterReleaseTiming   String   @default("next_waiver_run") @db.VarChar(32)
+  /// Allow commissioner to override who is chopped (with audit).
+  commissionerOverride  Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("guillotine_league_configs")
+}
+
+/// Per-roster chop state (eliminated at which period).
+model GuillotineRosterState {
+  id              String    @id @default(uuid())
+  leagueId        String    @db.VarChar(64)
+  rosterId        String    @db.VarChar(64)
+  choppedAt       DateTime?
+  choppedInPeriod Int?
+  choppedReason   String?   @db.VarChar(128)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([rosterId])
+  @@index([leagueId])
+  @@index([leagueId, choppedInPeriod])
+  @@map("guillotine_roster_states")
+}
+
+/// Period score per roster for guillotine (lowest-score elimination).
+model GuillotinePeriodScore {
+  id                 String   @id @default(uuid())
+  leagueId           String   @db.VarChar(64)
+  rosterId           String   @db.VarChar(64)
+  weekOrPeriod       Int
+  season             Int?
+  periodPoints       Float    @default(0)
+  seasonPointsCumul  Float    @default(0)
+  createdAt          DateTime @default(now())
+
+  @@unique([leagueId, rosterId, weekOrPeriod])
+  @@index([leagueId, weekOrPeriod])
+  @@index([leagueId, rosterId])
+  @@map("guillotine_period_scores")
+}
+
+/// Append-only event log: chop, commissioner_override, media events.
+model GuillotineEventLog {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  eventType String   @db.VarChar(64)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("guillotine_event_logs")
+}
+
+// ========== Salary Cap League Engine (PROMPT 339) ==========
+
+/// Salary Cap league config (1:1 with League when leagueVariant is salary_cap).
+model SalaryCapLeagueConfig {
+  id                      String    @id @default(uuid())
+  leagueId                String    @unique @db.VarChar(64)
+  league                  League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  mode                    String    @default("dynasty")   @db.VarChar(24)   // dynasty | bestball
+  startupCap              Int       @default(250)
+  capGrowthPercent        Float     @default(5)
+  contractMinYears        Int       @default(1)
+  contractMaxYears        Int       @default(4)
+  rookieContractYears     Int       @default(3)
+  minimumSalary           Int       @default(1)
+  deadMoneyEnabled        Boolean   @default(true)
+  deadMoneyPercentPerYear Float     @default(25)
+  rolloverEnabled         Boolean   @default(true)
+  rolloverMax             Int       @default(25)
+  capFloorEnabled         Boolean   @default(false)
+  capFloorAmount          Int?
+  extensionsEnabled       Boolean   @default(true)
+  franchiseTagEnabled     Boolean   @default(true)
+  rookieOptionEnabled     Boolean   @default(false)
+  startupDraftType        String    @default("auction")  @db.VarChar(24)   // auction | snake | linear
+  futureDraftType         String    @default("linear")   @db.VarChar(24)   // linear | auction | weighted_lottery
+  auctionHoldback         Int       @default(50)
+  weightedLotteryEnabled  Boolean   @default(false)
+  lotteryOddsConfig       Json?     // e.g. { nonPlayoff: number[], playoff: number[] } or seed->weight
+  compPickEnabled         Boolean   @default(false)
+  compPickFormula         Json?
+  offseasonPhase          String?   @db.VarChar(32)      // lock | expiration | rollover | extension | tag | draft | fa_open | in_season
+  offseasonPhaseEndsAt     DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  ledgers    SalaryCapTeamLedger[]
+  contracts  PlayerContract[]
+  eventLog   SalaryCapEventLog[]
+
+  @@map("salary_cap_league_configs")
+}
+
+/// Per-roster, per-cap-year cap state (cap hit total, rollover, etc.).
+model SalaryCapTeamLedger {
+  id              String   @id @default(uuid())
+  leagueId        String   @db.VarChar(64)
+  configId        String
+  config          SalaryCapLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId        String   @db.VarChar(64)
+  capYear         Int      // season year (e.g. 2025)
+  totalCapHit     Int      @default(0)
+  deadMoneyHit    Int      @default(0)
+  rolloverUsed    Int      @default(0)
+  capSpace        Int      @default(0)   // derived: cap - totalCapHit - deadMoneyHit + rolloverUsed (stored for quick read)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([configId, rosterId, capYear])
+  @@index([leagueId, capYear])
+  @@index([rosterId, capYear])
+  @@map("salary_cap_team_ledgers")
+}
+
+/// Player contract: roster + player + salary + years. One row per active/expired contract instance.
+model PlayerContract {
+  id                String   @id @default(uuid())
+  leagueId          String   @db.VarChar(64)
+  configId          String
+  config            SalaryCapLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId          String   @db.VarChar(64)
+  playerId          String   @db.VarChar(64)
+  playerName        String?  @db.VarChar(128)
+  position          String?  @db.VarChar(16)
+  salary            Int      // annual salary (cap hit for standard contracts)
+  yearsTotal        Int
+  yearSigned        Int      // cap year when signed
+  contractYear      Int      @default(1)   // current year of contract (1..yearsTotal)
+  status            String   @default("active") @db.VarChar(24)  // active | expired | cut | traded | tagged | option_exercised
+  source            String   @db.VarChar(32)   // startup_auction | rookie_draft | waiver_bid | extension | franchise_tag | trade
+  franchiseTagAt    DateTime?
+  optionExercisedAt DateTime?
+  cutAt             DateTime?
+  deadMoneyRemaining Json?   // { capYear: amount } for future years
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([leagueId, rosterId])
+  @@index([leagueId, playerId])
+  @@index([configId, yearSigned])
+  @@index([rosterId, status])
+  @@map("player_contracts")
+}
+
+/// Append-only event log for salary cap (contract signed, cut, extension, tag, rollover, etc.).
+model SalaryCapEventLog {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  configId  String
+  config    SalaryCapLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  eventType String   @db.VarChar(64)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("salary_cap_event_logs")
+}
+
+/// Weighted lottery result (deterministic, auditable). One row per league per season.
+model SalaryCapLotteryResult {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  configId    String
+  capYear     Int
+  seed        String?  @db.VarChar(64)   // audit: random seed used
+  order       Json     // [ { slot: number, rosterId: string, originalOrder: number } ]
+  createdAt   DateTime @default(now())
+
+  @@unique([configId, capYear])
+  @@index([leagueId, capYear])
+  @@map("salary_cap_lottery_results")
 }
 
 /// Multi-sport: roster template per sport/format (slot definitions)
@@ -4432,6 +4663,22 @@ model PlatformNotification {
   @@map("platform_notifications")
 }
 
+/// Web Push subscription (PROMPT 304) — browser push for AI alerts, chat mentions, league updates.
+model WebPushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("web_push_subscriptions")
+}
+
 /// Retention & engagement — app user activity for recaps and personalization.
 model EngagementEvent {
   id         String   @id @default(uuid())
@@ -4675,6 +4922,22 @@ model PlatformModerationAction {
   @@index([userId, actionType])
   @@index([expiresAt])
   @@map("platform_moderation_actions")
+}
+
+/// Admin audit trail: who did what to which resource (ban, delete_league, etc.).
+model AdminAuditLog {
+  id           String   @id @default(uuid())
+  adminUserId  String   @db.VarChar(64)
+  action       String   @db.VarChar(64)
+  targetType   String?  @db.VarChar(32)
+  targetId     String?  @db.VarChar(128)
+  details      Json?
+  createdAt    DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_audit_log")
 }
 
 model PlatformWalletAccount {

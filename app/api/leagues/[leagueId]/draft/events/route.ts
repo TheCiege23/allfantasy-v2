@@ -6,8 +6,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
+import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +43,21 @@ export async function GET(
     return NextResponse.json({ leagueId, updated: false, updatedAt })
   }
 
-  const snapshot = await buildSessionSnapshot(leagueId)
-  return NextResponse.json({ leagueId, updated: true, updatedAt, session: snapshot })
+  const [snapshot, uiSettings, orphanRosterIds] = await Promise.all([
+    buildSessionSnapshot(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+    getOrphanRosterIdsForLeague(leagueId),
+  ])
+  const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId!)
+  const sessionPayload =
+    snapshot != null
+      ? {
+          ...snapshot,
+          currentUserRosterId: currentUserRosterId ?? undefined,
+          orphanRosterIds,
+          aiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
+          orphanDrafterMode: uiSettings.orphanDrafterMode,
+        }
+      : null
+  return NextResponse.json({ leagueId, updated: true, updatedAt, session: sessionPayload })
 }

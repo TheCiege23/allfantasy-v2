@@ -43,3 +43,28 @@ export function getTwilioClient() {
 export function getTwilioFromPhoneNumber() {
   return getRequiredEnv("TWILIO_PHONE_NUMBER")
 }
+
+/**
+ * Send an SMS. Returns false if Twilio is not configured or send fails (no throw).
+ */
+export async function sendSms(toPhone: string, body: string): Promise<boolean> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim()
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER?.trim()
+  if (!accountSid || !fromNumber) return false
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim()
+  const apiKey = process.env.TWILIO_API_KEY?.trim()
+  const apiKeySecret = process.env.TWILIO_API_SECRET?.trim()
+  if (!authToken && !(apiKey && apiKeySecret)) return false
+
+  try {
+    const client = getTwilioClient()
+    await client.messages.create({
+      from: fromNumber,
+      to: toPhone,
+      body: body.slice(0, 1600),
+    })
+    return true
+  } catch {
+    return false
+  }
+}

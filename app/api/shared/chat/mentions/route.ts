@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
-import { createPlatformNotification } from '@/lib/platform/notification-service'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import { prisma } from '@/lib/prisma'
 
 export async function GET() {
@@ -39,17 +39,25 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   })
 
-  for (const u of users) {
-    await createPlatformNotification({
-      userId: u.id,
+  const userIds = users.map((u) => u.id)
+  if (userIds.length > 0) {
+    const isLeague = typeof threadId === 'string' && threadId.startsWith('league:')
+    const bodyText = isLeague
+      ? `${senderName} mentioned you in a league chat.`
+      : `${senderName} mentioned you in a chat.`
+    await dispatchNotification({
+      userIds,
+      category: 'chat_mentions',
       productType: 'app',
       type: 'mention',
       title: 'You were mentioned',
-      body: `${senderName} mentioned you in a league chat.`,
+      body: bodyText,
       severity: 'low',
+      actionHref: '/app',
+      actionLabel: 'Open app',
       meta: { threadId, messageId, chatThreadId: threadId },
     })
   }
 
-  return NextResponse.json({ status: 'ok', notified: users.length })
+  return NextResponse.json({ status: 'ok', notified: userIds.length })
 }

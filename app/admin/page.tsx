@@ -17,6 +17,7 @@ import AdminModelDrift from "./components/AdminModelDrift";
 import AdminUsers from "./components/AdminUsers";
 import AdminLeagueOverview from "./components/AdminLeagueOverview";
 import AdminModerationPanel from "./components/AdminModerationPanel";
+import AdminAuditPanel from "./components/AdminAuditPanel";
 import AdminFeatureToggles from "./components/AdminFeatureToggles";
 import AdminSystemPanel from "./components/AdminSystemPanel";
 import AdminProviderDiagnostics from "./components/AdminProviderDiagnostics";
@@ -79,6 +80,7 @@ function parseTab(tab?: string | string[]): AdminTab {
     "users",
     "leagues",
     "moderation",
+    "audit",
     "features",
     "system",
   ];
@@ -125,6 +127,7 @@ export default async function AdminPage({
       {tab === "users" && <AdminUsers />}
       {tab === "leagues" && <AdminLeagueOverview />}
       {tab === "moderation" && <AdminModerationPanel />}
+      {tab === "audit" && <AdminAuditPanel />}
       {tab === "features" && <AdminFeatureToggles />}
       {tab === "system" && <AdminSystemPanel />}
       {tab === "providers" && <AdminProviderDiagnostics />}

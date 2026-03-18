@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Copy, Check, Share2, Users, UserPlus, Gift, Loader2 } from "lucide-react"
 import { buildInviteShareUrl } from "@/lib/invite-engine/shareUrls"
+import { ReferralShareBar } from "@/components/referral/ReferralShareBar"
 
 type Stats = { clicks: number; signups: number; pendingRewards: number; redeemedRewards: number }
 type Reward = { id: string; type: string; label: string; status: string; grantedAt: string; redeemedAt: string | null }
@@ -30,6 +31,7 @@ export function ReferralSection() {
         if (cancelled) return
         if (linkRes.ok) {
           const d = await linkRes.json()
+          if (d.code) setCode(d.code)
           if (d.link) setLink(d.link)
         }
         if (statsRes.ok) {
@@ -158,19 +160,12 @@ export function ReferralSection() {
               {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copiedLink ? "Copied" : "Copy link"}
             </button>
-            {link && (
-              <a
-                href={buildInviteShareUrl(link, "twitter", { message: "Join me on AllFantasy – fantasy tools, brackets, and more!" })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
-                style={{ borderColor: "var(--border)", color: "var(--text)" }}
-              >
-                <Share2 className="h-4 w-4" />
-                Share
-              </a>
-            )}
           </div>
+          {link && (
+            <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+              <ReferralShareBar referralLink={link} />
+            </div>
+          )}
         </div>
       )}
 

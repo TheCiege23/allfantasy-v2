@@ -122,6 +122,27 @@ export async function getSessionAndProfile(): Promise<{
   };
 }
 
+/**
+ * Require an authenticated session (any logged-in user). Use in API routes that must be protected.
+ * Returns 401 response if not authenticated.
+ */
+export async function requireAuth(): Promise<
+  | { ok: true; userId: string; session: SessionResult }
+  | { ok: false; response: NextResponse }
+> {
+  const session = await getAuthenticatedSession();
+  const userId = session?.user?.id ?? null;
+
+  if (!userId) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  return { ok: true, userId, session };
+}
+
 export async function requireVerifiedUser(): Promise<
   | { ok: true; userId: string; profile: VerifiedUserProfile }
   | { ok: false; response: NextResponse }

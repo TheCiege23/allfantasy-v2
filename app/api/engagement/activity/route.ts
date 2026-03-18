@@ -7,6 +7,7 @@ import type { EngagementEventType } from "@/lib/engagement-engine"
 export const dynamic = "force-dynamic"
 
 const ALLOWED_EVENT_TYPES: EngagementEventType[] = [
+  "app_open",
   "league_view",
   "bracket_view",
   "ai_used",

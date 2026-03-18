@@ -29,14 +29,14 @@ export default function AIToolSeoLanding({ config }: AIToolSeoLandingProps) {
           <section className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link
               href="/app"
-              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
+              className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-8 py-4 text-base font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors touch-manipulation"
             >
               <AppWindow className="h-5 w-5 shrink-0" />
               Open AllFantasy App
             </Link>
             <Link
               href={config.openToolHref}
-              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border-2 px-5 py-3 text-sm font-semibold transition-colors"
+              className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border-2 px-8 py-4 text-base font-semibold transition-colors touch-manipulation"
               style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--panel)' }}
             >
               {config.openToolLabel}
@@ -82,7 +82,7 @@ export default function AIToolSeoLanding({ config }: AIToolSeoLandingProps) {
             </p>
             <Link
               href="/app"
-              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-emerald-400 transition-colors"
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-black hover:bg-emerald-400 transition-colors touch-manipulation"
             >
               <AppWindow className="h-4 w-4 shrink-0" />
               Open AllFantasy App

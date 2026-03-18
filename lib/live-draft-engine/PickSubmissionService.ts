@@ -60,11 +60,12 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   const slot = current.slot
   const resolvedOwner = resolvePickOwner(round, slot, slotOrder, tradedPicks)
   const effectiveRosterId = input.rosterId ?? resolvedOwner?.rosterId ?? current.rosterId
+  const onClockRosterId = resolvedOwner?.rosterId ?? current.rosterId
   const validation = validatePickSubmission({
     playerName: input.playerName,
     position: input.position,
     rosterId: effectiveRosterId,
-    currentOnClockRosterId: current.rosterId,
+    currentOnClockRosterId: onClockRosterId,
     existingPicks: session.picks.map((p) => ({ playerName: p.playerName, position: p.position })),
     sessionStatus: session.status,
   })

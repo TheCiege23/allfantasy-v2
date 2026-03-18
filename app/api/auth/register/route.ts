@@ -7,6 +7,8 @@ import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { containsProfanity } from "@/lib/profanity"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { attributeSignup, grantRewardForSignup } from "@/lib/referral"
+import { recordAttribution } from "@/lib/viral-loop"
+import { validateLeagueJoin } from "@/lib/league-privacy"
 
 export const runtime = "nodejs"
 
@@ -186,11 +188,30 @@ export async function POST(req: Request) {
       throw err
     })
 
+    let growthAttributionRecorded = false
     if (referralCode) {
       const attribution = await attributeSignup(user.id, referralCode)
       if (attribution?.referrerId) {
         await grantRewardForSignup(attribution.referrerId)
+        await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
+        growthAttributionRecorded = true
       }
+    }
+    if (!growthAttributionRecorded) {
+      const leagueInviteCode = cookieStore.get("af_league_invite")?.value?.trim()
+      if (leagueInviteCode) {
+        const joinResult = await validateLeagueJoin(leagueInviteCode).catch(() => ({ valid: false as const }))
+        if (joinResult.valid) {
+          await recordAttribution(user.id, "league_invite", {
+            sourceId: joinResult.leagueId,
+            metadata: { inviteCode: leagueInviteCode },
+          })
+          growthAttributionRecorded = true
+        }
+      }
+    }
+    if (!growthAttributionRecorded) {
+      await recordAttribution(user.id, "organic", {})
     }
 
     if (method === "PHONE") {

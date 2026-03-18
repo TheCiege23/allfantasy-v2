@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link2, Users, Share2 } from 'lucide-react'
+import { Link2, Users, Share2, Copy, Check, UserPlus } from 'lucide-react'
 import { InviteModal } from './InviteModal'
+import { ReferralShareBar } from '@/components/referral/ReferralShareBar'
 
 interface InviteStats {
   totalCreated: number
@@ -11,10 +12,38 @@ interface InviteStats {
   recentEvents: { eventType: string; channel: string | null; type: string; createdAt: string }[]
 }
 
+interface ReferredUser {
+  referredUserId: string
+  displayName: string | null
+  createdAt: string
+}
+
 export function ReferralDashboard() {
   const [stats, setStats] = useState<InviteStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [referralLink, setReferralLink] = useState<string | null>(null)
+  const [referralCopied, setReferralCopied] = useState(false)
+  const [referred, setReferred] = useState<ReferredUser[]>([])
+
+  const fetchReferralLink = useCallback(() => {
+    fetch('/api/referral/link')
+      .then((r) => r.json())
+      .then((data) => data?.link && setReferralLink(data.link))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchReferralLink()
+  }, [fetchReferralLink])
+
+  const copyReferralLink = useCallback(() => {
+    if (!referralLink) return
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setReferralCopied(true)
+      setTimeout(() => setReferralCopied(false), 2000)
+    })
+  }, [referralLink])
 
   const fetchStats = useCallback(() => {
     fetch('/api/invite/stats')
@@ -27,9 +56,19 @@ export function ReferralDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
+  const fetchReferred = useCallback(() => {
+    fetch('/api/referral/referred')
+      .then((r) => r.json())
+      .then((data) => (data.ok && Array.isArray(data.referred) ? setReferred(data.referred) : setReferred([])))
+      .catch(() => setReferred([]))
+  }, [])
+
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+  useEffect(() => {
+    fetchReferred()
+  }, [fetchReferred])
 
   if (loading) {
     return (
@@ -63,6 +102,36 @@ export function ReferralDashboard() {
         </button>
       </div>
 
+      {referralLink && (
+        <div
+          className="rounded-xl border p-4 flex flex-wrap items-center gap-2"
+          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
+        >
+          <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Your referral link</span>
+          <input
+            type="text"
+            readOnly
+            value={referralLink}
+            className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
+            style={{ borderColor: 'var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
+          />
+          <button
+            type="button"
+            onClick={copyReferralLink}
+            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          >
+            {referralCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            {referralCopied ? 'Copied' : 'Copy link'}
+          </button>
+        </div>
+        {referralLink && (
+          <div className="mt-3">
+            <ReferralShareBar referralLink={referralLink} />
+          </div>
+        )}
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div
           className="rounded-xl border p-4"
@@ -85,6 +154,26 @@ export function ReferralDashboard() {
           <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{s.totalAccepted}</p>
         </div>
       </div>
+
+      {referred.length > 0 && (
+        <div
+          className="rounded-xl border p-4"
+          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
+        >
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text)' }}>
+            <UserPlus className="h-4 w-4" style={{ color: 'var(--muted)' }} />
+            Who you invited
+          </h3>
+          <ul className="space-y-2 text-sm">
+            {referred.slice(0, 20).map((r, i) => (
+              <li key={r.referredUserId} className="flex justify-between items-center" style={{ color: 'var(--muted)' }}>
+                <span>{r.displayName || 'Friend'} signed up</span>
+                <span className="text-xs">{new Date(r.createdAt).toLocaleDateString()}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {s.recentEvents.length > 0 && (
         <div

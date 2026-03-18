@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { runAiProtection } from '@/lib/ai-protection'
 import { getChimmyPromptStyleBlock } from '@/lib/chimmy-interface'
 import { openaiChatText } from '@/lib/openai-client'
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
@@ -126,6 +127,7 @@ function buildDomainGuard(strategyMode?: StrategyMode): string {
   return `You are Chimmy — AllFantasy's AI fantasy sports co-manager.
 
 SCOPE: Fantasy sports and real sports only. If asked about anything else, politely redirect.
+GROUNDING: When the prompt includes USER FANTASY CONTEXT or REAL-TIME DATA, base your numbers, rankings, and recommendations only on that data. Do not invent stats, values, or player metrics not provided.
 ${strategyContext}
 ${getChimmyPromptStyleBlock()}
 
@@ -178,6 +180,7 @@ function buildDeepSeekSystemPrompt(strategyMode?: StrategyMode): string {
   return `You are the quantitative modeling engine for Chimmy, an AI fantasy sports assistant.
 
 YOUR ROLE: Run numerical analysis, simulations, and projections.
+GROUNDING: Use only the numbers and context provided in the prompt. Do not invent stats, values, or projections not given.
 ${modeContext}
 
 Focus on:
@@ -637,6 +640,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
+  const limitRes = await runAiProtection(req, {
+    action: 'chimmy',
+    getUserId: async () => userId,
+  })
+  if (limitRes) return limitRes
+
   let message = ''
   let imageFile: File | null = null
   let privateMode = false
@@ -747,7 +756,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     aiMemory: aiMemoryStr,
   })
 
-  const [openaiResult, grokResult, deepseekResult] = await Promise.allSettled([
+  const CHIMMY_PROVIDER_TIMEOUT_MS = 28_000
+  const providerPromise = Promise.allSettled([
     (async (): Promise<string> => {
       try {
         const res = await openaiChatText({
@@ -836,10 +846,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }
     })(),
   ])
+  const timeoutPromise = new Promise<PromiseSettledResult<string | QuantResult | null>[]>((_, reject) => {
+    setTimeout(() => reject(new Error('Chimmy provider timeout')), CHIMMY_PROVIDER_TIMEOUT_MS)
+  })
+  let settled: PromiseSettledResult<string | QuantResult | null>[]
+  try {
+    settled = await Promise.race([providerPromise, timeoutPromise])
+  } catch (e) {
+    if (String(e).includes('timeout')) {
+      return NextResponse.json({
+        response: "I couldn't complete that analysis in time. Try a shorter question or try again in a moment.",
+        meta: {
+          assistant: 'Chimmy',
+          providers,
+          dataSources,
+          processingMs: Date.now() - startMs,
+          confidencePct: 0,
+          timeout: true,
+        },
+      })
+    }
+    throw e
+  }
 
-  const openaiRaw = openaiResult.status === 'fulfilled' ? openaiResult.value : ''
-  const grokRaw = grokResult.status === 'fulfilled' ? grokResult.value : ''
-  const dsResult = deepseekResult.status === 'fulfilled' ? deepseekResult.value : null
+  const openaiRaw = settled[0]?.status === 'fulfilled' ? settled[0].value : ''
+  const grokRaw = settled[1]?.status === 'fulfilled' ? settled[1].value : ''
+  const dsResult = settled[2]?.status === 'fulfilled' ? settled[2].value : null
 
   if (!openaiRaw && !grokRaw) {
     return NextResponse.json({

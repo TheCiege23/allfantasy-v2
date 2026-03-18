@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Play, RefreshCw, Loader2 } from 'lucide-react';
+import { Play, RefreshCw, Loader2, Share2, Check } from 'lucide-react';
+import { MatchupShareModal } from '@/components/matchup-sharing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -55,6 +56,8 @@ export function MatchupSimulationPage({
   const [result, setResult] = useState<MatchupResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
 
   const runSimulation = useCallback(() => {
     setError(null);
@@ -111,6 +114,34 @@ export function MatchupSimulationPage({
         })
       )
     : getMatchupAIChatUrl();
+
+  const shareMatchupResult = useCallback(async () => {
+    if (!result) return;
+    try {
+      const res = await fetch('/api/share/generate-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shareType: 'winning_matchup',
+          sport,
+          teamName: teamAName,
+          opponentName: teamBName,
+          score: Math.round(result.projectedScoreA),
+          week: 1,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const caption = data.caption || data.headline || `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability for ${teamAName}. Simulated on AllFantasy.`;
+      await navigator.clipboard.writeText(caption);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      const fallback = `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability. Simulated on AllFantasy.`;
+      await navigator.clipboard.writeText(fallback);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  }, [result, sport, teamAName, teamBName]);
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
@@ -245,7 +276,7 @@ export function MatchupSimulationPage({
           />
 
           <Card className="border-white/10 bg-white/5">
-            <CardContent className="pt-4">
+            <CardContent className="pt-4 space-y-3">
               <a
                 href={chimmyUrl}
                 target="_blank"
@@ -254,11 +285,41 @@ export function MatchupSimulationPage({
               >
                 Ask Chimmy to explain this matchup →
               </a>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share matchup
+                </button>
+                <button
+                  type="button"
+                  onClick={shareMatchupResult}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
+                >
+                  {shareCopied ? <Check className="h-3.5 w-3.5" /> : null}
+                  {shareCopied ? 'Copied to clipboard' : 'Copy caption'}
+                </button>
+              </div>
               {result.iterations > 0 && (
-                <p className="mt-2 text-xs text-white/40">{result.iterations.toLocaleString()} simulations</p>
+                <p className="text-xs text-white/40">{result.iterations.toLocaleString()} simulations</p>
               )}
             </CardContent>
           </Card>
+          {shareModalOpen && result && (
+            <MatchupShareModal
+              team1Name={teamAName}
+              team2Name={teamBName}
+              projectedScore1={result.projectedScoreA}
+              projectedScore2={result.projectedScoreB}
+              winProbabilityA={result.winProbabilityA}
+              winProbabilityB={result.winProbabilityB}
+              sport={sport}
+              onClose={() => setShareModalOpen(false)}
+            />
+          )}
         </>
       )}
     </main>

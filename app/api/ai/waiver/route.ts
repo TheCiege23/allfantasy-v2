@@ -2,6 +2,8 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { logUserEventByUsername } from '@/lib/user-events';
 import { prisma } from '@/lib/prisma';
 import { 
@@ -10,7 +12,7 @@ import {
   WAIVER_AI_SYSTEM_PROMPT,
   buildWaiverUserPrompt
 } from '@/lib/waiver-ai-prompt';
-import { rateLimit } from '@/lib/rate-limit';
+import { runAiProtection } from '@/lib/ai-protection';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
 import { getMetaPromptBlob } from '@/lib/meta-insights';
@@ -60,15 +62,14 @@ async function getLegacyContext(sleeperUsername: string) {
 
 export const POST = withApiUsage({ endpoint: "/api/ai/waiver", tool: "AiWaiver" })(async (request: NextRequest) => {
   try {
-    const ip = request.headers.get('x-forwarded-for') || 'unknown';
-    const rateLimitResult = rateLimit(ip, 10, 60000);
-    
-    if (!rateLimitResult.success) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
-      );
-    }
+    const limitRes = await runAiProtection(request, {
+      action: 'waiver',
+      getUserId: async () => {
+        const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+        return session?.user?.id ?? null
+      },
+    })
+    if (limitRes) return limitRes
 
     const body = await request.json();
     const parseResult = ExtendedWaiverRequestSchema.safeParse(body);

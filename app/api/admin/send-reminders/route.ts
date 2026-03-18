@@ -86,7 +86,19 @@ export const POST = withApiUsage({ endpoint: "/api/admin/send-reminders", tool: 
       });
     }
 
-    const { client, fromEmail } = await getResendClient();
+    let client: Awaited<ReturnType<typeof getResendClient>>["client"];
+    let fromEmail: string;
+    try {
+      const resend = getResendClient();
+      client = resend.client;
+      fromEmail = resend.fromEmail;
+    } catch (e) {
+      console.error("[admin/send-reminders] Resend not configured:", e);
+      return NextResponse.json(
+        { error: "Email service not configured. Set RESEND_API_KEY." },
+        { status: 503 }
+      );
+    }
     const baseUrl = (process.env.APP_URL || "https://allfantasy.ai").trim();
     const from = fromEmail || "AllFantasy <noreply@allfantasy.ai>";
 

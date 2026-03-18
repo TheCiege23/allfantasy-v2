@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
-import { X, TrendingUp, RefreshCw, BookOpen, Users, Calendar, Zap, Loader2 } from "lucide-react"
+import { X, TrendingUp, RefreshCw, BookOpen, Users, Calendar, Zap, Loader2, MessageCircle } from "lucide-react"
 import type { RetentionNudge } from "@/lib/onboarding-retention"
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -10,6 +10,7 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   return_nudge: RefreshCw,
   unfinished_reminder: Zap,
   weekly_summary: TrendingUp,
+  ai_check_in: MessageCircle,
   creator_recommendation: Users,
   sport_season_prompt: Calendar,
 }

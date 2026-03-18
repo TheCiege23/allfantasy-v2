@@ -1,28 +1,25 @@
 import type { Metadata } from 'next'
 import AIToolSeoLanding from '@/components/seo/AIToolSeoLanding'
-import { AI_TOOL_PAGES, getAIToolPageCanonical } from '@/lib/seo-landing/ai-tool-pages'
+import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import { AI_TOOL_PAGES, getAIToolPageCanonical, getAIToolPageJsonLd } from '@/lib/seo-landing/ai-tool-pages'
+import { buildSeoMeta } from '@/lib/seo'
 
-const config = AI_TOOL_PAGES['draft-helper']
+const slug = 'draft-helper'
+const config = AI_TOOL_PAGES[slug]
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildSeoMeta({
   title: config.title,
   description: config.description,
-  alternates: { canonical: getAIToolPageCanonical('draft-helper') },
-  openGraph: {
-    title: config.title,
-    description: config.description,
-    url: getAIToolPageCanonical('draft-helper'),
-    siteName: 'AllFantasy',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: config.title,
-    description: config.description,
-  },
-  robots: { index: true, follow: true },
-}
+  canonical: getAIToolPageCanonical(slug),
+})
 
 export default function DraftHelperPage() {
-  return <AIToolSeoLanding config={config} />
+  const jsonLd = getAIToolPageJsonLd(slug)
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <LandingToolVisitTracker path="/draft-helper" toolName="Draft Helper" />
+      <AIToolSeoLanding config={config} />
+    </>
+  )
 }

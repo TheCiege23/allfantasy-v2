@@ -6,9 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
+const CURRENT_IMPORT_SEASON = new Date().getFullYear();
+const SEASON_OPTIONS = Array.from({ length: 4 }, (_, index) => CURRENT_IMPORT_SEASON - index);
+
+function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
+  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing leagues.';
+  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing leagues.';
+  if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized' || data?.error === 'Authentication required') {
+    return 'Sign in to import leagues.';
+  }
+  return data?.error || fallback;
+}
+
 export default function SleeperImportForm() {
   const [userId, setUserId] = useState('');
-  const [season, setSeason] = useState(2025);
+  const [season, setSeason] = useState(CURRENT_IMPORT_SEASON);
   const [loading, setLoading] = useState(false);
 
   const handleImport = async () => {
@@ -38,7 +50,7 @@ export default function SleeperImportForm() {
       if (res.ok) {
         toast.success(`Imported ${data.imported} league${data.imported !== 1 ? 's' : ''}! View them on the Rankings page.`);
       } else {
-        toast.error(data.error || 'Import failed');
+        toast.error(getImportErrorMessage(data, 'Import failed'));
       }
     } catch {
       toast.error('Something went wrong. Please try again.');
@@ -55,7 +67,7 @@ export default function SleeperImportForm() {
           Import from Sleeper
         </CardTitle>
         <CardDescription>
-          Enter your Sleeper username to import all your NFL leagues and weekly data
+          Enter your Sleeper username to import your NFL leagues, current team records, and weekly scores.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -84,9 +96,9 @@ export default function SleeperImportForm() {
             className="w-full rounded-md border border-cyan-600/40 bg-gray-900 px-4 py-2 text-white focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
             disabled={loading}
           >
-            <option value={2025}>2025</option>
-            <option value={2024}>2024</option>
-            <option value={2023}>2023</option>
+            {SEASON_OPTIONS.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
           </select>
         </div>
 

@@ -1,31 +1,27 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { verifyAdminSessionCookie } from "@/lib/adminSession"
 
 export const GET = withApiUsage({ endpoint: "/api/auth/me", tool: "AuthMe" })(async () => {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const adminSession = cookieStore.get('admin_session')
 
   if (!adminSession?.value) {
     return NextResponse.json({ user: null }, { status: 401 })
   }
 
-  try {
-    const sessionData = JSON.parse(adminSession.value)
-    
-    if (!sessionData.authenticated || !sessionData.email) {
-      return NextResponse.json({ user: null }, { status: 401 })
-    }
-
-    return NextResponse.json({
-      user: {
-        id: sessionData.id || 'admin',
-        email: sessionData.email,
-        name: sessionData.name || 'Admin',
-        role: sessionData.role || 'admin',
-      }
-    })
-  } catch {
+  const sessionData = verifyAdminSessionCookie(adminSession.value)
+  if (!sessionData?.authenticated) {
     return NextResponse.json({ user: null }, { status: 401 })
   }
+
+  return NextResponse.json({
+    user: {
+      id: sessionData.id || 'admin',
+      email: sessionData.email ?? null,
+      name: sessionData.name || sessionData.email || 'Admin',
+      role: sessionData.role || 'admin',
+    }
+  })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import type { PlayerDisplayModel, PlayerAssetModel } from '@/lib/draft-sports-models/types'
 import { LazyDraftImage } from './LazyDraftImage'
 
@@ -260,3 +260,5 @@ export function DraftPlayerCard({
     </li>
   )
 }
+
+export const DraftPlayerCard = React.memo(DraftPlayerCardInner)

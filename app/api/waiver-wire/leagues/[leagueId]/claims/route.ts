@@ -62,11 +62,22 @@ export async function POST(
     )
   }
 
-  const claim = await createClaim(leagueId, roster.id, {
-    addPlayerId: String(addPlayerId),
-    dropPlayerId: body.dropPlayerId ?? body.drop_player_id ?? null,
-    faabBid: body.faabBid ?? body.faab_bid ?? null,
-    priorityOrder: body.priorityOrder ?? body.priority_order,
-  })
-  return NextResponse.json({ claim })
+  try {
+    const claim = await createClaim(leagueId, roster.id, {
+      addPlayerId: String(addPlayerId),
+      dropPlayerId: body.dropPlayerId ?? body.drop_player_id ?? null,
+      faabBid: body.faabBid ?? body.faab_bid ?? null,
+      priorityOrder: body.priorityOrder ?? body.priority_order,
+    })
+    return NextResponse.json({ claim })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to create claim"
+    if (message.includes("does not belong to this league") || message.includes("Roster not found")) {
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
+    if (message.includes("eliminated")) {
+      return NextResponse.json({ error: message }, { status: 403 })
+    }
+    throw e
+  }
 }

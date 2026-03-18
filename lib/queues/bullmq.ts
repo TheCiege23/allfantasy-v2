@@ -1,11 +1,13 @@
 import "server-only";
 import { Queue, type ConnectionOptions } from "bullmq";
 import IORedis from "ioredis";
+import { QUEUE_NAMES } from "@/lib/jobs/types";
 
-const QUEUE_NAME_SIMULATIONS = "simulations";
+const QUEUE_NAME_SIMULATIONS = QUEUE_NAMES.SIMULATIONS;
 
 let redisClient: IORedis | null | undefined;
 let simulationQueueInstance: Queue | null | undefined;
+const queuesByName = new Map<string, Queue>();
 
 function parseRedisPort(value: string | undefined): number | null {
   if (!value?.trim()) return null;
@@ -89,6 +91,21 @@ export function getRedisClient(): IORedis | null {
   return redisClient;
 }
 
+/**
+ * Get or create a queue by name. Use for ai, notifications, simulations.
+ */
+export function getQueue(name: string): Queue | null {
+  const connection = getRedisConnection();
+  if (!connection) return null;
+
+  let q = queuesByName.get(name);
+  if (q) return q;
+
+  q = new Queue(name, { connection });
+  queuesByName.set(name, q);
+  return q;
+}
+
 export function getSimulationQueue(): Queue | null {
   if (simulationQueueInstance !== undefined) {
     return simulationQueueInstance;
@@ -108,6 +125,14 @@ export function getSimulationQueue(): Queue | null {
   return simulationQueueInstance;
 }
 
+export function getAiQueue(): Queue | null {
+  return getQueue(QUEUE_NAMES.AI);
+}
+
+export function getNotificationsQueue(): Queue | null {
+  return getQueue(QUEUE_NAMES.NOTIFICATIONS);
+}
+
 /**
  * Named exports to support existing route imports like:
  * import { simulationQueue, redis } from "@/lib/queues/bullmq"
@@ -117,6 +142,11 @@ export const simulationQueue = getSimulationQueue();
 
 export async function closeBullMqResources(): Promise<void> {
   const closeTasks: Promise<unknown>[] = [];
+
+  for (const [, q] of queuesByName) {
+    closeTasks.push(q.close());
+  }
+  queuesByName.clear();
 
   if (simulationQueueInstance) {
     closeTasks.push(simulationQueueInstance.close());

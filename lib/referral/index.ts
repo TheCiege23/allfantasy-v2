@@ -3,8 +3,10 @@ export {
   buildReferralLink,
   getReferrerIdByCode,
   recordClick,
+  recordShare,
   attributeSignup,
   getReferralStats,
+  getReferredUsers,
   type ReferralStats,
 } from "./ReferralService"
 

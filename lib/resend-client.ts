@@ -171,3 +171,51 @@ export async function sendTradeAlertEmail(
     html,
   });
 }
+
+/**
+ * Send a generic notification email (draft, waiver, chat mention, commissioner, etc.).
+ * Optional CTA button when actionHref is provided.
+ */
+export async function sendNotificationEmail(params: {
+  to: string
+  subject: string
+  bodyHtml: string
+  actionHref?: string
+  actionLabel?: string
+}): Promise<{ ok: boolean; error?: string }> {
+  const baseUrl = getBaseUrl()
+  const actionUrl = params.actionHref
+    ? (params.actionHref.startsWith("http") ? params.actionHref : `${baseUrl}${params.actionHref}`)
+    : undefined
+  const plain = params.bodyHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()
+  const safeBody = plain ? escapeHtml(plain) : "—"
+  const ctaHtml =
+    actionUrl && params.actionLabel
+      ? `<p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:8px 16px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;">${escapeHtml(params.actionLabel)}</a></p>`
+      : ""
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+  <div>
+    <div>${safeBody}</div>
+    ${ctaHtml}
+    <p style="color:#666;font-size:12px;">AllFantasy.ai</p>
+  </div>
+</body>
+</html>`
+
+  try {
+    await sendEmail({
+      to: params.to,
+      subject: params.subject,
+      html,
+    })
+    return { ok: true }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Unknown error"
+    return { ok: false, error: message }
+  }
+}

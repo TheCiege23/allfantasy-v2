@@ -3,6 +3,7 @@
 import React, { useState } from "react"
 import { useDraftGrades } from "@/hooks/useDraftGrades"
 import { DraftGradesCard } from "@/components/DraftGradesCard"
+import { DraftShareModal } from "@/components/draft-sharing"
 
 export function DraftGradesSection(props: { leagueId: string; season: string; defaultWeek: number }) {
   const { rows, loading, error, meta, computeAndPersist } = useDraftGrades({
@@ -11,6 +12,13 @@ export function DraftGradesSection(props: { leagueId: string; season: string; de
   })
 
   const [week, setWeek] = useState<number>(props.defaultWeek)
+  const [shareOpen, setShareOpen] = useState(false)
+
+  const rosterOptions = (rows ?? []).map((r: any) => ({
+    rosterId: String(r.rosterId),
+    name: r.name ?? undefined,
+    grade: String(r.grade),
+  }))
 
   return (
     <div className="space-y-3">
@@ -21,6 +29,14 @@ export function DraftGradesSection(props: { leagueId: string; season: string; de
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            disabled={!rows?.length}
+            className="rounded-xl bg-amber-600 text-white px-4 py-2 font-medium hover:bg-amber-500 disabled:opacity-50 text-sm"
+          >
+            Share
+          </button>
           <input
             className="w-24 rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm"
             type="number"
@@ -36,6 +52,14 @@ export function DraftGradesSection(props: { leagueId: string; season: string; de
           </button>
         </div>
       </div>
+      {shareOpen && (
+        <DraftShareModal
+          leagueId={props.leagueId}
+          season={props.season}
+          rosterOptions={rosterOptions}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       {error ? <div className="rounded-2xl bg-zinc-950 p-3 text-sm opacity-80">Note: {error}</div> : null}
 

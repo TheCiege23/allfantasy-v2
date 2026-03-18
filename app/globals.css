@@ -189,10 +189,32 @@ html[data-mode="legacy"] {
   --dropdown-text: rgba(255,255,255,0.94);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: var(--bg);
   min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: rgba(6, 182, 212, 0.15);
+}
+
+/* Mobile/safari: full-height panels use dynamic viewport to avoid address-bar jump */
+.h-fill-dynamic {
+  height: calc(100vh - 180px);
+  height: calc(100dvh - 180px);
+}
+
+/* iOS: smooth momentum scrolling in overflow areas */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Notched devices: use with fixed/sticky top bars */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .gradient-bg-orbs { display: none; }
@@ -337,6 +359,69 @@ html[data-mode="legacy"] .glow-box-strong {
 
 .animate-subtle-glow {
   animation: subtle-glow 8s ease-in-out infinite;
+}
+
+/* --- Final polish (PROMPT 290): premium transitions, focus, hover, spacing, typography --- */
+:root {
+  --transition-premium: 200ms ease;
+  --transition-slow: 300ms ease;
+  --focus-ring: 2px solid rgba(34, 211, 238, 0.5);
+  --focus-ring-offset: 2px;
+  /* Consistent spacing for sections and cards */
+  --space-section: 2rem;
+  --space-card: 1rem;
+  --radius-card: 0.75rem;
+  --radius-card-lg: 1rem;
+  --radius-button: 0.75rem;
+  /* Typography: consistent heading line-height */
+  --leading-tight: 1.25;
+  --leading-snug: 1.375;
+  --leading-balance: 1.4;
+}
+
+/* Standard interactive transition for buttons, links, cards */
+.transition-premium {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+.transition-premium-slow {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 300ms;
+  transition-timing-function: ease;
+}
+
+/* Accessible focus ring (keyboard only) */
+.focus-ring:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Subtle hover lift for cards and tappable blocks */
+.hover-lift {
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+html[data-mode="dark"] .hover-lift:hover,
+html[data-mode="legacy"] .hover-lift:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Typography: balanced heading line-height for multi-line titles */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Section spacing: use for consistent vertical rhythm between sections */
+.section-spacing {
+  margin-bottom: var(--space-section);
+}
+.section-spacing-tight {
+  margin-bottom: var(--space-card);
 }
 
 /* Radial vignette for grade card */
@@ -551,6 +636,14 @@ html[data-mode="light"] .via-white\/10 { --tw-gradient-stops: var(--tw-gradient-
 @keyframes slide-up-fade {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Guillotine chop animation (PROMPT 333) */
+@keyframes guillotine-chop {
+  0% { opacity: 1; transform: scaleY(1); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  40% { opacity: 1; transform: scaleY(1); box-shadow: 0 0 20px rgba(217, 119, 6, 0.4); }
+  70% { opacity: 1; transform: scaleY(0.02); box-shadow: 0 0 30px rgba(217, 119, 6, 0.6); }
+  100% { opacity: 0.7; transform: scaleY(0.02); box-shadow: 0 0 15px rgba(0,0,0,0.3); }
 }
 @keyframes neon-border-pulse {
   0%, 100% { border-color: rgba(34,211,238,0.15); }

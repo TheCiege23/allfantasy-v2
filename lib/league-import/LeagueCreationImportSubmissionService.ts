@@ -20,6 +20,16 @@ export interface SubmitImportResult {
   status?: number;
 }
 
+function getImportApiErrorMessage(
+  data: { error?: string } | null | undefined,
+  fallback: string
+): string {
+  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing a league.';
+  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing a league.';
+  if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized') return 'Sign in to import a league.';
+  return data?.error ?? fallback;
+}
+
 /**
  * Fetch import preview for the given provider and source input.
  * Only Sleeper is implemented; others return { ok: false, error: '...' }.
@@ -45,7 +55,11 @@ export async function fetchImportPreview(
       });
       const data = await res.json();
       if (!res.ok) {
-        return { ok: false, error: data.error ?? 'Failed to load league', status: res.status };
+        return {
+          ok: false,
+          error: getImportApiErrorMessage(data, 'Failed to load league'),
+          status: res.status,
+        };
       }
       return { ok: true, data };
     } catch (e) {
@@ -85,7 +99,7 @@ export async function submitImportCreation(
       if (!res.ok) {
         return {
           ok: false,
-          error: data.error ?? 'Failed to create league',
+          error: getImportApiErrorMessage(data, 'Failed to create league'),
           status: res.status,
         };
       }

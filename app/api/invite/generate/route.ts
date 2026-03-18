@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { createInviteLink } from '@/lib/invite-engine'
 import type { InviteType } from '@/lib/invite-engine/types'
 
@@ -26,6 +27,17 @@ export async function POST(req: NextRequest) {
   const validTypes = ['league', 'bracket', 'creator_league', 'referral', 'reactivation', 'waitlist']
   if (!validTypes.includes(type)) {
     return NextResponse.json({ error: 'Invalid invite type' }, { status: 400 })
+  }
+
+  // League invites: only commissioner of that league may create
+  if (type === 'league') {
+    const leagueId = targetId ? String(targetId).trim() : null
+    if (!leagueId) return NextResponse.json({ error: 'targetId (leagueId) required for league invite' }, { status: 400 })
+    try {
+      await assertCommissioner(leagueId, userId)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   let expiresAt: Date | null = null

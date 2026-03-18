@@ -9,14 +9,16 @@ export type AdminSessionPayload = {
   expiresAt?: number; // epoch ms
 };
 
-function adminSessionSecret() {
+function adminSessionSecret(): string {
   const secret =
     process.env.ADMIN_SESSION_SECRET ||
     process.env.ADMIN_PASSWORD ||
     "";
-  // In production, require an explicit secret; in dev, allow fallback for local use only.
   if (secret) return secret;
-  if (process.env.NODE_ENV === "production") return "production-requires-ADMIN_SESSION_SECRET-or-ADMIN_PASSWORD";
+  // In production, never accept sessions without a configured secret.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("ADMIN_SESSION_SECRET or ADMIN_PASSWORD must be set in production");
+  }
   return "admin123";
 }
 
@@ -30,7 +32,12 @@ export function signAdminSessionCookie(payload: AdminSessionPayload) {
 }
 
 export function verifyAdminSessionCookie(rawValue: string): AdminSessionPayload | null {
-  const secret = adminSessionSecret();
+  let secret: string;
+  try {
+    secret = adminSessionSecret();
+  } catch {
+    return null;
+  }
 
   const value = safeDecodeURIComponent(rawValue);
   const parts = value.split(".");

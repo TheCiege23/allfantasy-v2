@@ -17,6 +17,7 @@ export type NotificationCategoryId =
   | "injury_alerts"
   | "performance_alerts"
   | "lineup_alerts"
+  | "draft_alerts"
 
 export interface NotificationChannelPrefs {
   enabled: boolean
@@ -45,6 +46,7 @@ export const NOTIFICATION_CATEGORY_IDS: NotificationCategoryId[] = [
   "injury_alerts",
   "performance_alerts",
   "lineup_alerts",
+  "draft_alerts",
 ]
 
 export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string> = {
@@ -62,4 +64,5 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string
   injury_alerts: "Player injury alerts",
   performance_alerts: "Game performance alerts",
   lineup_alerts: "Starting lineup alerts",
+  draft_alerts: "Draft alerts (on the clock, timer, trade offers)",
 }

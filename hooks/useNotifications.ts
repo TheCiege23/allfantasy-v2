@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { PlatformNotification } from '@/types/platform-shared'
 import { mergeWithPlaceholders } from '@/lib/notifications/placeholder'
+import { fetchJsonWithRetry } from '@/lib/error-handling'
 
 export function useNotifications(limit = 8) {
   const [notifications, setNotifications] = useState<PlatformNotification[]>([])
@@ -11,8 +12,11 @@ export function useNotifications(limit = 8) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/shared/notifications?limit=${limit}`, { cache: 'no-store' })
-      const json = await res.json().catch(() => ({}))
+      const json = await fetchJsonWithRetry<{ notifications?: PlatformNotification[] }>(
+        `/api/shared/notifications?limit=${limit}`,
+        { cache: 'no-store' },
+        { maxAttempts: 3, context: 'notifications' }
+      )
       const raw = Array.isArray(json?.notifications) ? json.notifications : []
       setNotifications(mergeWithPlaceholders(raw))
       setError(null)

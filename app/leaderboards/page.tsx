@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Loader2, Trophy, Award, Target, Zap } from "lucide-react"
 
-type BoardId = "draft_grades" | "championships" | "win_pct" | "active"
+type BoardId = "top" | "draft_grades" | "championships" | "win_pct" | "active"
 
 interface LeaderboardEntry {
   rank: number
@@ -21,19 +21,21 @@ interface LeaderboardResult {
 }
 
 const BOARDS: { id: BoardId; label: string; icon: typeof Trophy; valueLabel: string }[] = [
-  { id: "draft_grades", label: "Best draft grades", icon: Award, valueLabel: "Avg grade" },
+  { id: "top", label: "Top users", icon: Trophy, valueLabel: "Prestige" },
+  { id: "draft_grades", label: "Best drafters", icon: Award, valueLabel: "Avg grade" },
   { id: "championships", label: "Most championships", icon: Trophy, valueLabel: "Championships" },
-  { id: "win_pct", label: "Highest win %", icon: Target, valueLabel: "Win %" },
-  { id: "active", label: "Most active managers", icon: Zap, valueLabel: "Leagues" },
+  { id: "win_pct", label: "Win %", icon: Target, valueLabel: "Win %" },
+  { id: "active", label: "Most active", icon: Zap, valueLabel: "Leagues" },
 ]
 
 function formatValue(boardId: BoardId, value: number): string {
   if (boardId === "win_pct") return `${value.toFixed(1)}%`
+  if (boardId === "top") return String(value)
   return String(value)
 }
 
 export default function LeaderboardsPage() {
-  const [activeBoard, setActiveBoard] = useState<BoardId>("championships")
+  const [activeBoard, setActiveBoard] = useState<BoardId>("top")
   const [data, setData] = useState<LeaderboardResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +73,7 @@ export default function LeaderboardsPage() {
           Platform leaderboards
         </h1>
         <p className="mt-1 text-sm text-white/60">
-          Top AllFantasy managers by draft grades, championships, win rate, and activity.
+          Top users, best drafters, win %, and most active. Compete on the board.
         </p>
       </div>
 
@@ -147,11 +149,13 @@ export default function LeaderboardsPage() {
                     </span>
                     {e.extra?.count != null && e.extra.count > 0 && (
                       <span className="ml-2 text-xs text-white/50">
-                        ({e.extra.count} {activeBoard === "active" ? "leagues" : "seasons"})
+                        ({e.extra.count} {activeBoard === "active" ? "leagues" : activeBoard === "top" ? "championships" : "seasons"})
                       </span>
                     )}
                     {e.extra?.grade && (
-                      <span className="ml-2 text-xs text-cyan-300">Grade: {e.extra.grade}</span>
+                      <span className="ml-2 text-xs text-cyan-300">
+                        {activeBoard === "draft_grades" ? `Grade: ${e.extra.grade}` : e.extra.grade}
+                      </span>
                     )}
                   </div>
                   <span className="shrink-0 font-semibold text-cyan-300">

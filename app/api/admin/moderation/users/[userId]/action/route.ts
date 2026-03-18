@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/adminAuth"
+import { logAdminAudit } from "@/lib/admin-audit"
 import { applyModerationAction, MODERATION_ACTION_TYPES } from "@/lib/moderation"
 import type { ModerationActionType } from "@/lib/moderation"
 
@@ -35,5 +36,14 @@ export async function POST(
     createdByUserId: gate.user.id,
   })
   if (!created) return NextResponse.json({ error: "Failed to apply action" }, { status: 500 })
+
+  await logAdminAudit({
+    adminUserId: gate.user.id,
+    action: actionType === "ban" ? "ban_user" : actionType === "mute" ? "mute_user" : "moderation_action",
+    targetType: "user",
+    targetId: userId,
+    details: { actionType, reason: reason ?? undefined, expiresAt: expiresAt?.toISOString() },
+  })
+
   return NextResponse.json(created)
 }

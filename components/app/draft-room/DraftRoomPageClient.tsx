@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   DraftRoomShell,
   DraftTopBar,
@@ -11,18 +12,33 @@ import {
   QueuePanel,
   DraftChatPanel,
   DraftHelperPanel,
-  DraftPickTradePanel,
-  CommissionerControlCenterModal,
-  PostDraftView,
-  AuctionSpotlightPanel,
-  KeeperPanel,
   type MobileDraftTab,
   type PlayerEntry,
 } from '@/components/app/draft-room'
+
+const DraftPickTradePanel = dynamic(
+  () => import('@/components/app/draft-room/DraftPickTradePanel').then((m) => ({ default: m.DraftPickTradePanel })),
+  { ssr: false }
+)
+const CommissionerControlCenterModal = dynamic(
+  () => import('@/components/app/draft-room/CommissionerControlCenterModal').then((m) => ({ default: m.CommissionerControlCenterModal })),
+  { ssr: false }
+)
+const PostDraftView = dynamic(
+  () => import('@/components/app/draft-room/PostDraftView').then((m) => ({ default: m.PostDraftView })),
+  { ssr: false }
+)
+const AuctionSpotlightPanel = dynamic(
+  () => import('@/components/app/draft-room/AuctionSpotlightPanel').then((m) => ({ default: m.AuctionSpotlightPanel })),
+  { ssr: false }
+)
+const KeeperPanel = dynamic(
+  () => import('@/components/app/draft-room/KeeperPanel').then((m) => ({ default: m.KeeperPanel })),
+  { ssr: false }
+)
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
-import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
 
 export type DraftRoomPageClientProps = {
   leagueId: string
@@ -33,6 +49,7 @@ export type DraftRoomPageClientProps = {
 }
 
 const POLL_MS = 8000
+const POLL_MS_BACKGROUND = 30000
 const AI_ADP_POLL_SKIP_MS = 30 * 60 * 1000
 
 export function DraftRoomPageClient({
@@ -90,7 +107,9 @@ export function DraftRoomPageClient({
   const [auctionResolveLoading, setAuctionResolveLoading] = useState(false)
   const [autopickExpiredLoading, setAutopickExpiredLoading] = useState(false)
 
-  const { data: draftData, loading: poolLoading } = useLeagueSectionData<{ entries?: PlayerEntry[] }>(leagueId, 'draft')
+  /** Draft room uses normalized pool from fetchDraftPool only; skip useLeagueSectionData to avoid duplicate /api/mock-draft/adp. */
+  const draftData = null as { entries?: PlayerEntry[] } | null
+  const poolLoading = loading && draftPool === null
 
   const draftedNames = useMemo(
     () => new Set(session?.picks?.map((p) => p.playerName) ?? []),
@@ -219,6 +238,38 @@ export function DraftRoomPageClient({
     }
   }, [leagueId])
 
+  /** Lightweight poll: if since provided and server says not updated, skip heavy session build. Applies only newer session (by version/updatedAt) to avoid race conditions. */
+  const fetchDraftEvents = useCallback(
+    async (since: string | undefined) => {
+      try {
+        const url = since
+          ? `/api/leagues/${encodeURIComponent(leagueId)}/draft/events?since=${encodeURIComponent(since)}`
+          : `/api/leagues/${encodeURIComponent(leagueId)}/draft/session`
+        const res = await fetch(url, { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return
+        if (data.session) {
+          setSession((prev) => {
+            const next = data.session as DraftSessionSnapshot
+            if (!next) return prev
+            if (prev) {
+              if (typeof next.version === 'number' && typeof prev.version === 'number' && next.version < prev.version) return prev
+              const nextAt = next.updatedAt ? new Date(next.updatedAt).getTime() : 0
+              const prevAt = prev.updatedAt ? new Date(prev.updatedAt).getTime() : 0
+              if (nextAt > 0 && prevAt > 0 && nextAt < prevAt) return prev
+            }
+            return next
+          })
+        } else if (data.updatedAt && data.updated === false) {
+          setSession((prev) => (prev ? { ...prev, updatedAt: data.updatedAt } : null))
+        }
+      } catch {
+        setSession(null)
+      }
+    },
+    [leagueId]
+  )
+
   const fetchQueue = useCallback(async () => {
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/queue`, { cache: 'no-store' })
@@ -239,6 +290,13 @@ export function DraftRoomPageClient({
       setChatMessages([])
     }
   }, [leagueId])
+
+  const handleChatReconnect = useCallback(() => {
+    fetchSession()
+    fetchQueue()
+    fetchDraftSettings()
+    fetchChat()
+  }, [fetchSession, fetchQueue, fetchDraftSettings, fetchChat])
 
   const [chatSending, setChatSending] = useState(false)
   const handleSendChat = useCallback(
@@ -389,18 +447,46 @@ export function DraftRoomPageClient({
     fetchLeagueAiAdp()
   }, [leagueId, draftUISettings?.aiAdpEnabled, fetchLeagueAiAdp])
 
+  const [pollInterval, setPollInterval] = useState(POLL_MS)
+  const refetchOnceRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!leagueId) return
-    const id = setInterval(() => {
+    const run = () => {
       setReconnecting(true)
-      const promises: Promise<void>[] = [fetchSession(), fetchQueue(), fetchDraftSettings()]
+      const since = (session as { updatedAt?: string } | null)?.updatedAt
+      const promises: Promise<void>[] = [
+        fetchDraftEvents(since),
+        fetchQueue(),
+        fetchDraftSettings(),
+        fetchChat(),
+      ]
       const aiAdpComputedAt = leagueAiAdp?.computedAt ? new Date(leagueAiAdp.computedAt).getTime() : 0
       const skipAiAdp = draftUISettings?.aiAdpEnabled && aiAdpComputedAt && Date.now() - aiAdpComputedAt < AI_ADP_POLL_SKIP_MS
       if (draftUISettings?.aiAdpEnabled && !skipAiAdp) promises.push(fetchLeagueAiAdp())
       Promise.all(promises).finally(() => setReconnecting(false))
-    }, POLL_MS)
+    }
+    refetchOnceRef.current = run
+  }, [leagueId, session?.updatedAt, fetchDraftEvents, fetchQueue, fetchDraftSettings, fetchChat, fetchLeagueAiAdp, draftUISettings?.aiAdpEnabled, leagueAiAdp?.computedAt])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVisibility = () => {
+      const hidden = document.hidden
+      setPollInterval(hidden ? POLL_MS_BACKGROUND : POLL_MS)
+      if (!hidden) refetchOnceRef.current?.()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    onVisibility()
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [])
+
+  useEffect(() => {
+    if (!leagueId) return
+    const id = setInterval(() => {
+      refetchOnceRef.current?.()
+    }, pollInterval)
     return () => clearInterval(id)
-  }, [leagueId, fetchSession, fetchQueue, fetchDraftSettings, fetchLeagueAiAdp, draftUISettings?.aiAdpEnabled, leagueAiAdp?.computedAt])
+  }, [leagueId, pollInterval])
 
   const handleCommissionerAction = useCallback(
     async (action: string, payload?: Record<string, unknown>) => {
@@ -680,6 +766,13 @@ export function DraftRoomPageClient({
     [queue, handleQueueSave],
   )
 
+  const handleDraftFromQueue = useCallback(
+    (entry: QueueEntry) => {
+      handleMakePick({ name: entry.playerName, position: entry.position, team: entry.team ?? null })
+    },
+    [handleMakePick],
+  )
+
   const queueFiltered = useMemo(
     () => queue.filter((e) => !draftedNames.has(e.playerName)),
     [queue, draftedNames]
@@ -931,7 +1024,7 @@ export function DraftRoomPageClient({
           canDraft={canDraft}
           onRemove={handleRemoveFromQueue}
           onReorder={handleReorderQueue}
-          onDraftFromQueue={canDraft && queueFiltered.length > 0 ? (entry) => handleMakePick({ name: entry.playerName, position: entry.position, team: entry.team ?? null }) : undefined}
+          onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
           onAiReorder={draftUISettings?.aiQueueReorderEnabled ? handleAiReorderQueue : undefined}
           aiReorderLoading={aiReorderLoading}
           autoPickFromQueue={autoPickFromQueue}
@@ -970,7 +1063,7 @@ export function DraftRoomPageClient({
           leagueChatSync={draftUISettings?.liveDraftChatSyncEnabled ?? false}
           isCommissioner={isCommissioner}
           onBroadcast={isCommissioner ? handleBroadcastOpen : undefined}
-          onReconnect={() => { fetchSession(); fetchQueue(); fetchDraftSettings(); fetchChat(); }}
+          onReconnect={handleChatReconnect}
         />
       }
       rosterPanel={rosterPanel}

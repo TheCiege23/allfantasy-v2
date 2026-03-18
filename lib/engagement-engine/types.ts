@@ -3,6 +3,7 @@
  */
 
 export type EngagementEventType =
+  | "app_open"
   | "league_view"
   | "bracket_view"
   | "ai_used"
@@ -12,6 +13,7 @@ export type EngagementEventType =
   | "chimmy_chat"
   | "lineup_edit"
   | "draft_completed"
+  | "daily_checkin"
 
 export type EngagementNotificationType =
   | "daily_digest"

@@ -104,7 +104,10 @@ export async function buildSessionSnapshot(
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
   const picksCount = session.picks.length
-  const currentPick = resolveCurrentOnTheClock({
+  const tradedPicks: TradedPickRecord[] = Array.isArray(session.tradedPicks)
+    ? (session.tradedPicks as unknown as TradedPickRecord[])
+    : []
+  let currentPick = resolveCurrentOnTheClock({
     totalPicks,
     picksCount,
     teamCount,
@@ -112,6 +115,12 @@ export async function buildSessionSnapshot(
     thirdRoundReversal: session.thirdRoundReversal,
     slotOrder,
   })
+  if (currentPick && tradedPicks.length > 0) {
+    const resolved = resolvePickOwner(currentPick.round, currentPick.slot, slotOrder, tradedPicks)
+    if (resolved) {
+      currentPick = { ...currentPick, rosterId: resolved.rosterId, displayName: resolved.displayName }
+    }
+  }
 
   const uiSettings = await getDraftUISettingsForLeague(leagueId)
   const pauseWindow = uiSettings.timerMode === 'overnight_pause' && uiSettings.slowDraftPauseWindow
@@ -148,10 +157,6 @@ export async function buildSessionSnapshot(
     amount: (p as any).amount ?? undefined,
     createdAt: p.createdAt.toISOString(),
   }))
-
-  const tradedPicks: TradedPickRecord[] = Array.isArray(session.tradedPicks)
-    ? (session.tradedPicks as unknown as TradedPickRecord[])
-    : []
 
   let auction: AuctionSessionSnapshot | undefined
   if (session.draftType === 'auction') {
@@ -374,6 +379,12 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
   })
   // Post-draft manager rankings (PROMPT 231): compute in background so /draft-results loads fast
   import('@/lib/post-draft-manager-ranking').then((m) => m.computeAndPersistDraftRankings(leagueId)).catch(() => {})
+  // PROMPT 307 — Award draft_completed achievement (progression only, no money)
+  prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }).then((league) => {
+    if (league?.userId) {
+      import('@/lib/achievement-system').then((m) => m.awardAchievement(league.userId, 'draft_completed', { leagueId })).catch(() => {})
+    }
+  }).catch(() => {})
   return true
 }
 

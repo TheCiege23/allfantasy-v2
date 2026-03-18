@@ -9,32 +9,24 @@ import LandingHero from '@/components/landing/LandingHero'
 import { CONVERSION_CTA } from '@/lib/landing-cta'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 
-/** Below-the-fold sections: code-split and lazy-loaded for performance. PROMPT 167. */
-const LandingFeatureCards = dynamic(
-  () => import('@/components/landing/LandingFeatureCards').then((m) => m.default),
-  { ssr: true, loading: () => <LandingSectionSkeleton /> }
+/** Below-the-fold: minimal features, AI value, final CTA. PROMPT 282 — minimal landing. */
+const LandingFeaturesMinimal = dynamic(
+  () => import('@/components/landing/LandingFeaturesMinimal').then((m) => m.default),
+  { ssr: true, loading: () => <SectionSkeleton /> }
 )
-const ToolPreviewCards = dynamic(
-  () => import('@/components/landing/ToolPreviewCards').then((m) => m.default),
-  { ssr: true, loading: () => <LandingSectionSkeleton /> }
-)
-const LandingScreenPreviews = dynamic(
-  () => import('@/components/landing/LandingScreenPreviews').then((m) => m.default),
-  { ssr: true, loading: () => <LandingSectionSkeleton /> }
-)
-const LandingSocialProof = dynamic(
-  () => import('@/components/landing/LandingSocialProof').then((m) => m.default),
-  { ssr: true, loading: () => <LandingSectionSkeleton /> }
+const LandingAIValue = dynamic(
+  () => import('@/components/landing/LandingAIValue').then((m) => m.default),
+  { ssr: true, loading: () => <SectionSkeleton /> }
 )
 const LandingFinalCTA = dynamic(
   () => import('@/components/landing/LandingFinalCTA').then((m) => m.default),
-  { ssr: true, loading: () => <LandingSectionSkeleton /> }
+  { ssr: true, loading: () => <SectionSkeleton /> }
 )
 
-function LandingSectionSkeleton() {
+function SectionSkeleton() {
   return (
-    <section className="min-h-[200px] border-t px-4 py-12 sm:px-6 sm:py-16" style={{ borderColor: 'var(--border)' }}>
-      <div className="mx-auto max-w-4xl animate-pulse rounded-2xl" style={{ background: 'color-mix(in srgb, var(--panel) 40%, transparent)', height: 180 }} />
+    <section className="min-h-[160px] border-t px-4 py-12 sm:px-6" style={{ borderColor: 'var(--border)' }}>
+      <div className="mx-auto max-w-3xl animate-pulse rounded-xl" style={{ background: 'color-mix(in srgb, var(--panel) 40%, transparent)', height: 140 }} />
     </section>
   )
 }
@@ -50,7 +42,7 @@ function LandingContent() {
       applicationCategory: 'SportsApplication',
       operatingSystem: 'Web',
       description:
-        'Fantasy sports with AI superpowers. Run leagues, dominate drafts, analyze trades, and win your season with AI-powered fantasy tools. NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer.',
+        'Fantasy sports with AI. Draft, trade, waivers—win. Leagues, brackets and AI tools for NFL, NBA, MLB, NHL, NCAA, Soccer.',
       url: 'https://allfantasy.ai/',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     }),
@@ -70,10 +62,8 @@ function LandingContent() {
       <HomeTopNav />
 
       <LandingHero />
-      <LandingFeatureCards />
-      <ToolPreviewCards />
-      <LandingScreenPreviews />
-      <LandingSocialProof />
+      <LandingFeaturesMinimal />
+      <LandingAIValue />
       <LandingFinalCTA />
 
       <footer className="border-t py-6 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
@@ -93,7 +83,7 @@ function LandingContent() {
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-white/50">Sports: {SUPPORTED_SPORTS.join(', ')}</span>
+            <span style={{ color: 'var(--muted)' }}>Sports: {SUPPORTED_SPORTS.join(', ')}</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link href="/app" className="hover:underline">

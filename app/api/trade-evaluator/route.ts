@@ -15,6 +15,7 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai
 import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekQuantAnalysis } from '@/lib/deepseek-client'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
+import { checkAiRateLimit, getCachedResponse, setCachedResponse, buildCacheKey, getAiActionConfig } from '@/lib/ai-protection'
 import { buildHistoricalTradeContext, getDataInfo, calculateTradeConfidence, computeDualModeGrades } from '@/lib/historical-values'
 import { pricePlayer, pricePick, compositeScore, compositeTotal, ValuationContext, type PricedAsset } from '@/lib/hybrid-valuation'
 import { computeLineupDelta, computeLineupFairness, computeValueFairness, type LineupPlayer, type RosterSlots, type LineupDelta } from '@/lib/lineup-optimizer'
@@ -37,6 +38,7 @@ import type { TradeDecisionContextV1 } from '@/lib/trade-engine/trade-decision-c
 import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getAllPlayers } from '@/lib/sleeper-client'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { logAiOutput } from '@/lib/ai/output-logger'
+import { logAiFailure } from '@/lib/error-tracking'
 
 const PlayerInputSchema = z.object({
   name: z.string(),
@@ -256,22 +258,38 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     const leaguePart = data.league_id ? `:${data.league_id.trim()}` : ''
     const evalKey = `trade_eval${leaguePart}:${evalPair[0]}:${evalPair[1]}`
 
-    const rl = consumeRateLimit({
-      scope: 'ai',
-      action: 'trade_eval',
+    const config = getAiActionConfig('trade_eval')
+    const rl = checkAiRateLimit(request, 'trade_eval', {
       sleeperUsername: evalKey,
       ip,
-      maxRequests: 12,
-      windowMs: 60_000,
+      maxRequests: config.maxRequests,
+      windowMs: config.windowMs,
       includeIpInKey: true,
     })
 
-    if (!rl.success) {
+    if (!rl.allowed) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.', retryAfterSec: rl.retryAfterSec, remaining: rl.remaining },
+        {
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfterSec: rl.retryAfterSec,
+          remaining: rl.remaining,
+          useDeterministicFallback: true,
+        },
         { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
       )
     }
+
+    const cacheKey = config.cacheTtlMs
+      ? buildCacheKey('/api/trade-evaluator', {
+          leagueId: data.league_id ?? '',
+          sender: data.sender.gives_players.map(resolvePlayerName).sort(),
+          senderPicks: (data.sender.gives_picks ?? []).map((p: any) => ({ year: p.year, round: p.round })).sort((a: any, b: any) => a.round - b.round || a.year - b.year),
+          receiver: data.receiver.gives_players.map(resolvePlayerName).sort(),
+          receiverPicks: (data.receiver.gives_picks ?? []).map((p: any) => ({ year: p.year, round: p.round })).sort((a: any, b: any) => a.round - b.round || a.year - b.year),
+        })
+      : null
+    const cached = cacheKey ? getCachedResponse<Record<string, unknown>>(cacheKey) : null
+    if (cached) return NextResponse.json(cached)
 
     const isSF = data.league?.qb_format === 'sf'
     const biasMode = data.sender.is_af_pro && data.receiver.is_af_pro ? 'neutral' : 'protect_receiver'
@@ -1516,7 +1534,7 @@ Fairness score: ${fairnessScore}/100
       }
     }
 
-    return NextResponse.json({
+    const payload = {
       success: true,
       evaluation: evalData,
       schemaValid: true,
@@ -1536,9 +1554,11 @@ Fairness score: ${fairnessScore}/100
       ...(deepseekQuantResult && { quantAnalysis: deepseekQuantResult }),
       ...(grokTrendResult && { trendIntelligence: grokTrendResult }),
       aiProviders,
-    })
+    }
+    if (cacheKey && config.cacheTtlMs) setCachedResponse(cacheKey, payload, config.cacheTtlMs)
+    return NextResponse.json(payload)
   } catch (error) {
-    console.error('Trade evaluator error:', error)
+    logAiFailure(error, { tool: 'TradeEvaluator', endpoint: '/api/trade-evaluator' })
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid request format', details: error.errors }, { status: 400 })
     }

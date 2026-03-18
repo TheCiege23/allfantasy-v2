@@ -2,7 +2,9 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/rate-limit'
+import { checkAiRateLimit } from '@/lib/ai-protection'
+import { logAiFailure } from '@/lib/error-tracking'
 import { getOpenAIConfig } from '@/lib/openai-client'
 import { getUniversalAIContext } from '@/lib/ai-player-context'
 import { getPlayerAnalyticsBatch, computeAthleticGrade, computeCollegeProductionGrade, type PlayerAnalytics } from '@/lib/player-analytics'
@@ -199,19 +201,16 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     }
 
     const ip = getClientIp(request)
-    const rl = consumeRateLimit({
-      scope: 'ai',
-      action: 'chat',
-      sleeperUsername,
-      ip,
-      maxRequests: 20,
-      windowMs: 60_000,
-      includeIpInKey: true,
-    })
+    const rl = checkAiRateLimit(request, 'chat', { sleeperUsername, ip, includeIpInKey: true })
 
-    if (!rl.success) {
+    if (!rl.allowed) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.', retryAfterSec: rl.retryAfterSec, remaining: rl.remaining },
+        {
+          error: 'Rate limit exceeded. Please try again later.',
+          retryAfterSec: rl.retryAfterSec,
+          remaining: rl.remaining,
+          useDeterministicFallback: true,
+        },
         { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } }
       )
     }
@@ -302,7 +301,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
     })
   } catch (error) {
-    console.error('AI Chat error:', error)
+    logAiFailure(error, { tool: 'AiChat', endpoint: '/api/ai/chat', provider: 'openai' })
     return NextResponse.json({ error: 'Failed to process chat', details: String(error) }, { status: 500 })
   }
 })

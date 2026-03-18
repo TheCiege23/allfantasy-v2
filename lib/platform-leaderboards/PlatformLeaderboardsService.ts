@@ -25,28 +25,120 @@ export interface LeaderboardResult {
 async function getDisplayNames(managerIds: string[]): Promise<Map<string, string | null>> {
   if (managerIds.length === 0) return new Map()
   const unique = [...new Set(managerIds)]
-  const profiles = await prisma.userProfile.findMany({
-    where: {
-      OR: [
-        { userId: { in: unique } },
-        { sleeperUserId: { in: unique } },
-      ],
-    },
-    select: { userId: true, sleeperUserId: true, displayName: true },
-  })
+  const [profiles, appUsers] = await Promise.all([
+    prisma.userProfile.findMany({
+      where: {
+        OR: [
+          { userId: { in: unique } },
+          { sleeperUserId: { in: unique } },
+        ],
+      },
+      select: { userId: true, sleeperUserId: true, displayName: true },
+    }),
+    prisma.appUser.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, displayName: true, username: true },
+    }),
+  ])
   const map = new Map<string, string | null>()
   for (const id of unique) {
-    const byUserId = profiles.find((p) => p.userId === id)
-    const bySleeper = profiles.find((p) => p.sleeperUserId === id)
-    const p = byUserId ?? bySleeper
-    map.set(id, p?.displayName ?? null)
+    const byProfile = profiles.find((p) => p.userId === id || p.sleeperUserId === id)
+    const byApp = appUsers.find((u) => u.id === id)
+    const name =
+      byProfile?.displayName ??
+      (byApp ? (byApp.displayName ?? byApp.username) : null)
+    map.set(id, name ?? null)
   }
   return map
 }
 
 /**
- * Best draft grades — average draft grade score by manager (via LegacyRoster ownerId).
- * DraftGrade.leagueId = sleeper league id; we join LegacyLeague -> LegacyRoster to get ownerId.
+ * Batch-resolve (leagueId, rosterId) -> managerId to avoid N+1.
+ * Uses 2–4 batched queries instead of one per grade.
+ */
+async function batchResolveDraftGradeManagers(
+  keys: Array<{ leagueId: string; rosterId: string }>
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (keys.length === 0) return result
+  const keySet = new Map(keys.map((k) => [`${k.leagueId}:${k.rosterId}`, k]))
+  const leagueIds = [...new Set(keys.map((k) => k.leagueId))]
+
+  const leagues = await prisma.league.findMany({
+    where: { id: { in: leagueIds } },
+    select: { id: true, legacyLeagueId: true },
+  })
+  const leagueMap = new Map(leagues.map((l) => [l.id, l]))
+  const appLeagueIds = new Set(leagues.map((l) => l.id))
+
+  const rosterPairs = keys.filter((k) => appLeagueIds.has(k.leagueId)).map((k) => ({ leagueId: k.leagueId, id: k.rosterId }))
+  if (rosterPairs.length > 0) {
+    const rosters = await prisma.roster.findMany({
+      where: { OR: rosterPairs.map((p) => ({ leagueId: p.leagueId, id: p.id })) },
+      select: { leagueId: true, id: true, platformUserId: true },
+    })
+    for (const r of rosters) {
+      if (r.platformUserId) result.set(`${r.leagueId}:${r.id}`, r.platformUserId)
+    }
+  }
+
+  const unresolvedByApp = rosterPairs.filter((p) => !result.has(`${p.leagueId}:${p.id}`))
+  if (unresolvedByApp.length > 0) {
+    const teams = await prisma.leagueTeam.findMany({
+      where: { OR: unresolvedByApp.map((p) => ({ leagueId: p.leagueId, id: p.id })) },
+      select: { leagueId: true, id: true, legacyRosterId: true },
+    })
+    const lrIds = teams.map((t) => t.legacyRosterId).filter((id): id is string => id != null)
+    if (lrIds.length > 0) {
+      const legacyRosters = await prisma.legacyRoster.findMany({
+        where: { id: { in: lrIds } },
+        select: { id: true, ownerId: true },
+      })
+      const lrMap = new Map(legacyRosters.map((lr) => [lr.id, lr.ownerId]))
+      for (const t of teams) {
+        if (t.legacyRosterId) {
+          const ownerId = lrMap.get(t.legacyRosterId)
+          if (ownerId) result.set(`${t.leagueId}:${t.id}`, ownerId)
+        }
+      }
+    }
+  }
+
+  const legacyLeagueIds = leagueIds.filter((id) => !appLeagueIds.has(id))
+  if (legacyLeagueIds.length > 0) {
+    const legacyLeagues = await prisma.legacyLeague.findMany({
+      where: { sleeperLeagueId: { in: legacyLeagueIds } },
+      select: { id: true, sleeperLeagueId: true },
+    })
+    const sleeperToLegacy = new Map(legacyLeagues.map((l) => [l.sleeperLeagueId, l.id]))
+    const legacyKeys = keys.filter((k) => sleeperToLegacy.has(k.leagueId) && !result.has(`${k.leagueId}:${k.rosterId}`))
+    const rosterIdNums = legacyKeys.map((k) => ({ k, num: parseInt(k.rosterId, 10) })).filter(({ num }) => !Number.isNaN(num))
+    if (rosterIdNums.length > 0) {
+      const legacyRosterPairs = await prisma.legacyRoster.findMany({
+        where: {
+          OR: rosterIdNums.map(({ k, num }) => ({
+            leagueId: sleeperToLegacy.get(k.leagueId)!,
+            rosterId: num,
+          })),
+        },
+        select: { leagueId: true, rosterId: true, ownerId: true },
+      })
+      const legacyBySleeper = new Map(legacyLeagues.map((l) => [l.id, l.sleeperLeagueId]))
+      for (const lr of legacyRosterPairs) {
+        if (lr.ownerId) {
+          const sleeperId = legacyBySleeper.get(lr.leagueId)
+          if (sleeperId) result.set(`${sleeperId}:${lr.rosterId}`, lr.ownerId)
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+/**
+ * Best drafters — average draft grade score by manager.
+ * Supports app League (uuid) + Roster/LeagueTeam and legacy Sleeper leagues.
  */
 export async function getBestDraftGradesLeaderboard(options: {
   limit?: number
@@ -57,33 +149,23 @@ export async function getBestDraftGradesLeaderboard(options: {
     select: { leagueId: true, rosterId: true, score: true, grade: true },
   })
 
-  const legacyLeagues = await prisma.legacyLeague.findMany({
-    where: { sleeperLeagueId: { in: [...new Set(grades.map((g) => g.leagueId))] } },
-    select: { id: true, sleeperLeagueId: true },
-  })
-  const leagueIdBySleeper = new Map(legacyLeagues.map((l) => [l.sleeperLeagueId, l.id]))
-
-  const rosters = await prisma.legacyRoster.findMany({
-    where: { leagueId: { in: legacyLeagues.map((l) => l.id) } },
-    select: { leagueId: true, rosterId: true, ownerId: true },
-  })
-  const ownerByKey = new Map(rosters.map((r) => [`${r.leagueId}:${r.rosterId}`, r.ownerId]))
+  const uniqueKeys = Array.from(
+    new Map(grades.map((g) => [`${g.leagueId}:${g.rosterId}`, { leagueId: g.leagueId, rosterId: g.rosterId }])).values()
+  )
+  const resolveMap = await batchResolveDraftGradeManagers(uniqueKeys)
 
   const byManager = new Map<string, { sum: number; count: number; grades: string[] }>()
   for (const g of grades) {
-    const legacyLeagueId = leagueIdBySleeper.get(g.leagueId)
-    if (!legacyLeagueId) continue
-    const rosterIdNum = parseInt(g.rosterId, 10)
-    if (Number.isNaN(rosterIdNum)) continue
-    const ownerId = ownerByKey.get(`${legacyLeagueId}:${rosterIdNum}`)
-    if (!ownerId) continue
+    const key = `${g.leagueId}:${g.rosterId}`
+    const managerId = resolveMap.get(key) ?? null
+    if (!managerId) continue
     const score = Number(g.score)
     if (Number.isNaN(score)) continue
-    const cur = byManager.get(ownerId) ?? { sum: 0, count: 0, grades: [] }
+    const cur = byManager.get(managerId) ?? { sum: 0, count: 0, grades: [] }
     cur.sum += score
     cur.count += 1
     if (g.grade) cur.grades.push(g.grade)
-    byManager.set(ownerId, cur)
+    byManager.set(managerId, cur)
   }
 
   const rows: { managerId: string; avgScore: number; count: number; latestGrade: string }[] = []
@@ -213,6 +295,51 @@ export async function getMostActiveLeaderboard(options: {
     displayName: displayNames.get(p.managerId) ?? null,
     value: p.totalLeaguesPlayed ?? 0,
     extra: { count: p.totalLeaguesPlayed ?? 0 },
+  }))
+
+  return {
+    entries,
+    total: await prisma.managerFranchiseProfile.count(),
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * Top users — overall leaderboard by GM prestige (championships + win % + activity).
+ * Uses ManagerFranchiseProfile.gmPrestigeScore; falls back to championshipCount then careerWinPercentage.
+ */
+export async function getTopUsersLeaderboard(options: {
+  limit?: number
+}): Promise<LeaderboardResult> {
+  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+
+  const profiles = await prisma.managerFranchiseProfile.findMany({
+    orderBy: [
+      { gmPrestigeScore: 'desc' },
+      { championshipCount: 'desc' },
+      { careerWinPercentage: 'desc' },
+    ],
+    take: limit,
+    select: {
+      managerId: true,
+      gmPrestigeScore: true,
+      championshipCount: true,
+      careerWinPercentage: true,
+      totalLeaguesPlayed: true,
+    },
+  })
+
+  const displayNames = await getDisplayNames(profiles.map((p) => p.managerId))
+
+  const entries: LeaderboardEntry[] = profiles.map((p, i) => ({
+    rank: i + 1,
+    managerId: p.managerId,
+    displayName: displayNames.get(p.managerId) ?? null,
+    value: Math.round(Number(p.gmPrestigeScore) * 100) / 100,
+    extra: {
+      count: p.championshipCount ?? 0,
+      grade: p.totalLeaguesPlayed != null ? `${p.totalLeaguesPlayed} leagues` : undefined,
+    },
   }))
 
   return {

@@ -35,9 +35,14 @@ export default async function DraftResultsPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, sport: true },
+    select: { id: true, name: true, sport: true, leagueVariant: true, settings: true },
   })
   if (!league) redirect('/app')
+
+  const settings = (league.settings ?? {}) as Record<string, unknown>
+  const isGuillotine =
+    String(league.leagueVariant ?? '').toLowerCase() === 'guillotine' ||
+    String(settings.league_type ?? '').toLowerCase() === 'guillotine'
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
@@ -45,6 +50,7 @@ export default async function DraftResultsPage({
         leagueId={leagueId}
         leagueName={league.name ?? 'League'}
         sport={String(league.sport ?? 'NFL')}
+        isGuillotine={isGuillotine}
       />
     </div>
   )

@@ -22,6 +22,8 @@ import {
   OnboardingProgressWidget,
   OnboardingChecklist,
   ReturnPromptCards,
+  RetentionStreakWidget,
+  WeeklySummaryCard,
 } from "@/components/onboarding-retention"
 import {
   getDashboardSetupAlerts,
@@ -104,6 +106,8 @@ export default function DashboardContent({
 
       <OnboardingProgressWidget initialState={checklistState} />
 
+      <RetentionStreakWidget />
+
       <Link href="/feed" className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] transition">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
           <Newspaper className="h-5 w-5" />
@@ -164,6 +168,8 @@ export default function DashboardContent({
           <ReturnPromptCards initialNudges={retentionNudges.length > 0 ? retentionNudges : undefined} />
         </div>
       )}
+
+      <WeeklySummaryCard />
 
       <div className="sm:hidden flex gap-3">
         <Link href="/brackets/leagues/new" className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-medium">

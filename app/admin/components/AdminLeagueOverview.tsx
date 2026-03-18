@@ -8,6 +8,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Loader2,
+  Trash2,
+  X,
 } from "lucide-react"
 
 type LeagueOverviewKind = "by_sport" | "largest" | "recent" | "flagged"
@@ -39,6 +41,8 @@ export default function AdminLeagueOverview() {
   const [leagues, setLeagues] = useState<LeagueRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<LeagueRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -78,6 +82,22 @@ export default function AdminLeagueOverview() {
       })
     } catch {
       return iso
+    }
+  }
+
+  const handleDeleteLeague = async () => {
+    if (!deleteConfirm) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/leagues/${deleteConfirm.id}`, { method: "DELETE" })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json?.error || "Failed to delete league")
+      setDeleteConfirm(null)
+      load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to delete league")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -221,26 +241,96 @@ export default function AdminLeagueOverview() {
                         {fmtDate(row.createdAt)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/app/league/${row.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-80"
-                          style={{
-                            borderColor: "var(--border)",
-                            background: "color-mix(in srgb, var(--accent) 10%, transparent)",
-                            color: "var(--accent)",
-                          }}
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          View league
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/app/league/${row.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-80"
+                            style={{
+                              borderColor: "var(--border)",
+                              background: "color-mix(in srgb, var(--accent) 10%, transparent)",
+                              color: "var(--accent)",
+                            }}
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            View league
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirm(row)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 transition"
+                            title="Delete league"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border p-6 shadow-xl"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--panel)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h3 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+                Delete league?
+              </h3>
+              <button
+                type="button"
+                onClick={() => !deleting && setDeleteConfirm(null)}
+                className="p-1 rounded hover:opacity-80"
+                style={{ color: "var(--muted)" }}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
+              <strong style={{ color: "var(--text)" }}>{deleteConfirm.name || deleteConfirm.id}</strong> will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => !deleting && setDeleteConfirm(null)}
+                className="rounded-lg border px-4 py-2 text-sm font-medium"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteLeague}
+                disabled={deleting}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin inline-block mr-2" />
+                    Deleting…
+                  </>
+                ) : (
+                  "Delete league"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

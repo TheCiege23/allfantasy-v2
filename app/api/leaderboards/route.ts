@@ -9,16 +9,17 @@ import {
   getMostChampionshipsLeaderboard,
   getHighestWinPctLeaderboard,
   getMostActiveLeaderboard,
+  getTopUsersLeaderboard,
 } from '@/lib/platform-leaderboards'
 
 export const dynamic = 'force-dynamic'
 
-const BOARDS = ['draft_grades', 'championships', 'win_pct', 'active'] as const
+const BOARDS = ['top', 'draft_grades', 'championships', 'win_pct', 'active'] as const
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const board = url.searchParams.get('board') ?? 'championships'
+    const board = url.searchParams.get('board') ?? 'top'
     const limitParam = url.searchParams.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 25, 100) : 25
 
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
 
     let result
     switch (board) {
+      case 'top':
+        result = await getTopUsersLeaderboard({ limit })
+        break
       case 'draft_grades':
         result = await getBestDraftGradesLeaderboard({ limit })
         break
@@ -44,7 +48,7 @@ export async function GET(req: NextRequest) {
         result = await getMostActiveLeaderboard({ limit })
         break
       default:
-        result = await getMostChampionshipsLeaderboard({ limit })
+        result = await getTopUsersLeaderboard({ limit })
     }
 
     return NextResponse.json(result)

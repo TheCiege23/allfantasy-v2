@@ -7,7 +7,7 @@ import EspnImportForm from "@/components/EspnImportForm";
 
 export const metadata: Metadata = {
   title: "Import Your League \u2013 AllFantasy",
-  description: "Import your fantasy league from Sleeper or ESPN to get AI-powered rankings and insights.",
+  description: "Import your fantasy league from Sleeper or ESPN to get rankings and insights. Coverage varies by provider.",
 };
 
 export default async function ImportPage() {
@@ -24,7 +24,7 @@ export default async function ImportPage() {
           Import Your League
         </h1>
         <p className="text-center text-gray-400 mb-12">
-          Sleeper or ESPN &mdash; we support both
+          Sleeper has broader import coverage today. ESPN currently imports teams and weekly scores.
         </p>
 
         <div className="space-y-12">

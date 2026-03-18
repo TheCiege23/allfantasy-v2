@@ -1,9 +1,10 @@
 /**
  * Draft notifications — deterministic, event-driven. No AI required for content.
+ * Uses unified dispatcher for in-app + email + SMS per user preferences.
  */
 
 import { prisma } from '@/lib/prisma'
-import { createPlatformNotification } from '@/lib/platform/notification-service'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import type { DraftNotificationEventType, DraftNotificationPayload } from './types'
 
 const DRAFT_ROOM_PATH = (leagueId: string) => `/app/league/${leagueId}/draft`
@@ -126,7 +127,7 @@ function getTitleAndBody(
 }
 
 /**
- * Create a single draft notification (in-app). Deterministic title/body; optional integration with email/push is external.
+ * Create a single draft notification (in-app + email/SMS per preferences).
  */
 export async function createDraftNotification(
   appUserId: string,
@@ -135,36 +136,45 @@ export async function createDraftNotification(
 ): Promise<boolean> {
   const { title, body, severity } = getTitleAndBody(eventType, payload)
   const href = DRAFT_ROOM_PATH(payload.leagueId)
-  return createPlatformNotification({
-    userId: appUserId,
+  await dispatchNotification({
+    userIds: [appUserId],
+    category: 'draft_alerts',
     productType: 'app',
     type: eventType,
     title,
     body: body ?? undefined,
+    actionHref: href,
+    actionLabel: 'Open draft',
+    meta: { ...payload, leagueId: payload.leagueId },
     severity,
-    meta: {
-      ...payload,
-      leagueId: payload.leagueId,
-      actionHref: href,
-      actionLabel: 'Open draft',
-    },
   })
+  return true
 }
 
 /**
- * Notify multiple users (e.g. draft paused/resumed). Fire-and-forget per user.
+ * Notify multiple users (e.g. draft paused/resumed) via unified dispatcher.
  */
 export async function createDraftNotificationForUsers(
   appUserIds: string[],
   eventType: DraftNotificationEventType,
   payload: DraftNotificationPayload
 ): Promise<number> {
-  let count = 0
-  for (const id of appUserIds) {
-    const ok = await createDraftNotification(id, eventType, payload)
-    if (ok) count++
-  }
-  return count
+  if (appUserIds.length === 0) return 0
+  const { title, body, severity } = getTitleAndBody(eventType, payload)
+  const href = DRAFT_ROOM_PATH(payload.leagueId)
+  await dispatchNotification({
+    userIds: appUserIds,
+    category: 'draft_alerts',
+    productType: 'app',
+    type: eventType,
+    title,
+    body: body ?? undefined,
+    actionHref: href,
+    actionLabel: 'Open draft',
+    meta: { ...payload, leagueId: payload.leagueId },
+    severity,
+  })
+  return appUserIds.length
 }
 
 /**

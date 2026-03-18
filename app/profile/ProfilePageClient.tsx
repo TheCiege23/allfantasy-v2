@@ -14,6 +14,8 @@ import {
   Upload,
   Trash2,
   MessageCircle,
+  Trophy,
+  BarChart3,
 } from "lucide-react"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { useXPProfile } from "@/hooks/useXPProfile"
@@ -190,6 +192,11 @@ export default function ProfilePageClient({
           </div>
         )}
       </div>
+
+      {/* Your stats: record, rankings, achievements (own profile only) */}
+      {isOwnProfile && (
+        <ProfileStatsSection />
+      )}
 
       {/* Editable form (own profile only) */}
       {isOwnProfile && profile && (
@@ -518,6 +525,144 @@ function EditableProfileFormController({
           </div>
         </form>
       )}
+    </div>
+  )
+}
+
+/** Profile stats: record, rankings, achievements (PROMPT 308). */
+function ProfileStatsSection() {
+  const [stats, setStats] = useState<{
+    record: { wins: number; losses: number; ties: number; byLeague: Array<{ leagueName: string; wins: number; losses: number; ties: number; rank?: number }> }
+    rankings: Array<{ leagueName: string; season: string; grade: string; rank: number }>
+    achievements: Array<{ id: string; name: string; description: string; icon: string; earned: boolean; earnedAt?: string }>
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/profile/stats", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.record != null) setStats(data)
+        else setStats(null)
+      })
+      .catch(() => setStats(null))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+        <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text)" }}>
+          <BarChart3 className="h-4 w-4" />
+          Your stats
+        </h2>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>Loading…</p>
+      </div>
+    )
+  }
+
+  if (!stats) return null
+
+  const { record, rankings, achievements } = stats
+  const totalGames = record.wins + record.losses + record.ties
+  const earnedCount = achievements.filter((a) => a.earned).length
+
+  return (
+    <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--text)" }}>
+        <BarChart3 className="h-4 w-4" />
+        Your stats
+      </h2>
+
+      <div className="grid gap-6 sm:grid-cols-3">
+        {/* Record */}
+        <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>
+            <Trophy className="h-3.5 w-3.5" />
+            Record
+          </div>
+          {totalGames > 0 ? (
+            <>
+              <p className="mt-2 text-2xl font-bold" style={{ color: "var(--text)" }}>
+                {record.wins}-{record.losses}
+                {record.ties > 0 ? `-${record.ties}` : ""}
+              </p>
+              <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                across {record.byLeague.length} league{record.byLeague.length !== 1 ? "s" : ""}
+              </p>
+              {record.byLeague.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
+                  {record.byLeague.slice(0, 3).map((l) => (
+                    <li key={l.leagueName}>
+                      {l.leagueName}: {l.wins}-{l.losses}
+                      {l.ties > 0 ? `-${l.ties}` : ""}
+                      {l.rank != null ? ` · #${l.rank}` : ""}
+                    </li>
+                  ))}
+                  {record.byLeague.length > 3 && (
+                    <li>+{record.byLeague.length - 3} more</li>
+                  )}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+              Link leagues to see your W-L record.
+            </p>
+          )}
+        </div>
+
+        {/* Rankings (draft grades) */}
+        <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>
+            <BarChart3 className="h-3.5 w-3.5" />
+            Rankings
+          </div>
+          {rankings.length > 0 ? (
+            <>
+              <p className="mt-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+                Draft grades
+              </p>
+              <ul className="mt-2 space-y-1.5 text-xs" style={{ color: "var(--muted)" }}>
+                {rankings.slice(0, 4).map((r, i) => (
+                  <li key={`${r.leagueName}-${r.season}-${i}`}>
+                    {r.leagueName} ({r.season}): <strong style={{ color: "var(--text)" }}>{r.grade}</strong>
+                    {r.rank > 0 ? ` · #${r.rank}` : ""}
+                  </li>
+                ))}
+                {rankings.length > 4 && <li>+{rankings.length - 4} more</li>}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+              Complete a draft to see grades here.
+            </p>
+          )}
+        </div>
+
+        {/* Achievements */}
+        <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+          <div className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>
+            <Award className="h-3.5 w-3.5" />
+            Achievements
+          </div>
+          <p className="mt-2 text-2xl font-bold" style={{ color: "var(--text)" }}>
+            {earnedCount} / {achievements.length}
+          </p>
+          <ul className="mt-2 space-y-1 text-xs" style={{ color: "var(--muted)" }}>
+            {achievements.slice(0, 4).map((a) => (
+              <li key={a.id} className="flex items-center gap-2">
+                <span>{a.icon}</span>
+                <span style={{ color: a.earned ? "var(--text)" : "var(--muted)" }}>
+                  {a.name}
+                  {a.earned ? " ✓" : ""}
+                </span>
+              </li>
+            ))}
+            {achievements.length > 4 && <li>+{achievements.length - 4} more</li>}
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }

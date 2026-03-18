@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -7,15 +10,26 @@ export const dynamic = 'force-dynamic'
 /**
  * POST /api/leagues/[leagueId]/divisions/create
  * Body: { tierLevel: number, sport?: string, name?: string }
+ * Commissioner only.
  */
 export async function POST(
   req: Request,
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
-  try {
-    const { leagueId } = await ctx.params
-    if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { leagueId } = await ctx.params
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+
+  try {
+    await assertCommissioner(leagueId, userId)
+  } catch {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
     const body = await req.json().catch(() => ({}))
     const tierLevel = typeof body.tierLevel === 'number' ? body.tierLevel : 1
     const sport = normalizeToSupportedSport(body.sport ?? null)

@@ -110,7 +110,17 @@ export async function POST(
     const mainLeagueAccess = await canAccessLeagueDraft(leagueId, user.appUserId)
     if (mainLeagueAccess) {
       const { createLeagueChatMessage } = await import('@/lib/league-chat/LeagueChatMessageService')
-      const created = await createLeagueChatMessage(leagueId, user.appUserId, message, { type: messageType as 'text' })
+      const imageUrl =
+        typeof body?.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null
+      const metadata =
+        body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+          ? (body.metadata as Record<string, unknown>)
+          : undefined
+      const created = await createLeagueChatMessage(leagueId, user.appUserId, message, {
+        type: messageType as 'text',
+        imageUrl,
+        metadata,
+      })
       return NextResponse.json({ status: 'ok', message: created })
     }
     return NextResponse.json({ error: 'Not a member' }, { status: 403 })

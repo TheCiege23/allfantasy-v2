@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import Stripe from "stripe"
+import { prisma } from "@/lib/prisma"
 import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe-client"
 
 export async function POST(req: NextRequest) {
@@ -28,14 +29,20 @@ export async function POST(req: NextRequest) {
     }
 
     switch (event.type) {
-      case "checkout.session.completed":
-        console.log("[stripe webhook] checkout.session.completed", event.id)
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session
+        const sessionId = session?.id
+        if (sessionId) {
+          await (prisma as any).bracketPayment.updateMany({
+            where: { stripeSessionId: sessionId, status: "pending" },
+            data: { status: "completed", completedAt: new Date() },
+          })
+        }
         break
+      }
       case "payment_intent.succeeded":
-        console.log("[stripe webhook] payment_intent.succeeded", event.id)
         break
       default:
-        console.log("[stripe webhook] unhandled event", event.type)
         break
     }
 

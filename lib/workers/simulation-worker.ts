@@ -1,8 +1,10 @@
 import "server-only";
 import { Worker, Job, type ConnectionOptions } from "bullmq";
 import { getRedisConnection, isRedisConfigured } from "@/lib/queues/bullmq";
+import { QUEUE_NAMES } from "@/lib/jobs/types";
+import type { SimulationJobPayload } from "@/lib/jobs/types";
 
-type SimulationJobData = Record<string, unknown>;
+type SimulationJobData = SimulationJobPayload & Record<string, unknown>;
 type SimulationJobResult = {
   ok: true;
   jobId: string | undefined;
@@ -51,7 +53,7 @@ export function startSimulationWorker(): Worker<
   }
 
   simulationWorker = new Worker<SimulationJobData, SimulationJobResult>(
-    "simulations",
+    QUEUE_NAMES.SIMULATIONS,
     processSimulationJob,
     {
       connection: getWorkerConnection(),

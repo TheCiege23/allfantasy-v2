@@ -193,7 +193,7 @@ export default function ChimmyChat() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-180px)] bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden">
+    <div className="flex flex-col h-fill-dynamic bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden touch-scroll">
       <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900">
         <div className="flex items-center gap-4">
           <div className="w-11 h-11 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl flex items-center justify-center text-2xl">

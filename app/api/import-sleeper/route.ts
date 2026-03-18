@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { z } from "zod";
 import { LeagueSport } from "@prisma/client";
-import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
+import { requireVerifiedUser } from "@/lib/auth-guard";
 import {
   consumeRateLimit,
   getClientIp,
@@ -15,6 +14,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const CURRENT_IMPORT_SEASON = new Date().getFullYear();
+
 const leagueImportLimit = pLimit(8);
 const weekImportLimit = pLimit(4);
 
@@ -23,7 +24,7 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const bodySchema = z.object({
   sleeperUserId: z.string().min(1).max(100),
   sport: z.enum(["nfl", "nba", "mlb"]).default("nfl"),
-  season: z.number().int().min(2020).max(2030).default(2025),
+  season: z.number().int().min(2020).max(2035).default(CURRENT_IMPORT_SEASON),
   isLegacy: z.boolean().default(false),
 });
 
@@ -349,15 +350,11 @@ async function processLeague(
 
 export async function POST(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
-    const userId = session?.user?.id ?? null;
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Authentication required" },
-        { status: 401 }
-      );
+    const auth = await requireVerifiedUser();
+    if (!auth.ok) {
+      return auth.response;
     }
+    const userId = auth.userId;
 
     const ip = getClientIp(req);
 

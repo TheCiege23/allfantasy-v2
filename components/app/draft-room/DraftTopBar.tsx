@@ -80,7 +80,7 @@ export function DraftTopBar({
         : formatTimerRemaining(timerRemainingSeconds ?? 0)
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/12 bg-black/30 px-4 py-3">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/12 bg-black/30 px-3 py-2.5 sm:px-4 sm:py-3">
       <div className="flex flex-wrap items-center gap-4">
         <div>
           <h1 className="text-base font-semibold text-white md:text-lg">{leagueName}</h1>
@@ -119,7 +119,7 @@ export function DraftTopBar({
             type="button"
             onClick={onUseQueue}
             disabled={useQueueLoading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/20 px-3 py-2.5 text-xs text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50 touch-manipulation"
             aria-label="Submit pick from queue"
           >
             {useQueueLoading ? '…' : 'Use queue'}
@@ -132,7 +132,7 @@ export function DraftTopBar({
           <button
             type="button"
             onClick={onTradesClick}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/90 hover:bg-white/10"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/90 hover:bg-white/10 touch-manipulation"
             aria-label="Draft pick trades"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -152,7 +152,7 @@ export function DraftTopBar({
             <button
               type="button"
               onClick={onCommissionerOpen}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50"
+              className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
               disabled={commissionerLoading}
               aria-label="Commissioner controls"
             >
@@ -165,7 +165,7 @@ export function DraftTopBar({
                   type="button"
                   onClick={onPause}
                   disabled={commissionerLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Pause draft"
                 >
                   <Pause className="h-3.5 w-3.5" />
@@ -175,7 +175,7 @@ export function DraftTopBar({
                   type="button"
                   onClick={onResume}
                   disabled={commissionerLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Resume draft"
                 >
                   <Play className="h-3.5 w-3.5" />
@@ -188,7 +188,7 @@ export function DraftTopBar({
                 type="button"
                 onClick={onResume}
                 disabled={commissionerLoading}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
+                className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
                 aria-label="Resume draft"
               >
                 <Play className="h-3.5 w-3.5" />
@@ -202,7 +202,7 @@ export function DraftTopBar({
                     type="button"
                     onClick={onRunAiPick}
                     disabled={commissionerLoading || runAiPickLoading}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1.5 text-xs text-violet-200 hover:bg-violet-500/20 disabled:opacity-50"
+                    className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-200 hover:bg-violet-500/20 disabled:opacity-50 touch-manipulation"
                     aria-label="Run AI pick for orphan"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -213,7 +213,7 @@ export function DraftTopBar({
                   type="button"
                   onClick={onResetTimer}
                   disabled={commissionerLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
                   aria-label="Reset timer"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -223,7 +223,7 @@ export function DraftTopBar({
                   type="button"
                   onClick={onUndoPick}
                   disabled={commissionerLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-xs text-red-200 hover:bg-red-500/20 disabled:opacity-50"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-xs text-red-200 hover:bg-red-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Undo last pick"
                 >
                   <Undo2 className="h-3.5 w-3.5" />

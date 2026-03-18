@@ -1,0 +1,58 @@
+'use client'
+
+/**
+ * PROMPT 253 — Frontend hook for token balance. Refetch after spend/purchase.
+ * PROMPT 268 — Refetch on window focus (throttled) to avoid stale balance after buying in another tab.
+ * PROMPT 280 — Uses fetchWithRetry, getErrorMessage, logError for clean error handling.
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
+import { fetchWithRetry, getErrorMessage, logError } from '@/lib/error-handling'
+
+export interface TokenBalanceState {
+  balance: number
+  updatedAt: string
+}
+
+export function useTokenBalance() {
+  const [data, setData] = useState<TokenBalanceState | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const lastFocusRefetch = useRef(0)
+
+  const fetchBalance = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetchWithRetry('/api/tokens/balance', undefined, { context: 'token-balance' })
+      const json = await res.json()
+      setData({ balance: json.balance ?? 0, updatedAt: json.updatedAt ?? '' })
+    } catch (e) {
+      const err = e as Error & { status?: number }
+      if (err.status === 401) return
+      setError(getErrorMessage(e, { context: 'token-balance' }))
+      logError(e, { context: 'useTokenBalance' })
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchBalance()
+  }, [fetchBalance])
+
+  useEffect(() => {
+    const onFocus = () => {
+      const now = Date.now()
+      if (now - lastFocusRefetch.current < FOCUS_REFETCH_THROTTLE_MS) return
+      lastFocusRefetch.current = now
+      fetchBalance()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [fetchBalance])
+
+  return { balance: data?.balance ?? 0, updatedAt: data?.updatedAt ?? '', loading, error, refetch: fetchBalance }
+}

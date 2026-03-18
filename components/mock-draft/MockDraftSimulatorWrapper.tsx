@@ -101,12 +101,14 @@ export default function MockDraftSimulatorWrapper({ leagues, initialSessionDraft
   }, [])
 
   if (showRecap) {
+    const recapLeagueId = mockConfig?.leagueId ?? leagues[0]?.id ?? null
     return (
       <div className="space-y-6">
         <MockDraftRecap
           results={recapResults}
           config={mockConfig}
           userManagerName={userManagerName}
+          leagueId={recapLeagueId}
           onBack={() => setShowRecap(false)}
         />
       </div>

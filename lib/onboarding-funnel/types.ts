@@ -1,9 +1,10 @@
 /**
  * Onboarding funnel step identifiers.
- * Order: welcome → sport_selection → tool_suggestions → league_prompt → completed
+ * Order: welcome → app_walkthrough → sport_selection → tool_suggestions → league_prompt → completed
  */
 export type OnboardingStepId =
   | "welcome"
+  | "app_walkthrough"
   | "sport_selection"
   | "tool_suggestions"
   | "league_prompt"
@@ -11,6 +12,7 @@ export type OnboardingStepId =
 
 export const ONBOARDING_STEPS: OnboardingStepId[] = [
   "welcome",
+  "app_walkthrough",
   "sport_selection",
   "tool_suggestions",
   "league_prompt",

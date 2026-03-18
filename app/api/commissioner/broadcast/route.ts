@@ -1,6 +1,7 @@
 /**
  * POST: Commissioner @everyone broadcast to selected league chats.
  * Body: { leagueIds: string[], message: string }. Permission: commissioner of each league.
+ * Also sends in-app + email/SMS notification to all league members (commissioner_alerts).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,6 +11,8 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { getLeagueChatThreadId } from '@/lib/commissioner-settings/CommissionerAnnouncementService'
 import { createSystemMessage } from '@/lib/platform/chat-service'
+import { getLeagueMemberAppUserIds } from '@/lib/draft-notifications/DraftNotificationService'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +44,21 @@ export async function POST(req: NextRequest) {
     } else {
       const created = await createLeagueChatMessage(leagueId, userId, text, { type: 'broadcast' })
       results.push({ leagueId, sent: !!created })
+    }
+    const memberIds = await getLeagueMemberAppUserIds(leagueId)
+    if (memberIds.length > 0) {
+      dispatchNotification({
+        userIds: memberIds,
+        category: 'commissioner_alerts',
+        productType: 'app',
+        type: 'commissioner_broadcast',
+        title: 'Commissioner announcement',
+        body: message,
+        actionHref: `/app/league/${leagueId}`,
+        actionLabel: 'Open league',
+        meta: { leagueId },
+        severity: 'medium',
+      }).catch((e) => console.error('[commissioner broadcast] notify', e))
     }
   }
   return NextResponse.json({ ok: true, results })

@@ -4,6 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { Trophy, Zap, Target } from 'lucide-react';
 import { ACHIEVEMENT_SHARE_TYPES } from '@/lib/social-sharing/types';
 import type { AchievementShareType } from '@/lib/social-sharing/types';
+import { DraftSharePageContent } from '@/components/draft-sharing/DraftSharePageContent';
+import type { DraftShareCardPayload } from '@/lib/draft-sharing/types';
+import { MatchupSharePageContent } from '@/components/matchup-sharing/MatchupSharePageContent';
+import type { MatchupSharePayload } from '@/lib/matchup-sharing/types';
+import { LeagueStoryPageContent } from '@/components/league-story/LeagueStoryPageContent';
+import type { LeagueStoryPayload } from '@/lib/league-story-engine/types';
+
+const DRAFT_SHARE_TYPES = ['draft_grade', 'draft_rankings', 'draft_winner'];
+const MATCHUP_SHARE_TYPE = 'matchup_share';
+const LEAGUE_STORY_TYPE = 'league_story';
 
 const TYPE_ICONS: Record<string, typeof Trophy> = {
   winning_matchup: Target,
@@ -28,7 +38,33 @@ export default async function ShareMomentPage({ params }: { params: Promise<{ sh
   });
   if (!moment) notFound();
 
-  const validType = ACHIEVEMENT_SHARE_TYPES.includes(moment.shareType as AchievementShareType) ? moment.shareType : 'winning_matchup';
+  const meta = moment.metadata as {
+    payload?: DraftShareCardPayload | MatchupSharePayload | LeagueStoryPayload;
+  } | null;
+  const isDraftShare = DRAFT_SHARE_TYPES.includes(moment.shareType);
+  const draftPayload = isDraftShare && meta?.payload ? (meta.payload as DraftShareCardPayload) : null;
+  const isMatchupShare = moment.shareType === MATCHUP_SHARE_TYPE;
+  const matchupPayload = isMatchupShare && meta?.payload ? (meta.payload as MatchupSharePayload) : null;
+  const isLeagueStory = moment.shareType === LEAGUE_STORY_TYPE;
+  const leagueStoryPayload = isLeagueStory && meta?.payload ? (meta.payload as LeagueStoryPayload) : null;
+
+  if (draftPayload) {
+    const base = process.env.NEXTAUTH_URL ?? '';
+    const shareUrl = base ? `${base.replace(/\/$/, '')}/share/${moment.id}` : '';
+    return <DraftSharePageContent payload={draftPayload} shareUrl={shareUrl} />;
+  }
+
+  if (matchupPayload) {
+    return <MatchupSharePageContent payload={matchupPayload} />;
+  }
+
+  if (leagueStoryPayload) {
+    return <LeagueStoryPageContent payload={leagueStoryPayload} />;
+  }
+
+  const validType = ACHIEVEMENT_SHARE_TYPES.includes(moment.shareType as AchievementShareType)
+    ? moment.shareType
+    : 'winning_matchup';
   const Icon = TYPE_ICONS[moment.shareType] ?? Trophy;
 
   return (

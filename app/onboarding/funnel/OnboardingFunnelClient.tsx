@@ -3,13 +3,76 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import {
+  LayoutDashboard,
+  Trophy,
+  DraftingCompass,
+  Bot,
+  BarChart3,
+  ClipboardList,
+  Target,
+  MessageCircle,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react"
 import type { OnboardingStepId } from "@/lib/onboarding-funnel"
 
-const TOOL_LINKS = [
-  { label: "Trade analyzer & finder", href: "/af-legacy?tab=trade-center" },
-  { label: "Mock draft & war room", href: "/af-legacy?tab=mock-draft" },
-  { label: "Brackets & pools", href: "/brackets" },
-  { label: "Chimmy AI chat", href: "/chimmy" },
+const WALKTHROUGH_CARDS = [
+  {
+    icon: LayoutDashboard,
+    title: "Dashboard",
+    description: "Your home base: leagues, matchups, and quick actions.",
+  },
+  {
+    icon: Trophy,
+    title: "Leagues",
+    description: "Create or join leagues, manage rosters, and track standings.",
+  },
+  {
+    icon: DraftingCompass,
+    title: "Draft & tools",
+    description: "Mock drafts, war room, trade analyzer, and waiver AI.",
+  },
+  {
+    icon: Bot,
+    title: "AI assistant",
+    description: "Chimmy helps with trades, waivers, drafts, and strategy.",
+  },
+]
+
+const AI_FEATURE_CARDS = [
+  {
+    icon: BarChart3,
+    title: "Trade Analyzer",
+    description: "AI fairness grades and counter-offers for any trade.",
+    href: "/trade-analyzer",
+  },
+  {
+    icon: ClipboardList,
+    title: "Waiver AI",
+    description: "Pickup priorities and lineup suggestions for your league.",
+    href: "/waiver-ai",
+  },
+  {
+    icon: Target,
+    title: "Draft War Room",
+    description: "Mock drafts and AI pick suggestions in real time.",
+    href: "/mock-draft",
+  },
+  {
+    icon: MessageCircle,
+    title: "Chimmy Chat",
+    description: "Ask anything about your league—drafts, trades, waivers.",
+    href: "/chimmy",
+  },
+]
+
+const STEP_ORDER: OnboardingStepId[] = [
+  "welcome",
+  "app_walkthrough",
+  "sport_selection",
+  "tool_suggestions",
+  "league_prompt",
 ]
 
 interface OnboardingFunnelClientProps {
@@ -75,6 +138,9 @@ export default function OnboardingFunnelClient({
     )
   }
 
+  const stepIndex = STEP_ORDER.indexOf(step)
+  const stepLabel = stepIndex >= 0 ? `Step ${stepIndex + 1} of ${STEP_ORDER.length}` : ""
+
   if (step === "completed") {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-white/80">
@@ -96,15 +162,58 @@ export default function OnboardingFunnelClient({
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Welcome to AllFantasy</h2>
           <p className="text-white/80">
-            Get started by creating a league, joining a league, trying brackets, or using our AI tools.
-            We&apos;ll walk you through a few quick steps—or you can skip and explore on your own.
+            We&apos;ll walk you through the app, your favorite sports, AI features, and how to find or create a league. Takes about a minute—or skip and explore on your own.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={() => advance(false)}
               disabled={loading}
-              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
+            >
+              Start walkthrough
+            </button>
+            <button
+              type="button"
+              onClick={() => advance(true)}
+              disabled={loading}
+              className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* App walkthrough */}
+      {step === "app_walkthrough" && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-semibold text-white">Quick app tour</h2>
+          <p className="text-white/80">
+            Here&apos;s what you&apos;ll find inside AllFantasy:
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {WALKTHROUGH_CARDS.map(({ icon: Icon, title, description }) => (
+              <div
+                key={title}
+                className="rounded-xl border border-white/10 bg-white/5 p-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className="font-medium text-white">{title}</span>
+                </div>
+                <p className="text-xs text-white/70">{description}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => advance(false)}
+              disabled={loading}
+              className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
               Next
             </button>
@@ -112,7 +221,7 @@ export default function OnboardingFunnelClient({
               type="button"
               onClick={() => advance(true)}
               disabled={loading}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
               Skip
             </button>
@@ -123,9 +232,9 @@ export default function OnboardingFunnelClient({
       {/* Sport selection */}
       {step === "sport_selection" && (
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold text-white">Choose your sports</h2>
+          <h2 className="text-xl font-semibold text-white">Pick your favorite sports</h2>
           <p className="text-white/80">
-            Select the sports you follow. We&apos;ll use this to personalize leagues and content.
+            We&apos;ll use this to suggest leagues and personalize your experience.
           </p>
           <div className="flex flex-wrap gap-2">
             {sportOptions.map((opt) => (
@@ -133,7 +242,7 @@ export default function OnboardingFunnelClient({
                 key={opt.value}
                 type="button"
                 onClick={() => toggleSport(opt.value)}
-                className={`rounded-lg border px-3 py-1.5 text-sm ${
+                className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm touch-manipulation ${
                   selectedSports.includes(opt.value)
                     ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
                     : "border-white/20 text-white/80 hover:bg-white/10"
@@ -148,7 +257,7 @@ export default function OnboardingFunnelClient({
               type="button"
               onClick={() => advance(false)}
               disabled={loading}
-              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
               Next
             </button>
@@ -156,7 +265,7 @@ export default function OnboardingFunnelClient({
               type="button"
               onClick={() => advance(true)}
               disabled={loading}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
               Skip
             </button>
@@ -164,32 +273,42 @@ export default function OnboardingFunnelClient({
         </div>
       )}
 
-      {/* Tool suggestions */}
+      {/* AI features */}
       {step === "tool_suggestions" && (
         <div className="space-y-6">
-          <h2 className="text-xl font-semibold text-white">Try these AI tools</h2>
+          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-cyan-400" />
+            AI features to try
+          </h2>
           <p className="text-white/80">
-            Trade analyzer, mock draft, brackets, and Chimmy—your AI assistant. Click any link to try
-            them.
+            Trade grades, waiver priorities, draft help, and Chimmy—your AI assistant. Click any card to try it.
           </p>
-          <ul className="space-y-2">
-            {TOOL_LINKS.map((tool) => (
-              <li key={tool.href}>
-                <Link
-                  href={tool.href}
-                  className="text-cyan-400 hover:text-cyan-300 underline"
-                >
-                  {tool.label}
-                </Link>
-              </li>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {AI_FEATURE_CARDS.map(({ icon: Icon, title, description, href }) => (
+              <Link
+                key={href}
+                href={href}
+                className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 hover:border-cyan-400/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className="font-medium text-white">{title}</span>
+                </div>
+                <p className="text-xs text-white/70 mb-3 flex-1">{description}</p>
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400">
+                  Try it <ArrowRight className="h-3 w-3" />
+                </span>
+              </Link>
             ))}
-          </ul>
+          </div>
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
               onClick={() => advance(false)}
               disabled={loading}
-              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
               Next
             </button>
@@ -197,7 +316,7 @@ export default function OnboardingFunnelClient({
               type="button"
               onClick={() => advance(true)}
               disabled={loading}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
               Skip
             </button>
@@ -205,29 +324,30 @@ export default function OnboardingFunnelClient({
         </div>
       )}
 
-      {/* League creation prompt */}
+      {/* League suggest */}
       {step === "league_prompt" && (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Create or join a league</h2>
           <p className="text-white/80">
-            You&apos;re all set. Create a league, join one with a code, or create a bracket pool.
+            You&apos;re all set. Create your own league, discover leagues we suggest based on your sports, or join one with a code.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col gap-3">
             <Link
-              href="/leagues"
-              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-600 text-center"
+              href="/create-league"
+              className="min-h-[44px] inline-flex items-center justify-center rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 text-center touch-manipulation"
             >
               Create league
             </Link>
             <Link
               href="/app/discover"
-              className="rounded-xl border border-cyan-400/50 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20 text-center"
+              className="min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/50 px-4 py-2.5 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20 text-center touch-manipulation"
             >
-              Join league
+              <Sparkles className="h-4 w-4" />
+              Discover suggested leagues
             </Link>
             <Link
               href="/brackets/leagues/new"
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/10 text-center"
+              className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 text-center touch-manipulation"
             >
               Create bracket pool
             </Link>
@@ -237,7 +357,7 @@ export default function OnboardingFunnelClient({
               type="button"
               onClick={() => advance(true)}
               disabled={loading}
-              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
               Skip — go to dashboard
             </button>
@@ -245,9 +365,9 @@ export default function OnboardingFunnelClient({
         </div>
       )}
 
-      <p className="text-xs text-white/50">
-        Step {["welcome", "sport_selection", "tool_suggestions", "league_prompt"].indexOf(step) + 1} of 4
-      </p>
+      {stepLabel && (
+        <p className="text-xs text-white/50">{stepLabel}</p>
+      )}
     </div>
   )
 }

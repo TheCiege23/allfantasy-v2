@@ -346,7 +346,13 @@ export default function LeagueSyncDashboard() {
                 setDiscoveredLeagues(data.discovered);
                 toast.success(`Found ${data.discovered.length} league${data.discovered.length !== 1 ? 's' : ''}!`);
               } else {
-                toast.error(data.error || 'Discovery failed');
+                toast.error(
+                  data.error === 'VERIFICATION_REQUIRED'
+                    ? 'Verify your email or phone before discovering leagues.'
+                    : data.error === 'AGE_REQUIRED'
+                      ? 'Confirm that you are 18+ before discovering leagues.'
+                      : data.error || 'Discovery failed'
+                );
               }
             } catch {
               toast.error('Failed to discover leagues');

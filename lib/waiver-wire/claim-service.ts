@@ -1,11 +1,29 @@
 import { prisma } from "@/lib/prisma"
 import type { WaiverClaimInput } from "./types"
+import { isRosterChopped } from "@/lib/guillotine/guillotineGuard"
 
+/**
+ * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
+ * Guillotine: chopped (eliminated) rosters cannot submit claims.
+ */
 export async function createClaim(
   leagueId: string,
   rosterId: string,
   input: WaiverClaimInput
 ) {
+  const roster = await (prisma as any).roster.findFirst({
+    where: { id: rosterId, leagueId },
+    select: { id: true },
+  })
+  if (!roster) {
+    throw new Error("Roster not found or does not belong to this league")
+  }
+
+  const chopped = await isRosterChopped(leagueId, rosterId)
+  if (chopped) {
+    throw new Error("This team has been eliminated and cannot submit waiver claims")
+  }
+
   const maxOrder = await (prisma as any).waiverClaim.aggregate({
     where: { leagueId, status: "pending" },
     _max: { priorityOrder: true },

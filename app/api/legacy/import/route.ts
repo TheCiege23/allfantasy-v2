@@ -5,9 +5,15 @@ import { rateLimit } from '@/lib/rate-limit';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
 import { resolveOrCreateLegacyUser } from '@/lib/legacy-user-resolver';
 import { logUserEvent } from '@/lib/user-events';
+import { requireVerifiedUser } from '@/lib/auth-guard';
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/import", tool: "LegacyImport" })(async (request: NextRequest) => {
   try {
+    const auth = await requireVerifiedUser();
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     const rateLimitResult = rateLimit(ip, 5, 60000);
 
@@ -97,4 +103,3 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/import", tool: "Legacy
     );
   }
 })
-

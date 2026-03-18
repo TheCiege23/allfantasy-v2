@@ -1,4 +1,5 @@
 import { createPlatformNotification } from "@/lib/platform/notification-service"
+import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher"
 import { getDeepLinkRedirect } from "@/lib/routing/DeepLinkHandler"
 import type { EngagementNotificationType } from "./types"
 
@@ -72,19 +73,19 @@ export async function sendAIInsight(params: {
     : params.leagueId
       ? `/app/league/${params.leagueId}`
       : "/af-legacy"
-  return createPlatformNotification({
-    userId: params.userId,
+  await dispatchNotification({
+    userIds: [params.userId],
+    category: "ai_alerts",
     productType: "legacy",
     type: "ai_insight",
     title: params.title,
     body: params.body ?? undefined,
+    actionHref: href,
+    actionLabel: params.actionLabel ?? "View",
+    meta: { leagueId: params.leagueId ?? undefined },
     severity: "low",
-    meta: {
-      actionHref: href,
-      actionLabel: params.actionLabel ?? "View",
-      leagueId: params.leagueId ?? undefined,
-    },
   })
+  return true
 }
 
 export async function sendWeeklyRecap(params: {

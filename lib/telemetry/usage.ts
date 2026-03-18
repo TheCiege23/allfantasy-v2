@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { logApiFailure } from "@/lib/error-tracking"
 
 type UsageScope = "api" | "legacy_tool"
 type BucketType = "hour" | "day" | "week" | "month"
@@ -173,6 +174,7 @@ export function withApiUsage(meta: { endpoint: string; tool?: string; leagueIdFr
       const start = Date.now()
       let status = 200
       let ok = true
+      let caught: unknown = null
       try {
         const res = await handler(req, ctx)
         status = (res?.status ?? 200) as number
@@ -181,6 +183,7 @@ export function withApiUsage(meta: { endpoint: string; tool?: string; leagueIdFr
       } catch (e) {
         status = 500
         ok = false
+        caught = e
         throw e
       } finally {
         const durationMs = Date.now() - start
@@ -199,6 +202,17 @@ export function withApiUsage(meta: { endpoint: string; tool?: string; leagueIdFr
           durationMs,
           leagueId: leagueId ? String(leagueId) : ""
         }).catch(() => {})
+
+        if (!ok || status >= 400) {
+          logApiFailure({
+            endpoint: meta.endpoint || "(unknown)",
+            method: req.method,
+            status,
+            durationMs,
+            leagueId: leagueId ? String(leagueId) : null,
+            error: caught ?? undefined,
+          })
+        }
       }
     }
   }

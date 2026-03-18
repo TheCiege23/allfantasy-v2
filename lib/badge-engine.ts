@@ -131,6 +131,47 @@ const BADGE_DEFINITIONS: Record<string, Omit<Badge, 'id'>> = {
     xpReward: 100,
     icon: '🛡️',
   },
+  // PROMPT 307 — Achievement system (progression only, no money rewards)
+  first_win: {
+    badgeType: 'first_win',
+    badgeName: 'First Win',
+    description: 'Won your first matchup',
+    tier: 'bronze',
+    xpReward: 25,
+    icon: '🏆',
+  },
+  best_draft: {
+    badgeType: 'best_draft',
+    badgeName: 'Best Draft',
+    description: 'Had the best draft in your league (by grade or result)',
+    tier: 'gold',
+    xpReward: 150,
+    icon: '📋',
+  },
+  highest_score: {
+    badgeType: 'highest_score',
+    badgeName: 'Highest Score',
+    description: 'Scored the most points in a single week in your league',
+    tier: 'silver',
+    xpReward: 75,
+    icon: '🔥',
+  },
+  draft_completed: {
+    badgeType: 'draft_completed',
+    badgeName: 'Draft Complete',
+    description: 'Completed your first league draft',
+    tier: 'bronze',
+    xpReward: 50,
+    icon: '✅',
+  },
+  ten_wins: {
+    badgeType: 'ten_wins',
+    badgeName: 'Ten Wins',
+    description: 'Reached 10 wins across your leagues',
+    tier: 'silver',
+    xpReward: 100,
+    icon: '🌟',
+  },
 }
 
 export async function checkAndAwardBadge(

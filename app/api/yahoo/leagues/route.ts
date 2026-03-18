@@ -1,6 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
 const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET
@@ -41,6 +42,11 @@ async function refreshAccessToken(connection: any) {
 }
 
 export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLeagues" })(async (request: NextRequest) => {
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) {
+    return auth.response
+  }
+
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
 
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
@@ -145,6 +151,11 @@ export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLe
 })
 
 export const POST = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLeagues" })(async (request: NextRequest) => {
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) {
+    return auth.response
+  }
+
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
 
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {

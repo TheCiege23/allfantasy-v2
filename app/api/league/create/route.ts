@@ -191,6 +191,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    const isGuillotine =
+      String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'guillotine';
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -201,7 +204,8 @@ export async function POST(req: Request) {
         scoring,
         isDynasty,
         sport,
-        leagueVariant: leagueVariantInput ?? null,
+        leagueVariant: isGuillotine ? 'guillotine' : (leagueVariantInput ?? null),
+        avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
       },
@@ -212,7 +216,15 @@ export async function POST(req: Request) {
       await runPostCreateInitialization(league.id, sport as string, leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
-      // non-fatal: league is created; roster/scoring/waiver may use in-memory defaults
+    }
+
+    if (isGuillotine) {
+      try {
+        const { upsertGuillotineConfig } = await import('@/lib/guillotine/GuillotineLeagueConfig');
+        await upsertGuillotineConfig(league.id, {});
+      } catch (err) {
+        console.warn('[league/create] Guillotine config bootstrap non-fatal:', err);
+      }
     }
 
     return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });

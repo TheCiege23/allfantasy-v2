@@ -10,17 +10,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
 import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import type { ImportProvider } from '@/lib/league-import/types'
 
 export async function POST(req: NextRequest) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) {
+    return auth.response
   }
 
   let body: { provider?: string; sourceId?: string }

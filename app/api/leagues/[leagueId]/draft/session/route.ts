@@ -15,6 +15,7 @@ import {
 } from '@/lib/live-draft-engine/DraftSessionService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import { dedupeInFlight } from '@/lib/api-performance'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,28 +34,32 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    const [snapshot, uiSettings, orphanRosterIds] = await Promise.all([
-      buildSessionSnapshot(leagueId),
-      getDraftUISettingsForLeague(leagueId),
-      getOrphanRosterIdsForLeague(leagueId),
-    ])
-    if (!snapshot) {
+    const shared = await dedupeInFlight(`draft:session:${leagueId}`, async () => {
+      const [snapshot, uiSettings, orphanRosterIds] = await Promise.all([
+        buildSessionSnapshot(leagueId),
+        getDraftUISettingsForLeague(leagueId),
+        getOrphanRosterIdsForLeague(leagueId),
+      ])
+      return { snapshot, uiSettings, orphanRosterIds }
+    })
+
+    if (!shared.snapshot) {
       return NextResponse.json({
         leagueId,
         session: null,
         message: 'No draft session. POST to create and start.',
       })
     }
+
     const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
     return NextResponse.json({
       leagueId,
       session: {
-        ...snapshot,
+        ...shared.snapshot,
         currentUserRosterId: currentUserRosterId ?? undefined,
-        orphanRosterIds,
-        aiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
-        /** 'cpu' | 'ai' — shown in UI as "CPU Manager" / "AI Manager" when orphan on clock. */
-        orphanDrafterMode: uiSettings.orphanDrafterMode,
+        orphanRosterIds: shared.orphanRosterIds,
+        aiManagerEnabled: shared.uiSettings.orphanTeamAiManagerEnabled,
+        orphanDrafterMode: shared.uiSettings.orphanDrafterMode,
       },
     })
   } catch (e) {

@@ -44,7 +44,7 @@ export function LockedFeatureCard({
           <button
             type="button"
             onClick={onUpgradeClick}
-            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500"
+            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
           >
             <Lock className="h-4 w-4" />
             Unlock with {requiredPlan}
@@ -52,7 +52,7 @@ export function LockedFeatureCard({
         ) : (
           <Link
             href="/pricing"
-            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500"
+            className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
           >
             <Lock className="h-4 w-4" />
             View plans
@@ -62,7 +62,7 @@ export function LockedFeatureCard({
           <Link
             href="/tokens"
             onClick={onTokenClick}
-            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-300 hover:bg-amber-500/20"
+            className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
           >
             Or use {tokenCost} token{tokenCost !== 1 ? 's' : ''} for one-time use
           </Link>

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { requireVerifiedUser } from '@/lib/auth-guard';
+
+const CURRENT_IMPORT_SEASON = new Date().getFullYear();
 
 export async function POST(req: NextRequest) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireVerifiedUser();
+  if (!auth.ok) {
+    return auth.response;
   }
 
   const { platform, credentials } = await req.json().catch(() => ({}));
@@ -14,40 +15,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
   }
 
+  const normalizedPlatform = String(platform).toLowerCase();
+  if (!normalizedPlatform) {
+    return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
+  }
+
+  if (normalizedPlatform !== 'sleeper') {
+    return NextResponse.json(
+      { error: `Discovery is only available for Sleeper right now. ${platform} discovery is not live yet.` },
+      { status: 400 }
+    );
+  }
+
+  if (!credentials?.username) {
+    return NextResponse.json({ error: 'Sleeper username required' }, { status: 400 });
+  }
+
   try {
-    let discovered: any[] = [];
-
-    switch (platform.toLowerCase()) {
-      case 'sleeper':
-        if (!credentials?.username) throw new Error('Sleeper username required');
-        const res = await fetch(`https://api.sleeper.app/v1/user/${credentials.username}/leagues/nfl/2025`);
-        if (!res.ok) throw new Error('Failed to discover Sleeper leagues');
-        discovered = await res.json();
-        break;
-
-      case 'mfl':
-        if (!credentials?.apiKey) throw new Error('MFL API key required');
-        discovered = [{ leagueId: 'placeholder', name: 'MFL League (manual add)' }];
-        break;
-
-      case 'yahoo':
-        if (!credentials?.oauthToken) throw new Error('Yahoo OAuth required');
-        discovered = [{ leagueId: 'yahoo-placeholder', name: 'Yahoo League (OAuth pending)' }];
-        break;
-
-      case 'espn':
-        if (!credentials?.espnSwid || !credentials?.espnS2) throw new Error('ESPN cookies required');
-        discovered = [{ leagueId: 'espn-placeholder', name: 'ESPN League (cookie-based)' }];
-        break;
-
-      case 'fantrax':
-        discovered = [{ leagueId: 'fantrax-placeholder', name: 'Fantrax League (manual)' }];
-        break;
-
-      default:
-        throw new Error('Unsupported platform');
+    const res = await fetch(
+      `https://api.sleeper.app/v1/user/${encodeURIComponent(credentials.username)}/leagues/nfl/${CURRENT_IMPORT_SEASON}`
+    );
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to discover Sleeper leagues' }, { status: 502 });
     }
 
+    const discovered = await res.json();
     return NextResponse.json({ success: true, discovered });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Discovery failed' }, { status: 500 });

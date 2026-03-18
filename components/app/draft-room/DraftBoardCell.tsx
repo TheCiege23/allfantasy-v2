@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 export type DraftBoardCellPick = {
   overall: number
   round: number
@@ -103,3 +105,5 @@ export function DraftBoardCell({
     </div>
   )
 }
+
+export const DraftBoardCell = React.memo(DraftBoardCellInner)

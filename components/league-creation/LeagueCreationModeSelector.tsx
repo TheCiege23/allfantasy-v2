@@ -28,8 +28,8 @@ export function LeagueCreationModeSelector({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="create">Build New League — set sport, scoring, size, and options manually</SelectItem>
-          <SelectItem value="import">Import Existing League — bring in a league from Sleeper, ESPN, Yahoo, Fantrax, or MFL</SelectItem>
+          <SelectItem value="create">Build New League - set sport, scoring, size, and options manually</SelectItem>
+          <SelectItem value="import">Import Existing League - import from Sleeper today; other providers are still limited</SelectItem>
         </SelectContent>
       </Select>
     </div>

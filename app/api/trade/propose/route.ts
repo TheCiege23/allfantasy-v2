@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher';
 
 const proposeSchema = z.object({
   leagueId: z.string(),
@@ -50,6 +51,28 @@ export async function POST(req: Request) {
         expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7),
       },
     });
+
+    const recipientRoster = await (prisma as any).roster.findUnique({
+      where: { id: offerTo },
+      select: { platformUserId: true },
+    });
+    const recipientUserId = recipientRoster?.platformUserId && !String(recipientRoster.platformUserId).startsWith('orphan-')
+      ? String(recipientRoster.platformUserId)
+      : null;
+    if (recipientUserId && recipientUserId !== session.user.id) {
+      dispatchNotification({
+        userIds: [recipientUserId],
+        category: 'trade_proposals',
+        productType: 'app',
+        type: 'trade_proposal',
+        title: 'New trade proposal',
+        body: 'You received a trade proposal. Open the league to review.',
+        actionHref: `/app/league/${leagueId}?tab=Trades`,
+        actionLabel: 'View trade',
+        meta: { leagueId, shareId: share.id },
+        severity: 'medium',
+      }).catch((e) => console.error('[trade/propose] notify', e));
+    }
 
     return NextResponse.json({
       success: true,

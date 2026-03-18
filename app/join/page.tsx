@@ -35,6 +35,8 @@ export default function JoinByCodePage() {
             requiresPassword: !!data.requiresPassword,
           })
           setPreviewError(null)
+          // Set growth attribution cookie so signup can attribute to league_invite (PROMPT 291)
+          fetch(`/api/viral/context?type=league_invite&code=${encodeURIComponent(effectiveCode)}`, { credentials: 'include' }).catch(() => {})
         } else {
           setPreview(null)
           setPreviewError(data.error ?? null)

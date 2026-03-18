@@ -56,6 +56,7 @@ export async function POST(req: Request) {
 
   const validSteps: OnboardingStepId[] = [
     "welcome",
+    "app_walkthrough",
     "sport_selection",
     "tool_suggestions",
     "league_prompt",

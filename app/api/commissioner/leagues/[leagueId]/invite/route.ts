@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { buildLeagueInviteUrl } from '@/lib/viral-loop'
 import crypto from 'crypto'
 
 /** GET: return current invite code/link from settings. POST: regenerate and store in settings. */
@@ -30,10 +31,11 @@ export async function GET(
   const inviteCode = (settings.inviteCode as string) ?? null
   const inviteLink = (settings.inviteLink as string) ?? null
 
+  const joinUrl = inviteCode ? buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } }) : null
   return NextResponse.json({
     inviteCode,
-    inviteLink,
-    joinUrl: inviteCode ? `${process.env.NEXTAUTH_URL || ''}/join?code=${encodeURIComponent(inviteCode)}` : null,
+    inviteLink: joinUrl ?? inviteLink,
+    joinUrl,
   })
 }
 
@@ -62,8 +64,7 @@ export async function POST(
 
   const settings = (league.settings as Record<string, unknown>) || {}
   const inviteCode = regenerate ? crypto.randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : (settings.inviteCode as string) ?? crypto.randomBytes(6).toString('base64url').slice(0, 8)
-  const baseUrl = process.env.NEXTAUTH_URL || ''
-  const inviteLink = `${baseUrl}/join?code=${encodeURIComponent(inviteCode)}`
+  const joinUrl = buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } })
 
   const updated = await prisma.league.update({
     where: { id: params.leagueId },
@@ -77,6 +78,6 @@ export async function POST(
     status: 'ok',
     inviteCode: s.inviteCode,
     inviteLink: s.inviteLink,
-    joinUrl: inviteLink,
+    joinUrl,
   })
 }

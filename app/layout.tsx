@@ -10,6 +10,8 @@ import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
+import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
+import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
 import './globals.css';
 
 const inter = Inter({
@@ -21,7 +23,7 @@ const inter = Inter({
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
   viewportFit: 'cover' as const,
 };
 
@@ -217,9 +219,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SessionAppProvider>
           <ThemeProvider>
             <LanguageProviderClient>
+              <ErrorTrackingInit />
               <ReferralTracker />
               <SyncProfilePreferences />
-              {children}
+              <ErrorBoundaryClient>
+                {children}
+              </ErrorBoundaryClient>
               <Toaster position="top-center" richColors closeButton />
               <GlobalModeToggle />
               <BackToTop />

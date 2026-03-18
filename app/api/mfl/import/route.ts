@@ -1,7 +1,8 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { requireVerifiedUser } from '@/lib/auth-guard'
 
 async function getMFLConnection() {
   const cookieStore = await cookies()
@@ -15,8 +16,13 @@ async function getMFLConnection() {
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-export const GET = withApiUsage({ endpoint: "/api/mfl/leagues", tool: "MflLeagues" })(async (req: NextRequest) => {
+export const GET = withApiUsage({ endpoint: "/api/mfl/leagues", tool: "MflLeagues" })(async () => {
   try {
+    const auth = await requireVerifiedUser()
+    if (!auth.ok) {
+      return auth.response
+    }
+
     const connection = await getMFLConnection()
     
     if (!connection) {
@@ -67,4 +73,24 @@ export const GET = withApiUsage({ endpoint: "/api/mfl/leagues", tool: "MflLeague
       { status: 500 }
     )
   }
+})
+
+export const POST = withApiUsage({ endpoint: "/api/mfl/import", tool: "MflImport" })(async () => {
+  const auth = await requireVerifiedUser()
+  if (!auth.ok) {
+    return auth.response
+  }
+
+  const connection = await getMFLConnection()
+  if (!connection) {
+    return NextResponse.json({ connected: false, error: 'Connect your MFL account first.' }, { status: 401 })
+  }
+
+  return NextResponse.json(
+    {
+      error: 'Historical MFL import is not live yet. Right now this connection only supports account authentication and league listing.',
+      supported: false,
+    },
+    { status: 501 }
+  )
 })

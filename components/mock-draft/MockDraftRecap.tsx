@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
+import { Share2, Copy, Check, Loader2 } from 'lucide-react'
 import type { MockDraftPick } from '@/lib/mock-draft/types'
 import type { MockDraftConfig } from '@/lib/mock-draft/types'
 
@@ -80,6 +81,8 @@ export interface MockDraftRecapProps {
   config?: MockDraftConfig | null
   /** Optional: user's manager name to highlight */
   userManagerName?: string | null
+  /** League id for sharing (required for Share results) */
+  leagueId?: string | null
   onBack?: () => void
 }
 
@@ -87,8 +90,57 @@ export function MockDraftRecap({
   results,
   config,
   userManagerName,
+  leagueId,
   onBack,
 }: MockDraftRecapProps) {
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [sharing, setSharing] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const shareResults = useCallback(async () => {
+    if (!leagueId || results.length === 0) return
+    setSharing(true)
+    setShareUrl(null)
+    try {
+      const res = await fetch('/api/mock-draft/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leagueId,
+          results: results.map((p) => ({
+            round: p.round,
+            pick: p.pick,
+            overall: p.overall,
+            playerName: p.playerName,
+            position: p.position,
+            team: p.team,
+            manager: p.manager,
+            managerAvatar: p.managerAvatar,
+            confidence: p.confidence,
+            isUser: p.isUser,
+            value: p.value,
+            notes: p.notes,
+          })),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.shareId) {
+        const base = typeof window !== 'undefined' ? window.location.origin : ''
+        setShareUrl(`${base}/mock-draft/share/${data.shareId}`)
+      }
+    } finally {
+      setSharing(false)
+    }
+  }, [leagueId, results])
+
+  const copyShareUrl = useCallback(() => {
+    if (!shareUrl) return
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [shareUrl])
+
   const managers = useMemo(
     () => Array.from(new Set(results.map((p) => p.manager))).filter(Boolean).sort(),
     [results],
@@ -120,20 +172,54 @@ export function MockDraftRecap({
     <div className="space-y-6 rounded-2xl border border-white/12 bg-black/20 p-6 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-white">Mock Draft Recap</h2>
-        {config && (
-          <p className="text-white/60">
-            {config.sport} · {config.leagueType} · {config.draftType} · {config.numTeams} teams
-          </p>
-        )}
-        {onBack && (
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
-          >
-            Back to draft
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {leagueId && (
+            <>
+              {!shareUrl ? (
+                <button
+                  type="button"
+                  onClick={shareResults}
+                  disabled={sharing}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
+                >
+                  {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+                  {sharing ? 'Creating link…' : 'Share results'}
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareUrl}
+                    className="w-48 rounded border border-white/10 bg-black/30 px-2 py-1 text-[11px] text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyShareUrl}
+                    className="inline-flex items-center gap-1 rounded border border-white/20 px-2 py-1 text-[11px] text-white/90 hover:bg-white/10"
+                  >
+                    {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {config && (
+            <p className="text-white/60">
+              {config.sport} · {config.leagueType} · {config.draftType} · {config.numTeams} teams
+            </p>
+          )}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+            >
+              Back to draft
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Full draft board */}

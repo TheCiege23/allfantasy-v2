@@ -29,10 +29,11 @@ import {
   Server,
   ToggleLeft,
   Zap,
+  ScrollText,
 } from "lucide-react";
 import { AdminTabsBar } from "./AdminTabsBar";
 
-export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "features" | "system" | "providers";
+export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "audit" | "features" | "system" | "providers";
 
 const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus: string }> = {
   overview: {
@@ -115,6 +116,11 @@ const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus:
     description: "Reported content, reported users, and blocked users.",
     focus: "Review and resolve reports; unblock when appropriate.",
   },
+  audit: {
+    title: "Audit log",
+    description: "Admin actions: bans, mutes, league deletions.",
+    focus: "Chronological trail of who did what.",
+  },
   features: {
     title: "Feature toggles",
     description: "Enable or disable features and sports globally.",
@@ -155,6 +161,7 @@ const NAV: Array<{
   { tab: "users", label: "Users", icon: Users, desc: "Account management", color: "from-indigo-500 to-purple-600", glow: "indigo" },
   { tab: "leagues", label: "Leagues", icon: Trophy, desc: "By sport & size", color: "from-emerald-500 to-teal-600", glow: "emerald" },
   { tab: "moderation", label: "Moderation", icon: Flag, desc: "Reports & blocks", color: "from-rose-500 to-red-600", glow: "rose" },
+  { tab: "audit", label: "Audit", icon: ScrollText, desc: "Action log", color: "from-slate-500 to-slate-600", glow: "slate" },
   { tab: "features", label: "Features", icon: ToggleLeft, desc: "Feature toggles", color: "from-violet-500 to-purple-600", glow: "violet" },
   { tab: "system", label: "System", icon: Server, desc: "API & DB health", color: "from-slate-500 to-zinc-600", glow: "slate" },
   { tab: "providers", label: "Providers", icon: Zap, desc: "AI & data diagnostics", color: "from-sky-500 to-indigo-600", glow: "sky" },

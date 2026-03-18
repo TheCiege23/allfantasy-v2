@@ -110,6 +110,38 @@ export const AI_TOOL_PAGES = {
     openToolHref: '/app/coach',
     openToolLabel: 'Open Fantasy Coach',
   },
+  'war-room': {
+    title: 'Draft War Room – AI Draft Command Center | AllFantasy',
+    description:
+      'AllFantasy draft war room: your AI-powered draft command center. Real-time board, AI pick suggestions, Chimmy strategy, snake and auction. NFL, NBA, MLB, and more.',
+    headline: 'Draft War Room',
+    body:
+      'Your draft command center with AI. Run mock drafts, see real-time boards, get AI pick suggestions, and ask Chimmy for strategy—all in one war room. Snake and auction for every major sport.',
+    benefits: [
+      'Real-time draft board and pick tracking',
+      'AI pick suggestions and rankings',
+      'Chimmy AI for in-draft strategy and questions',
+      'Snake and auction; NFL, NBA, MLB, NHL, NCAA, Soccer',
+    ],
+    openToolHref: '/mock-draft',
+    openToolLabel: 'Open War Room',
+  },
+  'ai-chat': {
+    title: 'AI Chat – Fantasy Sports Assistant (Chimmy) | AllFantasy',
+    description:
+      'AllFantasy AI chat: talk to Chimmy for draft help, trade analysis, waiver advice, and matchup predictions. Your fantasy sports assistant for every league.',
+    headline: 'AI Chat',
+    body:
+      'Chat with AllFantasy’s AI assistant for draft strategy, trade grades, waiver priorities, and matchup advice. Ask in plain language—Chimmy knows your league context and every major sport.',
+    benefits: [
+      'Draft help and real-time strategy',
+      'Trade analysis and counter-offer ideas',
+      'Waiver and lineup recommendations',
+      'Sport-specific guidance: NFL, NBA, MLB, NHL, NCAA, Soccer',
+    ],
+    openToolHref: '/chimmy',
+    openToolLabel: 'Chat with Chimmy',
+  },
 } as const satisfies Record<string, AIToolSeoConfig>
 
 export type AIToolPageSlug = keyof typeof AI_TOOL_PAGES
@@ -118,6 +150,8 @@ export const AI_TOOL_PAGE_SLUGS: AIToolPageSlug[] = [
   'trade-analyzer',
   'waiver-wire',
   'draft-helper',
+  'war-room',
+  'ai-chat',
   'player-comparison',
   'matchup-simulator',
   'fantasy-coach',
@@ -127,4 +161,21 @@ const BASE = 'https://allfantasy.ai'
 
 export function getAIToolPageCanonical(slug: AIToolPageSlug): string {
   return `${BASE}/${slug}`
+}
+
+/** WebPage JSON-LD for AI tool landing pages (SEO). */
+export function getAIToolPageJsonLd(slug: AIToolPageSlug): Record<string, unknown> {
+  const config = AI_TOOL_PAGES[slug]
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: config.headline,
+    description: config.description,
+    url: getAIToolPageCanonical(slug),
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'AllFantasy',
+      url: BASE,
+    },
+  }
 }

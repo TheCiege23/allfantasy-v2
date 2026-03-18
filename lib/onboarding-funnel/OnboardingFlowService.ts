@@ -4,7 +4,7 @@ import { ONBOARDING_STEPS } from "./types"
 
 /**
  * Manages onboarding funnel step progression and completion.
- * Flow: welcome → sport_selection → tool_suggestions → league_prompt → completed.
+ * Flow: welcome → app_walkthrough → sport_selection → tool_suggestions → league_prompt → completed.
  */
 export async function getOnboardingState(userId: string): Promise<OnboardingFunnelState | null> {
   const profile = await prisma.userProfile.findUnique({

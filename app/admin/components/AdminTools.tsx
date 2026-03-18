@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RefreshCw, Trash2, Activity, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Zap, Database, Upload } from "lucide-react";
+import { AlertTriangle, RefreshCw, Trash2, Activity, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Zap, Database, Upload, Brain } from "lucide-react";
 
 type PurgeResult = {
   ok: boolean;
@@ -34,6 +34,7 @@ export default function AdminTools() {
   const [topUsed, setTopUsed] = useState<ToolUsage[]>([]);
   const [topFailing, setTopFailing] = useState<ToolUsage[]>([]);
   const [topExpensive, setTopExpensive] = useState<ToolUsage[]>([]);
+  const [aiUsage, setAiUsage] = useState<{ topTools: ToolUsage[]; totalCalls: number } | null>(null);
 
   const [analyticsStats, setAnalyticsStats] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -166,9 +167,10 @@ export default function AdminTools() {
 
   const fetchUsageData = async () => {
     try {
-      const [allRes, topRes] = await Promise.all([
+      const [allRes, topRes, aiRes] = await Promise.all([
         fetch("/api/admin/usage/summary?bucketType=day&days=1&topN=50"),
         fetch("/api/admin/usage/summary?bucketType=day&days=1&topN=5"),
+        fetch("/api/admin/usage/ai?days=7&topN=10"),
       ]);
       if (allRes.ok) {
         const allData = await allRes.json();
@@ -184,6 +186,15 @@ export default function AdminTools() {
         setTopUsed([...tools].sort((a, b) => b.count - a.count).slice(0, 5));
         setTopFailing([...tools].sort((a, b) => b.err - a.err).filter(t => t.err > 0).slice(0, 5));
         setTopExpensive([...tools].sort((a, b) => (b.p95 ?? 0) - (a.p95 ?? 0)).filter(t => (t.p95 ?? 0) > 0).slice(0, 5));
+      }
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        setAiUsage({
+          topTools: aiData.topTools ?? [],
+          totalCalls: aiData.totals?.count ?? 0,
+        });
+      } else {
+        setAiUsage({ topTools: [], totalCalls: 0 });
       }
     } catch (e) {
       console.error("Failed to fetch usage data", e);
@@ -324,6 +335,32 @@ export default function AdminTools() {
                     <span className="text-xs truncate" style={{ color: "var(--muted)" }}>{t.name}</span>
                   </div>
                   <span className="text-xs font-mono text-amber-400 shrink-0">{fmtMs(t.p95)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border p-3 sm:p-5 md:col-span-3" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="h-4 w-4 text-violet-400" />
+            <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>AI usage (7d)</h4>
+            {aiUsage != null && (
+              <span className="text-[10px] ml-auto font-mono" style={{ color: "var(--muted2)" }}>
+                {aiUsage.totalCalls.toLocaleString()} calls
+              </span>
+            )}
+          </div>
+          {aiUsage == null ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>Loading…</p>
+          ) : aiUsage.topTools.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>No AI usage in period</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {aiUsage.topTools.map((t, i) => (
+                <div key={t.name} className="flex items-center justify-between gap-2">
+                  <span className="text-xs truncate" style={{ color: "var(--muted)" }}>{t.name}</span>
+                  <span className="text-xs font-mono text-violet-400 shrink-0">{t.count.toLocaleString()}</span>
                 </div>
               ))}
             </div>
