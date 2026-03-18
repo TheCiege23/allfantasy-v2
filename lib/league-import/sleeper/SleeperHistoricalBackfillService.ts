@@ -5,12 +5,17 @@ import {
   syncSleeperHistoricalDraftFactsAfterImport,
   type SleeperHistoricalDraftSyncSummary,
 } from './SleeperHistoricalDraftSyncService'
+import {
+  syncSleeperHistoricalSeasonStateAfterImport,
+  type SleeperHistoricalSeasonStateSyncSummary,
+} from './SleeperHistoricalSeasonStateSyncService'
 
 export interface SleeperHistoricalBackfillSummary {
   attempted: boolean
   skipped: boolean
   reason?: string
   drafts?: SleeperHistoricalDraftSyncSummary
+  seasonState?: SleeperHistoricalSeasonStateSyncSummary
   backfill?: {
     success: boolean
     status: string
@@ -53,6 +58,9 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
   const drafts = await syncSleeperHistoricalDraftFactsAfterImport({
     leagueId: args.leagueId,
   })
+  const seasonState = await syncSleeperHistoricalSeasonStateAfterImport({
+    leagueId: args.leagueId,
+  })
 
   if (!args.isDynasty) {
     return {
@@ -60,6 +68,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
       skipped: true,
       reason: 'Historical auto-backfill currently runs only for Sleeper dynasty leagues.',
       drafts,
+      seasonState,
     }
   }
 
@@ -73,6 +82,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
       attempted: true,
       skipped: false,
       drafts,
+      seasonState,
       backfill: {
         success: backfill.success,
         status: backfill.status,
@@ -147,6 +157,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
         failureMessage: getErrorMessage(error),
       },
       drafts,
+      seasonState,
       graph: {
         refreshed: false,
       },

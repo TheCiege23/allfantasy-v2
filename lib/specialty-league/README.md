@@ -31,4 +31,6 @@ All specialty logic must be **sport-aware** where it matters (schedule weeks, po
 
 ## Adding a new specialty league
 
-See **docs/PROMPT336_SPECIALTY_LEAGUE_FACTORY_TEMPLATE.md** for the step-by-step checklist.
+- **Step-by-step checklist:** See **docs/PROMPT336_SPECIALTY_LEAGUE_FACTORY_TEMPLATE.md**.
+- **Reusable framework (deterministic / automation / AI / sports API / QA):** See **docs/PROMPT343_SPECIALTY_LEAGUE_REUSABLE_FRAMEWORK.md**.
+- **Machine-readable categories:** Import `DETERMINISTIC_ENGINE_CATEGORIES`, `AUTOMATION_CATEGORIES`, `AI_CATEGORIES`, `QA_TEMPLATE_SECTIONS` from `@/lib/specialty-league` (or `./framework-categories`).

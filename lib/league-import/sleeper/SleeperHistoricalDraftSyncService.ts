@@ -1,11 +1,7 @@
 import { normalizeSportForWarehouse } from '@/lib/data-warehouse/types'
 import { prisma } from '@/lib/prisma'
-import { getDraftPicks, getLeagueDrafts, getLeagueInfo } from '@/lib/sleeper-client'
-
-interface SleeperLeagueHistorySeason {
-  externalLeagueId: string
-  season: number
-}
+import { getDraftPicks, getLeagueDrafts } from '@/lib/sleeper-client'
+import { getSleeperHistoricalLeagueChain } from './SleeperHistoricalLeagueChain'
 
 interface PendingSleeperDraftFact {
   sourceDraftId: string
@@ -36,17 +32,6 @@ function getErrorMessage(error: unknown): string {
   }
 
   return 'Unknown error'
-}
-
-function parseSeasonNumber(value: unknown): number | null {
-  const season =
-    typeof value === 'number'
-      ? value
-      : typeof value === 'string'
-        ? Number.parseInt(value, 10)
-        : Number.NaN
-
-  return Number.isFinite(season) ? season : null
 }
 
 function normalizePickNumber(rawPick: any, fallbackPickNumber: number): number {
@@ -88,40 +73,6 @@ function normalizeManagerId(rawPick: any): string | undefined {
   return undefined
 }
 
-async function getSleeperLeagueHistoryChain(
-  startingLeagueId: string,
-  maxPreviousSeasons: number
-): Promise<SleeperLeagueHistorySeason[]> {
-  const chain: SleeperLeagueHistorySeason[] = []
-  const seenLeagueIds = new Set<string>()
-  let currentLeagueId: string | null = startingLeagueId
-  const maxHistoryDepth = Math.max(maxPreviousSeasons, 0) + 1
-
-  while (currentLeagueId && chain.length < maxHistoryDepth) {
-    if (seenLeagueIds.has(currentLeagueId)) {
-      break
-    }
-    seenLeagueIds.add(currentLeagueId)
-
-    const league = await getLeagueInfo(currentLeagueId)
-    if (!league?.league_id) {
-      break
-    }
-
-    const season = parseSeasonNumber(league.season)
-    if (season != null) {
-      chain.push({
-        externalLeagueId: league.league_id,
-        season,
-      })
-    }
-
-    currentLeagueId = league.previous_league_id ?? null
-  }
-
-  return chain
-}
-
 async function collectSleeperDraftFacts(args: {
   internalLeagueId: string
   sport: string
@@ -132,7 +83,7 @@ async function collectSleeperDraftFacts(args: {
   seasons: number[]
   importedDraftCount: number
 }> {
-  const historyChain = await getSleeperLeagueHistoryChain(args.startingLeagueId, args.maxPreviousSeasons)
+  const historyChain = await getSleeperHistoricalLeagueChain(args.startingLeagueId, args.maxPreviousSeasons)
   const pendingRows: PendingSleeperDraftFact[] = []
   const seasonsWithDrafts = new Set<number>()
   let importedDraftCount = 0

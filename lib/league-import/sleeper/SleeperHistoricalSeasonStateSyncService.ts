@@ -1,0 +1,244 @@
+import type { Prisma } from '@prisma/client'
+import { persistDynastySeason } from '@/lib/dynasty-import/normalize-historical'
+import { normalizeSportForWarehouse } from '@/lib/data-warehouse/types'
+import { prisma } from '@/lib/prisma'
+import { getLeagueRosters, getLeagueUsers, type SleeperLeague, type SleeperRoster } from '@/lib/sleeper-client'
+import { getSleeperHistoricalLeagueChain } from './SleeperHistoricalLeagueChain'
+
+const SEASON_END_ROSTER_SNAPSHOT_PERIOD = 0
+
+interface SnapshotPlayer {
+  id: string
+  bucket: 'starter' | 'bench' | 'reserve' | 'taxi'
+  ownerId: string | null
+  ownerName: string | null
+  rosterId: string
+}
+
+export interface SleeperHistoricalSeasonStateSyncSummary {
+  attempted: boolean
+  refreshed: boolean
+  skipped: boolean
+  reason?: string
+  seasonsProcessed?: number
+  settingsSnapshotsPersisted?: number
+  rosterSnapshotsPersisted?: number
+  error?: string
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return 'Unknown error'
+}
+
+function parseNumberOrNull(value: unknown): number | null {
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseFloat(value)
+        : Number.NaN
+
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function getScoringFormat(scoringSettings: Record<string, number> | undefined): string {
+  const ppr = scoringSettings?.rec ?? 0
+  if (ppr >= 1) return 'PPR'
+  if (ppr >= 0.5) return 'HALF_PPR'
+  return 'STANDARD'
+}
+
+function buildSeasonMetadata(league: SleeperLeague): Record<string, unknown> {
+  const rawSettings = (league.settings ?? {}) as Record<string, unknown>
+
+  return {
+    sourceProvider: 'sleeper',
+    importedAt: new Date().toISOString(),
+    leagueName: league.name,
+    sport: league.sport,
+    season: parseNumberOrNull(league.season),
+    status: league.status ?? null,
+    totalRosters: league.total_rosters ?? null,
+    draftId: league.draft_id ?? null,
+    previousLeagueId: league.previous_league_id ?? null,
+    scoringFormat: getScoringFormat(league.scoring_settings),
+    scoringSettings: league.scoring_settings ?? {},
+    rosterPositions: league.roster_positions ?? [],
+    playoffSettings: {
+      playoffTeams: parseNumberOrNull(rawSettings.playoff_teams),
+      playoffWeekStart: parseNumberOrNull(rawSettings.playoff_week_start),
+      playoffRoundType: parseNumberOrNull(rawSettings.playoff_round_type),
+      playoffSeedType: parseNumberOrNull(rawSettings.playoff_seed_type),
+    },
+    rawSettings,
+  }
+}
+
+function toSnapshotPlayers(roster: SleeperRoster, ownerName: string | null): SnapshotPlayer[] {
+  const rosterId = String(roster.roster_id)
+  const ownerId = roster.owner_id ?? null
+  const starterIds = new Set((roster.starters ?? []).filter((playerId) => Boolean(playerId) && playerId !== '0'))
+  const reserveIds = new Set((roster.reserve ?? []).filter(Boolean))
+  const taxiIds = new Set((roster.taxi ?? []).filter(Boolean))
+  const allIds = new Set<string>()
+
+  for (const playerId of roster.players ?? []) {
+    if (playerId) allIds.add(playerId)
+  }
+  for (const playerId of starterIds) {
+    allIds.add(playerId)
+  }
+  for (const playerId of reserveIds) {
+    allIds.add(playerId)
+  }
+  for (const playerId of taxiIds) {
+    allIds.add(playerId)
+  }
+
+  return Array.from(allIds).map((playerId) => ({
+    id: playerId,
+    bucket: starterIds.has(playerId)
+      ? 'starter'
+      : taxiIds.has(playerId)
+        ? 'taxi'
+        : reserveIds.has(playerId)
+          ? 'reserve'
+          : 'bench',
+    ownerId,
+    ownerName,
+    rosterId,
+  }))
+}
+
+export async function syncSleeperHistoricalSeasonStateAfterImport(args: {
+  leagueId: string
+  maxPreviousSeasons?: number
+}): Promise<SleeperHistoricalSeasonStateSyncSummary> {
+  const league = await prisma.league.findUnique({
+    where: { id: args.leagueId },
+    select: {
+      id: true,
+      platform: true,
+      platformLeagueId: true,
+      sport: true,
+    },
+  })
+
+  if (!league) {
+    return {
+      attempted: false,
+      refreshed: false,
+      skipped: true,
+      reason: 'League not found.',
+    }
+  }
+
+  if (league.platform !== 'sleeper' || !league.platformLeagueId) {
+    return {
+      attempted: false,
+      refreshed: false,
+      skipped: true,
+      reason: 'Historical season-state sync only applies to Sleeper leagues with a platformLeagueId.',
+    }
+  }
+
+  try {
+    const sport = normalizeSportForWarehouse(league.sport)
+    const historyChain = await getSleeperHistoricalLeagueChain(
+      league.platformLeagueId,
+      args.maxPreviousSeasons ?? 10
+    )
+
+    if (!historyChain.length) {
+      return {
+        attempted: true,
+        refreshed: false,
+        skipped: true,
+        reason: 'No historical Sleeper seasons were available to sync.',
+        seasonsProcessed: 0,
+        settingsSnapshotsPersisted: 0,
+        rosterSnapshotsPersisted: 0,
+      }
+    }
+
+    let seasonsProcessed = 0
+    let settingsSnapshotsPersisted = 0
+    let rosterSnapshotsPersisted = 0
+
+    for (const seasonState of historyChain) {
+      const [users, rosters] = await Promise.all([
+        getLeagueUsers(seasonState.externalLeagueId),
+        getLeagueRosters(seasonState.externalLeagueId),
+      ])
+
+      const ownerNameById = new Map<string, string>()
+      for (const user of users) {
+        if (user.user_id) {
+          ownerNameById.set(user.user_id, user.display_name || user.username || user.user_id)
+        }
+      }
+
+      await persistDynastySeason(
+        league.id,
+        seasonState.season,
+        seasonState.externalLeagueId,
+        'sleeper',
+        buildSeasonMetadata(seasonState.league)
+      )
+      settingsSnapshotsPersisted += 1
+
+      const rosterRows = rosters.map((roster) => {
+        const rosterPlayers = toSnapshotPlayers(roster, ownerNameById.get(roster.owner_id) ?? null)
+        const lineupPlayers = rosterPlayers.filter((player) => player.bucket === 'starter')
+        const benchPlayers = rosterPlayers.filter((player) => player.bucket !== 'starter')
+
+        return prisma.rosterSnapshot.create({
+          data: {
+            leagueId: league.id,
+            teamId: String(roster.roster_id),
+            sport,
+            weekOrPeriod: SEASON_END_ROSTER_SNAPSHOT_PERIOD,
+            season: seasonState.season,
+            rosterPlayers: rosterPlayers as Prisma.InputJsonValue,
+            lineupPlayers: lineupPlayers as Prisma.InputJsonValue,
+            benchPlayers: benchPlayers as Prisma.InputJsonValue,
+          },
+        })
+      })
+
+      await prisma.$transaction([
+        prisma.rosterSnapshot.deleteMany({
+          where: {
+            leagueId: league.id,
+            season: seasonState.season,
+            weekOrPeriod: SEASON_END_ROSTER_SNAPSHOT_PERIOD,
+          },
+        }),
+        ...rosterRows,
+      ])
+
+      rosterSnapshotsPersisted += rosters.length
+      seasonsProcessed += 1
+    }
+
+    return {
+      attempted: true,
+      refreshed: true,
+      skipped: false,
+      seasonsProcessed,
+      settingsSnapshotsPersisted,
+      rosterSnapshotsPersisted,
+    }
+  } catch (error) {
+    return {
+      attempted: true,
+      refreshed: false,
+      skipped: false,
+      error: getErrorMessage(error),
+    }
+  }
+}

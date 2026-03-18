@@ -27,8 +27,29 @@ export {
   isSalaryCapDeterministicFeature,
   isSalaryCapAIOptionalFeature,
   SPECIALTY_LEAGUE_POLICY_RULE,
+  SURVIVOR_DETERMINISTIC_FEATURES,
+  SURVIVOR_AI_OPTIONAL_FEATURES,
+  SURVIVOR_HYBRID_FEATURES,
+  isSurvivorDeterministicFeature,
+  isSurvivorAIOptionalFeature,
 } from './automation-ai-policy'
 export type {
   SalaryCapDeterministicFeatureId,
   SalaryCapAIOptionalFeatureId,
+  SurvivorDeterministicFeatureId,
+  SurvivorAIOptionalFeatureId,
 } from './automation-ai-policy'
+export {
+  DETERMINISTIC_ENGINE_CATEGORIES,
+  AUTOMATION_CATEGORIES,
+  AI_CATEGORIES,
+  SPORTS_API_REQUIREMENTS,
+  QA_TEMPLATE_SECTIONS,
+} from './framework-categories'
+export type {
+  DeterministicEngineCategory,
+  AutomationCategory,
+  AICategory,
+  SportsAPIRequirement,
+  QATemplateSection,
+} from './framework-categories'

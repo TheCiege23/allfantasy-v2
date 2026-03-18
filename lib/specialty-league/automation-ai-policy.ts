@@ -84,3 +84,80 @@ export function isSalaryCapAIOptionalFeature(featureId: string): boolean {
  */
 export const SPECIALTY_LEAGUE_POLICY_RULE =
   'Deterministic = legal outcome, score, eligibility, order, state transition (no LLM). AI-optional = explanation, recommendation, narrative (gated; context from engine only).'
+
+// --- Survivor League (PROMPT 345) ---
+
+/** Survivor league: features that must be 100% deterministic (no AI in path). */
+export const SURVIVOR_DETERMINISTIC_FEATURES = [
+  'tribe_creation_after_draft',
+  'tribe_balancing_validation',
+  'tribe_shuffle_trigger_rules',
+  'tribe_chat_membership_updates',
+  'official_chimmy_command_parsing',
+  'challenge_lock_at_kickoff_deadline',
+  'timestamping_and_first_submission_rule',
+  'challenge_scoring_tallying',
+  'immunity_assignment',
+  'idol_seeding_after_draft',
+  'one_idol_per_user_initial_assignment',
+  'idol_chain_of_custody_tracking',
+  'idol_transfer_on_trade',
+  'idol_transfer_on_waiver_claim',
+  'idol_transfer_on_stolen_player_ownership_change',
+  'idol_usage_validation',
+  'idol_expiry',
+  'tribal_vote_deadline_enforcement',
+  'self_vote_restriction',
+  'vote_counting',
+  'tie_resolution_by_total_season_points',
+  'exile_island_enrollment',
+  'jury_enrollment',
+  'merge_trigger',
+  'bestball_lineup_optimization',
+  'roster_legality_by_sport',
+  'exile_island_token_tracking',
+  'exile_token_reset_when_boss_wins',
+  'return_to_island_eligibility_at_tokens',
+  'chat_access_removal_addition',
+  'scroll_reveal_event_generation',
+  'audit_logging',
+] as const
+
+/** Survivor league: AI-optional features (gated; explanation/narrative/advice only). */
+export const SURVIVOR_AI_OPTIONAL_FEATURES = [
+  'generating_tribe_names',
+  'generating_tribe_logos',
+  'weekly_host_narration',
+  'tribal_council_dramatic_reveal_language',
+  'scroll_text_styling',
+  'challenge_flavor_text',
+  'chimmy_language_normalization',
+  'strategy_help',
+  'idol_usage_coaching',
+  'tribe_leader_coaching',
+  'private_alliance_guidance',
+  'survivor_style_recaps',
+  'jury_finale_moderation_tone',
+  'exile_advice',
+  'return_path_strategy',
+  'storyline_summaries',
+] as const
+
+/** Survivor hybrid: deterministic core + AI-optional layer. Key = feature; value = [deterministicId, aiOptionalId]. */
+export const SURVIVOR_HYBRID_FEATURES: Record<string, [string, string]> = {
+  chimmy_decision_intake: ['official_chimmy_command_parsing', 'chimmy_language_normalization'],
+  tribe_strategy_prompts: ['tribal_vote_deadline_enforcement', 'strategy_help'],
+  challenge_prompts: ['challenge_scoring_tallying', 'weekly_host_narration'],
+  tribal_reveal: ['scroll_reveal_event_generation', 'tribal_council_dramatic_reveal_language'],
+}
+
+export type SurvivorDeterministicFeatureId = (typeof SURVIVOR_DETERMINISTIC_FEATURES)[number]
+export type SurvivorAIOptionalFeatureId = (typeof SURVIVOR_AI_OPTIONAL_FEATURES)[number]
+
+export function isSurvivorDeterministicFeature(featureId: string): boolean {
+  return (SURVIVOR_DETERMINISTIC_FEATURES as readonly string[]).includes(featureId)
+}
+
+export function isSurvivorAIOptionalFeature(featureId: string): boolean {
+  return (SURVIVOR_AI_OPTIONAL_FEATURES as readonly string[]).includes(featureId)
+}

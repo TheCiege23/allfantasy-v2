@@ -3494,6 +3494,7 @@ model League {
   waiverSettings     LeagueWaiverSettings?
   guillotineConfig   GuillotineLeagueConfig?
   salaryCapConfig    SalaryCapLeagueConfig?
+  survivorConfig     SurvivorLeagueConfig?
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -3906,6 +3907,272 @@ model SalaryCapLotteryResult {
   @@unique([configId, capYear])
   @@index([leagueId, capYear])
   @@map("salary_cap_lottery_results")
+}
+
+// ========== Survivor League Engine (PROMPT 346) ==========
+
+/// Survivor league config (1:1 with League when leagueVariant is survivor).
+model SurvivorLeagueConfig {
+  id                    String   @id @default(uuid())
+  leagueId              String   @unique @db.VarChar(64)
+  league                League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  mode                  String   @default("redraft") @db.VarChar(24)   // redraft | bestball
+  tribeCount            Int      @default(4)
+  tribeSize             Int      @default(4)   // target per tribe (tribeCount * tribeSize <= leagueSize)
+  tribeFormation        String   @default("random") @db.VarChar(24)   // random | commissioner
+  mergeTrigger          String   @default("week") @db.VarChar(24)     // week | player_count
+  mergeWeek             Int?     // when mergeTrigger = week
+  mergePlayerCount      Int?     // when mergeTrigger = player_count
+  juryStartAfterMerge   Int      @default(1)   // first N vote-outs after merge are jury
+  exileReturnEnabled    Boolean  @default(false)
+  exileReturnTokens     Int      @default(4)
+  idolCount             Int      @default(2)
+  idolPowerPool         Json?    // array of power type ids enabled
+  tribeShuffleEnabled   Boolean  @default(false)
+  tribeShuffleConsecutiveLosses Int?  // trigger after N consecutive council losses
+  tribeShuffleImbalanceThreshold Float?  // e.g. tribe size diff
+  voteDeadlineDayOfWeek Int?     // 1-7
+  voteDeadlineTimeUtc   String?  @db.VarChar(16)
+  selfVoteDisallowed    Boolean  @default(true)
+  tribalCouncilDayOfWeek Int?
+  tribalCouncilTimeUtc  String?  @db.VarChar(16)
+  minigameFrequency     String   @default("none") @db.VarChar(24)   // none | weekly | custom
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tribes        SurvivorTribe[]
+  idols         SurvivorIdol[]
+  councils      SurvivorTribalCouncil[]
+  exileLeague   SurvivorExileLeague?
+  auditLog      SurvivorAuditLog[]
+  challenges    SurvivorChallenge[]
+
+  @@map("survivor_league_configs")
+}
+
+/// Tribe within a Survivor league.
+model SurvivorTribe {
+  id         String   @id @default(uuid())
+  leagueId   String   @db.VarChar(64)
+  configId   String
+  config     SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  name       String   @db.VarChar(128)
+  slotIndex  Int      @default(0)   // 0-based order
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  members     SurvivorTribeMember[]
+  chatMembers SurvivorTribeChatMember[]
+  councils    SurvivorTribalCouncil[]  // councils this tribe attended (pre-merge)
+
+  @@unique([configId, slotIndex])
+  @@index([leagueId])
+  @@map("survivor_tribes")
+}
+
+/// Tribe membership: roster in a tribe. Pre-merge only; merge has no tribes.
+model SurvivorTribeMember {
+  id        String   @id @default(uuid())
+  tribeId   String
+  tribe     SurvivorTribe @relation(fields: [tribeId], references: [id], onDelete: Cascade)
+  rosterId  String   @db.VarChar(64)
+  isLeader  Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  @@unique([tribeId, rosterId])
+  @@index([rosterId])
+  @@index([tribeId])
+  @@map("survivor_tribe_members")
+}
+
+/// Hidden idol: player-bound, one-time use. Ownership = current controlling rosterId.
+model SurvivorIdol {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  configId    String
+  config      SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId    String   @db.VarChar(64)   // current owner (controls idol)
+  playerId    String   @db.VarChar(64)   // bound to this player (for transfer on trade/claim/steal)
+  powerType   String   @db.VarChar(64)
+  status      String   @default("hidden") @db.VarChar(24)   // hidden | revealed | used | expired
+  assignedAt  DateTime @default(now())
+  usedAt      DateTime?
+  expiredAt   DateTime?
+  validUntilPhase String? @db.VarChar(32)   // e.g. merge = invalid after merge
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ledgerEntries SurvivorIdolLedgerEntry[]
+
+  @@index([leagueId, rosterId])
+  @@index([leagueId, playerId])
+  @@index([configId, status])
+  @@map("survivor_idols")
+}
+
+/// Chain-of-custody for idols: assignment, transfer, use, expiry.
+model SurvivorIdolLedgerEntry {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  idolId    String
+  idol      SurvivorIdol @relation(fields: [idolId], references: [id], onDelete: Cascade)
+  eventType String   @db.VarChar(32)   // assigned | transferred | used | expired
+  fromRosterId String? @db.VarChar(64)
+  toRosterId   String? @db.VarChar(64)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, eventType])
+  @@index([idolId])
+  @@map("survivor_idol_ledger_entries")
+}
+
+/// Tribal Council: one per week (or period). Pre-merge = one tribe attends; merge = all remaining.
+model SurvivorTribalCouncil {
+  id               String   @id @default(uuid())
+  leagueId         String   @db.VarChar(64)
+  configId         String
+  config           SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  week             Int
+  phase            String   @db.VarChar(24)   // pre_merge | merge
+  attendingTribeId String?  @db.VarChar(64)   // pre_merge: which tribe
+  tribe            SurvivorTribe? @relation(fields: [attendingTribeId], references: [id], onDelete: SetNull)
+  voteDeadlineAt   DateTime
+  closedAt         DateTime?
+  eliminatedRosterId String? @db.VarChar(64)
+  tieBreakSeasonPoints Json?  // snapshot of season points for tie-break
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  votes SurvivorVote[]
+
+  @@unique([configId, week])
+  @@index([leagueId, week])
+  @@map("survivor_tribal_councils")
+}
+
+/// Single vote in a Tribal Council (private ballot).
+model SurvivorVote {
+  id         String   @id @default(cuid())
+  councilId  String
+  council    SurvivorTribalCouncil @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  voterRosterId String @db.VarChar(64)
+  targetRosterId String @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  @@unique([councilId, voterRosterId])
+  @@index([councilId])
+  @@map("survivor_votes")
+}
+
+/// Link main Survivor league to its Exile Island league.
+model SurvivorExileLeague {
+  id             String   @id @default(uuid())
+  mainLeagueId   String   @unique @db.VarChar(64)
+  configId       String   @unique
+  config         SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  exileLeagueId  String   @db.VarChar(64)   // separate League row (exile island)
+  createdAt      DateTime @default(now())
+
+  @@index([exileLeagueId])
+  @@map("survivor_exile_leagues")
+}
+
+/// Exile token balance per roster (in exile league). Reset when Boss wins.
+model SurvivorExileToken {
+  id              String   @id @default(uuid())
+  exileLeagueId   String   @db.VarChar(64)
+  rosterId        String   @db.VarChar(64)   // roster in exile league
+  tokens          Int      @default(0)
+  lastAwardedWeek Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([exileLeagueId, rosterId])
+  @@index([exileLeagueId])
+  @@map("survivor_exile_tokens")
+}
+
+/// Jury membership: rosterId = main league roster that was voted out and is now on jury.
+model SurvivorJuryMember {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  rosterId   String   @db.VarChar(64)
+  votedOutWeek Int
+  joinedAt   DateTime @default(now())
+
+  @@unique([leagueId, rosterId])
+  @@index([leagueId])
+  @@map("survivor_jury_members")
+}
+
+/// Survivor audit log: votes, idol use, shuffle, elimination, overrides.
+model SurvivorAuditLog {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  configId  String
+  config    SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  eventType String   @db.VarChar(64)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("survivor_audit_logs")
+}
+
+/// Mini-game / challenge definition per week.
+model SurvivorChallenge {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  configId    String
+  config      SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  week        Int
+  challengeType String @db.VarChar(64)   // score_prediction | over_under | player_prop | tribe_vs | immunity_auction | puzzle | trivia
+  configJson  Json?    // type-specific params (line, options, reward type)
+  lockAt      DateTime?
+  resultJson  Json?    // resolved outcome and rewards
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  submissions SurvivorChallengeSubmission[]
+
+  @@unique([configId, week, challengeType])
+  @@index([leagueId, week])
+  @@map("survivor_challenges")
+}
+
+/// One submission per roster (or tribe) per challenge.
+model SurvivorChallengeSubmission {
+  id          String   @id @default(cuid())
+  challengeId String
+  challenge   SurvivorChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  rosterId    String?  @db.VarChar(64)
+  tribeId     String?  @db.VarChar(64)
+  submission  Json     // type-specific (e.g. over/under choice, predicted score)
+  submittedAt DateTime @default(now())
+
+  @@unique([challengeId, rosterId], name: "uniq_challenge_roster")
+  @@unique([challengeId, tribeId], name: "uniq_challenge_tribe")
+  @@index([challengeId])
+  @@map("survivor_challenge_submissions")
+}
+
+/// Tribe-scoped chat: membership tracked here; messages can use LeagueChatMessage with source = tribe_<tribeId> or separate table.
+/// For private tribe chat we use source on LeagueChatMessage = 'tribe_<tribeId>' and filter by roster membership.
+model SurvivorTribeChatMember {
+  id        String   @id @default(uuid())
+  tribeId   String
+  tribe     SurvivorTribe @relation(fields: [tribeId], references: [id], onDelete: Cascade)
+  rosterId  String   @db.VarChar(64)
+  userId    String?  @db.VarChar(64)   // for AI host: optional system userId
+  isAiHost  Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  @@unique([tribeId, rosterId], name: "uniq_tribe_roster")
+  @@unique([tribeId, userId], name: "uniq_tribe_user")
+  @@index([tribeId])
+  @@map("survivor_tribe_chat_members")
 }
 
 /// Multi-sport: roster template per sport/format (slot definitions)
