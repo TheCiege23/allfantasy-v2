@@ -77,6 +77,8 @@ export interface NormalizedDraftPick {
   pick_no: number
   source_roster_id: string
   source_player_id: string
+  season?: number | null
+  source_draft_id?: string | null
   player_name?: string | null
   position?: string | null
   team?: string | null

@@ -7,6 +7,9 @@ import { isRosterChopped } from '@/lib/guillotine/guillotineGuard'
 // Placeholder save endpoint for homepage/app roster auto-save.
 // In a future pass this should validate league membership and persist to a real model.
 // Guillotine: chopped (eliminated) rosters cannot change lineup/roster.
+// Salary cap: when persisting roster changes for a salary_cap league, call
+// SalaryCapTradeValidator.validateTradeCap for trades and enforce cap legality
+// (getOrCreateLedger / checkCapLegality) before saving adds/drops.
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {

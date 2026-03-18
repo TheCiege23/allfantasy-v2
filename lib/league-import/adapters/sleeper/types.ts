@@ -67,6 +67,8 @@ export interface SleeperDraftPickRaw {
   player_id: string
   picked_by?: string
   pick_no: number
+  season?: string
+  draft_id?: string
   metadata?: {
     first_name?: string
     last_name?: string

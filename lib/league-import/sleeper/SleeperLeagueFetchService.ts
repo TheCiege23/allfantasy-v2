@@ -18,6 +18,14 @@ async function fetchSleeperJson<T>(url: string): Promise<T | null> {
 
 const SLEEPER_BASE = 'https://api.sleeper.app/v1'
 
+interface SleeperDraftSummaryRaw {
+  draft_id: string
+  type?: string
+  status?: string
+  start_time?: number
+  slot_to_roster_id?: Record<string, string>
+}
+
 export interface SleeperFetchOptions {
   maxMatchupWeeks?: number
   maxTransactionWeeks?: number
@@ -28,6 +36,37 @@ const DEFAULTS: SleeperFetchOptions = {
   maxMatchupWeeks: 18,
   maxTransactionWeeks: 18,
   maxPreviousSeasons: 10,
+}
+
+async function fetchLeagueDraftPicks(
+  leagueId: string,
+  season?: string
+): Promise<NonNullable<SleeperImportPayload['draftPicks']>> {
+  const drafts =
+    (await fetchSleeperJson<SleeperDraftSummaryRaw[]>(`${SLEEPER_BASE}/league/${leagueId}/drafts`)) ?? []
+
+  let picks: NonNullable<SleeperImportPayload['draftPicks']> = []
+  for (const draft of drafts) {
+    const draftId = draft?.draft_id?.trim()
+    if (!draftId) continue
+
+    const draftPicks =
+      (await fetchSleeperJson<NonNullable<SleeperImportPayload['draftPicks']>>(
+        `${SLEEPER_BASE}/draft/${draftId}/picks`
+      )) ?? []
+
+    if (!draftPicks.length) continue
+
+    picks = picks.concat(
+      draftPicks.map((pick) => ({
+        ...pick,
+        season: season ?? pick.season,
+        draft_id: draftId,
+      }))
+    )
+  }
+
+  return picks
 }
 
 /**
@@ -46,12 +85,10 @@ export async function fetchSleeperLeagueForImport(
   )
   if (!league?.league_id) return null
 
-  const [users, rosters, drafts] = await Promise.all([
+  const [users, rosters, currentDraftPicks] = await Promise.all([
     fetchSleeperJson<SleeperImportPayload['users']>(`${SLEEPER_BASE}/league/${cleanId}/users`),
     fetchSleeperJson<SleeperImportPayload['rosters']>(`${SLEEPER_BASE}/league/${cleanId}/rosters`),
-    fetchSleeperJson<{ draft_id: string; type?: string; status?: string; start_time?: number; slot_to_roster_id?: Record<string, string> }[]>(
-      `${SLEEPER_BASE}/league/${cleanId}/drafts`
-    ),
+    fetchLeagueDraftPicks(cleanId, league.season),
   ])
 
   let transactions: SleeperImportPayload['transactions'] = []
@@ -62,13 +99,7 @@ export async function fetchSleeperLeagueForImport(
     if (weekTx?.length) transactions = transactions.concat(weekTx)
   }
 
-  let draftPicks: SleeperImportPayload['draftPicks'] = []
-  if (drafts?.length) {
-    const latest = drafts[0]
-    draftPicks = (await fetchSleeperJson<SleeperImportPayload['draftPicks']>(
-      `${SLEEPER_BASE}/draft/${latest.draft_id}/picks`
-    )) ?? []
-  }
+  let draftPicks: NonNullable<SleeperImportPayload['draftPicks']> = currentDraftPicks ?? []
 
   const matchupsByWeek: NonNullable<SleeperImportPayload['matchupsByWeek']> = []
   for (let week = 1; week <= (opts.maxMatchupWeeks ?? 18); week++) {
@@ -86,6 +117,10 @@ export async function fetchSleeperLeagueForImport(
     )
     if (!prevLeague) break
     previousSeasons.push({ season: prevLeague.season, league: prevLeague })
+    const prevDraftPicks = await fetchLeagueDraftPicks(prevLeague.league_id, prevLeague.season)
+    if (prevDraftPicks.length) {
+      draftPicks = draftPicks.concat(prevDraftPicks)
+    }
     prevId = prevLeague.previous_league_id
   }
 
@@ -93,6 +128,11 @@ export async function fetchSleeperLeagueForImport(
   rosters?.forEach((r) => {
     r.players?.forEach((p) => allPlayerIds.add(p))
     r.starters?.forEach((s) => s && s !== '0' && allPlayerIds.add(s))
+  })
+  draftPicks.forEach((p) => {
+    if (p?.player_id) {
+      allPlayerIds.add(p.player_id)
+    }
   })
 
   const playerMap: Record<string, { name: string; position: string; team: string }> = {}
@@ -108,17 +148,17 @@ export async function fetchSleeperLeagueForImport(
         }
       }
     })
-  } catch {
-    draftPicks.forEach((p) => {
-      if (p?.player_id && p.metadata) {
-        playerMap[p.player_id] = {
-          name: `${p.metadata.first_name ?? ''} ${p.metadata.last_name ?? ''}`.trim(),
-          position: p.metadata.position ?? '',
-          team: p.metadata.team ?? '',
-        }
+  } catch {}
+
+  draftPicks.forEach((p) => {
+    if (p?.player_id && p.metadata && !playerMap[p.player_id]) {
+      playerMap[p.player_id] = {
+        name: `${p.metadata.first_name ?? ''} ${p.metadata.last_name ?? ''}`.trim(),
+        position: p.metadata.position ?? '',
+        team: p.metadata.team ?? '',
       }
-    })
-  }
+    }
+  })
 
   return {
     league,

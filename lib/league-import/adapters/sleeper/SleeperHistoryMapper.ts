@@ -6,6 +6,8 @@ import type { SleeperImportPayload } from './types'
 export const SleeperHistoryMapper: IExternalHistoryMapper<SleeperImportPayload> = {
   map(source) {
     const draft_picks: NormalizedDraftPick[] = (source.draftPicks ?? []).map((p) => ({
+      season: p.season ? Number.parseInt(p.season, 10) || null : null,
+      source_draft_id: p.draft_id ?? null,
       round: p.round,
       pick_no: p.pick_no,
       source_roster_id: String(p.roster_id),

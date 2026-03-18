@@ -1,11 +1,16 @@
 import { runDynastyBackfill } from '@/lib/dynasty-import'
 import { buildLeagueGraph } from '@/lib/league-intelligence-graph'
 import { rebuildHallOfFame } from '@/lib/rankings-engine/hall-of-fame'
+import {
+  syncSleeperHistoricalDraftFactsAfterImport,
+  type SleeperHistoricalDraftSyncSummary,
+} from './SleeperHistoricalDraftSyncService'
 
 export interface SleeperHistoricalBackfillSummary {
   attempted: boolean
   skipped: boolean
   reason?: string
+  drafts?: SleeperHistoricalDraftSyncSummary
   backfill?: {
     success: boolean
     status: string
@@ -45,11 +50,16 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
   leagueId: string
   isDynasty: boolean
 }): Promise<SleeperHistoricalBackfillSummary> {
+  const drafts = await syncSleeperHistoricalDraftFactsAfterImport({
+    leagueId: args.leagueId,
+  })
+
   if (!args.isDynasty) {
     return {
       attempted: false,
       skipped: true,
       reason: 'Historical auto-backfill currently runs only for Sleeper dynasty leagues.',
+      drafts,
     }
   }
 
@@ -62,6 +72,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
     const summary: SleeperHistoricalBackfillSummary = {
       attempted: true,
       skipped: false,
+      drafts,
       backfill: {
         success: backfill.success,
         status: backfill.status,
@@ -135,6 +146,7 @@ export async function syncSleeperHistoricalBackfillAfterImport(args: {
         tradesPersisted: 0,
         failureMessage: getErrorMessage(error),
       },
+      drafts,
       graph: {
         refreshed: false,
       },

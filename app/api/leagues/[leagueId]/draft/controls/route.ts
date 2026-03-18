@@ -19,6 +19,7 @@ import {
 import { resolveAuctionWin } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { finalizeRosterAssignments } from '@/lib/live-draft-engine/RosterAssignmentService'
+import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,30 @@ export async function POST(
     if (action === 'resolve_auction') {
       const result = await resolveAuctionWin(leagueId)
       if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
+      if (result.sold) {
+        try {
+          const { isSalaryCapLeague, getSalaryCapConfig } = await import('@/lib/salary-cap/SalaryCapLeagueConfig')
+          const { assignStartupAuctionContract } = await import('@/lib/salary-cap/AuctionStartupService')
+          if (await isSalaryCapLeague(leagueId)) {
+            const draftSession = await prisma.draftSession.findUnique({ where: { leagueId } })
+            if (draftSession) {
+              const latestPick = await prisma.draftPick.findFirst({
+                where: { sessionId: draftSession.id },
+                orderBy: { overall: 'desc' },
+                select: { id: true },
+              })
+              if (latestPick) {
+                const config = await getSalaryCapConfig(leagueId)
+                const contractYears = config?.contractMaxYears ?? 4
+                const assign = await assignStartupAuctionContract(leagueId, latestPick.id, contractYears)
+                if (!assign.ok) console.warn('[draft/controls] assignStartupAuctionContract:', assign.error)
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[draft/controls] Salary cap assign startup contract non-fatal:', e)
+        }
+      }
       const snapshot = await buildSessionSnapshot(leagueId)
       return NextResponse.json({ ok: true, action: 'resolve_auction', sold: result.sold, session: snapshot })
     }

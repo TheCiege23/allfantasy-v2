@@ -265,6 +265,16 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
   if (session.draftType === 'auction') {
     const { initializeAuctionForSession } = await import('./auction/AuctionEngine')
     await initializeAuctionForSession(leagueId)
+    try {
+      const { isSalaryCapLeague } = await import('@/lib/salary-cap/SalaryCapLeagueConfig')
+      const { initializeStartupLedgers } = await import('@/lib/salary-cap/AuctionStartupService')
+      if (await isSalaryCapLeague(leagueId)) {
+        const ledgers = await initializeStartupLedgers(leagueId)
+        if (!ledgers.ok) console.warn('[startDraftSession] Salary cap ledger init:', ledgers.error)
+      }
+    } catch (e) {
+      console.warn('[startDraftSession] Salary cap startup ledger init non-fatal:', e)
+    }
     await prisma.draftSession.update({
       where: { id: session.id },
       data: { status: 'in_progress', timerEndAt: null, pausedRemainingSeconds: null, version: { increment: 1 } },

@@ -217,6 +217,10 @@ export async function POST(req: Request) {
     const isGuillotine =
       String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
       String(leagueTypeWizard ?? '').toLowerCase() === 'guillotine';
+    const isSalaryCap =
+      String(leagueVariantInput ?? '').toLowerCase() === 'salary_cap' ||
+      String(leagueTypeWizard ?? '').toLowerCase() === 'salary_cap';
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : (leagueVariantInput ?? null);
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -227,7 +231,7 @@ export async function POST(req: Request) {
         scoring,
         isDynasty,
         sport,
-        leagueVariant: isGuillotine ? 'guillotine' : (leagueVariantInput ?? null),
+        leagueVariant: resolvedVariant,
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
@@ -247,6 +251,20 @@ export async function POST(req: Request) {
         await upsertGuillotineConfig(league.id, {});
       } catch (err) {
         console.warn('[league/create] Guillotine config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isSalaryCap) {
+      try {
+        const { upsertSalaryCapConfig } = await import('@/lib/salary-cap/SalaryCapLeagueConfig');
+        const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'dynasty').toLowerCase();
+        await upsertSalaryCapConfig(league.id, {
+          mode: mode === 'bestball' ? 'bestball' : 'dynasty',
+          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.startupCap != null && { startupCap: Number((settingsWizard as Record<string, unknown>).startupCap) }),
+          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.futureDraftType != null && { futureDraftType: String((settingsWizard as Record<string, unknown>).futureDraftType) }),
+        });
+      } catch (err) {
+        console.warn('[league/create] Salary cap config bootstrap non-fatal:', err);
       }
     }
 
