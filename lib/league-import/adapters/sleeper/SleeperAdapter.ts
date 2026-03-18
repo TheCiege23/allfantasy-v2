@@ -25,6 +25,14 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
     const scoring = SleeperScoringMapper.map(raw)
     const schedule = SleeperScheduleMapper.map(raw)
     const history = SleeperHistoryMapper.map(raw)
+    const rosterCount = rosters.length
+    const rostersWithPlayers = rosters.filter((roster) => (roster.player_ids?.length ?? 0) > 0).length
+    const previousSeasonCount = raw.previousSeasons?.length ?? 0
+    const hasScoringSettings =
+      scoring?.rules?.length != null && scoring.rules.length > 0
+    const hasPlayoffSettings =
+      typeof league?.playoff_team_count === 'number' ||
+      typeof (raw.league?.settings as Record<string, unknown> | undefined)?.playoff_week_start === 'number'
 
     const result: NormalizedImportResult = {
       source,
@@ -51,6 +59,81 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
         season: s.season,
         source_league_id: s.league.league_id,
       })),
+      coverage: {
+        leagueSettings: {
+          state: 'full',
+          count: 1,
+        },
+        currentRosters: {
+          state:
+            rosterCount === 0 ? 'missing' : rostersWithPlayers === rosterCount ? 'full' : 'partial',
+          count: rosterCount,
+          note:
+            rosterCount > 0 && rostersWithPlayers !== rosterCount
+              ? `${rosterCount - rostersWithPlayers} roster(s) are missing imported player data.`
+              : null,
+        },
+        historicalRosterSnapshots: {
+          state: previousSeasonCount > 0 ? 'partial' : 'missing',
+          count: previousSeasonCount,
+          note:
+            previousSeasonCount > 0
+              ? 'Historical roster snapshots are completed during post-import backfill, not preview normalization.'
+              : 'No previous Sleeper seasons were discovered for this league.',
+        },
+        scoringSettings: {
+          state: hasScoringSettings ? 'full' : 'partial',
+          note: hasScoringSettings ? null : 'Scoring settings were only partially inferred from league metadata.',
+        },
+        playoffSettings: {
+          state: hasPlayoffSettings ? 'full' : 'partial',
+          note: hasPlayoffSettings ? null : 'Playoff settings were only partially inferred from league metadata.',
+        },
+        currentStandings: {
+          state:
+            history.standings.length === 0
+              ? 'missing'
+              : rosterCount > 0 && history.standings.length === rosterCount
+                ? 'full'
+                : 'partial',
+          count: history.standings.length,
+        },
+        currentSchedule: {
+          state: schedule.length > 0 ? 'full' : 'missing',
+          count: schedule.length,
+        },
+        draftHistory: {
+          state: history.draft_picks.length > 0 ? 'full' : 'missing',
+          count: history.draft_picks.length,
+        },
+        tradeHistory: {
+          state:
+            previousSeasonCount > 0
+              ? history.transactions.length > 0
+                ? 'partial'
+                : 'missing'
+              : history.transactions.length > 0
+                ? 'full'
+                : 'missing',
+          count: history.transactions.length,
+          note:
+            previousSeasonCount > 0
+              ? 'Preview normalization includes current-league transactions; full historical trade import happens during backfill.'
+              : null,
+        },
+        previousSeasons: {
+          state: previousSeasonCount > 0 ? 'full' : 'missing',
+          count: previousSeasonCount,
+        },
+        playerIdentityMap: {
+          state: Object.keys(raw.playerMap ?? {}).length > 0 ? 'full' : 'partial',
+          count: Object.keys(raw.playerMap ?? {}).length,
+          note:
+            Object.keys(raw.playerMap ?? {}).length > 0
+              ? null
+              : 'Player identity resolution was not available for this import preview.',
+        },
+      },
     }
     return result
   },

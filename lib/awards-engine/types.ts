@@ -40,6 +40,12 @@ export interface SeasonPerformanceInput {
       pointsFor: number
       pointsAgainst: number
       champion: boolean
+      madePlayoffs: boolean
+      playoffSeed: number | null
+      playoffFinish: string | null
+      playoffWins: number
+      playoffLosses: number
+      bestFinish: number | null
       draftScore: number
       waiverClaimCount: number
       tradeCount: number
@@ -48,6 +54,7 @@ export interface SeasonPerformanceInput {
       /** Seasons played in this league (for Dynasty Builder) */
       seasonsInLeague: number
       championshipCount: number
+      playoffAppearanceCount: number
     }
   >
 }

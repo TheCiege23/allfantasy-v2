@@ -3,7 +3,11 @@
  * Aligns with AF Legacy league transfer preview expectations (managers, data quality, settings).
  */
 
-import type { NormalizedImportResult } from './types'
+import type {
+  ImportCoverageKey,
+  ImportCoverageState,
+  NormalizedImportResult,
+} from './types'
 
 export interface ImportPreviewLeague {
   id: string
@@ -55,6 +59,13 @@ export interface ImportPreviewDataQuality {
   completenessScore: number
   tier: 'FULL' | 'PARTIAL' | 'MINIMAL'
   signals: string[]
+  coverageSummary: Array<{
+    key: ImportCoverageKey
+    label: string
+    state: ImportCoverageState
+    count?: number | null
+    note?: string | null
+  }>
 }
 
 export interface ImportPreviewResponse {
@@ -69,52 +80,99 @@ export interface ImportPreviewResponse {
   source: NormalizedImportResult['source']
 }
 
+const COVERAGE_LABELS: Record<ImportCoverageKey, string> = {
+  leagueSettings: 'League settings',
+  currentRosters: 'Current rosters',
+  historicalRosterSnapshots: 'Historical rosters',
+  scoringSettings: 'Scoring settings',
+  playoffSettings: 'Playoff settings',
+  currentStandings: 'Standings',
+  currentSchedule: 'Schedule',
+  draftHistory: 'Draft history',
+  tradeHistory: 'Trade history',
+  previousSeasons: 'Previous seasons',
+  playerIdentityMap: 'Player identity map',
+}
+
+const COVERAGE_WEIGHTS: Record<ImportCoverageKey, number> = {
+  leagueSettings: 10,
+  currentRosters: 15,
+  historicalRosterSnapshots: 10,
+  scoringSettings: 10,
+  playoffSettings: 10,
+  currentStandings: 10,
+  currentSchedule: 5,
+  draftHistory: 10,
+  tradeHistory: 10,
+  previousSeasons: 5,
+  playerIdentityMap: 5,
+}
+
+function getCoverageStateScore(state: ImportCoverageState): number {
+  switch (state) {
+    case 'full':
+      return 1
+    case 'partial':
+      return 0.5
+    default:
+      return 0
+  }
+}
+
 function buildDataQuality(normalized: NormalizedImportResult): ImportPreviewDataQuality {
   const rosters = normalized.rosters
   const hasRosters = rosters.length > 0
   const rostersWithPlayers = rosters.filter((r) => (r.player_ids?.length ?? 0) > 0).length
   const rosterCoverage = hasRosters ? Math.round((rostersWithPlayers / rosters.length) * 100) : 0
   const matchupWeeksCovered = normalized.schedule?.length ?? 0
-  const hasTrades = normalized.transactions.some((t) => t.type === 'trade')
-  const sourcesAvailable = [
-    rosters.length > 0,
-    normalized.rosters.some((r) => r.owner_name),
-    matchupWeeksCovered > 0,
-    hasTrades,
-    (normalized.draft_picks?.length ?? 0) > 0,
-    Object.keys(normalized.player_map ?? {}).length > 0,
-  ].filter(Boolean).length
+  const coverageSummary = (Object.entries(normalized.coverage) as Array<
+    [ImportCoverageKey, NormalizedImportResult['coverage'][ImportCoverageKey]]
+  >).map(([key, value]) => ({
+    key,
+    label: COVERAGE_LABELS[key],
+    state: value.state,
+    count: value.count ?? null,
+    note: value.note ?? null,
+  }))
+  const weightedCoverage = coverageSummary.reduce(
+    (total, item) => total + COVERAGE_WEIGHTS[item.key] * getCoverageStateScore(item.state),
+    0
+  )
   const completenessScore = Math.round(
-    (sourcesAvailable / 6) * 50 +
-      (rosterCoverage / 100) * 25 +
-      (Math.min(matchupWeeksCovered, 17) / 17) * 25
+    Math.max(0, Math.min(100, weightedCoverage))
   )
   const tier: 'FULL' | 'PARTIAL' | 'MINIMAL' =
     completenessScore >= 80 ? 'FULL' : completenessScore >= 50 ? 'PARTIAL' : 'MINIMAL'
-  const signals: string[] = [
-    ...(rosterCoverage < 100 ? [`${100 - rosterCoverage}% of rosters missing player data`] : []),
-    ...(!hasTrades ? ['No trade history available'] : []),
-    ...((normalized.draft_picks?.length ?? 0) === 0 ? ['No draft data available'] : []),
-    ...(matchupWeeksCovered < 5 ? [`Only ${matchupWeeksCovered} weeks of matchup data`] : []),
-    ...((normalized.previous_seasons?.length ?? 0) === 0 ? ['No previous season history'] : []),
-    ...(Object.keys(normalized.player_map ?? {}).length === 0 ? ['Player name resolution unavailable'] : []),
-  ]
+  const signals: string[] = coverageSummary.flatMap((item) => {
+    if (item.state === 'full') {
+      return []
+    }
+
+    const base =
+      item.state === 'partial'
+        ? `${item.label} is partial`
+        : `${item.label} is missing`
+    return item.note ? [`${base}: ${item.note}`] : [base]
+  })
   return {
     fetchedAt: Date.now(),
     sources: {
       users: rosters.some((r) => r.owner_name && r.owner_name !== 'Unknown'),
-      rosters: hasRosters,
-      matchups: matchupWeeksCovered > 0,
-      trades: hasTrades,
-      draftPicks: (normalized.draft_picks?.length ?? 0) > 0,
-      playerMap: Object.keys(normalized.player_map ?? {}).length > 0,
-      history: (normalized.previous_seasons?.length ?? 0) > 0,
+      rosters: normalized.coverage.currentRosters.state !== 'missing',
+      matchups: normalized.coverage.currentSchedule.state !== 'missing',
+      trades: normalized.coverage.tradeHistory.state !== 'missing',
+      draftPicks: normalized.coverage.draftHistory.state !== 'missing',
+      playerMap: normalized.coverage.playerIdentityMap.state !== 'missing',
+      history:
+        normalized.coverage.previousSeasons.state !== 'missing' ||
+        normalized.coverage.historicalRosterSnapshots.state !== 'missing',
     },
     rosterCoverage,
     matchupWeeksCovered,
     completenessScore: Math.max(0, Math.min(100, completenessScore)),
     tier,
     signals,
+    coverageSummary,
   }
 }
 

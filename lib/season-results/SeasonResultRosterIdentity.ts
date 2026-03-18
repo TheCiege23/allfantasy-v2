@@ -111,6 +111,7 @@ export function buildSeasonResultManagerMap(
       continue
     }
 
+    rosterIdToManager.set(roster.platformUserId, roster.platformUserId)
     for (const key of getSeasonResultKeysForRoster(roster)) {
       rosterIdToManager.set(key, roster.platformUserId)
     }

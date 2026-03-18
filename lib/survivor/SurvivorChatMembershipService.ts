@@ -24,7 +24,7 @@ export async function bootstrapTribeChatMembers(leagueId: string): Promise<{ ok:
     for (const member of tribe.members) {
       await prisma.survivorTribeChatMember.upsert({
         where: {
-          tribeId_rosterId: { tribeId: tribe.id, rosterId: member.rosterId },
+          uniq_tribe_roster: { tribeId: tribe.id, rosterId: member.rosterId },
         },
         create: {
           tribeId: tribe.id,
@@ -36,7 +36,7 @@ export async function bootstrapTribeChatMembers(leagueId: string): Promise<{ ok:
     }
     await prisma.survivorTribeChatMember.upsert({
       where: {
-        tribeId_userId: { tribeId: tribe.id, userId: AI_HOST_USER_ID },
+        uniq_tribe_user: { tribeId: tribe.id, userId: AI_HOST_USER_ID },
       },
       create: {
         tribeId: tribe.id,
@@ -114,7 +114,7 @@ export async function syncTribeChatMembersAfterShuffle(leagueId: string): Promis
     for (const rosterId of currentRosterIds) {
       await prisma.survivorTribeChatMember.upsert({
         where: {
-          tribeId_rosterId: { tribeId: tribe.id, rosterId },
+          uniq_tribe_roster: { tribeId: tribe.id, rosterId },
         },
         create: { tribeId: tribe.id, rosterId, isAiHost: false },
         update: {},

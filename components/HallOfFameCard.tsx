@@ -16,7 +16,7 @@ export function HallOfFameCard(props: { rows: any[] }) {
           <div key={String(r.rosterId)} className="rounded-xl bg-zinc-900 p-3 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 w-6">#{idx + 1}</span>
-              <span className="font-semibold text-white">Roster {String(r.rosterId)}</span>
+              <span className="font-semibold text-white">Manager {String(r.rosterId)}</span>
             </div>
             <div className="text-xs text-gray-400 flex items-center gap-3">
               <span>{Number(r.championships)} titles</span>

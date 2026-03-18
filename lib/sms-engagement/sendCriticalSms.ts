@@ -35,7 +35,7 @@ export async function sendCriticalSms(
     return { ok: false, userId, error: "Notifications disabled" }
   }
 
-  const catPrefs = prefs.categories[category]
+  const catPrefs = prefs.categories?.[category]
   if (!catPrefs?.enabled || !catPrefs.sms) {
     return { ok: false, userId, error: "SMS disabled for category" }
   }

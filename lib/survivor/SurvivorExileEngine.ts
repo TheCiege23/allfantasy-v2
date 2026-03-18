@@ -23,7 +23,7 @@ export async function getOrCreateExileLeague(
 
   const main = await prisma.league.findUnique({
     where: { id: mainLeagueId },
-    select: { userId: true, sport: true, name: true },
+    select: { userId: true, sport: true, name: true, scoring: true },
   })
   if (!main) throw new Error('Main league not found')
 

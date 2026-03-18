@@ -5,11 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-
-export interface RosterTeamMap {
-  rosterIdToTeamId: Map<string, string>
-  teamIdToRosterId: Map<string, string>
-}
+import type { RosterTeamMap } from './types'
 
 /**
  * Get roster <-> team mapping for a league. Uses draft slot order when available;

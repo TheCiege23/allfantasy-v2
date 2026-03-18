@@ -55,7 +55,7 @@ export async function submitChallengeAnswer(
 
   if (rosterId) {
     const existing = await prisma.survivorChallengeSubmission.findUnique({
-      where: { challengeId_rosterId: { challengeId, rosterId } },
+      where: { uniq_challenge_roster: { challengeId, rosterId } },
     })
     if (existing) return { ok: false, error: 'Already submitted' }
   } else if (tribeId) {

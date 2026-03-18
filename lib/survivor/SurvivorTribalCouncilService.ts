@@ -3,6 +3,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { tallyVotes, getSeasonPointsFromRosterPerformance } from './SurvivorVoteEngine'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
@@ -74,7 +75,7 @@ export async function closeCouncil(
     data: {
       closedAt: new Date(),
       eliminatedRosterId,
-      tieBreakSeasonPoints: tally.tieBreakSeasonPoints as object | null,
+      tieBreakSeasonPoints: tally.tieBreakSeasonPoints != null ? (tally.tieBreakSeasonPoints as object) : Prisma.JsonNull,
     },
   })
 

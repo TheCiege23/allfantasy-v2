@@ -16,7 +16,7 @@ export function SeasonLeaderboardCard(props: { season: string; rows: any[] }) {
           <div key={`${r.rosterId}-${idx}`} className="rounded-xl bg-zinc-900 p-3 flex justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs opacity-70 w-6">#{idx + 1}</span>
-              <span className="font-semibold">Roster {String(r.rosterId)}</span>
+              <span className="font-semibold">Manager {String(r.rosterId)}</span>
               {r.champion ? <span className="text-xs">🏆</span> : null}
             </div>
             <div className="text-xs opacity-80 flex items-center gap-3">

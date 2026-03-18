@@ -40,6 +40,7 @@ export function ImportedLeaguePreviewPanel({
   if (!preview) return null;
 
   const { league, managers, dataQuality } = preview;
+  const coverageItems = dataQuality.coverageSummary.slice(0, 6);
   const tierColor =
     dataQuality.tier === 'FULL'
       ? 'text-green-400'
@@ -98,6 +99,27 @@ export function ImportedLeaguePreviewPanel({
             ))}
           </ul>
         )}
+        {coverageItems.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {coverageItems.map((item) => {
+              const pillClass =
+                item.state === 'full'
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                  : item.state === 'partial'
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+                    : 'border-rose-500/40 bg-rose-500/10 text-rose-200';
+              return (
+                <span
+                  key={item.key}
+                  className={`rounded-full border px-2 py-1 text-[11px] ${pillClass}`}
+                  title={item.note ?? undefined}
+                >
+                  {item.label}: {item.state}
+                </span>
+              );
+            })}
+          </div>
+        )}
 
         {/* Settings summary: roster, scoring, playoff, draft */}
         <div className="rounded border border-purple-600/30 bg-gray-900/50 p-3 space-y-2">
@@ -129,7 +151,7 @@ export function ImportedLeaguePreviewPanel({
         <div className="flex items-center gap-2 text-xs text-white/70">
           <History className="h-4 w-4 shrink-0" />
           <span>
-            Historical data: {dataQuality.sources.history ? 'Previous seasons available' : 'No previous seasons'}
+            Historical data: {dataQuality.sources.history ? 'Some history available' : 'No previous seasons or historical rosters'}
           </span>
         </div>
 

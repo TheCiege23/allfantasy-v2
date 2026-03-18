@@ -3,10 +3,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import {
-  buildSeasonResultManagerMap,
-  getSeasonResultKeysForRoster,
-} from '@/lib/season-results/SeasonResultRosterIdentity'
+import { getMergedHistoricalSeasonResultsForLeague } from '@/lib/season-results/HistoricalSeasonResultService'
 import type { SeasonPerformanceInput } from './types'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 
@@ -21,7 +18,7 @@ export async function analyzeSeasonPerformance(
 ): Promise<SeasonPerformanceInput> {
   const sport = options?.sport ?? DEFAULT_SPORT
 
-  const [league, rosters, seasonResults, draftGrades, waiverClaimsByRoster] = await Promise.all([
+  const [league, rosters, historicalSeasonResults, draftGrades, waiverClaimsByRoster] = await Promise.all([
     prisma.league.findUnique({
       where: { id: leagueId },
       select: { sport: true },
@@ -30,10 +27,7 @@ export async function analyzeSeasonPerformance(
       where: { leagueId },
       select: { id: true, leagueId: true, platformUserId: true, playerData: true },
     }),
-    prisma.seasonResult.findMany({
-      where: { leagueId, season },
-      select: { rosterId: true, wins: true, losses: true, pointsFor: true, pointsAgainst: true, champion: true },
-    }),
+    getMergedHistoricalSeasonResultsForLeague({ leagueId }),
     prisma.draftGrade.findMany({
       where: { leagueId, season },
       select: { rosterId: true, score: true },
@@ -46,56 +40,21 @@ export async function analyzeSeasonPerformance(
   ])
 
   const resolvedSport = (league?.sport ?? sport) as string
-  const rosterIdToManager = buildSeasonResultManagerMap(rosters)
-
-  // Season results: rosterId might be Roster.id, platformUserId, or imported source_team_id.
-  const srByKey = new Map<string, { wins: number; losses: number; pointsFor: number; pointsAgainst: number; champion: boolean }>()
-  for (const sr of seasonResults) {
-    const key = sr.rosterId
-    const existing = srByKey.get(key)
-    const wins = sr.wins ?? 0
-    const losses = sr.losses ?? 0
-    const pointsFor = Number(sr.pointsFor ?? 0)
-    const pointsAgainst = Number(sr.pointsAgainst ?? 0)
-    const champion = sr.champion ?? false
-    if (!existing) {
-      srByKey.set(key, { wins, losses, pointsFor, pointsAgainst, champion })
-    } else {
-      existing.wins += wins
-      existing.losses += losses
-      existing.pointsFor += pointsFor
-      existing.pointsAgainst += pointsAgainst
-      existing.champion = existing.champion || champion
+  const seasonResults = historicalSeasonResults.filter((row) => row.season === season)
+  const seasonResultsByManager = new Map(
+    seasonResults.map((row) => [row.managerId, row] as const)
+  )
+  const managerSeasons = new Map<string, { seasons: number; championships: number; playoffAppearances: number }>()
+  for (const s of historicalSeasonResults) {
+    const cur = managerSeasons.get(s.managerId) ?? {
+      seasons: 0,
+      championships: 0,
+      playoffAppearances: 0,
     }
-  }
-
-  // All season results in this league (for rookie + dynasty)
-  const allSeasonResultsInLeague = await prisma.seasonResult.findMany({
-    where: { leagueId },
-    select: { rosterId: true, season: true, champion: true },
-  })
-  const managerSeasonHistory = new Map<string, { managerId: string; champion: boolean }>()
-  for (const s of allSeasonResultsInLeague) {
-    const managerId = rosterIdToManager.get(s.rosterId) ?? s.rosterId
-    const key = `${managerId}:${s.season}`
-    const existing = managerSeasonHistory.get(key)
-    if (!existing) {
-      managerSeasonHistory.set(key, {
-        managerId,
-        champion: s.champion ?? false,
-      })
-      continue
-    }
-
-    existing.champion = existing.champion || (s.champion ?? false)
-  }
-
-  const managerSeasons = new Map<string, { seasons: number; championships: number }>()
-  for (const { managerId, champion } of managerSeasonHistory.values()) {
-    const cur = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
     cur.seasons += 1
-    if (champion) cur.championships += 1
-    managerSeasons.set(managerId, cur)
+    if (s.champion) cur.championships += 1
+    if (s.madePlayoffs || s.champion) cur.playoffAppearances += 1
+    managerSeasons.set(s.managerId, cur)
   }
 
   const draftScoreByRoster = new Map<string, number>()
@@ -105,7 +64,23 @@ export async function analyzeSeasonPerformance(
     draftScoreByRoster.set(d.rosterId, Math.max(cur, n))
   }
 
+  const draftScoreByManager = new Map<string, number>()
+  const waiverCountByManager = new Map<string, number>()
   const waiverCountByRoster = new Map(waiverClaimsByRoster.map((w) => [w.rosterId, w._count.id]))
+  for (const roster of rosters) {
+    const managerId = roster.platformUserId ?? roster.id
+    draftScoreByManager.set(
+      managerId,
+      Math.max(
+        draftScoreByManager.get(managerId) ?? 0,
+        draftScoreByRoster.get(roster.id) ?? draftScoreByRoster.get(managerId) ?? 0
+      )
+    )
+    waiverCountByManager.set(
+      managerId,
+      (waiverCountByManager.get(managerId) ?? 0) + (waiverCountByRoster.get(roster.id) ?? 0)
+    )
+  }
 
   const byManager: SeasonPerformanceInput['byManager'] = {}
 
@@ -117,12 +92,19 @@ export async function analyzeSeasonPerformance(
       pointsFor: number
       pointsAgainst: number
       champion: boolean
+      madePlayoffs: boolean
+      playoffSeed: number | null
+      playoffFinish: string | null
+      playoffWins: number
+      playoffLosses: number
+      bestFinish: number | null
       draftScore: number
       waiverClaimCount: number
       tradeCount: number
       isRookie: boolean
       seasonsInLeague: number
       championshipCount: number
+      playoffAppearanceCount: number
     }
   ) {
     const cur = byManager[managerId]
@@ -135,81 +117,90 @@ export async function analyzeSeasonPerformance(
     cur.pointsFor += data.pointsFor
     cur.pointsAgainst += data.pointsAgainst
     cur.champion = cur.champion || data.champion
+    cur.madePlayoffs = cur.madePlayoffs || data.madePlayoffs || cur.champion
+    cur.playoffSeed =
+      cur.playoffSeed == null
+        ? data.playoffSeed
+        : data.playoffSeed == null
+          ? cur.playoffSeed
+          : Math.min(cur.playoffSeed, data.playoffSeed)
+    cur.bestFinish =
+      cur.bestFinish == null
+        ? data.bestFinish
+        : data.bestFinish == null
+          ? cur.bestFinish
+          : Math.min(cur.bestFinish, data.bestFinish)
+    cur.playoffFinish = cur.playoffFinish ?? data.playoffFinish
+    cur.playoffWins = Math.max(cur.playoffWins, data.playoffWins)
+    cur.playoffLosses = Math.max(cur.playoffLosses, data.playoffLosses)
     cur.draftScore = Math.max(cur.draftScore, data.draftScore)
     cur.waiverClaimCount += data.waiverClaimCount
     cur.tradeCount += data.tradeCount
     cur.seasonsInLeague = Math.max(cur.seasonsInLeague, data.seasonsInLeague)
     cur.championshipCount += data.championshipCount
+    cur.playoffAppearanceCount = Math.max(cur.playoffAppearanceCount, data.playoffAppearanceCount)
     cur.isRookie = cur.isRookie && data.isRookie
   }
 
   for (const r of rosters) {
-    const managerId = r.platformUserId
-    const hist = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
-    const isRookie = hist.seasons === 1
-
-    const seasonRowsForRoster = getSeasonResultKeysForRoster({
-        id: r.id,
-        leagueId,
-        playerData: r.playerData,
-      })
-        .map((key) => srByKey.get(key))
-        .filter((row): row is NonNullable<typeof row> => Boolean(row))
-
-    const fallbackSeasonRow = srByKey.get(managerId)
-    if (seasonRowsForRoster.length === 0 && fallbackSeasonRow) {
-      seasonRowsForRoster.push(fallbackSeasonRow)
+    const managerId = r.platformUserId ?? r.id
+    const hist = managerSeasons.get(managerId) ?? {
+      seasons: 0,
+      championships: 0,
+      playoffAppearances: 0,
     }
-
-    const wins = seasonRowsForRoster.reduce(
-      (best, row) => Math.max(best, row.wins),
-      0
-    )
-    const losses = seasonRowsForRoster.reduce(
-      (best, row) => Math.max(best, row.losses),
-      0
-    )
-    const pointsFor = seasonRowsForRoster.reduce(
-      (best, row) => Math.max(best, row.pointsFor),
-      0
-    )
-    const pointsAgainst = seasonRowsForRoster.reduce(
-      (best, row) => Math.max(best, row.pointsAgainst),
-      0
-    )
-    const champion = seasonRowsForRoster.some((row) => row.champion)
+    const isRookie = hist.seasons === 1
+    const seasonRow = seasonResultsByManager.get(managerId)
 
     addToManager(managerId, {
-      wins,
-      losses,
-      pointsFor,
-      pointsAgainst,
-      champion,
-      draftScore: draftScoreByRoster.get(r.id) ?? draftScoreByRoster.get(managerId) ?? 0,
-      waiverClaimCount: waiverCountByRoster.get(r.id) ?? 0,
+      wins: seasonRow?.wins ?? 0,
+      losses: seasonRow?.losses ?? 0,
+      pointsFor: seasonRow?.pointsFor ?? 0,
+      pointsAgainst: seasonRow?.pointsAgainst ?? 0,
+      champion: seasonRow?.champion ?? false,
+      madePlayoffs: seasonRow?.madePlayoffs ?? false,
+      playoffSeed: seasonRow?.playoffSeed ?? null,
+      playoffFinish: seasonRow?.playoffFinish ?? null,
+      playoffWins: seasonRow?.playoffWins ?? 0,
+      playoffLosses: seasonRow?.playoffLosses ?? 0,
+      bestFinish: seasonRow?.bestFinish ?? null,
+      draftScore: draftScoreByManager.get(managerId) ?? 0,
+      waiverClaimCount: waiverCountByManager.get(managerId) ?? 0,
       tradeCount: 0,
       isRookie,
       seasonsInLeague: hist.seasons,
       championshipCount: hist.championships,
+      playoffAppearanceCount: hist.playoffAppearances,
     })
   }
 
-  for (const [rosterIdKey, sr] of srByKey) {
-    const managerId = rosterIdToManager.get(rosterIdKey) ?? rosterIdKey
+  for (const seasonRow of seasonResults) {
+    const managerId = seasonRow.managerId
     if (byManager[managerId]) continue
-    const hist = managerSeasons.get(managerId) ?? { seasons: 0, championships: 0 }
+    const hist = managerSeasons.get(managerId) ?? {
+      seasons: 0,
+      championships: 0,
+      playoffAppearances: 0,
+    }
     addToManager(managerId, {
-      wins: sr.wins,
-      losses: sr.losses,
-      pointsFor: sr.pointsFor,
-      pointsAgainst: sr.pointsAgainst,
-      champion: sr.champion,
-      draftScore: draftScoreByRoster.get(rosterIdKey) ?? 0,
-      waiverClaimCount: waiverCountByRoster.get(rosterIdKey) ?? 0,
+      wins: seasonRow.wins,
+      losses: seasonRow.losses,
+      pointsFor: seasonRow.pointsFor,
+      pointsAgainst: seasonRow.pointsAgainst,
+      champion: seasonRow.champion,
+      madePlayoffs: seasonRow.madePlayoffs,
+      playoffSeed: seasonRow.playoffSeed,
+      playoffFinish: seasonRow.playoffFinish,
+      playoffWins: seasonRow.playoffWins,
+      playoffLosses: seasonRow.playoffLosses,
+      bestFinish: seasonRow.bestFinish,
+      draftScore: draftScoreByManager.get(managerId) ?? 0,
+      waiverClaimCount: waiverCountByManager.get(managerId) ?? 0,
       tradeCount: 0,
       isRookie: hist.seasons === 1,
       seasonsInLeague: hist.seasons,
       championshipCount: hist.championships,
+      playoffAppearanceCount: hist.playoffAppearances,
     })
   }
 

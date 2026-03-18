@@ -107,6 +107,30 @@ export interface NormalizedStandingsEntry {
   points_against?: number
 }
 
+export type ImportCoverageState = 'full' | 'partial' | 'missing'
+
+export interface ImportCoverageBucket {
+  state: ImportCoverageState
+  count?: number | null
+  note?: string | null
+}
+
+export interface ImportCoverage {
+  leagueSettings: ImportCoverageBucket
+  currentRosters: ImportCoverageBucket
+  historicalRosterSnapshots: ImportCoverageBucket
+  scoringSettings: ImportCoverageBucket
+  playoffSettings: ImportCoverageBucket
+  currentStandings: ImportCoverageBucket
+  currentSchedule: ImportCoverageBucket
+  draftHistory: ImportCoverageBucket
+  tradeHistory: ImportCoverageBucket
+  previousSeasons: ImportCoverageBucket
+  playerIdentityMap: ImportCoverageBucket
+}
+
+export type ImportCoverageKey = keyof ImportCoverage
+
 /** Full normalized import result. */
 export interface NormalizedImportResult {
   source: SourceTracking
@@ -120,6 +144,7 @@ export interface NormalizedImportResult {
   player_map: Record<string, { name: string; position: string; team: string }>
   league_branding?: { avatar_url?: string | null; name?: string }
   previous_seasons?: Array<{ season: string; source_league_id: string }>
+  coverage: ImportCoverage
 }
 
 /** Identity mapping: source id -> AF canonical id or stable key. */
