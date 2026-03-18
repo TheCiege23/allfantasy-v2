@@ -1,8 +1,13 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { requireVerifiedUser } from '@/lib/auth-guard'
+import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
+import {
+  ImportedLeagueConflictError,
+  persistImportedLeagueFromNormalization,
+} from '@/lib/league-import/ImportedLeagueCommitService'
 
 async function getMFLConnection() {
   const cookieStore = await cookies()
@@ -12,6 +17,13 @@ async function getMFLConnection() {
   return prisma.mFLConnection.findUnique({
     where: { sessionId }
   })
+}
+
+function mapImportErrorStatus(code: string): number {
+  if (code === 'LEAGUE_NOT_FOUND') return 404
+  if (code === 'UNAUTHORIZED') return 401
+  if (code === 'CONNECTION_REQUIRED') return 400
+  return 500
 }
 
 export const runtime = "nodejs"
@@ -75,10 +87,65 @@ export const GET = withApiUsage({ endpoint: "/api/mfl/leagues", tool: "MflLeague
   }
 })
 
-export const POST = withApiUsage({ endpoint: "/api/mfl/import", tool: "MflImport" })(async () => {
+export const POST = withApiUsage({ endpoint: "/api/mfl/import", tool: "MflImport" })(async (req: NextRequest) => {
   const auth = await requireVerifiedUser()
   if (!auth.ok) {
     return auth.response
+  }
+
+  let body: { sourceId?: string; leagueId?: string; season?: number; startYear?: number; endYear?: number } = {}
+  try {
+    body = await req.json()
+  } catch {
+    body = {}
+  }
+
+  const sourceId =
+    typeof body.sourceId === 'string' && body.sourceId.trim()
+      ? body.sourceId.trim()
+      : typeof body.leagueId === 'string' && body.leagueId.trim()
+        ? body.season
+          ? `${body.season}:${body.leagueId.trim()}`
+          : body.leagueId.trim()
+        : ''
+
+  if (sourceId) {
+    const normalizedResult = await runImportedLeagueNormalizationPipeline({
+      provider: 'mfl',
+      sourceId,
+      userId: auth.userId,
+    })
+
+    if (!normalizedResult.success) {
+      return NextResponse.json(
+        { error: normalizedResult.error },
+        { status: mapImportErrorStatus(normalizedResult.code) }
+      )
+    }
+
+    try {
+      const persisted = await persistImportedLeagueFromNormalization({
+        userId: auth.userId,
+        provider: 'mfl',
+        normalized: normalizedResult.normalized,
+        allowUpdateExisting: true,
+      })
+
+      return NextResponse.json({
+        success: true,
+        imported: 1,
+        provider: 'mfl',
+        leagueId: persisted.league.id,
+        leagueName: persisted.league.name,
+        historicalBackfill: persisted.historicalBackfill,
+        existed: persisted.existed,
+      })
+    } catch (error) {
+      if (error instanceof ImportedLeagueConflictError) {
+        return NextResponse.json({ error: error.message }, { status: 409 })
+      }
+      throw error
+    }
   }
 
   const connection = await getMFLConnection()

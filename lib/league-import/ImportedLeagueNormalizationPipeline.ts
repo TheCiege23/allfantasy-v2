@@ -14,6 +14,11 @@ import {
   YahooImportConnectionError,
   YahooImportLeagueNotFoundError,
 } from './yahoo/YahooLeagueFetchService'
+import {
+  fetchMflLeagueForImport,
+  MflImportConnectionError,
+  MflImportLeagueNotFoundError,
+} from './mfl/MflLeagueFetchService'
 import { runImportNormalizationPipeline } from './ImportNormalizationPipeline'
 import type { ImportProvider, NormalizedImportResult } from './types'
 
@@ -73,6 +78,15 @@ export async function runImportedLeagueNormalizationPipeline(
         }
       }
       payload = await fetchEspnLeagueForImport(input.userId, sourceId)
+    } else if (provider === 'mfl') {
+      if (typeof input === 'string' || !input.userId) {
+        return {
+          success: false,
+          error: 'Sign in before importing from MyFantasyLeague.',
+          code: 'UNAUTHORIZED',
+        }
+      }
+      payload = await fetchMflLeagueForImport(input.userId, sourceId)
     } else {
       return {
         success: false,
@@ -97,6 +111,12 @@ export async function runImportedLeagueNormalizationPipeline(
       return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
     }
     if (e instanceof YahooImportLeagueNotFoundError) {
+      return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
+    }
+    if (e instanceof MflImportConnectionError) {
+      return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
+    }
+    if (e instanceof MflImportLeagueNotFoundError) {
       return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
     }
     const message = e instanceof Error ? e.message : 'Import normalization failed'

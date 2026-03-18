@@ -29,6 +29,7 @@ function getImportApiErrorMessage(
   if (data?.error?.includes('Connect Yahoo')) return 'Connect Yahoo in League Sync before importing from Yahoo.';
   if (data?.error?.includes('Connect ESPN')) return 'Connect ESPN in League Sync before importing private ESPN leagues.';
   if (data?.error?.includes('saved ESPN cookies')) return 'Reconnect ESPN in League Sync, then try importing again.';
+  if (data?.error?.includes('MFL API key')) return 'Save your MFL API key in League Sync before importing from MyFantasyLeague.';
   return data?.error ?? fallback;
 }
 

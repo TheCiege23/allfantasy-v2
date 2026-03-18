@@ -43,8 +43,8 @@ const PROVIDER_INPUT_CONFIG: Record<
   },
   mfl: {
     label: 'MFL League ID',
-    placeholder: 'e.g. 12345',
-    help: 'Import from MyFantasyLeague will be available in a future update.',
+    placeholder: 'e.g. 12345, 2026:12345, or a full MFL league URL',
+    help: 'Save your MFL API key in League Sync first, then paste your MFL league ID, season-prefixed ID, or full league URL.',
   },
 };
 

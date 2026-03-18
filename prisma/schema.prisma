@@ -3526,6 +3526,7 @@ model League {
   c2cConfig           C2CLeagueConfig?
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
   tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
+  bigBrotherConfig   BigBrotherLeagueConfig?
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -4379,6 +4380,157 @@ model SurvivorTribeChatMember {
   @@unique([tribeId, userId], name: "uniq_tribe_user")
   @@index([tribeId])
   @@map("survivor_tribe_chat_members")
+}
+
+// ========== Big Brother League Engine (PROMPT 2/6) ==========
+
+/// Big Brother league config: HOH, nomination, veto, vote, eviction, jury, finale settings.
+model BigBrotherLeagueConfig {
+  id                        String   @id @default(uuid())
+  leagueId                  String   @unique @db.VarChar(64)
+  league                    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  /// HOH challenge day of week (1-7) and time UTC for when HOH runs.
+  hohChallengeDayOfWeek     Int?     // 1-7
+  hohChallengeTimeUtc       String?  @db.VarChar(16)
+  /// Nomination deadline (day of week 1-7, time UTC) for HOH to submit noms.
+  nominationDeadlineDayOfWeek Int?
+  nominationDeadlineTimeUtc String?  @db.VarChar(16)
+  /// Veto draw day/time (when random veto players are selected).
+  vetoDrawDayOfWeek         Int?
+  vetoDrawTimeUtc           String?  @db.VarChar(16)
+  /// Veto decision deadline (veto winner must use or leave same).
+  vetoDecisionDeadlineDayOfWeek Int?
+  vetoDecisionDeadlineTimeUtc   String?  @db.VarChar(16)
+  /// Replacement nominee deadline if veto used (HOH must name replacement).
+  replacementNomineeDeadlineDayOfWeek Int?
+  replacementNomineeDeadlineTimeUtc   String?  @db.VarChar(16)
+  /// Eviction vote window: open/close day and time UTC.
+  evictionVoteOpenDayOfWeek  Int?
+  evictionVoteOpenTimeUtc    String?  @db.VarChar(16)
+  evictionVoteCloseDayOfWeek Int?
+  evictionVoteCloseTimeUtc   String?  @db.VarChar(16)
+  /// Final nominee count on ballot (always 2 for classic).
+  finalNomineeCount         Int      @default(2)
+  /// Veto competitor count (HOH + 2 noms + this many random = default 6 total).
+  vetoCompetitorCount       Int      @default(6)
+  /// Consecutive HOH allowed: false = cannot win HOH back-to-back.
+  consecutiveHohAllowed     Boolean  @default(false)
+  /// HOH votes only in tie (true = default).
+  hohVotesOnlyInTie         Boolean  @default(true)
+  /// Jury start: after_eliminations | when_remaining | fixed_week
+  juryStartMode             String   @default("after_eliminations") @db.VarChar(32)
+  juryStartAfterEliminations Int?    // when mode = after_eliminations
+  juryStartWhenRemaining    Int?     // when mode = when_remaining (e.g. 7 players left)
+  juryStartWeek             Int?     // when mode = fixed_week
+  /// Finale format: final_2 | final_3
+  finaleFormat               String   @default("final_2") @db.VarChar(16)
+  /// Waiver release after eviction: immediate | next_waiver_run | faab_window
+  waiverReleaseTiming       String   @default("next_waiver_run") @db.VarChar(32)
+  /// Public vote totals: exact | evicted_only
+  publicVoteTotalsVisibility String  @default("evicted_only") @db.VarChar(24)
+  /// Challenge mode: ai_theme | deterministic_score | hybrid
+  challengeMode             String   @default("hybrid") @db.VarChar(32)
+  /// Anti-collusion logging on/off.
+  antiCollusionLogging       Boolean  @default(true)
+  /// Inactive player handling: none | replacement_after_n_weeks | commissioner_only
+  inactivePlayerHandling    String   @default("commissioner_only") @db.VarChar(32)
+  /// Auto-nomination fallback if HOH times out: lowest_season_points | random | commissioner
+  autoNominationFallback    String   @default("lowest_season_points") @db.VarChar(32)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  cycles   BigBrotherCycle[]
+  jury     BigBrotherJuryMember[]
+  auditLog BigBrotherAuditLog[]
+
+  @@map("big_brother_league_configs")
+}
+
+/// One eviction cycle per week: HOH, nominees, veto, vote, eviction.
+model BigBrotherCycle {
+  id                    String   @id @default(uuid())
+  leagueId              String   @db.VarChar(64)
+  configId              String
+  config                BigBrotherLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  week                  Int
+  hohRosterId           String?  @db.VarChar(64)
+  nominee1RosterId      String?  @db.VarChar(64)
+  nominee2RosterId      String?  @db.VarChar(64)
+  vetoWinnerRosterId    String?  @db.VarChar(64)
+  vetoParticipantRosterIds Json?  // [rosterId,...] HOH + 2 noms + random (auditable)
+  vetoUsed              Boolean  @default(false)
+  vetoSavedRosterId     String?  @db.VarChar(64)   // which nominee was saved (if veto used)
+  replacementNomineeRosterId String? @db.VarChar(64)
+  evictedRosterId       String?  @db.VarChar(64)
+  voteDeadlineAt        DateTime?
+  voteOpenedAt          DateTime?
+  closedAt              DateTime?
+  tieBreakSeasonPoints  Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  votes BigBrotherEvictionVote[]
+
+  @@unique([configId, week])
+  @@index([leagueId, week])
+  @@map("big_brother_cycles")
+}
+
+/// Private eviction vote: one per voter per cycle (last before deadline counts).
+model BigBrotherEvictionVote {
+  id          String   @id @default(cuid())
+  cycleId     String
+  cycle       BigBrotherCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  voterRosterId String @db.VarChar(64)
+  targetRosterId String @db.VarChar(64)
+  createdAt   DateTime @default(now())
+
+  @@unique([cycleId, voterRosterId])
+  @@index([cycleId])
+  @@map("big_brother_eviction_votes")
+}
+
+/// Jury member: eliminated roster that votes at finale.
+model BigBrotherJuryMember {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  configId       String
+  config         BigBrotherLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId       String   @db.VarChar(64)
+  evictedWeek    Int
+  joinedAt       DateTime @default(now())
+
+  @@unique([leagueId, rosterId])
+  @@index([leagueId])
+  @@map("big_brother_jury_members")
+}
+
+/// Finale vote: jury votes for winner (one per jury member).
+model BigBrotherFinaleVote {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  juryRosterId   String   @db.VarChar(64)
+  targetRosterId String   @db.VarChar(64)
+  createdAt      DateTime @default(now())
+
+  @@unique([leagueId, juryRosterId])
+  @@index([leagueId])
+  @@map("big_brother_finale_votes")
+}
+
+/// Big Brother audit log: HOH, noms, veto, votes, eviction, jury.
+model BigBrotherAuditLog {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  configId  String
+  config    BigBrotherLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  eventType String   @db.VarChar(64)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, eventType])
+  @@index([createdAt])
+  @@map("big_brother_audit_logs")
 }
 
 // ========== Zombie League Engine (PROMPT 353) ==========

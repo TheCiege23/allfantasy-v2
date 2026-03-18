@@ -61,9 +61,12 @@ describe('LeagueImportRegistry', () => {
     expect(providers).toContain('fantrax')
     expect(providers).toContain('mfl')
   })
-  it('hasFullAdapter is true only for sleeper', () => {
+  it('hasFullAdapter reflects the live provider-backed adapters', () => {
     expect(hasFullAdapter('sleeper')).toBe(true)
-    expect(hasFullAdapter('espn')).toBe(false)
+    expect(hasFullAdapter('espn')).toBe(true)
+    expect(hasFullAdapter('yahoo')).toBe(true)
+    expect(hasFullAdapter('mfl')).toBe(true)
+    expect(hasFullAdapter('fantrax')).toBe(false)
   })
 })
 
@@ -96,13 +99,13 @@ describe('ImportNormalizationPipeline', () => {
     ).rejects.toThrow(/Unsupported import provider/)
   })
 
-  it('stub adapter returns valid result for espn', async () => {
+  it('stub adapter returns valid result for fantrax', async () => {
     const result = await runImportNormalizationPipeline({
-      provider: 'espn',
+      provider: 'fantrax',
       raw: {},
     })
-    expect(result.source.source_provider).toBe('espn')
-    expect(result.league.name).toContain('ESPN')
+    expect(result.source.source_provider).toBe('fantrax')
+    expect(result.league.name).toContain('FANTRAX')
     expect(result.rosters).toHaveLength(0)
   })
 })
