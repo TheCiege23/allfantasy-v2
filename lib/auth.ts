@@ -70,41 +70,19 @@ const providers: NextAuthOptions["providers"] = [
       password: { label: "Password", type: "password" },
     },
     async authorize(credentials) {
-      // #region agent log
-      const _log = (msg: string, data: Record<string, unknown>, hypothesisId: string) => {
-        fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'lib/auth.ts:authorize', message: msg, data, hypothesisId, timestamp: Date.now() }) }).catch(() => {});
-      };
-      // #endregion
       try {
         const rawLogin = credentials?.login;
         const rawPassword = credentials?.password;
 
         if (!rawLogin || !rawPassword) {
-          // #region agent log
-          _log('authorize missing credentials', { hasLogin: !!rawLogin, hasPassword: !!rawPassword }, 'H2');
-          // #endregion
           return null;
         }
 
         const login = rawLogin.trim();
         const password = rawPassword;
-        // #region agent log
-        _log('authorize start', { loginLen: login.length }, 'H1');
-        // #endregion
 
-        let user;
-        try {
-          user = await resolveLoginToUser(login);
-        } catch (resolveErr: unknown) {
-          // #region agent log
-          _log('resolveLoginToUser threw', { errMsg: resolveErr instanceof Error ? resolveErr.message : String(resolveErr) }, 'H4');
-          // #endregion
-          throw resolveErr;
-        }
+        const user = await resolveLoginToUser(login);
 
-        // #region agent log
-        _log('after resolveLoginToUser', { hasUser: !!user, userId: user?.id ?? null }, 'H2');
-        // #endregion
         if (!user) {
           return null;
         }
@@ -122,9 +100,6 @@ const providers: NextAuthOptions["providers"] = [
         }
 
         const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-        // #region agent log
-        _log('password check', { isValidPassword }, 'H3');
-        // #endregion
 
         if (!isValidPassword) {
           return null;
@@ -137,9 +112,6 @@ const providers: NextAuthOptions["providers"] = [
           image: user.avatarUrl,
         };
       } catch (err: unknown) {
-        // #region agent log
-        _log('authorize threw', { errMsg: err instanceof Error ? err.message : String(err) }, 'H1');
-        // #endregion
         throw err;
       }
     },

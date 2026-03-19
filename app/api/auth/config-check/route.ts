@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { hasDatabaseUrl } from "@/lib/env/database-url"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic"
  */
 export async function GET() {
   const missing: string[] = []
-  if (!process.env.DATABASE_URL?.trim()) missing.push("DATABASE_URL")
+  if (!hasDatabaseUrl(process.env)) missing.push("DATABASE_URL")
   if (!process.env.NEXTAUTH_SECRET?.trim()) missing.push("NEXTAUTH_SECRET")
 
   if (missing.length === 0) {

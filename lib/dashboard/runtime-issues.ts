@@ -1,3 +1,5 @@
+import { hasDatabaseUrl } from "@/lib/env/database-url"
+
 export type DashboardRuntimeIssue = {
   title: string
   message: string
@@ -16,11 +18,20 @@ function unique(values: string[]): string[] {
 }
 
 export function getDashboardMissingEnvVars(
-  env: Partial<Record<"DATABASE_URL" | "NEXTAUTH_SECRET", string | undefined>> = process.env
+  env: Partial<
+    Record<
+      | "DATABASE_URL"
+      | "POSTGRES_PRISMA_URL"
+      | "POSTGRES_URL"
+      | "POSTGRES_URL_NON_POOLING"
+      | "NEXTAUTH_SECRET",
+      string | undefined
+    >
+  > = process.env
 ): string[] {
   const missing: string[] = []
 
-  if (!env.DATABASE_URL?.trim()) missing.push("DATABASE_URL")
+  if (!hasDatabaseUrl(env)) missing.push("DATABASE_URL")
   if (!env.NEXTAUTH_SECRET?.trim()) missing.push("NEXTAUTH_SECRET")
 
   return missing

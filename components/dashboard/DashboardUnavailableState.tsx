@@ -52,9 +52,25 @@ export default function DashboardUnavailableState({
                 ))}
               </div>
               <p className="mt-3 text-sm text-white/55">
-                If you manage this deployment, add the missing environment variables in Vercel and
-                redeploy before retrying.
+                Add the variables in{" "}
+                <a
+                  href="https://vercel.com/docs/projects/environment-variables"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-amber-200 hover:text-amber-100"
+                >
+                  Vercel
+                </a>{" "}
+                (Settings → Environment Variables), then redeploy.
               </p>
+              <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
+                <p className="font-semibold text-amber-200/90 mb-2">Still seeing this after adding them?</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li><strong>Redeploy:</strong> Vercel only injects env vars into <em>new</em> deployments. Go to Deployments → … on the latest → <strong>Redeploy</strong> (or push a new commit).</li>
+                  <li><strong>Environment:</strong> Set the variable for <strong>Production</strong> (and <strong>Preview</strong> if you’re on a preview URL).</li>
+                  <li><strong>Name:</strong> Use exactly <code className="bg-white/10 px-1 rounded">DATABASE_URL</code> — case-sensitive, no spaces.</li>
+                </ul>
+              </div>
             </div>
           )}
 

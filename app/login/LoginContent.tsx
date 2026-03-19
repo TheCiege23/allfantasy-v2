@@ -75,9 +75,6 @@ export default function LoginContent() {
     setLoading(true)
 
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'LoginContent.tsx:handlePasswordLogin', message: 'before signIn', data: { loginLen: login.trim().length }, hypothesisId: 'H5', timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
       const result = await signIn("credentials", {
         login: login.trim(),
         password,
@@ -87,9 +84,6 @@ export default function LoginContent() {
         keepSignedIn: keepSignedIn ? "1" : "0",
       })
 
-      // #region agent log
-      fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'LoginContent.tsx:handlePasswordLogin', message: 'after signIn', data: { ok: result?.ok, error: result?.error ?? null, hasUrl: !!result?.url }, hypothesisId: 'H5', timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
       if (result?.error) {
         if (result.error.includes("SLEEPER_ONLY_ACCOUNT")) {
           setError("This account was created with Sleeper. Please use the Sleeper sign-in below instead.")

@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
+import { getDatabaseUrlOrThrow } from "@/lib/env/database-url";
 
 const READ_OPERATIONS = new Set([
   "findUnique",
@@ -49,21 +50,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL?.trim();
+function createPrismaClient() {
+  const databaseUrl = getDatabaseUrlOrThrow();
 
-  if (!databaseUrl) {
-    throw new Error(
-      "DATABASE_URL is not set. Add it to your local environment and Vercel project settings."
-    );
+  if (!process.env.DATABASE_URL?.trim()) {
+    process.env.DATABASE_URL = databaseUrl;
   }
 
-  return databaseUrl;
-}
-
-function createPrismaClient() {
   const client = new PrismaClient({
-    datasourceUrl: getDatabaseUrl(),
+    datasourceUrl: databaseUrl,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
   });
 

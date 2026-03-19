@@ -15,6 +15,16 @@ describe("dashboard runtime issues", () => {
     ).toEqual(["DATABASE_URL"])
   })
 
+  it("accepts postgres alias env vars for database connectivity", () => {
+    expect(
+      getDashboardMissingEnvVars({
+        DATABASE_URL: "",
+        POSTGRES_PRISMA_URL: "postgresql://alias-user:alias-pass@host:5432/db",
+        NEXTAUTH_SECRET: "set",
+      })
+    ).toEqual([])
+  })
+
   it("builds a database-specific dashboard message", () => {
     expect(createDashboardRuntimeIssue(["DATABASE_URL"])).toEqual({
       title: "Dashboard temporarily unavailable",
