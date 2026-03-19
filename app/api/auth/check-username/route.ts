@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client"
 import { containsProfanity } from "@/lib/profanity"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 function normalizeUsername(u: string) {
   return u.trim()

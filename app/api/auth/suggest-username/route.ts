@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { containsProfanity } from "@/lib/profanity"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 function normalizeUsername(u: string) {
   return u.trim().replace(/[^A-Za-z0-9_]/g, "")
