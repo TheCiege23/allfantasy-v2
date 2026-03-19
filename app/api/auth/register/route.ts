@@ -25,6 +25,17 @@ function normalizePhone(p?: string | null) {
   return s.length ? s : null
 }
 
+function getUniqueConstraintTarget(err: Prisma.PrismaClientKnownRequestError): string {
+  const rawTarget = err.meta?.target
+  if (Array.isArray(rawTarget)) {
+    return rawTarget.join(",").toLowerCase()
+  }
+  if (typeof rawTarget === "string") {
+    return rawTarget.toLowerCase()
+  }
+  return String(err.message ?? "").toLowerCase()
+}
+
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req)
@@ -171,19 +182,23 @@ export async function POST(req: Request) {
       return created
     }).catch((err) => {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        const target = Array.isArray(err.meta?.target) ? err.meta?.target : []
-        if (target?.includes("email")) {
+        const target = getUniqueConstraintTarget(err)
+        if (target.includes("email")) {
           throw new Response(
             JSON.stringify({ error: "An account with this email already exists." }),
             { status: 409 }
           )
         }
-        if (target?.includes("username")) {
+        if (target.includes("username")) {
           throw new Response(
             JSON.stringify({ error: "username already taken, choose another username" }),
             { status: 409 }
           )
         }
+        throw new Response(
+          JSON.stringify({ error: "An account with one of these details already exists." }),
+          { status: 409 }
+        )
       }
       throw err
     })
@@ -295,6 +310,16 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof Response) {
       return err
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const target = getUniqueConstraintTarget(err)
+      if (target.includes("email")) {
+        return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 })
+      }
+      if (target.includes("username")) {
+        return NextResponse.json({ error: "username already taken, choose another username" }, { status: 409 })
+      }
+      return NextResponse.json({ error: "An account with one of these details already exists." }, { status: 409 })
     }
     console.error("[register] error:", err)
     return NextResponse.json(

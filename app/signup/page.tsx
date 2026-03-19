@@ -90,6 +90,10 @@ function SignupContent() {
   }
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
+  const passwordsMatch = useMemo(() => {
+    if (!confirmPassword.length) return false
+    return password === confirmPassword
+  }, [password, confirmPassword])
   const progressPercent = useMemo(() => {
     const fields = [
       !!username.trim(),
@@ -238,10 +242,19 @@ function SignupContent() {
         }),
       })
 
-      const data = await res.json().catch(() => ({}))
+      const raw = await res.text().catch(() => "")
+      let data: any = {}
+      if (raw) {
+        try {
+          data = JSON.parse(raw)
+        } catch {
+          data = { error: raw }
+        }
+      }
 
       if (!res.ok) {
-        setError(data.error || t("common.error.tryAgain"))
+        const backendError = typeof data?.error === "string" ? data.error.trim() : ""
+        setError(backendError || t("common.error.tryAgain"))
         setLoading(false)
         return
       }
@@ -455,16 +468,53 @@ function SignupContent() {
 
           <div>
             <label className="block text-xs text-white/60 mb-1">Confirm Password *</label>
-            <input
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              type={showPassword ? "text" : "password"}
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-              placeholder="Re-enter password"
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
+            <div className="relative">
+              <input
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 pr-10 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide confirm password" : "Show confirm password"}
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className={
+                !confirmPassword.length
+                  ? "text-white/40"
+                  : passwordsMatch
+                    ? "text-emerald-400/90"
+                    : "text-amber-300"
+              }>
+                {!confirmPassword.length
+                  ? "Re-enter your password to confirm."
+                  : passwordsMatch
+                    ? "Passwords match."
+                    : "Passwords do not match."}
+              </span>
+              {confirmPassword.length >= 8 && (
+                <div className="flex gap-0.5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className={`h-1 w-4 rounded-sm ${
+                        i <= passwordStrength.level ? "bg-cyan-500" : "bg-white/15"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
