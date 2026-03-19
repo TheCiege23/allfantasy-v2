@@ -7,3 +7,4 @@ export {
   getDiscoverableLeaguesPool,
   clearDiscoveryCache,
 } from "./PublicDiscoveryService"
+export type { DiscoveryViewerContext } from "./PublicDiscoveryService"

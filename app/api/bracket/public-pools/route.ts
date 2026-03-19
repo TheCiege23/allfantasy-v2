@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import {
+  extractLeagueCareerTier,
+  isLeagueVisibleForCareerTier,
+  resolveUserCareerTier,
+} from "@/lib/ranking/tier-visibility"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   try {
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string }
+    } | null
+    const viewerTier = await resolveUserCareerTier(prisma as any, session?.user?.id, 1)
+
     const { searchParams } = new URL(request.url)
     const tournamentId = searchParams.get("tournamentId")
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
@@ -40,9 +52,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const total = filtered.length
+    const tierFiltered = filtered.filter((lg: any) => {
+      const leagueTier = extractLeagueCareerTier(lg.scoringRules, viewerTier)
+      return isLeagueVisibleForCareerTier(viewerTier, leagueTier, 1)
+    })
+
+    const total = tierFiltered.length
     const start = (page - 1) * limit
-    const paged = filtered.slice(start, start + limit)
+    const paged = tierFiltered.slice(start, start + limit)
 
     const pools = paged.map((lg: any) => {
       const rules = (lg.scoringRules || {}) as any
@@ -70,6 +87,8 @@ export async function GET(request: NextRequest) {
         total,
         page,
         totalPages: Math.ceil(total / limit),
+        viewerTier,
+        hiddenByTierPolicy: Math.max(0, filtered.length - tierFiltered.length),
       },
       { headers: { "Cache-Control": "no-cache, no-store, must-revalidate" } }
     )

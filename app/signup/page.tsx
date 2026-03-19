@@ -265,20 +265,20 @@ function SignupContent() {
         return
       }
 
-      // Immediately continue to home after signup.
+      // Immediately continue to the authenticated homepage after signup.
       const signInResult = await signIn("credentials", {
         login: email.trim(),
         password,
         redirect: false,
-        callbackUrl: "/",
+        callbackUrl: "/dashboard",
       })
 
       if (!signInResult?.error) {
-        router.push(signInResult?.url || "/")
+        router.push(signInResult?.url || "/dashboard")
         return
       }
 
-      router.push("/")
+      router.push("/dashboard")
       return
 
       // Show success screen — user must verify email or phone before signing in

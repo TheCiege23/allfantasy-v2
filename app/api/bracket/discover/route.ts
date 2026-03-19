@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { discoverLeagues } from "@/lib/league-discovery"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { resolveUserCareerTier } from "@/lib/ranking/tier-visibility"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
   try {
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string }
+    } | null
+    const viewerTier = await resolveUserCareerTier(prisma as any, session?.user?.id, 1)
+
     const sp = req.nextUrl.searchParams
     const query = sp.get("q") ?? sp.get("query") ?? null
     const sport = sp.get("sport") ?? null
@@ -25,6 +34,7 @@ export async function GET(req: NextRequest) {
       difficulty,
       page: parseInt(page, 10) || 1,
       limit: parseInt(limit, 10) || 20,
+      viewerTier,
     })
 
     return NextResponse.json(result, {

@@ -22,7 +22,7 @@ export default function LoginContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const callbackUrl = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/"
+  const callbackUrl = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/dashboard"
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
   const destinationLabel = callbackUrl.startsWith("/brackets")

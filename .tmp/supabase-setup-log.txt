@@ -1,0 +1,3 @@
+﻿STEP1: CWD=C:\Users\Guap_\allfantasy-v2-main
+STEP2: SESSION_DB_URL=postgresql:***@aws-0-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require
+STEP3: Running prisma db push...

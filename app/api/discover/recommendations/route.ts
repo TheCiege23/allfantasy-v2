@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getPersonalizedRecommendations } from "@/lib/league-recommendations"
 import { getRecommendedLeagues } from "@/lib/public-discovery"
+import { prisma } from "@/lib/prisma"
+import { resolveUserCareerTier } from "@/lib/ranking/tier-visibility"
 
 export const dynamic = "force-dynamic"
 
@@ -19,14 +21,27 @@ function getBaseUrl(req: NextRequest): string {
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     const userId = session?.user?.id ?? null
+    const viewerTier = await resolveUserCareerTier(prisma as any, userId, 1)
+    const adminAllow = (process.env.ADMIN_EMAILS || "")
+      .split(",")
+      .map((v) => v.trim().toLowerCase())
+      .filter(Boolean)
+    const viewerIsAdmin = !!session?.user?.email && adminAllow.includes(session.user.email.toLowerCase())
     const sport = req.nextUrl.searchParams.get("sport") ?? null
     const limit = Math.min(24, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") ?? "6", 10)))
     const baseUrl = getBaseUrl(req)
 
     if (userId) {
-      const results = await getPersonalizedRecommendations(userId, baseUrl, { limit, sport })
+      const results = await getPersonalizedRecommendations(userId, baseUrl, {
+        limit,
+        sport,
+        viewerTier,
+        viewerIsAdmin,
+      })
       return NextResponse.json(
         {
           ok: true,
@@ -37,7 +52,11 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const leagues = await getRecommendedLeagues(limit, sport || null, baseUrl)
+    const leagues = await getRecommendedLeagues(limit, sport || null, baseUrl, {
+      viewerTier,
+      viewerUserId: userId,
+      viewerIsAdmin,
+    })
     return NextResponse.json(
       { ok: true, personalized: false, leagues: leagues.map((l) => ({ league: l, explanation: null })) },
       { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } }

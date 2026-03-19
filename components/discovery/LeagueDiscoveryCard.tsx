@@ -108,6 +108,16 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
                 : "AI-enabled"}
             </span>
           )}
+          {league.inviteOnlyByTier && (
+            <span
+              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+              title="Tier policy: you can browse leagues in your tier, one above, or one below. Other tiers require an invite code."
+              aria-label="Invite only by tier policy"
+              style={{ background: "rgba(251, 146, 60, 0.16)", color: "rgb(251, 146, 60)" }}
+            >
+              Invite only
+            </span>
+          )}
         </div>
 
         {/* Subtitle */}
@@ -164,7 +174,7 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
         >
           View
         </Link>
-        {!isFull ? (
+        {!isFull && !league.inviteOnlyByTier ? (
           <Link
             href={league.joinUrl}
             className="min-h-[44px] inline-flex items-center justify-center touch-manipulation rounded-lg px-3 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
@@ -181,6 +191,13 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           >
             Join
           </Link>
+        ) : league.inviteOnlyByTier ? (
+          <span
+            className="rounded-lg px-3 py-2 text-sm font-medium"
+            style={{ background: "rgba(251, 146, 60, 0.14)", color: "rgb(251, 146, 60)" }}
+          >
+            Invite code required
+          </span>
         ) : (
           <span
             className="rounded-lg px-3 py-2 text-sm font-medium"

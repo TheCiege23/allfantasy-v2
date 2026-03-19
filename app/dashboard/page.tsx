@@ -8,6 +8,11 @@ import {
   getDashboardMissingEnvVars,
   getDashboardRuntimeIssue,
 } from "@/lib/dashboard/runtime-issues"
+import {
+  extractLeagueCareerTier,
+  isLeagueVisibleForCareerTier,
+  resolveUserCareerTier,
+} from "@/lib/ranking/tier-visibility"
 
 export const dynamic = "force-dynamic"
 
@@ -76,9 +81,20 @@ export default async function DashboardPage() {
           email: true,
           emailVerified: true,
           avatarUrl: true,
+          legacyUser: {
+            select: {
+              rankCache: {
+                select: {
+                  careerTier: true,
+                },
+              },
+            },
+          },
         },
       })
       .catch(() => null)
+
+    const userCareerTier = await resolveUserCareerTier(prisma as any, userId, 1)
 
     const profile = await (prisma as any).userProfile
       .findUnique({
@@ -106,6 +122,7 @@ export default async function DashboardPage() {
               name: true,
               tournamentId: true,
               joinCode: true,
+              scoringRules: true,
               _count: { select: { members: true } },
             },
           },
@@ -175,7 +192,14 @@ export default async function DashboardPage() {
             name: m.league.name,
             tournamentId: m.league.tournamentId,
             memberCount: m.league._count?.members || 0,
+            leagueTier: extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
+            inTierRange: isLeagueVisibleForCareerTier(
+              userCareerTier,
+              extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
+              1
+            ),
           }))}
+          userCareerTier={userCareerTier}
           entries={entries.map((e: any) => ({
             id: e.id,
             name: e.name,

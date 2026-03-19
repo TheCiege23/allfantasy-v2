@@ -8,6 +8,11 @@ import { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
 import {
+  clampCareerTier,
+  extractLeagueCareerTier,
+  isLeagueVisibleForCareerTier,
+} from "@/lib/ranking/tier-visibility"
+import {
   getCachedBracketCards,
   setCachedBracketCards,
   getCachedCreatorCards,
@@ -24,6 +29,12 @@ import type {
   DiscoveryFormat,
   EntryFeeFilter,
 } from "./types"
+
+export interface DiscoveryViewerContext {
+  viewerTier?: number | null
+  viewerUserId?: string | null
+  viewerIsAdmin?: boolean
+}
 
 const DEFAULT_BASE_URL =
   typeof process !== "undefined" ? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai" : "https://allfantasy.ai"
@@ -145,6 +156,7 @@ async function fetchPublicBracketLeaguesUncached(options: {
     const rules = (lg.scoringRules as Record<string, unknown>) || {}
     const mode = (rules.mode ?? rules.scoringMode ?? "momentum") as string
     const maxMembers = Number(lg.maxManagers) || 100
+    const leagueTier = extractLeagueCareerTier(rules, 1)
     return toCard(
       "bracket",
       {
@@ -163,6 +175,7 @@ async function fetchPublicBracketLeaguesUncached(options: {
         scoringMode: mode,
         isPaid: Boolean(rules.isPaidLeague),
         draftDate: lg.deadline ?? null,
+        leagueTier,
       },
       options.baseUrl
     )
@@ -320,9 +333,54 @@ function applySort(cards: DiscoveryCard[], sort: DiscoverySort): DiscoveryCard[]
   return arr
 }
 
+async function applyTierPolicy(
+  cards: DiscoveryCard[],
+  viewerContext?: DiscoveryViewerContext
+): Promise<DiscoveryCard[]> {
+  const viewerTier = clampCareerTier(viewerContext?.viewerTier, 1)
+  const viewerIsAdmin = viewerContext?.viewerIsAdmin === true
+  const viewerUserId = viewerContext?.viewerUserId || null
+
+  let ownerLeagueIds = new Set<string>()
+  if (viewerUserId) {
+    try {
+      const rows = await prisma.bracketLeague.findMany({
+        where: { ownerId: viewerUserId },
+        select: { id: true },
+      })
+      ownerLeagueIds = new Set(rows.map((r) => r.id))
+    } catch {
+      ownerLeagueIds = new Set<string>()
+    }
+  }
+
+  const resolved: DiscoveryCard[] = []
+  for (const card of cards) {
+    if (card.source !== "bracket") {
+      resolved.push({ ...card, inviteOnlyByTier: false })
+      continue
+    }
+
+    const leagueTier = clampCareerTier(card.leagueTier, viewerTier)
+    const inRange = isLeagueVisibleForCareerTier(viewerTier, leagueTier, 1)
+    if (inRange) {
+      resolved.push({ ...card, leagueTier, inviteOnlyByTier: false })
+      continue
+    }
+
+    const canBypass = viewerIsAdmin || ownerLeagueIds.has(card.id)
+    if (canBypass) {
+      resolved.push({ ...card, leagueTier, inviteOnlyByTier: true })
+    }
+  }
+
+  return resolved
+}
+
 export async function discoverPublicLeagues(
   input: DiscoverLeaguesInput,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl: string = DEFAULT_BASE_URL,
+  viewerContext?: DiscoveryViewerContext
 ): Promise<DiscoverLeaguesResult> {
   const page = Math.max(1, Number(input.page) || 1)
   const limit = Math.min(24, Math.max(6, Number(input.limit) || 12))
@@ -343,6 +401,7 @@ export async function discoverPublicLeagues(
 
   let combined = [...bracketCards, ...creatorCards]
   combined = applyVisibility(combined, visibility)
+  combined = await applyTierPolicy(combined, viewerContext)
   combined = applyTeamCount(combined, teamCountMin, teamCountMax)
   combined = applyAiEnabled(combined, aiEnabled)
   combined = applyEntryFee(combined, entryFee)
@@ -359,13 +418,15 @@ export async function discoverPublicLeagues(
 export async function getTrendingLeagues(
   limit: number = 6,
   sport: string | null = null,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl: string = DEFAULT_BASE_URL,
+  viewerContext?: DiscoveryViewerContext
 ): Promise<DiscoveryCard[]> {
   const [bracketCards, creatorCards] = await Promise.all([
     fetchPublicBracketLeagues({ sport, query: null, baseUrl }),
     fetchPublicCreatorLeagues({ sport, query: null, baseUrl }),
   ])
   let combined = applySort([...bracketCards, ...creatorCards], "popularity")
+  combined = await applyTierPolicy(combined, viewerContext)
   if (sport) combined = combined.filter((c) => c.sport === sport)
   return combined.slice(0, limit)
 }
@@ -373,13 +434,15 @@ export async function getTrendingLeagues(
 export async function getRecommendedLeagues(
   limit: number = 6,
   sport: string | null = null,
-  baseUrl: string = DEFAULT_BASE_URL
+  baseUrl: string = DEFAULT_BASE_URL,
+  viewerContext?: DiscoveryViewerContext
 ): Promise<DiscoveryCard[]> {
   const [bracketCards, creatorCards] = await Promise.all([
     fetchPublicBracketLeagues({ sport, query: null, baseUrl }),
     fetchPublicCreatorLeagues({ sport, query: null, baseUrl }),
   ])
   let combined = applySort([...bracketCards, ...creatorCards], "filling_fast")
+  combined = await applyTierPolicy(combined, viewerContext)
   combined = combined.filter((c) => c.maxMembers > 0 && c.memberCount < c.maxMembers)
   if (sport) combined = combined.filter((c) => c.sport === sport)
   return combined.slice(0, limit)
@@ -395,7 +458,7 @@ export function getDiscoverySports(): { value: string; label: string }[] {
  */
 export async function getDiscoverableLeaguesPool(
   baseUrl: string = DEFAULT_BASE_URL,
-  options: { sport?: string | null; maxTotal?: number } = {}
+  options: { sport?: string | null; maxTotal?: number; viewerContext?: DiscoveryViewerContext } = {}
 ): Promise<DiscoveryCard[]> {
   const maxTotal = Math.min(200, options.maxTotal ?? 100)
   const sport = options.sport && isSupportedSport(options.sport) ? options.sport : null
@@ -406,6 +469,7 @@ export async function getDiscoverableLeaguesPool(
   ])
   let combined = [...bracketCards, ...creatorCards]
   combined = combined.filter((c) => !c.isPrivate)
+  combined = await applyTierPolicy(combined, options.viewerContext)
   combined = applySort(combined, "filling_fast")
   return combined.slice(0, maxTotal)
 }

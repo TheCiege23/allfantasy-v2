@@ -9,6 +9,10 @@ import {
   matchesLeagueTypeAndFee,
 } from "./LeagueFilterResolver"
 import { buildSearchWhere } from "./LeagueSearchResolver"
+import {
+  extractLeagueCareerTier,
+  isLeagueVisibleForCareerTier,
+} from "@/lib/ranking/tier-visibility"
 
 export interface DiscoverLeaguesInput {
   query?: string | null
@@ -19,6 +23,7 @@ export interface DiscoverLeaguesInput {
   difficulty?: string | null
   page?: number
   limit?: number
+  viewerTier?: number
 }
 
 export interface LeagueCard {
@@ -88,6 +93,7 @@ export function suggestLeagues(input: {
 export async function discoverLeagues(input: DiscoverLeaguesInput): Promise<DiscoverLeaguesResult> {
   const page = Math.max(1, Number(input.page) || 1)
   const limit = Math.min(50, Math.max(5, Number(input.limit) || 20))
+  const viewerTier = Math.max(1, Math.floor(Number(input.viewerTier) || 1))
   const resolved = resolveFilters({
     sport: input.sport,
     leagueType: input.leagueType,
@@ -111,9 +117,12 @@ export async function discoverLeagues(input: DiscoverLeaguesInput): Promise<Disc
     take: 2000,
   })
 
-  const filtered = allMatching.filter((lg: any) =>
-    matchesLeagueTypeAndFee(lg.scoringRules as Record<string, unknown>, resolved)
-  )
+  const filtered = allMatching.filter((lg: any) => {
+    const rules = lg.scoringRules as Record<string, unknown>
+    if (!matchesLeagueTypeAndFee(rules, resolved)) return false
+    const leagueTier = extractLeagueCareerTier(rules, viewerTier)
+    return isLeagueVisibleForCareerTier(viewerTier, leagueTier, 1)
+  })
   const total = filtered.length
   const leagues = filtered.slice((page - 1) * limit, page * limit)
 

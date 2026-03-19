@@ -135,12 +135,20 @@ function buildExplanation(card: DiscoveryCard, profile: UserLeagueProfile): stri
 export async function getPersonalizedRecommendations(
   userId: string,
   baseUrl: string = DEFAULT_BASE_URL,
-  options: { limit?: number; sport?: string | null } = {}
+  options: { limit?: number; sport?: string | null; viewerTier?: number | null; viewerIsAdmin?: boolean } = {}
 ): Promise<RecommendedLeagueWithExplanation[]> {
   const limit = Math.min(24, Math.max(1, options.limit ?? 6))
   const [profile, pool] = await Promise.all([
     getUserLeagueProfile(userId),
-    getDiscoverableLeaguesPool(baseUrl, { sport: options.sport ?? null, maxTotal: 100 }),
+    getDiscoverableLeaguesPool(baseUrl, {
+      sport: options.sport ?? null,
+      maxTotal: 100,
+      viewerContext: {
+        viewerTier: options.viewerTier ?? null,
+        viewerUserId: userId,
+        viewerIsAdmin: options.viewerIsAdmin === true,
+      },
+    }),
   ])
 
   const excludeIds = new Set([

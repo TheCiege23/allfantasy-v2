@@ -52,6 +52,10 @@ export interface DiscoveryCard {
   creatorLeagueType?: string | null
   /** Creator leagues only: whether creator has verified badge. */
   isCreatorVerified?: boolean
+  /** Optional career tier for tier-gated league visibility. */
+  leagueTier?: number | null
+  /** True when league is outside viewer tier range and shown only for admin/owner contexts. */
+  inviteOnlyByTier?: boolean
 }
 
 export interface DiscoverLeaguesInput {
