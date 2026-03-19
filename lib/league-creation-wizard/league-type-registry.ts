@@ -64,8 +64,19 @@ export function isDynastyLeagueType(leagueType: LeagueTypeId): boolean {
   return DYNASTY_LEAGUE_TYPES.includes(leagueType)
 }
 
+/** Standard redraft: seasonal league, no carryover rosters. */
+export function isRedraftLeagueType(leagueType: LeagueTypeId): boolean {
+  return leagueType === 'redraft'
+}
+
+/** Keeper or dynasty: supports keeper retention config (max keepers, round cost, etc.). */
 export function isKeeperLeagueType(leagueType: LeagueTypeId): boolean {
   return KEEPER_LEAGUE_TYPES.includes(leagueType)
+}
+
+/** True when league type is exactly keeper (hybrid seasonal + retention), not dynasty. */
+export function isKeeperOnlyLeagueType(leagueType: LeagueTypeId): boolean {
+  return leagueType === 'keeper'
 }
 
 export function isDevyLeagueType(leagueType: LeagueTypeId): boolean {
@@ -80,26 +91,43 @@ export function isLiveDraftType(draftType: DraftTypeId): boolean {
   return LIVE_DRAFT_TYPES.includes(draftType)
 }
 
+/** Sports that support best ball (must match SportFeatureFlagsService.supportsBestBall). */
+const SPORTS_SUPPORTING_BEST_BALL = new Set<string>(['NFL', 'NBA', 'NCAAB', 'NCAAF'])
+
 /**
- * League types allowed for a sport. Devy: NFL (NCAA Football) and NBA (NCAA Basketball). C2C: NFL/NCAAF.
+ * League types allowed for a sport.
+ * Devy: NFL and NBA only (pro league sport; devy pool is NCAA Football / NCAA Basketball).
+ * C2C: NFL and NBA only (pro league sport; college side is NCAA Football / NCAA Basketball).
+ * Best ball only for NFL, NBA, NCAAB, NCAAF.
  */
 export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): LeagueTypeId[] {
   const s = String(sport).toUpperCase()
-  const all: LeagueTypeId[] = ['redraft', 'dynasty', 'keeper', 'best_ball', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap']
-  if (s === 'NFL' || s === 'NCAAF') {
-    return [...all, 'devy', 'c2c']
-  }
-  if (s === 'NBA' || s === 'NCAAB') {
-    return [...all, 'devy', 'c2c']
-  }
+  const base: LeagueTypeId[] = ['redraft', 'dynasty', 'keeper', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap']
+  const all: LeagueTypeId[] = SPORTS_SUPPORTING_BEST_BALL.has(s) ? [...base, 'best_ball'] : base
+  if (s === 'NFL') return [...all, 'c2c', 'devy']
+  if (s === 'NCAAF') return all
+  if (s === 'NBA') return [...all, 'c2c', 'devy']
+  if (s === 'NCAAB') return all
   return all
 }
 
+/** Guillotine: snake, linear, auction only (no slow_draft). 3RR applies only to snake (UI). */
+const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction']
+
 /**
  * Draft types allowed for a league type. Mock draft is separate product; others available for redraft/dynasty/keeper etc.
+ * Guillotine supports only snake, linear, auction.
  */
 export function getAllowedDraftTypesForLeagueType(leagueType: LeagueTypeId): DraftTypeId[] {
+  if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
   return ['snake', 'linear', 'auction', 'slow_draft']
+}
+
+/** Roster modes allowed for Guillotine (redraft / best_ball only). */
+export const GUILLOTINE_ALLOWED_ROSTER_MODES = ['redraft', 'best_ball'] as const
+
+export function getGuillotineAllowedRosterModes(): readonly string[] {
+  return GUILLOTINE_ALLOWED_ROSTER_MODES
 }
 
 /**

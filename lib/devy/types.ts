@@ -62,6 +62,8 @@ export interface DevyCommissionerSettings {
   promotionTiming: PromotionTiming
   supplementalDevyFAEnabled: boolean
   rightsExpirationEnabled: boolean
+  /** PROMPT 3: When player returns to school: restore_rights | hold_rights | commissioner. */
+  returnToSchoolHandling: 'restore_rights' | 'hold_rights' | 'commissioner'
   /** PROMPT 4: Taxi-eligible pro rookies count toward best ball when true. */
   taxiProRookiesScoreInBestBall: boolean
   /** PROMPT 4: NFL best ball superflex slot. */

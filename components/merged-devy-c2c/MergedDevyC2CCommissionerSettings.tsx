@@ -13,6 +13,7 @@ interface C2CConfig {
   mergedStartupDraft: boolean
   separateStartupCollegeDraft: boolean
   collegeRosterSize: number
+  collegeActiveLineupSlots?: Record<string, number> | null
   taxiSize: number
   rookieDraftRounds: number
   collegeDraftRounds: number
@@ -146,6 +147,13 @@ export function MergedDevyC2CCommissionerSettings({ leagueId }: MergedDevyC2CCom
         </label>
       </div>
 
+      {config.collegeActiveLineupSlots && Object.keys(config.collegeActiveLineupSlots).length > 0 && (
+        <p className="text-xs text-white/55">
+          College active slots: {Object.entries(config.collegeActiveLineupSlots)
+            .map(([k, v]) => `${k.toUpperCase()} ${v}`)
+            .join(', ')}
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="block text-sm text-white/80">
           <span className="block text-white/50">College roster size</span>

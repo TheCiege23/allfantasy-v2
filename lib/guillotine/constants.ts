@@ -24,13 +24,16 @@ export const DEFAULT_STAT_CORRECTION_HOURS = 48
 export const DEFAULT_DANGER_MARGIN_POINTS = 10
 
 /** Tiebreaker step identifiers. */
+export const TIEBREAK_BENCH_POINTS = 'bench_points'
 export const TIEBREAK_SEASON_POINTS = 'season_points'
 export const TIEBREAK_PREVIOUS_PERIOD = 'previous_period'
 export const TIEBREAK_DRAFT_SLOT = 'draft_slot'
 export const TIEBREAK_COMMISSIONER = 'commissioner'
 export const TIEBREAK_RANDOM = 'random'
 
+/** Default order: bench (lower loses) -> season points -> previous period -> draft slot -> commissioner -> random. */
 export const DEFAULT_TIEBREAKER_ORDER = [
+  TIEBREAK_BENCH_POINTS,
   TIEBREAK_SEASON_POINTS,
   TIEBREAK_PREVIOUS_PERIOD,
   TIEBREAK_DRAFT_SLOT,

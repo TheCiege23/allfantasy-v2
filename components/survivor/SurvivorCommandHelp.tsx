@@ -12,7 +12,11 @@ export interface SurvivorCommandHelpProps {
 export function SurvivorCommandHelp({ compact }: SurvivorCommandHelpProps) {
   const commands = [
     { cmd: '@Chimmy vote [manager]', desc: 'Cast your vote for who to eliminate (e.g. @Chimmy vote Team Alpha)' },
-    { cmd: '@Chimmy play idol [idol]', desc: 'Play a hidden immunity idol before votes are read' },
+    { cmd: '@Chimmy jury vote [finalist]', desc: 'Cast your final jury vote once the Survivor finale opens' },
+    { cmd: '@Chimmy play idol [idol]', desc: 'Play a self-targeting or generic idol before votes are read' },
+    { cmd: '@Chimmy play idol [idol] on [manager]', desc: 'Target a manager for powers like protection, vote nullifier, or waiver freeze' },
+    { cmd: '@Chimmy play idol steal_player on [manager] pick [player]', desc: 'Steal a specific player from another active roster and move any attached idol with that player' },
+    { cmd: '@Chimmy play idol swap_starter on [manager] swap [bench] for [starter]', desc: 'Force a lineup swap on a roster with editable starter slots' },
     { cmd: '@Chimmy submit challenge [choice]', desc: 'Submit your challenge/mini-game choice before lock' },
     { cmd: '@Chimmy confirm tribe decision [choice]', desc: 'Confirm tribe consensus for a tribe-level decision' },
   ]

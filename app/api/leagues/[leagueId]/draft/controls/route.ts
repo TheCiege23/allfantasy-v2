@@ -159,6 +159,11 @@ export async function POST(
         }
       }
       const snapshot = await buildSessionSnapshot(leagueId)
+      if (snapshot?.status === 'completed') {
+        await finalizeRosterAssignments(leagueId).catch(() => {})
+        const { runSurvivorPostDraftBootstrap } = await import('@/lib/survivor/SurvivorDraftBootstrapService')
+        await runSurvivorPostDraftBootstrap(leagueId).catch(() => {})
+      }
       return NextResponse.json({ ok: true, action: 'resolve_auction', sold: result.sold, session: snapshot })
     }
     if (action === 'reset_draft') {

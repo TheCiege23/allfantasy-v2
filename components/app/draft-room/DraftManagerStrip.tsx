@@ -31,6 +31,8 @@ export type DraftManagerStripProps = {
   tradedPickColorMode?: boolean
   /** Optional: show new owner name in red on traded picks */
   showNewOwnerInRed?: boolean
+  /** Optional: e.g. "Weighted Lottery Order" when order came from lottery */
+  orderSourceLabel?: string | null
 }
 
 export function DraftManagerStrip({
@@ -38,12 +40,18 @@ export function DraftManagerStrip({
   activeRosterId,
   tradedPickColorMode = false,
   showNewOwnerInRed = false,
+  orderSourceLabel,
 }: DraftManagerStripProps) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/20 px-3 py-2">
       <span className="mr-2 text-[10px] font-medium uppercase tracking-wider text-white/50">
         Draft order
       </span>
+      {orderSourceLabel && (
+        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-300/90 border border-amber-400/30">
+          {orderSourceLabel}
+        </span>
+      )}
       {managers.map((m, i) => {
         const isActive = m.rosterId === activeRosterId
         const colorClass = MANAGER_COLORS[(m.slot - 1) % MANAGER_COLORS.length]

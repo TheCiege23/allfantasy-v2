@@ -10,16 +10,16 @@ const includeUser = { user: { select: { id: true, displayName: true, email: true
 
 export async function getLeagueChatMessages(
   leagueId: string,
-  options: { limit?: number; before?: Date; source?: 'draft' | null; /** when undefined, league channel = exclude draft-only */ }
+  options: { limit?: number; before?: Date; source?: string | null; /** when undefined, league channel = exclude draft-only + tribe-only */ }
 ): Promise<PlatformChatMessage[]> {
   const limit = Math.min(options.limit ?? 50, 100)
   const where: Record<string, unknown> = { leagueId }
-  if (options.source === 'draft') {
-    where.source = 'draft'
+  if (typeof options.source === 'string' && options.source.trim()) {
+    where.source = options.source.trim()
   } else if (options.source === null) {
     where.source = null
   } else if (options.source === undefined) {
-    where.OR = [{ source: null }, { source: { not: 'draft' } }]
+    where.NOT = [{ source: 'draft' }, { source: { startsWith: 'tribe_' } }]
   }
   const rows = await prisma.leagueChatMessage.findMany({
     where: {
@@ -51,8 +51,14 @@ export async function createLeagueChatMessage(
   leagueId: string,
   userId: string,
   message: string,
-  options: { type?: string; imageUrl?: string | null; metadata?: Record<string, unknown>; source?: 'draft' | null }
+  options: { type?: string; imageUrl?: string | null; metadata?: Record<string, unknown>; source?: string | null }
 ): Promise<PlatformChatMessage | null> {
+  const source =
+    typeof options.source === 'string' && options.source.trim()
+      ? options.source.trim()
+      : options.source === null
+        ? null
+        : null
   const created = await prisma.leagueChatMessage.create({
     data: {
       leagueId,
@@ -61,7 +67,7 @@ export async function createLeagueChatMessage(
       type: options.type ?? 'text',
       imageUrl: options.imageUrl ?? null,
       metadata: options.metadata ?? undefined,
-      source: options.source ?? null,
+      source,
     },
     include: includeUser,
   })

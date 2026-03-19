@@ -15,12 +15,12 @@ export async function getRosterTeamMap(leagueId: string): Promise<RosterTeamMap>
   const [rosters, teams, session] = await Promise.all([
     prisma.roster.findMany({
       where: { leagueId },
-      select: { id: true },
+      select: { id: true, platformUserId: true },
       orderBy: { id: 'asc' },
     }),
     prisma.leagueTeam.findMany({
       where: { leagueId },
-      select: { id: true },
+      select: { id: true, externalId: true },
       orderBy: [{ currentRank: 'asc' }, { id: 'asc' }],
     }),
     prisma.draftSession.findUnique({
@@ -32,7 +32,32 @@ export async function getRosterTeamMap(leagueId: string): Promise<RosterTeamMap>
   const rosterIdToTeamId = new Map<string, string>()
   const teamIdToRosterId = new Map<string, string>()
 
-  if (rosters.length !== teams.length) {
+  const rosterIdByKnownKey = new Map<string, string>()
+  for (const roster of rosters) {
+    rosterIdByKnownKey.set(roster.id, roster.id)
+    if (roster.platformUserId) {
+      rosterIdByKnownKey.set(roster.platformUserId, roster.id)
+    }
+  }
+
+  const matchedRosterIds = new Set<string>()
+  const matchedTeamIds = new Set<string>()
+  for (const team of teams) {
+    const directRosterId = rosterIdByKnownKey.get(team.externalId)
+    if (!directRosterId) continue
+    rosterIdToTeamId.set(directRosterId, team.id)
+    teamIdToRosterId.set(team.id, directRosterId)
+    matchedRosterIds.add(directRosterId)
+    matchedTeamIds.add(team.id)
+  }
+
+  if (matchedRosterIds.size === rosters.length && matchedTeamIds.size === teams.length) {
+    return { rosterIdToTeamId, teamIdToRosterId }
+  }
+
+  const unmatchedRosters = rosters.filter((roster) => !matchedRosterIds.has(roster.id))
+  const unmatchedTeams = teams.filter((team) => !matchedTeamIds.has(team.id))
+  if (unmatchedRosters.length !== unmatchedTeams.length) {
     return { rosterIdToTeamId, teamIdToRosterId }
   }
 
@@ -42,18 +67,23 @@ export async function getRosterTeamMap(leagueId: string): Promise<RosterTeamMap>
     for (const o of slotOrder) {
       if (o?.rosterId != null && typeof o.slot === 'number') rosterBySlot.set(o.slot, String(o.rosterId))
     }
-    for (let i = 0; i < teams.length; i++) {
-      const rosterId = rosterBySlot.get(i + 1) ?? rosters[i]?.id
-      const teamId = teams[i]?.id
+    const unmatchedRosterBySlot = new Map<number, string>()
+    const unmatchedRosterSet = new Set(unmatchedRosters.map((roster) => roster.id))
+    for (const [slot, rosterId] of rosterBySlot.entries()) {
+      if (unmatchedRosterSet.has(rosterId)) unmatchedRosterBySlot.set(slot, rosterId)
+    }
+    for (let i = 0; i < unmatchedTeams.length; i++) {
+      const rosterId = unmatchedRosterBySlot.get(i + 1) ?? unmatchedRosters[i]?.id
+      const teamId = unmatchedTeams[i]?.id
       if (rosterId && teamId) {
         rosterIdToTeamId.set(rosterId, teamId)
         teamIdToRosterId.set(teamId, rosterId)
       }
     }
   } else {
-    for (let i = 0; i < rosters.length; i++) {
-      const rosterId = rosters[i]?.id
-      const teamId = teams[i]?.id
+    for (let i = 0; i < unmatchedRosters.length; i++) {
+      const rosterId = unmatchedRosters[i]?.id
+      const teamId = unmatchedTeams[i]?.id
       if (rosterId && teamId) {
         rosterIdToTeamId.set(rosterId, teamId)
         teamIdToRosterId.set(teamId, rosterId)

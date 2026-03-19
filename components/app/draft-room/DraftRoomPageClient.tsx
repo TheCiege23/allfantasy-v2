@@ -40,6 +40,7 @@ import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/t
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
 import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
 
 export type DraftRoomPageClientProps = {
   leagueId: string
@@ -201,6 +202,8 @@ export function DraftRoomPageClient({
   }, [leagueId, sport])
 
   const [idpRosterSummary, setIdpRosterSummary] = useState<{ starterSlots: Record<string, number>; benchSlots: number } | null>(null)
+  const [idpScoringPreset, setIdpScoringPreset] = useState<string>('balanced')
+  const [idpPositionMode, setIdpPositionMode] = useState<string>('standard')
   const effectiveRosterSlots = useMemo(() => {
     if (formatType === 'IDP' && idpRosterSummary) {
       const slots: string[] = []
@@ -959,6 +962,13 @@ export function DraftRoomPageClient({
   const rosterPanel = (
     <div className="space-y-2 p-2">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">My roster</h3>
+      {formatType === 'IDP' && (
+        <IdpDraftExplainerCard
+          scoringPreset={idpScoringPreset}
+          positionMode={idpPositionMode}
+          className="mb-2"
+        />
+      )}
       {formatType === 'IDP' && idpNeeds && (
         <div className="rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-2 py-1.5 text-xs text-cyan-200">
           <div className="font-medium text-cyan-100 mb-1">Starters remaining</div>
@@ -1053,6 +1063,12 @@ export function DraftRoomPageClient({
           activeRosterId={currentPick?.rosterId ?? null}
           tradedPickColorMode={tradedPickColorMode}
           showNewOwnerInRed={showNewOwnerInRed}
+          orderSourceLabel={
+            (session as { draftOrderMode?: string; lotteryLastRunAt?: string } | null)?.draftOrderMode === 'weighted_lottery' &&
+            (session as { lotteryLastRunAt?: string } | null)?.lotteryLastRunAt
+              ? 'Weighted Lottery Order'
+              : undefined
+          }
         />
       }
       draftBoard={

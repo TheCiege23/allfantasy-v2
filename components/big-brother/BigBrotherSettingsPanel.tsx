@@ -59,6 +59,9 @@ const DAYS = [
   { value: 7, label: 'Sun' },
 ]
 
+const NON_NFL_SCORING_DISCLAIMER =
+  'For non-NFL sports, some games may not count toward the weekly total depending on the scoring-period cutoff and schedule alignment. Align weekly deadlines to your league\'s scoring week.'
+
 export function BigBrotherSettingsPanel({ leagueId, isCommissioner, onSaved }: Props) {
   const [config, setConfig] = useState<BigBrotherConfig | null>(null)
   const [loading, setLoading] = useState(true)
@@ -123,11 +126,23 @@ export function BigBrotherSettingsPanel({ leagueId, isCommissioner, onSaved }: P
   const inputCls = 'mt-1 w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white disabled:opacity-50'
   const labelCls = 'text-xs text-white/60'
 
+  const isNfl = (config.sport ?? 'NFL').toUpperCase() === 'NFL'
+
   return (
     <div className="space-y-6">
       <h3 className="text-base font-semibold text-white">Big Brother settings</h3>
       {!isCommissioner && (
         <p className="text-xs text-white/50">Only the commissioner can edit these.</p>
+      )}
+
+      <p className="text-xs text-white/55">
+        Weekly deadlines (HOH, nominations, veto, voting) should align to your league&apos;s <strong>scoring week</strong> so fantasy points and evictions stay in sync.
+      </p>
+      {!isNfl && (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 p-3 text-xs text-amber-200/90">
+          <p className="font-medium text-amber-200">Non-NFL league</p>
+          <p className="mt-1 text-amber-200/80">{NON_NFL_SCORING_DISCLAIMER}</p>
+        </div>
       )}
 
       {/* Schedule: HOH challenge */}

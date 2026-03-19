@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Users, Scale, Calendar } from 'lucide-react'
 import type { SurvivorSummary } from './types'
 
@@ -7,14 +8,58 @@ export interface SurvivorMergeJuryViewProps {
   leagueId: string
   summary: SurvivorSummary
   names: Record<string, string>
+  onRefresh?: () => Promise<void> | void
 }
 
 /**
  * Merge / Jury View: merged tribe identity, jury members, finalist path, finale timeline.
  */
-export function SurvivorMergeJuryView({ summary, names }: SurvivorMergeJuryViewProps) {
-  const { merged, jury, config, votedOutHistory } = summary
+export function SurvivorMergeJuryView({ leagueId, summary, names, onRefresh }: SurvivorMergeJuryViewProps) {
+  const { merged, jury, config, finale } = summary
   const mergeWeek = config.mergeWeek ?? 0
+  const [selectedFinalistId, setSelectedFinalistId] = useState<string>(finale?.myJuryVote?.finalistRosterId ?? finale?.finalists[0]?.rosterId ?? '')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const myRosterId = summary.myRosterId ?? null
+  const isJuror = Boolean(myRosterId && jury.some((member) => member.rosterId === myRosterId))
+  const isFinalist = Boolean(myRosterId && finale?.finalists.some((finalist) => finalist.rosterId === myRosterId))
+
+  useEffect(() => {
+    setSelectedFinalistId(finale?.myJuryVote?.finalistRosterId ?? finale?.finalists[0]?.rosterId ?? '')
+  }, [finale?.myJuryVote?.finalistRosterId, finale?.finalists])
+
+  async function handleSubmitJuryVote() {
+    if (!finale?.open || !selectedFinalistId) return
+    setSubmitting(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/survivor/finale/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          finalistRosterId: selectedFinalistId,
+          week: summary.currentWeek,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error ?? `Error ${res.status}`)
+        return
+      }
+      setMessage(
+        data.winnerRosterId
+          ? `Vote recorded. ${names[data.winnerRosterId] ?? data.winnerRosterId} has been crowned the Survivor winner.`
+          : `Vote recorded for ${names[selectedFinalistId] ?? selectedFinalistId}.`
+      )
+      await onRefresh?.()
+    } catch {
+      setError('Failed to submit jury vote')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -65,7 +110,81 @@ export function SurvivorMergeJuryView({ summary, names }: SurvivorMergeJuryViewP
           <Calendar className="h-5 w-5 text-white/60" />
           Finale timeline
         </h2>
-        <p className="text-sm text-white/50">Final tribal council and winner are determined by league settings. Check League or Commissioner tab for dates.</p>
+        {!finale ? (
+          <p className="text-sm text-white/50">The finale opens once the merged tribe is down to the last finalists and the jury is set.</p>
+        ) : finale.closed ? (
+          <div className="space-y-3">
+            <p className="text-sm text-emerald-200">
+              Winner crowned: <strong className="text-white">{finale.winnerRosterId ? (names[finale.winnerRosterId] ?? finale.winnerRosterId) : 'TBD'}</strong>
+            </p>
+            {finale.voteCount && (
+              <ul className="space-y-2">
+                {Object.entries(finale.voteCount).map(([rosterId, votes]) => (
+                  <li key={rosterId} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2 text-sm">
+                    <span className="text-white/80">{names[rosterId] ?? rosterId}</span>
+                    <span className="text-white/50">{votes} vote(s)</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-white/70">
+              Finalists: <strong className="text-white">{finale.finalists.map((finalist) => names[finalist.rosterId] ?? finalist.rosterId).join(', ') || 'TBD'}</strong>
+            </p>
+            <p className="text-sm text-white/60">
+              Jury votes submitted: <strong className="text-white">{finale.juryVotesSubmitted}</strong> / {finale.juryVotesRequired}
+            </p>
+            {finale.myJuryVote ? (
+              <p className="text-sm text-amber-200">
+                Your jury vote is in for <strong className="text-white">{names[finale.myJuryVote.finalistRosterId] ?? finale.myJuryVote.finalistRosterId}</strong>.
+              </p>
+            ) : (
+              <p className="text-sm text-white/50">Use <code className="text-cyan-300">@Chimmy jury vote [finalist]</code> in chat or submit your vote below once the finale opens.</p>
+            )}
+            {isJuror && !isFinalist ? (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-4">
+                <p className="mb-3 text-sm text-white/70">
+                  Cast your jury vote here. If you vote again, the latest vote replaces the old one.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {finale.finalists.map((finalist) => {
+                    const selected = selectedFinalistId === finalist.rosterId
+                    return (
+                      <button
+                        key={finalist.rosterId}
+                        type="button"
+                        onClick={() => setSelectedFinalistId(finalist.rosterId)}
+                        className={`rounded-lg px-3 py-2 text-sm ${
+                          selected ? 'bg-amber-500/20 text-amber-200' : 'bg-white/5 text-white/80 hover:bg-white/10'
+                        }`}
+                      >
+                        {names[finalist.rosterId] ?? finalist.rosterId}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSubmitJuryVote}
+                    disabled={submitting || !selectedFinalistId}
+                    className="rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
+                  >
+                    {submitting ? 'Submitting...' : 'Submit jury vote'}
+                  </button>
+                  {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+                  {message ? <p className="text-sm text-emerald-300">{message}</p> : null}
+                </div>
+              </div>
+            ) : finale.open ? (
+              <p className="text-sm text-white/50">
+                {isFinalist ? 'Finalists cannot cast jury votes.' : 'Jury voting is reserved for current jury members.'}
+              </p>
+            ) : null}
+          </div>
+        )}
       </section>
     </div>
   )

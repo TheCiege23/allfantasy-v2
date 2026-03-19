@@ -168,10 +168,13 @@ export function optimizeNflBestBallLineup(
     if ((idp.dt ?? 0) > 0) take('DT', idp.dt!)
     if (idp.lb > 0) take('LB', idp.lb)
     if ((idp.cb ?? 0) > 0) take('CB', idp.cb!)
-    if ((idp.s ?? 0) > 0) take('S', idp.s)
-    if ((idp.dl ?? 0) > 0) takeIdp((pos) => DL_ELIGIBLE.has(pos), idp.dl!)
-    if ((idp.db ?? 0) > 0) takeIdp((pos) => DB_ELIGIBLE.has(pos), idp.db!)
-    if ((idp.idpFlex ?? 0) > 0) takeIdp((pos) => IDP_FLEX_ELIGIBLE.has(pos), idp.idpFlex!)
+    if ((idp.s ?? 0) > 0) take('S', idp.s ?? 0)
+    const dlN: number = idp.dl !== undefined && idp.dl !== null ? idp.dl : 0
+    const dbN: number = idp.db !== undefined && idp.db !== null ? idp.db : 0
+    const flexN: number = idp.idpFlex !== undefined && idp.idpFlex !== null ? idp.idpFlex : 0
+    if (dlN > 0) takeIdp((pos) => DL_ELIGIBLE.has(pos), dlN)
+    if (dbN > 0) takeIdp((pos) => DB_ELIGIBLE.has(pos), dbN)
+    if (flexN > 0) takeIdp((pos) => IDP_FLEX_ELIGIBLE.has(pos), flexN)
   }
 
   const totalPoints = starters.reduce((s, p) => s + p.points, 0)

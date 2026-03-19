@@ -1,6 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { toast } from "sonner"
 import {
   Hash,
   User2,
@@ -56,6 +58,7 @@ export default function LeagueChatPanel({
   onClose,
   className = "",
 }: Props) {
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<ChatTabId>("league")
   const [threads, setThreads] = useState<PlatformChatThread[]>([])
   const [leagueThreadId, setLeagueThreadId] = useState<string | null>(null)
@@ -75,6 +78,11 @@ export default function LeagueChatPanel({
   const aiChat = useAIChat({ leagueId })
   const mediaUpload = useMediaUpload(leagueThreadId ?? undefined)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatSource = useMemo(() => {
+    const value = searchParams?.get("source")?.trim()
+    return value || null
+  }, [searchParams])
+  const isTribeChat = chatSource?.startsWith("tribe_") ?? false
 
   const resolvedLeagueThreadId = useMemo(() => {
     if (leagueThreadId) return leagueThreadId
@@ -113,9 +121,11 @@ export default function LeagueChatPanel({
   const loadMessages = useCallback(async (threadId: string) => {
     setLoadingMessages(true)
     try {
+      const messageParams = new URLSearchParams({ limit: "80" })
+      if (chatSource) messageParams.set("source", chatSource)
       const [msgRes, pinRes] = await Promise.all([
         fetch(
-          `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages?limit=80`,
+          `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages?${messageParams.toString()}`,
           { cache: "no-store" }
         ),
         fetch(
@@ -135,7 +145,7 @@ export default function LeagueChatPanel({
     } finally {
       setLoadingMessages(false)
     }
-  }, [])
+  }, [chatSource])
 
   useEffect(() => {
     if (activeTab !== "league" || !resolvedLeagueThreadId) return
@@ -150,6 +160,9 @@ export default function LeagueChatPanel({
     setInput("")
     try {
       const payload = getLeagueChatSendPayload(text)
+      if (chatSource) {
+        ;(payload as Record<string, unknown>).source = chatSource
+      }
       const res = await fetch(
         `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages`,
         {
@@ -159,6 +172,12 @@ export default function LeagueChatPanel({
         }
       )
       const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const errorMessage = typeof json?.error === "string" ? json.error : "Unable to send message."
+        setInput(text)
+        toast.error(errorMessage)
+        return
+      }
       const created: PlatformChatMessage | null = json?.message ?? null
       if (created) {
         setMessages((prev) => [...prev, created])
@@ -171,12 +190,16 @@ export default function LeagueChatPanel({
           }).catch(() => {})
         }
       }
+      if (json?.commandResult?.ok && typeof json.commandResult.message === "string") {
+        toast.success(json.commandResult.message)
+      }
     } catch {
       setInput(text)
+      toast.error("Unable to send message.")
     } finally {
       setSending(false)
     }
-  }, [input, sending, resolvedLeagueThreadId])
+  }, [chatSource, input, sending, resolvedLeagueThreadId])
 
   const handlePin = useCallback(
     async (messageId: string) => {
@@ -312,13 +335,15 @@ export default function LeagueChatPanel({
       {activeTab === "league" && (
         <>
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-3 py-2">
-            <PinnedSection pinned={pinned} className="mb-2" />
+            {!isTribeChat && <PinnedSection pinned={pinned} className="mb-2" />}
 
-            <div className="mb-2">
-              <ChatStatsBotMessage update={statsBotPlaceholder} compact />
-            </div>
+            {!isTribeChat && (
+              <div className="mb-2">
+                <ChatStatsBotMessage update={statsBotPlaceholder} compact />
+              </div>
+            )}
 
-            {isCommissioner && resolvedLeagueThreadId && (
+            {isCommissioner && resolvedLeagueThreadId && !isTribeChat && (
               <div className="mb-2">
                 <CommissionerBroadcastForm
                   threadId={resolvedLeagueThreadId}
@@ -361,7 +386,7 @@ export default function LeagueChatPanel({
                     ))}
                     {messages.length === 0 && !loadingMessages && (
                       <li className="py-4 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-                        No messages yet. Say something or @mention a manager.
+                        {isTribeChat ? "No messages in this tribe chat yet." : "No messages yet. Say something or @mention a manager."}
                       </li>
                     )}
                   </ul>

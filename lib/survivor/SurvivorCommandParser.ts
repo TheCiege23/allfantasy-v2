@@ -11,10 +11,15 @@ const VOTE_PATTERNS = [
   /vote\s+(.+)/i,
   /cast\s+vote\s+for\s+(.+)/i,
 ]
+const JURY_VOTE_PATTERNS = [
+  /jury\s+vote\s+for\s+(.+)/i,
+  /jury\s+vote\s+(.+)/i,
+  /final(?:e)?\s+vote\s+for\s+(.+)/i,
+  /final(?:e)?\s+vote\s+(.+)/i,
+]
 const PLAY_IDOL_PATTERNS = [
-  /play\s+idol/i,
-  /use\s+idol/i,
-  /idol\s+play/i,
+  /(?:play|use)\s+idol(?:\s+(\w+))?(.*)$/i,
+  /idol\s+play(?:\s+(\w+))?(.*)$/i,
 ]
 const CHALLENGE_PICK_PATTERNS = [
   /challenge\s+pick\s+(.+)/i,
@@ -35,6 +40,18 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
     ? trimmed.slice(CHIMMY_PREFIX.length).trim()
     : trimmed
 
+  for (const pattern of JURY_VOTE_PATTERNS) {
+    const m = withoutChimmy.match(pattern)
+    if (m) {
+      const target = m[1].trim()
+      return {
+        intent: 'jury_vote',
+        targetDisplayName: target,
+        raw,
+      }
+    }
+  }
+
   for (const pattern of VOTE_PATTERNS) {
     const m = withoutChimmy.match(pattern)
     if (m) {
@@ -48,11 +65,42 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
   }
 
   for (const pattern of PLAY_IDOL_PATTERNS) {
-    if (pattern.test(withoutChimmy)) {
-      const idolMatch = withoutChimmy.match(/idol\s+(\w+)/i)
+    const m = withoutChimmy.match(pattern)
+    if (m) {
+      const remainder = m[2]?.trim() ?? ''
+      const swapMatch = remainder.match(/(?:\s*(?:for|on)\s+(.+?))?\s+swap\s+(.+?)\s+for\s+(.+)\s*$/i)
+      if (swapMatch) {
+        return {
+          intent: 'play_idol',
+          idolId: m[1]?.trim(),
+          targetDisplayName: swapMatch[1]?.trim(),
+          playerDisplayName: swapMatch[2]?.trim(),
+          secondaryPlayerDisplayName: swapMatch[3]?.trim(),
+          payload: {
+            swapBenchPlayer: swapMatch[2]?.trim(),
+            swapStarterPlayer: swapMatch[3]?.trim(),
+          },
+          raw,
+        }
+      }
+
+      const pickMatch = remainder.match(/(?:\s*(?:for|on)\s+(.+?))?\s+pick\s+(.+)\s*$/i)
+      if (pickMatch) {
+        return {
+          intent: 'play_idol',
+          idolId: m[1]?.trim(),
+          targetDisplayName: pickMatch[1]?.trim(),
+          playerDisplayName: pickMatch[2]?.trim(),
+          payload: { pick: pickMatch[2]?.trim() },
+          raw,
+        }
+      }
+
+      const targetMatch = remainder.match(/\s*(?:for|on)\s+(.+)\s*$/i)
       return {
         intent: 'play_idol',
-        idolId: idolMatch?.[1],
+        idolId: m[1]?.trim(),
+        targetDisplayName: targetMatch?.[1]?.trim(),
         raw,
       }
     }
@@ -80,8 +128,15 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
     }
   }
 
-  if (/confirm\s+minigame|minigame\s+confirm/i.test(withoutChimmy)) {
-    return { intent: 'confirm_minigame', raw }
+  const confirmMinigameMatch = withoutChimmy.match(
+    /(?:confirm\s+(?:tribe\s+decision|minigame)|minigame\s+confirm)(?:\s+(.+))?/i
+  )
+  if (confirmMinigameMatch) {
+    return {
+      intent: 'confirm_minigame',
+      payload: confirmMinigameMatch[1]?.trim() ? { choice: confirmMinigameMatch[1].trim() } : undefined,
+      raw,
+    }
   }
 
   return { intent: 'unknown', raw }
@@ -93,6 +148,6 @@ export function parseSurvivorCommand(raw: string): SurvivorParsedCommand {
 export function looksLikeOfficialCommand(raw: string): boolean {
   const trimmed = raw.trim().toLowerCase()
   if (trimmed.startsWith(CHIMMY_PREFIX)) return true
-  const verbs = ['vote', 'play idol', 'use idol', 'challenge pick', 'immunity', 'confirm minigame']
+  const verbs = ['vote', 'jury vote', 'final vote', 'play idol', 'use idol', 'challenge pick', 'submit challenge', 'immunity', 'confirm minigame', 'confirm tribe decision']
   return verbs.some((v) => trimmed.startsWith(v))
 }

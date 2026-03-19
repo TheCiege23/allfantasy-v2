@@ -3,6 +3,7 @@
  * Use so frontend "settings preview" matches what is actually saved.
  */
 import type { LeagueSport } from '@prisma/client'
+import { getSportConfig } from '@/lib/multi-sport/SportRegistry'
 import { buildInitialLeagueSettings } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
 import { resolveSportVariantContext } from './SportVariantContextResolver'
 
@@ -26,8 +27,21 @@ export function buildSettingsPreview(
   const base = buildInitialLeagueSettings(context.sport, context.variant ?? undefined) as Record<string, unknown>
 
   const merged = { ...base }
+  // Standard defaults: resolve default scoring/roster format so created league uses correct templates
+  const defaultFormat =
+    context.isNflIdp ? 'IDP' : getSportConfig(context.sport as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER').defaultFormat
+  if (merged.roster_format_type == null) merged.roster_format_type = defaultFormat
+  if (merged.scoring_format_type == null) merged.scoring_format_type = defaultFormat
+
   if (overrides?.superflex) merged.superflex = true
   if (overrides?.roster_mode) merged.roster_mode = overrides.roster_mode
+  // Dynasty default: recommended roster and scoring format types (shared base for standard Dynasty, Devy, C2C)
+  if (overrides?.roster_mode === 'dynasty') {
+    merged.roster_format_type = merged.roster_format_type ?? 'dynasty_superflex'
+    merged.scoring_format_type = merged.scoring_format_type ?? 'PPR'
+    merged.regular_season_weeks = merged.regular_season_weeks ?? 14
+    merged.playoff_team_count = merged.playoff_team_count ?? 6
+  }
   if (overrides?.extra && typeof overrides.extra === 'object') {
     Object.assign(merged, overrides.extra)
   }

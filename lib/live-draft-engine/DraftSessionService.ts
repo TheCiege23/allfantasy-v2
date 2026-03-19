@@ -387,6 +387,8 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
     where: { id: session.id },
     data: { status: 'completed', timerEndAt: null, pausedRemainingSeconds: null, version: { increment: 1 } },
   })
+  import('@/lib/live-draft-engine/RosterAssignmentService').then((m) => m.finalizeRosterAssignments(leagueId)).catch(() => {})
+  import('@/lib/survivor/SurvivorDraftBootstrapService').then((m) => m.runSurvivorPostDraftBootstrap(leagueId)).catch(() => {})
   // Post-draft manager rankings (PROMPT 231): compute in background so /draft-results loads fast
   import('@/lib/post-draft-manager-ranking').then((m) => m.computeAndPersistDraftRankings(leagueId)).catch(() => {})
   // PROMPT 307 — Award draft_completed achievement (progression only, no money)

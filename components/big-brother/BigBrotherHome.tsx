@@ -100,6 +100,13 @@ export function BigBrotherHome({ leagueId, isCommissioner }: BigBrotherHomeProps
         )}
       </header>
 
+      {summary?.sportCalendar?.scoringWindowDisclaimer ? (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-3 text-sm text-amber-200/90">
+          <p className="font-medium text-amber-200/95">Scoring window note</p>
+          <p className="mt-1 text-amber-200/80">{summary.sportCalendar.scoringWindowDisclaimer}</p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <Link
           href={`/app/league/${leagueId}?tab=Chat`}

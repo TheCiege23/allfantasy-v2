@@ -36,7 +36,8 @@ export const NFL_C2C_COLLEGE_LINEUP_DEFAULT: C2CLineupSlots = {
 /** NFL C2C default pro bench, IR, taxi, college roster size. */
 export const NFL_C2C_PRO_BENCH = 12
 export const NFL_C2C_PRO_IR = 3
-export const NFL_C2C_TAXI = 6
+/** PROMPT 3: 4 pro taxi default for C2C (separate college roster). */
+export const NFL_C2C_TAXI = 4
 export const NFL_C2C_COLLEGE_ROSTER_SIZE = 20
 export const NFL_C2C_ROOKIE_DRAFT_ROUNDS = 4
 export const NFL_C2C_COLLEGE_DRAFT_ROUNDS = 6

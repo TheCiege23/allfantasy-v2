@@ -1,6 +1,7 @@
 'use client'
 
 import { useSportRules } from '@/hooks/useSportRules'
+import { useSportPreset } from '@/hooks/useSportPreset'
 import { LEAGUE_TYPE_LABELS, DRAFT_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
 import type { LeagueCreationWizardState } from '@/lib/league-creation-wizard/types'
 
@@ -32,6 +33,7 @@ function SummarySection({ title, children }: { title: string; children: React.Re
  */
 export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const { rules } = useSportRules(state.sport, state.leagueVariant ?? undefined)
+  const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
   const rosterSlotsLabel = rules
     ? rules.roster.slots
         .filter((s) => s.starterCount > 0 || s.slotName === 'BENCH' || s.slotName === 'IR')
@@ -39,6 +41,15 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         .join(', ')
     : null
   const scoringLabel = state.leagueVariant ?? state.scoringPreset ?? 'Default'
+  const scheduleLabel = creationPreset?.scheduleTemplate
+    ? creationPreset.scheduleTemplate.playoffWeeks > 0
+      ? `${creationPreset.scheduleTemplate.regularSeasonWeeks} wk regular, ${creationPreset.scheduleTemplate.playoffWeeks} wk playoffs · ${creationPreset.scheduleTemplate.matchupType.replace(/_/g, ' ')}`
+      : `${creationPreset.scheduleTemplate.regularSeasonWeeks} wk regular · ${creationPreset.scheduleTemplate.matchupType.replace(/_/g, ' ')}`
+    : null
+  const calendarLabel =
+    (creationPreset?.seasonCalendar?.regularSeasonPeriod && 'label' in creationPreset.seasonCalendar.regularSeasonPeriod
+      ? (creationPreset.seasonCalendar.regularSeasonPeriod as { label?: string }).label
+      : null) ?? null
 
   return (
     <div className="space-y-6">
@@ -62,6 +73,13 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
       <SummarySection title="Scoring rules">
         <SummaryRow label="Scoring" value={scoringLabel} />
       </SummarySection>
+
+      {(scheduleLabel != null || calendarLabel != null) && (
+        <SummarySection title="Schedule & calendar">
+          {scheduleLabel != null && <SummaryRow label="Fantasy schedule" value={scheduleLabel} />}
+          {calendarLabel != null && <SummaryRow label="Season calendar" value={calendarLabel} />}
+        </SummarySection>
+      )}
 
       <SummarySection title="Draft details">
         <SummaryRow label="Rounds" value={state.draftSettings.rounds} />

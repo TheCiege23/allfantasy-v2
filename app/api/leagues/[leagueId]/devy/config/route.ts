@@ -67,6 +67,7 @@ export async function GET(
       promotionTiming: config.promotionTiming,
       supplementalDevyFAEnabled: config.supplementalDevyFAEnabled,
       rightsExpirationEnabled: config.rightsExpirationEnabled,
+      returnToSchoolHandling: config.returnToSchoolHandling,
       taxiProRookiesScoreInBestBall: config.taxiProRookiesScoreInBestBall,
       bestBallSuperflex: config.bestBallSuperflex,
     },
@@ -111,6 +112,7 @@ export async function PUT(
     ...(body.promotionTiming != null && { promotionTiming: String(body.promotionTiming) }),
     ...(body.supplementalDevyFAEnabled != null && { supplementalDevyFAEnabled: Boolean(body.supplementalDevyFAEnabled) }),
     ...(body.rightsExpirationEnabled != null && { rightsExpirationEnabled: Boolean(body.rightsExpirationEnabled) }),
+    ...(body.returnToSchoolHandling != null && { returnToSchoolHandling: String(body.returnToSchoolHandling) }),
     ...(body.taxiProRookiesScoreInBestBall != null && { taxiProRookiesScoreInBestBall: Boolean(body.taxiProRookiesScoreInBestBall) }),
     ...(body.bestBallSuperflex != null && { bestBallSuperflex: Boolean(body.bestBallSuperflex) }),
   })

@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import type { WaiverClaimInput } from "./types"
 import { isRosterChopped } from "@/lib/guillotine/guillotineGuard"
+import { isRosterCurrentlyEliminated } from "@/lib/survivor/SurvivorRosterState"
 import { validateDevyWaiverClaim } from "@/lib/devy/waiver/DevyWaiverRules"
+import { isWaiverFrozenForRoster } from "@/lib/survivor/SurvivorEffectEngine"
 
 /**
  * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
@@ -24,6 +26,16 @@ export async function createClaim(
   const chopped = await isRosterChopped(leagueId, rosterId)
   if (chopped) {
     throw new Error("This team has been eliminated and cannot submit waiver claims")
+  }
+
+  const survivorEliminated = await isRosterCurrentlyEliminated(leagueId, rosterId).catch(() => false)
+  if (survivorEliminated) {
+    throw new Error("This Survivor manager has been eliminated and cannot submit waiver claims")
+  }
+
+  const waiversFrozen = await isWaiverFrozenForRoster(leagueId, rosterId).catch(() => false)
+  if (waiversFrozen) {
+    throw new Error("This roster's waiver moves are frozen by an active Survivor idol effect")
   }
 
   const devyCheck = await validateDevyWaiverClaim({ leagueId, addPlayerId: input.addPlayerId })
@@ -78,6 +90,14 @@ export async function updateClaim(
     where: { id: claimId, leagueId, rosterId, status: "pending" },
   })
   if (!existing) return null
+  const survivorEliminated = await isRosterCurrentlyEliminated(leagueId, rosterId).catch(() => false)
+  if (survivorEliminated) {
+    throw new Error("This Survivor manager has been eliminated and cannot edit waiver claims")
+  }
+  const waiversFrozen = await isWaiverFrozenForRoster(leagueId, rosterId).catch(() => false)
+  if (waiversFrozen) {
+    throw new Error("This roster's waiver moves are frozen by an active Survivor idol effect")
+  }
   const updated = await (prisma as any).waiverClaim.update({
     where: { id: claimId },
     data: {

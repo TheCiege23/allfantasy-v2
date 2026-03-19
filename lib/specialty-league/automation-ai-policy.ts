@@ -231,3 +231,39 @@ export function isZombieDeterministicFeature(featureId: string): boolean {
 export function isZombieAIOptionalFeature(featureId: string): boolean {
   return (ZOMBIE_AI_OPTIONAL_FEATURES as readonly string[]).includes(featureId)
 }
+
+// --- IDP League (PROMPT 4/6) ---
+// AI never decides outcomes that can be calculated. Scoring, lineup legality, draft eligibility,
+// waiver processing, trade legality, best ball optimization = deterministic.
+
+/** IDP league: features that must be 100% deterministic (no AI in path). */
+export const IDP_DETERMINISTIC_FEATURES = [
+  'idp_player_eligibility',
+  'lineup_slot_enforcement',
+  'grouped_vs_split_position_enforcement',
+  'scoring_calculations',
+  'weekly_point_totals',
+  'waiver_claim_processing',
+  'trade_legality_checks',
+  'best_ball_lineup_optimization',
+  'draft_room_eligibility_and_queue_enforcement',
+  'roster_requirement_validation',
+] as const
+
+/** IDP league: AI-optional features (explanation, recommendation, narrative only). */
+export const IDP_AI_OPTIONAL_FEATURES = [
+  'idp_draft_assistant',
+  'idp_waiver_assistant',
+  'idp_trade_analyzer',
+  'idp_start_sit_assistant',
+  'idp_league_educator',
+  'chimmy_idp_mode',
+] as const
+
+export function isIdpDeterministicFeature(featureId: string): boolean {
+  return (IDP_DETERMINISTIC_FEATURES as readonly string[]).includes(featureId)
+}
+
+export function isIdpAIOptionalFeature(featureId: string): boolean {
+  return (IDP_AI_OPTIONAL_FEATURES as readonly string[]).includes(featureId)
+}

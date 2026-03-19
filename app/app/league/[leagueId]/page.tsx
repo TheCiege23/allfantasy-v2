@@ -57,6 +57,9 @@ export default function AppLeaguePage() {
   const [isSalaryCap, setIsSalaryCap] = useState<boolean>(false)
   const [isSurvivor, setIsSurvivor] = useState<boolean>(false)
   const [isZombie, setIsZombie] = useState<boolean>(false)
+  const [isDynasty, setIsDynasty] = useState<boolean>(false)
+  const [isKeeper, setIsKeeper] = useState<boolean>(false)
+  const [isBestBall, setIsBestBall] = useState<boolean>(false)
   const [isDevyDynasty, setIsDevyDynasty] = useState<boolean>(false)
   const [isMergedDevyC2C, setIsMergedDevyC2C] = useState<boolean>(false)
   const [isBigBrother, setIsBigBrother] = useState<boolean>(false)
@@ -74,10 +77,14 @@ export default function AppLeaguePage() {
         // Always fetch app league detail for name and leagueVariant (guillotine)
         const leagueRes = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
         if (active && leagueRes.ok) {
-          const leagueData = await leagueRes.json().catch(() => ({})) as { name?: string; leagueVariant?: string }
+          const leagueData = await leagueRes.json().catch(() => ({})) as { name?: string; leagueVariant?: string; isDynasty?: boolean; leagueType?: string | null }
           if (leagueData?.name) setLeagueName(leagueData.name)
+          setIsDynasty(!!leagueData?.isDynasty)
+          setIsKeeper(String(leagueData?.leagueType ?? '').toLowerCase() === 'keeper')
+          setIsBestBall(String(leagueData?.leagueType ?? '').toLowerCase() === 'best_ball')
           const variant = String(leagueData?.leagueVariant ?? '').toLowerCase()
           setIsGuillotine(variant === 'guillotine')
+          setIsSalaryCap(variant === 'salary_cap')
           setShowFirstEntryModal(variant === 'guillotine')
           setIsSurvivor(variant === 'survivor')
           setIsZombie(variant === 'zombie')
@@ -152,11 +159,11 @@ export default function AppLeaguePage() {
       if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />
-      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isBigBrother={isBigBrother} isIdp={isIdp} isCommissioner={isCommissioner} />
+      if (tab === 'Settings') return <LeagueSettingsTab leagueId={leagueId} isDynasty={isDynasty} isDevyDynasty={isDevyDynasty} isMergedDevyC2C={isMergedDevyC2C} isBigBrother={isBigBrother} isIdp={isIdp} isCommissioner={isCommissioner} />
       if (tab === 'Commissioner') return <CommissionerTab leagueId={leagueId} />
       return <PreviousLeaguesTab leagueId={leagueId} />
     }
-  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isBigBrother, isIdp, isCommissioner])
+  }, [leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDynasty, isDevyDynasty, isMergedDevyC2C, isBigBrother, isIdp, isCommissioner])
 
   return (
     <div className="space-y-3">
@@ -174,7 +181,31 @@ export default function AppLeaguePage() {
       <div className="px-4 pt-3 sm:px-0">
         <LiveScoringWidget leagueId={leagueId} />
       </div>
-      <LeagueShell leagueName={leagueName} initialTab={initialTab} renderTab={renderTab} tabs={tabs} />
+      <LeagueShell
+        leagueName={leagueName}
+        initialTab={initialTab}
+        renderTab={renderTab}
+        tabs={tabs}
+        leagueModeLabel={
+          isIdp
+            ? 'IDP'
+            : isSalaryCap
+              ? 'Salary Cap'
+              : isBestBall
+                ? 'Best Ball'
+                : isKeeper
+                  ? 'Keeper'
+                  : isDevyDynasty
+                    ? 'Devy'
+                    : isMergedDevyC2C
+                      ? 'C2C'
+                      : !isDynasty && !isGuillotine && !isSurvivor && !isZombie && !isBigBrother
+                        ? 'Redraft'
+                        : isDynasty
+                          ? 'Dynasty'
+                          : undefined
+        }
+      />
     </div>
   )
 }

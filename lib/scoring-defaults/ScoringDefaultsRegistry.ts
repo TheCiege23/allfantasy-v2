@@ -60,6 +60,16 @@ const NFL_STANDARD: ScoringRuleDefinition[] = NFL_PPR.map((r) =>
   r.statKey === 'receptions' ? { ...r, pointsValue: 0, enabled: true } : r
 )
 
+/** NFL TE Premium: 1.5 PPR (often used as proxy for TE-only premium when engine has single receptions stat). */
+const NFL_TE_PREMIUM: ScoringRuleDefinition[] = NFL_PPR.map((r) =>
+  r.statKey === 'receptions' ? { ...r, pointsValue: 1.5 } : r
+)
+
+/** Dynasty 6pt pass TD variant (Full PPR, 6pt passing TD). */
+const NFL_6PT_PASS_TD: ScoringRuleDefinition[] = NFL_PPR.map((r) =>
+  r.statKey === 'passing_td' ? { ...r, pointsValue: 6 } : r
+)
+
 /** NBA: points scoring. */
 const NBA_POINTS: ScoringRuleDefinition[] = [
   rule('points', 1),
@@ -256,6 +266,8 @@ const REGISTRY: Record<
   'NFL-IDP-tackle_heavy': { name: 'NFL IDP Tackle-Heavy', rules: NFL_IDP_TACKLE_HEAVY },
   'NFL-IDP-big_play_heavy': { name: 'NFL IDP Big-Play-Heavy', rules: NFL_IDP_BIG_PLAY },
   'NFL-ppr': { name: 'Default NFL PPR', rules: NFL_PPR },
+  'NFL-TE_PREMIUM': { name: 'NFL TE Premium', rules: NFL_TE_PREMIUM },
+  'NFL-dynasty_6pt_pass_td': { name: 'Dynasty 6pt Pass TD', rules: NFL_6PT_PASS_TD },
 }
 
 function toSportType(s: string): SportType {
@@ -279,6 +291,11 @@ function normalizeFormatForLookup(sport: SportType, format: string): string {
     if (lower === 'ppr') return 'PPR'
     if (lower === 'half_ppr' || lower === 'half ppr') return 'half_ppr'
     if (lower === 'standard') return 'standard'
+    if (lower === 'dynasty_standard') return 'standard'
+    if (lower === 'dynasty_half_ppr') return 'half_ppr'
+    if (lower === 'dynasty_full_ppr' || lower === 'dynasty_superflex_default') return 'PPR'
+    if (lower === 'dynasty_full_ppr_tep') return 'TE_PREMIUM'
+    if (lower === 'dynasty_6pt_pass_td') return 'dynasty_6pt_pass_td'
   }
   if ((sport === 'NBA' || sport === 'NCAAB') && (lower === 'points' || lower === 'standard')) return 'points'
   if (sport === 'SOCCER' && lower === 'standard') return 'standard'

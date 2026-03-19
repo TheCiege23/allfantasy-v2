@@ -44,9 +44,16 @@ export async function GET(
       exileReturnEnabled: config.exileReturnEnabled,
       exileReturnTokens: config.exileReturnTokens,
       idolCount: config.idolCount,
+      idolPowerPool: config.idolPowerPool,
+      tribeShuffleEnabled: config.tribeShuffleEnabled,
+      tribeShuffleConsecutiveLosses: config.tribeShuffleConsecutiveLosses,
+      tribeShuffleImbalanceThreshold: config.tribeShuffleImbalanceThreshold,
       voteDeadlineDayOfWeek: config.voteDeadlineDayOfWeek,
       voteDeadlineTimeUtc: config.voteDeadlineTimeUtc,
       selfVoteDisallowed: config.selfVoteDisallowed,
+      tribalCouncilDayOfWeek: config.tribalCouncilDayOfWeek,
+      tribalCouncilTimeUtc: config.tribalCouncilTimeUtc,
+      minigameFrequency: config.minigameFrequency,
     },
   })
 }
@@ -81,9 +88,16 @@ export async function PUT(
     ...(body.exileReturnEnabled != null && { exileReturnEnabled: Boolean(body.exileReturnEnabled) }),
     ...(body.exileReturnTokens != null && { exileReturnTokens: Number(body.exileReturnTokens) }),
     ...(body.idolCount != null && { idolCount: Number(body.idolCount) }),
+    ...(body.idolPowerPool != null && { idolPowerPool: Array.isArray(body.idolPowerPool) ? body.idolPowerPool.map(String) : undefined }),
+    ...(body.tribeShuffleEnabled != null && { tribeShuffleEnabled: Boolean(body.tribeShuffleEnabled) }),
+    ...(body.tribeShuffleConsecutiveLosses != null && { tribeShuffleConsecutiveLosses: Number(body.tribeShuffleConsecutiveLosses) }),
+    ...(body.tribeShuffleImbalanceThreshold != null && { tribeShuffleImbalanceThreshold: Number(body.tribeShuffleImbalanceThreshold) }),
     ...(body.voteDeadlineDayOfWeek != null && { voteDeadlineDayOfWeek: Number(body.voteDeadlineDayOfWeek) }),
     ...(body.voteDeadlineTimeUtc != null && { voteDeadlineTimeUtc: String(body.voteDeadlineTimeUtc) }),
     ...(body.selfVoteDisallowed != null && { selfVoteDisallowed: Boolean(body.selfVoteDisallowed) }),
+    ...(body.tribalCouncilDayOfWeek != null && { tribalCouncilDayOfWeek: Number(body.tribalCouncilDayOfWeek) }),
+    ...(body.tribalCouncilTimeUtc != null && { tribalCouncilTimeUtc: String(body.tribalCouncilTimeUtc) }),
+    ...(body.minigameFrequency != null && { minigameFrequency: String(body.minigameFrequency) }),
   })
   if (!updated) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   return NextResponse.json({ ok: true, config: updated })

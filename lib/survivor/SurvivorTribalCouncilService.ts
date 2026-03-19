@@ -7,9 +7,11 @@ import { Prisma } from '@prisma/client'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { tallyVotes, getSeasonPointsFromRosterPerformance } from './SurvivorVoteEngine'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
-import { removeRosterFromTribeChat } from './SurvivorChatMembershipService'
+import { removeRosterFromTribeChat, clearTribeChatMembersAfterMerge } from './SurvivorChatMembershipService'
+import { executeQueuedShuffleForCouncil, getWeeklyEffectState } from './SurvivorEffectEngine'
 import { enrollInExile } from './SurvivorExileEngine'
 import { shouldJoinJury, enrollJuryMember } from './SurvivorJuryEngine'
+import { isMergeTriggered, recordMerge } from './SurvivorMergeEngine'
 import type { SurvivorCouncilResult } from './types'
 
 /**
@@ -29,6 +31,13 @@ export async function createCouncil(
     where: { configId_week: { configId: config.configId, week } },
   })
   if (existing) return { ok: false, error: 'Council already exists for this week' }
+
+  if (phase === 'pre_merge' && attendingTribeId) {
+    const weeklyEffects = await getWeeklyEffectState(leagueId, week)
+    if (weeklyEffects.immuneTribeIds.has(attendingTribeId)) {
+      return { ok: false, error: 'This tribe has challenge immunity and cannot attend Tribal Council this week' }
+    }
+  }
 
   const council = await prisma.survivorTribalCouncil.create({
     data: {
@@ -95,6 +104,9 @@ export async function closeCouncil(
   }
 
   await removeRosterFromTribeChat(council.leagueId, eliminatedRosterId)
+  await prisma.survivorTribeMember.deleteMany({
+    where: { rosterId: eliminatedRosterId },
+  })
 
   const eliminatedRoster = await prisma.roster.findUnique({
     where: { id: eliminatedRosterId, leagueId: council.leagueId },
@@ -110,6 +122,29 @@ export async function closeCouncil(
   if (joinJury) {
     await enrollJuryMember(council.leagueId, eliminatedRosterId, council.week).catch((err) => {
       console.warn('[Survivor] Jury enrollment non-fatal:', err)
+    })
+  }
+
+  const mergedNow = await isMergeTriggered(council.leagueId, council.week).catch(() => false)
+  if (mergedNow) {
+    const existingMergeAudit = await prisma.survivorAuditLog.findFirst({
+      where: {
+        leagueId: council.leagueId,
+        eventType: 'merge',
+      },
+      select: { id: true },
+    })
+    if (!existingMergeAudit) {
+      await recordMerge(council.leagueId, council.week).catch((err) => {
+        console.warn('[Survivor] Merge audit non-fatal:', err)
+      })
+      await clearTribeChatMembersAfterMerge(council.leagueId).catch((err) => {
+        console.warn('[Survivor] Tribe chat merge cleanup non-fatal:', err)
+      })
+    }
+  } else if (council.phase === 'pre_merge') {
+    await executeQueuedShuffleForCouncil(council.leagueId, council.id, council.week).catch((err) => {
+      console.warn('[Survivor] Forced tribe shuffle non-fatal:', err)
     })
   }
 

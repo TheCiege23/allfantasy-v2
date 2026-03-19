@@ -101,5 +101,8 @@ export async function getFinalNomineeRosterIds(cycleId: string): Promise<string[
   const replacement = cycle.replacementNomineeRosterId
   if (saved === n1 && replacement) return [n2, replacement]
   if (saved === n2 && replacement) return [n1, replacement]
+  // Veto used but replacement not yet set: only the non-saved nominee is on the block
+  if (saved === n1) return [n2]
+  if (saved === n2) return [n1]
   return [n1, n2]
 }

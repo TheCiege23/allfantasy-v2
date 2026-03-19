@@ -5,6 +5,7 @@
  */
 
 import type { LeagueSettingsValidationResult } from './types'
+import { DYNASTY_SUPPORTED_TEAM_SIZES } from '@/lib/dynasty-core/constants'
 
 /** Input may be League.settings (snake_case), wizard payload (camelCase), or partial. */
 export type LeagueSettingsInput = Record<string, unknown>
@@ -31,7 +32,7 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
   const warnings: string[] = []
 
   const draftType = (input.draft_type ?? input.draftType ?? '') as string
-  const leagueType = (input.league_type ?? input.leagueType ?? '') as string
+  const leagueType = String(input.league_type ?? input.leagueType ?? '').toLowerCase()
 
   // --- Auction: draft_type === 'auction' requires a positive budget ---
   const auctionBudget =
@@ -64,6 +65,10 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
     if (rounds.length === 0) {
       errors.push('Devy league requires at least one devy round (devyRounds / devy_rounds or devyConfig.devyRounds).')
     }
+    const rosterModeDevy = (input.roster_mode ?? input.rosterMode ?? '') as string
+    if (String(rosterModeDevy).toLowerCase() === 'redraft') {
+      errors.push('Devy and Merged Devy / C2C are dynasty-only; they cannot be created as redraft.')
+    }
   }
 
   // --- C2C: league_type === 'c2c' or c2cConfig.enabled requires non-empty college rounds/pool ---
@@ -83,6 +88,51 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
     const rounds = Array.isArray(collegeRounds) ? collegeRounds : []
     if (rounds.length === 0) {
       errors.push('C2C league requires at least one college round (collegeRounds / c2cCollegeRounds or c2cConfig.collegeRounds).')
+    }
+    const rosterModeC2C = (input.roster_mode ?? input.rosterMode ?? '') as string
+    if (String(rosterModeC2C).toLowerCase() === 'redraft') {
+      errors.push('Devy and Merged Devy / C2C are dynasty-only; they cannot be created as redraft.')
+    }
+  }
+
+  // --- Standard redraft: no dynasty-only features (devy, taxi) ---
+  if (leagueType === 'redraft') {
+    const taxiSlots = num(input.taxi_slots ?? input.taxiSlots ?? 0)
+    if (taxiSlots != null && taxiSlots > 0) {
+      errors.push('Standard redraft leagues do not support taxi slots. Use dynasty or keeper for taxi.')
+    }
+    if (isDevyLeague) {
+      errors.push('Standard redraft leagues do not support devy. Use dynasty/devy league type for devy.')
+    }
+    if (isC2CLeague) {
+      errors.push('Standard redraft leagues do not support C2C. Use C2C league type for campus-to-canton.')
+    }
+  }
+
+  // --- Keeper: distinct from devy/C2C; no devy or C2C in keeper mode ---
+  if (leagueType === 'keeper') {
+    if (isDevyLeague) {
+      errors.push('Keeper leagues do not support devy. Use Devy league type for devy.')
+    }
+    if (isC2CLeague) {
+      errors.push('Keeper leagues do not support C2C. Use C2C league type for campus-to-canton.')
+    }
+  }
+
+  // --- Dynasty: league size must be in supported team sizes (4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 32) ---
+  const rosterMode = (input.roster_mode ?? input.rosterMode ?? '') as string
+  const leagueSize = num(input.league_size ?? input.leagueSize ?? input.leagueSize)
+  const isDynasty =
+    String(rosterMode).toLowerCase() === 'dynasty' ||
+    String(leagueType).toLowerCase() === 'dynasty' ||
+    String(leagueType).toLowerCase() === 'devy' ||
+    isDevyLeague ||
+    isC2CLeague
+  if (isDynasty && leagueSize != null) {
+    if (!(DYNASTY_SUPPORTED_TEAM_SIZES as readonly number[]).includes(leagueSize)) {
+      errors.push(
+        `Dynasty league size must be one of: ${(DYNASTY_SUPPORTED_TEAM_SIZES as readonly number[]).join(', ')}.`
+      )
     }
   }
 

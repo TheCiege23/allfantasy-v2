@@ -454,6 +454,7 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
   if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
+    delete starter_slots.DST
     starter_slots['DL'] = 1
     starter_slots['DB'] = 1
     starter_slots['IDP_FLEX'] = 1

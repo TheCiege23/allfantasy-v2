@@ -69,7 +69,7 @@ const TeamInputSchema = z.object({
 })
 
 const LeagueContextSchema = z.object({
-  format: z.enum(['redraft', 'dynasty', 'keeper']).optional(),
+  format: z.enum(['redraft', 'dynasty', 'keeper', 'best_ball']).optional(),
   sport: z.string().optional(),
   scoring_summary: z.string().optional(),
   qb_format: z.enum(['1qb', 'sf']).optional().default('sf'),
@@ -758,7 +758,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
         warningText: vetoResult.warningText,
       },
       leagueSettings: {
-        format: data.league?.format || 'dynasty',
+        format: data.league?.format ?? 'redraft',
+        leagueType: data.league?.format === 'best_ball' ? 'bestball' : 'standard',
         sport: data.league?.sport || 'nfl',
         qbFormat: data.league?.qb_format || 'sf',
         idpEnabled: data.league?.idp_enabled || false,

@@ -124,3 +124,19 @@ export async function syncTribeChatMembersAfterShuffle(leagueId: string): Promis
   await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', { action: 'sync_after_shuffle' })
   return { ok: true }
 }
+
+export async function clearTribeChatMembersAfterMerge(leagueId: string): Promise<{ ok: boolean; error?: string }> {
+  const config = await getSurvivorConfig(leagueId)
+  if (!config) return { ok: false, error: 'Not a Survivor league' }
+
+  await prisma.survivorTribeChatMember.deleteMany({
+    where: {
+      tribe: { configId: config.configId },
+    },
+  })
+
+  await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', {
+    action: 'clear_after_merge',
+  })
+  return { ok: true }
+}

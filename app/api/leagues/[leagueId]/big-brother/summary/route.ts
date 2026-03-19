@@ -13,6 +13,7 @@ import { getEligibility } from '@/lib/big-brother/BigBrotherEligibilityEngine'
 import { getFinalNomineeRosterIds } from '@/lib/big-brother/BigBrotherNominationEngine'
 import { getJuryMembers } from '@/lib/big-brother/BigBrotherJuryEngine'
 import { getRosterDisplayNamesForLeague } from '@/lib/big-brother/ai/getRosterDisplayNames'
+import { getBigBrotherSportCalendarContext } from '@/lib/big-brother/BigBrotherSportCalendar'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -140,6 +141,8 @@ export async function GET(
   const eliminatedCount = eliminatedRosterIds.length
   const remainingCount = totalRosterCount - eliminatedCount
 
+  const sportCalendar = await getBigBrotherSportCalendarContext(config.sport)
+
   return NextResponse.json({
     totalRosterCount,
     remainingCount,
@@ -147,6 +150,12 @@ export async function GET(
       sport: config.sport,
       finaleFormat: config.finaleFormat,
       juryStartMode: config.juryStartMode,
+    },
+    sportCalendar: {
+      regularSeasonWeeks: sportCalendar.regularSeasonWeeks,
+      evictionEndWeek: sportCalendar.evictionEndWeek,
+      scoringWindowDisclaimer: sportCalendar.scoringWindowDisclaimer,
+      timelineNote: sportCalendar.timelineNote,
     },
     cycle,
     finalNomineeRosterIds,

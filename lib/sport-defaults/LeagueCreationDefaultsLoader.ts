@@ -8,6 +8,8 @@ import { resolveLeaguePreset } from './LeaguePresetResolver'
 import { getDefaultLeagueSettings } from './LeagueDefaultSettingsService'
 import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults } from './SportDefaultsRegistry'
 import { getSportMetadata } from './SportMetadataRegistry'
+import { getScheduleTemplate } from './ScheduleTemplateResolver'
+import { getSeasonCalendar } from './SeasonCalendarResolver'
 import type { SportType } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 
@@ -111,6 +113,35 @@ export interface LeagueCreationDefaultsPayload {
     injury_slot_behavior: string
     lock_time_behavior: string
   }
+  /** Fantasy schedule template (matchup type, regular/playoff weeks, lock mode) — PROMPT 3/4 */
+  scheduleTemplate: {
+    templateId: string
+    name: string
+    formatType: string
+    matchupType: string
+    regularSeasonWeeks: number
+    playoffWeeks: number
+    byeWeekWindow: { start: number; end: number } | null
+    fantasyPlayoffDefault: { startWeek: number; endWeek: number } | null
+    lineupLockMode: string | null
+    scoringMode: string | null
+    regularSeasonStyle: string | null
+    playoffSupport: boolean
+    bracketModeSupported: boolean
+    marchMadnessMode: boolean
+    bowlPlayoffMetadata: boolean
+  }
+  /** Real-world season calendar (preseason, regular season, playoffs) — PROMPT 3/4 */
+  seasonCalendar: {
+    calendarId: string
+    name: string
+    formatType: string
+    preseasonPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null
+    regularSeasonPeriod: { monthStart?: number; monthEnd?: number; label?: string }
+    playoffsPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null
+    championshipPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null
+    internationalBreaksSupported: boolean
+  }
 }
 
 /**
@@ -125,7 +156,11 @@ export async function loadLeagueCreationDefaults(
   const variant = leagueVariant ?? null
 
   if (variant && (variant.toUpperCase() === 'IDP' || variant.toUpperCase() === 'DYNASTY_IDP') && leagueSport === 'NFL') {
-    const resolved = await resolveLeaguePreset(leagueSport, variant)
+    const [resolved, scheduleTemplate, seasonCalendar] = await Promise.all([
+      resolveLeaguePreset(leagueSport, variant),
+      getScheduleTemplate(sportType, 'DEFAULT'),
+      getSeasonCalendar(sportType, 'DEFAULT'),
+    ])
     const defaults = getLeagueDefaults(sportType)
     const draftDef = getDraftDefaults(sportType, variant ?? undefined)
     const waiverDef = getWaiverDefaults(sportType, variant ?? undefined)
@@ -227,10 +262,42 @@ export async function loadLeagueCreationDefaults(
         injury_slot_behavior: defaultLeagueSettings.injury_slot_behavior,
         lock_time_behavior: defaultLeagueSettings.lock_time_behavior,
       },
+      scheduleTemplate: {
+        templateId: scheduleTemplate.templateId,
+        name: scheduleTemplate.name,
+        formatType: scheduleTemplate.formatType,
+        matchupType: scheduleTemplate.matchupType,
+        regularSeasonWeeks: scheduleTemplate.regularSeasonWeeks,
+        playoffWeeks: scheduleTemplate.playoffWeeks,
+        byeWeekWindow: scheduleTemplate.byeWeekWindow,
+        fantasyPlayoffDefault: scheduleTemplate.fantasyPlayoffDefault,
+        lineupLockMode: scheduleTemplate.lineupLockMode,
+        scoringMode: scheduleTemplate.scoringMode,
+        regularSeasonStyle: scheduleTemplate.regularSeasonStyle,
+        playoffSupport: scheduleTemplate.playoffSupport,
+        bracketModeSupported: scheduleTemplate.bracketModeSupported,
+        marchMadnessMode: scheduleTemplate.marchMadnessMode,
+        bowlPlayoffMetadata: scheduleTemplate.bowlPlayoffMetadata,
+      },
+      seasonCalendar: {
+        calendarId: seasonCalendar.calendarId,
+        name: seasonCalendar.name,
+        formatType: seasonCalendar.formatType,
+        preseasonPeriod: seasonCalendar.preseasonPeriod,
+        regularSeasonPeriod: seasonCalendar.regularSeasonPeriod,
+        playoffsPeriod: seasonCalendar.playoffsPeriod,
+        championshipPeriod: seasonCalendar.championshipPeriod,
+        internationalBreaksSupported: seasonCalendar.internationalBreaksSupported,
+      },
     }
   }
 
-  const { defaults, preset } = await getFullLeaguePreset(leagueSport)
+  const [fullPreset, scheduleTemplate, seasonCalendar] = await Promise.all([
+    getFullLeaguePreset(leagueSport),
+    getScheduleTemplate(sportType, 'DEFAULT'),
+    getSeasonCalendar(sportType, 'DEFAULT'),
+  ])
+  const { defaults, preset } = fullPreset
   const defaultLeagueSettings = getDefaultLeagueSettings(defaults.metadata.sport_type)
 
   return {
@@ -334,6 +401,33 @@ export async function loadLeagueCreationDefaults(
       standings_tiebreakers: defaultLeagueSettings.standings_tiebreakers,
       injury_slot_behavior: defaultLeagueSettings.injury_slot_behavior,
       lock_time_behavior: defaultLeagueSettings.lock_time_behavior,
+    },
+    scheduleTemplate: {
+      templateId: scheduleTemplate.templateId,
+      name: scheduleTemplate.name,
+      formatType: scheduleTemplate.formatType,
+      matchupType: scheduleTemplate.matchupType,
+      regularSeasonWeeks: scheduleTemplate.regularSeasonWeeks,
+      playoffWeeks: scheduleTemplate.playoffWeeks,
+      byeWeekWindow: scheduleTemplate.byeWeekWindow,
+      fantasyPlayoffDefault: scheduleTemplate.fantasyPlayoffDefault,
+      lineupLockMode: scheduleTemplate.lineupLockMode,
+      scoringMode: scheduleTemplate.scoringMode,
+      regularSeasonStyle: scheduleTemplate.regularSeasonStyle,
+      playoffSupport: scheduleTemplate.playoffSupport,
+      bracketModeSupported: scheduleTemplate.bracketModeSupported,
+      marchMadnessMode: scheduleTemplate.marchMadnessMode,
+      bowlPlayoffMetadata: scheduleTemplate.bowlPlayoffMetadata,
+    },
+    seasonCalendar: {
+      calendarId: seasonCalendar.calendarId,
+      name: seasonCalendar.name,
+      formatType: seasonCalendar.formatType,
+      preseasonPeriod: seasonCalendar.preseasonPeriod,
+      regularSeasonPeriod: seasonCalendar.regularSeasonPeriod,
+      playoffsPeriod: seasonCalendar.playoffsPeriod,
+      championshipPeriod: seasonCalendar.championshipPeriod,
+      internationalBreaksSupported: seasonCalendar.internationalBreaksSupported,
     },
   }
 }

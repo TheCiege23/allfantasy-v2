@@ -428,7 +428,7 @@ export default function InstantTradeAnalyzer() {
   const [teamBPicks, setTeamBPicks] = useState<PickAsset[]>([])
   const [leagueSize, setLeagueSize] = useState(12)
   const [scoring, setScoring] = useState<'ppr' | 'half' | 'standard' | 'superflex'>('ppr')
-  const [isDynasty, setIsDynasty] = useState(true)
+  const [isDynasty, setIsDynasty] = useState(false)
   const [tePremium, setTePremium] = useState(false)
   const [isSuperFlex, setIsSuperFlex] = useState(false)
   const [loading, setLoading] = useState(false)

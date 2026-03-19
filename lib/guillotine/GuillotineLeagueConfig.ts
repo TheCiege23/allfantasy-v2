@@ -31,6 +31,7 @@ const DEFAULT_END_WEEK_BY_SPORT: Partial<Record<LeagueSport, number>> = {
 function parseTiebreakerOrder(raw: unknown): TiebreakStep[] {
   if (Array.isArray(raw) && raw.length > 0) {
     const allowed = new Set<TiebreakStep>([
+      'bench_points',
       'season_points',
       'previous_period',
       'draft_slot',

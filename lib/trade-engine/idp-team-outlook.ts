@@ -30,13 +30,14 @@ export function getIdpTeamOutlook(
   assets: Asset[],
   settings: LeagueSettings
 ): IdpTeamOutlook | null {
-  if (!settings.idpEnabled) return null
+  const idpEnabled = Boolean(settings.idpEnabled)
+  if (!idpEnabled) return null
 
-  const offenseValue = sumValue(assets, (a) => a.type === 'PLAYER' && a.pos && OFFENSE_POSITIONS.has(a.pos.toUpperCase()))
-  const idpValue = sumValue(assets, (a) => a.type === 'PLAYER' && a.pos && isIdpPos(a.pos))
-  const idpCount = assets.filter((a) => a.type === 'PLAYER' && a.pos && IDP_POSITIONS.has((a.pos || '').toUpperCase())).length
-  const starterSlots = settings.starterSlots ?? 22
-  const idpSlots = settings.idpStarterSlots ?? 0
+  const offenseValue = sumValue(assets, (a) => Boolean(a.type === 'PLAYER' && a.pos && OFFENSE_POSITIONS.has(a.pos.toUpperCase())))
+  const idpValue = sumValue(assets, (a) => Boolean(a.type === 'PLAYER' && a.pos && isIdpPos(a.pos)))
+  const idpCount = assets.filter((a) => a.type === 'PLAYER' && Boolean(a.pos) && IDP_POSITIONS.has((a.pos || '').toUpperCase())).length
+  const starterSlots = Number(settings.starterSlots ?? 22)
+  const idpSlots = Number(settings.idpStarterSlots ?? 0)
 
   const offensiveStrength: IdpTeamOutlook['offensiveStrength'] =
     offenseValue >= 40000 ? 'elite' : offenseValue >= 25000 ? 'strong' : offenseValue >= 12000 ? 'average' : 'weak'

@@ -29,6 +29,9 @@ export interface IdpSlotOverrides {
   ir?: number
 }
 
+/** Per-league IDP scoring overrides (stat key -> points). Merged with preset; overrides take precedence. */
+export type IdpScoringOverrides = Record<string, number>
+
 /** Loaded IDP league config (from DB or defaults). */
 export interface IdpLeagueConfigLoaded {
   leagueId: string
@@ -37,11 +40,23 @@ export interface IdpLeagueConfigLoaded {
   rosterPreset: IdpRosterPreset
   slotOverrides: IdpSlotOverrides | null
   scoringPreset: IdpScoringPreset
+  scoringOverrides: IdpScoringOverrides | null
   bestBallEnabled: boolean
   draftType: IdpDraftType
   benchSlots: number
   irSlots: number
+  settingsLockedAt: Date | null
 }
+
+/** IdpSettingsAuditLog action types. */
+export type IdpSettingsAuditAction =
+  | 'position_mode_change'
+  | 'scoring_change'
+  | 'starter_count_change'
+  | 'scoring_preset_apply'
+  | 'eligibility_change'
+  | 'unlock'
+  | 'lock'
 
 /** Grouped IDP positions (family). */
 export const IDP_GROUPED_POSITIONS = ['DL', 'LB', 'DB'] as const

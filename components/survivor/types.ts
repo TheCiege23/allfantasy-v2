@@ -15,15 +15,24 @@ export interface SurvivorSummaryConfig {
   mode: string
   tribeCount: number
   tribeSize: number
+  tribeFormation?: string
   mergeTrigger: string
   mergeWeek: number
   mergePlayerCount: number | null
-  juryStartAfterMerge: boolean
+  juryStartAfterMerge: number
   exileReturnEnabled: boolean
   exileReturnTokens: number
-  voteDeadlineDayOfWeek: number
-  voteDeadlineTimeUtc: string
+  idolCount?: number
+  idolPowerPool?: string[] | null
+  tribeShuffleEnabled?: boolean
+  tribeShuffleConsecutiveLosses?: number | null
+  tribeShuffleImbalanceThreshold?: number | null
+  voteDeadlineDayOfWeek: number | null
+  voteDeadlineTimeUtc: string | null
   selfVoteDisallowed: boolean
+  tribalCouncilDayOfWeek?: number | null
+  tribalCouncilTimeUtc?: string | null
+  minigameFrequency?: string
 }
 
 export interface SurvivorSummaryTribe {
@@ -48,6 +57,7 @@ export interface SurvivorSummaryChallenge {
   week: number
   challengeType: string
   lockAt: string | null
+  configJson?: unknown
   resultJson: unknown
   submissionCount: number
 }
@@ -60,10 +70,41 @@ export interface SurvivorSummary {
   challenges: SurvivorSummaryChallenge[]
   jury: { rosterId: string; votedOutWeek: number }[]
   exileLeagueId: string | null
-  exileTokens: { rosterId: string; tokens: number; lastAwardedWeek: number | null }[]
+  exileTokens: { rosterId: string; mainRosterId: string | null; displayName: string; tokens: number; lastAwardedWeek: number | null }[]
   votedOutHistory: { rosterId?: string; week?: number }[]
   merged: boolean
   myRosterId?: string
+  myTribeId?: string
+  myTribeSource?: string | null
   myIdols: { id: string; playerId: string; powerType: string }[]
+  myActiveEffects?: {
+    rewardType: string
+    week: number
+    appliedMode: 'full' | 'record_only' | 'queued'
+    rosterId?: string | null
+    tribeId?: string | null
+    sourceRosterId?: string | null
+  }[]
+  myExileStatus?: {
+    exileRosterId: string
+    mainRosterId: string
+    tokens: number
+    eliminated: boolean
+    eligibleToReturn: boolean
+    reason: string | null
+  } | null
+  finale?: {
+    open: boolean
+    closed: boolean
+    finalists: { rosterId: string }[]
+    juryVotesSubmitted: number
+    juryVotesRequired: number
+    winnerRosterId: string | null
+    crownedAt: string | null
+    myJuryVote: { finalistRosterId: string; submittedAt: string } | null
+    voteCount: Record<string, number> | null
+    bonusVotesByFinalist: Record<string, number> | null
+    tieBreakSeasonPoints: Record<string, number> | null
+  } | null
   rosterDisplayNames?: Record<string, string>
 }

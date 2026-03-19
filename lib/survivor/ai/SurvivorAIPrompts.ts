@@ -54,7 +54,8 @@ Config: ${ctx.config.tribeCount} tribes, merge ${ctx.config.mergeTrigger} ${ctx.
 Tribes: ${formatTribes(ctx)}.
 Voted out so far: ${formatVotedOut(ctx)}.
 Merge happened: ${ctx.merged}. Jury: ${ctx.jury.map((j) => ctx.rosterDisplayNames[j.rosterId] ?? j.rosterId).join(', ') || 'None'}.
-Council this week: ${ctx.council ? `phase ${ctx.council.phase}, deadline ${ctx.council.voteDeadlineAt.toISOString()}, closed: ${!!ctx.council.closedAt}` : 'None'}.`
+Council this week: ${ctx.council ? `phase ${ctx.council.phase}, deadline ${ctx.council.voteDeadlineAt.toISOString()}, closed: ${!!ctx.council.closedAt}` : 'None'}.
+Finale: ${ctx.finale ? `open ${ctx.finale.open}, finalists ${ctx.finale.finalists.map((rosterId) => ctx.rosterDisplayNames[rosterId] ?? rosterId).join(', ') || 'None'}, jury votes ${ctx.finale.juryVotesSubmitted}/${ctx.finale.juryVotesRequired}, winner ${ctx.finale.winnerRosterId ? (ctx.rosterDisplayNames[ctx.finale.winnerRosterId] ?? ctx.finale.winnerRosterId) : 'TBD'}` : 'Not in finale yet'}.`
 
   switch (type) {
     case 'host_intro': {
@@ -95,7 +96,7 @@ Council this week: ${ctx.council ? `phase ${ctx.council.phase}, deadline ${ctx.c
     }
     case 'idol_help': {
       const system = `You are Chimmy, AllFantasy's Survivor idol/power advisor. Explain what idols do, timing windows, hold vs play suggestions, and transfer implications. You never decide if an idol play is valid or who gets immunity — the engine does. ${DETERMINISM_RULES}`
-      const user = `${baseUser}\nUser's idols: ${ctx.myIdols.length ? ctx.myIdols.map((i) => i.powerType).join(', ') : 'None'}.\n\nExplain idol strategy, when to hold or play, and timing. Do not assert validity of any play.`
+      const user = `${baseUser}\nUser's idols: ${ctx.myIdols.length ? ctx.myIdols.map((i) => i.powerType).join(', ') : 'None'}.\nUser's active Survivor effects: ${ctx.myActiveEffects.length ? ctx.myActiveEffects.map((effect) => `${effect.rewardType}${effect.appliedMode === 'queued' ? ' (queued)' : effect.appliedMode === 'record_only' ? ' (tracked)' : ''}`).join(', ') : 'None'}.\nOfficial syntax examples: @Chimmy play idol [idol], @Chimmy play idol [idol] on [manager], @Chimmy play idol steal_player on [manager] pick [player], @Chimmy play idol swap_starter on [manager] swap [bench] for [starter], @Chimmy jury vote [finalist].\n\nExplain idol strategy, when to hold or play, and timing. Do not assert validity of any play.`
       return { system, user }
     }
     case 'tribal_help': {
@@ -105,7 +106,7 @@ Council this week: ${ctx.council ? `phase ${ctx.council.phase}, deadline ${ctx.c
     }
     case 'exile_help': {
       const system = `You are Chimmy, AllFantasy's Survivor Exile Island advisor. Explain token strategy, team/claim strategy, return-path planning, and when to chase upside vs stability. You never decide who returns from Exile — the engine does. ${DETERMINISM_RULES}`
-      const user = `${baseUser}\nExile tokens: ${ctx.exileTokens.map((t) => `${ctx.rosterDisplayNames[t.rosterId] ?? t.rosterId}: ${t.tokens}`).join('; ') || 'N/A'}.\n\nProvide exile strategy and return-path advice. Do not assert who returns.`
+      const user = `${baseUser}\nExile tokens: ${ctx.exileTokens.map((t) => `${ctx.rosterDisplayNames[t.rosterId] ?? t.rosterId}: ${t.tokens}`).join('; ') || 'N/A'}.\nUser exile status: ${ctx.myExileStatus ? `tokens ${ctx.myExileStatus.tokens}, eliminated ${ctx.myExileStatus.eliminated}, eligible to return ${ctx.myExileStatus.eligibleToReturn}` : 'N/A'}.\n\nProvide exile strategy and return-path advice. Do not assert who returns.`
       return { system, user }
     }
     case 'bestball_help': {

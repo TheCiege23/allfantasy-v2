@@ -60,6 +60,7 @@ function defaultCommissionerSettings(sport: LeagueSport): DevyCommissionerSettin
     promotionTiming: 'manager_choice_before_rookie_draft',
     supplementalDevyFAEnabled: false,
     rightsExpirationEnabled: false,
+    returnToSchoolHandling: 'restore_rights',
     taxiProRookiesScoreInBestBall: false,
     bestBallSuperflex: false,
   }
@@ -115,6 +116,7 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
       promotionTiming: (row as any).promotionTiming ?? 'manager_choice_before_rookie_draft',
       supplementalDevyFAEnabled: (row as any).supplementalDevyFAEnabled ?? false,
       rightsExpirationEnabled: (row as any).rightsExpirationEnabled ?? false,
+      returnToSchoolHandling: ((row as any).returnToSchoolHandling ?? 'restore_rights') as DevyCommissionerSettings['returnToSchoolHandling'],
       taxiProRookiesScoreInBestBall: (row as any).taxiProRookiesScoreInBestBall ?? false,
       bestBallSuperflex: (row as any).bestBallSuperflex ?? false,
     }
@@ -154,6 +156,7 @@ export async function upsertDevyConfig(
     promotionTiming: string
     supplementalDevyFAEnabled: boolean
     rightsExpirationEnabled: boolean
+    returnToSchoolHandling: string
     taxiProRookiesScoreInBestBall: boolean
     bestBallSuperflex: boolean
   }>
@@ -200,6 +203,7 @@ export async function upsertDevyConfig(
       promotionTiming: input.promotionTiming ?? 'manager_choice_before_rookie_draft',
       supplementalDevyFAEnabled: input.supplementalDevyFAEnabled ?? false,
       rightsExpirationEnabled: input.rightsExpirationEnabled ?? false,
+      returnToSchoolHandling: input.returnToSchoolHandling ?? 'restore_rights',
       taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall ?? false,
       bestBallSuperflex: input.bestBallSuperflex ?? false,
     },
@@ -223,6 +227,7 @@ export async function upsertDevyConfig(
       ...(input.promotionTiming !== undefined && { promotionTiming: input.promotionTiming }),
       ...(input.supplementalDevyFAEnabled !== undefined && { supplementalDevyFAEnabled: input.supplementalDevyFAEnabled }),
       ...(input.rightsExpirationEnabled !== undefined && { rightsExpirationEnabled: input.rightsExpirationEnabled }),
+      ...(input.returnToSchoolHandling !== undefined && { returnToSchoolHandling: input.returnToSchoolHandling }),
       ...(input.taxiProRookiesScoreInBestBall !== undefined && { taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall }),
       ...(input.bestBallSuperflex !== undefined && { bestBallSuperflex: input.bestBallSuperflex }),
     },

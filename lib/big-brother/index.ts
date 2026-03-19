@@ -7,6 +7,11 @@ export * from './types'
 export * from './constants'
 export { isBigBrotherLeague, getBigBrotherConfig, upsertBigBrotherConfig } from './BigBrotherLeagueConfig'
 export type { BigBrotherConfigUpsertInput } from './BigBrotherLeagueConfig'
+export {
+  getBigBrotherSportCalendarContext,
+  isSportSupportedForBigBrother,
+} from './BigBrotherSportCalendar'
+export type { BigBrotherSportCalendarContext } from './BigBrotherSportCalendar'
 export { appendBigBrotherAudit, getBigBrotherAuditLog } from './BigBrotherAuditLog'
 export type { BigBrotherAuditEventType } from './BigBrotherAuditLog'
 export { isEliminated, getExcludedRosterIds } from './bigBrotherGuard'

@@ -195,6 +195,8 @@ export type BigBrotherConfigUpsertInput = Partial<{
   antiCollusionLogging: boolean
   inactivePlayerHandling: string
   autoNominationFallback: string
+  evictionTieBreakMode: string
+  weekProgressionPaused: boolean
 }>
 
 export async function upsertBigBrotherConfig(

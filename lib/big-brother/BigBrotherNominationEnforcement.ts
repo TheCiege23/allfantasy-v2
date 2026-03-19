@@ -108,6 +108,7 @@ export async function runAutoReplacementNominee(cycleId: string, options?: { sys
       vetoSavedRosterId: true,
       nominee1RosterId: true,
       nominee2RosterId: true,
+      vetoUsed: true,
     },
   })
   if (!cycle?.vetoUsed) return { ok: false, error: 'Veto not used or cycle not found' }

@@ -4,6 +4,8 @@
  * PROMPT 2/6.
  */
 
+import { getDefaultScoringRules } from '@/lib/scoring-defaults/ScoringDefaultsRegistry'
+
 /** Supported IDP stat keys (minimum). */
 export const IDP_STAT_KEYS = [
   'idp_solo_tackle',
@@ -52,4 +54,24 @@ export const IDP_DRAFT_TYPE_LABELS: Record<string, string> = {
   snake: 'Snake',
   linear: 'Linear',
   auction: 'Auction',
+}
+
+/** Map IdpScoringPreset to ScoringDefaultsRegistry format key. */
+const IDP_PRESET_TO_FORMAT: Record<string, string> = {
+  balanced: 'IDP-balanced',
+  tackle_heavy: 'IDP-tackle_heavy',
+  big_play_heavy: 'IDP-big_play_heavy',
+}
+
+/**
+ * Get IDP preset scoring as flat stat key -> points (for validation and merge with overrides).
+ */
+export function getIdpPresetScoring(preset: string): Record<string, number> {
+  const format = IDP_PRESET_TO_FORMAT[preset] ?? 'IDP-balanced'
+  const rules = getDefaultScoringRules('NFL', format)
+  const out: Record<string, number> = {}
+  for (const r of rules) {
+    if (r.statKey.startsWith('idp_') && r.pointsValue !== 0) out[r.statKey] = r.pointsValue
+  }
+  return out
 }

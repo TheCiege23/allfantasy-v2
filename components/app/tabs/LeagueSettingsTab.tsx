@@ -28,6 +28,7 @@ import { DevySettingsPanel } from '@/components/devy/DevySettingsPanel'
 import { MergedDevyC2CCommissionerSettings } from '@/components/merged-devy-c2c/MergedDevyC2CCommissionerSettings'
 import { BigBrotherSettingsPanel } from '@/components/big-brother/BigBrotherSettingsPanel'
 import { IDPSettingsPanel } from '@/components/idp/IDPSettingsPanel'
+import DynastySettingsPanel from '@/components/app/settings/DynastySettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 
 const SUBTABS_BASE = [
@@ -37,6 +38,7 @@ const SUBTABS_BASE = [
   'Team Settings',
   'Roster Settings',
   'Scoring Settings',
+  'Dynasty Settings',
   'Draft Settings',
   'AI Settings',
   'Automation Settings',
@@ -61,15 +63,18 @@ type SettingsSubtab = (typeof SUBTABS)[number]
 
 export default function LeagueSettingsTab({
   leagueId,
+  isDynasty,
   isDevyDynasty,
   isMergedDevyC2C,
   isBigBrother,
   isIdp,
   isCommissioner,
-}: LeagueTabProps & { isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
+}: LeagueTabProps & { isDynasty?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
   const [active, setActive] = useState<SettingsSubtab>('General')
+  const showDynastySettings = !!(isDynasty || isDevyDynasty || isMergedDevyC2C)
   const visibleSubtabs = SUBTABS.filter(
     (tab) =>
+      (tab !== 'Dynasty Settings' || showDynastySettings) &&
       (tab !== 'Devy Settings' || isDevyDynasty) &&
       (tab !== 'C2C Settings' || isMergedDevyC2C) &&
       (tab !== 'Big Brother Settings' || isBigBrother) &&
@@ -97,6 +102,9 @@ export default function LeagueSettingsTab({
       {active === 'Team Settings' && <TeamSettingsPanel />}
       {active === 'Roster Settings' && <RosterSettingsPanel />}
       {active === 'Scoring Settings' && <ScoringSettingsPanel />}
+      {active === 'Dynasty Settings' && (
+        <DynastySettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+      )}
       {active === 'Draft Settings' && <DraftSettingsPanel leagueId={leagueId} />}
       {active === 'AI Settings' && <AISettingsPanel leagueId={leagueId} />}
       {active === 'Automation Settings' && <AutomationSettingsPanel leagueId={leagueId} />}

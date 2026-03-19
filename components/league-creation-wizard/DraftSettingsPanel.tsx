@@ -32,7 +32,7 @@ export function DraftSettingsPanel({
   const isAuction = draftType === 'auction'
   const showKeeper = isKeeperLeagueType(leagueType)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const hasAdvanced = true // third-round reversal
+  const hasAdvanced = draftType === 'snake' // third-round reversal only for snake
   return (
     <div className="space-y-5">
       <StepHeader
@@ -244,7 +244,7 @@ export function DraftSettingsPanel({
               {showAdvanced ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
               Advanced options
             </button>
-            {showAdvanced && (
+            {showAdvanced && draftType === 'snake' && (
               <div className={cn('mt-3 space-y-3 pl-6 border-l-2 border-white/10')}>
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -256,7 +256,7 @@ export function DraftSettingsPanel({
                   />
                   <div>
                     <span className="text-sm font-medium text-white/90">Third round reversal</span>
-                    <p className="text-xs text-white/50 mt-0.5">Snake order reverses again in round 3. Balances pick value in snake drafts.</p>
+                    <p className="text-xs text-white/50 mt-0.5">Snake order reverses again in round 3. Only applies to snake draft; not used for linear or auction.</p>
                   </div>
                 </label>
               </div>

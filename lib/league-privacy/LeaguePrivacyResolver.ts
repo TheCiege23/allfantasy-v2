@@ -121,7 +121,7 @@ export async function validateLeagueJoin(
 
   const leagues = await prisma.league.findMany({
     where: {},
-    select: { id: true, name: true, sport: true, settings: true },
+    select: { id: true, name: true, sport: true, leagueSize: true, settings: true },
   })
 
   const league = leagues.find((l) => {
@@ -134,6 +134,15 @@ export async function validateLeagueJoin(
   const settings = fromStorage((league.settings as Record<string, unknown>) ?? {})
   if (settings.visibility === 'private' && !settings.inviteCode) return { valid: false, error: 'League is not accepting joins' }
   if (settings.visibility === 'invite_only' && !settings.allowInviteLink) return { valid: false, error: 'Invite link is disabled' }
+
+  if (league.leagueSize != null) {
+    const rosterCount = await prisma.roster.count({
+      where: { leagueId: league.id },
+    })
+    if (rosterCount >= league.leagueSize) {
+      return { valid: false, error: 'League is full' }
+    }
+  }
 
   const requiresPassword = settings.visibility === 'password_protected' && !!settings.passwordHash
   if (requiresPassword) {

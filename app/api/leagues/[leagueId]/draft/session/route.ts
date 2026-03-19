@@ -15,6 +15,7 @@ import {
 } from '@/lib/live-draft-engine/DraftSessionService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import { getDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { dedupeInFlight } from '@/lib/api-performance'
 
 export const dynamic = 'force-dynamic'
@@ -35,12 +36,13 @@ export async function GET(
 
   try {
     const shared = await dedupeInFlight(`draft:session:${leagueId}`, async () => {
-      const [snapshot, uiSettings, orphanRosterIds] = await Promise.all([
+      const [snapshot, uiSettings, orphanRosterIds, orderMode] = await Promise.all([
         buildSessionSnapshot(leagueId),
         getDraftUISettingsForLeague(leagueId),
         getOrphanRosterIdsForLeague(leagueId),
+        getDraftOrderModeAndLotteryConfig(leagueId),
       ])
-      return { snapshot, uiSettings, orphanRosterIds }
+      return { snapshot, uiSettings, orphanRosterIds, orderMode }
     })
 
     if (!shared.snapshot) {
@@ -60,6 +62,8 @@ export async function GET(
         orphanRosterIds: shared.orphanRosterIds,
         aiManagerEnabled: shared.uiSettings.orphanTeamAiManagerEnabled,
         orphanDrafterMode: shared.uiSettings.orphanDrafterMode,
+        draftOrderMode: shared.orderMode?.draftOrderMode,
+        lotteryLastRunAt: shared.orderMode?.lotteryLastRunAt ?? undefined,
       },
     })
   } catch (e) {

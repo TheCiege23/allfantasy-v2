@@ -3,6 +3,7 @@
  * Close vote, tally, evict, release roster, enroll jury, audit, announce. PROMPT 2/6 + 3.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getBigBrotherConfig } from './BigBrotherLeagueConfig'
 import { tallyEvictionVotes } from './BigBrotherVoteEngine'
@@ -63,7 +64,7 @@ export async function closeEviction(
     data: {
       closedAt: new Date(),
       evictedRosterId,
-      tieBreakSeasonPoints: tally.tieBreakSeasonPoints,
+      tieBreakSeasonPoints: tally.tieBreakSeasonPoints != null ? (tally.tieBreakSeasonPoints as Prisma.InputJsonValue) : Prisma.JsonNull,
     },
   })
 

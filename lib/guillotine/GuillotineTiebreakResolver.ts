@@ -75,7 +75,14 @@ export function resolveTiebreak(args: {
       break
     }
 
-    if (step === 'season_points') {
+    if (step === 'bench_points') {
+      ordered = [...ordered].sort((a, b) => (a.benchPoints ?? 0) - (b.benchPoints ?? 0))
+      stepUsed = 'bench_points'
+      const stillTied = groupByKey(ordered, (r) => r.benchPoints ?? -1)
+      const lowestGroup = stillTied[0]
+      if (lowestGroup && lowestGroup.length < ordered.length) ordered = lowestGroup
+      if (ordered.length <= teamsPerChop) break
+    } else if (step === 'season_points') {
       ordered = [...ordered].sort((a, b) => a.seasonPointsCumul - b.seasonPointsCumul)
       stepUsed = 'season_points'
       const stillTied = groupByKey(ordered, (r) => r.seasonPointsCumul)

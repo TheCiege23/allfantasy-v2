@@ -15,7 +15,46 @@ export interface SurvivorTribeBoardProps {
 export function SurvivorTribeBoard({ summary, names }: SurvivorTribeBoardProps) {
   const { tribes, council, challenges, currentWeek } = summary
   const attendingTribeId = council?.attendingTribeId ?? null
-  const activeChallenges = challenges.filter((c) => !c.resultJson)
+  const activeChallenges = challenges.filter((challenge) => !challenge.resultJson)
+  const weekResults = challenges.filter((challenge) => challenge.week === currentWeek && challenge.resultJson)
+
+  const tribeImmunity = new Set<string>()
+  const rosterImmunity = new Set<string>()
+  const tribeBonuses = new Map<string, string[]>()
+
+  for (const challenge of weekResults) {
+    const result =
+      challenge.resultJson && typeof challenge.resultJson === 'object' && !Array.isArray(challenge.resultJson)
+        ? (challenge.resultJson as Record<string, unknown>)
+        : null
+    if (!result) continue
+
+    if (typeof result.winnerTribeId === 'string' && result.winnerTribeId) {
+      tribeImmunity.add(result.winnerTribeId)
+    }
+    if (typeof result.winnerRosterId === 'string' && result.winnerRosterId) {
+      rosterImmunity.add(result.winnerRosterId)
+    }
+
+    if (Array.isArray(result.rewards)) {
+      for (const reward of result.rewards) {
+        if (!reward || typeof reward !== 'object' || Array.isArray(reward)) continue
+        const rewardRecord = reward as Record<string, unknown>
+        const rewardType = String(rewardRecord.type ?? rewardRecord.rewardType ?? '').trim()
+        if ((rewardType === 'tribe_immunity' || rewardType === 'immunity') && typeof rewardRecord.tribeId === 'string') {
+          tribeImmunity.add(rewardRecord.tribeId)
+        }
+        if (rewardType === 'immunity' && typeof rewardRecord.rosterId === 'string') {
+          rosterImmunity.add(rewardRecord.rosterId)
+        }
+        if ((rewardType === 'score_boost' || rewardType === 'bonus') && typeof rewardRecord.tribeId === 'string') {
+          const current = tribeBonuses.get(rewardRecord.tribeId) ?? []
+          current.push(String(rewardRecord.label ?? rewardRecord.amount ?? 'Score bonus'))
+          tribeBonuses.set(rewardRecord.tribeId, current)
+        }
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -27,8 +66,9 @@ export function SurvivorTribeBoard({ summary, names }: SurvivorTribeBoardProps) 
         <p className="mb-4 text-sm text-white/50">Week {currentWeek}</p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {tribes.map((tribe) => {
-            const hasImmunity = false
+            const hasImmunity = tribeImmunity.has(tribe.id)
             const isAttending = tribe.id === attendingTribeId
+            const bonuses = tribeBonuses.get(tribe.id) ?? []
             return (
               <div
                 key={tribe.id}
@@ -50,17 +90,20 @@ export function SurvivorTribeBoard({ summary, names }: SurvivorTribeBoardProps) 
                   )}
                 </div>
                 <ul className="space-y-1">
-                  {tribe.members.map((m) => (
+                  {tribe.members.map((member) => (
                     <li
-                      key={m.rosterId}
+                      key={member.rosterId}
                       className="flex items-center gap-2 text-sm text-white/80"
                     >
-                      {m.isLeader && <Trophy className="h-3.5 w-3.5 text-amber-400" />}
-                      {names[m.rosterId] ?? m.rosterId}
+                      {member.isLeader && <Trophy className="h-3.5 w-3.5 text-amber-400" />}
+                      {rosterImmunity.has(member.rosterId) && <Shield className="h-3.5 w-3.5 text-emerald-400" />}
+                      {names[member.rosterId] ?? member.rosterId}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-white/50">Tribe score: —</p>
+                <p className="mt-2 text-xs text-white/50">
+                  Tribe score: —{bonuses.length > 0 ? ` · Bonus: ${bonuses.join(', ')}` : ''}
+                </p>
               </div>
             )
           })}
@@ -74,9 +117,9 @@ export function SurvivorTribeBoard({ summary, names }: SurvivorTribeBoardProps) 
             {activeChallenges.length} challenge(s) open this week. Go to Challenge Center to submit.
           </p>
           <ul className="space-y-1 text-sm text-white/70">
-            {activeChallenges.map((c) => (
-              <li key={c.id}>
-                {c.challengeType} · {c.submissionCount} submission(s)
+            {activeChallenges.map((challenge) => (
+              <li key={challenge.id}>
+                {challenge.challengeType} · {challenge.submissionCount} submission(s)
               </li>
             ))}
           </ul>

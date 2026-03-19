@@ -26,7 +26,15 @@ export async function GET(request: NextRequest) {
 
     if (load === 'creation') {
       const payload = await getCreationPayload(sport, variantParam)
-      return NextResponse.json(payload)
+      const { getSportFeatureFlags } = await import('@/lib/sport-defaults/SportFeatureFlagsService')
+      const featureFlags = await getSportFeatureFlags(sport)
+      return NextResponse.json({ ...payload, featureFlags })
+    }
+
+    if (load === 'featureFlags') {
+      const { getSportFeatureFlags } = await import('@/lib/sport-defaults/SportFeatureFlagsService')
+      const featureFlags = await getSportFeatureFlags(sport)
+      return NextResponse.json({ sport, featureFlags })
     }
 
     const defaults = resolveSportDefaults(sportParam)

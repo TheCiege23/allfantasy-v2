@@ -35,7 +35,7 @@ export async function GET(
   ])
   const teamByExtId = new Map(teams.map((t) => [t.externalId, t]))
   const managers = rosters.map((r) => {
-    const team = teamByExtId.get(r.platformUserId)
+    const team = teamByExtId.get(r.platformUserId) ?? teamByExtId.get(r.id)
     return {
       rosterId: r.id,
       userId: r.platformUserId,
@@ -81,6 +81,15 @@ export async function DELETE(
     where: { id: rosterId },
     data: { platformUserId: orphanId },
   })
+  await prisma.leagueTeam.updateMany({
+    where: {
+      leagueId: params.leagueId,
+      OR: [{ externalId: roster.id }, { externalId: roster.platformUserId }],
+    },
+    data: {
+      externalId: roster.id,
+    },
+  })
 
   return NextResponse.json({
     status: 'ok',
@@ -125,6 +134,22 @@ export async function PATCH(
   await (prisma as any).roster.update({
     where: { id: rosterId },
     data: { platformUserId: userId },
+  })
+
+  const profile = await prisma.userProfile.findFirst({
+    where: { userId },
+    select: { displayName: true, sleeperUsername: true },
+  })
+  const displayName = profile?.displayName?.trim() || profile?.sleeperUsername?.trim() || userId
+  await prisma.leagueTeam.updateMany({
+    where: {
+      leagueId,
+      OR: [{ externalId: roster.id }, { externalId: roster.platformUserId }, { externalId: userId }],
+    },
+    data: {
+      externalId: roster.id,
+      ownerName: displayName,
+    },
   })
 
   if (wasOrphan) {

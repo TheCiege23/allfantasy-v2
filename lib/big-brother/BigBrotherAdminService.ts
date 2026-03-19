@@ -5,6 +5,7 @@
  * config jury/tie/challenge, pause/resume. PROMPT 5.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getBigBrotherConfig, upsertBigBrotherConfig } from './BigBrotherLeagueConfig'
 import { getCurrentCycleForLeague, transitionPhase, createFirstCycleIfNeeded } from './BigBrotherPhaseStateMachine'
@@ -99,7 +100,7 @@ export async function runBigBrotherAdminAction(input: BigBrotherAdminInput): Pro
       }
       await prisma.bigBrotherCycle.update({
         where: { id: current.id },
-        data: { nominee1RosterId: null, nominee2RosterId: null, vetoWinnerRosterId: null, vetoParticipantRosterIds: null, vetoUsed: false, vetoSavedRosterId: null, replacementNomineeRosterId: null },
+        data: { nominee1RosterId: null, nominee2RosterId: null, vetoWinnerRosterId: null, vetoParticipantRosterIds: Prisma.JsonNull, vetoUsed: false, vetoSavedRosterId: null, replacementNomineeRosterId: null },
       })
       await prisma.bigBrotherEvictionVote.deleteMany({ where: { cycleId: current.id } })
       await transitionPhase(current.id, 'NOMINATION_OPEN')

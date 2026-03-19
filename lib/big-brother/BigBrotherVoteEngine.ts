@@ -60,10 +60,14 @@ export async function submitEvictionVote(
 ): Promise<{ ok: boolean; error?: string }> {
   const cycle = await prisma.bigBrotherCycle.findUnique({
     where: { id: cycleId },
-    select: { leagueId: true, configId: true, voteDeadlineAt: true, closedAt: true },
+    select: { leagueId: true, configId: true, phase: true, voteDeadlineAt: true, closedAt: true },
   })
   if (!cycle) return { ok: false, error: 'Cycle not found' }
   if (cycle.closedAt) return { ok: false, error: 'Voting closed' }
+  const phase = (cycle.phase as string) ?? ''
+  if (phase !== 'VOTING_OPEN' && phase !== 'VOTING_LOCKED') {
+    return { ok: false, error: 'Voting is not open for this cycle' }
+  }
   if (cycle.voteDeadlineAt && new Date() > cycle.voteDeadlineAt) return { ok: false, error: 'Vote deadline passed' }
 
   const config = await getBigBrotherConfig(cycle.leagueId)

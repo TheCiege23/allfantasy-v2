@@ -22,6 +22,7 @@ import {
   getSurvivorConfig,
   upsertSurvivorConfig,
 } from '@/lib/survivor/SurvivorLeagueConfig'
+import { getExcludedRosterIdsForSurvivor, isRosterCurrentlyEliminated } from '@/lib/survivor/SurvivorRosterState'
 import {
   isZombieLeague,
   getZombieLeagueConfig,
@@ -166,8 +167,9 @@ function registerSurvivor(): void {
       officialCommandParsing: true,
       aiHostHooks: true,
     },
+    rosterGuard: async (leagueId, rosterId) => !(await isRosterCurrentlyEliminated(leagueId, rosterId)),
+    getExcludedRosterIds: getExcludedRosterIdsForSurvivor,
 
-    // rosterGuard / getExcludedRosterIds: optional; Survivor excludes voted-out/jury for lineup/waiver per product wiring.
     // AI: lib/survivor/ai; entitlement survivor_ai. Automation: council close, token award, jury enrollment in engine.
   })
 }

@@ -3,6 +3,7 @@
  * has correct roster, scoring, waiver, settings, and context for its sport.
  */
 import type { LeagueSport } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { attachRosterConfigForLeague } from '@/lib/multi-sport/MultiSportLeagueService'
 import { initializeLeagueWithSportDefaults } from '@/lib/sport-defaults/LeagueCreationInitializer'
 import { resolveSportConfigForLeague } from '@/lib/multi-sport/SportConfigResolver'
@@ -27,6 +28,7 @@ export interface BootstrapResult {
 /**
  * Run full sport-specific bootstrap after league create.
  * Call once after League is created; idempotent where applicable.
+ * When League.settings has roster_format_type or scoring_format_type (e.g. dynasty), those are used for roster/scoring.
  */
 export async function runLeagueBootstrap(
   leagueId: string,
@@ -34,13 +36,21 @@ export async function runLeagueBootstrap(
   scoringFormat?: string
 ): Promise<BootstrapResult> {
   const config = resolveSportConfigForLeague(leagueSport)
-  const format = scoringFormat ?? config.defaultFormat
-  const isIdp = leagueSport === 'NFL' && (format === 'IDP' || format === 'idp')
+  const settings = await prisma.league
+    .findUnique({ where: { id: leagueId }, select: { settings: true } })
+    .then((l) => (l?.settings as Record<string, unknown>) ?? {})
+  const rosterFormat =
+    (settings.roster_format_type as string) ?? (settings.roster_format as string) ?? scoringFormat ?? config.defaultFormat
+  const scoringFormatResolved =
+    (settings.scoring_format_type as string) ?? (settings.scoring_format as string) ?? scoringFormat ?? config.defaultFormat
+  const isIdp =
+    leagueSport === 'NFL' &&
+    (rosterFormat === 'IDP' || rosterFormat === 'idp' || scoringFormatResolved === 'IDP' || scoringFormatResolved === 'idp')
 
   const [rosterResult, settingsResult, scoringResult, poolResult, draftResult, waiverResult, playoffResult, scheduleResult] = await Promise.all([
-    attachRosterConfigForLeague(leagueId, leagueSport, format).then((r) => ({ templateId: r.templateId })),
+    attachRosterConfigForLeague(leagueId, leagueSport, rosterFormat).then((r) => ({ templateId: r.templateId })),
     initializeLeagueWithSportDefaults({ leagueId, sport: leagueSport, mergeIfExisting: false }),
-    bootstrapLeagueScoring(leagueId, leagueSport, format).then((r) => ({
+    bootstrapLeagueScoring(leagueId, leagueSport, scoringFormatResolved).then((r) => ({
       templateId: r.templateId,
       isDefault: r.isDefault,
     })),

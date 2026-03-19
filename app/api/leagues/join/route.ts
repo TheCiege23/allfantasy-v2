@@ -28,21 +28,88 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
 
-  const existing = await prisma.roster.findUnique({
-    where: { leagueId_platformUserId: { leagueId: result.leagueId, platformUserId: userId } },
-    select: { id: true },
+  const joinResult = await prisma.$transaction(async (tx) => {
+    const existing = await tx.roster.findUnique({
+      where: { leagueId_platformUserId: { leagueId: result.leagueId, platformUserId: userId } },
+      select: { id: true },
+    })
+    if (existing) {
+      return { success: true as const, leagueId: result.leagueId, alreadyMember: true as const }
+    }
+
+    const [league, rosterCount, draftSession, profile] = await Promise.all([
+      tx.league.findUnique({
+        where: { id: result.leagueId },
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+          leagueSize: true,
+          leagueVariant: true,
+        },
+      }),
+      tx.roster.count({
+        where: { leagueId: result.leagueId },
+      }),
+      tx.draftSession.findUnique({
+        where: { leagueId: result.leagueId },
+        select: { status: true },
+      }),
+      tx.userProfile.findFirst({
+        where: { userId },
+        select: { displayName: true, sleeperUsername: true },
+      }),
+    ])
+
+    if (!league) {
+      return { success: false as const, status: 404, error: 'League not found' }
+    }
+
+    if (league.leagueSize != null && rosterCount >= league.leagueSize) {
+      return { success: false as const, status: 409, error: 'League is full' }
+    }
+
+    if (league.leagueVariant === 'survivor' && draftSession?.status && draftSession.status !== 'pre_draft') {
+      return {
+        success: false as const,
+        status: 409,
+        error: 'Survivor leagues lock new joins after the draft starts.',
+      }
+    }
+
+    const roster = await tx.roster.create({
+      data: {
+        leagueId: result.leagueId,
+        platformUserId: userId,
+        playerData: { draftPicks: [] },
+      },
+      select: { id: true },
+    })
+
+    if (league.platform === 'manual') {
+      const manualTeamCount = await tx.leagueTeam.count({
+        where: { leagueId: result.leagueId },
+      })
+      if (league.leagueSize == null || manualTeamCount < league.leagueSize) {
+        const displayName = profile?.displayName?.trim() || profile?.sleeperUsername?.trim() || 'Manager'
+        const teamBaseName = league.name?.trim() || 'League'
+        await tx.leagueTeam.create({
+          data: {
+            leagueId: result.leagueId,
+            externalId: roster.id,
+            ownerName: displayName,
+            teamName: `${displayName}'s ${teamBaseName} Team`,
+          },
+        }).catch(() => null)
+      }
+    }
+
+    return { success: true as const, leagueId: result.leagueId, alreadyMember: false as const }
   })
-  if (existing) {
-    return NextResponse.json({ success: true, leagueId: result.leagueId, alreadyMember: true })
+
+  if (!joinResult.success) {
+    return NextResponse.json({ error: joinResult.error }, { status: joinResult.status })
   }
 
-  await prisma.roster.create({
-    data: {
-      leagueId: result.leagueId,
-      platformUserId: userId,
-      playerData: { draftPicks: [] },
-    },
-  })
-
-  return NextResponse.json({ success: true, leagueId: result.leagueId })
+  return NextResponse.json(joinResult)
 }

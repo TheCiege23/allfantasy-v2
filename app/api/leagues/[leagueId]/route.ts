@@ -28,9 +28,12 @@ export async function GET(
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, sport: true, leagueVariant: true, avatarUrl: true },
+    select: { id: true, name: true, sport: true, leagueVariant: true, avatarUrl: true, isDynasty: true, settings: true },
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  const settings = league.settings as Record<string, unknown> | null
+  const leagueType = typeof settings?.league_type === 'string' ? String(settings.league_type).trim().toLowerCase() : null
 
   return NextResponse.json({
     id: league.id,
@@ -38,5 +41,7 @@ export async function GET(
     sport: league.sport ?? 'NFL',
     leagueVariant: league.leagueVariant ?? null,
     avatarUrl: league.avatarUrl ?? null,
+    isDynasty: league.isDynasty ?? false,
+    leagueType: leagueType || null,
   })
 }

@@ -6,6 +6,33 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { buildLeagueInviteUrl } from '@/lib/viral-loop'
 import crypto from 'crypto'
 
+function generateInviteCode(): string {
+  return crypto.randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)
+}
+
+async function ensureLeagueInvite(
+  leagueId: string,
+  settings: Record<string, unknown>
+): Promise<{ inviteCode: string; joinUrl: string; inviteLink: string }> {
+  const existingCode = typeof settings.inviteCode === 'string' && settings.inviteCode.trim()
+    ? settings.inviteCode.trim()
+    : null
+  const inviteCode = existingCode ?? generateInviteCode()
+  const joinUrl = buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } })
+  const inviteLink = joinUrl
+
+  if (!existingCode || settings.inviteLink !== inviteLink) {
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: {
+        settings: { ...settings, inviteCode, inviteLink },
+      },
+    })
+  }
+
+  return { inviteCode, joinUrl, inviteLink }
+}
+
 /** GET: return current invite code/link from settings. POST: regenerate and store in settings. */
 export async function GET(
   _req: NextRequest,
@@ -28,14 +55,11 @@ export async function GET(
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
   const settings = (league.settings as Record<string, unknown>) || {}
-  const inviteCode = (settings.inviteCode as string) ?? null
-  const inviteLink = (settings.inviteLink as string) ?? null
-
-  const joinUrl = inviteCode ? buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } }) : null
+  const invite = await ensureLeagueInvite(params.leagueId, settings)
   return NextResponse.json({
-    inviteCode,
-    inviteLink: joinUrl ?? inviteLink,
-    joinUrl,
+    inviteCode: invite.inviteCode,
+    inviteLink: invite.inviteLink,
+    joinUrl: invite.joinUrl,
   })
 }
 
@@ -63,7 +87,9 @@ export async function POST(
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
   const settings = (league.settings as Record<string, unknown>) || {}
-  const inviteCode = regenerate ? crypto.randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8) : (settings.inviteCode as string) ?? crypto.randomBytes(6).toString('base64url').slice(0, 8)
+  const inviteCode = regenerate
+    ? generateInviteCode()
+    : (typeof settings.inviteCode === 'string' && settings.inviteCode.trim() ? settings.inviteCode.trim() : generateInviteCode())
   const joinUrl = buildLeagueInviteUrl(inviteCode, { params: { utm_campaign: 'league_invite' } })
   const inviteLink = joinUrl
 

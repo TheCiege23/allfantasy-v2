@@ -12,6 +12,14 @@ CREATE TABLE "draft_sessions" (
     "pausedRemainingSeconds" INTEGER,
     "slotOrder" JSONB NOT NULL DEFAULT '[]',
     "version" INTEGER NOT NULL DEFAULT 0,
+    "auctionBudgetPerTeam" INTEGER,
+    "auctionBudgets" JSONB,
+    "auctionState" JSONB,
+    "keeperConfig" JSONB,
+    "keeperSelections" JSONB,
+    "devyConfig" JSONB,
+    "c2cConfig" JSONB,
+    "tradedPicks" JSONB DEFAULT '[]',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -32,6 +40,7 @@ CREATE TABLE "draft_picks" (
     "byeWeek" INTEGER,
     "playerId" TEXT,
     "tradedPickMeta" JSONB,
+    "amount" INTEGER,
     "source" TEXT DEFAULT 'user',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

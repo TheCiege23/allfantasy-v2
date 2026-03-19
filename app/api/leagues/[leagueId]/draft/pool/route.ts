@@ -53,7 +53,7 @@ export async function GET(
       }),
       prisma.draftSession.findUnique({
         where: { leagueId },
-        select: { devyConfig: true, c2cConfig: true },
+        select: { devyConfig: true, c2cConfig: true, keeperSelections: true },
       }),
     ])
     const sport = (league?.sport as LeagueSport) ?? 'NFL'
@@ -202,7 +202,18 @@ export async function GET(
       }
     }
 
-    const entries = normalizeDraftPlayerList(rawList, sport)
+    let rawListFiltered = rawList
+    const keeperSelections = draftSession?.keeperSelections as Array<{ playerName?: string }> | null
+    if (Array.isArray(keeperSelections) && keeperSelections.length > 0) {
+      const keptNames = new Set(keeperSelections.map((k) => normalizeNameForDedupe(k.playerName ?? '')).filter(Boolean))
+      if (keptNames.size > 0) {
+        rawListFiltered = rawList.filter(
+          (r: RawRow) => !keptNames.has(normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? ''))
+        )
+      }
+    }
+
+    const entries = normalizeDraftPlayerList(rawListFiltered, sport)
     const res = NextResponse.json({
       entries,
       sport,

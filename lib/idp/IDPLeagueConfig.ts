@@ -9,6 +9,7 @@ import type {
   IdpPositionMode,
   IdpRosterPreset,
   IdpScoringPreset,
+  IdpScoringOverrides,
   IdpDraftType,
   IdpSlotOverrides,
 } from './types'
@@ -65,6 +66,16 @@ function parseSlotOverrides(raw: unknown): IdpSlotOverrides | null {
   return Object.keys(out).length ? out : null
 }
 
+function parseScoringOverrides(raw: unknown): IdpScoringOverrides | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const out: IdpScoringOverrides = {}
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v
+  }
+  return Object.keys(out).length ? out : null
+}
+
 export async function getIdpLeagueConfig(leagueId: string): Promise<IdpLeagueConfigLoaded | null> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -83,10 +94,12 @@ export async function getIdpLeagueConfig(leagueId: string): Promise<IdpLeagueCon
       rosterPreset: toRosterPreset(row.rosterPreset),
       slotOverrides: parseSlotOverrides(row.slotOverrides),
       scoringPreset: toScoringPreset(row.scoringPreset),
+      scoringOverrides: parseScoringOverrides(row.scoringOverrides),
       bestBallEnabled: row.bestBallEnabled,
       draftType: toDraftType(row.draftType),
       benchSlots: row.benchSlots,
       irSlots: row.irSlots,
+      settingsLockedAt: row.settingsLockedAt,
     }
   }
 
@@ -99,10 +112,12 @@ export async function getIdpLeagueConfig(leagueId: string): Promise<IdpLeagueCon
     rosterPreset: 'standard',
     slotOverrides: null,
     scoringPreset: 'balanced',
+    scoringOverrides: null,
     bestBallEnabled: false,
     draftType: 'snake',
     benchSlots: 7,
     irSlots: 2,
+    settingsLockedAt: null,
   }
 }
 
@@ -113,10 +128,12 @@ export async function upsertIdpLeagueConfig(
     rosterPreset: string
     slotOverrides: IdpSlotOverrides | object
     scoringPreset: string
+    scoringOverrides: IdpScoringOverrides | object | null
     bestBallEnabled: boolean
     draftType: string
     benchSlots: number
     irSlots: number
+    settingsLockedAt: Date | null
   }>
 ): Promise<IdpLeagueConfigLoaded | null> {
   await prisma.idpLeagueConfig.upsert({
@@ -127,20 +144,24 @@ export async function upsertIdpLeagueConfig(
       rosterPreset: (input.rosterPreset as string) ?? 'standard',
       slotOverrides: (input.slotOverrides as object) ?? undefined,
       scoringPreset: (input.scoringPreset as string) ?? 'balanced',
+      scoringOverrides: (input.scoringOverrides as object) ?? undefined,
       bestBallEnabled: input.bestBallEnabled ?? false,
       draftType: (input.draftType as string) ?? 'snake',
       benchSlots: input.benchSlots ?? 7,
       irSlots: input.irSlots ?? 2,
+      settingsLockedAt: input.settingsLockedAt ?? undefined,
     },
     update: {
       ...(input.positionMode !== undefined && { positionMode: input.positionMode }),
       ...(input.rosterPreset !== undefined && { rosterPreset: input.rosterPreset }),
       ...(input.slotOverrides !== undefined && { slotOverrides: input.slotOverrides as object }),
       ...(input.scoringPreset !== undefined && { scoringPreset: input.scoringPreset }),
+      ...(input.scoringOverrides !== undefined && { scoringOverrides: input.scoringOverrides as object | undefined }),
       ...(input.bestBallEnabled !== undefined && { bestBallEnabled: input.bestBallEnabled }),
       ...(input.draftType !== undefined && { draftType: input.draftType }),
       ...(input.benchSlots !== undefined && { benchSlots: input.benchSlots }),
       ...(input.irSlots !== undefined && { irSlots: input.irSlots }),
+      ...(input.settingsLockedAt !== undefined && { settingsLockedAt: input.settingsLockedAt }),
     },
   })
   return getIdpLeagueConfig(leagueId)

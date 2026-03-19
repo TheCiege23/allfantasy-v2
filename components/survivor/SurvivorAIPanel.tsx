@@ -70,6 +70,9 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
   } | null>(null)
 
   const { hasAccess, loading: entitlementLoading } = useEntitlement('survivor_ai')
+  const chatHref = summary.myTribeSource
+    ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
+    : `/app/league/${leagueId}?tab=Chat`
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -179,7 +182,7 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
           In league or tribe chat, ask for strategy, challenge tips, tribal risk, exile strategy, or recaps. Pass your league so Chimmy gets Survivor context. Command suggestions never bypass validation — the engine processes votes and idols.
         </p>
         <Link
-          href={`/app/league/${leagueId}?tab=Chat`}
+          href={chatHref}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
         >
           <MessageSquare className="h-4 w-4" /> Open Chat

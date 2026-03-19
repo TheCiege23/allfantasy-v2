@@ -120,7 +120,7 @@ export function BigBrotherCommissionerPanel({ leagueId, onAction }: BigBrotherCo
             onChange={(e) => setAction(e.target.value)}
             className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white"
           >
-            {ACTIONS.map((a) => (
+            {AUTOMATION_ACTIONS.map((a: { value: string; label: string }) => (
               <option key={a.value} value={a.value}>{a.label}</option>
             ))}
           </select>

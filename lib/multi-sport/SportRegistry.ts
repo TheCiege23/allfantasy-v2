@@ -30,8 +30,9 @@ export const SPORT_POSITIONS: SportPositionsMap = {
   SOCCER: SOCCER_POSITIONS,
 }
 
+/** App-wide default scoring/roster format per sport. League creation loads these as standard defaults. */
 export const DEFAULT_FORMAT_BY_SPORT: Record<SportType, string> = {
-  NFL: 'PPR',
+  NFL: 'standard',
   NBA: 'points',
   MLB: 'standard',
   NHL: 'standard',

@@ -9,11 +9,15 @@ export interface SurvivorIdolsViewProps {
   names: Record<string, string>
 }
 
+function formatPowerLabel(value: string): string {
+  return value.replace(/_/g, ' ')
+}
+
 /**
  * Idols / Advantages View: private owned idols, status (hidden, active, used, expired), player-bound mapping, transfer history where authorized, usage eligibility.
  */
-export function SurvivorIdolsView({ summary, names }: SurvivorIdolsViewProps) {
-  const { myIdols, myRosterId } = summary
+export function SurvivorIdolsView({ summary }: SurvivorIdolsViewProps) {
+  const { myIdols, myRosterId, myActiveEffects = [] } = summary
 
   return (
     <div className="space-y-6">
@@ -35,9 +39,32 @@ export function SurvivorIdolsView({ summary, names }: SurvivorIdolsViewProps) {
               >
                 <div className="flex items-center gap-2">
                   <Eye className="h-4 w-4 text-amber-400" />
-                  <span className="font-medium text-white">{idol.powerType}</span>
+                  <span className="font-medium text-white">{formatPowerLabel(idol.powerType)}</span>
                 </div>
-                <span className="text-xs text-white/60">ID: {idol.id.slice(0, 8)}… · Eligible at Tribal Council</span>
+                <span className="text-xs text-white/60">
+                  Player: {idol.playerId} · ID: {idol.id.slice(0, 8)}… · Eligible at Tribal Council
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+          Current power effects
+        </h2>
+        {myActiveEffects.length === 0 ? (
+          <p className="text-sm text-white/50">No active Survivor power effects are applied to you this week.</p>
+        ) : (
+          <ul className="space-y-2">
+            {myActiveEffects.map((effect, index) => (
+              <li
+                key={`${effect.rewardType}-${effect.week}-${index}`}
+                className="rounded-lg border border-white/5 px-3 py-2 text-sm text-white/70"
+              >
+                {formatPowerLabel(effect.rewardType)}
+                {effect.appliedMode === 'queued' ? ' (queued)' : effect.appliedMode === 'record_only' ? ' (tracked)' : ''}
               </li>
             ))}
           </ul>

@@ -18,7 +18,7 @@
  *   If the entire context build fails, the trade evaluator proceeds without it.
  */
 
-import { SleeperRoster, SleeperLeague, SleeperPlayer, getAllPlayers } from './sleeper-client'
+import { SleeperRoster, SleeperLeague, SleeperPlayer, getAllPlayers, getLeagueType } from './sleeper-client'
 import { parseSleeperRosterPositions } from './trade-engine/sleeper-converter'
 import { fetchFantasyCalcValues, findPlayerByName, FantasyCalcPlayer } from './fantasycalc'
 
@@ -347,10 +347,12 @@ export async function buildLeagueDecisionContext(
     completeness = 'PARTIAL'
   }
 
+  const leagueFormat = getLeagueType(league)
+  const isDynasty = leagueFormat === 'dynasty'
   let fcPlayers: FantasyCalcPlayer[] = []
   try {
     fcPlayers = await fetchFantasyCalcValues({
-      isDynasty: true,
+      isDynasty,
       numQbs: isSF ? 2 : 1,
       numTeams: league.total_rosters || 12,
       ppr: 1,

@@ -12,6 +12,7 @@ import { isSurvivorLeague } from '@/lib/survivor/SurvivorLeagueConfig'
 import { buildSurvivorAIContext } from '@/lib/survivor/ai/SurvivorAIContext'
 import type { SurvivorAIType } from '@/lib/survivor/ai/SurvivorAIContext'
 import { generateSurvivorAI } from '@/lib/survivor/ai/SurvivorAIService'
+import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,10 @@ export async function POST(
   if (!VALID_TYPES.includes(type)) {
     return NextResponse.json({ error: 'Invalid type', validTypes: VALID_TYPES }, { status: 400 })
   }
-  const currentWeek = Math.max(1, parseInt(String(body.week ?? body.currentWeek ?? 1), 10) || 1)
+  const requestedWeekRaw = body.week ?? body.currentWeek ?? null
+  const requestedWeek =
+    requestedWeekRaw != null ? Math.max(1, parseInt(String(requestedWeekRaw), 10) || 1) : null
+  const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
 
   if (!ALLOW_WHEN_ENTITLEMENTS_OPEN) {
     const hasAccess = await hasSurvivorAIAccess(userId)
@@ -119,6 +123,9 @@ export async function POST(
         rosterDisplayNames: deterministic.rosterDisplayNames,
         myRosterId: deterministic.myRosterId,
         myIdols: deterministic.myIdols,
+        myActiveEffects: deterministic.myActiveEffects,
+        myExileStatus: deterministic.myExileStatus,
+        finale: deterministic.finale,
       },
       narrative,
       model,

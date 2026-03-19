@@ -10,11 +10,14 @@ export default function LeagueShell({
   initialTab,
   renderTab,
   tabs,
+  leagueModeLabel,
 }: {
   leagueName: string
   initialTab?: LeagueShellTab
   renderTab: (tab: LeagueShellTab) => ReactNode
   tabs?: LeagueShellTab[]
+  /** e.g. "Redraft" or "Dynasty" so users can tell league type at a glance */
+  leagueModeLabel?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -41,7 +44,14 @@ export default function LeagueShell({
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 space-y-4">
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-        <h1 className="text-xl font-semibold">{leagueName}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-xl font-semibold">{leagueName}</h1>
+          {leagueModeLabel && (
+            <span className="rounded-full bg-cyan-500/20 px-2.5 py-0.5 text-xs font-medium text-cyan-200" title={`League type: ${leagueModeLabel}`}>
+              {leagueModeLabel}
+            </span>
+          )}
+        </div>
         <p className="mt-1 text-sm text-white/60">Sleeper-style league shell with tabbed workflows and shared AI context.</p>
       </section>
       <LeagueTabNav activeTab={activeTab} onChange={handleTabChange} tabs={tabs} />

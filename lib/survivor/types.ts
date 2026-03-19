@@ -114,6 +114,7 @@ export type SurvivorChallengeType =
 /** Parsed @Chimmy command intent. */
 export type SurvivorCommandIntent =
   | 'vote'
+  | 'jury_vote'
   | 'play_idol'
   | 'challenge_pick'
   | 'immunity_choice'
@@ -126,6 +127,8 @@ export interface SurvivorParsedCommand {
   targetDisplayName?: string
   idolId?: string
   challengeId?: string
+  playerDisplayName?: string
+  secondaryPlayerDisplayName?: string
   payload?: Record<string, unknown>
   raw: string
 }
@@ -147,5 +150,10 @@ export type SurvivorAuditEventType =
   | 'token_awarded'
   | 'token_reset'
   | 'return_to_island'
+  | 'challenge_resolved'
+  | 'challenge_reward_awarded'
+  | 'idol_effect_applied'
+  | 'jury_vote_submitted'
+  | 'winner_crowned'
   | 'commissioner_override'
   | 'chat_membership_updated'

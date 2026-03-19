@@ -4,8 +4,11 @@ import { authOptions } from '@/lib/auth'
 import { createTournament } from '@/lib/tournament-mode/TournamentCreationService'
 import { validateCommissionerLeagueNames } from '@/lib/tournament-mode/LeagueNamingService'
 import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
+import { TOURNAMENT_PARTICIPANT_POOL_SIZES } from '@/lib/tournament-mode/types'
 import type { TournamentSettings } from '@/lib/tournament-mode/types'
 import { z } from 'zod'
+
+const VALID_POOL_SIZES = new Set(TOURNAMENT_PARTICIPANT_POOL_SIZES)
 
 const createBodySchema = z.object({
   name: z.string().min(1).max(120),
@@ -44,6 +47,22 @@ export async function POST(req: Request) {
   const mergedSettings: Partial<TournamentSettings> = {
     ...DEFAULT_TOURNAMENT_SETTINGS,
     ...settings,
+  }
+
+  const poolSize = mergedSettings.participantPoolSize ?? DEFAULT_TOURNAMENT_SETTINGS.participantPoolSize
+  if (!(VALID_POOL_SIZES as Set<number>).has(poolSize)) {
+    return NextResponse.json(
+      { error: `Participant pool size must be one of: ${[...VALID_POOL_SIZES].join(', ')}` },
+      { status: 400 }
+    )
+  }
+
+  const draftType = mergedSettings.draftType ?? DEFAULT_TOURNAMENT_SETTINGS.draftType
+  if (!['snake', 'linear', 'auction'].includes(String(draftType))) {
+    return NextResponse.json(
+      { error: 'Draft type must be snake, linear, or auction' },
+      { status: 400 }
+    )
   }
 
   if (mergedSettings.leagueNamingMode === 'commissioner_custom' && leagueNames?.length) {

@@ -3528,6 +3528,7 @@ model League {
   tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
   bigBrotherConfig   BigBrotherLeagueConfig?
   idpConfig          IdpLeagueConfig?
+  dynastyConfig      DynastyLeagueConfig?
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
@@ -4649,15 +4650,142 @@ model IdpLeagueConfig {
   slotOverrides     Json?
   /// balanced | tackle_heavy | big_play_heavy
   scoringPreset     String   @default("balanced") @db.VarChar(24)
+  /// Per-league scoring overrides. JSON: { idp_solo_tackle?: number, idp_sack?: number, ... }. Merged with preset; overrides take precedence.
+  scoringOverrides  Json?
   bestBallEnabled   Boolean  @default(false)
   /// snake | linear | auction
   draftType         String   @default("snake") @db.VarChar(16)
   benchSlots        Int      @default(7)
   irSlots           Int      @default(2)
+  /// When set, position mode and starter counts cannot be changed (prevents post-draft breakage). Cleared only by admin or explicit unlock.
+  settingsLockedAt  DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  auditLogs         IdpSettingsAuditLog[]
+  bestBallSnapshots IdpBestBallLineupSnapshot[]
+
   @@map("idp_league_configs")
+}
+
+/// Dynasty core league config (shared base for standard Dynasty, Devy, C2C). PROMPT 2/5 + PROMPT 3/5 taxi.
+model DynastyLeagueConfig {
+  id                        String   @id @default(uuid())
+  leagueId                  String   @unique @db.VarChar(64)
+  league                    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  /// 13 or 14 weeks default; avoid Week 18 title
+  regularSeasonWeeks        Int      @default(14)
+  /// reverse_standings | max_pf | commissioner
+  rookiePickOrderMethod     String   @default("max_pf") @db.VarChar(32)
+  /// Non-playoff teams ordered by reverse Max PF (anti-tank)
+  useMaxPfForNonPlayoff     Boolean  @default(true)
+  rookieDraftRounds         Int      @default(4)
+  /// linear | snake
+  rookieDraftType           String   @default("linear") @db.VarChar(16)
+  divisionsEnabled          Boolean  @default(false)
+  /// Week number before fantasy playoffs; null = no deadline
+  tradeDeadlineWeek         Int?
+  /// FAAB recommended; stored in waiver settings
+  waiverTypeRecommended     String   @default("faab") @db.VarChar(24)
+  /// Future picks tradable years out (2 or 3)
+  futurePicksYearsOut       Int      @default(3)
+  /// PROMPT 3: Taxi squad slot count (core dynasty default 4; Devy/C2C override via their config).
+  taxiSlots                 Int      @default(4)
+  /// 1 = rookies only, 2 = rookies + 2nd year, 3 = rookies + 2nd + 3rd year
+  taxiEligibilityYears       Int      @default(1)
+  /// once_promoted_no_return | free_move | commissioner_custom
+  taxiLockBehavior           String   @default("once_promoted_no_return") @db.VarChar(32)
+  taxiInSeasonMoves          Boolean  @default(true)
+  taxiPostseasonMoves        Boolean  @default(false)
+  /// Default false: taxi players do not score; specialty modes (e.g. best ball) may override per league.
+  taxiScoringOn              Boolean  @default(false)
+  /// Week number after which no taxi moves; null = no deadline
+  taxiDeadlineWeek           Int?
+  /// Week number after which no promotions from taxi; null = no deadline
+  taxiPromotionDeadlineWeek  Int?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  draftOrderAuditLogs       DynastyDraftOrderAuditLog[]
+
+  @@map("dynasty_league_configs")
+}
+
+/// Audit log for commissioner draft order overrides. PROMPT 2/5.
+model DynastyDraftOrderAuditLog {
+  id          String   @id @default(cuid())
+  leagueId    String   @db.VarChar(64)
+  configId    String
+  config      DynastyLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  season      Int
+  /// JSON array of { teamId/rosterId, pickSlot } or full order
+  overridePayload Json
+  userId      String   @db.VarChar(64)
+  reason      String?  @db.VarChar(256)
+  createdAt   DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([configId])
+  @@map("dynasty_draft_order_audit_logs")
+}
+
+/// IDP player eligibility tags (grouped/split position, external source). Used to resolve ambiguity and audit midseason position changes.
+/// leagueId = __global__ means global eligibility; otherwise league-specific override.
+model IdpPlayerEligibility {
+  id             String   @id @default(uuid())
+  sportsPlayerId String   @db.VarChar(64)
+  /// __global__ = global; otherwise league-specific override
+  leagueId       String   @db.VarChar(64)
+  /// Array of positions: ["DE","LB"] for multi-eligibility. Normalized uppercase.
+  positionTags   Json     // string[]
+  /// sleeper | manual | sync | import
+  source         String   @default("sleeper") @db.VarChar(24)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([sportsPlayerId, leagueId])
+  @@index([sportsPlayerId])
+  @@index([leagueId])
+  @@map("idp_player_eligibility")
+}
+
+/// IDP best-ball lineup snapshot per roster/period. Includes IDP slots; starterIds is array of { playerId, slotName }.
+model IdpBestBallLineupSnapshot {
+  id          String   @id @default(uuid())
+  leagueId    String   @db.VarChar(64)
+  configId    String
+  config      IdpLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId    String   @db.VarChar(64)
+  periodKey   String   @db.VarChar(32)
+  totalPoints Float?
+  /// Array of { playerId: string, slotName: string } in optimal lineup order
+  starterIds  Json
+  createdAt   DateTime @default(now())
+
+  @@unique([leagueId, rosterId, periodKey])
+  @@index([leagueId])
+  @@index([rosterId])
+  @@map("idp_best_ball_lineup_snapshots")
+}
+
+/// Audit log for IDP config changes (scoring, position mode, starter counts). Preserves integrity on eligibility/setting updates.
+model IdpSettingsAuditLog {
+  id        String   @id @default(cuid())
+  leagueId  String   @db.VarChar(64)
+  configId  String
+  config    IdpLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  actorId   String?  @db.VarChar(64)
+  /// position_mode_change | scoring_change | starter_count_change | scoring_preset_apply | unlock | lock
+  action    String   @db.VarChar(48)
+  before    Json?
+  after     Json?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([configId])
+  @@index([createdAt])
+  @@map("idp_settings_audit_logs")
 }
 
 // ========== Devy Dynasty League Engine (PROMPT 2/6) ==========
@@ -4703,6 +4831,8 @@ model DevyLeagueConfig {
   supplementalDevyFAEnabled   Boolean  @default(false)
   /// If enabled, rights expire after configured period when not promoted (commissioner tool to clean).
   rightsExpirationEnabled     Boolean  @default(false)
+  /// PROMPT 3: When player returns to school: restore_rights | hold_rights | commissioner
+  returnToSchoolHandling      String   @default("restore_rights") @db.VarChar(32)
   /// PROMPT 4: When best ball is ON, if true then taxi-eligible pro rookies can contribute to best ball lineup; otherwise taxi players do not score.
   taxiProRookiesScoreInBestBall Boolean @default(false)
   /// PROMPT 4: Superflex slot in best ball (NFL). When true, lineup has SUPER_FLEX in addition to FLEX.
@@ -5143,6 +5273,76 @@ model LeagueScoringOverride {
   @@unique([leagueId, statKey], name: "uniq_league_scoring_override_league_stat")
   @@index([leagueId])
   @@map("league_scoring_overrides")
+}
+
+/// Sport-level feature flags: which league options are valid for this sport (PROMPT 2/4).
+/// Commissioners can override only where the sport allows; validation uses these flags.
+model SportFeatureFlags {
+  id                    String   @id @default(cuid())
+  sportType             String   @unique @db.VarChar(12)
+  supportsBestBall      Boolean  @default(false)
+  supportsSuperflex     Boolean  @default(false)
+  supportsTePremium     Boolean  @default(false)
+  supportsKickers       Boolean  @default(false)
+  supportsTeamDefense    Boolean  @default(false)
+  supportsIdp           Boolean  @default(false)
+  supportsWeeklyLineups Boolean  @default(true)
+  supportsDailyLineups  Boolean  @default(false)
+  supportsBracketMode  Boolean  @default(false)
+  supportsDevy          Boolean  @default(false)
+  supportsTaxi          Boolean  @default(false)
+  supportsIr            Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("sport_feature_flags")
+}
+
+/// Fantasy schedule structure: matchup type, regular/playoff weeks, lock mode (PROMPT 3/4).
+/// Separate from real-world season metadata. One default per sport (formatType = 'DEFAULT').
+model ScheduleTemplate {
+  id                     String   @id @default(cuid())
+  sportType              String   @db.VarChar(12)
+  name                   String   @db.VarChar(64)
+  formatType             String   @db.VarChar(32)
+  matchupType            String   @db.VarChar(48)
+  regularSeasonWeeks     Int      @default(14)
+  playoffWeeks           Int      @default(3)
+  byeWeekWindow          Json?    // e.g. { start: 5, end: 14 }
+  fantasyPlayoffDefault  Json?    // e.g. { startWeek: 15, endWeek: 17 }
+  lineupLockMode         String?  @db.VarChar(32)  // weekly | daily
+  scoringMode            String?  @db.VarChar(48)  // head_to_head_points | roto | etc.
+  regularSeasonStyle     String?  @db.VarChar(48)  // weekly | long-form | short season | season+tournament
+  playoffSupport         Boolean  @default(true)
+  bracketModeSupported   Boolean  @default(false)
+  marchMadnessMode       Boolean  @default(false)
+  bowlPlayoffMetadata    Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([sportType, formatType], name: "uniq_schedule_template_sport_format")
+  @@index([sportType])
+  @@map("schedule_templates")
+}
+
+/// Real-world season calendar: preseason, regular season, playoffs (PROMPT 3/4).
+/// One default per sport (formatType = 'DEFAULT').
+model SeasonCalendar {
+  id                         String   @id @default(cuid())
+  sportType                  String   @db.VarChar(12)
+  name                       String   @db.VarChar(64)
+  formatType                 String   @db.VarChar(32)
+  preseasonPeriod            Json?    // e.g. { monthStart: 8, monthEnd: 8, label: "August" }
+  regularSeasonPeriod        Json     // e.g. { monthStart: 9, monthEnd: 1, label: "Sep–Jan" }
+  playoffsPeriod             Json?    // e.g. { monthStart: 10, monthEnd: 10 }
+  championshipPeriod        Json?    // e.g. super_bowl: Feb, world_series: late Oct
+  internationalBreaksSupported Boolean @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  @@unique([sportType, formatType], name: "uniq_season_calendar_sport_format")
+  @@index([sportType])
+  @@map("season_calendars")
 }
 
 /// Multi-sport: scheduled games for schedule/stats pipeline

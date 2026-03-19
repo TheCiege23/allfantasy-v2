@@ -18,11 +18,12 @@ export function LeagueRecruitmentTools({
 }: LeagueRecruitmentToolsProps) {
   const [invite, setInvite] = useState(initialInvite ?? null)
   const [loadingInvite, setLoadingInvite] = useState(!initialInvite)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
   const [copied, setCopied] = useState(false)
   const [username, setUsername] = useState("")
   const [usernameSending, setUsernameSending] = useState(false)
-  const [usernameResult, setUsernameResult] = useState<{ inviteUrl?: string; sentTo?: string } | null>(null)
+  const [usernameResult, setUsernameResult] = useState<{ inviteUrl?: string; sentTo?: string; error?: string } | null>(null)
   const [email, setEmail] = useState("")
   const [emailSending, setEmailSending] = useState(false)
   const [emailResult, setEmailResult] = useState<{ sent?: boolean; inviteUrl?: string; error?: string } | null>(null)
@@ -34,10 +35,15 @@ export function LeagueRecruitmentTools({
 
   const fetchInvite = useCallback(async () => {
     setLoadingInvite(true)
+    setInviteError(null)
     try {
       const res = await fetch(`${base}/invite`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setInvite({ joinUrl: data.joinUrl ?? null, inviteCode: data.inviteCode ?? null })
+      if (!res.ok) {
+        setInviteError(typeof data?.error === "string" ? data.error : "Failed to load invite link.")
+        return
+      }
+      setInvite({ joinUrl: data.joinUrl ?? null, inviteCode: data.inviteCode ?? null })
     } finally {
       setLoadingInvite(false)
     }
@@ -59,6 +65,7 @@ export function LeagueRecruitmentTools({
   const regenerate = useCallback(async () => {
     if (!isCommissioner) return
     setRegenerating(true)
+    setInviteError(null)
     try {
       const res = await fetch(`${base}/invite`, {
         method: "POST",
@@ -66,7 +73,11 @@ export function LeagueRecruitmentTools({
         body: JSON.stringify({ regenerate: true }),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setInvite({ joinUrl: data.joinUrl ?? data.inviteLink ?? null, inviteCode: data.inviteCode ?? null })
+      if (!res.ok) {
+        setInviteError(typeof data?.error === "string" ? data.error : "Failed to regenerate invite link.")
+        return
+      }
+      setInvite({ joinUrl: data.joinUrl ?? data.inviteLink ?? null, inviteCode: data.inviteCode ?? null })
     } finally {
       setRegenerating(false)
     }
@@ -83,7 +94,11 @@ export function LeagueRecruitmentTools({
         body: JSON.stringify({ type: "username", username: username.trim() }),
       })
       const data = await res.json().catch(() => ({}))
-      setUsernameResult({ inviteUrl: data.inviteUrl, sentTo: data.sentTo })
+      setUsernameResult(
+        res.ok
+          ? { inviteUrl: data.inviteUrl, sentTo: data.sentTo }
+          : { error: typeof data?.error === "string" ? data.error : "Unable to create username invite." }
+      )
     } finally {
       setUsernameSending(false)
     }
@@ -163,34 +178,41 @@ export function LeagueRecruitmentTools({
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={joinUrl ?? ""}
-              className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
-              style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
-            />
-            <button
-              type="button"
-              onClick={copyLink}
-              disabled={!joinUrl}
-              className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            >
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy link"}
-            </button>
-            <button
-              type="button"
-              onClick={regenerate}
-              disabled={regenerating}
-              className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            >
-              {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Regenerate
-            </button>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={joinUrl ?? ""}
+                className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
+                style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+              />
+              <button
+                type="button"
+                onClick={copyLink}
+                disabled={!joinUrl}
+                className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy link"}
+              </button>
+              <button
+                type="button"
+                onClick={regenerate}
+                disabled={regenerating}
+                className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Regenerate
+              </button>
+            </div>
+            {inviteError && (
+              <p className="text-xs" style={{ color: "var(--destructive)" }}>
+                {inviteError}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -229,6 +251,11 @@ export function LeagueRecruitmentTools({
             <button type="button" onClick={() => navigator.clipboard?.writeText(usernameResult.inviteUrl!)} className="underline" style={{ color: "var(--accent)" }}>
               Copy link
             </button>
+          </p>
+        )}
+        {usernameResult?.error && (
+          <p className="text-xs mt-2" style={{ color: "var(--destructive)" }}>
+            {usernameResult.error}
           </p>
         )}
       </div>

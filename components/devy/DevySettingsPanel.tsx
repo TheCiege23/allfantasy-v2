@@ -27,8 +27,10 @@ interface DevyConfig {
   promotionTiming: string
   supplementalDevyFAEnabled: boolean
   rightsExpirationEnabled: boolean
+  returnToSchoolHandling?: string
   taxiProRookiesScoreInBestBall: boolean
   bestBallSuperflex: boolean
+  sport?: string
 }
 
 interface Props {
@@ -98,12 +100,15 @@ export function DevySettingsPanel({ leagueId, isCommissioner, onSaved }: Props) 
   if (error && !config) return <div className="text-sm text-red-300">{error}</div>
   if (!config) return null
 
+  const devyPositions = (config.sport ?? 'NFL') === 'NBA' ? 'G, F, C (PG/SG→G, SF/PF→F)' : 'QB, RB, WR, TE'
+
   return (
     <div className="space-y-4">
       <h3 className="text-base font-semibold text-white">Devy Dynasty settings</h3>
       {!isCommissioner && (
         <p className="text-xs text-white/50">Only the commissioner can edit these.</p>
       )}
+      <p className="text-xs text-white/55">Devy eligible positions: {devyPositions}. Devy and C2C are dynasty-only.</p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
@@ -271,6 +276,19 @@ export function DevySettingsPanel({ leagueId, isCommissioner, onSaved }: Props) 
           <option value="immediate_after_pro_draft">Immediate after pro draft</option>
           <option value="rollover">At league rollover</option>
           <option value="manager_choice_before_rookie_draft">Manager must choose before rookie draft</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="text-xs text-white/60">Return to school</span>
+        <select
+          value={config.returnToSchoolHandling ?? 'restore_rights'}
+          onChange={(e) => update({ returnToSchoolHandling: e.target.value })}
+          disabled={!isCommissioner}
+          className="mt-1 w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-white disabled:opacity-50"
+        >
+          <option value="restore_rights">Restore rights (player back in devy pool)</option>
+          <option value="hold_rights">Hold rights</option>
+          <option value="commissioner">Commissioner decides</option>
         </select>
       </label>
       <label className="flex items-center gap-2">

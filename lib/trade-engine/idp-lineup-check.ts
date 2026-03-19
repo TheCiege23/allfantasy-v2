@@ -58,5 +58,6 @@ export function postTradePositions(
       return typeof e === 'string' ? null : (e?.position ?? null)
     })
     .filter((p): p is string | null => p !== undefined)
-  return [...kept, ...receivedPositions]
+  const received = receivedPositions.map((p) => (p === undefined ? null : p))
+  return [...kept, ...received]
 }

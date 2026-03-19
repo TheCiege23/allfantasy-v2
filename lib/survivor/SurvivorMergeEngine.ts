@@ -2,13 +2,13 @@
  * Survivor merge trigger: determine if league is in merge phase (PROMPT 346). Deterministic.
  */
 
-import { prisma } from '@/lib/prisma'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
+import { getActiveRosterIdsForLeague } from './SurvivorRosterState'
 
 /**
  * Check if merge condition is met: by week or by remaining active roster count.
- * Active = rosters that have not been eliminated (no row in council.eliminatedRosterId for them).
+ * Active reflects eliminations minus any successful return-to-island events.
  */
 export async function isMergeTriggered(leagueId: string, currentWeek: number): Promise<boolean> {
   const config = await getSurvivorConfig(leagueId)
@@ -19,16 +19,7 @@ export async function isMergeTriggered(leagueId: string, currentWeek: number): P
   }
 
   if (config.mergeTrigger === 'player_count' && config.mergePlayerCount != null) {
-    const rosters = await prisma.roster.findMany({
-      where: { leagueId },
-      select: { id: true },
-    })
-    const eliminated = await prisma.survivorTribalCouncil.findMany({
-      where: { leagueId },
-      select: { eliminatedRosterId: true },
-    })
-    const eliminatedIds = new Set(eliminated.map((c) => c.eliminatedRosterId).filter(Boolean))
-    const remaining = rosters.filter((r) => !eliminatedIds.has(r.id)).length
+    const remaining = (await getActiveRosterIdsForLeague(leagueId)).length
     return remaining <= config.mergePlayerCount
   }
 

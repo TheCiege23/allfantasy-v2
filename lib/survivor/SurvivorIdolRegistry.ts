@@ -7,6 +7,11 @@ import { prisma } from '@/lib/prisma'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
 import { DEFAULT_IDOL_POWER_POOL } from './constants'
+import { getEligibleRosterIdsForCouncil } from './SurvivorCouncilEligibility'
+import { applyIdolPowerEffect } from './SurvivorEffectEngine'
+import { getFinaleState } from './SurvivorFinaleEngine'
+import { getCouncil } from './SurvivorTribalCouncilService'
+import { resolveSurvivorCurrentWeek } from './SurvivorTimelineResolver'
 import type { IdolPowerType } from './types'
 
 /** Seeded RNG for deterministic assignment. */
@@ -155,6 +160,79 @@ export async function useIdol(
   if (idol.rosterId !== rosterId) return { ok: false, error: 'Not your idol' }
   if (idol.status !== 'hidden' && idol.status !== 'revealed') return { ok: false, error: 'Idol already used or expired' }
 
+  const councilId = typeof context?.councilId === 'string' ? context.councilId : null
+  const councilWeekRaw = context?.week ?? context?.currentWeek
+  const councilWeek =
+    typeof councilWeekRaw === 'number'
+      ? councilWeekRaw
+      : typeof councilWeekRaw === 'string' && councilWeekRaw.trim()
+        ? Number.parseInt(councilWeekRaw, 10)
+        : null
+  const council = councilId
+    ? await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+    : councilWeek != null
+      ? await getCouncil(leagueId, councilWeek)
+      : null
+  const finaleOnlyPower = idol.powerType === 'jury_influence' || idol.powerType === 'finale_advantage'
+  if (!council && !finaleOnlyPower) return { ok: false, error: 'Idols can only be played during an active Tribal Council' }
+
+  if (council) {
+    if (council.closedAt) return { ok: false, error: 'This Tribal Council is already closed' }
+    if (new Date() > council.voteDeadlineAt) return { ok: false, error: 'The Tribal Council deadline has passed' }
+
+    const eligibleRosterIds = await getEligibleRosterIdsForCouncil(council.id)
+    if (!eligibleRosterIds.includes(rosterId)) {
+      return { ok: false, error: 'You are not eligible to play an idol in this council' }
+    }
+    if (idol.powerType === 'protect_self' || idol.powerType === 'protect_self_plus_one') {
+      const protectedRosterId =
+        typeof context?.protectedRosterId === 'string' ? context.protectedRosterId.trim() : ''
+      if (protectedRosterId && !eligibleRosterIds.includes(protectedRosterId)) {
+        return { ok: false, error: 'That manager is not eligible to receive idol protection in this council' }
+      }
+    }
+    if (idol.powerType === 'vote_nullifier') {
+      const nullifiedVoterRosterId =
+        typeof context?.nullifiedVoterRosterId === 'string' ? context.nullifiedVoterRosterId.trim() : ''
+      if (nullifiedVoterRosterId && !eligibleRosterIds.includes(nullifiedVoterRosterId)) {
+        return { ok: false, error: 'That manager is not eligible to have their vote nullified in this council' }
+      }
+    }
+  } else if (finaleOnlyPower) {
+    const finaleWeek = councilWeek ?? (await resolveSurvivorCurrentWeek(leagueId))
+    const finaleState = await getFinaleState(leagueId, finaleWeek)
+    if (!finaleState.open) {
+      return { ok: false, error: 'This idol can only be played while the Survivor finale is open' }
+    }
+    if (idol.powerType === 'jury_influence' && !finaleState.juryRosterIds.includes(rosterId)) {
+      return { ok: false, error: 'Only jury members can use jury influence in the finale' }
+    }
+    const finalistTarget =
+      typeof context?.targetRosterId === 'string' && context.targetRosterId.trim()
+        ? context.targetRosterId.trim()
+        : rosterId
+    if (idol.powerType === 'finale_advantage' && !finaleState.finalists.includes(finalistTarget)) {
+      return { ok: false, error: 'Finale advantage must target an active finalist' }
+    }
+    if (idol.powerType === 'finale_advantage') {
+      context = {
+        ...(context ?? {}),
+        targetRosterId: finalistTarget,
+      }
+    }
+  }
+
+  const effectResult = await applyIdolPowerEffect({
+    leagueId,
+    idolId,
+    rosterId,
+    powerType: idol.powerType,
+    context,
+  })
+  if (!effectResult.ok) {
+    return { ok: false, error: effectResult.error ?? 'Unable to apply this idol power right now' }
+  }
+
   await prisma.survivorIdol.update({
     where: { id: idolId },
     data: { status: 'used', usedAt: new Date() },
@@ -165,7 +243,11 @@ export async function useIdol(
       idolId,
       eventType: 'used',
       fromRosterId: rosterId,
-      metadata: context ?? {},
+      metadata: {
+        ...(context ?? {}),
+        powerType: idol.powerType,
+        appliedEffect: effectResult.effect ?? null,
+      },
     },
   })
   await appendSurvivorAudit(leagueId, config.configId, 'idol_used', {

@@ -43,11 +43,16 @@ export async function buildBigBrotherContextForChimmy(
   const juryStr = ctx.juryRosterIds.map((id) => names[id] ?? id).join(', ') || 'None'
   const eliminatedStr = ctx.eliminatedRosterIds.map((id) => names[id] ?? id).join(', ') || 'None'
 
+  const sportNote = ctx.sport && ctx.sport !== 'NFL'
+    ? ' This is a non-NFL league: weekly timeline is driven by the sport\'s scoring period. Some games may not count toward the weekly total depending on scoring-period cutoff and schedule alignment.'
+    : ''
+
   return `[BIG BROTHER LEAGUE CONTEXT - for explanation only; you never decide HOH, noms, veto winner, eviction, or vote counts]
-League ${leagueId}. Week ${ctx.week}. Phase: ${ctx.phase}. Challenge mode: ${ctx.challengeMode}.
+League ${leagueId}. Week ${ctx.week}. Phase: ${ctx.phase}. Sport: ${ctx.sport ?? 'NFL'}. Challenge mode: ${ctx.challengeMode}.
 HOH: ${hoh}. On the block: ${noms}. Veto winner: ${vetoWinner}. Veto used: ${ctx.vetoUsed}. Replacement nominee: ${ctx.replacementNomineeRosterId ? names[ctx.replacementNomineeRosterId] ?? ctx.replacementNomineeRosterId : 'N/A'}.
 Eliminated so far: ${eliminatedStr}. Jury: ${juryStr}.
 Who can vote: eligible houseguests (not evicted, not on block; HOH votes only in tie if configured). Tie-break: lowest season points evicted. Jury starts per league config (after X eliminations / when X remain / fixed week).
+Weekly deadlines (HOH, nominations, veto, voting) align to the league's scoring week.${sportNote}
 ${ctx.nextActionHint ? `Next: ${ctx.nextActionHint}` : ''}
 ${DETERMINISM_RULES}
 Suggest command phrasing only; engine processes: submit vote via Private Voting or /vote, HOH nominations via commissioner/UI.`

@@ -16,7 +16,13 @@ import { getExileLeagueId } from '@/lib/survivor/SurvivorExileEngine'
 import { getAllTokenStates } from '@/lib/survivor/SurvivorTokenEngine'
 import { getActiveIdolsForRoster } from '@/lib/survivor/SurvivorIdolRegistry'
 import { getSurvivorAuditLog } from '@/lib/survivor/SurvivorAuditLog'
+import { getTribeChatSource } from '@/lib/survivor/SurvivorChatMembershipService'
 import { isMergeTriggered } from '@/lib/survivor/SurvivorMergeEngine'
+import { getActiveEffectsForRoster } from '@/lib/survivor/SurvivorEffectEngine'
+import { getFinaleState } from '@/lib/survivor/SurvivorFinaleEngine'
+import { canReturnToIsland } from '@/lib/survivor/SurvivorReturnEngine'
+import { getCurrentlyEliminatedRosterIds } from '@/lib/survivor/SurvivorRosterState'
+import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
 import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
 import { prisma } from '@/lib/prisma'
 
@@ -40,9 +46,10 @@ export async function GET(
   if (!isSurvivor) return NextResponse.json({ error: 'Not a survivor league' }, { status: 404 })
 
   const weekParam = req.nextUrl.searchParams.get('week')
-  const currentWeek = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : 1
+  const requestedWeek = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : null
+  const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
 
-  const [config, tribes, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId] = await Promise.all([
+  const [config, tribesRaw, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, eliminatedRosterIds, mainLeagueRosters, finaleState] = await Promise.all([
     getSurvivorConfig(leagueId),
     getTribesWithMembers(leagueId),
     getCouncil(leagueId, currentWeek),
@@ -53,6 +60,12 @@ export async function GET(
     getSurvivorAuditLog(leagueId, { limit: 50, eventTypes: ['eliminated', 'council_closed', 'exile_enrolled', 'jury_joined'] }),
     isMergeTriggered(leagueId, currentWeek),
     getCurrentUserRosterIdForLeague(leagueId, userId),
+    getCurrentlyEliminatedRosterIds(leagueId),
+    prisma.roster.findMany({
+      where: { leagueId },
+      select: { id: true, platformUserId: true },
+    }),
+    getFinaleState(leagueId, currentWeek),
   ])
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 500 })
@@ -62,18 +75,61 @@ export async function GET(
     .map((e) => (e.metadata as { rosterId?: string; week?: number }) ?? {})
     .filter((m) => m.rosterId)
 
+  const tribes = merged
+    ? [
+        {
+          id: 'merged',
+          name: 'Merged Tribe',
+          slotIndex: 0,
+          members: mainLeagueRosters
+            .filter((roster) => !eliminatedRosterIds.has(roster.id))
+            .map((roster, index) => ({ rosterId: roster.id, isLeader: index === 0 })),
+        },
+      ]
+    : tribesRaw.map((tribe) => ({
+        ...tribe,
+        members: tribe.members.filter((member) => !eliminatedRosterIds.has(member.rosterId)),
+      }))
+
+  const myTribeId =
+    !merged && myRosterId
+      ? tribes.find((tribe) => tribe.members.some((member) => member.rosterId === myRosterId))?.id ?? null
+      : null
+
   const rosterIds = new Set<string>([
     ...tribes.flatMap((t) => t.members.map((m) => m.rosterId)),
     ...jury.map((j) => j.rosterId),
     ...votedOutHistory.map((v) => v.rosterId!).filter(Boolean),
+    ...(myRosterId ? [myRosterId] : []),
   ])
-  const rosters =
-    rosterIds.size > 0
-      ? await prisma.roster.findMany({
-          where: { leagueId, id: { in: [...rosterIds] } },
-          select: { id: true },
-        })
-      : []
+
+  const mainRosterByPlatformUserId = new Map<string, string>()
+  for (const roster of mainLeagueRosters) {
+    if (roster.platformUserId) {
+      mainRosterByPlatformUserId.set(roster.platformUserId, roster.id)
+    }
+  }
+
+  const exileMainRosterIdByExileRosterId = new Map<string, string>()
+  let exileRosters: { id: string; platformUserId: string | null }[] = []
+  if (exileLeagueId) {
+    exileRosters = await prisma.roster.findMany({
+      where: {
+        leagueId: exileLeagueId,
+        ...(tokenStates.length > 0 ? { id: { in: tokenStates.map((token) => token.rosterId) } } : {}),
+      },
+      select: { id: true, platformUserId: true },
+    })
+    for (const exileRoster of exileRosters) {
+      if (!exileRoster.platformUserId) continue
+      const mainRosterId = mainRosterByPlatformUserId.get(exileRoster.platformUserId)
+      if (!mainRosterId) continue
+      exileMainRosterIdByExileRosterId.set(exileRoster.id, mainRosterId)
+      rosterIds.add(mainRosterId)
+    }
+  }
+
+  const rosters = mainLeagueRosters.filter((roster) => rosterIds.has(roster.id))
   const map = await getRosterTeamMap(leagueId)
   const teamIds = [...new Set(rosters.map((r) => map.rosterIdToTeamId.get(r.id)).filter((id): id is string => id != null))]
   const teams =
@@ -91,24 +147,80 @@ export async function GET(
   }
 
   let myIdols: { id: string; playerId: string; powerType: string }[] = []
+  let myActiveEffects: {
+    rewardType: string
+    week: number
+    appliedMode: 'full' | 'record_only' | 'queued'
+    rosterId?: string | null
+    tribeId?: string | null
+    sourceRosterId?: string | null
+  }[] = []
   if (myRosterId) {
-    myIdols = await getActiveIdolsForRoster(leagueId, myRosterId)
+    ;[myIdols, myActiveEffects] = await Promise.all([
+      getActiveIdolsForRoster(leagueId, myRosterId),
+      getActiveEffectsForRoster(leagueId, myRosterId, currentWeek),
+    ])
   }
+
+  const myMainRoster = myRosterId ? mainLeagueRosters.find((roster) => roster.id === myRosterId) ?? null : null
+  const myExileRoster =
+    exileLeagueId && myMainRoster?.platformUserId
+      ? exileRosters.find((roster) => roster.platformUserId === myMainRoster.platformUserId) ?? null
+      : null
+  const myExileTokens = myExileRoster
+    ? tokenStates.find((token) => token.rosterId === myExileRoster.id)?.tokens ?? 0
+    : 0
+  const myExileEligibility =
+    exileLeagueId && myExileRoster
+      ? await canReturnToIsland(leagueId, exileLeagueId, myExileRoster.id, currentWeek)
+      : null
+  const myExileStatus =
+    myExileRoster && myRosterId
+      ? {
+          exileRosterId: myExileRoster.id,
+          mainRosterId: myRosterId,
+          tokens: myExileTokens,
+          eliminated: eliminatedRosterIds.has(myRosterId),
+          eligibleToReturn: myExileEligibility?.eligible ?? false,
+          reason: myExileEligibility?.reason ?? null,
+        }
+      : null
+
+  const myFinaleVote = myRosterId
+    ? (() => {
+        const vote = finaleState.votes.find((entry) => entry.jurorRosterId === myRosterId) ?? null
+        return vote
+          ? {
+              finalistRosterId: vote.finalistRosterId,
+              submittedAt: vote.submittedAt.toISOString(),
+            }
+          : null
+      })()
+    : null
 
   return NextResponse.json({
     config: {
       mode: config.mode,
       tribeCount: config.tribeCount,
       tribeSize: config.tribeSize,
+      tribeFormation: config.tribeFormation,
       mergeTrigger: config.mergeTrigger,
       mergeWeek: config.mergeWeek,
       mergePlayerCount: config.mergePlayerCount,
       juryStartAfterMerge: config.juryStartAfterMerge,
       exileReturnEnabled: config.exileReturnEnabled,
       exileReturnTokens: config.exileReturnTokens,
+      idolCount: config.idolCount,
+      idolPowerPool: config.idolPowerPool,
+      tribeShuffleEnabled: config.tribeShuffleEnabled,
+      tribeShuffleConsecutiveLosses: config.tribeShuffleConsecutiveLosses,
+      tribeShuffleImbalanceThreshold: config.tribeShuffleImbalanceThreshold,
       voteDeadlineDayOfWeek: config.voteDeadlineDayOfWeek,
       voteDeadlineTimeUtc: config.voteDeadlineTimeUtc,
       selfVoteDisallowed: config.selfVoteDisallowed,
+      tribalCouncilDayOfWeek: config.tribalCouncilDayOfWeek,
+      tribalCouncilTimeUtc: config.tribalCouncilTimeUtc,
+      minigameFrequency: config.minigameFrequency,
     },
     currentWeek,
     tribes: tribes.map((t) => ({
@@ -133,16 +245,46 @@ export async function GET(
       week: c.week,
       challengeType: c.challengeType,
       lockAt: c.lockAt,
+      configJson: c.configJson,
       resultJson: c.resultJson,
       submissionCount: c.submissions?.length ?? 0,
     })),
     jury: jury.map((j) => ({ rosterId: j.rosterId, votedOutWeek: j.votedOutWeek })),
     exileLeagueId,
-    exileTokens: tokenStates,
+    exileTokens: tokenStates.map((token) => {
+      const mainRosterId = exileMainRosterIdByExileRosterId.get(token.rosterId) ?? null
+      return {
+        rosterId: token.rosterId,
+        mainRosterId,
+        displayName: mainRosterId ? (rosterDisplayNames[mainRosterId] ?? mainRosterId) : token.rosterId,
+        tokens: token.tokens,
+        lastAwardedWeek: token.lastAwardedWeek,
+      }
+    }),
     votedOutHistory,
     merged,
     myRosterId: myRosterId ?? undefined,
+    myTribeId: myTribeId ?? undefined,
+    myTribeSource: myTribeId ? getTribeChatSource(myTribeId) : null,
     myIdols,
+    myActiveEffects,
+    myExileStatus,
+    finale:
+      finaleState.finalists.length > 0 || finaleState.closed
+        ? {
+            open: finaleState.open,
+            closed: finaleState.closed,
+            finalists: finaleState.finalists.map((rosterId) => ({ rosterId })),
+            juryVotesSubmitted: finaleState.votesSubmitted,
+            juryVotesRequired: finaleState.votesRequired,
+            winnerRosterId: finaleState.winnerRosterId,
+            crownedAt: finaleState.crownedAt?.toISOString() ?? null,
+            myJuryVote: myFinaleVote,
+            voteCount: finaleState.closed ? finaleState.voteCount : null,
+            bonusVotesByFinalist: finaleState.closed ? finaleState.bonusVotesByFinalist : null,
+            tieBreakSeasonPoints: finaleState.closed ? finaleState.tieBreakSeasonPoints : null,
+          }
+        : null,
     rosterDisplayNames,
   })
 }

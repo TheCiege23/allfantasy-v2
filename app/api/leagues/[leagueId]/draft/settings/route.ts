@@ -11,6 +11,7 @@ import { assertCommissioner, isCommissioner } from '@/lib/commissioner/permissio
 import { prisma } from '@/lib/prisma'
 import { getDraftVariantSettings, updateDraftVariantSettings } from '@/lib/draft-defaults/DraftVariantSettingsHub'
 import { validateLeagueSettings } from '@/lib/league-settings-validation'
+import { getDraftOrderModeAndLotteryConfig, setDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 
@@ -31,7 +32,7 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    const [variant, commissioner, league, idpRosterSummary] = await Promise.all([
+    const [variant, commissioner, league, idpRosterSummary, orderModeAndLottery] = await Promise.all([
       getDraftVariantSettings(leagueId),
       isCommissioner(leagueId, userId),
       prisma.league.findUnique({
@@ -39,12 +40,21 @@ export async function GET(
         select: { sport: true, leagueVariant: true },
       }),
       (async () => {
-        const { isIdpLeague, getRosterDefaultsForIdpLeague } = await import('@/lib/idp')
+        const { isIdpLeague, getRosterDefaultsForIdpLeague, getIdpLeagueConfig } = await import('@/lib/idp')
         if (!(await isIdpLeague(leagueId))) return null
-        const def = await getRosterDefaultsForIdpLeague(leagueId)
+        const [def, idpConfig] = await Promise.all([
+          getRosterDefaultsForIdpLeague(leagueId),
+          getIdpLeagueConfig(leagueId),
+        ])
         if (!def) return null
-        return { starterSlots: def.starter_slots, benchSlots: def.bench_slots }
+        return {
+          starterSlots: def.starter_slots,
+          benchSlots: def.bench_slots,
+          scoringPreset: idpConfig?.scoringPreset ?? 'balanced',
+          positionMode: idpConfig?.positionMode ?? 'standard',
+        }
       })(),
+      getDraftOrderModeAndLotteryConfig(leagueId),
     ])
 
     let orphanStatus: { orphanRosterIds: string[]; recentActions: Array<{ action: string; createdAt: string; reason: string | null }> } | null = null
@@ -72,7 +82,13 @@ export async function GET(
       sessionPreDraft: variant.sessionPreDraft ?? false,
       orphanStatus,
       formatType: league?.sport === 'NFL' && (league?.leagueVariant === 'IDP' || league?.leagueVariant === 'DYNASTY_IDP' || league?.leagueVariant === 'idp') ? 'IDP' : undefined,
-      idpRosterSummary: idpRosterSummary ?? undefined,
+      idpRosterSummary: idpRosterSummary ? { starterSlots: idpRosterSummary.starterSlots, benchSlots: idpRosterSummary.benchSlots } : undefined,
+      idpScoringPreset: (idpRosterSummary as { scoringPreset?: string } | null)?.scoringPreset ?? undefined,
+      idpPositionMode: (idpRosterSummary as { positionMode?: string } | null)?.positionMode ?? undefined,
+      draftOrderMode: orderModeAndLottery?.draftOrderMode ?? 'randomize',
+      lotteryConfig: orderModeAndLottery?.lotteryConfig ?? null,
+      lotteryLastSeed: orderModeAndLottery?.lotteryLastSeed ?? null,
+      lotteryLastRunAt: orderModeAndLottery?.lotteryLastRunAt ?? null,
     })
     res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
     return res
@@ -106,7 +122,13 @@ export async function PATCH(
   if (body.timer_seconds !== undefined) configPatch.timer_seconds = body.timer_seconds
   if (typeof body.pick_order_rules === 'string') configPatch.pick_order_rules = body.pick_order_rules
   if (typeof body.snake_or_linear === 'string') configPatch.snake_or_linear = body.snake_or_linear
-  if (typeof body.third_round_reversal === 'boolean') configPatch.third_round_reversal = body.third_round_reversal
+  // 3RR applies only to snake; ignore or clear when draft is linear/auction
+  if (typeof body.third_round_reversal === 'boolean') {
+    const draftType = body.draft_type ?? configPatch.draft_type
+    const snakeOrLinear = body.snake_or_linear ?? body.pick_order_rules ?? configPatch.snake_or_linear ?? configPatch.pick_order_rules
+    const isSnake = draftType !== 'auction' && (snakeOrLinear === 'snake' || snakeOrLinear == null)
+    configPatch.third_round_reversal = isSnake ? body.third_round_reversal : false
+  }
   if (typeof body.autopick_behavior === 'string') configPatch.autopick_behavior = body.autopick_behavior
   if (body.queue_size_limit !== undefined) configPatch.queue_size_limit = body.queue_size_limit
   if (typeof body.pre_draft_ranking_source === 'string') configPatch.pre_draft_ranking_source = body.pre_draft_ranking_source
@@ -143,11 +165,21 @@ export async function PATCH(
     if (sv.auctionBudgetPerTeam !== undefined) sessionVariantPatch.auctionBudgetPerTeam = sv.auctionBudgetPerTeam
   }
 
+  let orderModePatch: { draftOrderMode?: string; lotteryConfig?: Record<string, unknown> } | null = null
+  if (['randomize', 'manual', 'weighted_lottery'].includes(body.draft_order_mode)) {
+    orderModePatch = { draftOrderMode: body.draft_order_mode }
+  }
+  if (body.lotteryConfig && typeof body.lotteryConfig === 'object') {
+    orderModePatch = orderModePatch ?? {}
+    orderModePatch.lotteryConfig = body.lotteryConfig as Record<string, unknown>
+  }
+
   const hasConfig = Object.keys(configPatch).length > 0
   const hasUI = Object.keys(uiPatch).length > 0
   const hasSessionVariant = Object.keys(sessionVariantPatch).length > 0
+  const hasOrderMode = orderModePatch !== null
 
-  if (!hasConfig && !hasUI && !hasSessionVariant) {
+  if (!hasConfig && !hasUI && !hasSessionVariant && !hasOrderMode) {
     const current = await getDraftVariantSettings(leagueId)
     return NextResponse.json({
       ok: true,
@@ -179,16 +211,27 @@ export async function PATCH(
   }
 
   try {
+    if (hasOrderMode && orderModePatch) {
+      await setDraftOrderModeAndLotteryConfig(leagueId, {
+        ...(orderModePatch.draftOrderMode && { draftOrderMode: orderModePatch.draftOrderMode as 'randomize' | 'manual' | 'weighted_lottery' }),
+        ...(orderModePatch.lotteryConfig && { lotteryConfig: orderModePatch.lotteryConfig as any }),
+      })
+    }
     const updated = await updateDraftVariantSettings(leagueId, {
       ...(hasConfig ? { config: configPatch as any } : {}),
       ...(hasUI ? { draftUISettings: uiPatch as any } : {}),
       ...(hasSessionVariant ? { sessionVariant: sessionVariantPatch as any } : {}),
     })
+    const orderModeAndLottery = await getDraftOrderModeAndLotteryConfig(leagueId)
     return NextResponse.json({
       ok: true,
       config: updated.config ? { ...updated.config, leagueSize: updated.leagueSize } : null,
       draftUISettings: updated.draftUISettings,
       variantSettings: updated,
+      draftOrderMode: orderModeAndLottery.draftOrderMode,
+      lotteryConfig: orderModeAndLottery.lotteryConfig,
+      lotteryLastSeed: orderModeAndLottery.lotteryLastSeed,
+      lotteryLastRunAt: orderModeAndLottery.lotteryLastRunAt,
     })
   } catch (e) {
     console.error('[draft/settings PATCH]', e)

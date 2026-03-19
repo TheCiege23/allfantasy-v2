@@ -8,6 +8,7 @@ import {
 } from "./roster-utils"
 import { onWaiverRunComplete } from "./run-hooks"
 import { getSpecialtySpecByVariant } from "@/lib/specialty-league/registry"
+import { isWaiverFrozenForRoster } from "@/lib/survivor/SurvivorEffectEngine"
 import type { ProcessedClaimResult } from "./types"
 
 type ClaimRow = {
@@ -60,6 +61,8 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
   ])
 
   if (!league) return []
+  const specialtySpec = getSpecialtySpecByVariant(league.leagueVariant ?? null)
+  const rosterGuard = specialtySpec?.rosterGuard
   const waiverType = effectiveSettings.waiverType ?? "standard"
   const faabBudget = effectiveSettings.faabBudget ?? null
 
@@ -85,6 +88,22 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
 
   for (const claim of ordered) {
     const roster = claim.roster
+    const waiversFrozen = await isWaiverFrozenForRoster(leagueId, claim.rosterId).catch(() => false)
+    if (waiversFrozen) {
+      await (prisma as any).waiverClaim.update({
+        where: { id: claim.id },
+        data: { status: "failed", processedAt: new Date(), resultMessage: "Roster's waiver moves are frozen by an active Survivor idol effect." },
+      })
+      results.push({
+        claimId: claim.id,
+        rosterId: claim.rosterId,
+        success: false,
+        addPlayerId: claim.addPlayerId,
+        dropPlayerId: claim.dropPlayerId ?? undefined,
+        message: "Roster's waiver moves are frozen by an active Survivor idol effect.",
+      })
+      continue
+    }
     if (rosterGuard && !(await rosterGuard(leagueId, claim.rosterId))) {
       await (prisma as any).waiverClaim.update({
         where: { id: claim.id },

@@ -6,6 +6,7 @@
 
 import { isSurvivorLeague } from '../SurvivorLeagueConfig'
 import { buildSurvivorAIContext } from './SurvivorAIContext'
+import { resolveSurvivorCurrentWeek } from '../SurvivorTimelineResolver'
 
 /**
  * Returns a plain-text summary of the Survivor league state for injection into Chimmy's context.
@@ -18,9 +19,11 @@ export async function buildSurvivorContextForChimmy(
   const isSurvivor = await isSurvivorLeague(leagueId)
   if (!isSurvivor) return ''
 
+  const currentWeek = await resolveSurvivorCurrentWeek(leagueId)
+
   const ctx = await buildSurvivorAIContext({
     leagueId,
-    currentWeek: 1,
+    currentWeek,
     userId,
   })
   if (!ctx) return ''
@@ -45,6 +48,9 @@ Voted out: ${votedOutStr}.
 Jury: ${ctx.jury.map((j) => ctx.rosterDisplayNames[j.rosterId] ?? j.rosterId).join(', ') || 'None'}.
 ${councilStr}.
 Exile return: ${ctx.config.exileReturnEnabled}, tokens needed: ${ctx.config.exileReturnTokens}.
+Finale: ${ctx.finale ? `open ${ctx.finale.open}, finalists ${ctx.finale.finalists.map((rosterId) => ctx.rosterDisplayNames[rosterId] ?? rosterId).join(', ') || 'None'}, jury votes ${ctx.finale.juryVotesSubmitted}/${ctx.finale.juryVotesRequired}, winner ${ctx.finale.winnerRosterId ? (ctx.rosterDisplayNames[ctx.finale.winnerRosterId] ?? ctx.finale.winnerRosterId) : 'TBD'}` : 'Not in finale yet'}.
 User's roster: ${ctx.myRosterId ? ctx.rosterDisplayNames[ctx.myRosterId] ?? ctx.myRosterId : 'N/A'}. User's idols: ${ctx.myIdols.map((i) => i.powerType).join(', ') || 'None'}.
-Official commands (suggest wording only; engine processes): @Chimmy vote [manager], @Chimmy play idol [idol], @Chimmy submit challenge [choice], @Chimmy confirm tribe decision [choice].`
+User's active effects: ${ctx.myActiveEffects.map((effect) => `${effect.rewardType}${effect.appliedMode === 'queued' ? ' (queued)' : effect.appliedMode === 'record_only' ? ' (tracked)' : ''}`).join(', ') || 'None'}.
+User's exile status: ${ctx.myExileStatus ? `tokens ${ctx.myExileStatus.tokens}, eliminated ${ctx.myExileStatus.eliminated}, eligible to return ${ctx.myExileStatus.eligibleToReturn}` : 'N/A'}.
+Official commands (suggest wording only; engine processes): @Chimmy vote [manager], @Chimmy jury vote [finalist], @Chimmy play idol [idol], @Chimmy play idol [idol] on [manager], @Chimmy play idol steal_player on [manager] pick [player], @Chimmy play idol swap_starter on [manager] swap [bench] for [starter], @Chimmy submit challenge [choice], @Chimmy confirm tribe decision [choice].`
 }

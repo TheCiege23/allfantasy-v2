@@ -19,17 +19,34 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
       setLoading(true)
 
       try {
-        const res = await fetch("/api/ai/chat", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            message: trimmed,
-            conversation_history: messages.slice(-20).map((m) => ({ role: m.role, content: m.content })),
-            context_scope: options?.contextScope ?? { sleeper_username: "user", include_legacy: true },
-          }),
-        })
-
-        const data = await res.json().catch(() => ({}))
+        const conversation = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }))
+        let res: Response
+        let data: any
+        if (options?.leagueId) {
+          const formData = new FormData()
+          formData.append("message", trimmed)
+          formData.append("messages", JSON.stringify(conversation))
+          formData.append("leagueId", options.leagueId)
+          if (options?.contextScope?.sleeper_username) {
+            formData.append("sleeperUsername", options.contextScope.sleeper_username)
+          }
+          res = await fetch("/api/chat/chimmy", {
+            method: "POST",
+            body: formData,
+          })
+          data = await res.json().catch(() => ({}))
+        } else {
+          res = await fetch("/api/ai/chat", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              message: trimmed,
+              conversation_history: conversation,
+              context_scope: options?.contextScope ?? { sleeper_username: "user", include_legacy: true },
+            }),
+          })
+          data = await res.json().catch(() => ({}))
+        }
         if (!res.ok) {
           const errMsg = data?.error || data?.message || "AI request failed"
           setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${errMsg}` }])
@@ -38,7 +55,11 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
         }
 
         const assistantContent =
-          typeof data?.reply === "string"
+          typeof data?.response === "string"
+            ? data.response
+            : typeof data?.answer === "string"
+            ? data.answer
+            : typeof data?.reply === "string"
             ? data.reply
             : data?.choices?.[0]?.message?.content ?? data?.message ?? "No response."
         setMessages((prev) => [...prev, { role: "assistant", content: assistantContent }])
@@ -50,7 +71,7 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
         setLoading(false)
       }
     },
-    [loading, messages, options?.contextScope]
+    [loading, messages, options?.contextScope, options?.leagueId]
   )
 
   const clear = useCallback(() => {

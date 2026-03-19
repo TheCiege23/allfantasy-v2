@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { assertCommissioner } from "@/lib/commissioner/permissions"
+import { getLeaguePrivacySettings } from "@/lib/league-privacy"
 
 export const dynamic = "force-dynamic"
 
@@ -49,6 +50,14 @@ export async function POST(
     select: { id: true, name: true, settings: true },
   })
   if (!league) return NextResponse.json({ error: "League not found" }, { status: 404 })
+
+  const privacy = await getLeaguePrivacySettings(league.id)
+  if (type === "email" && !privacy.allowEmailInvite) {
+    return NextResponse.json({ error: "Email invites are disabled for this league." }, { status: 403 })
+  }
+  if (type === "username" && !privacy.allowUsernameInvite) {
+    return NextResponse.json({ error: "Username invites are disabled for this league." }, { status: 403 })
+  }
 
   const settings = (league.settings as Record<string, unknown>) || {}
   let inviteCode = (settings.inviteCode as string) ?? null

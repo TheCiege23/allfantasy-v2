@@ -5,6 +5,51 @@ import { useState, useEffect, useCallback } from 'react';
 const LEAGUE_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const;
 export type LeagueSportOption = (typeof LEAGUE_SPORTS)[number];
 
+export interface ScheduleTemplatePayload {
+  templateId: string;
+  name: string;
+  formatType: string;
+  matchupType: string;
+  regularSeasonWeeks: number;
+  playoffWeeks: number;
+  byeWeekWindow: { start: number; end: number } | null;
+  fantasyPlayoffDefault: { startWeek: number; endWeek: number } | null;
+  lineupLockMode: string | null;
+  scoringMode: string | null;
+  regularSeasonStyle: string | null;
+  playoffSupport: boolean;
+  bracketModeSupported: boolean;
+  marchMadnessMode: boolean;
+  bowlPlayoffMetadata: boolean;
+}
+
+export interface SeasonCalendarPayload {
+  calendarId: string;
+  name: string;
+  formatType: string;
+  preseasonPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null;
+  regularSeasonPeriod: { monthStart?: number; monthEnd?: number; label?: string };
+  playoffsPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null;
+  championshipPeriod: { monthStart?: number; monthEnd?: number; label?: string } | null;
+  internationalBreaksSupported: boolean;
+}
+
+export interface SportFeatureFlagsPayload {
+  sportType: string;
+  supportsBestBall: boolean;
+  supportsSuperflex: boolean;
+  supportsTePremium: boolean;
+  supportsKickers: boolean;
+  supportsTeamDefense: boolean;
+  supportsIdp: boolean;
+  supportsWeeklyLineups: boolean;
+  supportsDailyLineups: boolean;
+  supportsBracketMode: boolean;
+  supportsDevy: boolean;
+  supportsTaxi: boolean;
+  supportsIr: boolean;
+}
+
 export interface LeagueCreationPresetPayload {
   sport: LeagueSportOption;
   metadata: { display_name: string; short_name: string; icon: string; logo_strategy: string };
@@ -20,7 +65,7 @@ export interface LeagueCreationPresetPayload {
     starter_slots: Record<string, number>;
     bench_slots: number;
     IR_slots: number;
-    flex_definitions: Array<{ slotName: string; allowedPositions: string[] }>;
+    flex_definitions?: Array<{ slotName: string; allowedPositions: string[] }>;
   };
   scoring: { scoring_template_id: string; scoring_format: string; category_type: string };
   draft: {
@@ -56,6 +101,9 @@ export interface LeagueCreationPresetPayload {
   };
   scoringTemplate: { templateId: string; name: string; formatType: string; rules: Array<{ statKey: string; pointsValue: number }> };
   defaultLeagueSettings: Record<string, unknown>;
+  scheduleTemplate?: ScheduleTemplatePayload;
+  seasonCalendar?: SeasonCalendarPayload;
+  featureFlags?: SportFeatureFlagsPayload;
 }
 
 /**

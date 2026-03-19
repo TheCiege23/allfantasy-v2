@@ -4,6 +4,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
+import { appendSurvivorAudit } from './SurvivorAuditLog'
+import { applyChallengeRewards } from './SurvivorEffectEngine'
+import { getMinigameDef } from './SurvivorMiniGameRegistry'
 import type { SurvivorChallengeType } from './types'
 
 /**
@@ -53,6 +56,33 @@ export async function submitChallengeAnswer(
   if (challenge.lockAt && new Date() >= challenge.lockAt) return { ok: false, error: 'Challenge locked' }
   if (!rosterId && !tribeId) return { ok: false, error: 'Need rosterId or tribeId' }
 
+  const definition = getMinigameDef(challenge.challengeType as SurvivorChallengeType)
+  if (definition?.submissionScope === 'roster' && !rosterId) {
+    return { ok: false, error: 'This challenge requires an individual roster submission' }
+  }
+  if (definition?.submissionScope === 'tribe' && !tribeId) {
+    return { ok: false, error: 'This challenge requires a tribe submission' }
+  }
+  if (definition?.submissionScope === 'roster' && tribeId) {
+    return { ok: false, error: 'Tribe submissions are not allowed for this challenge' }
+  }
+
+  if (rosterId) {
+    const roster = await prisma.roster.findFirst({
+      where: { id: rosterId, leagueId: challenge.leagueId },
+      select: { id: true },
+    })
+    if (!roster) return { ok: false, error: 'Roster not found for this challenge' }
+  }
+
+  if (tribeId) {
+    const tribe = await prisma.survivorTribe.findFirst({
+      where: { id: tribeId, leagueId: challenge.leagueId },
+      select: { id: true },
+    })
+    if (!tribe) return { ok: false, error: 'Tribe not found for this challenge' }
+  }
+
   if (rosterId) {
     const existing = await prisma.survivorChallengeSubmission.findUnique({
       where: { uniq_challenge_roster: { challengeId, rosterId } },
@@ -88,10 +118,37 @@ export async function resolveChallenge(
   })
   if (!challenge) return { ok: false, error: 'Challenge not found' }
 
+  const existingResult =
+    challenge.resultJson && typeof challenge.resultJson === 'object' && !Array.isArray(challenge.resultJson)
+      ? (challenge.resultJson as Record<string, unknown>)
+      : null
+  const existingAppliedRewards = Array.isArray(existingResult?.appliedRewards)
+    ? (existingResult?.appliedRewards as Record<string, unknown>[])
+    : null
+  const appliedRewards =
+    existingAppliedRewards && existingAppliedRewards.length > 0
+      ? existingAppliedRewards
+      : await applyChallengeRewards(challengeId, resultJson)
+
+  const nextResultJson: Record<string, unknown> = {
+    ...resultJson,
+    appliedRewards,
+  }
+
   await prisma.survivorChallenge.update({
     where: { id: challengeId },
-    data: { resultJson: resultJson as object },
+    data: { resultJson: nextResultJson as object },
   })
+
+  const config = await getSurvivorConfig(challenge.leagueId)
+  if (config) {
+    await appendSurvivorAudit(challenge.leagueId, config.configId, 'challenge_resolved' as any, {
+      challengeId,
+      week: challenge.week,
+      challengeType: challenge.challengeType,
+      appliedRewardCount: appliedRewards.length,
+    })
+  }
   return { ok: true }
 }
 
@@ -103,6 +160,19 @@ export async function getChallengesForWeek(leagueId: string, week: number) {
   if (!config) return []
   return prisma.survivorChallenge.findMany({
     where: { configId: config.configId, week },
+    orderBy: [{ createdAt: 'asc' }],
+    include: { submissions: true },
+  })
+}
+
+export async function getCurrentOpenChallengesForWeek(leagueId: string, week: number) {
+  const challenges = await getChallengesForWeek(leagueId, week)
+  return challenges.filter((challenge) => !challenge.resultJson && (!challenge.lockAt || new Date() < challenge.lockAt))
+}
+
+export async function getChallengeById(challengeId: string) {
+  return prisma.survivorChallenge.findUnique({
+    where: { id: challengeId },
     include: { submissions: true },
   })
 }

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { handleInvalidationTrigger } from '@/lib/trade-engine/caching'
 import { isRosterChopped } from '@/lib/guillotine/guillotineGuard'
+import { getSpecialtySpecByVariant } from '@/lib/specialty-league/registry'
+import { prisma } from '@/lib/prisma'
 
 // Placeholder save endpoint for homepage/app roster auto-save.
 // In a future pass this should validate league membership and persist to a real model.
@@ -27,6 +29,21 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       )
     }
+
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { leagueVariant: true },
+    })
+    const specialtySpec = getSpecialtySpecByVariant(league?.leagueVariant ?? null)
+    if (specialtySpec?.rosterGuard) {
+      const canAct = await specialtySpec.rosterGuard(leagueId, rosterId).catch(() => true)
+      if (!canAct) {
+        return NextResponse.json(
+          { error: 'This roster is not allowed to make lineup or roster changes right now.' },
+          { status: 403 }
+        )
+      }
+    }
   }
 
   if (typeof leagueId === 'string' && leagueId) {
@@ -35,5 +52,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
-
 

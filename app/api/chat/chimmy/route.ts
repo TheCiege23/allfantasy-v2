@@ -10,11 +10,14 @@ import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enr
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
 import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
 import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
+import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
 import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
 import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tournamentContextForChimmy'
 import { buildBigBrotherContextForChimmy } from '@/lib/big-brother/ai/bigBrotherContextForChimmy'
 import { buildIdpContextForChimmy } from '@/lib/idp/ai/idpContextForChimmy'
+import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
+import { buildZombieContextForChimmy } from '@/lib/zombie/ai/zombieContextForChimmy'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 
@@ -729,7 +732,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult] = await Promise.allSettled([
+  const leagueFormatContextPromise =
+    leagueId
+      ? (prisma as any).league.findUnique({ where: { id: leagueId }, select: { isDynasty: true, settings: true } }).then((l: { isDynasty: boolean; settings: Record<string, unknown> | null } | null) => {
+          if (!l) return ''
+          const leagueType = typeof l.settings?.league_type === 'string' ? String(l.settings.league_type).trim().toLowerCase() : null
+          const isBestBall = leagueType === 'best_ball' || (l.settings?.best_ball === true)
+          if (isBestBall) return 'ACTIVE LEAGUE (best ball): This is a best ball league. The system automatically selects the highest-scoring legal lineup each scoring period; managers do not set lineups manually. Advise on draft strategy (depth, spike weeks, handcuffs), waiver/trade for best-ball context (weekly upside, insulation), and explain why the optimizer chose a given lineup. Do not assume manual start/sit decisions.'
+          if (leagueType === 'keeper') return 'ACTIVE LEAGUE (keeper): This is a keeper league. Balance current-season value with keeper retention; respect keeper count, deadline, and round-cost rules. Advise on who to keep, keeper trades, waiver pickup keeper eligibility, and win-now vs keeper value.'
+          if (leagueType === 'redraft' || (!leagueType && !l.isDynasty)) return 'ACTIVE LEAGUE (redraft): This is a standard redraft league. Focus on current season value only; no dynasty stashing, future picks, or long-term value. Advise for playoff push, weekly wins, and waiver/trade decisions for this season.'
+          return ''
+        }).catch(() => '')
+      : Promise.resolve('')
+
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, dynastyContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult, salaryCapContextResult, zombieContextResult, leagueFormatContextResult] = await Promise.allSettled([
     getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
@@ -738,11 +754,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userId ? getAIMemorySummary(userId) : Promise.resolve(''),
     userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
     leagueId && userId ? buildSurvivorContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildDynastyContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildDevyContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildC2CContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildTournamentContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildBigBrotherContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildIdpContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildSalaryCapContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueId && userId ? buildZombieContextForChimmy(leagueId, userId) : Promise.resolve(''),
+    leagueFormatContextPromise,
   ])
 
   let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
@@ -755,6 +775,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (survivorContextStr && typeof survivorContextStr === 'string') {
     userContextStr = userContextStr ? `${userContextStr}\n\n${survivorContextStr}` : survivorContextStr
     dataSources.push('survivor_league')
+  }
+  const dynastyContextStr = dynastyContextResult.status === 'fulfilled' ? dynastyContextResult.value : ''
+  if (dynastyContextStr && typeof dynastyContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${dynastyContextStr}` : dynastyContextStr
+    dataSources.push('dynasty_league')
   }
   const devyContextStr = devyContextResult.status === 'fulfilled' ? devyContextResult.value : ''
   if (devyContextStr && typeof devyContextStr === 'string') {
@@ -780,6 +805,21 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (idpContextStr && typeof idpContextStr === 'string') {
     userContextStr = userContextStr ? `${userContextStr}\n\n${idpContextStr}` : idpContextStr
     dataSources.push('idp_league')
+  }
+  const salaryCapContextStr = salaryCapContextResult.status === 'fulfilled' ? salaryCapContextResult.value : ''
+  if (salaryCapContextStr && typeof salaryCapContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${salaryCapContextStr}` : salaryCapContextStr
+    dataSources.push('salary_cap_league')
+  }
+  const zombieContextStr = zombieContextResult.status === 'fulfilled' ? zombieContextResult.value : ''
+  if (zombieContextStr && typeof zombieContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${zombieContextStr}` : zombieContextStr
+    dataSources.push('zombie_league')
+  }
+  const leagueFormatContextStr = leagueFormatContextResult.status === 'fulfilled' ? leagueFormatContextResult.value : ''
+  if (leagueFormatContextStr && typeof leagueFormatContextStr === 'string') {
+    userContextStr = userContextStr ? `${userContextStr}\n\n${leagueFormatContextStr}` : leagueFormatContextStr
+    dataSources.push(leagueFormatContextStr.startsWith('ACTIVE LEAGUE (keeper)') ? 'keeper_league' : 'redraft_league')
   }
   const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
   const enrichmentStr = enrichment?.context ?? ''
@@ -941,7 +981,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (toolLink && consensus.recommendedTool !== 'none') {
     const toolLabel = consensus.recommendedTool.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     const why = consensus.reason ? `\n\nWhy: ${consensus.reason}` : ''
-    finalAnswer += `\n\n\\u{1F449} [Open ${toolLabel}](${toolLink})${why}`
+    finalAnswer += `\n\n👉 [Open ${toolLabel}](${toolLink})${why}`
   }
 
   const triggers = detectNotificationTriggers(consensus.trendData ?? null, consensus.quantData ?? null)

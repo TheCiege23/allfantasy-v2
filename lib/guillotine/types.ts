@@ -5,6 +5,7 @@
 import type { LeagueSport } from '@prisma/client'
 
 export type TiebreakStep =
+  | 'bench_points'
   | 'season_points'
   | 'previous_period'
   | 'draft_slot'
@@ -35,6 +36,8 @@ export interface PeriodScoreRow {
   periodPoints: number
   seasonPointsCumul: number
   previousPeriodPoints?: number
+  /** Optional bench points for tiebreak (lower bench points loses when step is bench_points). */
+  benchPoints?: number
   draftSlot?: number
 }
 

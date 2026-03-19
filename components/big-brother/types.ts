@@ -15,6 +15,13 @@ export interface BigBrotherSummary {
   totalRosterCount?: number
   remainingCount?: number
   config: { sport: string; finaleFormat: string; juryStartMode: string }
+  /** Sport-calendar context: regular season weeks, eviction end week, disclaimer for non-NFL. */
+  sportCalendar?: {
+    regularSeasonWeeks: number
+    evictionEndWeek: number
+    scoringWindowDisclaimer: string
+    timelineNote: string
+  }
   cycle: {
     id: string
     week: number

@@ -106,12 +106,14 @@ const NFL_IDP_FLEX_SLOTS: { slotName: string; allowedPositions: string[] }[] = [
 
 /**
  * Build default NFL IDP roster (offense + IDP fixed + IDP flex + BENCH/IR with full position set).
- * Offense: QB, RB, WR, TE, K, DST, FLEX. IDP: DE, DT, LB, CB, S, DL, DB, IDP_FLEX. BENCH, IR accept all positions.
+ * Offense: QB, RB, WR, TE, K, FLEX (no DST). IDP: DE, DT, LB, CB, S, DL, DB, IDP_FLEX. BENCH, IR accept all positions.
  */
 function defaultNflIdpSlots(): RosterTemplateSlotDto[] {
   const base = defaultNflSlots()
   const idpPositions = getPositionsForSport('NFL', 'IDP')
-  const starterOnly = base.filter((s) => s.slotName !== 'BENCH' && s.slotName !== 'IR')
+  const starterOnly = base.filter(
+    (s) => s.slotName !== 'BENCH' && s.slotName !== 'IR' && s.slotName !== 'DST'
+  )
   const slots: RosterTemplateSlotDto[] = []
   let idx = 0
 

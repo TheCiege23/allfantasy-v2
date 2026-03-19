@@ -36,10 +36,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/survivor/summary?week=1`,
-        { cache: 'no-store' }
-      )
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/survivor/summary`, { cache: 'no-store' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setError(data.error ?? `Error ${res.status}`)
@@ -80,6 +77,9 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
   }
 
   const names = summary?.rosterDisplayNames ?? {}
+  const tribeChatHref = summary?.myTribeSource
+    ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
+    : `/app/league/${leagueId}?tab=Chat`
 
   return (
     <div className="space-y-6">
@@ -105,7 +105,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
           <MessageSquare className="h-4 w-4" /> League Chat
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Chat`}
+          href={tribeChatHref}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Users className="h-4 w-4" /> Tribe Chat
@@ -180,7 +180,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
         <SurvivorExileView leagueId={leagueId} summary={summary} names={names} />
       )}
       {view === 'merge-jury' && summary && (
-        <SurvivorMergeJuryView leagueId={leagueId} summary={summary} names={names} />
+        <SurvivorMergeJuryView leagueId={leagueId} summary={summary} names={names} onRefresh={load} />
       )}
       {view === 'ai' && summary && (
         <SurvivorAIPanel leagueId={leagueId} summary={summary} names={names} />

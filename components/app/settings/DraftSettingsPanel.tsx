@@ -27,6 +27,18 @@ type SessionVariantPayload = {
   auctionBudgetPerTeam?: number | null
 }
 
+type DraftOrderMode = 'randomize' | 'manual' | 'weighted_lottery'
+
+type LotteryConfigPayload = {
+  enabled?: boolean
+  lotteryTeamCount?: number
+  lotteryPickCount?: number
+  eligibilityMode?: string
+  weightingMode?: string
+  fallbackOrder?: string
+  tiebreakMode?: string
+}
+
 type DraftSettingsResponse = {
   config: DraftConfig | null
   draftUISettings: DraftUISettings
@@ -34,6 +46,10 @@ type DraftSettingsResponse = {
   variantSettings?: { config: DraftConfig | null; sessionVariant?: SessionVariantPayload | null; sessionPreDraft?: boolean }
   sessionVariant?: SessionVariantPayload | null
   sessionPreDraft?: boolean
+  draftOrderMode?: DraftOrderMode
+  lotteryConfig?: LotteryConfigPayload | null
+  lotteryLastSeed?: string | null
+  lotteryLastRunAt?: string | null
 }
 
 const TIMER_MODE_OPTIONS: { value: TimerMode; label: string }[] = [
@@ -53,6 +69,10 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [sessionPreDraft, setSessionPreDraft] = useState(false)
+  const [draftOrderMode, setDraftOrderMode] = useState<DraftOrderMode>('randomize')
+  const [lotteryConfig, setLotteryConfig] = useState<LotteryConfigPayload | null>(null)
+  const [lotteryPreview, setLotteryPreview] = useState<{ eligible: Array<{ displayName: string; oddsPercent: number; rank: number }>; message?: string } | null>(null)
+  const [lotteryRunning, setLotteryRunning] = useState(false)
   const [orphanStatus, setOrphanStatus] = useState<{
     orphanRosterIds: string[]
     orphanTeamAiManagerEnabled: boolean
@@ -76,6 +96,8 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
       if (json.config) setConfig(json.config)
       if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
       setSessionPreDraft(!!json.sessionPreDraft)
+      if (json.draftOrderMode) setDraftOrderMode(json.draftOrderMode)
+      if (json.lotteryConfig != null) setLotteryConfig(json.lotteryConfig)
       if (json.orphanStatus) setOrphanStatus(json.orphanStatus)
     } catch {
       setError('Failed to load draft settings')
@@ -109,6 +131,8 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
         payload.roster_fill_order = config.roster_fill_order
         payload.position_filter_behavior = config.position_filter_behavior
       }
+      payload.draft_order_mode = draftOrderMode
+      if (lotteryConfig && draftOrderMode === 'weighted_lottery') payload.lotteryConfig = lotteryConfig
       if (sessionPreDraft && sessionVariant && Object.keys(sessionVariant).length > 0) {
         payload.sessionVariant = sessionVariant
       }
@@ -122,16 +146,18 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
         setError(json.error ?? 'Failed to save')
         return
       }
-      setData((prev) => (prev ? { ...prev, draftUISettings: json.draftUISettings, config: json.config } : null))
+      setData((prev) => (prev ? { ...prev, draftUISettings: json.draftUISettings, config: json.config, draftOrderMode: json.draftOrderMode, lotteryConfig: json.lotteryConfig } : null))
       setUISettings(json.draftUISettings)
       if (json.config) setConfig(json.config)
       if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
+      if (json.draftOrderMode) setDraftOrderMode(json.draftOrderMode)
+      if (json.lotteryConfig != null) setLotteryConfig(json.lotteryConfig)
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 2000)
     } finally {
       setSaving(false)
     }
-  }, [leagueId, uiSettings, config, sessionVariant, sessionPreDraft, data?.isCommissioner])
+  }, [leagueId, uiSettings, config, sessionVariant, sessionPreDraft, draftOrderMode, lotteryConfig, data?.isCommissioner])
 
   const setUI = useCallback(<K extends keyof DraftUISettings>(key: K, value: DraftUISettings[K]) => {
     setUISettings((prev) => (prev ? { ...prev, [key]: value } : null))
@@ -255,6 +281,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 ) : (effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? '—')}
               </dd>
             </div>
+            {effectiveConfig.draft_type !== 'auction' && (effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? 'snake') === 'snake' && (
             <div>
               <dt className="text-white/50">Third-round reversal</dt>
               <dd className="text-white/90">
@@ -264,14 +291,155 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                     checked={!!effectiveConfig.third_round_reversal}
                     onChange={(e) => setConfigField('third_round_reversal', e.target.checked)}
                     className="rounded border-white/20"
+                    title="Only applies to snake draft order"
                   />
                 ) : (effectiveConfig.third_round_reversal ? 'Yes' : 'No')}
               </dd>
             </div>
+            )}
             <div><dt className="text-white/50">Autopick</dt><dd className="text-white/90">{effectiveConfig.autopick_behavior ?? '—'}</dd></div>
             <div><dt className="text-white/50">Queue size limit</dt><dd className="text-white/90">{effectiveConfig.queue_size_limit ?? '—'}</dd></div>
             <div><dt className="text-white/50">Ranking source</dt><dd className="text-white/90">{effectiveConfig.pre_draft_ranking_source ?? '—'}</dd></div>
           </dl>
+
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70 mt-4">Draft order mode</h4>
+          <p className="text-xs text-white/65 mb-2">How the initial draft order is determined (snake/linear/auction unchanged).</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {isCommissioner ? (
+              <select
+                value={draftOrderMode}
+                onChange={(e) => {
+                  const v = e.target.value as DraftOrderMode
+                  setDraftOrderMode(v)
+                  if (v === 'weighted_lottery' && !lotteryConfig?.lotteryPickCount) {
+                    setLotteryConfig({
+                      enabled: true,
+                      lotteryTeamCount: 6,
+                      lotteryPickCount: 6,
+                      eligibilityMode: 'non_playoff',
+                      weightingMode: 'inverse_standings',
+                      fallbackOrder: 'reverse_max_pf',
+                      tiebreakMode: 'lower_max_pf',
+                    })
+                  }
+                }}
+                className="rounded border border-white/20 bg-black/40 px-3 py-1.5 text-sm text-white"
+              >
+                <option value="randomize">Randomize</option>
+                <option value="manual">Manual</option>
+                <option value="weighted_lottery">Weighted lottery</option>
+              </select>
+            ) : (
+              <span className="text-sm text-white/90">{draftOrderMode === 'weighted_lottery' ? 'Weighted lottery' : draftOrderMode === 'manual' ? 'Manual' : 'Randomize'}</span>
+            )}
+          </div>
+
+          {draftOrderMode === 'weighted_lottery' && (
+            <div className="mt-4 rounded-lg border border-white/15 bg-black/30 p-4 space-y-3">
+              <h5 className="text-xs font-semibold text-white/90">Weighted lottery (anti-tank)</h5>
+              <p className="text-xs text-white/65">Worse teams get better odds at top picks. Run lottery then finalize to set draft order.</p>
+              {isCommissioner && (
+                <>
+                  <div className="grid gap-2 text-xs sm:grid-cols-2">
+                    <div>
+                      <label className="text-white/50">Lottery teams</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={lotteryConfig?.lotteryTeamCount ?? 6}
+                        onChange={(e) => setLotteryConfig((c) => ({ ...c, lotteryTeamCount: parseInt(e.target.value, 10) || 6 }))}
+                        className="ml-2 w-14 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/50">Lottery picks</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={lotteryConfig?.lotteryPickCount ?? 6}
+                        onChange={(e) => setLotteryConfig((c) => ({ ...c, lotteryPickCount: parseInt(e.target.value, 10) || 6 }))}
+                        className="ml-2 w-14 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setLotteryPreview(null)
+                        try {
+                          const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/lottery/preview`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              lotteryTeamCount: lotteryConfig?.lotteryTeamCount ?? 6,
+                              lotteryPickCount: lotteryConfig?.lotteryPickCount ?? 6,
+                              eligibilityMode: lotteryConfig?.eligibilityMode ?? 'non_playoff',
+                              weightingMode: lotteryConfig?.weightingMode ?? 'inverse_standings',
+                              fallbackOrder: lotteryConfig?.fallbackOrder ?? 'reverse_max_pf',
+                              tiebreakMode: lotteryConfig?.tiebreakMode ?? 'lower_max_pf',
+                            }),
+                          })
+                          const json = await res.json().catch(() => ({}))
+                          if (res.ok && json.eligible) setLotteryPreview({ eligible: json.eligible, message: json.message })
+                          else setLotteryPreview({ eligible: [], message: json.error || 'Failed to load odds' })
+                        } catch {
+                          setLotteryPreview({ eligible: [], message: 'Request failed' })
+                        }
+                      }}
+                      className="rounded bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20"
+                    >
+                      Preview odds
+                    </button>
+                    <p className="text-xs text-white/50">Save draft settings first if you changed lottery teams/picks.</p>
+                    <button
+                      type="button"
+                      disabled={lotteryRunning}
+                      onClick={async () => {
+                        setLotteryRunning(true)
+                        try {
+                          const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/lottery/run`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ finalize: true }),
+                          })
+                          const json = await res.json().catch(() => ({}))
+                          if (res.ok && json.finalized) {
+                            setLotteryPreview(null)
+                            void load()
+                          } else {
+                            setLotteryPreview((p) => ({ ...p ?? { eligible: [] }, message: json.error || 'Run failed' }))
+                          }
+                        } finally {
+                          setLotteryRunning(false)
+                        }
+                      }}
+                      className="rounded bg-amber-600/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      {lotteryRunning ? 'Running…' : 'Run lottery & finalize order'}
+                    </button>
+                  </div>
+                  {lotteryPreview && (
+                    <div className="mt-2 text-xs">
+                      {lotteryPreview.message && <p className="text-amber-400/90">{lotteryPreview.message}</p>}
+                      {lotteryPreview.eligible.length > 0 && (
+                        <ul className="mt-1 space-y-0.5 text-white/80">
+                          {lotteryPreview.eligible.slice(0, 12).map((e, i) => (
+                            <li key={i}>{e.displayName}: {e.oddsPercent.toFixed(1)}%</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {data?.lotteryLastRunAt && (
+                <p className="text-xs text-white/50">Last run: {new Date(data.lotteryLastRunAt).toLocaleString()}{data.lotteryLastSeed ? ` · Seed: ${data.lotteryLastSeed}` : ''}</p>
+              )}
+            </div>
+          )}
         </>
       )}
 

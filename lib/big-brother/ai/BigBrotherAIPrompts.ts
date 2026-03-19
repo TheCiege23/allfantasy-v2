@@ -4,7 +4,7 @@
  */
 
 import type { BigBrotherAIContext } from './BigBrotherAIContext'
-import { getChallengeThemeSportLabel, getHOHChallengeThemeHints, getVetoChallengeThemeHints } from '../sport-adapter'
+import { getHOHChallengeThemeHints, getVetoChallengeThemeHints } from '../sport-adapter'
 
 const DETERMINISM = `CRITICAL: You never decide or assert who wins HOH/Veto, who is nominated/evicted, vote totals, or the winner. The game engine does. You only narrate, explain rules, and advise from public data. Never reveal secret votes.`
 
@@ -33,6 +33,7 @@ export function buildBigBrotherAIPrompt(
   const eliminated = rosterList(ctx, ctx.eliminatedRosterIds, rosterDisplayNames)
 
   const base = `League week ${ctx.week}. Phase: ${ctx.phase}. HOH: ${hoh}. On the block: ${noms}. Veto winner: ${vetoWinner}. Veto used: ${ctx.vetoUsed}. Eliminated: ${eliminated}. Jury: ${jury}. Challenge mode: ${ctx.challengeMode}. ${ctx.nextActionHint ? `Next: ${ctx.nextActionHint}` : ''}`
+  const sportLabel = ctx.sport ?? 'NFL'
 
   switch (type) {
     case 'chimmy_host': {

@@ -19,6 +19,13 @@ import {
 } from '@/lib/idp'
 import { IdpRosterPreview } from '@/components/idp/IdpRosterPreview'
 
+/** Shape of roster preview returned by IDP config API (starterSlots, benchSlots, irSlots). */
+export interface RosterPreviewShape {
+  starterSlots?: Record<string, number> | null
+  benchSlots?: number
+  irSlots?: number
+}
+
 export interface IdpConfigState {
   positionMode: string
   rosterPreset: string

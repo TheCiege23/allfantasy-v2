@@ -20,6 +20,7 @@ import type {
   WizardAutomationSettings,
   WizardPrivacySettings,
 } from '@/lib/league-creation-wizard/types'
+import { useSportPreset } from '@/hooks/useSportPreset'
 import { getAllowedLeagueTypesForSport, getAllowedDraftTypesForLeagueType, isDynastyLeagueType } from '@/lib/league-creation-wizard/league-type-registry'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
@@ -51,6 +52,10 @@ const LeaguePrivacyPanel = dynamic(
 )
 const LeagueSummaryPanel = dynamic(
   () => import('./LeagueSummaryPanel').then((m) => ({ default: m.LeagueSummaryPanel })),
+  { loading: () => <StepPanelSkeleton />, ssr: true }
+)
+const SportSummaryCard = dynamic(
+  () => import('./SportSummaryCard').then((m) => ({ default: m.SportSummaryCard })),
   { loading: () => <StepPanelSkeleton />, ssr: true }
 )
 
@@ -116,6 +121,7 @@ export function LeagueCreationWizard({
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
   const stepIndex = WIZARD_STEP_ORDER.indexOf(state.step)
   const currentStepNumber = stepIndex + 1
   const totalSteps = WIZARD_STEP_ORDER.length
@@ -273,6 +279,7 @@ export function LeagueCreationWizard({
           {state.step === 'sport' && (
             <>
               <SportSelector value={state.sport} onChange={handleSportChange} />
+              {creationPreset && <SportSummaryCard preset={creationPreset} />}
               <WizardStepNav onNext={goNext} nextLabel="Next" />
             </>
           )}
