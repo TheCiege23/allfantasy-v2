@@ -5,7 +5,7 @@ import { containsProfanity } from "@/lib/profanity"
 export const runtime = "nodejs"
 
 function normalizeUsername(u: string) {
-  return u.trim().toLowerCase()
+  return u.trim()
 }
 
 export async function GET(req: Request) {
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, available: false, reason: "length" })
   }
 
-  if (!/^[a-z0-9_]+$/.test(username)) {
+  if (!/^[A-Za-z0-9_]+$/.test(username)) {
     return NextResponse.json({ ok: true, available: false, reason: "charset" })
   }
 
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
   }
 
   const existing = await prisma.appUser.findFirst({
-    where: { username: { equals: username, mode: "insensitive" } },
+    where: { username },
     select: { id: true },
   })
 

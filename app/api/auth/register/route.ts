@@ -13,7 +13,7 @@ import { validateLeagueJoin } from "@/lib/league-privacy"
 export const runtime = "nodejs"
 
 function normalizeUsername(u: string) {
-  return u.trim().toLowerCase()
+  return u.trim()
 }
 
 function normalizeEmail(e: string) {
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Username must be 3-30 characters." }, { status: 400 })
     }
 
-    if (!/^[a-z0-9_]+$/.test(username)) {
+    if (!/^[A-Za-z0-9_]+$/.test(username)) {
       return NextResponse.json({ error: "Username can only contain letters, numbers, and underscores." }, { status: 400 })
     }
 
@@ -102,7 +102,7 @@ export async function POST(req: Request) {
       where: {
         OR: [
           { email: { equals: email, mode: "insensitive" } },
-          { username: { equals: username, mode: "insensitive" } },
+          { username },
         ],
       },
       select: { id: true, email: true, username: true },
@@ -114,9 +114,9 @@ export async function POST(req: Request) {
         { status: 409 }
       )
     }
-    if (existing?.username && existing.username.toLowerCase() === username.toLowerCase()) {
+    if (existing?.username && existing.username === username) {
       return NextResponse.json(
-        { error: "This username is already taken." },
+        { error: "username already taken, choose another username" },
         { status: 409 }
       )
     }
@@ -180,7 +180,7 @@ export async function POST(req: Request) {
         }
         if (target?.includes("username")) {
           throw new Response(
-            JSON.stringify({ error: "This username is already taken." }),
+            JSON.stringify({ error: "username already taken, choose another username" }),
             { status: 409 }
           )
         }

@@ -122,7 +122,7 @@ function SignupContent() {
   }, [sleeperUsername, sleeperLooking])
 
   const applyUsernameSuggestion = useCallback(async () => {
-    const base = username.trim().toLowerCase() || "user"
+    const base = username.trim() || "user"
     setSuggestingUsername(true)
     setUsernameSuggestion(null)
     try {
@@ -144,13 +144,13 @@ function SignupContent() {
       setUsernameMessage("")
       return
     }
-    const normalized = username.trim().toLowerCase()
+    const normalized = username.trim()
     if (normalized.length < 3 || normalized.length > 30) {
       setUsernameStatus("invalid")
       setUsernameMessage(t("signup.username.length"))
       return
     }
-    if (!/^[a-z0-9_]+$/.test(normalized)) {
+    if (!/^[A-Za-z0-9_]+$/.test(normalized)) {
       setUsernameStatus("invalid")
       setUsernameMessage(t("signup.username.charset"))
       return
@@ -238,7 +238,7 @@ function SignupContent() {
         }),
       })
 
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
 
       if (!res.ok) {
         setError(data.error || t("common.error.tryAgain"))
@@ -353,7 +353,7 @@ function SignupContent() {
             <label className="block text-xs text-white/60 mb-1">Username *</label>
             <input
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+              onChange={(e) => setUsername(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
               placeholder="your_username"
               maxLength={30}

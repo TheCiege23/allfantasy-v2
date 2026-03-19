@@ -71,7 +71,7 @@ export const translations: Record<string, Record<string, string>> = {
     "signup.username.length": "Username must be 3-30 characters.",
     "signup.username.charset": "Use only letters, numbers, and underscores.",
     "signup.username.unable": "Unable to validate username right now.",
-    "signup.username.taken": "This username is already taken.",
+    "signup.username.taken": "username already taken, choose another username",
     "signup.username.profanity": "Please choose a different username.",
     "signup.username.notAllowed": "This username is not allowed.",
     "signup.username.available": "Username is available.",

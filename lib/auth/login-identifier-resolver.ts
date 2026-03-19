@@ -67,7 +67,7 @@ export async function resolveLoginToUser(login: string): Promise<{
     where: {
       OR: [
         { email: { equals: trimmed, mode: "insensitive" } },
-        { username: { equals: trimmed, mode: "insensitive" } },
+        { username: trimmed },
       ],
     },
     select: {
