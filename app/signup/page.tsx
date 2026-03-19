@@ -2,7 +2,8 @@
 
 import { Suspense, useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { getRedirectAfterSignup, loginUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/legal-route-resolver"
 import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezones"
@@ -38,6 +39,7 @@ interface SleeperResult {
 function SignupContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
   const redirectAfterSignup = getRedirectAfterSignup(nextParam)
   const refParam = searchParams?.get("ref")?.trim() || undefined
@@ -262,6 +264,22 @@ function SignupContent() {
         setLoading(false)
         return
       }
+
+      // Immediately continue to home after signup.
+      const signInResult = await signIn("credentials", {
+        login: email.trim(),
+        password,
+        redirect: false,
+        callbackUrl: "/",
+      })
+
+      if (!signInResult?.error) {
+        router.push(signInResult?.url || "/")
+        return
+      }
+
+      router.push("/")
+      return
 
       // Show success screen — user must verify email or phone before signing in
       if (typeof data.emailVerificationPrepared === "boolean") {
