@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { containsProfanity } from "@/lib/profanity"
 
 export const runtime = "nodejs"
 
 function normalizeUsername(u: string) {
   return u.trim()
+}
+
+function isDatabaseUnavailableError(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientInitializationError) return true
+
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(err.code)) {
+      return true
+    }
+  }
+
+  const message = String((err as any)?.message ?? "").toLowerCase()
+  if (message.includes("can't reach database server")) return true
+  if (message.includes("connection timed out")) return true
+
+  return false
 }
 
 export async function GET(req: Request) {
@@ -42,7 +59,18 @@ export async function GET(req: Request) {
     })
   } catch (error) {
     console.error("[check-username] error:", error)
-    return NextResponse.json({ ok: false, available: false, reason: "error" })
+    if (isDatabaseUnavailableError(error)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          available: false,
+          reason: "db_unavailable",
+          message: "Database temporarily unavailable.",
+        },
+        { status: 503 }
+      )
+    }
+    return NextResponse.json({ ok: false, available: false, reason: "error" }, { status: 500 })
   }
 }
 

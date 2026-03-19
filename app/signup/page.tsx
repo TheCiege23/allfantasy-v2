@@ -171,7 +171,11 @@ function SignupContent() {
         if (cancelled) return
         if (!data.ok) {
           setUsernameStatus("unvalidated")
-          setUsernameMessage(t("signup.username.unable"))
+          if (data.reason === "db_unavailable") {
+            setUsernameMessage("Username check is temporarily unavailable (database issue).")
+          } else {
+            setUsernameMessage(t("signup.username.unable"))
+          }
           return
         }
         if (!data.available) {

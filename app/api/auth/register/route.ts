@@ -36,6 +36,24 @@ function getUniqueConstraintTarget(err: Prisma.PrismaClientKnownRequestError): s
   return String(err.message ?? "").toLowerCase()
 }
 
+function isDatabaseUnavailableError(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientInitializationError) return true
+
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    // Common transient/db connectivity issues from Prisma.
+    if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(err.code)) {
+      return true
+    }
+  }
+
+  const message = String((err as any)?.message ?? "").toLowerCase()
+  if (message.includes("can't reach database server")) return true
+  if (message.includes("connection timed out")) return true
+  if (message.includes("terminating connection due to administrator command")) return true
+
+  return false
+}
+
 export async function POST(req: Request) {
   try {
     const ip = getClientIp(req)
@@ -310,6 +328,16 @@ export async function POST(req: Request) {
   } catch (err: any) {
     if (err instanceof Response) {
       return err
+    }
+    if (isDatabaseUnavailableError(err)) {
+      console.error("[register] database unavailable:", err)
+      return NextResponse.json(
+        {
+          error: "Database temporarily unavailable. Please try again in a minute.",
+          code: "DB_UNAVAILABLE",
+        },
+        { status: 503 }
+      )
     }
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       const target = getUniqueConstraintTarget(err)
