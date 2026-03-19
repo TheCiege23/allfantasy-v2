@@ -55,8 +55,7 @@ export default function HomeTopNav() {
               <img
                 src="/af-crest.png"
                 alt="AllFantasy Crest"
-                className="h-8 w-8 rounded-lg border bg-black/40 object-contain mode-image-safe"
-                style={{ borderColor: "var(--border)" }}
+                className="h-8 w-8 rounded-lg object-contain"
               />
               <span
                 className="hidden text-sm font-semibold tracking-tight sm:inline-block"

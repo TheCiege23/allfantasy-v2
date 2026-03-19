@@ -1,9 +1,8 @@
 "use client"
 
 import { Suspense, useState, useCallback, useEffect, useMemo } from "react"
-import { signIn } from "next-auth/react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { getRedirectAfterSignup, loginUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/legal-route-resolver"
 import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezones"
@@ -23,6 +22,8 @@ import {
   FileText,
   Shield,
   Sparkles,
+  X,
+  CreditCard,
 } from "lucide-react"
 
 interface SleeperResult {
@@ -34,7 +35,6 @@ interface SleeperResult {
 }
 
 function SignupContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const nextParam = searchParams?.get("next") ?? undefined
   const redirectAfterSignup = getRedirectAfterSignup(nextParam)
@@ -50,8 +50,8 @@ function SignupContent() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [displayName, setDisplayName] = useState("")
   const [phone, setPhone] = useState("")
+  const [showDlModal, setShowDlModal] = useState(false)
   const [sleeperUsername, setSleeperUsername] = useState("")
   const [sleeperResult, setSleeperResult] = useState<SleeperResult | null>(null)
   const [sleeperLooking, setSleeperLooking] = useState(false)
@@ -60,18 +60,37 @@ function SignupContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "ok" | "taken" | "invalid">("idle")
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "ok" | "taken" | "invalid" | "unvalidated">("idle")
   const [usernameMessage, setUsernameMessage] = useState<string>("")
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
   const [disclaimerAgreed, setDisclaimerAgreed] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [suggestingUsername, setSuggestingUsername] = useState(false)
 
+  function normalizePhoneForSubmit(raw: string): string {
+    const digits = raw.replace(/\D/g, "")
+    if (!digits) return ""
+    if (digits.length === 10) return `+1${digits}`
+    if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`
+    return `+${digits}`
+  }
+
+  function formatPhoneDisplay(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 11)
+    if (digits.length === 0) return ""
+    // Handle leading 1 (country code)
+    const local = digits.startsWith("1") && digits.length > 10 ? digits.slice(1) : digits.slice(0, 10)
+    const d = local.slice(0, 10)
+    if (d.length <= 3) return `(${d}`
+    if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`
+    return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
+  }
+
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
   const progressPercent = useMemo(() => {
     const fields = [
       !!username.trim(),
-      usernameStatus === "ok",
+      usernameStatus === "ok" || usernameStatus === "unvalidated",
       !!email.trim(),
       !!password && passwordStrength.valid,
       password === confirmPassword && confirmPassword.length >= 8,
@@ -144,7 +163,7 @@ function SignupContent() {
         const data = await res.json()
         if (cancelled) return
         if (!data.ok) {
-          setUsernameStatus("invalid")
+          setUsernameStatus("unvalidated")
           setUsernameMessage("Unable to validate username right now.")
           return
         }
@@ -171,7 +190,7 @@ function SignupContent() {
         }
       } catch {
         if (cancelled) return
-        setUsernameStatus("invalid")
+        setUsernameStatus("unvalidated")
         setUsernameMessage("Unable to validate username right now.")
       }
     }, 400)
@@ -201,8 +220,8 @@ function SignupContent() {
           username: username.trim(),
           email: email.trim(),
           password,
-          displayName: displayName.trim() || username.trim(),
-          phone: phone.trim() || undefined,
+          displayName: username.trim(),
+          phone: normalizePhoneForSubmit(phone) || undefined,
           sleeperUsername: sleeperResult?.found ? sleeperResult.username : undefined,
           ageConfirmed,
           verificationMethod,
@@ -224,23 +243,8 @@ function SignupContent() {
         return
       }
 
-      const loginRes = await signIn("credentials", {
-        redirect: false,
-        login: email.trim(),
-        password,
-      })
-
-      if (!loginRes?.ok) {
-        setSuccess(true)
-        setLoading(false)
-        return
-      }
-
-      if (data.verificationMethod === "PHONE") {
-        router.push(`/verify?error=VERIFICATION_REQUIRED&method=phone&returnTo=${encodeURIComponent(redirectAfterSignup)}`)
-      } else {
-        router.push(redirectAfterSignup)
-      }
+      // Show success screen — user must verify email or phone before signing in
+      setSuccess(true)
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -344,7 +348,7 @@ function SignupContent() {
           {usernameStatus === "checking" && (
             <span className="text-white/40">Checking…</span>
           )}
-          {usernameStatus === "ok" && (
+        {usernameStatus === "ok" && (
             <span className="text-emerald-300 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" />
               Available
@@ -354,6 +358,12 @@ function SignupContent() {
             <span className="text-amber-300 flex items-center gap-1">
               <TriangleAlert className="h-3 w-3" />
               Taken
+            </span>
+          )}
+          {usernameStatus === "unvalidated" && (
+            <span className="text-white/40 flex items-center gap-1">
+              <TriangleAlert className="h-3 w-3" />
+              Could not verify
             </span>
           )}
         </div>
@@ -370,17 +380,6 @@ function SignupContent() {
             {suggestingUsername ? "Finding suggestion…" : "Suggest a similar username"}
           </button>
         )}
-          </div>
-
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Display Name</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-              placeholder="Your name (defaults to username)"
-              autoComplete="name"
-            />
           </div>
 
           <div>
@@ -547,12 +546,19 @@ function SignupContent() {
             <label className="block text-xs text-white/60 mb-1">Phone {verificationMethod === "PHONE" ? "*" : "(optional)"}</label>
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 11)
+                setPhone(digits)
+              }}
               type="tel"
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
               placeholder="+1 (555) 123-4567"
               autoComplete="tel"
+              inputMode="numeric"
             />
+            {phone.length > 0 && (
+              <p className="mt-0.5 text-[11px] text-white/40">Formatted: {(() => { const d = phone.startsWith('1') && phone.length > 10 ? phone.slice(1) : phone.slice(0,10); if (d.length <= 3) return `(${d}`; if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`; return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` })()}</p>
+            )}
           </div>
         </div>
 
@@ -564,8 +570,8 @@ function SignupContent() {
           <p className="text-xs text-white/50">
             Import your fantasy history to get placed into rankings and level systems. Skip and you’ll start at level 1—you can import later in settings.
           </p>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex gap-2 flex-1 min-w-0">
+          <div className="space-y-2">
+            <div className="flex gap-2">
               <input
                 value={sleeperUsername}
                 onChange={(e) => {
@@ -584,16 +590,18 @@ function SignupContent() {
                 {sleeperLooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </button>
             </div>
-            {["Yahoo", "ESPN", "MFL", "Fleaflicker", "Fantrax"].map((name) => (
-              <button
-                key={name}
-                type="button"
-                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50 cursor-default"
-                title="Coming soon"
-              >
-                {name} (soon)
-              </button>
-            ))}
+            <div className="flex flex-wrap gap-2">
+              {["Yahoo", "ESPN", "MFL", "Fleaflicker", "Fantrax"].map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50 cursor-default"
+                  title="Coming soon"
+                >
+                  {name} (soon)
+                </button>
+              ))}
+            </div>
           </div>
           {sleeperResult?.found && (
             <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
@@ -651,20 +659,79 @@ function SignupContent() {
               type="checkbox"
               checked={ageConfirmed}
               onChange={(e) => setAgeConfirmed(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
             />
-            <span className="text-sm text-white/80">
+            <span className="text-sm text-white/80 leading-relaxed">
               I confirm that I am 18 years of age or older. *
             </span>
           </label>
           <p className="text-[11px] text-white/40">
             Optional:{" "}
-            <Link href="/verify" className="text-cyan-400/80 hover:text-cyan-300 underline">
+            <button
+              type="button"
+              onClick={() => setShowDlModal(true)}
+              className="text-cyan-400/80 hover:text-cyan-300 underline"
+            >
               Verify with driver&apos;s license
-            </Link>{" "}
+            </button>{" "}
             for future legal protection flows.
           </p>
         </div>
+
+        {showDlModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-6 space-y-4 relative">
+              <button
+                type="button"
+                onClick={() => setShowDlModal(false)}
+                className="absolute right-4 top-4 text-white/40 hover:text-white/80 transition"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
+                  <CreditCard className="h-5 w-5 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-white">Driver&apos;s License Verification</h2>
+                  <p className="text-xs text-white/50">Age verification for legal protection</p>
+                </div>
+              </div>
+              <p className="text-sm text-white/70">
+                Verifying your driver&apos;s license confirms you are 18+ and protects your account in future legal or compliance flows.
+              </p>
+              <p className="text-sm text-white/70">
+                This step is <span className="text-white font-medium">optional</span>. You can verify your age now or complete it later in Settings.
+              </p>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/50 space-y-1">
+                <p className="font-medium text-white/70">What you&apos;ll need:</p>
+                <p>• A valid government-issued driver&apos;s license</p>
+                <p>• A photo or scan of the front of your license</p>
+                <p>• Your date of birth must be visible</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDlModal(false)}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 transition"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDlModal(false)
+                    window.open("/settings/verify-identity", "_blank")
+                  }}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 transition"
+                >
+                  Verify Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 space-y-3">
           <div className="flex items-center gap-2 text-sm font-medium text-white/80">
@@ -676,11 +743,12 @@ function SignupContent() {
               type="checkbox"
               checked={disclaimerAgreed}
               onChange={(e) => setDisclaimerAgreed(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
             />
-            <span className="text-sm text-white/80">
+            <span className="text-sm text-white/80 leading-relaxed">
               I understand this app is for fantasy sports only—no gambling, no DFS. I agree to use it accordingly. *
-              <Link href={getDisclaimerUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="ml-1 text-cyan-400 hover:text-cyan-300 underline">
+              {" "}
+              <Link href={getDisclaimerUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
                 Read full Disclaimer
               </Link>
             </span>
@@ -697,9 +765,9 @@ function SignupContent() {
               type="checkbox"
               checked={termsAgreed}
               onChange={(e) => setTermsAgreed(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
             />
-            <span className="text-sm text-white/80">
+            <span className="text-sm text-white/80 leading-relaxed">
               I agree to the{" "}
               <Link href={getTermsUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
                 Terms of Service
@@ -724,7 +792,7 @@ function SignupContent() {
           type="submit"
           disabled={
             loading ||
-            usernameStatus !== "ok" ||
+            (usernameStatus !== "ok" && usernameStatus !== "unvalidated") ||
             !username.trim() ||
             !email.trim() ||
             !password ||

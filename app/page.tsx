@@ -6,8 +6,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import LandingHero from '@/components/landing/LandingHero'
-import { CONVERSION_CTA } from '@/lib/landing-cta'
-import { trackLandingCtaClick } from '@/lib/landing-analytics'
 
 /** Below-the-fold: minimal features, AI value, final CTA. PROMPT 282 — minimal landing. */
 const LandingFeaturesMinimal = dynamic(
@@ -30,8 +28,6 @@ function SectionSkeleton() {
     </section>
   )
 }
-
-const SUPPORTED_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAA Basketball', 'NCAA Football', 'Soccer']
 
 function LandingContent() {
   const jsonLd = useMemo(
@@ -83,24 +79,14 @@ function LandingContent() {
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span style={{ color: 'var(--muted)' }}>Sports: {SUPPORTED_SPORTS.join(', ')}</span>
+            <span style={{ color: 'var(--muted)' }}>© {new Date().getFullYear()} AllFantasy · Fantasy sports with AI</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/app" className="hover:underline">
-              App
-            </Link>
-            <Link
-              href={CONVERSION_CTA.secondary.href}
-              className="hover:underline"
-              onClick={() => trackLandingCtaClick({ cta_label: CONVERSION_CTA.secondary.label, cta_destination: CONVERSION_CTA.secondary.href, cta_type: 'secondary', source: 'footer' })}
-            >
+            <Link href="/signup" className="hover:underline">
               Sign up
             </Link>
             <Link href="/login" className="hover:underline">
               Sign in
-            </Link>
-            <Link href="/tools-hub" className="hover:underline">
-              Tools Hub
             </Link>
             <Link href="/privacy" className="hover:underline">
               Privacy

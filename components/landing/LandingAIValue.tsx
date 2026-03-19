@@ -1,73 +1,89 @@
 'use client'
 
-import Link from 'next/link'
-import { Scale, ClipboardList, Target, MessageCircle } from 'lucide-react'
-import { trackLandingCtaClick } from '@/lib/landing-analytics'
+import { Scale, ClipboardList, Target, MessageCircle, TrendingUp, Zap } from 'lucide-react'
 
 const AI_VALUES = [
   {
-    title: 'Trade fairness',
-    description: 'AI scores any trade and suggests counter-offers.',
-    href: '/trade-analyzer',
+    title: 'Trade Fairness Score',
+    description: 'Paste any trade and get an instant AI fairness score. See who wins, who loses, and get smarter counter-offer suggestions.',
     icon: Scale,
+    accent: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/20',
   },
   {
-    title: 'Waiver picks',
-    description: 'Prioritized add/drop list for your league and roster.',
-    href: '/waiver-ai',
+    title: 'Waiver Recommendations',
+    description: 'Get a personalized add/drop list every week. AI factors your roster needs, injury reports, and upcoming schedules.',
     icon: ClipboardList,
+    accent: 'text-emerald-400',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
   },
   {
-    title: 'Draft suggestions',
-    description: 'Real-time pick recommendations in mock and live drafts.',
-    href: '/mock-draft',
+    title: 'Live Draft Picks',
+    description: 'Real-time AI suggestions during your mock or live draft. Know the value of every pick at every position.',
     icon: Target,
+    accent: 'text-cyan-400',
+    bg: 'bg-cyan-500/10',
+    border: 'border-cyan-500/20',
   },
   {
-    title: 'Chimmy assistant',
-    description: 'Ask anything about your league and get AI answers.',
-    href: '/chimmy',
+    title: 'Chimmy — Your AI Coach',
+    description: 'Ask anything: "Should I start Mahomes or Lamar?" or "Who should I drop?" Chimmy knows your league, your roster, and the matchups.',
     icon: MessageCircle,
+    accent: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/20',
+  },
+  {
+    title: 'Dynasty Rankings',
+    description: 'Long-term player values built for dynasty leagues. Age curves, contract data, and prospect grades all in one place.',
+    icon: TrendingUp,
+    accent: 'text-rose-400',
+    bg: 'bg-rose-500/10',
+    border: 'border-rose-500/20',
+  },
+  {
+    title: 'War Room Tools',
+    description: 'Everything you need pre-draft: mock drafts, ADP trends, tier boards, and keeper analysis — all AI-enhanced.',
+    icon: Zap,
+    accent: 'text-indigo-400',
+    bg: 'bg-indigo-500/10',
+    border: 'border-indigo-500/20',
   },
 ] as const
 
 export default function LandingAIValue() {
   return (
-    <section
-      className="border-t px-4 py-10 sm:px-6 sm:py-14"
-      style={{ borderColor: 'var(--border)' }}
-    >
-      <div className="mx-auto max-w-3xl">
-        <h2 className="text-center text-base font-semibold sm:text-lg" style={{ color: 'var(--text)' }}>
-          AI that helps you win
-        </h2>
-        <p className="mx-auto mt-1 max-w-md text-center text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
-          Smarter trades, waivers, and drafts—powered by AI.
-        </p>
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-          {AI_VALUES.map(({ title, description, href, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col gap-2 rounded-xl border p-4 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation min-h-[72px]"
-              style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 60%, transparent)' }}
-              onClick={() => trackLandingCtaClick({ cta_label: title, cta_destination: href, cta_type: 'ai_value', source: 'landing' })}
+    <section className="border-t px-4 py-14 sm:px-6 sm:py-20" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 15%, transparent)' }}>
+      <div className="mx-auto max-w-4xl">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-1.5 text-xs font-semibold text-cyan-400 mb-4">
+            <Zap className="h-3.5 w-3.5" />
+            Powered by AI
+          </div>
+          <h2 className="text-2xl font-bold sm:text-3xl" style={{ color: 'var(--text)' }}>
+            AI that gives you the edge
+          </h2>
+          <p className="mt-2 max-w-md mx-auto text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
+            Stop guessing. AllFantasy&apos;s AI coaches you through every decision — from draft day to the championship.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {AI_VALUES.map(({ title, description, icon: Icon, accent, bg, border }) => (
+            <div
+              key={title}
+              className={`rounded-2xl border ${border} ${bg} p-5 flex flex-col gap-3`}
             >
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <Icon className="h-4 w-4 text-emerald-400" />
-                </div>
-                <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                  {title}
-                </span>
+              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg}`}>
+                <Icon className={`h-5 w-5 ${accent}`} />
               </div>
-              <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                {description}
-              </p>
-            </Link>
+              <div>
+                <div className={`text-sm font-semibold ${accent}`}>{title}</div>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
+              </div>
+            </div>
           ))}
         </div>
       </div>
