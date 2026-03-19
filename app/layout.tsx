@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
+import { cookies } from 'next/headers';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
@@ -70,13 +71,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get('af_lang')?.value;
+  const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
 
   return (
-    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
+    <html lang={htmlLang} className={`${inter.variable}`} suppressHydrationWarning>
       <head>
         <Script id="af-init-mode" strategy="beforeInteractive">
           {`/* Global theme: Light, Dark, AF Legacy. Key af_mode; default legacy. See lib/theme. */
@@ -98,11 +102,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               var lang = localStorage.getItem('af_lang');
               if (lang === 'en' || lang === 'es') {
                 document.documentElement.setAttribute('data-lang', lang);
+                document.documentElement.setAttribute('lang', lang);
               } else {
                 document.documentElement.setAttribute('data-lang', 'en');
+                document.documentElement.setAttribute('lang', 'en');
               }
             } catch (e) {
               document.documentElement.setAttribute('data-lang', 'en');
+              document.documentElement.setAttribute('lang', 'en');
             }
           `}
         </Script>

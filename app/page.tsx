@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import LandingHero from '@/components/landing/LandingHero'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 /** Below-the-fold: minimal features, AI value, final CTA. PROMPT 282 — minimal landing. */
 const LandingFeaturesMinimal = dynamic(
@@ -30,6 +31,8 @@ function SectionSkeleton() {
 }
 
 function LandingContent() {
+  const { t } = useLanguage()
+
   const jsonLd = useMemo(
     () => ({
       '@context': 'https://schema.org',
@@ -37,12 +40,11 @@ function LandingContent() {
       name: 'AllFantasy',
       applicationCategory: 'SportsApplication',
       operatingSystem: 'Web',
-      description:
-        'Fantasy sports with AI. Draft, trade, waivers—win. Leagues, brackets and AI tools for NFL, NBA, MLB, NHL, NCAA, Soccer.',
+      description: t('landing.hero.subline'),
       url: 'https://allfantasy.ai/',
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     }),
-    []
+    [t]
   )
 
   return (
@@ -79,20 +81,20 @@ function LandingContent() {
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span style={{ color: 'var(--muted)' }}>© {new Date().getFullYear()} AllFantasy · Fantasy sports with AI</span>
+            <span style={{ color: 'var(--muted)' }}>© {new Date().getFullYear()} AllFantasy · {t('landing.footer.tagline')}</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link href="/signup" className="hover:underline">
-              Sign up
+              {t('common.signUp')}
             </Link>
             <Link href="/login" className="hover:underline">
-              Sign in
+              {t('common.signIn')}
             </Link>
             <Link href="/privacy" className="hover:underline">
-              Privacy
+              {t('landing.footer.privacy')}
             </Link>
             <Link href="/terms" className="hover:underline">
-              Terms
+              {t('landing.footer.terms')}
             </Link>
           </div>
         </div>

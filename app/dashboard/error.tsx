@@ -3,6 +3,7 @@
 import DashboardUnavailableState from "@/components/dashboard/DashboardUnavailableState"
 import { getErrorMessage } from "@/lib/error-handling"
 import { getDashboardRuntimeIssue } from "@/lib/dashboard/runtime-issues"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export default function DashboardError({
   error,
@@ -11,6 +12,7 @@ export default function DashboardError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const { t } = useLanguage()
   const issue = getDashboardRuntimeIssue(error)
 
   if (issue) {
@@ -26,9 +28,9 @@ export default function DashboardError({
 
   return (
     <DashboardUnavailableState
-      title="Dashboard temporarily unavailable"
+      title={t("dashboard.unavailable.title")}
       message={getErrorMessage(error, {
-        fallback: "We couldn't load the dashboard right now. Please try again in a moment.",
+        fallback: t("dashboard.unavailable.message"),
       })}
       onRetry={reset}
     />

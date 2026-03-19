@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import SeoLandingFooter from '@/components/landing/SeoLandingFooter'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { AppWindow, Trophy, Zap, Bot, ArrowRight } from 'lucide-react'
 import {
   getAllSports,
@@ -26,8 +27,33 @@ interface ToolsHubClientProps {
 }
 
 export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
+  const { t } = useLanguage()
   const [sportFilter, setSportFilter] = useState<SportSlug | ''>('')
   const [categoryFilter, setCategoryFilter] = useState<ToolCategoryId | 'all'>('all')
+
+  const getLocalizedSportLabel = (slug: SportSlug, fallback: string) => {
+    const key = `toolsHub.sport.${slug}`
+    const value = t(key)
+    return value === key ? fallback : value
+  }
+
+  const getLocalizedCategoryLabel = (id: ToolCategoryId) => {
+    const key = `toolsHub.category.${id}`
+    const value = t(key)
+    return value === key ? getCategoryLabel(id) : value
+  }
+
+  const getLocalizedToolHeadline = (slug: ToolSlug, fallback: string) => {
+    const key = `toolsHub.tool.${slug}.headline`
+    const value = t(key)
+    return value === key ? fallback : value
+  }
+
+  const getLocalizedToolDescription = (slug: ToolSlug, fallback: string) => {
+    const key = `toolsHub.tool.${slug}.description`
+    const value = t(key)
+    return value === key ? fallback : value
+  }
 
   const sportOptions = useMemo(() => getSportFilterOptions(), [])
 
@@ -64,17 +90,16 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
       <article className="flex-1 px-4 py-8 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-4xl">
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Fantasy Tools Hub
+            {t('toolsHub.title')}
           </h1>
           <p className="mt-4 text-lg" style={{ color: 'var(--muted)' }}>
-            Discover AllFantasy tools by sport and category. Trade analyzer, mock draft, waiver
-            advisor, bracket challenge, power rankings, and Chimmy AI in one place.
+            {t('toolsHub.subtitle')}
           </p>
 
           {/* Featured tools */}
           {featuredCards.length > 0 && (
-            <section className="mt-10" aria-label="Featured tools">
-              <h2 className="text-xl font-semibold mb-4">Featured tools</h2>
+            <section className="mt-10" aria-label={t('toolsHub.featured.title')}>
+              <h2 className="text-xl font-semibold mb-4">{t('toolsHub.featured.title')}</h2>
               <ul className="grid gap-3 sm:grid-cols-2">
                 {featuredCards.map((card) => (
                   <li key={card.slug}>
@@ -91,18 +116,18 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                           href={card.toolLandingHref}
                           className="font-medium hover:underline"
                         >
-                          {card.headline}
+                          {getLocalizedToolHeadline(card.slug, card.headline)}
                         </Link>
                         <Link
                           href={card.openToolHref}
                           className="shrink-0 rounded-md px-2 py-1 text-sm font-medium"
                           style={{ background: 'var(--accent-cyan)', color: 'var(--bg)' }}
                         >
-                          Open
+                          {t('toolsHub.open')}
                         </Link>
                       </div>
                       <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-                        {card.description}
+                        {getLocalizedToolDescription(card.slug, card.description)}
                       </p>
                     </div>
                   </li>
@@ -112,11 +137,11 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
           )}
 
           {/* Sport filter */}
-          <section className="mt-10" aria-label="Filter by sport">
-            <h2 className="text-xl font-semibold mb-4">By sport</h2>
+          <section className="mt-10" aria-label={t('toolsHub.sportFilter.aria')}>
+            <h2 className="text-xl font-semibold mb-4">{t('toolsHub.sportFilter.title')}</h2>
             <div className="mb-4">
               <label htmlFor="hub-sport-filter" className="sr-only">
-                Filter tools by sport
+                {t('toolsHub.sportFilter.label')}
               </label>
               <select
                 id="hub-sport-filter"
@@ -125,10 +150,10 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                 className="rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: 'var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
               >
-                <option value="">All sports</option>
+                <option value="">{t('toolsHub.sportFilter.allSports')}</option>
                 {sportOptions.map((opt) => (
                   <option key={opt.slug} value={opt.slug}>
-                    {opt.label}
+                    {getLocalizedSportLabel(opt.slug, opt.label)}
                   </option>
                 ))}
               </select>
@@ -145,7 +170,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                       color: 'var(--text)',
                     }}
                   >
-                    <span className="font-medium">{s.headline}</span>
+                    <span className="font-medium">{getLocalizedSportLabel(s.slug, s.headline)}</span>
                     <ArrowRight className="h-4 w-4 shrink-0" style={{ color: 'var(--muted)' }} />
                   </Link>
                 </li>
@@ -154,8 +179,8 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
           </section>
 
           {/* Category filter + All tools */}
-          <section className="mt-10" aria-label="All tools by category">
-            <h2 className="text-xl font-semibold mb-4">All tools</h2>
+          <section className="mt-10" aria-label={t('toolsHub.allTools.aria')}>
+            <h2 className="text-xl font-semibold mb-4">{t('toolsHub.allTools.title')}</h2>
             <div className="mb-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -167,7 +192,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                   border: '1px solid var(--border)',
                 }}
               >
-                All
+                {t('toolsHub.allTools.all')}
               </button>
               {CATEGORY_ORDER.map((cat) => (
                 <button
@@ -181,15 +206,15 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                     border: '1px solid var(--border)',
                   }}
                 >
-                  {getCategoryLabel(cat)}
+                  {getLocalizedCategoryLabel(cat)}
                 </button>
               ))}
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
-              {filteredTools.map((t) => {
-                const related = getRelatedTools(t.slug)
+              {filteredTools.map((tool) => {
+                const related = getRelatedTools(tool.slug)
                 return (
-                  <li key={t.slug}>
+                  <li key={tool.slug}>
                     <div
                       className="flex flex-col rounded-xl border p-4"
                       style={{
@@ -199,24 +224,24 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <Link href={`/tools/${t.slug}`} className="font-medium hover:underline">
-                          {t.headline}
+                        <Link href={`/tools/${tool.slug}`} className="font-medium hover:underline">
+                          {getLocalizedToolHeadline(tool.slug, tool.headline)}
                         </Link>
                         <Link
-                          href={t.openToolHref}
+                          href={tool.openToolHref}
                           className="shrink-0 rounded-md px-2 py-1 text-sm font-medium"
                           style={{ background: 'var(--accent-cyan)', color: 'var(--bg)' }}
                         >
-                          Open
+                          {t('toolsHub.open')}
                         </Link>
                       </div>
                       <span className="mt-1 block text-xs" style={{ color: 'var(--muted)' }}>
-                        Open: {t.openToolHref}
+                        {t('toolsHub.openWithPath')}: {tool.openToolHref}
                       </span>
                       {related.length > 0 && (
                         <div className="mt-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
                           <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
-                            Related:
+                            {t('toolsHub.related')}:
                           </span>
                           <div className="mt-1 flex flex-wrap gap-2">
                             {related.slice(0, 3).map((r) => (
@@ -226,7 +251,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                                 className="text-xs hover:underline"
                                 style={{ color: 'var(--accent-cyan)' }}
                               >
-                                {r.headline}
+                                {getLocalizedToolHeadline(r.slug, r.headline)}
                               </Link>
                             ))}
                           </div>
@@ -240,28 +265,28 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
           </section>
 
           <section className="mt-10">
-            <h2 className="text-xl font-semibold mb-4">Main experiences</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('toolsHub.experiences.title')}</h2>
             <div className="grid gap-3 sm:grid-cols-3">
               <Link
                 href={ROUTES.app()}
                 className="flex items-center gap-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 hover:bg-emerald-500/20"
               >
                 <AppWindow className="h-8 w-8 text-emerald-400" />
-                <span className="font-medium">Sports App</span>
+                <span className="font-medium">{t('toolsHub.experiences.sportsApp')}</span>
               </Link>
               <Link
                 href={ROUTES.bracket()}
                 className="flex items-center gap-3 rounded-xl border border-sky-400/30 bg-sky-500/10 p-4 hover:bg-sky-500/20"
               >
                 <Trophy className="h-8 w-8 text-sky-400" />
-                <span className="font-medium">Bracket Challenge</span>
+                <span className="font-medium">{t('toolsHub.experiences.bracket')}</span>
               </Link>
               <Link
                 href={ROUTES.afLegacy()}
                 className="flex items-center gap-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 hover:bg-amber-500/20"
               >
                 <Zap className="h-8 w-8 text-amber-400" />
-                <span className="font-medium">AllFantasy Legacy</span>
+                <span className="font-medium">{t('toolsHub.experiences.legacy')}</span>
               </Link>
             </div>
           </section>
@@ -273,9 +298,9 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
             >
               <Bot className="h-8 w-8 text-purple-400" />
               <div>
-                <span className="font-semibold">Chimmy AI</span>
+                <span className="font-semibold">{t('toolsHub.chimmy.title')}</span>
                 <p className="text-sm mt-0.5" style={{ color: 'var(--muted)' }}>
-                  Your AI fantasy assistant for drafts, trades, waivers, and matchups
+                  {t('toolsHub.chimmy.subtitle')}
                 </p>
               </div>
               <ArrowRight className="h-5 w-5 ml-auto shrink-0" style={{ color: 'var(--muted)' }} />
@@ -285,7 +310,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
           <section className="mt-10 rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 50%, transparent)' }}>
             <Link href={ROUTES.home()} className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--accent-cyan)' }}>
               <AppWindow className="h-4 w-4" />
-              Back to AllFantasy Home
+              {t('toolsHub.backHome')}
             </Link>
           </section>
         </div>

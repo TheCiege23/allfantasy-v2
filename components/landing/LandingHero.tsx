@@ -4,11 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { LogIn, UserPlus, Smartphone } from 'lucide-react'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
-
-const HEADLINE = 'The AI-Powered Fantasy Sports Platform'
-const SUBLINE =
-  'Draft smarter. Trade better. Win more. One account for leagues, brackets, waivers, and AI tools across NFL, NBA, MLB, NHL, NCAA & Soccer.'
-const TRUST_LINE = 'Free to start · No credit card'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAA', 'Soccer']
 
@@ -29,6 +25,8 @@ export function HeroLogo() {
 }
 
 export default function LandingHero() {
+  const { t } = useLanguage()
+
   return (
     <section
       className="relative flex flex-col items-center gap-8 overflow-hidden px-4 pb-16 pt-14 sm:gap-10 sm:px-6 sm:pb-24 sm:pt-20 md:pt-24"
@@ -47,11 +45,11 @@ export default function LandingHero() {
       <div className="flex flex-col items-center gap-3 text-center">
         <h1 className="max-w-2xl text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
           <span className="bg-gradient-to-r from-cyan-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">
-            {HEADLINE}
+            {t('landing.hero.headline')}
           </span>
         </h1>
         <p className="mx-auto max-w-xl text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
-          {SUBLINE}
+          {t('landing.hero.subline')}
         </p>
 
         {/* Sport pills */}
@@ -73,18 +71,18 @@ export default function LandingHero() {
           <Link
             href="/login"
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 px-8 py-4 text-base font-semibold text-black shadow-lg hover:from-cyan-400 hover:to-cyan-300 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: 'Sign In', cta_destination: '/login', cta_type: 'primary', source: 'hero' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.signIn'), cta_destination: '/login', cta_type: 'primary', source: 'hero' })}
           >
             <LogIn className="h-5 w-5 shrink-0" aria-hidden />
-            <span>Sign In</span>
+            <span>{t('landing.cta.signIn')}</span>
           </Link>
           <Link
             href="/signup"
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border-2 border-purple-500/50 bg-purple-600/10 px-8 py-4 text-base font-semibold text-purple-300 hover:bg-purple-600/20 hover:border-purple-400 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: 'Create Free Account', cta_destination: '/signup', cta_type: 'secondary', source: 'hero' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.createAccount'), cta_destination: '/signup', cta_type: 'secondary', source: 'hero' })}
           >
             <UserPlus className="h-5 w-5 shrink-0" aria-hidden />
-            <span>Create Free Account</span>
+            <span>{t('landing.cta.createAccount')}</span>
           </Link>
         </div>
 
@@ -93,14 +91,14 @@ export default function LandingHero() {
           type="button"
           disabled
           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs text-white/50 cursor-default select-none"
-          title="Mobile app coming soon"
+          title={t('landing.download.comingSoon')}
         >
           <Smartphone className="h-3.5 w-3.5" />
-          Download App — Coming Soon
+          {t('landing.download.comingSoon')}
         </button>
 
         <p className="text-xs" style={{ color: 'var(--muted2)' }}>
-          {TRUST_LINE}
+          {t('landing.trust.free')}
         </p>
       </div>
     </section>

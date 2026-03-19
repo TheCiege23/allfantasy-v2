@@ -1,11 +1,12 @@
 'use client'
 
-import { Layers3, DraftingCompass, BarChart3, Users, Trophy, Zap, Brain, Target, Shield, TrendingUp } from 'lucide-react'
+import { Layers3, DraftingCompass, BarChart3, Users, Trophy, Brain } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const FEATURES = [
   {
-    label: 'Leagues & Brackets',
-    description: 'Create or join fantasy leagues across every major sport. Run bracket tournaments with live scoring.',
+    titleKey: 'landing.features.1.title',
+    bodyKey: 'landing.features.1.body',
     icon: Trophy,
     gradient: 'from-amber-500/20 to-yellow-500/10',
     border: 'border-amber-500/25',
@@ -13,8 +14,8 @@ const FEATURES = [
     iconBg: 'bg-amber-500/15',
   },
   {
-    label: 'AI Draft Assistant',
-    description: 'Get real-time pick recommendations during live and mock drafts. Never wonder who to take again.',
+    titleKey: 'landing.features.2.title',
+    bodyKey: 'landing.features.2.body',
     icon: DraftingCompass,
     gradient: 'from-cyan-500/20 to-blue-500/10',
     border: 'border-cyan-500/25',
@@ -22,8 +23,8 @@ const FEATURES = [
     iconBg: 'bg-cyan-500/15',
   },
   {
-    label: 'Trade Analyzer',
-    description: 'AI scores every trade, shows who wins, and suggests counters — for dynasty and redraft.',
+    titleKey: 'landing.features.3.title',
+    bodyKey: 'landing.features.3.body',
     icon: BarChart3,
     gradient: 'from-purple-500/20 to-violet-500/10',
     border: 'border-purple-500/25',
@@ -31,8 +32,8 @@ const FEATURES = [
     iconBg: 'bg-purple-500/15',
   },
   {
-    label: 'Waiver Wire AI',
-    description: 'Personalized add/drop picks based on your roster, your league scoring, and injury news.',
+    titleKey: 'landing.features.4.title',
+    bodyKey: 'landing.features.4.body',
     icon: Layers3,
     gradient: 'from-emerald-500/20 to-green-500/10',
     border: 'border-emerald-500/25',
@@ -40,8 +41,8 @@ const FEATURES = [
     iconBg: 'bg-emerald-500/15',
   },
   {
-    label: 'Player Comparison',
-    description: 'Side-by-side stats, projections, and matchup data for any two players in seconds.',
+    titleKey: 'landing.features.5.title',
+    bodyKey: 'landing.features.5.body',
     icon: Users,
     gradient: 'from-rose-500/20 to-pink-500/10',
     border: 'border-rose-500/25',
@@ -49,8 +50,8 @@ const FEATURES = [
     iconBg: 'bg-rose-500/15',
   },
   {
-    label: 'Chimmy AI Coach',
-    description: 'Ask anything about your lineup, matchup, or league strategy. Your personal fantasy coach, 24/7.',
+    titleKey: 'landing.features.6.title',
+    bodyKey: 'landing.features.6.body',
     icon: Brain,
     gradient: 'from-indigo-500/20 to-blue-500/10',
     border: 'border-indigo-500/25',
@@ -60,29 +61,31 @@ const FEATURES = [
 ] as const
 
 export default function LandingFeaturesMinimal() {
+  const { t } = useLanguage()
+
   return (
     <section className="border-t px-4 py-14 sm:px-6 sm:py-20" style={{ borderColor: 'var(--border)' }}>
       <div className="mx-auto max-w-4xl">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-bold sm:text-3xl bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-            Everything you need to win
+            {t('landing.features.heading')}
           </h2>
           <p className="mt-2 text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
-            Leagues, AI tools, and real-time analysis — all in one platform.
+            {t('landing.features.subheading')}
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ label, description, icon: Icon, gradient, border, iconColor, iconBg }) => (
+          {FEATURES.map(({ titleKey, bodyKey, icon: Icon, gradient, border, iconColor, iconBg }) => (
             <div
-              key={label}
+              key={titleKey}
               className={`rounded-2xl border bg-gradient-to-br ${gradient} ${border} p-5 flex flex-col gap-3`}
             >
               <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
                 <Icon className={`h-5 w-5 ${iconColor}`} />
               </div>
               <div>
-                <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{label}</div>
-                <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>{description}</p>
+                <div className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{t(titleKey)}</div>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--muted)' }}>{t(bodyKey)}</p>
               </div>
             </div>
           ))}

@@ -17,14 +17,22 @@ import { useSearchParams, useRouter } from "next/navigation"
 import AuthShell from "@/components/auth/AuthShell"
 import AuthHero from "@/components/auth/AuthHero"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export default function LoginContent() {
+  const { t } = useLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
   const callbackUrl = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/dashboard"
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
-  const destinationLabel = callbackUrl.startsWith("/brackets") ? "NCAA Bracket" : callbackUrl.startsWith("/af-legacy") ? "AF Legacy" : callbackUrl.startsWith("/app") || callbackUrl.startsWith("/leagues") ? "AllFantasy WebApp" : "AllFantasy Home"
+  const destinationLabel = callbackUrl.startsWith("/brackets")
+    ? t("login.destination.bracket")
+    : callbackUrl.startsWith("/af-legacy")
+      ? t("login.destination.legacy")
+      : callbackUrl.startsWith("/app") || callbackUrl.startsWith("/leagues")
+        ? t("login.destination.webapp")
+        : t("login.destination.home")
 
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
@@ -63,12 +71,12 @@ export default function LoginContent() {
     setError(null)
 
     if (!login.trim()) {
-      setError("Enter your email, username, or phone number.")
+      setError(t("login.error.enterIdentifier"))
       return
     }
 
     if (!password) {
-      setError("Enter your password.")
+      setError(t("login.error.enterPassword"))
       return
     }
 
@@ -86,11 +94,11 @@ export default function LoginContent() {
 
       if (result?.error) {
         if (result.error.includes("SLEEPER_ONLY_ACCOUNT")) {
-          setError("This account was created with Sleeper. Please use the Sleeper sign-in below instead.")
+          setError(t("login.error.sleeperOnly"))
         } else if (result.error.includes("PASSWORD_NOT_SET")) {
-          setError("Your account doesn't have a password set yet. Use the 'Forgot password?' link above to create one.")
+          setError(t("login.error.passwordNotSet"))
         } else {
-          setError("Invalid email, username, or password.")
+          setError(t("login.error.invalidCredentials"))
         }
       } else if (result?.url) {
         router.push(result.url)
@@ -98,7 +106,7 @@ export default function LoginContent() {
         router.push(callbackUrl)
       }
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError(t("common.error.tryAgain"))
     } finally {
       setLoading(false)
     }
@@ -109,7 +117,7 @@ export default function LoginContent() {
     setSleeperError(null)
 
     if (!sleeperUsername.trim()) {
-      setSleeperError("Please enter your Sleeper username.")
+      setSleeperError(t("login.error.enterSleeper"))
       return
     }
 
@@ -122,14 +130,14 @@ export default function LoginContent() {
       })
 
       if (result?.error) {
-        setSleeperError("Sleeper username not found. Check and try again.")
+        setSleeperError(t("login.error.sleeperNotFound"))
       } else if (result?.url) {
         router.push(result.url)
       } else {
         router.push("/rankings")
       }
     } catch {
-      setSleeperError("Something went wrong. Please try again.")
+      setSleeperError(t("common.error.tryAgain"))
     } finally {
       setSleeperLoading(false)
     }
@@ -140,7 +148,7 @@ export default function LoginContent() {
     setAdminError(null)
 
     if (!adminPassword.trim()) {
-      setAdminError("Please enter the admin password.")
+      setAdminError(t("login.error.enterAdminPassword"))
       return
     }
 
@@ -155,14 +163,14 @@ export default function LoginContent() {
       const data = await res.json().catch(() => ({}))
 
       if (!res.ok || !data?.ok) {
-        setAdminError(data?.error || "Login failed.")
+        setAdminError(data?.error || t("login.error.failed"))
         setAdminRemaining(typeof data?.remaining === "number" ? data.remaining : null)
         return
       }
 
       window.location.href = data.next || "/admin"
     } catch (err: any) {
-      setAdminError(err?.message || "Login failed.")
+      setAdminError(err?.message || t("login.error.failed"))
     } finally {
       setAdminLoading(false)
     }
@@ -175,7 +183,7 @@ export default function LoginContent() {
         className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back
+        {t("common.back")}
       </Link>
 
       <div className="w-full max-w-md space-y-4">
@@ -186,8 +194,8 @@ export default function LoginContent() {
                 <Shield className="h-5 w-5 text-cyan-400" />
               </div>
               <div>
-                <div className="text-xl font-semibold">Admin Sign In</div>
-                <div className="text-sm text-white/60">Enter the admin password to continue.</div>
+                <div className="text-xl font-semibold">{t("login.admin.signInTitle")}</div>
+                <div className="text-sm text-white/60">{t("login.admin.subtitle")}</div>
               </div>
             </div>
 
@@ -199,7 +207,7 @@ export default function LoginContent() {
                     {adminError}
                     {typeof adminRemaining === "number" && (
                       <span className="ml-1 text-xs text-red-200/70">
-                        ({adminRemaining} attempts remaining)
+                    ({adminRemaining} {t("login.admin.attemptsRemaining")})
                       </span>
                     )}
                   </div>
@@ -209,14 +217,14 @@ export default function LoginContent() {
 
             <form onSubmit={handleAdminLogin} className="mt-5 space-y-3">
               <div>
-                <label className="text-sm text-white/70">Password</label>
+                <label className="text-sm text-white/70">{t("common.password")}</label>
                 <input
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   type="password"
                   autoComplete="current-password"
                   className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-white/20"
-                  placeholder="Enter admin password"
+                  placeholder={t("login.admin.placeholder")}
                   disabled={adminLoading}
                   autoFocus
                 />
@@ -229,25 +237,25 @@ export default function LoginContent() {
                 {adminLoading ? (
                   <span className="inline-flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Signing in...
+                    {t("common.signingIn")}
                   </span>
                 ) : (
-                  "Sign in"
+                  t("common.signIn")
                 )}
               </button>
             </form>
           </div>
         ) : (
           <>
-            <AuthHero title="Welcome back" subtitle="Sign in once to access WebApp, Bracket, and Legacy." />
-            <p className="-mt-3 mb-1 text-center text-xs text-white/45">After sign in: {destinationLabel}</p>
+            <AuthHero title={t("login.title")} subtitle={t("login.subtitle")} />
+            <p className="-mt-3 mb-1 text-center text-xs text-white/45">{t("login.afterSignIn")} {destinationLabel}</p>
 
             {configError && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
                 <div className="flex items-start gap-2">
                   <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
                   <div>
-                    <strong>Sign-in unavailable:</strong> {configError}
+                    <strong>{t("login.signInUnavailable")}</strong> {configError}
                   </div>
                 </div>
               </div>
@@ -257,7 +265,7 @@ export default function LoginContent() {
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 shrink-0" />
-                  Password reset successfully. Sign in with your new password.
+                  {t("login.passwordResetSuccess")}
                 </div>
               </div>
             )}
@@ -274,7 +282,7 @@ export default function LoginContent() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
               <form onSubmit={handlePasswordLogin} className="space-y-4">
                 <div>
-                  <label htmlFor="login-identifier" className="block text-xs font-medium text-white/70">Email, username, or phone</label>
+                  <label htmlFor="login-identifier" className="block text-xs font-medium text-white/70">{t("login.identifier.label")}</label>
                   <input
                     id="login-identifier"
                     value={login}
@@ -282,15 +290,15 @@ export default function LoginContent() {
                     type="text"
                     autoComplete="username"
                     className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
-                    placeholder="you@example.com, username, or +1 555 123 4567"
+                    placeholder={t("login.identifier.placeholder")}
                     disabled={loading}
                   />
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
-                    <label htmlFor="login-password" className="block text-xs font-medium text-white/70">Password</label>
+                    <label htmlFor="login-password" className="block text-xs font-medium text-white/70">{t("common.password")}</label>
                     <Link href={`/forgot-password?returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
-                      Forgot password?
+                      {t("login.forgotPassword")}
                     </Link>
                   </div>
                   <div className="relative mt-1.5">
@@ -301,7 +309,7 @@ export default function LoginContent() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 pr-10 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
-                      placeholder="Your password"
+                      placeholder={t("login.password.placeholder")}
                       disabled={loading}
                     />
                     <button
@@ -323,9 +331,9 @@ export default function LoginContent() {
                       className="h-3.5 w-3.5 rounded border-white/30 bg-black/40 text-cyan-500 focus:ring-cyan-500"
                       disabled={loading}
                     />
-                    <span>Keep me signed in on this device</span>
+                    <span>{t("login.keepSignedIn")}</span>
                   </label>
-                  <span>Secure session, up to 30 days.</span>
+                  <span>{t("login.secureSession")}</span>
                 </div>
                 <button
                   type="submit"
@@ -335,10 +343,10 @@ export default function LoginContent() {
                   {loading ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Signing in...
+                      {t("common.signingIn")}
                     </span>
                   ) : (
-                    "Sign In"
+                    t("common.signIn")
                   )}
                 </button>
               </form>
@@ -346,19 +354,19 @@ export default function LoginContent() {
 
             <div className="flex items-center gap-3 my-2">
               <div className="h-px flex-1 bg-white/10" />
-              <span className="text-xs text-white/40">or sign in with</span>
+              <span className="text-xs text-white/40">{t("login.orSignInWith")}</span>
               <div className="h-px flex-1 bg-white/10" />
             </div>
 
             <SocialLoginButtons callbackUrl={callbackUrl} />
             <p className="pt-1 text-[11px] text-white/40 leading-relaxed">
-              One account for WebApp, Bracket, and Legacy. We never post without your permission.
+              {t("login.oneAccountNote")}
             </p>
 
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 text-xs font-bold">S</div>
-                <span className="text-sm font-medium text-white/80">Sleeper Account</span>
+                <span className="text-sm font-medium text-white/80">{t("login.sleeper.title")}</span>
               </div>
 
               {sleeperError && (
@@ -372,14 +380,14 @@ export default function LoginContent() {
 
               <form onSubmit={handleSleeperLogin} className="space-y-3">
                 <div>
-                  <label className="text-xs text-white/60">Sleeper Username</label>
+                  <label className="text-xs text-white/60">{t("login.sleeper.username")}</label>
                   <input
                     value={sleeperUsername}
                     onChange={(e) => setSleeperUsername(e.target.value)}
                     type="text"
                     autoComplete="username"
                     className="mt-1 w-full rounded-xl border border-cyan-500/20 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-cyan-500/40"
-                    placeholder="e.g. cjabar"
+                    placeholder={t("login.sleeper.placeholder")}
                     disabled={sleeperLoading}
                   />
                 </div>
@@ -391,22 +399,22 @@ export default function LoginContent() {
                   {sleeperLoading ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Connecting...
+                      {t("login.sleeper.connecting")}
                     </span>
                   ) : (
-                    "Sign in with Sleeper"
+                    t("login.sleeper.signIn")
                   )}
                 </button>
               </form>
               <p className="mt-2 text-center text-xs text-white/30">
-                No password needed - we verify your Sleeper account directly.
+                {t("login.sleeper.note")}
               </p>
             </div>
 
             <p className="text-center text-sm text-white/40">
-              Don&apos;t have an account?{" "}
+              {t("login.noAccount")} {" "}
               <Link href={`/signup?next=${encodeURIComponent(callbackUrl)}`} className="text-white/80 hover:text-white hover:underline transition">
-                Sign up
+                {t("common.signUp")}
               </Link>
             </p>
 
@@ -418,7 +426,7 @@ export default function LoginContent() {
               >
                 <span className="flex items-center gap-2">
                   <Shield className="h-4 w-4" />
-                  Admin login
+                  {t("login.admin.toggle")}
                 </span>
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${showAdmin ? "rotate-180" : ""}`}
@@ -445,14 +453,14 @@ export default function LoginContent() {
 
                   <form onSubmit={handleAdminLogin} className="space-y-3">
                     <div>
-                      <label className="text-xs text-white/60">Admin password</label>
+                      <label className="text-xs text-white/60">{t("login.admin.password")}</label>
                       <input
                         value={adminPassword}
                         onChange={(e) => setAdminPassword(e.target.value)}
                         type="password"
                         autoComplete="current-password"
                         className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-white/20"
-                        placeholder="Enter admin password"
+                        placeholder={t("login.admin.placeholder")}
                         disabled={adminLoading}
                       />
                     </div>
@@ -464,10 +472,10 @@ export default function LoginContent() {
                       {adminLoading ? (
                         <span className="inline-flex items-center justify-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Signing in...
+                          {t("common.signingIn")}
                         </span>
                       ) : (
-                        "Admin sign in"
+                        t("login.admin.signIn")
                       )}
                     </button>
                   </form>

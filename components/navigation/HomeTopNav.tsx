@@ -25,7 +25,7 @@ export default function HomeTopNav() {
   const username =
     user?.username ||
     user?.name ||
-    (user?.email ? user.email.split("@")[0] : "Guest")
+    (user?.email ? user.email.split("@")[0] : t("common.guest"))
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -73,7 +73,7 @@ export default function HomeTopNav() {
                 <Link
                   href="/profile"
                   className="flex items-center gap-2 min-w-0 max-w-[140px]"
-                  title="Profile"
+                  title={t("common.profile")}
                 >
                   <IdentityImageRenderer
                     avatarUrl={profile?.profileImageUrl}
@@ -95,7 +95,7 @@ export default function HomeTopNav() {
                     background: "color-mix(in srgb, var(--panel2) 84%, transparent)",
                     color: "var(--muted2)",
                   }}
-                  aria-label="Open settings"
+                  aria-label={t("common.openSettings")}
                 >
                   <SettingsIcon className="h-4 w-4" />
                 </button>
@@ -141,8 +141,8 @@ export default function HomeTopNav() {
                   background: "color-mix(in srgb, var(--accent-amber) 14%, transparent)",
                   color: "var(--accent-amber-strong)",
                 }}
-                aria-label="Admin"
-                title="Admin"
+                aria-label={t("common.admin")}
+                title={t("common.admin")}
               >
                 <Shield className="h-4 w-4" />
               </Link>

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { AlertTriangle, Home, RotateCcw } from "lucide-react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 type DashboardUnavailableStateProps = {
   title: string
@@ -16,6 +17,7 @@ export default function DashboardUnavailableState({
   missing = [],
   onRetry,
 }: DashboardUnavailableStateProps) {
+  const { t } = useLanguage()
   const uniqueMissing = Array.from(new Set(missing.filter(Boolean)))
 
   return (
@@ -29,7 +31,7 @@ export default function DashboardUnavailableState({
             </div>
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-200/80">
-                Dashboard status
+                {t("dashboard.status")}
               </p>
               <h1 className="text-2xl font-semibold text-white sm:text-3xl">{title}</h1>
               <p className="max-w-2xl text-sm leading-6 text-white/70 sm:text-base">{message}</p>
@@ -39,7 +41,7 @@ export default function DashboardUnavailableState({
           {uniqueMissing.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
-                Missing configuration
+                {t("dashboard.missingConfig")}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {uniqueMissing.map((name) => (
@@ -52,7 +54,7 @@ export default function DashboardUnavailableState({
                 ))}
               </div>
               <p className="mt-3 text-sm text-white/55">
-                Add the variables in{" "}
+                {t("dashboard.env.addVars")} {" "}
                 <a
                   href="https://vercel.com/docs/projects/environment-variables"
                   target="_blank"
@@ -61,14 +63,14 @@ export default function DashboardUnavailableState({
                 >
                   Vercel
                 </a>{" "}
-                (Settings → Environment Variables), then redeploy.
+                {t("dashboard.env.thenRedeploy")}
               </p>
               <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/60">
-                <p className="font-semibold text-amber-200/90 mb-2">Still seeing this after adding them?</p>
+                <p className="font-semibold text-amber-200/90 mb-2">{t("dashboard.env.stillSeeing")}</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li><strong>Redeploy:</strong> Vercel only injects env vars into <em>new</em> deployments. Go to Deployments → … on the latest → <strong>Redeploy</strong> (or push a new commit).</li>
-                  <li><strong>Environment:</strong> Set the variable for <strong>Production</strong> (and <strong>Preview</strong> if you’re on a preview URL).</li>
-                  <li><strong>Name:</strong> Use exactly <code className="bg-white/10 px-1 rounded">DATABASE_URL</code> — case-sensitive, no spaces.</li>
+                  <li><strong>{t("dashboard.env.redeploy")}:</strong> {t("dashboard.env.redeploy.desc")}</li>
+                  <li><strong>{t("dashboard.env.environment")}:</strong> {t("dashboard.env.environment.desc")}</li>
+                  <li><strong>{t("dashboard.env.name")}:</strong> {t("dashboard.env.name.desc")} <code className="bg-white/10 px-1 rounded">DATABASE_URL</code>.</li>
                 </ul>
               </div>
             </div>
@@ -82,7 +84,7 @@ export default function DashboardUnavailableState({
                 className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/15 px-4 py-2.5 text-sm font-medium text-amber-100 transition hover:bg-amber-500/25"
               >
                 <RotateCcw className="h-4 w-4" />
-                Try again
+                {t("dashboard.tryAgain")}
               </button>
             )}
             <Link
@@ -90,7 +92,7 @@ export default function DashboardUnavailableState({
               className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/85 transition hover:bg-white/10"
             >
               <Home className="h-4 w-4" />
-              Back home
+              {t("dashboard.backHome")}
             </Link>
           </div>
         </div>

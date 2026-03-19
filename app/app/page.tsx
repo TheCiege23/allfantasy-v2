@@ -77,28 +77,28 @@ function AppLandingInner() {
 
         <aside className="flex-1 space-y-4 rounded-2xl border border-white/10 bg-black/30 p-5 sm:p-6 mode-panel-soft">
           <h2 className="text-sm font-semibold text-white/80 sm:text-base">
-            Quick links
+            {t('app.page.quickLinks.title')}
           </h2>
           <div className="space-y-2 text-xs sm:text-sm">
             <Link
               href="/app/home"
               className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-4 py-3 hover:bg-black/60"
             >
-              <span className="font-medium">Open Sports App shell</span>
+              <span className="font-medium">{t('app.page.quickLinks.shell')}</span>
               <span className="text-[10px] text-white/50">/app/home</span>
             </Link>
             <Link
               href="/leagues"
               className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-4 py-3 hover:bg-black/60"
             >
-              <span className="font-medium">View your leagues</span>
+              <span className="font-medium">{t('app.page.quickLinks.leagues')}</span>
               <span className="text-[10px] text-white/50">/leagues</span>
             </Link>
             <Link
               href="/trade-evaluator"
               className="flex items-center justify-between rounded-xl border border-white/10 bg-black/40 px-4 py-3 hover:bg-black/60"
             >
-              <span className="font-medium">Open Trade Analyzer</span>
+              <span className="font-medium">{t('app.page.quickLinks.trade')}</span>
               <span className="text-[10px] text-white/50">/trade-evaluator</span>
             </Link>
           </div>
@@ -175,29 +175,29 @@ function AppLandingInner() {
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4 mode-panel-soft">
               <div className="mb-3 flex items-center gap-2 text-white">
                 <BarChart3 className="h-4 w-4 text-cyan-300" />
-                <span className="text-sm font-semibold">Trade analysis result</span>
+                <span className="text-sm font-semibold">{t('app.page.demo.tradeResult.title')}</span>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs mode-panel">
                 <div className="flex items-center justify-between text-[11px] text-white/80">
-                  <span>Fairness score</span>
+                  <span>{t('app.page.demo.tradeResult.fairness')}</span>
                   <span className="font-semibold text-emerald-300">87 / 100</span>
                 </div>
                 <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                   <div className="h-full w-4/5 rounded-full bg-emerald-400" />
                 </div>
                 <p className="mt-3 text-[11px] text-white/70">
-                  Even trade with a slight edge to Team A based on lineup impact.
+                  {t('app.page.demo.tradeResult.body')}
                 </p>
               </div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4 mode-panel-soft">
               <div className="mb-3 flex items-center gap-2 text-white">
                 <LayoutDashboard className="h-4 w-4 text-emerald-300" />
-                <span className="text-sm font-semibold">Roster dashboard</span>
+                <span className="text-sm font-semibold">{t('app.page.demo.roster.title')}</span>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs mode-panel">
                 <div className="flex items-center justify-between text-[11px] text-white/80">
-                  <span>Week 6 overview</span>
+                  <span>{t('app.page.demo.roster.weekOverview')}</span>
                   <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] text-emerald-300">
                     +9.7 projected
                   </span>
@@ -208,11 +208,11 @@ function AppLandingInner() {
                     <span className="text-emerald-300">Start</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>RB · D. Henry</span>
+                      <span>{t('app.page.demo.roster.row2')}</span>
                     <span className="text-emerald-300">Upgrade</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>WR · G. Wilson</span>
+                      <span>{t('app.page.demo.roster.row3')}</span>
                     <span className="text-yellow-300">Monitor</span>
                   </div>
                 </div>
@@ -221,7 +221,7 @@ function AppLandingInner() {
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4 mode-panel-soft">
               <div className="mb-3 flex items-center gap-2 text-white">
                 <Sparkles className="h-4 w-4 text-purple-300" />
-                <span className="text-sm font-semibold">Player insights</span>
+                <span className="text-sm font-semibold">{t('app.page.demo.insights.title')}</span>
               </div>
               <div className="rounded-xl border border-white/10 bg-black/40 p-3 text-xs mode-panel">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-white/80">
@@ -229,7 +229,7 @@ function AppLandingInner() {
                   <span className="text-emerald-300">Top 5 ROS</span>
                 </div>
                 <p className="text-[11px] text-white/70">
-                  Elite target share with stable red-zone role and strong upcoming schedule.
+                  {t('app.page.demo.insights.body')}
                 </p>
               </div>
             </div>
@@ -365,15 +365,15 @@ function AppLandingInner() {
           <span>© {new Date().getFullYear()} AllFantasy</span>
           <span className="hidden text-white/30 sm:inline">•</span>
           <Link href="/disclaimer" className="text-white/50 hover:text-white/80">
-            Disclaimer
+            {t('app.page.footer.disclaimer')}
           </Link>
           <span className="text-white/30">•</span>
           <Link href="/privacy" className="text-white/50 hover:text-white/80">
-            Privacy
+            {t('landing.footer.privacy')}
           </Link>
           <span className="text-white/30">•</span>
           <Link href="/terms" className="text-white/50 hover:text-white/80">
-            Terms
+            {t('landing.footer.terms')}
           </Link>
         </div>
       </footer>
@@ -382,6 +382,8 @@ function AppLandingInner() {
 }
 
 export default function AppProductRootPage() {
+  const { t } = useLanguage()
+
   return (
     <Suspense
       fallback={
@@ -389,7 +391,7 @@ export default function AppProductRootPage() {
           className="min-h-screen flex items-center justify-center"
           style={{ background: 'var(--bg)', color: 'var(--text)' }}
         >
-          <div style={{ color: 'var(--muted2)' }}>Loading...</div>
+          <div style={{ color: 'var(--muted2)' }}>{t('common.loading')}</div>
         </main>
       }
     >

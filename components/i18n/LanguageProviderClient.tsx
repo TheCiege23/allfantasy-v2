@@ -37,6 +37,9 @@ export function LanguageProviderClient({
     }
     return DEFAULT_LANG;
   });
+  const [messages, setMessages] = useState<Record<string, string>>(() => {
+    return translations[language] || translations.en;
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -45,16 +48,65 @@ export function LanguageProviderClient({
     setLanguageState(resolved);
   }, []);
 
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.lang = language;
+      document.documentElement.lang = language;
+    }
+
+    let cancelled = false;
+    fetch(`/api/i18n/translations?lang=${encodeURIComponent(language)}`, {
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { messages?: Record<string, string> } | null) => {
+        if (cancelled) return;
+        const next = data?.messages;
+        if (next && typeof next === "object") {
+          setMessages(next);
+          return;
+        }
+        setMessages(translations[language] || translations.en);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMessages(translations[language] || translations.en);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== LANG_STORAGE_KEY) return;
+      const resolved = resolveLanguage(event.newValue);
+      setLanguageState(resolved);
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
       window.localStorage.setItem(LANG_STORAGE_KEY, lang);
       if (typeof document !== "undefined") {
         document.documentElement.dataset.lang = lang;
+        document.documentElement.lang = lang;
       }
     } catch {
       // ignore
     }
+
+    fetch("/api/i18n/preference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: lang }),
+    }).catch(() => {});
   };
 
   const value = useMemo<LanguageContextValue>(
@@ -62,11 +114,11 @@ export function LanguageProviderClient({
       language,
       setLanguage,
       t: (key: string) => {
-        const dict = translations[language] || translations.en;
+        const dict = messages || translations[language] || translations.en;
         return dict[key] ?? translations.en[key] ?? key;
       },
     }),
-    [language]
+    [language, messages]
   );
 
   return (

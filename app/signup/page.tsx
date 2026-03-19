@@ -9,6 +9,7 @@ import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezone
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
 import { getPasswordStrength } from "@/lib/signup/password-strength"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import {
   ArrowLeft,
   Loader2,
@@ -35,6 +36,7 @@ interface SleeperResult {
 }
 
 function SignupContent() {
+  const { t } = useLanguage()
   const searchParams = useSearchParams()
   const nextParam = searchParams?.get("next") ?? undefined
   const redirectAfterSignup = getRedirectAfterSignup(nextParam)
@@ -144,12 +146,12 @@ function SignupContent() {
     const normalized = username.trim().toLowerCase()
     if (normalized.length < 3 || normalized.length > 30) {
       setUsernameStatus("invalid")
-      setUsernameMessage("Username must be 3–30 characters.")
+      setUsernameMessage(t("signup.username.length"))
       return
     }
     if (!/^[a-z0-9_]+$/.test(normalized)) {
       setUsernameStatus("invalid")
-      setUsernameMessage("Use only letters, numbers, and underscores.")
+      setUsernameMessage(t("signup.username.charset"))
       return
     }
 
@@ -164,34 +166,34 @@ function SignupContent() {
         if (cancelled) return
         if (!data.ok) {
           setUsernameStatus("unvalidated")
-          setUsernameMessage("Unable to validate username right now.")
+          setUsernameMessage(t("signup.username.unable"))
           return
         }
         if (!data.available) {
           if (data.reason === "taken") {
             setUsernameStatus("taken")
-            setUsernameMessage("This username is already taken.")
+            setUsernameMessage(t("signup.username.taken"))
           } else if (data.reason === "profanity") {
             setUsernameStatus("invalid")
-            setUsernameMessage("Please choose a different username.")
+            setUsernameMessage(t("signup.username.profanity"))
           } else if (data.reason === "length") {
             setUsernameStatus("invalid")
-            setUsernameMessage("Username must be 3–30 characters.")
+            setUsernameMessage(t("signup.username.length"))
           } else if (data.reason === "charset") {
             setUsernameStatus("invalid")
-            setUsernameMessage("Use only letters, numbers, and underscores.")
+            setUsernameMessage(t("signup.username.charset"))
           } else {
             setUsernameStatus("invalid")
-            setUsernameMessage("This username is not allowed.")
+            setUsernameMessage(t("signup.username.notAllowed"))
           }
         } else {
           setUsernameStatus("ok")
-          setUsernameMessage("Username is available.")
+          setUsernameMessage(t("signup.username.available"))
         }
       } catch {
         if (cancelled) return
         setUsernameStatus("unvalidated")
-        setUsernameMessage("Unable to validate username right now.")
+        setUsernameMessage(t("signup.username.unable"))
       }
     }, 400)
 
@@ -199,7 +201,7 @@ function SignupContent() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [username])
+  }, [username, t])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -207,7 +209,7 @@ function SignupContent() {
     setError("")
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.")
+      setError(t("signup.error.passwordMismatch"))
       setLoading(false)
       return
     }
@@ -238,7 +240,7 @@ function SignupContent() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Something went wrong.")
+        setError(data.error || t("common.error.tryAgain"))
         setLoading(false)
         return
       }
@@ -246,7 +248,7 @@ function SignupContent() {
       // Show success screen — user must verify email or phone before signing in
       setSuccess(true)
     } catch {
-      setError("Something went wrong. Please try again.")
+      setError(t("common.error.tryAgain"))
     } finally {
       setLoading(false)
     }
@@ -285,7 +287,7 @@ function SignupContent() {
             href={loginUrlWithIntent(redirectAfterSignup)}
             className="mt-4 inline-block rounded-xl bg-white text-black px-6 py-2.5 text-sm font-medium hover:bg-gray-200 transition"
           >
-            Go to Sign In
+            {t("signup.success.goSignIn")}
           </Link>
         </div>
       </div>
@@ -307,9 +309,9 @@ function SignupContent() {
           <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             AllFantasy.ai
           </div>
-          <h1 className="mt-2 text-xl font-semibold">Create your account</h1>
+          <h1 className="mt-2 text-xl font-semibold">{t("signup.title")}</h1>
           <p className="mt-1 text-sm text-white/60">
-            One account for Sports App, Bracket, and Legacy.
+            {t("signup.subtitle")}
           </p>
           <div className="mt-3 flex items-center justify-center gap-2">
             <div className="h-1.5 flex-1 max-w-[120px] rounded-full bg-white/10 overflow-hidden">
@@ -812,14 +814,14 @@ function SignupContent() {
               Creating account...
             </span>
           ) : (
-            "Create Account"
+            t("signup.createAccount")
           )}
         </button>
 
         <p className="text-center text-sm text-white/40">
-          Already have an account?{" "}
+          {t("signup.alreadyHaveAccount")} {" "}
           <Link href={loginUrlWithIntent(redirectAfterSignup)} className="text-white/80 hover:text-white hover:underline transition">
-            Sign in
+            {t("common.signIn")}
           </Link>
         </p>
       </form>
