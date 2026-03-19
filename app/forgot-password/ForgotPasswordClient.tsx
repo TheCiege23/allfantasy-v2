@@ -10,12 +10,13 @@ type Step = 'choose' | 'request' | 'sent' | 'sms_enter_code' | 'success'
 
 export default function ForgotPasswordClient() {
   const searchParams = useSearchParams()
+  const forceEmail = searchParams?.get('method') === 'email'
   const requestedReturnTo = searchParams?.get('returnTo') || ''
   const safeReturnTo = requestedReturnTo.startsWith('/') ? requestedReturnTo : '/dashboard'
   const loginHref = `/login?callbackUrl=${encodeURIComponent(safeReturnTo)}`
 
-  const [method, setMethod] = useState<Method | null>(null)
-  const [step, setStep] = useState<Step>('choose')
+  const [method, setMethod] = useState<Method | null>(forceEmail ? 'email' : null)
+  const [step, setStep] = useState<Step>(forceEmail ? 'request' : 'choose')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')

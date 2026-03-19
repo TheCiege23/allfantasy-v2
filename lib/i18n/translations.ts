@@ -59,6 +59,7 @@ export const translations: Record<string, Record<string, string>> = {
     "login.admin.placeholder": "Enter admin password",
     "login.admin.signIn": "Admin sign in",
     "login.signInUnavailable": "Sign-in unavailable:",
+    "login.enter": "Enter",
 
     // Signup
     "signup.title": "Create your account",
@@ -922,6 +923,7 @@ export const translations: Record<string, Record<string, string>> = {
     "login.admin.placeholder": "Ingresa la contraseña de admin",
     "login.admin.signIn": "Iniciar sesión como admin",
     "login.signInUnavailable": "Inicio de sesión no disponible:",
+    "login.enter": "Entrar",
 
     // Signup
     "signup.title": "Crea tu cuenta",

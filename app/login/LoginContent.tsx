@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
@@ -8,7 +9,6 @@ import {
   Shield,
   Loader2,
   TriangleAlert,
-  ChevronDown,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -16,7 +16,6 @@ import {
 import { useSearchParams, useRouter } from "next/navigation"
 import AuthShell from "@/components/auth/AuthShell"
 import AuthHero from "@/components/auth/AuthHero"
-import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
 export default function LoginContent() {
@@ -40,13 +39,6 @@ export default function LoginContent() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const [sleeperUsername, setSleeperUsername] = useState("")
-  const [sleeperLoading, setSleeperLoading] = useState(false)
-  const [sleeperError, setSleeperError] = useState<string | null>(null)
-
-  const [keepSignedIn, setKeepSignedIn] = useState(true)
-
-  const [showAdmin, setShowAdmin] = useState(isAdminLogin)
   const [adminPassword, setAdminPassword] = useState("")
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminError, setAdminError] = useState<string | null>(null)
@@ -88,8 +80,6 @@ export default function LoginContent() {
         password,
         redirect: false,
         callbackUrl,
-        // hint for future session-tuning; ignored by backend today
-        keepSignedIn: keepSignedIn ? "1" : "0",
       })
 
       if (result?.error) {
@@ -109,37 +99,6 @@ export default function LoginContent() {
       setError(t("common.error.tryAgain"))
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleSleeperLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setSleeperError(null)
-
-    if (!sleeperUsername.trim()) {
-      setSleeperError(t("login.error.enterSleeper"))
-      return
-    }
-
-    setSleeperLoading(true)
-    try {
-      const result = await signIn("sleeper", {
-        sleeperUsername: sleeperUsername.trim(),
-        redirect: false,
-        callbackUrl: "/rankings",
-      })
-
-      if (result?.error) {
-        setSleeperError(t("login.error.sleeperNotFound"))
-      } else if (result?.url) {
-        router.push(result.url)
-      } else {
-        router.push("/rankings")
-      }
-    } catch {
-      setSleeperError(t("common.error.tryAgain"))
-    } finally {
-      setSleeperLoading(false)
     }
   }
 
@@ -178,19 +137,25 @@ export default function LoginContent() {
 
   return (
     <AuthShell>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-28 -left-20 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="absolute -bottom-24 -right-16 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_42%),radial-gradient(circle_at_bottom,rgba(168,85,247,0.08),transparent_42%)]" />
+      </div>
+
       <Link
         href="/"
-        className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
+        className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 backdrop-blur-sm transition hover:bg-black/55 hover:text-white md:left-6 md:top-6"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("common.back")}
       </Link>
 
-      <div className="w-full max-w-md space-y-4">
+      <div className="relative z-10 w-full max-w-md space-y-4">
         {isAdminLogin ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl">
+          <div className="rounded-3xl border border-white/15 bg-black/45 p-6 shadow-2xl backdrop-blur-md">
             <div className="flex items-start gap-3">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-2">
+              <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-2">
                 <Shield className="h-5 w-5 text-cyan-400" />
               </div>
               <div>
@@ -223,7 +188,7 @@ export default function LoginContent() {
                   onChange={(e) => setAdminPassword(e.target.value)}
                   type="password"
                   autoComplete="current-password"
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-white/20"
+                  className="mt-1 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-sm outline-none transition focus:border-cyan-400/50"
                   placeholder={t("login.admin.placeholder")}
                   disabled={adminLoading}
                   autoFocus
@@ -247,8 +212,24 @@ export default function LoginContent() {
           </div>
         ) : (
           <>
+            <div className="mx-auto mb-2 flex w-fit items-center gap-3 rounded-2xl border border-white/15 bg-black/45 p-2 pr-4 shadow-lg backdrop-blur-md">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/30 bg-gradient-to-b from-cyan-500/20 to-purple-500/20">
+                <Image
+                  src="/af-crest.png"
+                  alt="AllFantasy crest"
+                  width={34}
+                  height={34}
+                  className="h-8 w-8 object-contain"
+                  priority
+                />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-300/80">AllFantasy</p>
+                <p className="text-xs text-white/80">Sports App Sign In</p>
+              </div>
+            </div>
             <AuthHero title={t("login.title")} subtitle={t("login.subtitle")} />
-            <p className="-mt-3 mb-1 text-center text-xs text-white/45">{t("login.afterSignIn")} {destinationLabel}</p>
+            <p className="-mt-3 mb-1 text-center text-xs text-white/50">{t("login.afterSignIn")} <span className="font-medium text-cyan-300/90">{destinationLabel}</span></p>
 
             {configError && (
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
@@ -279,7 +260,7 @@ export default function LoginContent() {
               </div>
             )}
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
+            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-2xl backdrop-blur-md">
               <form onSubmit={handlePasswordLogin} className="space-y-4">
                 <div>
                   <label htmlFor="login-identifier" className="block text-xs font-medium text-white/70">{t("login.identifier.label")}</label>
@@ -289,7 +270,7 @@ export default function LoginContent() {
                     onChange={(e) => setLogin(e.target.value)}
                     type="text"
                     autoComplete="username"
-                    className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+                    className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
                     placeholder={t("login.identifier.placeholder")}
                     disabled={loading}
                   />
@@ -297,7 +278,7 @@ export default function LoginContent() {
                 <div>
                   <div className="flex items-center justify-between">
                     <label htmlFor="login-password" className="block text-xs font-medium text-white/70">{t("common.password")}</label>
-                    <Link href={`/forgot-password?returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
+                    <Link href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
                       {t("login.forgotPassword")}
                     </Link>
                   </div>
@@ -308,13 +289,13 @@ export default function LoginContent() {
                       onChange={(e) => setPassword(e.target.value)}
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
-                      className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 pr-10 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+                      className="w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 pr-10 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
                       placeholder={t("login.password.placeholder")}
                       disabled={loading}
                     />
                     <button
                       type="button"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
                     >
@@ -322,23 +303,10 @@ export default function LoginContent() {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-[11px] text-white/40">
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={keepSignedIn}
-                      onChange={(e) => setKeepSignedIn(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-white/30 bg-black/40 text-cyan-500 focus:ring-cyan-500"
-                      disabled={loading}
-                    />
-                    <span>{t("login.keepSignedIn")}</span>
-                  </label>
-                  <span>{t("login.secureSession")}</span>
-                </div>
                 <button
                   type="submit"
                   disabled={loading || !login.trim() || !password}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
+                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-900/20 transition-all hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50"
                 >
                   {loading ? (
                     <span className="inline-flex items-center justify-center gap-2">
@@ -346,141 +314,62 @@ export default function LoginContent() {
                       {t("common.signingIn")}
                     </span>
                   ) : (
-                    t("common.signIn")
+                    t("login.enter")
                   )}
                 </button>
               </form>
             </div>
 
-            <div className="flex items-center gap-3 my-2">
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-xs text-white/40">{t("login.orSignInWith")}</span>
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-
-            <SocialLoginButtons callbackUrl={callbackUrl} />
-            <p className="pt-1 text-[11px] text-white/40 leading-relaxed">
-              {t("login.oneAccountNote")}
-            </p>
-
-            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 shadow-xl">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-600 text-xs font-bold">S</div>
-                <span className="text-sm font-medium text-white/80">{t("login.sleeper.title")}</span>
+            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
+              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white/80">
+                <Shield className="h-4 w-4 text-cyan-400" />
+                <span>{t("login.admin.signInTitle")}</span>
               </div>
 
-              {sleeperError && (
+              {adminError && (
                 <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
                   <div className="flex items-start gap-2">
-                    <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-                    <div>{sleeperError}</div>
+                    <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                      {adminError}
+                      {typeof adminRemaining === "number" && (
+                        <span className="ml-1 text-xs text-red-200/70">
+                          ({adminRemaining} {t("login.admin.attemptsRemaining")})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
-              <form onSubmit={handleSleeperLogin} className="space-y-3">
+              <form onSubmit={handleAdminLogin} className="space-y-3">
                 <div>
-                  <label className="text-xs text-white/60">{t("login.sleeper.username")}</label>
+                  <label className="text-xs text-white/60">{t("login.admin.password")}</label>
                   <input
-                    value={sleeperUsername}
-                    onChange={(e) => setSleeperUsername(e.target.value)}
-                    type="text"
-                    autoComplete="username"
-                    className="mt-1 w-full rounded-xl border border-cyan-500/20 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-cyan-500/40"
-                    placeholder={t("login.sleeper.placeholder")}
-                    disabled={sleeperLoading}
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    type="password"
+                    autoComplete="current-password"
+                    className="mt-1 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-sm outline-none transition focus:border-cyan-400/60"
+                    placeholder={t("login.admin.placeholder")}
+                    disabled={adminLoading}
                   />
                 </div>
                 <button
                   type="submit"
-                  disabled={sleeperLoading || !sleeperUsername.trim()}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-500 hover:to-cyan-400 disabled:opacity-50 transition-all"
+                  disabled={adminLoading || !adminPassword.trim()}
+                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15 disabled:opacity-60"
                 >
-                  {sleeperLoading ? (
+                  {adminLoading ? (
                     <span className="inline-flex items-center justify-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("login.sleeper.connecting")}
+                      {t("common.signingIn")}
                     </span>
                   ) : (
-                    t("login.sleeper.signIn")
+                    t("login.admin.signIn")
                   )}
                 </button>
               </form>
-              <p className="mt-2 text-center text-xs text-white/30">
-                {t("login.sleeper.note")}
-              </p>
-            </div>
-
-            <p className="text-center text-sm text-white/40">
-              {t("login.noAccount")} {" "}
-              <Link href={`/signup?next=${encodeURIComponent(callbackUrl)}`} className="text-white/80 hover:text-white hover:underline transition">
-                {t("common.signUp")}
-              </Link>
-            </p>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 shadow-xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setShowAdmin((v) => !v)}
-                className="w-full flex items-center justify-between px-5 py-3 text-sm text-white/50 hover:text-white/70 transition"
-              >
-                <span className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  {t("login.admin.toggle")}
-                </span>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform ${showAdmin ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {showAdmin && (
-                <div className="px-5 pb-5 pt-1 border-t border-white/5">
-                  {adminError && (
-                    <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                      <div className="flex items-start gap-2">
-                        <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-                        <div>
-                          {adminError}
-                          {typeof adminRemaining === "number" && (
-                            <span className="ml-1 text-xs text-red-200/70">
-                              ({adminRemaining} attempts remaining)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleAdminLogin} className="space-y-3">
-                    <div>
-                      <label className="text-xs text-white/60">{t("login.admin.password")}</label>
-                      <input
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
-                        type="password"
-                        autoComplete="current-password"
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm outline-none focus:border-white/20"
-                        placeholder={t("login.admin.placeholder")}
-                        disabled={adminLoading}
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={adminLoading || !adminPassword.trim()}
-                      className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium hover:bg-white/15 disabled:opacity-60 transition"
-                    >
-                      {adminLoading ? (
-                        <span className="inline-flex items-center justify-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          {t("common.signingIn")}
-                        </span>
-                      ) : (
-                        t("login.admin.signIn")
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
             </div>
           </>
         )}
