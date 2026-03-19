@@ -188,30 +188,35 @@ export async function POST(req: Request) {
       throw err
     })
 
-    let growthAttributionRecorded = false
-    if (referralCode) {
-      const attribution = await attributeSignup(user.id, referralCode)
-      if (attribution?.referrerId) {
-        await grantRewardForSignup(attribution.referrerId)
-        await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
-        growthAttributionRecorded = true
-      }
-    }
-    if (!growthAttributionRecorded) {
-      const leagueInviteCode = cookieStore.get("af_league_invite")?.value?.trim()
-      if (leagueInviteCode) {
-        const joinResult = await validateLeagueJoin(leagueInviteCode).catch(() => ({ valid: false as const }))
-        if (joinResult.valid) {
-          await recordAttribution(user.id, "league_invite", {
-            sourceId: joinResult.leagueId,
-            metadata: { inviteCode: leagueInviteCode },
-          })
+    // Growth attribution is best-effort and should not block account creation.
+    try {
+      let growthAttributionRecorded = false
+      if (referralCode) {
+        const attribution = await attributeSignup(user.id, referralCode)
+        if (attribution?.referrerId) {
+          await grantRewardForSignup(attribution.referrerId)
+          await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
           growthAttributionRecorded = true
         }
       }
-    }
-    if (!growthAttributionRecorded) {
-      await recordAttribution(user.id, "organic", {})
+      if (!growthAttributionRecorded) {
+        const leagueInviteCode = cookieStore.get("af_league_invite")?.value?.trim()
+        if (leagueInviteCode) {
+          const joinResult = await validateLeagueJoin(leagueInviteCode).catch(() => ({ valid: false as const }))
+          if (joinResult.valid) {
+            await recordAttribution(user.id, "league_invite", {
+              sourceId: joinResult.leagueId,
+              metadata: { inviteCode: leagueInviteCode },
+            })
+            growthAttributionRecorded = true
+          }
+        }
+      }
+      if (!growthAttributionRecorded) {
+        await recordAttribution(user.id, "organic", {})
+      }
+    } catch (growthErr) {
+      console.warn("[register] Growth attribution failed (non-blocking):", growthErr)
     }
 
     if (method === "PHONE") {
@@ -223,15 +228,16 @@ export async function POST(req: Request) {
       })
     }
 
-    const rawToken = makeToken(32)
-    const tokenHash = sha256Hex(rawToken)
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
-
-    await (prisma as any).emailVerifyToken.create({
-      data: { userId: user.id, tokenHash, expiresAt },
-    })
-
+    let emailVerificationPrepared = false
     try {
+      const rawToken = makeToken(32)
+      const tokenHash = sha256Hex(rawToken)
+      const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
+
+      await (prisma as any).emailVerifyToken.create({
+        data: { userId: user.id, tokenHash, expiresAt },
+      })
+
       const { getResendClient } = await import("@/lib/resend-client")
       const { client, fromEmail } = await getResendClient()
 
@@ -272,15 +278,19 @@ export async function POST(req: Request) {
 </body>
 </html>`,
       })
+      emailVerificationPrepared = true
     } catch (emailErr) {
-      console.error("[register] Failed to send verification email:", emailErr)
+      console.error("[register] Failed to create/send verification email (non-blocking):", emailErr)
     }
 
     return NextResponse.json({
       ok: true,
       userId: user.id,
       verificationMethod: "EMAIL",
-      message: "Account created. Please check your email to verify.",
+      message: emailVerificationPrepared
+        ? "Account created. Please check your email to verify."
+        : "Account created. Sign in to continue verification setup.",
+      emailVerificationPrepared,
     })
   } catch (err: any) {
     if (err instanceof Response) {

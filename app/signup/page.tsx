@@ -62,6 +62,7 @@ function SignupContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [emailVerificationPrepared, setEmailVerificationPrepared] = useState(true)
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "ok" | "taken" | "invalid" | "unvalidated">("idle")
   const [usernameMessage, setUsernameMessage] = useState<string>("")
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
@@ -111,7 +112,7 @@ function SignupContent() {
     setSleeperResult(null)
     try {
       const res = await fetch(`/api/auth/sleeper-lookup?username=${encodeURIComponent(sleeperUsername.trim())}`)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       setSleeperResult(data)
     } catch {
       setSleeperResult({ found: false })
@@ -246,6 +247,9 @@ function SignupContent() {
       }
 
       // Show success screen — user must verify email or phone before signing in
+      if (typeof data.emailVerificationPrepared === "boolean") {
+        setEmailVerificationPrepared(data.emailVerificationPrepared)
+      }
       setSuccess(true)
     } catch {
       setError(t("common.error.tryAgain"))
@@ -274,13 +278,24 @@ function SignupContent() {
             </>
           ) : (
             <>
-              <p className="text-sm text-white/60">
-                We sent a verification link to <span className="text-white/90 font-medium">{email}</span>.
-                Click the link to verify your email, then sign in.
-              </p>
-              <p className="text-xs text-white/40">
-                The link expires in 1 hour. Check your spam folder if you don't see it.
-              </p>
+              {emailVerificationPrepared ? (
+                <>
+                  <p className="text-sm text-white/60">
+                    We sent a verification link to <span className="text-white/90 font-medium">{email}</span>.
+                    Click the link to verify your email, then sign in.
+                  </p>
+                  <p className="text-xs text-white/40">
+                    The link expires in 1 hour. Check your spam folder if you don't see it.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-white/60">
+                    Your account was created, but email verification setup is temporarily unavailable.
+                    Please sign in to continue and retry verification from your account.
+                  </p>
+                </>
+              )}
             </>
           )}
           <Link
