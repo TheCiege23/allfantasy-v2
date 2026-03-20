@@ -28,6 +28,8 @@ import { SportSelector } from './SportSelector'
 import { LeagueTypeSelector } from './LeagueTypeSelector'
 import { DraftTypeSelector } from './DraftTypeSelector'
 import { TeamSizeSelector } from './TeamSizeSelector'
+import { LeagueSettingsPreviewPanel } from '@/components/league-creation'
+import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
 
 /** Lazy-loaded step panels to shrink initial bundle and improve mobile TTI. */
 const ScoringPresetSelector = dynamic(
@@ -149,7 +151,16 @@ export function LeagueCreationWizard({
       const leagueType = allowed.includes(s.leagueType) ? s.leagueType : (allowed[0] ?? 'redraft')
       const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
-      return { ...s, sport, leagueType, draftType }
+      const variants = getVariantsForSport(sport)
+      const defaultVariant = variants[0]?.value ?? null
+      return {
+        ...s,
+        sport,
+        leagueType,
+        draftType,
+        leagueVariant: defaultVariant,
+        scoringPreset: defaultVariant,
+      }
     })
   }, [])
 
@@ -194,7 +205,9 @@ export function LeagueCreationWizard({
     setError(null)
     try {
       const isDynasty = isDynastyLeagueType(state.leagueType)
-      const leagueVariant = state.leagueVariant ?? (state.sport === 'NFL' ? 'STANDARD' : null)
+      const leagueVariant =
+        state.leagueVariant ??
+        (state.sport === 'NFL' ? 'STANDARD' : state.sport === 'SOCCER' ? 'STANDARD' : null)
       const name = state.name.trim() || `${state.sport} League`
       const devyRounds =
         state.draftSettings.devyRounds?.length > 0
@@ -318,11 +331,18 @@ export function LeagueCreationWizard({
           )}
           {state.step === 'scoring' && (
             <>
-              <ScoringPresetSelector
-                sport={state.sport}
-                value={state.scoringPreset ?? state.leagueVariant}
-                onChange={handleScoringChange}
-              />
+              <div className="space-y-4">
+                <ScoringPresetSelector
+                  sport={state.sport}
+                  value={state.scoringPreset ?? state.leagueVariant}
+                  onChange={handleScoringChange}
+                />
+                <LeagueSettingsPreviewPanel
+                  preset={creationPreset}
+                  sport={String(state.sport)}
+                  presetLabel={getVariantsForSport(state.sport).find((v) => v.value === (state.scoringPreset ?? state.leagueVariant ?? ''))?.label}
+                />
+              </div>
               <WizardStepNav onBack={goBack} onNext={goNext} nextLabel="Next" />
             </>
           )}

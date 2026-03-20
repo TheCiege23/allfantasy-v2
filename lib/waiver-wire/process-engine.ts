@@ -34,7 +34,7 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
     getEffectiveLeagueWaiverSettings(leagueId),
     (prisma as any).league.findUnique({
       where: { id: leagueId },
-      select: { id: true, rosterSize: true, leagueVariant: true },
+      select: { id: true, rosterSize: true, leagueVariant: true, sport: true },
     }),
     (prisma as any).waiverClaim.findMany({
       where: { leagueId, status: "pending" },
@@ -210,6 +210,7 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
       (prisma as any).waiverTransaction.create({
         data: {
           leagueId,
+          sportType: league.sport ?? null,
           rosterId: claim.rosterId,
           claimId: claim.id,
           addPlayerId: addId,

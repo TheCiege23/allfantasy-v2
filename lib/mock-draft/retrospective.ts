@@ -296,6 +296,12 @@ export async function runRetrospective(
 
   const calDeltas = computeCalibrationDeltas(predictions, actuals)
 
+  const league = await prisma.league.findFirst({
+    where: { OR: [{ id: leagueId }, { platformLeagueId }] },
+    select: { sport: true },
+  })
+  const sportType = league?.sport ?? null
+
   const existingCal = await prisma.leagueDraftCalibration.findUnique({
     where: { leagueId_season: { leagueId, season } },
   })
@@ -313,11 +319,13 @@ export async function runRetrospective(
     where: { leagueId_season: { leagueId, season } },
     create: {
       leagueId,
+      sportType,
       season,
       ...newWeights,
       sampleSize: totalPicks,
     },
     update: {
+      sportType,
       ...newWeights,
       sampleSize: (existingCal?.sampleSize || 0) + totalPicks,
       lastUpdatedAt: new Date(),
@@ -327,6 +335,7 @@ export async function runRetrospective(
   const retro = await prisma.draftRetrospective.create({
     data: {
       leagueId,
+      sportType,
       userId,
       season,
       draftId,

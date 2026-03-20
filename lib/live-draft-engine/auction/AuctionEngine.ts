@@ -275,6 +275,7 @@ export async function resolveAuctionWin(leagueId: string): Promise<{
       await (tx as any).draftPick.create({
         data: {
           sessionId: session.id,
+          sportType: (session as any).sportType ?? null,
           overall,
           round,
           slot,

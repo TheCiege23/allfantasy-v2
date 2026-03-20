@@ -125,6 +125,12 @@ export async function runSeasonForecast(
   const ctx = await loadContext(input)
   if (!ctx || ctx.remainingSchedule.length === 0) return null
 
+  const league = await prisma.league.findFirst({
+    where: { OR: [{ id: ctx.leagueId }, { platformLeagueId: ctx.leagueId }] },
+    select: { sport: true },
+  })
+  const sportType = league?.sport ?? null
+
   const simCount = input.simulations ?? DEFAULT_SIMULATIONS
   const results: ReturnType<typeof runOneSimulation>[] = []
 
@@ -184,11 +190,13 @@ export async function runSeasonForecast(
     },
     create: {
       leagueId: ctx.leagueId,
+      sportType,
       season: ctx.season,
       week: ctx.currentWeek,
       teamForecasts: teamForecasts as unknown as object,
     },
     update: {
+      sportType,
       teamForecasts: teamForecasts as unknown as object,
     },
   })

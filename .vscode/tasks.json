@@ -1,0 +1,47 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "apply-migrations",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"db:migrate:deploy"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "db-connect-check",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"-e",
+				"const net=require('net'); const s=net.connect(6543,'aws-0-us-west-2.pooler.supabase.com',()=>{console.log('connected'); s.end();}); s.on('error',e=>{console.error(String(e)); process.exit(1);});"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "db-connect-check",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"-e",
+				"const net=require(\"net\"); const s=net.connect(6543,\"aws-0-us-west-2.pooler.supabase.com\",()=>{console.log(\"connected\"); s.end();}); s.on(\"error\",e=>{console.error(String(e)); process.exit(1);});"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "apply-migrations-no-lock",
+			"type": "shell",
+			"command": "$env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK='1'; npm run db:migrate:deploy",
+			"isBackground": false
+		},
+		{
+			"label": "apply-migrations-direct-db",
+			"type": "shell",
+			"command": "$db = (Get-Content .env | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1).Split('=',2)[1]; $db = $db -replace 'aws-0-us-west-2\\.pooler\\.supabase\\.com:6543','db.iyobqczaobkyxvgrrcgq.supabase.co:5432'; $env:DATABASE_URL = $db; $env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK='1'; npm run db:migrate:deploy",
+			"isBackground": false
+		}
+	]
+}

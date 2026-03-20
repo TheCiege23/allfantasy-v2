@@ -82,6 +82,7 @@ export class WindowDetectionEngine {
 
   async persist(inputs: TeamWindowInputs) {
     const profile = this.detect(inputs)
+    const sportType = String(inputs.sport || 'NFL').toUpperCase()
     await prisma.teamWindowProfile.upsert({
       where: {
         uniq_team_window_profile_league_team_season: {
@@ -92,6 +93,7 @@ export class WindowDetectionEngine {
       },
       create: {
         leagueId: inputs.leagueId,
+        sportType,
         teamId: inputs.teamId,
         season: inputs.season,
         windowStatus: profile.windowStatus,
@@ -102,6 +104,7 @@ export class WindowDetectionEngine {
         trajectoryDirection: profile.trajectoryDirection,
       },
       update: {
+        sportType,
         windowStatus: profile.windowStatus,
         windowStartYear: profile.windowStartYear,
         windowEndYear: profile.windowEndYear,

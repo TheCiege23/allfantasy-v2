@@ -68,9 +68,10 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
     )
   }
 
-  session = await prisma.draftSession.create({
+  session = await (prisma as any).draftSession.create({
     data: {
       leagueId,
+      sportType: league.sport ?? null,
       status: 'pre_draft',
       draftType,
       rounds,

@@ -4,7 +4,7 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { getScoringTemplateForSport } from './MultiSportScoringResolver'
-import { resolveScheduleContext } from './MultiSportScheduleResolver'
+import { resolveScheduleContextForLeague } from './MultiSportScheduleResolver'
 import type { ScoringRuleDto } from './ScoringTemplateResolver'
 
 export interface ProjectionSeedInput {
@@ -36,10 +36,11 @@ export async function resolveProjectionSeed(
     input.leagueSport,
     input.formatType
   )
-  const scheduleCtx = resolveScheduleContext(
+  const scheduleCtx = await resolveScheduleContextForLeague(
     input.leagueSport,
     input.season,
-    input.weekOrRound
+    input.weekOrRound,
+    input.formatType
   )
   return {
     sportType: scheduleCtx.sportType,

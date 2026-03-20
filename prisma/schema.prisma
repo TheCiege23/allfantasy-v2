@@ -1818,6 +1818,7 @@ model WeeklyMatchup {
 model RankingsSnapshot {
   id           BigInt   @id @default(autoincrement())
   leagueId     String
+  sportType    String?  @db.VarChar(16)
   season       String
   week         Int
   rosterId     String
@@ -1831,6 +1832,8 @@ model RankingsSnapshot {
   @@unique([leagueId, season, week, rosterId], name: "uniq_snapshot_league_season_week_roster")
   @@index([leagueId, season, week])
   @@index([leagueId, rosterId, createdAt])
+  @@index([leagueId, sportType, season, week])
+  @@index([sportType, season, week])
   @@map("rankings_snapshots")
 }
 
@@ -5515,6 +5518,7 @@ model PositionMetaTrend {
 model WaiverClaim {
   id            String    @id @default(uuid())
   leagueId      String
+  sportType     String?   @db.VarChar(16)
   rosterId      String
   addPlayerId   String
   dropPlayerId  String?
@@ -5532,12 +5536,15 @@ model WaiverClaim {
   @@index([leagueId, status])
   @@index([rosterId])
   @@index([leagueId, priorityOrder])
+  @@index([leagueId, sportType])
+  @@index([sportType, status])
   @@map("waiver_claims")
 }
 
 model WaiverTransaction {
   id                   String   @id @default(uuid())
   leagueId             String
+  sportType            String?  @db.VarChar(16)
   rosterId             String
   claimId              String?
   addPlayerId          String
@@ -5551,6 +5558,8 @@ model WaiverTransaction {
 
   @@index([leagueId, processedAt])
   @@index([rosterId])
+  @@index([leagueId, sportType])
+  @@index([sportType, processedAt])
   @@map("waiver_transactions")
 }
 
@@ -5677,6 +5686,7 @@ model MockDraftChat {
 model DraftSession {
   id                    String    @id @default(uuid())
   leagueId              String
+  sportType             String?   @db.VarChar(16)
   league                League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   status                String    @default("pre_draft") // pre_draft | in_progress | paused | completed
   draftType             String    @default("snake")    // snake | linear | auction
@@ -5717,6 +5727,8 @@ model DraftSession {
   @@unique([leagueId])
   @@index([leagueId])
   @@index([status])
+  @@index([leagueId, sportType])
+  @@index([sportType, status])
   @@map("draft_sessions")
 }
 
@@ -5724,6 +5736,7 @@ model DraftSession {
 model DraftPick {
   id          String   @id @default(uuid())
   sessionId   String
+  sportType   String?  @db.VarChar(16)
   session     DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   overall     Int      // 1-based
   round       Int
@@ -5745,6 +5758,8 @@ model DraftPick {
   @@unique([sessionId, overall])
   @@index([sessionId])
   @@index([sessionId, rosterId])
+  @@index([sessionId, sportType])
+  @@index([sportType])
   @@map("draft_picks")
 }
 
@@ -5848,6 +5863,7 @@ model RankingsBacktestResult {
 model DraftPredictionSnapshot {
   id           String   @id @default(uuid())
   leagueId     String
+  sportType    String?  @db.VarChar(16)
   userId       String
   season       Int
   draftId      String?
@@ -5860,6 +5876,8 @@ model DraftPredictionSnapshot {
   retrospectives DraftRetrospective[]
 
   @@index([leagueId, season])
+  @@index([leagueId, sportType, season])
+  @@index([sportType, season])
   @@index([userId, createdAt])
   @@map("draft_prediction_snapshots")
 }
@@ -5867,6 +5885,7 @@ model DraftPredictionSnapshot {
 model DraftRetrospective {
   id                   String   @id @default(uuid())
   leagueId             String
+  sportType            String?  @db.VarChar(16)
   userId               String
   season               Int
   draftId              String
@@ -5882,6 +5901,8 @@ model DraftRetrospective {
   snapshot DraftPredictionSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
 
   @@index([leagueId, season])
+  @@index([leagueId, sportType, season])
+  @@index([sportType, season])
   @@index([snapshotId])
   @@map("draft_retrospectives")
 }
@@ -5889,6 +5910,7 @@ model DraftRetrospective {
 model LeagueDraftCalibration {
   id             String   @id @default(uuid())
   leagueId       String
+  sportType      String?  @db.VarChar(16)
   season         Int
   adpWeight      Float    @default(1.0)
   needWeight     Float    @default(1.0)
@@ -5900,6 +5922,8 @@ model LeagueDraftCalibration {
   createdAt      DateTime @default(now())
 
   @@unique([leagueId, season])
+  @@index([leagueId, sportType, season])
+  @@index([sportType, season])
   @@index([leagueId])
   @@map("league_draft_calibrations")
 }
@@ -6334,6 +6358,7 @@ model WalletLedgerEntry {
 model SeasonForecastSnapshot {
   id           String   @id @default(cuid())
   leagueId     String   @db.VarChar(64)
+  sportType    String?  @db.VarChar(16)
   season       Int
   week         Int
   teamForecasts Json    // TeamSeasonForecast[]
@@ -6341,6 +6366,8 @@ model SeasonForecastSnapshot {
 
   @@unique([leagueId, season, week], name: "uniq_season_forecast_league_season_week")
   @@index([leagueId, season, week])
+  @@index([leagueId, sportType, season, week])
+  @@index([sportType, season, week])
   @@map("season_forecast_snapshots")
 }
 
@@ -6348,6 +6375,7 @@ model SeasonForecastSnapshot {
 model DynastyProjectionSnapshot {
   id                        String   @id @default(cuid())
   leagueId                  String   @db.VarChar(64)
+  sportType                 String?  @db.VarChar(16)
   teamId                    String   @db.VarChar(64)
   season                    Int
   projectedStrengthNextYear Float
@@ -6363,6 +6391,8 @@ model DynastyProjectionSnapshot {
 
   @@unique([leagueId, teamId, season], name: "uniq_dynasty_projection_league_team_season")
   @@index([leagueId, season])
+  @@index([leagueId, sportType, season])
+  @@index([sportType, season])
   @@index([leagueId, teamId, season])
   @@map("dynasty_projection_snapshots")
 }
@@ -6393,6 +6423,7 @@ model PlayerCareerProjection {
 model TeamWindowProfile {
   id                   String   @id @default(cuid())
   leagueId             String   @db.VarChar(64)
+  sportType            String?  @db.VarChar(16)
   teamId               String   @db.VarChar(64)
   season               Int
   windowStatus         String   @db.VarChar(32) // Contender, Rising, Competitive, Declining, Rebuilding, Tank Risk
@@ -6405,6 +6436,8 @@ model TeamWindowProfile {
 
   @@unique([leagueId, teamId, season], name: "uniq_team_window_profile_league_team_season")
   @@index([leagueId, season])
+  @@index([leagueId, sportType, season])
+  @@index([sportType, season])
   @@index([leagueId, teamId, season])
   @@map("team_window_profiles")
 }

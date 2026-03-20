@@ -12,6 +12,10 @@ import { scoreProjectionConfidence } from './ProjectionConfidenceScorer'
 export class DynastyProjectionEngine {
   constructor(private readonly ctx: DynastyLeagueContext) {}
 
+  private getSportType(): string {
+    return String(this.ctx.sport || 'NFL').toUpperCase()
+  }
+
   projectTeam(inputs: TeamDynastyInputs): DynastyProjectionSnapshotPayload {
     const rosterValue = calculateRosterFutureValue(inputs.players, this.ctx)
     const pickValue = valueFuturePicks(inputs.futurePicks, this.ctx)
@@ -24,6 +28,7 @@ export class DynastyProjectionEngine {
 
     return {
       leagueId: inputs.leagueId,
+      sportType: this.getSportType(),
       teamId: inputs.teamId,
       season: this.ctx.season,
       projectedStrengthNextYear: longTerm.projectedStrengthNextYear,
@@ -49,6 +54,7 @@ export class DynastyProjectionEngine {
       },
       create: {
         leagueId: payload.leagueId,
+        sportType: payload.sportType,
         teamId: payload.teamId,
         season: payload.season,
         projectedStrengthNextYear: payload.projectedStrengthNextYear,
@@ -62,6 +68,7 @@ export class DynastyProjectionEngine {
         confidenceScore: payload.confidenceScore,
       },
       update: {
+        sportType: payload.sportType,
         projectedStrengthNextYear: payload.projectedStrengthNextYear,
         projectedStrength3Years: payload.projectedStrength3Years,
         projectedStrength5Years: payload.projectedStrength5Years,

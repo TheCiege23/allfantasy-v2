@@ -608,6 +608,7 @@ export async function POST(req: NextRequest) {
         const snapshot = await prisma.draftPredictionSnapshot.create({
           data: {
             leagueId,
+            sportType: String((league as any).sport || sport || 'NFL').toUpperCase(),
             userId: session.user.id,
             season: league.season || new Date().getFullYear(),
             rounds,

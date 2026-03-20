@@ -43,6 +43,11 @@ export async function createClaim(
     throw new Error(devyCheck.reason ?? "This player cannot be claimed via waivers.")
   }
 
+  const league = await (prisma as any).league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
+
   const maxOrder = await (prisma as any).waiverClaim.aggregate({
     where: { leagueId, status: "pending" },
     _max: { priorityOrder: true },
@@ -51,6 +56,7 @@ export async function createClaim(
   const created = await (prisma as any).waiverClaim.create({
     data: {
       leagueId,
+      sportType: league?.sport ?? null,
       rosterId,
       addPlayerId: input.addPlayerId,
       dropPlayerId: input.dropPlayerId ?? null,

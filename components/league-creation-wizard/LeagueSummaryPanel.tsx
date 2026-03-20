@@ -34,6 +34,16 @@ function SummarySection({ title, children }: { title: string; children: React.Re
 export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const { rules } = useSportRules(state.sport, state.leagueVariant ?? undefined)
   const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
+  const variantText = String(state.leagueVariant ?? state.scoringPreset ?? '').toUpperCase()
+  const sportText = String(state.sport).toUpperCase()
+  const playerPoolLabel =
+    sportText === 'SOCCER'
+      ? 'Soccer-only pool (GK/GKP, DEF, MID, FWD)'
+      : sportText === 'NFL' && variantText.includes('IDP')
+        ? 'NFL offensive + IDP defenders (DL, LB, DB, IDP FLEX)'
+        : sportText === 'NFL'
+          ? 'NFL offensive + DST'
+          : `${sportText} players`
   const rosterSlotsLabel = rules
     ? rules.roster.slots
         .filter((s) => s.starterCount > 0 || s.slotName === 'BENCH' || s.slotName === 'IR')
@@ -52,6 +62,9 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
       : null) ?? null
   const teamMetadataLabel = creationPreset?.teamMetadata?.teams?.length
     ? `${creationPreset.teamMetadata.teams.length} teams with logo metadata`
+    : null
+  const leagueDefaultsLabel = creationPreset?.league
+    ? `${creationPreset.league.default_team_count} teams · ${creationPreset.league.default_playoff_team_count} playoff teams · ${creationPreset.league.default_regular_season_length} ${creationPreset.league.default_matchup_unit}`
     : null
 
   return (
@@ -75,6 +88,8 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
 
       <SummarySection title="Scoring rules">
         <SummaryRow label="Scoring" value={scoringLabel} />
+        <SummaryRow label="Player pool" value={playerPoolLabel} />
+        {leagueDefaultsLabel != null && <SummaryRow label="League defaults" value={leagueDefaultsLabel} />}
       </SummarySection>
 
       {(scheduleLabel != null || calendarLabel != null) && (

@@ -23,6 +23,12 @@ export interface ForecastSnapshotForWarehouse {
  * This helper can be used by jobs that want to write warehouse-style records.
  */
 export async function persistForecastSnapshot(payload: ForecastSnapshotForWarehouse): Promise<string> {
+  const league = await prisma.league.findFirst({
+    where: { OR: [{ id: payload.leagueId }, { platformLeagueId: payload.leagueId }] },
+    select: { sport: true },
+  })
+  const sportType = league?.sport ?? null
+
   const snapshot = await prisma.seasonForecastSnapshot.upsert({
     where: {
       uniq_season_forecast_league_season_week: {
@@ -33,11 +39,13 @@ export async function persistForecastSnapshot(payload: ForecastSnapshotForWareho
     },
     create: {
       leagueId: payload.leagueId,
+      sportType,
       season: payload.season,
       week: payload.week,
       teamForecasts: payload.teamForecasts as unknown as object,
     },
     update: {
+      sportType,
       teamForecasts: payload.teamForecasts as unknown as object,
     },
   })

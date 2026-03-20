@@ -31,6 +31,11 @@ export async function saveRankingsSnapshot(args: {
   }>
 }) {
   const { leagueId, season, week } = args
+  const league = await prisma.league.findFirst({
+    where: { OR: [{ id: leagueId }, { platformLeagueId: leagueId }] },
+    select: { sport: true },
+  })
+  const sportType = league?.sport ?? null
 
   await prisma.$transaction(
     args.teams.map((t) =>
@@ -44,6 +49,7 @@ export async function saveRankingsSnapshot(args: {
           }
         },
         update: {
+          sportType,
           rank: Number(t.rank),
           composite: t.composite,
           expectedWins: t.expectedWins ?? null,
@@ -52,6 +58,7 @@ export async function saveRankingsSnapshot(args: {
         },
         create: {
           leagueId,
+          sportType,
           season,
           week,
           rosterId: String(t.rosterId),

@@ -65,6 +65,7 @@ export interface LongTermStrengthProjection {
 
 export interface DynastyProjectionSnapshotPayload {
   leagueId: string
+  sportType: string
   teamId: string
   season: number
   projectedStrengthNextYear: number

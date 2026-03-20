@@ -91,6 +91,7 @@ export async function commitImport(
         await (tx as any).draftPick.create({
           data: {
             sessionId,
+            sportType: (sess as any).sportType ?? null,
             overall: p.overall,
             round: p.round,
             slot: p.slot,
@@ -180,6 +181,7 @@ export async function rollbackImport(leagueId: string): Promise<ImportCommitResu
         await (tx as any).draftPick.create({
           data: {
             sessionId: session.id,
+            sportType: (session as any).sportType ?? null,
             overall: p.overall,
             round: p.round,
             slot: p.slot,

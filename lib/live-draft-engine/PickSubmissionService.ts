@@ -126,6 +126,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     const created = await (tx as any).draftPick.create({
       data: {
         sessionId: session.id,
+        sportType: (session as any).sportType ?? null,
         overall,
         round,
         slot,

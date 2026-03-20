@@ -3,7 +3,7 @@
  * Placeholder for future GameSchedule ingestion; NFL week logic remains in existing engines.
  */
 import type { LeagueSport } from '@prisma/client'
-import { leagueSportToSportType } from './SportConfigResolver'
+import { leagueSportToSportType, resolveSportConfigForLeague } from './SportConfigResolver'
 import type { SportType } from './sport-types'
 
 export interface ScheduleContext {
@@ -42,5 +42,59 @@ export function resolveScheduleContext(
     currentWeekOrRound,
     totalWeeksOrRounds: total,
     label,
+  }
+}
+
+/**
+ * Resolve schedule context using persisted schedule templates when available.
+ * Falls back to static per-sport defaults so existing flows remain deterministic.
+ */
+export async function resolveScheduleContextForLeague(
+  leagueSport: LeagueSport,
+  season: number,
+  currentWeekOrRound: number,
+  formatType?: string
+): Promise<ScheduleContext> {
+  const fallback = resolveScheduleContext(leagueSport, season, currentWeekOrRound)
+  const sportType = fallback.sportType
+  const config = resolveSportConfigForLeague(leagueSport)
+  const resolvedFormat = (formatType ?? config.defaultFormat ?? 'DEFAULT').toUpperCase()
+
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const template = await prisma.scheduleTemplate.findUnique({
+      where: {
+        uniq_schedule_template_sport_format: {
+          sportType,
+          formatType: resolvedFormat,
+        },
+      },
+      select: {
+        regularSeasonWeeks: true,
+        playoffWeeks: true,
+      },
+    })
+
+    if (!template) {
+      return fallback
+    }
+
+    const regular = Number(template.regularSeasonWeeks ?? 0)
+    const playoff = Number(template.playoffWeeks ?? 0)
+    const totalWeeksOrRounds = regular + playoff
+
+    if (!Number.isFinite(totalWeeksOrRounds) || totalWeeksOrRounds <= 0) {
+      return fallback
+    }
+
+    return {
+      sportType,
+      season,
+      currentWeekOrRound,
+      totalWeeksOrRounds,
+      label: fallback.label,
+    }
+  } catch {
+    return fallback
   }
 }
