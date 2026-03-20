@@ -34,6 +34,7 @@ import DivisionsTab from '@/components/app/tabs/DivisionsTab'
 import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
 import { TournamentLeagueHome, TournamentTeamView } from '@/components/tournament'
 import { useSession } from 'next-auth/react'
+import { getLeagueTypeMedia, normalizeLeagueTypeKey } from '@/lib/league-media/leagueTypeMedia'
 
 type LeagueSummary = { id: string; name: string }
 
@@ -64,9 +65,11 @@ export default function AppLeaguePage() {
   const [isMergedDevyC2C, setIsMergedDevyC2C] = useState<boolean>(false)
   const [isBigBrother, setIsBigBrother] = useState<boolean>(false)
   const [isIdp, setIsIdp] = useState<boolean>(false)
+  const [leagueModeKey, setLeagueModeKey] = useState<string>('redraft')
   const [showFirstEntryModal, setShowFirstEntryModal] = useState<boolean>(false)
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
+  const leagueMedia = useMemo(() => getLeagueTypeMedia(leagueModeKey), [leagueModeKey])
 
   useEffect(() => {
     let active = true
@@ -80,8 +83,9 @@ export default function AppLeaguePage() {
           const leagueData = await leagueRes.json().catch(() => ({})) as { name?: string; leagueVariant?: string; isDynasty?: boolean; leagueType?: string | null }
           if (leagueData?.name) setLeagueName(leagueData.name)
           setIsDynasty(!!leagueData?.isDynasty)
-          setIsKeeper(String(leagueData?.leagueType ?? '').toLowerCase() === 'keeper')
-          setIsBestBall(String(leagueData?.leagueType ?? '').toLowerCase() === 'best_ball')
+          const leagueType = String(leagueData?.leagueType ?? '').toLowerCase()
+          setIsKeeper(leagueType === 'keeper')
+          setIsBestBall(leagueType === 'best_ball')
           const variant = String(leagueData?.leagueVariant ?? '').toLowerCase()
           setIsGuillotine(variant === 'guillotine')
           setIsSalaryCap(variant === 'salary_cap')
@@ -92,6 +96,8 @@ export default function AppLeaguePage() {
           setIsMergedDevyC2C(variant === 'merged_devy_c2c')
           setIsBigBrother(variant === 'big_brother')
           setIsIdp(variant === 'idp' || variant === 'dynasty_idp')
+          const resolvedMode = variant || leagueType || (leagueData?.isDynasty ? 'dynasty' : 'redraft')
+          setLeagueModeKey(normalizeLeagueTypeKey(resolvedMode))
           return
         }
         // Fallback: bracket list
@@ -175,6 +181,27 @@ export default function AppLeaguePage() {
         />
       )}
       <div className="px-4 sm:px-0 space-y-3">
+        <section className="rounded-xl border border-white/10 bg-black/30 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-white/65">League intro</p>
+          <p className="mt-1 text-sm text-white/85">{leagueMedia.label}</p>
+          <video
+            key={leagueMedia.introVideo}
+            className="mt-3 h-48 w-full rounded-lg border border-white/10 bg-black object-cover"
+            src={leagueMedia.introVideo}
+            poster={leagueMedia.thumbnail}
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls
+            onError={(event) => {
+              const target = event.currentTarget
+              target.poster = leagueMedia.thumbnailFallback
+              target.removeAttribute('src')
+              target.load()
+            }}
+          />
+        </section>
         <TournamentLeagueHome leagueId={leagueId} />
         {userId && <TournamentTeamView leagueId={leagueId} userId={userId} />}
       </div>

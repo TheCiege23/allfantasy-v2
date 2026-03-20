@@ -10,12 +10,12 @@ import {
   toSportType,
 } from './sport-types'
 
-/** Dashboard display order: NFL, NHL, MLB, NBA, NCAAF, NCAAB, then SOCCER if present. */
+/** Dashboard display order requested for homepage grouping. */
 export const DASHBOARD_SPORT_ORDER: SportType[] = [
   'NFL',
-  'NHL',
-  'MLB',
   'NBA',
+  'MLB',
+  'NHL',
   'NCAAF',
   'NCAAB',
   'SOCCER',

@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation"
 import DashboardContent from "./DashboardContent"
-import SyncedRosters from "@/app/components/SyncedRosters"
-import RosterLegacyReport from "@/app/components/RosterLegacyReport"
 import DashboardUnavailableState from "@/components/dashboard/DashboardUnavailableState"
 import {
   createDashboardRuntimeIssue,
@@ -170,51 +168,46 @@ export default async function DashboardPage() {
     ])
 
     return (
-      <>
-        <DashboardContent
-          onboardingComplete={!!onboardingComplete}
-          user={{
-            id: appUser?.id || userId,
-            username: appUser?.username || null,
-            displayName: appUser?.displayName || null,
-            email: email,
-            emailVerified: !!appUser?.emailVerified,
-            avatarUrl: appUser?.avatarUrl || null,
-          }}
-          profile={{
-            sleeperUsername: profile?.sleeperUsername || null,
-            isVerified,
-            isAgeConfirmed,
-            profileComplete: profile?.profileComplete || false,
-          }}
-          leagues={leagues.map((m: any) => ({
-            id: m.league.id,
-            name: m.league.name,
-            tournamentId: m.league.tournamentId,
-            memberCount: m.league._count?.members || 0,
-            leagueTier: extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
-            inTierRange: isLeagueVisibleForCareerTier(
-              userCareerTier,
-              extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
-              1
-            ),
-          }))}
-          userCareerTier={userCareerTier}
-          entries={entries.map((e: any) => ({
-            id: e.id,
-            name: e.name,
-            tournamentId: e.tournamentId,
-            score: e.score || 0,
-          }))}
-          isAdmin={isAdmin}
-          checklistState={checklistState}
-          retentionNudges={nudges}
-        />
-        <div className="max-w-6xl mx-auto px-4 pb-12 space-y-12">
-          <RosterLegacyReport />
-          <SyncedRosters />
-        </div>
-      </>
+      <DashboardContent
+        onboardingComplete={!!onboardingComplete}
+        user={{
+          id: appUser?.id || userId,
+          username: appUser?.username || null,
+          displayName: appUser?.displayName || null,
+          email: email,
+          emailVerified: !!appUser?.emailVerified,
+          avatarUrl: appUser?.avatarUrl || null,
+        }}
+        profile={{
+          sleeperUsername: profile?.sleeperUsername || null,
+          isVerified,
+          isAgeConfirmed,
+          profileComplete: profile?.profileComplete || false,
+        }}
+        leagues={leagues.map((m: any) => ({
+          id: m.league.id,
+          name: m.league.name,
+          tournamentId: m.league.tournamentId,
+          joinCode: m.league.joinCode || null,
+          memberCount: m.league._count?.members || 0,
+          leagueTier: extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
+          inTierRange: isLeagueVisibleForCareerTier(
+            userCareerTier,
+            extractLeagueCareerTier(m.league.scoringRules, userCareerTier),
+            1
+          ),
+        }))}
+        userCareerTier={userCareerTier}
+        entries={entries.map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          tournamentId: e.tournamentId,
+          score: e.score || 0,
+        }))}
+        isAdmin={isAdmin}
+        checklistState={checklistState}
+        retentionNudges={nudges}
+      />
     )
   } catch (error) {
     const issue = getDashboardRuntimeIssue(error)

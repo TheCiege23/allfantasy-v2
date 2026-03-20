@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Grid3X3, Home, MessageCircle, Trophy, User } from "lucide-react"
+import { Home, MessageCircle, Trophy, User, Volleyball } from "lucide-react"
 
 type BottomTab = {
   href: string
@@ -12,7 +12,7 @@ type BottomTab = {
 
 const MOBILE_BOTTOM_TABS: BottomTab[] = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/app", label: "WebApp", icon: Grid3X3 },
+  { href: "/sports/fantasy-football", label: "Sports", icon: Volleyball },
   { href: "/brackets", label: "Bracket", icon: Trophy },
   { href: "/messages", label: "Messages", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: User },

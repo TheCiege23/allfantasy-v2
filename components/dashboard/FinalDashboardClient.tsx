@@ -34,7 +34,7 @@ const QUICK_ACTIONS = [
   { id: 'waivers', label: 'Waivers', href: '/waiver-ai', icon: Zap, iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400' },
 ] as const
 
-const MAX_LEAGUES_VISIBLE = 6
+const MAX_LEAGUES_PER_GROUP = 3
 
 export default function FinalDashboardClient() {
   const { status } = useSession()
@@ -44,8 +44,7 @@ export default function FinalDashboardClient() {
 
   const groups = useMemo(() => groupLeaguesBySport(leagues), [leagues])
   const leaguesFlat = useMemo(() => groups.flatMap((g) => g.leagues), [groups])
-  const leaguesToShow = leaguesFlat.slice(0, MAX_LEAGUES_VISIBLE)
-  const hasMoreLeagues = leaguesFlat.length > MAX_LEAGUES_VISIBLE
+  const hasMoreLeagues = groups.some((group) => group.leagues.length > MAX_LEAGUES_PER_GROUP)
   const firstLeague = leaguesFlat[0]
   const isAuthed = status === 'authenticated'
 
@@ -202,7 +201,7 @@ export default function FinalDashboardClient() {
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-6 flex justify-center min-h-[120px]">
             <Loader2 className="h-6 w-6 animate-spin text-white/40" />
           </div>
-        ) : leaguesToShow.length === 0 ? (
+        ) : leaguesFlat.length === 0 ? (
           <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-6 text-center">
             <p className="text-sm text-white/50">No leagues yet</p>
             <Link
@@ -213,31 +212,41 @@ export default function FinalDashboardClient() {
             </Link>
           </div>
         ) : (
-          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] overflow-hidden">
-            <ul className="divide-y divide-white/[0.06]">
-              {leaguesToShow.map((league) => (
-                <li key={league.id}>
-                  <Link
-                    href={`/app/league/${league.id}`}
-                    className="flex items-center gap-3 px-4 py-3.5 min-h-[52px] hover:bg-white/[0.04] active:bg-white/[0.06] transition-premium focus-ring"
-                  >
-                    <span className="text-sm font-medium text-white truncate flex-1 min-w-0">
-                      {league.name || 'Unnamed league'}
-                    </span>
-                    <span className="text-xs text-white/45 shrink-0">{league.leagueSize ?? '?'}-team</span>
-                    <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
-                  </Link>
-                </li>
+          <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3">
+            <div className="space-y-4">
+              {groups.map((group) => (
+                <div key={group.sport} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                  <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.06] bg-white/[0.03]">
+                    <span>{group.emoji}</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/75">{group.label}</span>
+                    <span className="ml-auto text-xs text-white/45">{group.leagues.length}</span>
+                  </div>
+                  <ul className="divide-y divide-white/[0.06]">
+                    {group.leagues.slice(0, MAX_LEAGUES_PER_GROUP).map((league) => (
+                      <li key={league.id}>
+                        <Link
+                          href={`/app/league/${league.id}`}
+                          className="flex items-center gap-3 px-3 py-3 min-h-[50px] hover:bg-white/[0.04] active:bg-white/[0.06] transition-premium focus-ring"
+                        >
+                          <span className="text-sm font-medium text-white truncate flex-1 min-w-0">{league.name || 'Unnamed league'}</span>
+                          <span className="text-xs text-white/45 shrink-0">{league.leagueSize ?? '?'}-team</span>
+                          <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
-            {hasMoreLeagues && (
-              <Link
-                href="/leagues"
-                className="block px-4 py-3 text-center text-xs font-medium text-white/50 hover:text-white/70 hover:bg-white/[0.03] transition-premium focus-ring"
-              >
-                View all {leaguesFlat.length} leagues
-              </Link>
-            )}
+            </div>
+            <Link
+              href="/leagues"
+              className="mt-3 block px-3 py-2 text-center text-xs font-medium text-white/50 hover:text-white/70 hover:bg-white/[0.03] rounded-lg transition-premium focus-ring"
+            >
+              View all {leaguesFlat.length} leagues
+            </Link>
+            {hasMoreLeagues ? (
+              <p className="mt-2 text-center text-[11px] text-white/35">Showing up to {MAX_LEAGUES_PER_GROUP} leagues per sport on home.</p>
+            ) : null}
           </div>
         )}
       </section>
