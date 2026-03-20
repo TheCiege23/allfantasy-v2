@@ -4,7 +4,7 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { getFullLeaguePreset } from './SportLeaguePresetService'
-import { getDefaultLeagueSettings, buildInitialLeagueSettings } from './LeagueDefaultSettingsService'
+import { getDefaultLeagueSettingsForVariant, buildInitialLeagueSettings } from './LeagueDefaultSettingsService'
 import type { SportType } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 
@@ -20,11 +20,14 @@ export interface ResolvedLeaguePreset {
 /**
  * Resolve full league preset including default league settings for the given sport.
  */
-export async function resolveSportLeaguePreset(leagueSport: LeagueSport): Promise<ResolvedLeaguePreset> {
+export async function resolveSportLeaguePreset(
+  leagueSport: LeagueSport,
+  leagueVariant?: string | null
+): Promise<ResolvedLeaguePreset> {
   const preset = await getFullLeaguePreset(leagueSport)
   const sportType = leagueSportToSportType(leagueSport) as SportType
-  const defaultLeagueSettings = getDefaultLeagueSettings(sportType)
-  const initialSettingsJson = buildInitialLeagueSettings(sportType)
+  const defaultLeagueSettings = getDefaultLeagueSettingsForVariant(sportType, leagueVariant ?? undefined)
+  const initialSettingsJson = buildInitialLeagueSettings(sportType, leagueVariant ?? undefined)
   return {
     preset,
     defaultLeagueSettings,

@@ -6,6 +6,23 @@ import type { SportType } from './types'
 import { getRosterTemplateDefinition } from './RosterDefaultsRegistry'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
+function normalizeSoccerPositionAlias(sport: SportType, position: string): string {
+  const pos = position.toUpperCase()
+  if (sport === 'SOCCER' && pos === 'GK') return 'GKP'
+  return pos
+}
+
+function expandSoccerAllowedAliases(sport: SportType, positions: string[]): string[] {
+  if (sport !== 'SOCCER') return positions
+  const expanded = new Set<string>()
+  for (const p of positions) {
+    const upper = p.toUpperCase()
+    expanded.add(upper)
+    if (upper === 'GKP') expanded.add('GK')
+  }
+  return [...expanded]
+}
+
 /**
  * Get allowed positions for a slot in a sport (and optional format, e.g. IDP for NFL).
  */
@@ -26,9 +43,10 @@ export function getAllowedPositionsForSlot(
       .flatMap((s) => s.allowedPositions)
       .filter((p) => p !== '*')
     const unique = [...new Set(starterPositions)]
-    return unique.length ? unique : ['*']
+    const resolved = unique.length ? unique : ['*']
+    return expandSoccerAllowedAliases(sport, resolved)
   }
-  return [...slot.allowedPositions]
+  return expandSoccerAllowedAliases(sport, [...slot.allowedPositions])
 }
 
 /**
@@ -40,11 +58,11 @@ export function isPositionEligibleForSlot(
   position: string,
   formatType?: string
 ): boolean {
-  const allowed = getAllowedPositionsForSlot(sportType, slotName, formatType)
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const allowed = getAllowedPositionsForSlot(sport, slotName, formatType)
   if (allowed.includes('*')) return true
-  const pos = position.toUpperCase()
+  const pos = normalizeSoccerPositionAlias(sport, position)
   if (allowed.map((p) => p.toUpperCase()).includes(pos)) return true
-  if (sportType === 'SOCCER' && slotName === 'GKP' && pos === 'GK') return true
   return false
 }
 
@@ -60,5 +78,6 @@ export function getPositionsForSport(sportType: SportType | string, formatType?:
       if (p !== '*') set.add(p)
     }
   }
-  return [...set]
+  const positions = [...set]
+  return expandSoccerAllowedAliases(sport, positions)
 }

@@ -21,6 +21,14 @@ export function LeagueSettingsPreviewPanel({
 }: LeagueSettingsPreviewPanelProps) {
   if (!preset) return null;
 
+  const sportUpper = String(sport || '').toUpperCase();
+  const variantText = [presetLabel, preset.scoring?.scoring_format, preset.scoringTemplate?.formatType]
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+  const isSoccer = sportUpper === 'SOCCER';
+  const isNflIdp = sportUpper === 'NFL' && variantText.includes('IDP');
+
   const rosterSlots = preset.roster?.starter_slots
     ? Object.entries(preset.roster.starter_slots)
         .filter(([, count]) => count > 0)
@@ -35,13 +43,16 @@ export function LeagueSettingsPreviewPanel({
   const scoringName = preset.scoringTemplate?.name ?? scoringFormat;
 
   const playerPoolType =
-    sport === 'SOCCER'
-      ? 'Soccer players (GKP, DEF, MID, FWD)'
-      : sport === 'NFL' && (presetLabel === 'IDP' || presetLabel === 'Dynasty IDP')
-        ? 'NFL offensive + defensive (IDP)'
-        : sport === 'NFL'
+    isSoccer
+      ? 'Soccer players (GKP/GK, DEF, MID, FWD)'
+      : isNflIdp
+        ? 'NFL offensive + IDP defenders (DL, LB, DB, IDP FLEX)'
+        : sportUpper === 'NFL'
           ? 'NFL offensive + DST'
-          : `${sport} players`;
+          : `${sportUpper || 'Sport'} players`;
+
+  const teamMetadata = preset.teamMetadata?.teams ?? [];
+  const teamMetadataSamples = teamMetadata.slice(0, 6);
 
   const leagueDefaults = [
     `Teams: ${preset.league?.default_team_count ?? '—'}`,
@@ -50,10 +61,10 @@ export function LeagueSettingsPreviewPanel({
   ].join(' · ');
 
   const contextMessage =
-    sport === 'SOCCER'
+    isSoccer
       ? 'Soccer is its own sport; roster and scoring are soccer-specific.'
-      : sport === 'NFL' && (presetLabel === 'IDP' || presetLabel === 'Dynasty IDP')
-        ? 'IDP is an NFL preset: offensive + defensive roster and scoring.'
+      : isNflIdp
+        ? 'IDP is an NFL preset: offensive plus defensive player pools and scoring.'
         : null;
 
   return (
@@ -82,6 +93,30 @@ export function LeagueSettingsPreviewPanel({
         <li>
           <span className="text-white/60">League defaults:</span> {leagueDefaults}
         </li>
+        {teamMetadata.length > 0 && (
+          <li>
+            <span className="text-white/60">Team metadata:</span> {teamMetadata.length} teams with logos
+            <div className="mt-2 flex flex-wrap gap-2">
+              {teamMetadataSamples.map((team) => (
+                <span
+                  key={`${team.team_id}-${team.abbreviation}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/75"
+                  title={team.team_name}
+                >
+                  {team.primary_logo ? (
+                    <img
+                      src={team.primary_logo}
+                      alt={`${team.abbreviation} logo`}
+                      className="h-3.5 w-3.5 rounded-full object-contain"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  <span>{team.abbreviation}</span>
+                </span>
+              ))}
+            </div>
+          </li>
+        )}
       </ul>
       <p className="mt-2 text-xs text-white/50">
         Roster and scoring above update when you change sport or preset. You can change league size and other options before creating.

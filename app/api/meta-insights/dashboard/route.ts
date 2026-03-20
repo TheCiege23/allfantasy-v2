@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
     const leagueFormat = searchParams.get('leagueFormat') ?? undefined
     const timeframe = searchParams.get('timeframe') ?? undefined
     const data = await loadMetaInsightsDashboard({ sport, leagueFormat, timeframe })
-    return NextResponse.json({ data })
+    return NextResponse.json(
+      { data },
+      { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } }
+    )
   } catch (e) {
     console.error('Meta insights dashboard API error:', e)
     return NextResponse.json({ error: 'Failed to load dashboard' }, { status: 500 })

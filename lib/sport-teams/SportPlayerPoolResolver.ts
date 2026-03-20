@@ -9,6 +9,7 @@ import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { SportType, PoolPlayerRecord } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
+import { getTeamIdByAbbreviationMap } from './SportTeamMetadataRegistry'
 
 const SPORT_STR: Record<LeagueSport, string> = {
   NFL: 'NFL',
@@ -20,6 +21,21 @@ const SPORT_STR: Record<LeagueSport, string> = {
   SOCCER: 'SOCCER',
 }
 
+const NFL_IDP_GROUP_MAP: Record<string, string[]> = {
+  DL: ['DE', 'DT'],
+  DB: ['CB', 'S'],
+  IDP_FLEX: ['DE', 'DT', 'LB', 'CB', 'S'],
+}
+
+function normalizePositionFilter(sport: string, position?: string): string[] | null {
+  const raw = position?.trim()
+  if (!raw) return null
+  const upper = raw.toUpperCase()
+  if (sport === 'SOCCER' && (upper === 'GK' || upper === 'GKP')) return ['GK', 'GKP']
+  if (sport === 'NFL' && NFL_IDP_GROUP_MAP[upper]) return NFL_IDP_GROUP_MAP[upper]
+  return [upper]
+}
+
 /**
  * Get player pool for a sport from SportsPlayer table (sport-scoped).
  */
@@ -28,9 +44,20 @@ export async function getPlayerPoolForSport(
   options?: { limit?: number; teamId?: string; position?: string }
 ): Promise<PoolPlayerRecord[]> {
   const sport = normalizeSport(sportType)
-  const where: { sport: string; team?: string; position?: string } = { sport }
+  const teamIdByAbbrev = getTeamIdByAbbreviationMap(sport)
+  const normalizedPositions = normalizePositionFilter(sport, options?.position)
+  const where: {
+    sport: string
+    team?: string
+    position?: string
+    OR?: Array<{ position: string }>
+  } = { sport }
   if (options?.teamId?.trim()) where.team = options.teamId.trim()
-  if (options?.position?.trim()) where.position = options.position.trim()
+  if (normalizedPositions && normalizedPositions.length === 1) {
+    where.position = normalizedPositions[0]
+  } else if (normalizedPositions && normalizedPositions.length > 1) {
+    where.OR = normalizedPositions.map((p) => ({ position: p }))
+  }
 
   const rows = await prisma.sportsPlayer.findMany({
     where,
@@ -38,11 +65,13 @@ export async function getPlayerPoolForSport(
     orderBy: { name: 'asc' },
   })
 
-  return rows.map((r) => ({
+  const primary = rows.map((r) => ({
+    team_abbreviation: r.team ?? null,
     player_id: r.id,
     sport_type: sport as SportType,
-    team_id: r.teamId ?? null,
-    team_abbreviation: r.team ?? null,
+    team_id:
+      r.teamId ??
+      (r.team ? teamIdByAbbrev.get(r.team.toUpperCase()) ?? null : null),
     full_name: r.name,
     position: r.position ?? '',
     status: r.status ?? null,
@@ -53,6 +82,70 @@ export async function getPlayerPoolForSport(
     secondary_positions: [],
     metadata: {},
   }))
+
+  const limit = options?.limit ?? 2000
+  const canFallbackIdpFromIdentity =
+    sport === 'NFL' &&
+    (normalizedPositions == null || normalizedPositions.some((p) => ['DE', 'DT', 'LB', 'CB', 'S'].includes(p)))
+
+  if (!canFallbackIdpFromIdentity || primary.length >= limit) {
+    return primary
+  }
+
+  const remaining = Math.max(0, limit - primary.length)
+  if (remaining === 0) return primary
+
+  const identityWhere: {
+    sport: string
+    position?: { in: string[] }
+    currentTeam?: string
+  } = { sport }
+  if (normalizedPositions && normalizedPositions.length > 0) {
+    identityWhere.position = { in: normalizedPositions }
+  } else {
+    identityWhere.position = { in: ['DE', 'DT', 'LB', 'CB', 'S'] }
+  }
+  if (options?.teamId?.trim()) identityWhere.currentTeam = options.teamId.trim()
+
+  const identityRows = await prisma.playerIdentityMap.findMany({
+    where: identityWhere,
+    take: remaining,
+    orderBy: { canonicalName: 'asc' },
+  })
+
+  const existingExternalIds = new Set(primary.map((p) => String(p.external_source_id ?? '')))
+  const existingKeys = new Set(primary.map((p) => `${p.full_name.toLowerCase()}::${p.position.toUpperCase()}`))
+  for (const row of identityRows) {
+    const externalId = row.sleeperId ?? row.apiSportsId ?? row.fantasyCalcId ?? row.id
+    const position = String(row.position ?? '').toUpperCase()
+    const fullName = row.canonicalName
+    if (!fullName || !position) continue
+    if (existingExternalIds.has(String(externalId))) continue
+    const dedupeKey = `${fullName.toLowerCase()}::${position}`
+    if (existingKeys.has(dedupeKey)) continue
+
+    const abbr = row.currentTeam?.toUpperCase() ?? null
+    primary.push({
+      team_abbreviation: abbr,
+      player_id: row.id,
+      sport_type: sport as SportType,
+      team_id: abbr ? teamIdByAbbrev.get(abbr) ?? null : null,
+      full_name: fullName,
+      position,
+      status: row.status ?? null,
+      injury_status: deriveInjuryStatus(row.status ?? null),
+      external_source_id: String(externalId),
+      age: null,
+      experience: null,
+      secondary_positions: [],
+      metadata: { source: 'identity_fallback' },
+    })
+    existingExternalIds.add(String(externalId))
+    existingKeys.add(dedupeKey)
+    if (primary.length >= limit) break
+  }
+
+  return primary
 }
 
 /**

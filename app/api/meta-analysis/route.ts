@@ -28,7 +28,9 @@ export async function GET(request: NextRequest) {
       leagueFormat,
       windowDays,
     })
-    return NextResponse.json(result)
+    return NextResponse.json(result, {
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' },
+    })
   } catch (e) {
     console.error('[meta-analysis]', e)
     return NextResponse.json(

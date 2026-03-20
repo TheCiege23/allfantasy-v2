@@ -11,6 +11,7 @@ export {
   generateMatchupFactsFromLeague,
   generateStandingFactsFromLeague,
   generateRosterSnapshotsFromLeague,
+  generateDraftFactsFromLeague,
   generateDraftFactsFromMockDraft,
   generateTransactionFactsFromLeague,
 } from './HistoricalFactGenerator'
@@ -50,11 +51,13 @@ export {
   runMatchupScoringPipeline,
   runRosterSnapshotPipeline,
   runStandingsIngestionPipeline,
+  runDraftIngestionPipeline,
   runTransactionIngestionPipeline,
   type GameStatsPipelineResult,
   type MatchupScoringPipelineResult,
   type RosterSnapshotPipelineResult,
   type StandingsPipelineResult,
+  type DraftPipelineResult,
   type TransactionPipelineResult,
 } from './pipelines'
 export {

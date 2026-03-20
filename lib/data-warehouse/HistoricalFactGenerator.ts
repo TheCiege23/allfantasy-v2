@@ -201,6 +201,45 @@ export async function generateDraftFactsFromMockDraft(
 }
 
 /**
+ * Generate DraftFact rows from live draft session picks for a league.
+ */
+export async function generateDraftFactsFromLeague(
+  leagueId: string,
+  season?: number
+): Promise<number> {
+  const league = await prisma.league.findUnique({ where: { id: leagueId } })
+  if (!league) return 0
+
+  const sport = normalizeSportForWarehouse(league.sport)
+  const session = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { id: true },
+  })
+  if (!session) return 0
+
+  const picks = await prisma.draftPick.findMany({
+    where: { sessionId: session.id },
+    orderBy: [{ round: 'asc' }, { overall: 'asc' }],
+  })
+
+  let count = 0
+  for (const pick of picks) {
+    if (!pick.playerId) continue
+    await ingestion.ingestDraftFact({
+      leagueId,
+      sport,
+      round: pick.round,
+      pickNumber: pick.overall,
+      playerId: pick.playerId,
+      managerId: pick.rosterId,
+      season: season ?? league.season ?? undefined,
+    })
+    count++
+  }
+  return count
+ }
+
+/**
  * Generate TransactionFact from WaiverTransaction / WaiverClaim for a league.
  */
 export async function generateTransactionFactsFromLeague(

@@ -50,6 +50,9 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
     (creationPreset?.seasonCalendar?.regularSeasonPeriod && 'label' in creationPreset.seasonCalendar.regularSeasonPeriod
       ? (creationPreset.seasonCalendar.regularSeasonPeriod as { label?: string }).label
       : null) ?? null
+  const teamMetadataLabel = creationPreset?.teamMetadata?.teams?.length
+    ? `${creationPreset.teamMetadata.teams.length} teams with logo metadata`
+    : null
 
   return (
     <div className="space-y-6">
@@ -78,6 +81,7 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         <SummarySection title="Schedule & calendar">
           {scheduleLabel != null && <SummaryRow label="Fantasy schedule" value={scheduleLabel} />}
           {calendarLabel != null && <SummaryRow label="Season calendar" value={calendarLabel} />}
+          {teamMetadataLabel != null && <SummaryRow label="Team metadata" value={teamMetadataLabel} />}
         </SummarySection>
       )}
 

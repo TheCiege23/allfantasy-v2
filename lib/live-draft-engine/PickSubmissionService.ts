@@ -10,6 +10,8 @@ import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligib
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
+import { recordTrendSignalByPlayerId } from '@/lib/player-trend/signal-integration'
+import { resolveSportForTrend } from '@/lib/player-trend/SportTrendContextResolver'
 import type { SlotOrderEntry } from './types'
 
 export interface SubmitPickInput {
@@ -152,6 +154,50 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
 
   const pickLabel = `${round}.${slot.toString().padStart(2, '0')}`
+
+  // Trend detection signals are best-effort and should never block draft picks.
+  try {
+    const league = await prisma.league.findUnique({
+      where: { id: input.leagueId },
+      select: { sport: true },
+    })
+    const sport = resolveSportForTrend(league?.sport)
+    let resolvedPlayerId = pick.playerId ?? input.playerId ?? null
+    if (!resolvedPlayerId) {
+      const byName = await prisma.player.findFirst({
+        where: {
+          sport,
+          name: { equals: input.playerName.trim(), mode: 'insensitive' },
+        },
+        select: { id: true },
+      })
+      resolvedPlayerId = byName?.id ?? null
+    }
+
+    if (resolvedPlayerId) {
+      await recordTrendSignalByPlayerId({
+        playerId: resolvedPlayerId,
+        sport,
+        signalType: 'draft_pick',
+        leagueId: input.leagueId,
+        updateAfter: true,
+      })
+
+      if (input.source === 'auto') {
+        await recordTrendSignalByPlayerId({
+          playerId: resolvedPlayerId,
+          sport,
+          signalType: 'ai_recommendation',
+          leagueId: input.leagueId,
+          value: 1,
+          updateAfter: false,
+        })
+      }
+    }
+  } catch {
+    // non-fatal
+  }
+
   return {
     success: true,
     snapshot: { sessionId: session.id, overall: pick.overall, pickLabel },

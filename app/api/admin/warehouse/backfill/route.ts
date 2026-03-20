@@ -25,7 +25,7 @@ export const POST = withApiUsage({
     const weeks = Array.isArray(body.weeks) ? body.weeks.filter((w: unknown) => typeof w === 'number') : undefined
     const pipelines = Array.isArray(body.pipelines)
       ? (body.pipelines.filter((p: unknown) =>
-          ['gameStats', 'matchups', 'standings', 'rosterSnapshots', 'transactions'].includes(String(p))
+          ['gameStats', 'matchups', 'standings', 'rosterSnapshots', 'drafts', 'transactions'].includes(String(p))
         ) as BackfillPipeline[])
       : undefined
     const dryRun = Boolean(body.dryRun)

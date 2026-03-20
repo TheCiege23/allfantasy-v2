@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const result = await runWarehouseBackfill({
       sport,
       season: Number.isNaN(season as number) ? undefined : season,
-      pipelines: ['standings', 'matchups', 'rosterSnapshots', 'transactions'],
+      pipelines: ['standings', 'matchups', 'rosterSnapshots', 'drafts', 'transactions'],
       dryRun,
     })
     const status = result.ok ? 200 : 500

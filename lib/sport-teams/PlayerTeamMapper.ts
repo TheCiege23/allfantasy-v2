@@ -5,6 +5,7 @@
 import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { SportType } from './types'
+import { getTeamIdByAbbreviationMap } from './SportTeamMetadataRegistry'
 
 export interface PlayerTeamInfo {
   team_id: string | null
@@ -20,6 +21,7 @@ export async function getTeamForPlayer(
   sportType: SportType | LeagueSport | string
 ): Promise<PlayerTeamInfo | null> {
   const sport = typeof sportType === 'string' ? sportType.toUpperCase() : String(sportType)
+  const teamIdByAbbrev = getTeamIdByAbbreviationMap(sport)
 
   const sp = await prisma.sportsPlayer.findFirst({
     where: {
@@ -28,8 +30,9 @@ export async function getTeamForPlayer(
     },
   })
   if (sp) {
+    const abbr = sp.team?.toUpperCase() ?? null
     return {
-      team_id: sp.teamId ?? null,
+      team_id: sp.teamId ?? (abbr ? teamIdByAbbrev.get(abbr) ?? null : null),
       team_abbreviation: sp.team ?? null,
       sport_type: sport,
     }
@@ -46,8 +49,9 @@ export async function getTeamForPlayer(
     },
   })
   if (identity?.currentTeam) {
+    const abbr = identity.currentTeam.toUpperCase()
     return {
-      team_id: null,
+      team_id: teamIdByAbbrev.get(abbr) ?? null,
       team_abbreviation: identity.currentTeam,
       sport_type: sport,
     }
@@ -64,6 +68,7 @@ export async function getTeamForPlayers(
 ): Promise<Map<string, PlayerTeamInfo>> {
   const result = new Map<string, PlayerTeamInfo>()
   const sport = typeof sportType === 'string' ? sportType.toUpperCase() : String(sportType)
+  const teamIdByAbbrev = getTeamIdByAbbreviationMap(sport)
 
   const players = await prisma.sportsPlayer.findMany({
     where: {
@@ -77,8 +82,9 @@ export async function getTeamForPlayers(
   })
   for (const p of players) {
     const key = p.sleeperId ?? p.externalId ?? p.id
+    const abbr = p.team?.toUpperCase() ?? null
     result.set(key, {
-      team_id: p.teamId ?? null,
+      team_id: p.teamId ?? (abbr ? teamIdByAbbrev.get(abbr) ?? null : null),
       team_abbreviation: p.team ?? null,
       sport_type: sport,
     })
@@ -99,12 +105,15 @@ export async function getTeamForPlayers(
     })
     for (const i of identities) {
       const key = i.sleeperId ?? i.fantasyCalcId ?? i.apiSportsId ?? ''
-      if (key && !result.has(key))
+      if (key && !result.has(key)) {
+        const abbr = i.currentTeam?.toUpperCase() ?? ''
+        const teamId = abbr ? teamIdByAbbrev.get(abbr) ?? null : null
         result.set(key, {
-          team_id: null,
+          team_id: teamId,
           team_abbreviation: i.currentTeam ?? null,
           sport_type: sport,
         })
+      }
     }
   }
   return result

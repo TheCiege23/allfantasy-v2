@@ -35,6 +35,26 @@ const NFL_ALIASES: Record<string, string> = {
   pa_35: 'dst_points_allowed_35_plus',
 }
 
+/**
+ * IDP aliases normalize provider keys to canonical IDP keys used in scoring templates.
+ * Keep ambiguous keys (e.g. sack, interception, safety) off this map to avoid collisions with offense/DST keys.
+ */
+const NFL_IDP_ALIASES: Record<string, string> = {
+  solo_tackle: 'idp_solo_tackle',
+  assist_tackle: 'idp_assist_tackle',
+  tackle_for_loss: 'idp_tackle_for_loss',
+  qb_hit: 'idp_qb_hit',
+  pass_defended: 'idp_pass_defended',
+  forced_fumble: 'idp_forced_fumble',
+  fumble_recovery: 'idp_fumble_recovery',
+  defensive_touchdown: 'idp_defensive_touchdown',
+  idp_touchdown: 'idp_defensive_touchdown',
+  def_td: 'idp_defensive_touchdown',
+  def_sack: 'idp_sack',
+  def_interception: 'idp_interception',
+  def_safety: 'idp_safety',
+}
+
 const NBA_ALIASES: Record<string, string> = {
   pts: 'points',
   reb: 'rebounds',
@@ -54,13 +74,20 @@ const MLB_ALIASES: Record<string, string> = {
   '2b': 'double',
   '3b': 'triple',
   hr: 'home_run',
+  home_runs: 'home_run',
+  rbi_total: 'rbi',
   sb: 'stolen_base',
+  steals: 'stolen_base',
   ip: 'innings_pitched',
+  innings: 'innings_pitched',
   k: 'strikeouts_pitched',
   so: 'strikeouts_pitched',
   ks: 'strikeouts_pitched',
   er: 'earned_runs',
   sv: 'save',
+  saves: 'save',
+  hld: 'hold',
+  holds: 'hold',
   w: 'win',
   l: 'loss',
   qs: 'quality_start',
@@ -70,9 +97,13 @@ const MLB_ALIASES: Record<string, string> = {
 const NHL_ALIASES: Record<string, string> = {
   g: 'goal',
   a: 'assist',
+  assists: 'assist',
+  goals: 'goal',
   sog: 'shot_on_goal',
   shots: 'shot_on_goal',
   ppp: 'power_play_point',
+  ppa: 'power_play_point',
+  pp_points: 'power_play_point',
   shp: 'short_handed_point',
   blk: 'blocked_shot',
   blocks: 'blocked_shot',
@@ -95,6 +126,8 @@ const SOCCER_ALIASES: Record<string, string> = {
   cs: 'clean_sheet',
   gc: 'goal_conceded',
   conceded: 'goal_conceded',
+  ga: 'goal_allowed',
+  goals_allowed: 'goal_allowed',
   mins: 'minutes_played',
   minutes: 'minutes_played',
   yc: 'yellow_card',
@@ -105,7 +138,7 @@ const SOCCER_ALIASES: Record<string, string> = {
 }
 
 const SPORT_ALIASES: Record<string, Record<string, string>> = {
-  NFL: NFL_ALIASES,
+  NFL: { ...NFL_ALIASES, ...NFL_IDP_ALIASES },
   NCAAF: NFL_ALIASES,
   NBA: NBA_ALIASES,
   NCAAB: NBA_ALIASES,

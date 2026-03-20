@@ -64,10 +64,22 @@ const DEFAULT_ROSTER_MODE: Record<SportType, 'redraft' | 'dynasty' | 'keeper'> =
  */
 export function getDefaultLeagueSettings(sportType: SportType | string): DefaultLeagueSettings {
   const sport = typeof sportType === 'string' ? toSportType(sportType) : sportType
+  return getDefaultLeagueSettingsForVariant(sport)
+}
+
+/**
+ * Variant-aware default league settings. NFL IDP/DYNASTY_IDP currently share core league settings
+ * while using variant-specific roster/scoring/draft overlays elsewhere.
+ */
+export function getDefaultLeagueSettingsForVariant(
+  sportType: SportType | string,
+  variant?: string | null
+): DefaultLeagueSettings {
+  const sport = typeof sportType === 'string' ? toSportType(sportType) : sportType
   const league = getLeagueDefaults(sport)
-  const waiver = getWaiverDefaults(sport)
-  const playoff = resolveDefaultPlayoffConfig(sport)
-  const schedule = resolveDefaultScheduleConfig(sport)
+  const waiver = getWaiverDefaults(sport, variant ?? undefined)
+  const playoff = resolveDefaultPlayoffConfig(sport, variant ?? undefined)
+  const schedule = resolveDefaultScheduleConfig(sport, variant ?? undefined)
 
   return {
     sport_type: sport,
@@ -116,7 +128,7 @@ export function buildInitialLeagueSettings(
   variant?: string | null
 ): Record<string, unknown> {
   const sport = typeof sportType === 'string' ? toSportType(sportType) : sportType
-  const def = getDefaultLeagueSettings(sport)
+  const def = getDefaultLeagueSettingsForVariant(sport, variant)
   const draft = getDraftDefaults(sport, variant ?? undefined)
   const schedule = resolveDefaultScheduleConfig(sport, variant ?? undefined)
   return {

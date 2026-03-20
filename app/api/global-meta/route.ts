@@ -22,12 +22,18 @@ export async function GET(request: NextRequest) {
       const s = sport ?? 'NFL'
       const se = season ?? String(new Date().getFullYear())
       const data = await GlobalMetaEngine.getWeeklyReport(s, se, weekOrPeriod)
-      return NextResponse.json({ data })
+      return NextResponse.json(
+        { data },
+        { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } }
+      )
     }
 
     if (summary === 'ai') {
       const data = await GlobalMetaEngine.getAIMetaSummary(sport, metaType as any, timeframe)
-      return NextResponse.json({ data })
+      return NextResponse.json(
+        { data },
+        { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } }
+      )
     }
 
     const snapshots = await GlobalMetaEngine.getSnapshots({
@@ -37,7 +43,10 @@ export async function GET(request: NextRequest) {
       metaType: metaType as any,
       limit: 50,
     })
-    return NextResponse.json({ data: snapshots })
+    return NextResponse.json(
+      { data: snapshots },
+      { headers: { 'Cache-Control': 'public, s-maxage=180, stale-while-revalidate=600' } }
+    )
   } catch (e) {
     console.error('Global meta API error:', e)
     return NextResponse.json({ error: 'Failed to fetch global meta' }, { status: 500 })

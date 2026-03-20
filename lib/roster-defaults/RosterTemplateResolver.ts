@@ -6,6 +6,11 @@ import type { SportType } from './types'
 import { getRosterTemplate, type RosterTemplateDto } from '@/lib/multi-sport/RosterTemplateService'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
+function normalizeFormatTypeForRoster(sport: SportType, formatType: string): string {
+  if (sport === 'NFL' && formatType.toUpperCase() === 'DYNASTY_IDP') return 'IDP'
+  return formatType
+}
+
 /**
  * Resolve roster template for a sport (and optional format).
  * Use for league creation, draft room position list, and lineup/waiver rules.
@@ -15,7 +20,8 @@ export async function resolveRosterTemplate(
   formatType: string = 'standard'
 ): Promise<RosterTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  return getRosterTemplate(sport, formatType)
+  const normalizedFormat = normalizeFormatTypeForRoster(sport, formatType)
+  return getRosterTemplate(sport, normalizedFormat)
 }
 
 /**
@@ -28,6 +34,9 @@ export async function resolveRosterTemplateForLeague(
   formatType?: string
 ): Promise<RosterTemplateDto> {
   const { getOrCreateLeagueRosterConfig } = await import('@/lib/multi-sport/RosterTemplateService')
-  await getOrCreateLeagueRosterConfig(leagueId, leagueSport, formatType ?? 'standard')
-  return resolveRosterTemplate(leagueSport, formatType ?? 'standard')
+  const sport = toSportType(leagueSport)
+  const rawFormat = formatType ?? 'standard'
+  const normalizedFormat = normalizeFormatTypeForRoster(sport, rawFormat)
+  await getOrCreateLeagueRosterConfig(leagueId, sport, normalizedFormat)
+  return resolveRosterTemplate(sport, normalizedFormat)
 }

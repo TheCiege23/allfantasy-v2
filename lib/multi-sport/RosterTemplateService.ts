@@ -27,6 +27,13 @@ export interface RosterTemplateDto {
   slots: RosterTemplateSlotDto[]
 }
 
+function normalizeRosterFormatType(sportType: SportType, formatType: string): string {
+  if (sportType !== 'NFL') return formatType
+  const normalized = (formatType ?? '').toUpperCase()
+  if (normalized === 'DYNASTY_IDP') return 'IDP'
+  return formatType
+}
+
 /**
  * Build default NFL-style roster slots (for fallback when no DB template).
  * Slots: QB, RB, WR, TE, K, DST, FLEX, BENCH, IR.
@@ -320,12 +327,13 @@ function buildSlotsFromRosterDefaultsDef(
  * Build default slots for a sport (and optional format). NFL and SOCCER use custom builders; others use registry.
  */
 function defaultSlotsForSport(sportType: SportType, formatType?: string): RosterTemplateSlotDto[] {
+  const normalizedFormat = normalizeRosterFormatType(sportType, formatType ?? 'standard')
   if (sportType === 'NFL') {
-    if (formatType === 'IDP' || formatType === 'idp') return defaultNflIdpSlots()
+    if (normalizedFormat === 'IDP' || normalizedFormat === 'idp') return defaultNflIdpSlots()
     return defaultNflSlots()
   }
   if (sportType === 'SOCCER') return defaultSoccerSlots()
-  return buildDefaultSlotsFromRosterDefaults(sportType, formatType)
+  return buildDefaultSlotsFromRosterDefaults(sportType, normalizedFormat)
 }
 
 /**
@@ -333,16 +341,16 @@ function defaultSlotsForSport(sportType: SportType, formatType?: string): Roster
  * GKP slot accepts both GKP and GK positions for commissioner/feed flexibility.
  */
 function defaultSoccerSlots(): RosterTemplateSlotDto[] {
-  const positions = getPositionsForSport('SOCCER')
+  const playerPositions = ['GKP', 'GK', 'DEF', 'MID', 'FWD']
   const slots: RosterTemplateSlotDto[] = []
   const starters: Record<string, number> = { GKP: 1, DEF: 4, MID: 4, FWD: 2, UTIL: 1 }
   let order = 0
-  for (const pos of positions) {
+  for (const pos of ['GKP', 'DEF', 'MID', 'FWD', 'UTIL']) {
     const count = starters[pos] ?? 0
     if (count > 0) {
       slots.push({
         slotName: pos,
-        allowedPositions: pos === 'UTIL' ? ['GKP', 'DEF', 'MID', 'FWD'] : pos === 'GKP' ? ['GKP', 'GK'] : [pos],
+        allowedPositions: pos === 'UTIL' ? [...playerPositions] : pos === 'GKP' ? ['GKP', 'GK'] : [pos],
         starterCount: count,
         benchCount: 0,
         reserveCount: 0,
@@ -355,7 +363,7 @@ function defaultSoccerSlots(): RosterTemplateSlotDto[] {
   }
   slots.push({
     slotName: 'BENCH',
-    allowedPositions: [...positions],
+    allowedPositions: [...playerPositions],
     starterCount: 0,
     benchCount: 4,
     reserveCount: 0,
@@ -366,7 +374,7 @@ function defaultSoccerSlots(): RosterTemplateSlotDto[] {
   })
   slots.push({
     slotName: 'IR',
-    allowedPositions: [...positions],
+    allowedPositions: [...playerPositions],
     starterCount: 0,
     benchCount: 0,
     reserveCount: 1,
@@ -388,7 +396,8 @@ export async function getRosterTemplate(
   leagueId?: string
 ): Promise<RosterTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  if (leagueId && sport === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
+  const normalizedFormat = normalizeRosterFormatType(sport, formatType)
+  if (leagueId && sport === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'idp')) {
     try {
       const { getRosterDefaultsForIdpLeague } = await import('@/lib/idp/IDPLeagueConfig')
       const idpDefaults = await getRosterDefaultsForIdpLeague(leagueId)
@@ -409,7 +418,7 @@ export async function getRosterTemplate(
   }
   const template = await prisma.rosterTemplate.findUnique({
     where: {
-      uniq_roster_template_sport_format: { sportType: sport, formatType },
+      uniq_roster_template_sport_format: { sportType: sport, formatType: normalizedFormat },
     },
     include: { slots: { orderBy: { slotOrder: 'asc' } } },
   })
@@ -433,11 +442,11 @@ export async function getRosterTemplate(
     }
   }
   return {
-    templateId: `default-${sport}-${formatType}`,
+    templateId: `default-${sport}-${normalizedFormat}`,
     sportType: sport,
-    name: `Default ${sport} ${formatType}`,
-    formatType,
-    slots: defaultSlotsForSport(sport, formatType),
+    name: `Default ${sport} ${normalizedFormat}`,
+    formatType: normalizedFormat,
+    slots: defaultSlotsForSport(sport, normalizedFormat),
   }
 }
 
@@ -450,6 +459,8 @@ export async function getOrCreateLeagueRosterConfig(
   sportType: SportType | string,
   formatType: string = 'standard'
 ): Promise<{ templateId: string; overrides: Record<string, unknown> | null }> {
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const normalizedFormat = normalizeRosterFormatType(sport, formatType)
   const existing = await prisma.leagueRosterConfig.findUnique({
     where: { leagueId },
   })
@@ -459,7 +470,7 @@ export async function getOrCreateLeagueRosterConfig(
       overrides: (existing.overrides as Record<string, unknown>) ?? null,
     }
   }
-  const template = await getRosterTemplate(sportType, formatType)
+  const template = await getRosterTemplate(sport, normalizedFormat)
   const isDefault = template.templateId.startsWith('default-')
   if (!isDefault) {
     await prisma.leagueRosterConfig.create({

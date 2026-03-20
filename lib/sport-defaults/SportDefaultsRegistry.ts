@@ -13,6 +13,7 @@ import type {
 } from './types'
 import { SPORT_TYPES } from './types'
 import { getRosterOverlayForVariant } from './LeagueVariantRegistry'
+import { getTeamMetadataForSport } from '@/lib/sport-teams/SportTeamMetadataRegistry'
 
 const LEAGUE_DEFAULTS: Record<SportType, LeagueDefaults> = {
   NFL: {
@@ -451,7 +452,7 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
   if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
     return DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
   }
-  if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
+  if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
     delete starter_slots.DST
@@ -514,5 +515,21 @@ export function getWaiverDefaults(sportType: SportType, _formatType?: string | n
 }
 
 export function getTeamMetadataDefaults(sportType: SportType): TeamMetadataDefaults {
+  const teams = getTeamMetadataForSport(sportType).map((team) => ({
+    team_id: team.team_id,
+    team_name: team.team_name,
+    city: team.city,
+    abbreviation: team.abbreviation,
+    primary_logo: team.primary_logo_url,
+    alternate_logo: team.alternate_logo_url ?? null,
+  }))
+
+  if (teams.length > 0) {
+    return {
+      sport_type: sportType,
+      teams,
+    }
+  }
+
   return TEAM_METADATA_DEFAULTS[sportType] ?? TEAM_METADATA_DEFAULTS.NFL
 }

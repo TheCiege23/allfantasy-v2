@@ -53,6 +53,17 @@ export interface SportFeatureFlagsPayload {
 export interface LeagueCreationPresetPayload {
   sport: LeagueSportOption;
   metadata: { display_name: string; short_name: string; icon: string; logo_strategy: string };
+  teamMetadata?: {
+    sport_type: string;
+    teams: Array<{
+      team_id: string;
+      team_name: string;
+      city: string;
+      abbreviation: string;
+      primary_logo: string | null;
+      alternate_logo: string | null;
+    }>;
+  };
   league: {
     default_league_name_pattern: string;
     default_team_count: number;

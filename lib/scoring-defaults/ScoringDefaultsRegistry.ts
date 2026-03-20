@@ -7,6 +7,13 @@
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import type { SportType, ScoringRuleDefinition, ScoringTemplateDefinition } from './types'
 
+export interface LeagueSettingsForScoringDefaults {
+  scoring_format?: string | null
+  leagueVariant?: string | null
+  idpScoringPreset?: string | null
+  [key: string]: unknown
+}
+
 function rule(
   statKey: string,
   pointsValue: number,
@@ -334,6 +341,46 @@ export function getDefaultScoringTemplate(
     formatType: format,
     rules: entry.rules,
   }
+}
+
+/**
+ * Resolve default scoring template by sport + optional format + league settings.
+ * Resolution order: explicit formatType > league settings (IDP presets, scoring_format) > sport default format.
+ */
+export function resolveDefaultScoringTemplate(
+  sportType: SportType | string,
+  options?: {
+    formatType?: string | null
+    leagueSettings?: LeagueSettingsForScoringDefaults | null
+  }
+): ScoringTemplateDefinition {
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const explicitFormat = options?.formatType?.trim()
+  if (explicitFormat) {
+    return getDefaultScoringTemplate(sport, explicitFormat)
+  }
+
+  const leagueSettings = options?.leagueSettings ?? null
+  if (leagueSettings) {
+    const variant = String(leagueSettings.leagueVariant ?? '').toUpperCase()
+    if (sport === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
+      const preset = String(leagueSettings.idpScoringPreset ?? '').toLowerCase()
+      if (preset === 'tackle_heavy') return getDefaultScoringTemplate(sport, 'IDP-tackle_heavy')
+      if (preset === 'big_play_heavy') return getDefaultScoringTemplate(sport, 'IDP-big_play_heavy')
+      return getDefaultScoringTemplate(sport, 'IDP-balanced')
+    }
+
+    const scoringFormat =
+      typeof leagueSettings.scoring_format === 'string' ? leagueSettings.scoring_format.trim() : ''
+    if (scoringFormat) {
+      return getDefaultScoringTemplate(sport, scoringFormat)
+    }
+  }
+
+  if (sport === 'NFL') return getDefaultScoringTemplate(sport, 'PPR')
+  if (sport === 'NBA' || sport === 'NCAAB') return getDefaultScoringTemplate(sport, 'points')
+  if (sport === 'NCAAF') return getDefaultScoringTemplate(sport, 'PPR')
+  return getDefaultScoringTemplate(sport, 'standard')
 }
 
 /**

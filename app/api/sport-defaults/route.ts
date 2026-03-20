@@ -4,7 +4,7 @@
  * GET ?sport=NFL → raw default set (metadata, league, roster, scoring, draft, waiver)
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getCreationPayload } from '@/lib/league-defaults-orchestrator'
+import { loadSportPresetForCreation } from '@/lib/league-creation/SportPresetLoader'
 import { resolveSportDefaults } from '@/lib/sport-defaults/SportDefaultsResolver'
 
 const LEAGUE_SPORT_VALUES = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'] as const
@@ -25,10 +25,8 @@ export async function GET(request: NextRequest) {
     const sport = toLeagueSport(sportParam)
 
     if (load === 'creation') {
-      const payload = await getCreationPayload(sport, variantParam)
-      const { getSportFeatureFlags } = await import('@/lib/sport-defaults/SportFeatureFlagsService')
-      const featureFlags = await getSportFeatureFlags(sport)
-      return NextResponse.json({ ...payload, featureFlags })
+      const payload = await loadSportPresetForCreation(sport, variantParam)
+      return NextResponse.json(payload)
     }
 
     if (load === 'featureFlags') {

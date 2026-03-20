@@ -1,6 +1,7 @@
 'use client'
 
 import type { LeagueCreationPresetPayload, ScheduleTemplatePayload, SeasonCalendarPayload, SportFeatureFlagsPayload } from '@/hooks/useSportPreset'
+import { resolveSportAwareFrontendContext } from '@/lib/league-creation/SportAwareFrontendResolver'
 
 export interface SportSummaryCardProps {
   preset: LeagueCreationPresetPayload
@@ -85,27 +86,79 @@ function featureTogglesSummary(flags: SportFeatureFlagsPayload | undefined): str
   return on.join(', ')
 }
 
+function teamMetadataSummary(preset: LeagueCreationPresetPayload): {
+  teamCount: number
+  samples: Array<{ abbreviation: string; teamName: string; primaryLogo: string | null }>
+} | null {
+  const teams = preset.teamMetadata?.teams
+  if (!teams || teams.length === 0) return null
+  return {
+    teamCount: teams.length,
+    samples: teams.slice(0, 6).map((t) => ({
+      abbreviation: t.abbreviation,
+      teamName: t.team_name,
+      primaryLogo: t.primary_logo,
+    })),
+  }
+}
+
 /**
  * Sport summary card for league creation: five summary cards (sport, scoring, roster, schedule, season calendar)
  * plus compatible feature toggles. Preset loads first; customization allowed where supported.
  */
 export function SportSummaryCard({ preset }: SportSummaryCardProps) {
   const features = featureTogglesSummary(preset.featureFlags)
+  const teamMeta = teamMetadataSummary(preset)
+  const initContext = resolveSportAwareFrontendContext(preset)
 
   return (
     <div className="space-y-3">
       <SummaryCard title="Sport">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-white">{preset.metadata?.display_name ?? preset.sport}</span>
+          <span className="font-medium text-white">{initContext.branding.displayName}</span>
           {preset.metadata?.short_name && (
             <span className="text-xs text-white/50">({preset.metadata.short_name})</span>
           )}
+        </div>
+      </SummaryCard>
+      <SummaryCard title="Initialization scope">
+        <div className="space-y-1">
+          <p>{initContext.playerPool.scopeLabel}</p>
+          <p className="text-xs text-white/60">
+            Roster template: {initContext.defaults.rosterTemplateId || 'default'} · Scoring template: {initContext.defaults.scoringTemplateId || 'default'}
+          </p>
         </div>
       </SummaryCard>
       <SummaryCard title="Default scoring">{scoringSummary(preset)}</SummaryCard>
       <SummaryCard title="Default roster">{rosterSummary(preset)}</SummaryCard>
       <SummaryCard title="Fantasy schedule">{scheduleSummary(preset.scheduleTemplate)}</SummaryCard>
       <SummaryCard title="Season calendar">{calendarSummary(preset.seasonCalendar)}</SummaryCard>
+      {teamMeta && (
+        <SummaryCard title="Team metadata">
+          <div className="space-y-2">
+            <p className="text-white/70">{teamMeta.teamCount} teams with sport-specific logos loaded</p>
+            <div className="flex flex-wrap gap-2">
+              {teamMeta.samples.map((team) => (
+                <span
+                  key={team.abbreviation}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-2 py-1 text-xs"
+                  title={team.teamName}
+                >
+                  {team.primaryLogo ? (
+                    <img
+                      src={team.primaryLogo}
+                      alt={`${team.abbreviation} logo`}
+                      className="h-3.5 w-3.5 rounded-full object-contain"
+                      loading="lazy"
+                    />
+                  ) : null}
+                  <span>{team.abbreviation}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </SummaryCard>
+      )}
       {features && (
         <SummaryCard title="Available options (compatible toggles)">{features}</SummaryCard>
       )}

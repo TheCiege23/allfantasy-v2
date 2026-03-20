@@ -3,7 +3,13 @@
  */
 
 import { generateGameFactsFromExistingStats } from '../HistoricalFactGenerator'
-import { generateMatchupFactsFromLeague, generateStandingFactsFromLeague, generateRosterSnapshotsFromLeague, generateTransactionFactsFromLeague } from '../HistoricalFactGenerator'
+import {
+  generateMatchupFactsFromLeague,
+  generateStandingFactsFromLeague,
+  generateRosterSnapshotsFromLeague,
+  generateDraftFactsFromLeague,
+  generateTransactionFactsFromLeague,
+} from '../HistoricalFactGenerator'
 import { normalizeSportForWarehouse } from '../types'
 
 export interface GameStatsPipelineResult {
@@ -87,6 +93,11 @@ export interface TransactionPipelineResult {
   transactionCount: number
 }
 
+export interface DraftPipelineResult {
+  leagueId: string
+  draftFactCount: number
+}
+
 /**
  * Pipeline: generate transaction facts from WaiverTransaction.
  */
@@ -96,4 +107,15 @@ export async function runTransactionIngestionPipeline(
 ): Promise<TransactionPipelineResult> {
   const transactionCount = await generateTransactionFactsFromLeague(leagueId, since)
   return { leagueId, transactionCount }
+}
+
+/**
+ * Pipeline: generate draft facts from live DraftSession/DraftPick.
+ */
+export async function runDraftIngestionPipeline(
+  leagueId: string,
+  season?: number
+): Promise<DraftPipelineResult> {
+  const draftFactCount = await generateDraftFactsFromLeague(leagueId, season)
+  return { leagueId, draftFactCount }
 }

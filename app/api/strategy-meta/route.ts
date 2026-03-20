@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
     const sport = searchParams.get('sport') ?? undefined
     const leagueFormat = searchParams.get('leagueFormat') ?? undefined
     const data = await getStrategyMetaReports({ sport, leagueFormat })
-    return NextResponse.json({ data })
+    return NextResponse.json(
+      { data },
+      { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } }
+    )
   } catch (e) {
     console.error('Strategy meta GET error:', e)
     return NextResponse.json({ error: 'Failed to fetch strategy meta' }, { status: 500 })
@@ -25,12 +28,21 @@ export async function POST(request: NextRequest) {
     const sport = body.sport ?? undefined
     const leagueFormat = body.leagueFormat ?? undefined
     const leagueIds = Array.isArray(body.leagueIds) ? body.leagueIds : undefined
+    const dryRun = Boolean(body.dryRun)
+    const includeDiagnostics = Boolean(body.includeDiagnostics)
     const result = await generateStrategyMetaReports({
       sport: sport as any,
       leagueFormat: leagueFormat as any,
       leagueIds,
+      dryRun,
+      includeDiagnostics,
     })
-    return NextResponse.json({ reports: result.reports, errors: result.errors })
+    return NextResponse.json({
+      reports: result.reports,
+      errors: result.errors,
+      dryRun,
+      diagnostics: result.diagnostics,
+    })
   } catch (e) {
     console.error('Strategy meta POST error:', e)
     return NextResponse.json({ error: 'Failed to generate strategy meta' }, { status: 500 })

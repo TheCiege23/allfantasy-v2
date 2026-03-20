@@ -16,6 +16,7 @@ import { runAiProtection } from '@/lib/ai-protection';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
 import { getMetaPromptBlob } from '@/lib/meta-insights';
+import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -142,6 +143,25 @@ Consider this manager's style when making recommendations.
 
     const aiResponse = JSON.parse(responseText);
     const validatedResponse = WaiverResponseSchema.safeParse(aiResponse);
+    const responseData = validatedResponse.success ? validatedResponse.data : aiResponse
+
+    try {
+      const topAdds = Array.isArray(responseData?.top_adds) ? responseData.top_adds : []
+      const recommendedNames = topAdds
+        .map((a: any) => (typeof a?.player_name === 'string' ? a.player_name.trim() : ''))
+        .filter(Boolean)
+      if (recommendedNames.length > 0) {
+        await recordTrendSignalsByPlayerNames({
+          playerNames: recommendedNames,
+          sport: waiverRequest.league?.sport,
+          signalType: 'ai_recommendation',
+          leagueId: waiverRequest.league?.league_id,
+          value: 1,
+        })
+      }
+    } catch {
+      // non-fatal
+    }
 
     const sleeperUsername = waiverRequest.context_scope?.sleeper_username
     if (sleeperUsername) {
@@ -151,7 +171,7 @@ Consider this manager's style when making recommendations.
 
     return NextResponse.json({
       success: true,
-      data: validatedResponse.success ? validatedResponse.data : aiResponse,
+      data: responseData,
       validated: validatedResponse.success,
       legacy_context: legacyContext ? { included: true, archetype: legacyContext.archetype } : { included: false },
     });

@@ -7,6 +7,8 @@ import { logUserEventByUsername } from '@/lib/user-events';
 import { TRADE_EVALUATOR_SYSTEM_PROMPT, TradeEvaluationResponseSchema } from '@/lib/trade-evaluator-prompt';
 import { rateLimit } from '@/lib/rate-limit';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
+import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
+import { getMetaPromptBlob } from '@/lib/meta-insights';
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -163,7 +165,10 @@ Legacy Context (from DB - do not call external APIs):
 `;
     }
 
-    const learningContext = await getComprehensiveLearningContext();
+    const [learningContext, metaBlob] = await Promise.all([
+      getComprehensiveLearningContext(),
+      getMetaPromptBlob(data.league?.sport ?? 'NFL').catch(() => ''),
+    ]);
 
     const userPrompt = `Evaluate this trade proposal using the rules in your system instructions.
 ${legacySection}
@@ -220,9 +225,13 @@ Trade proposal:
 - receiver_gives_picks: ${formatPicks(data.receiver.gives_picks || [])}
 - receiver_gives_faab: $${data.receiver.gives_faab || 0}`;
 
-    const enhancedSystemPrompt = learningContext 
-      ? `${TRADE_EVALUATOR_SYSTEM_PROMPT}\n${learningContext}`
-      : TRADE_EVALUATOR_SYSTEM_PROMPT;
+    const enhancedSystemPrompt = [
+      TRADE_EVALUATOR_SYSTEM_PROMPT,
+      learningContext ?? '',
+      metaBlob ? `\nPLATFORM META (use for trade strategy context):\n${metaBlob}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -248,6 +257,26 @@ Trade proposal:
     }
 
     const validationResult = TradeEvaluationResponseSchema.safeParse(parsedContent);
+
+    try {
+      const extractName = (p: string | { name?: string }) =>
+        typeof p === 'string' ? p.trim() : String(p?.name ?? '').trim()
+      const candidateNames = [
+        ...data.sender.gives_players.map(extractName),
+        ...data.receiver.gives_players.map(extractName),
+      ].filter(Boolean)
+      if (candidateNames.length > 0) {
+        await recordTrendSignalsByPlayerNames({
+          playerNames: candidateNames,
+          sport: data.league?.sport,
+          signalType: 'trade_request',
+          leagueId: data.league_id,
+          value: 1,
+        })
+      }
+    } catch {
+      // non-fatal
+    }
 
     const evalUsername = data.context_scope?.sleeper_username
     if (evalUsername) {

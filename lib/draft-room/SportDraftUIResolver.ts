@@ -18,7 +18,8 @@ export function getPositionFilterOptionsForSport(
   formatType?: string
 ): PositionFilterOption[] {
   const normalized = normalizeToSupportedSport(sport)
-  const isIdp = normalized === 'NFL' && (formatType === 'IDP' || formatType === 'idp')
+  const format = String(formatType ?? '').toUpperCase()
+  const isIdp = normalized === 'NFL' && (format === 'IDP' || format === 'DYNASTY_IDP')
   if (isIdp) {
     const options: PositionFilterOption[] = [
       { value: 'All', label: 'All' },
@@ -65,7 +66,7 @@ export function getDefaultRosterSlotsForSport(sport: string): string[] {
     NHL: ['C', 'C', 'LW', 'LW', 'RW', 'RW', 'D', 'D', 'G', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
     NBA: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
     MLB: ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'UTIL', 'SP', 'SP', 'RP', 'RP', 'P', 'BENCH', 'BENCH', 'BENCH'],
-    NCAAB: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
+    NCAAB: ['G', 'G', 'F', 'F', 'C', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
     NCAAF: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
     SOCCER: ['GKP', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
   }

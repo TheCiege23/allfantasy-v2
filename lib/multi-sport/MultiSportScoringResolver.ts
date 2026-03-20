@@ -99,9 +99,11 @@ export async function resolveScoringRulesForLeague(
   leagueSettings?: LeagueSettingsForScoring | null
 ): Promise<ScoringRuleDto[]> {
   const config = resolveSportConfigForLeague(leagueSport)
+  const resolvedLeagueSettings =
+    leagueSettings ?? (formatType ? null : await getLeagueSettingsForScoring(leagueId))
   const format =
     formatType ??
-    resolveFormatTypeFromLeagueSettings(leagueSport, leagueSettings) ??
+    resolveFormatTypeFromLeagueSettings(leagueSport, resolvedLeagueSettings) ??
     config.defaultFormat
   return getLeagueScoringRules(leagueId, leagueSportToSportType(leagueSport), format)
 }

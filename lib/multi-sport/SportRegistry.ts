@@ -68,7 +68,8 @@ export function getAllSportConfigs(): SportConfig[] {
  */
 export function getPositionsForSport(sportType: SportType, formatType?: string): string[] {
   const positions = SPORT_POSITIONS[sportType] ?? []
-  if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp')) {
+  const normalizedFormat = (formatType ?? '').toUpperCase()
+  if (sportType === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'DYNASTY_IDP')) {
     return [...NFL_IDP_POSITIONS]
   }
   return [...positions]

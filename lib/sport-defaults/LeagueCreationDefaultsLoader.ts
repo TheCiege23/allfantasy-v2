@@ -5,8 +5,8 @@
 import type { LeagueSport } from '@prisma/client'
 import { getFullLeaguePreset } from './SportLeaguePresetService'
 import { resolveLeaguePreset } from './LeaguePresetResolver'
-import { getDefaultLeagueSettings } from './LeagueDefaultSettingsService'
-import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults } from './SportDefaultsRegistry'
+import { getDefaultLeagueSettingsForVariant } from './LeagueDefaultSettingsService'
+import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults, getTeamMetadataDefaults } from './SportDefaultsRegistry'
 import { getSportMetadata } from './SportMetadataRegistry'
 import { getScheduleTemplate } from './ScheduleTemplateResolver'
 import { getSeasonCalendar } from './SeasonCalendarResolver'
@@ -22,6 +22,18 @@ export interface LeagueCreationDefaultsPayload {
     short_name: string
     icon: string
     logo_strategy: string
+  }
+  /** Team metadata defaults (abbrev + logos) for sport-aware branding and selectors. */
+  teamMetadata: {
+    sport_type: string
+    teams: Array<{
+      team_id: string
+      team_name: string
+      city: string
+      abbreviation: string
+      primary_logo: string | null
+      alternate_logo: string | null
+    }>
   }
   /** League settings to prefill */
   league: {
@@ -155,7 +167,7 @@ export async function loadLeagueCreationDefaults(
   const sportType = leagueSportToSportType(leagueSport) as SportType
   const variant = leagueVariant ?? null
 
-  if (variant && (variant.toUpperCase() === 'IDP' || variant.toUpperCase() === 'DYNASTY_IDP') && leagueSport === 'NFL') {
+  if (variant) {
     const [resolved, scheduleTemplate, seasonCalendar] = await Promise.all([
       resolveLeaguePreset(leagueSport, variant),
       getScheduleTemplate(sportType, 'DEFAULT'),
@@ -164,8 +176,9 @@ export async function loadLeagueCreationDefaults(
     const defaults = getLeagueDefaults(sportType)
     const draftDef = getDraftDefaults(sportType, variant ?? undefined)
     const waiverDef = getWaiverDefaults(sportType, variant ?? undefined)
-    const defaultLeagueSettings = getDefaultLeagueSettings(sportType)
+    const defaultLeagueSettings = getDefaultLeagueSettingsForVariant(sportType, variant ?? undefined)
     const metadata = getSportMetadata(sportType)
+    const teamMetadata = getTeamMetadataDefaults(sportType)
     return {
       sport: leagueSport,
       leagueVariant: variant,
@@ -175,6 +188,7 @@ export async function loadLeagueCreationDefaults(
         icon: metadata.icon,
         logo_strategy: metadata.logo_strategy,
       },
+      teamMetadata,
       league: {
         default_league_name_pattern: defaults.default_league_name_pattern,
         default_team_count: defaults.default_team_count,
@@ -298,7 +312,7 @@ export async function loadLeagueCreationDefaults(
     getSeasonCalendar(sportType, 'DEFAULT'),
   ])
   const { defaults, preset } = fullPreset
-  const defaultLeagueSettings = getDefaultLeagueSettings(defaults.metadata.sport_type)
+  const defaultLeagueSettings = getDefaultLeagueSettingsForVariant(defaults.metadata.sport_type, variant ?? undefined)
 
   return {
     sport: leagueSport,
@@ -309,6 +323,7 @@ export async function loadLeagueCreationDefaults(
       icon: defaults.metadata.icon,
       logo_strategy: defaults.metadata.logo_strategy,
     },
+    teamMetadata: defaults.teamMetadata ?? getTeamMetadataDefaults(sportType),
     league: {
       default_league_name_pattern: defaults.league.default_league_name_pattern,
       default_team_count: defaults.league.default_team_count,

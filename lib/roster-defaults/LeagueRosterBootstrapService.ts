@@ -23,12 +23,16 @@ export async function bootstrapLeagueRoster(
   leagueSport: LeagueSport,
   formatType?: string
 ): Promise<BootstrapResult> {
+  const normalizedFormat =
+    leagueSport === 'NFL' && String(formatType ?? '').toUpperCase() === 'DYNASTY_IDP'
+      ? 'IDP'
+      : (formatType ?? 'standard')
   const { templateId } = await resolveLeagueRosterConfig(
     leagueId,
     leagueSport,
-    formatType ?? 'standard'
+    normalizedFormat
   )
-  const template = await getRosterTemplateForLeague(leagueSport, formatType)
+  const template = await getRosterTemplateForLeague(leagueSport, normalizedFormat)
   return {
     leagueId,
     templateId,

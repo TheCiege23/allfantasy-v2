@@ -3,7 +3,6 @@
  * Uses SeasonResult + draft/roster data; runs StrategyPatternAnalyzer and MetaSuccessEvaluator.
  */
 import { prisma } from '@/lib/prisma'
-import { getLeagueDrafts, getDraftPicks } from '@/lib/sleeper-client'
 import { detectStrategies, toLeagueFormat } from './StrategyPatternAnalyzer'
 import { computeStrategyMetaReport, type TeamStrategyOutcome } from './MetaSuccessEvaluator'
 import type { StrategySport, LeagueFormat } from './types'
@@ -11,30 +10,95 @@ import type { DraftPickFact } from './types'
 import { getPositionCountsFromRoster } from './RosterCompositionAnalyzer'
 import { normalizeToSupportedSport, DEFAULT_SPORT } from '@/lib/sport-scope'
 
+export interface StrategyMetaLeagueDiagnostics {
+  leagueId: string
+  sport: string
+  leagueFormat: string
+  season: number
+  draftFactCount: number
+  rosterSnapshotCount: number
+  matchupFactCount: number
+  standingFactCount: number
+  teamsAnalyzed: number
+  teamsWithStrategies: number
+  strategyHits: Record<string, number>
+  skippedReason?: string
+}
+
+export interface StrategyMetaDiagnostics {
+  totalLeagues: number
+  processedLeagues: number
+  totalTeamsAnalyzed: number
+  totalTeamsWithStrategies: number
+  strategyHits: Record<string, number>
+  byLeague: StrategyMetaLeagueDiagnostics[]
+}
+
+export interface StrategyMetaGenerationResult {
+  reports: number
+  errors: string[]
+  diagnostics?: StrategyMetaDiagnostics
+}
+
 /** Map League.sport (enum) to string. */
 function leagueSportToSport(sport: string): StrategySport {
   return normalizeToSupportedSport(sport) as StrategySport
+}
+
+function extractPlayerIdsFromJson(value: unknown): string[] {
+  if (!value) return []
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => {
+        if (typeof v === 'string') return v
+        if (v && typeof v === 'object' && 'id' in (v as Record<string, unknown>)) {
+          const id = (v as Record<string, unknown>).id
+          return typeof id === 'string' ? id : null
+        }
+        return null
+      })
+      .filter((v): v is string => Boolean(v))
+  }
+  if (value && typeof value === 'object') {
+    const out: string[] = []
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      out.push(...extractPlayerIdsFromJson(nested))
+    }
+    return out
+  }
+  return []
+}
+
+function computeTrendingDirection(
+  previous: { usageRate: number; successRate: number } | null,
+  current: { usageRate: number; successRate: number }
+): 'Rising' | 'Stable' | 'Falling' {
+  if (!previous) return 'Stable'
+  const usageDelta = current.usageRate - previous.usageRate
+  const successDelta = current.successRate - previous.successRate
+  const compositeDelta = usageDelta * 0.7 + successDelta * 0.3
+  if (compositeDelta >= 0.015) return 'Rising'
+  if (compositeDelta <= -0.015) return 'Falling'
+  return 'Stable'
 }
 
 /**
  * Build draft pick facts for one roster from Sleeper draft picks (need player positions from allPlayers).
  */
 function buildDraftPicksForRoster(
-  allPicks: Array<{ round: number; pickNo?: number; pick_no?: number; rosterId?: number; roster_id?: number; player_id?: string; playerId?: string }>,
-  rosterId: number,
+  allPicks: Array<{ round: number; pickNumber: number; managerId: string | null; playerId: string; team?: string | null; position?: string | null }>,
+  rosterId: string,
   positionByPlayerId: Record<string, string>
 ): DraftPickFact[] {
-  const rid = (p: (typeof allPicks)[0]) => p.rosterId ?? p.roster_id ?? (p as any).picked_by
   return allPicks
-    .filter((p) => rid(p) === rosterId)
+    .filter((p) => p.managerId === rosterId)
     .map((p, i) => ({
       round: p.round ?? Math.floor(i / 12) + 1,
-      pickNo: p.pickNo ?? p.pick_no ?? i + 1,
-      rosterId: rid(p),
-      playerId: p.playerId ?? p.player_id ?? null,
-      position: (p.player_id || p.playerId) && positionByPlayerId[(p.player_id || p.playerId)!]
-        ? positionByPlayerId[(p.player_id || p.playerId)!]
-        : null,
+      pickNo: p.pickNumber ?? i + 1,
+      rosterId: parseInt(rosterId, 10) || i + 1,
+      playerId: p.playerId,
+      position: positionByPlayerId[p.playerId] ?? p.position ?? null,
+      team: p.team ?? null,
     }))
 }
 
@@ -46,8 +110,12 @@ export async function generateStrategyMetaReports(opts: {
   sport?: StrategySport
   leagueFormat?: LeagueFormat
   leagueIds?: string[]
-}): Promise<{ reports: number; errors: string[] }> {
+  dryRun?: boolean
+  includeDiagnostics?: boolean
+}): Promise<StrategyMetaGenerationResult> {
   const errors: string[] = []
+  const strategyHitsOverall = new Map<string, number>()
+  const byLeagueDiagnostics: StrategyMetaLeagueDiagnostics[] = []
   const leagues = await prisma.league.findMany({
     where: {
       ...(opts.leagueIds && opts.leagueIds.length > 0 && { id: { in: opts.leagueIds } }),
@@ -65,87 +133,254 @@ export async function generateStrategyMetaReports(opts: {
   })
 
   const outcomes: TeamStrategyOutcome[] = []
+  let processedLeagues = 0
+  let totalTeamsAnalyzed = 0
+  let totalTeamsWithStrategies = 0
 
   for (const league of leagues) {
+    const season = league.season ?? new Date().getFullYear()
+    const diag: StrategyMetaLeagueDiagnostics = {
+      leagueId: league.id,
+      sport: league.sport,
+      leagueFormat: 'unknown',
+      season,
+      draftFactCount: 0,
+      rosterSnapshotCount: 0,
+      matchupFactCount: 0,
+      standingFactCount: 0,
+      teamsAnalyzed: 0,
+      teamsWithStrategies: 0,
+      strategyHits: {},
+    }
+
     try {
       const isSF = (league.settings as Record<string, unknown>)?.is_superflex ?? false
       const format = toLeagueFormat({ isDynasty: league.isDynasty ?? false, isSuperFlex: !!isSF })
-      if (opts.leagueFormat && format !== opts.leagueFormat) continue
+      diag.leagueFormat = format
+      if (opts.leagueFormat && format !== opts.leagueFormat) {
+        diag.skippedReason = `Filtered out by leagueFormat (${opts.leagueFormat})`
+        byLeagueDiagnostics.push(diag)
+        continue
+      }
+      processedLeagues++
 
       const sport = leagueSportToSport(league.sport)
-      const seasonResults = await prisma.seasonResult.findMany({
-        where: { leagueId: league.id, season: String(league.season ?? new Date().getFullYear()) },
-      })
+      const [draftFacts, rosterSnapshots, matchupFacts, standings] = await Promise.all([
+        prisma.draftFact.findMany({
+          where: { leagueId: league.id, season, sport },
+          select: {
+            round: true,
+            pickNumber: true,
+            managerId: true,
+            playerId: true,
+          },
+          orderBy: [{ round: 'asc' }, { pickNumber: 'asc' }],
+        }),
+        prisma.rosterSnapshot.findMany({
+          where: { leagueId: league.id, season, sport },
+          select: {
+            teamId: true,
+            weekOrPeriod: true,
+            rosterPlayers: true,
+            lineupPlayers: true,
+            benchPlayers: true,
+          },
+          orderBy: [{ weekOrPeriod: 'desc' }],
+        }),
+        prisma.matchupFact.findMany({
+          where: { leagueId: league.id, season, sport },
+          select: {
+            teamA: true,
+            teamB: true,
+            scoreA: true,
+            scoreB: true,
+            winnerTeamId: true,
+          },
+        }),
+        prisma.seasonStandingFact.findMany({
+          where: { leagueId: league.id, season, sport },
+          select: {
+            teamId: true,
+            wins: true,
+            losses: true,
+            pointsFor: true,
+            rank: true,
+          },
+        }),
+      ])
 
-      let draftPicks: DraftPickFact[] = []
-      let positionByPlayerId: Record<string, string> = {}
-      try {
-        const drafts = await getLeagueDrafts(league.platformLeagueId)
-        const latest = drafts?.[0]
-        if (latest?.draft_id) {
-          const raw = await getDraftPicks(latest.draft_id)
-          const allPlayers = await (await import('@/lib/sleeper-client')).getAllPlayers?.() ?? {}
-          for (const pid of Object.keys(allPlayers)) {
-            const p = (allPlayers as Record<string, { position?: string }>)[pid]
-            if (p?.position) positionByPlayerId[pid] = p.position
-          }
-          draftPicks = (raw ?? []).map((p: any, i: number) => ({
-            round: p.round ?? Math.floor(i / 12) + 1,
-            pickNo: p.pick_no ?? i + 1,
-            rosterId: p.roster_id ?? p.picked_by,
-            playerId: p.player_id ?? null,
-            position: p.player_id ? positionByPlayerId[p.player_id] ?? null : null,
-          }))
+      diag.draftFactCount = draftFacts.length
+      diag.rosterSnapshotCount = rosterSnapshots.length
+      diag.matchupFactCount = matchupFacts.length
+      diag.standingFactCount = standings.length
+
+      if (draftFacts.length === 0) {
+        diag.skippedReason = 'No DraftFact rows found for league/sport/season'
+        byLeagueDiagnostics.push(diag)
+        continue
+      }
+
+      const latestSnapshotByTeam = new Map<string, (typeof rosterSnapshots)[number]>()
+      for (const snap of rosterSnapshots) {
+        if (!latestSnapshotByTeam.has(snap.teamId)) {
+          latestSnapshotByTeam.set(snap.teamId, snap)
         }
-      } catch (e) {
-        errors.push(`Draft fetch ${league.id}: ${(e as Error).message}`)
       }
 
-      const rosterIds = new Set<number>()
-      for (const sr of seasonResults) {
-        const rid = parseInt(sr.rosterId, 10)
-        if (!isNaN(rid)) rosterIds.add(rid)
+      const rosterIdsFromDraft = new Set<string>()
+      for (const d of draftFacts) {
+        if (d.managerId) rosterIdsFromDraft.add(d.managerId)
       }
 
-      for (const sr of seasonResults) {
-        const rosterId = parseInt(sr.rosterId, 10)
-        if (isNaN(rosterId)) continue
+      const allPlayerIds = new Set<string>()
+      for (const d of draftFacts) allPlayerIds.add(d.playerId)
+      for (const snap of latestSnapshotByTeam.values()) {
+        for (const id of extractPlayerIdsFromJson(snap.rosterPlayers)) allPlayerIds.add(id)
+        for (const id of extractPlayerIdsFromJson(snap.lineupPlayers)) allPlayerIds.add(id)
+        for (const id of extractPlayerIdsFromJson(snap.benchPlayers)) allPlayerIds.add(id)
+      }
+
+      const players = await prisma.player.findMany({
+        where: { id: { in: [...allPlayerIds] }, sport },
+        select: { id: true, position: true, team: true, age: true },
+      })
+      const playerMap = new Map(players.map((p) => [p.id, p]))
+      const positionByPlayerId: Record<string, string> = {}
+      for (const p of players) {
+        if (p.position) positionByPlayerId[p.id] = p.position
+      }
+
+      for (const rosterId of rosterIdsFromDraft) {
+        diag.teamsAnalyzed += 1
+        totalTeamsAnalyzed += 1
+
         const picksForRoster = buildDraftPicksForRoster(
-          draftPicks as any[],
+          draftFacts.map((d) => ({
+            round: d.round,
+            pickNumber: d.pickNumber,
+            managerId: d.managerId,
+            playerId: d.playerId,
+            team: playerMap.get(d.playerId)?.team ?? null,
+            position: playerMap.get(d.playerId)?.position ?? null,
+          })),
           rosterId,
           positionByPlayerId
         )
+        if (picksForRoster.length === 0) continue
+
+        const latestSnapshot = latestSnapshotByTeam.get(rosterId)
+        const rosterPlayerIds = latestSnapshot
+          ? [...new Set([
+              ...extractPlayerIdsFromJson(latestSnapshot.rosterPlayers),
+              ...extractPlayerIdsFromJson(latestSnapshot.lineupPlayers),
+              ...extractPlayerIdsFromJson(latestSnapshot.benchPlayers),
+            ])]
+          : picksForRoster.map((p) => p.playerId).filter((id): id is string => Boolean(id))
+
+        const rosterPlayers = rosterPlayerIds
+          .map((id) => playerMap.get(id))
+          .filter((p): p is NonNullable<typeof p> => Boolean(p))
+
         const rosterPositions = getPositionCountsFromRoster(
-          picksForRoster
-            .filter((p) => p.position)
-            .map((p) => ({ position: p.position! }))
+          rosterPlayers.map((p) => ({ position: p.position ?? undefined }))
         )
+
+        const rookieCount = rosterPlayers.filter((p) => p.age != null && p.age <= 24).length
+        const veteranCount = rosterPlayers.filter((p) => p.age != null && p.age >= 28).length
+
+        const teamCounts = new Map<string, { qb: number; wrte: number; total: number; players: string[] }>()
+        for (const p of picksForRoster) {
+          if (!p.team || !p.position || !p.playerId) continue
+          const key = p.team
+          const cur = teamCounts.get(key) ?? { qb: 0, wrte: 0, total: 0, players: [] }
+          const pos = p.position.toUpperCase()
+          if (pos === 'QB') cur.qb += 1
+          if (pos === 'WR' || pos === 'TE') cur.wrte += 1
+          cur.total += 1
+          cur.players.push(p.playerId)
+          teamCounts.set(key, cur)
+        }
+        const stacks = [...teamCounts.entries()]
+          .filter(([, c]) => c.total >= 2 && (sport === 'NFL' || sport === 'NCAAF' ? c.qb >= 1 && c.wrte >= 1 : true))
+          .map(([team, c]) => ({ type: `${team} stack`, players: c.players.slice(0, 4) }))
+
+        let wins = 0
+        let losses = 0
+        let pointsFor = 0
+        for (const m of matchupFacts) {
+          if (m.teamA === rosterId) {
+            pointsFor += m.scoreA
+            if (m.scoreA > m.scoreB || m.winnerTeamId === rosterId) wins += 1
+            else if (m.scoreA < m.scoreB) losses += 1
+          } else if (m.teamB === rosterId) {
+            pointsFor += m.scoreB
+            if (m.scoreB > m.scoreA || m.winnerTeamId === rosterId) wins += 1
+            else if (m.scoreB < m.scoreA) losses += 1
+          }
+        }
+
+        const standing = standings.find((s) => s.teamId === rosterId)
+        if (wins + losses === 0 && standing) {
+          wins = standing.wins
+          losses = standing.losses
+          pointsFor = standing.pointsFor
+        }
+        const champion = standing?.rank === 1
+
         const detected = detectStrategies({
           sport,
           leagueFormat: format,
           draftPicks: picksForRoster,
           rosterPositions,
+          stacks,
+          rookieCount,
+          veteranCount,
         })
         if (detected.length === 0) continue
+
+        diag.teamsWithStrategies += 1
+        totalTeamsWithStrategies += 1
+        for (const d of detected) {
+          diag.strategyHits[d.strategyType] = (diag.strategyHits[d.strategyType] ?? 0) + 1
+          strategyHitsOverall.set(d.strategyType, (strategyHitsOverall.get(d.strategyType) ?? 0) + 1)
+        }
+
         outcomes.push({
           leagueId: league.id,
-          rosterId: sr.rosterId,
-          season: league.season ?? new Date().getFullYear(),
+          rosterId,
+          season,
           strategyTypes: detected.map((d) => d.strategyType),
           leagueFormat: format,
-          wins: sr.wins ?? 0,
-          losses: sr.losses ?? 0,
-          pointsFor: Number(sr.pointsFor ?? 0),
-          champion: sr.champion ?? false,
+          wins,
+          losses,
+          pointsFor,
+          champion,
+          playoffTeam: standing?.rank != null ? standing.rank <= 6 : undefined,
         })
       }
     } catch (e) {
       errors.push(`League ${league.id}: ${(e as Error).message}`)
+      diag.skippedReason = (e as Error).message
     }
+
+    byLeagueDiagnostics.push(diag)
   }
 
   if (outcomes.length === 0) {
-    return { reports: 0, errors }
+    return {
+      reports: 0,
+      errors,
+      diagnostics: opts.includeDiagnostics
+        ? {
+            totalLeagues: leagues.length,
+            processedLeagues,
+            totalTeamsAnalyzed,
+            totalTeamsWithStrategies,
+            strategyHits: Object.fromEntries(strategyHitsOverall.entries()),
+            byLeague: byLeagueDiagnostics,
+          }
+        : undefined,
+    }
   }
 
   const bySegment = new Map<string, TeamStrategyOutcome[]>()
@@ -161,7 +396,7 @@ export async function generateStrategyMetaReports(opts: {
   for (const [leagueFormat, segmentOutcomes] of bySegment) {
     const reports = computeStrategyMetaReport(segmentOutcomes, { sport, leagueFormat })
     for (const r of reports) {
-      await prisma.strategyMetaReport.upsert({
+      const previous = await prisma.strategyMetaReport.findUnique({
         where: {
           uniq_strategy_meta_report_type_sport_format: {
             strategyType: r.strategyType,
@@ -169,27 +404,60 @@ export async function generateStrategyMetaReports(opts: {
             leagueFormat: r.leagueFormat,
           },
         },
-        create: {
-          strategyType: r.strategyType,
-          sport: r.sport,
-          usageRate: r.usageRate,
-          successRate: r.successRate,
-          trendingDirection: r.trendingDirection,
-          leagueFormat: r.leagueFormat,
-          sampleSize: r.sampleSize,
-        },
-        update: {
-          usageRate: r.usageRate,
-          successRate: r.successRate,
-          trendingDirection: r.trendingDirection,
-          sampleSize: r.sampleSize,
+        select: {
+          usageRate: true,
+          successRate: true,
         },
       })
+      const trendingDirection = computeTrendingDirection(previous, {
+        usageRate: r.usageRate,
+        successRate: r.successRate,
+      })
+
+      if (!opts.dryRun) {
+        await prisma.strategyMetaReport.upsert({
+          where: {
+            uniq_strategy_meta_report_type_sport_format: {
+              strategyType: r.strategyType,
+              sport: r.sport,
+              leagueFormat: r.leagueFormat,
+            },
+          },
+          create: {
+            strategyType: r.strategyType,
+            sport: r.sport,
+            usageRate: r.usageRate,
+            successRate: r.successRate,
+            trendingDirection,
+            leagueFormat: r.leagueFormat,
+            sampleSize: r.sampleSize,
+          },
+          update: {
+            usageRate: r.usageRate,
+            successRate: r.successRate,
+            trendingDirection,
+            sampleSize: r.sampleSize,
+          },
+        })
+      }
       reportCount++
     }
   }
 
-  return { reports: reportCount, errors }
+  return {
+    reports: reportCount,
+    errors,
+    diagnostics: opts.includeDiagnostics
+      ? {
+          totalLeagues: leagues.length,
+          processedLeagues,
+          totalTeamsAnalyzed,
+          totalTeamsWithStrategies,
+          strategyHits: Object.fromEntries(strategyHitsOverall.entries()),
+          byLeague: byLeagueDiagnostics,
+        }
+      : undefined,
+  }
 }
 
 /**

@@ -6,7 +6,7 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { getPlayerPoolForLeague } from './SportPlayerPoolResolver'
-import { getTeamMetadataForSport } from './SportTeamMetadataRegistry'
+import { getTeamMetadataForSportDbAware } from './SportTeamMetadataRegistry'
 import type { TeamMetadata } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 
@@ -30,7 +30,7 @@ export async function getLeaguePlayerPoolContext(
   const sportType = leagueSportToSportType(leagueSport)
   const [players, teams] = await Promise.all([
     getPlayerPoolForLeague(leagueId, leagueSport, { limit: options?.playerLimit ?? 2000 }),
-    Promise.resolve(getTeamMetadataForSport(sportType)),
+    getTeamMetadataForSportDbAware(sportType),
   ])
   const samplePlayerIds = players.slice(0, 50).map((p) => p.player_id)
   return {

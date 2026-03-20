@@ -5,6 +5,7 @@
  */
 import type { SportType, TeamMetadata } from './types'
 import { getAllCanonicalTeams } from '@/lib/team-abbrev'
+import { prisma } from '@/lib/prisma'
 
 const ESPN_LOGO_BASE: Record<SportType, string> = {
   NFL: 'https://a.espncdn.com/i/teamlogos/nfl/500',
@@ -200,4 +201,60 @@ export function getPrimaryLogoUrlForTeam(
   if (team?.primary_logo_url) return team.primary_logo_url
   if (abbreviation?.trim()) return logoUrlForAbbrev(sport, abbreviation.trim())
   return null
+}
+
+/**
+ * Build a lookup map from team abbreviation to team_id for a sport.
+ * Useful when player rows have team abbreviation but missing team_id.
+ */
+export function getTeamIdByAbbreviationMap(sportType: SportType | string): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const team of getTeamMetadataForSport(sportType)) {
+    map.set(team.abbreviation.toUpperCase(), team.team_id)
+  }
+  return map
+}
+
+/**
+ * Get team metadata for a sport using DB SportsTeam when available; falls back to static registry.
+ */
+export async function getTeamMetadataForSportDbAware(
+  sportType: SportType | string,
+  options?: { limit?: number }
+): Promise<TeamMetadata[]> {
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const rows = await prisma.sportsTeam.findMany({
+    where: { sport },
+    orderBy: { fetchedAt: 'desc' },
+    take: options?.limit ?? 500,
+  })
+
+  if (rows.length === 0) {
+    return getTeamMetadataForSport(sport)
+  }
+
+  const deduped = new Map<string, TeamMetadata>()
+  for (const row of rows) {
+    const abbreviation = (row.shortName ?? row.externalId ?? row.name).trim().toUpperCase()
+    if (!abbreviation) continue
+    if (deduped.has(abbreviation)) continue
+    deduped.set(abbreviation, {
+      team_id: row.externalId || abbreviation,
+      sport_type: sport,
+      team_name: row.name,
+      city: row.city ?? '',
+      abbreviation,
+      conference: row.conference ?? null,
+      division: row.division ?? null,
+      primary_logo_url: row.logo ?? logoUrlForAbbrev(sport, abbreviation),
+      alternate_logo_url: null,
+      primary_color: row.primaryColor ?? null,
+    })
+  }
+
+  if (deduped.size === 0) {
+    return getTeamMetadataForSport(sport)
+  }
+
+  return [...deduped.values()]
 }
