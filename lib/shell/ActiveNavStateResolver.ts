@@ -11,7 +11,6 @@ export const SHELL_NAV_ITEMS: NavItem[] = [
   { href: "/profile", label: "Profile" },
   { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
   { href: "/tools-hub", label: "Tools" },
   { href: "/messages", label: "Messages" },
   { href: "/wallet", label: "Wallet" },
@@ -22,7 +21,6 @@ export const PRODUCT_SWITCHER_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Home" },
   { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
 ]
 
 /**

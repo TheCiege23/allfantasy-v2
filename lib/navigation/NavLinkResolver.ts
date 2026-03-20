@@ -14,7 +14,6 @@ export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
   { href: "/profile", label: "Profile" },
   { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
   { href: "/tools-hub", label: "Tools" },
   { href: "/messages", label: "Messages" },
   { href: "/wallet", label: "Wallet" },
@@ -26,7 +25,6 @@ export const PRODUCT_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
   { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
-  { href: "/af-legacy", label: "Legacy" },
 ]
 
 /** User menu dropdown items (profile area). */

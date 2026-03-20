@@ -67,7 +67,6 @@ function toCard(
     draftType?: string | null
     creatorLeagueType?: string | null
     isCreatorVerified?: boolean
-    leagueTier?: number | null
   },
   baseUrl: string
 ): DiscoveryCard {
@@ -110,7 +109,6 @@ function toCard(
     aiFeatures: [],
     creatorLeagueType: row.creatorLeagueType ?? null,
     isCreatorVerified: row.isCreatorVerified ?? false,
-    leagueTier: row.leagueTier ?? null,
   }
 }
 

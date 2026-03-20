@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import DesktopNavBar from "@/components/navigation/DesktopNavBar"
+import MobileBottomTabs from "@/components/navigation/MobileBottomTabs"
 import { MobileNavigationDrawer } from "./MobileNavigationDrawer"
 import { SearchOverlay } from "@/components/search/SearchOverlay"
 import { createCommandPaletteHandler } from "@/lib/search"
@@ -27,6 +28,7 @@ export function ResponsiveNavSystem({
 }: ResponsiveNavSystemProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [mobileTopNavHidden, setMobileTopNavHidden] = useState(false)
 
   useEffect(() => {
     const mql = window.matchMedia(`(min-width: ${LG_BREAKPOINT_PX}px)`)
@@ -43,22 +45,58 @@ export function ResponsiveNavSystem({
     return () => window.removeEventListener("keydown", handler)
   }, [])
 
+  useEffect(() => {
+    let lastY = window.scrollY
+    let ticking = false
+
+    const onScroll = () => {
+      if (window.innerWidth >= LG_BREAKPOINT_PX) {
+        if (mobileTopNavHidden) setMobileTopNavHidden(false)
+        return
+      }
+      if (mobileMenuOpen || searchOpen) {
+        if (mobileTopNavHidden) setMobileTopNavHidden(false)
+        lastY = window.scrollY
+        return
+      }
+      if (ticking) return
+      ticking = true
+      window.requestAnimationFrame(() => {
+        const currentY = window.scrollY
+        const delta = currentY - lastY
+        if (currentY <= 8 || delta < -6) {
+          setMobileTopNavHidden(false)
+        } else if (delta > 10) {
+          setMobileTopNavHidden(true)
+        }
+        lastY = currentY
+        ticking = false
+      })
+    }
+
+    window.addEventListener("scroll", onScroll, { passive: true })
+    return () => window.removeEventListener("scroll", onScroll)
+  }, [mobileMenuOpen, searchOpen, mobileTopNavHidden])
+
   return (
     <>
-      <DesktopNavBar
-        isAuthenticated={isAuthenticated}
-        isAdmin={isAdmin}
-        userLabel={userLabel}
-        onOpenMobileMenu={() => setMobileMenuOpen(true)}
-        onOpenSearch={() => setSearchOpen(true)}
-      />
+      <div className={mobileTopNavHidden ? "-translate-y-full transition-transform duration-200 lg:translate-y-0" : "translate-y-0 transition-transform duration-200"}>
+        <DesktopNavBar
+          isAuthenticated={isAuthenticated}
+          isAdmin={isAdmin}
+          userLabel={userLabel}
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onOpenSearch={() => setSearchOpen(true)}
+        />
+      </div>
       <MobileNavigationDrawer
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         isAdmin={isAdmin}
       />
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
-      {children}
+      <div className={isAuthenticated ? "pb-20 lg:pb-0" : undefined}>{children}</div>
+      {isAuthenticated ? <MobileBottomTabs /> : null}
     </>
   )
 }
