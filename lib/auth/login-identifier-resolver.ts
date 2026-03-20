@@ -9,8 +9,11 @@ function normalizePhone(input: string): string {
   return s.startsWith("+") ? s : "+1" + s
 }
 
-function looksLikePhone(input: string): boolean {
-  const digits = input.replace(/\D/g, "")
+export function isPhoneLoginCandidate(input: string): boolean {
+  const trimmed = input.trim()
+  // Avoid misclassifying usernames/emails that simply contain many digits.
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return false
+  const digits = trimmed.replace(/\D/g, "")
   return digits.length >= 10 && digits.length <= 15
 }
 
@@ -26,18 +29,10 @@ export async function resolveLoginToUser(login: string): Promise<{
   username: string
   avatarUrl: string | null
 } | null> {
-  // #region agent log
-  const _log = (msg: string, data: Record<string, unknown>, hypothesisId: string) => {
-    fetch('http://127.0.0.1:7282/ingest/0e682c6b-2c70-4f59-8e9a-ec784a2ad7bb', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'fff6ba' }, body: JSON.stringify({ sessionId: 'fff6ba', location: 'lib/auth/login-identifier-resolver.ts:resolveLoginToUser', message: msg, data, hypothesisId, timestamp: Date.now() }) }).catch(() => {});
-  };
-  // #endregion
   const trimmed = login.trim()
   if (!trimmed) return null
 
-  const isPhone = looksLikePhone(trimmed)
-  // #region agent log
-  _log('resolveLoginToUser start', { loginLen: trimmed.length, looksLikePhone: isPhone }, 'H2');
-  // #endregion
+  const isPhone = isPhoneLoginCandidate(trimmed)
   if (isPhone) {
     const phone = normalizePhone(trimmed)
     if (!/^\+\d{10,15}$/.test(phone)) return null
@@ -57,9 +52,6 @@ export async function resolveLoginToUser(login: string): Promise<{
         avatarUrl: true,
       },
     })
-    // #region agent log
-    _log('resolveLoginToUser phone path', { found: !!user }, 'H2');
-    // #endregion
     return user
   }
 
@@ -79,8 +71,5 @@ export async function resolveLoginToUser(login: string): Promise<{
       avatarUrl: true,
     },
   })
-  // #region agent log
-  _log('resolveLoginToUser email/username path', { found: !!user }, 'H2');
-  // #endregion
   return user
 }

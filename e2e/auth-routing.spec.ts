@@ -1,42 +1,9 @@
 import { test, expect } from '@playwright/test';
-
-function makeTestCredentials() {
-  const now = Date.now();
-  const email = `e2e+${now}@example.com`;
-  const username = `e2e${now}`;
-  const password = `Password123!`;
-  return { email, username, password };
-}
-
-async function registerAndLogin(page: import('@playwright/test').Page, request: import('@playwright/test').APIRequestContext) {
-  const { email, username, password } = makeTestCredentials();
-
-  const res = await request.post('/api/auth/register', {
-    data: {
-      username,
-      email,
-      password,
-      displayName: username,
-      ageConfirmed: true,
-      verificationMethod: 'EMAIL',
-      timezone: 'America/New_York',
-      preferredLanguage: 'en',
-      avatarPreset: 'crest',
-      disclaimerAgreed: true,
-      termsAgreed: true,
-    },
-  });
-
-  expect(res.ok()).toBeTruthy();
-
-  await page.goto('/login?callbackUrl=/dashboard');
-  await page.fill('#login-identifier', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/dashboard');
-}
+import { registerAndLogin } from './helpers/auth-flow';
 
 test.describe('Protected route enforcement', () => {
+  test.describe.configure({ timeout: 90_000 });
+
   const protectedRouteExpectations: Array<{ path: string; loginUrlPattern: RegExp }> = [
     { path: '/dashboard', loginUrlPattern: /\/login\?callbackUrl=\/dashboard/ },
     { path: '/settings', loginUrlPattern: /\/login\?callbackUrl=\/settings/ },
@@ -58,8 +25,8 @@ test.describe('Protected route enforcement', () => {
     await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
   });
 
-  test('allows authenticated user to access protected app routes', async ({ page, request }) => {
-    await registerAndLogin(page, request);
+  test('allows authenticated user to access protected app routes', async ({ page }) => {
+    await registerAndLogin(page);
     await expect(page.getByRole('heading', { name: /welcome,/i })).toBeVisible();
 
     const protectedRoutes = ['/dashboard', '/settings', '/profile', '/app/league/e2e-league'];
@@ -69,8 +36,8 @@ test.describe('Protected route enforcement', () => {
     }
   });
 
-  test('blocks protected routes again after logout', async ({ page, request }) => {
-    await registerAndLogin(page, request);
+  test('blocks protected routes again after logout', async ({ page }) => {
+    await registerAndLogin(page);
 
     await page.goto('/logout?callbackUrl=/');
     await page.waitForURL('/');

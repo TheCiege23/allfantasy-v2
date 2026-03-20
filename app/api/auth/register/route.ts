@@ -56,10 +56,16 @@ function isDatabaseUnavailableError(err: unknown): boolean {
 
 export async function POST(req: Request) {
   try {
+    const isE2ERequest =
+      process.env.NODE_ENV !== "production" &&
+      req.headers.get("x-allfantasy-e2e") === "1"
+
     const ip = getClientIp(req)
-    const rl = rateLimit(`signup:${ip}`, 5, 600_000)
-    if (!rl.success) {
-      return NextResponse.json({ error: "Too many signup attempts. Please wait a few minutes." }, { status: 429 })
+    if (!isE2ERequest) {
+      const rl = rateLimit(`signup:${ip}`, 5, 600_000)
+      if (!rl.success) {
+        return NextResponse.json({ error: "Too many signup attempts. Please wait a few minutes." }, { status: 429 })
+      }
     }
 
     const body = await req.json()
@@ -154,7 +160,7 @@ export async function POST(req: Request) {
     const now = new Date()
 
     let sleeperData: { sleeperUsername?: string; sleeperUserId?: string; sleeperLinkedAt?: Date } = {}
-    if (sleeperUsername) {
+    if (!isE2ERequest && sleeperUsername) {
       try {
         const sleeperRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername.trim())}`)
         if (sleeperRes.ok) {
@@ -222,34 +228,36 @@ export async function POST(req: Request) {
     })
 
     // Growth attribution is best-effort and should not block account creation.
-    try {
-      let growthAttributionRecorded = false
-      if (referralCode) {
-        const attribution = await attributeSignup(user.id, referralCode)
-        if (attribution?.referrerId) {
-          await grantRewardForSignup(attribution.referrerId)
-          await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
-          growthAttributionRecorded = true
-        }
-      }
-      if (!growthAttributionRecorded) {
-        const leagueInviteCode = cookieStore.get("af_league_invite")?.value?.trim()
-        if (leagueInviteCode) {
-          const joinResult = await validateLeagueJoin(leagueInviteCode).catch(() => ({ valid: false as const }))
-          if (joinResult.valid) {
-            await recordAttribution(user.id, "league_invite", {
-              sourceId: joinResult.leagueId,
-              metadata: { inviteCode: leagueInviteCode },
-            })
+    if (!isE2ERequest) {
+      try {
+        let growthAttributionRecorded = false
+        if (referralCode) {
+          const attribution = await attributeSignup(user.id, referralCode)
+          if (attribution?.referrerId) {
+            await grantRewardForSignup(attribution.referrerId)
+            await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
             growthAttributionRecorded = true
           }
         }
+        if (!growthAttributionRecorded) {
+          const leagueInviteCode = cookieStore.get("af_league_invite")?.value?.trim()
+          if (leagueInviteCode) {
+            const joinResult = await validateLeagueJoin(leagueInviteCode).catch(() => ({ valid: false as const }))
+            if (joinResult.valid) {
+              await recordAttribution(user.id, "league_invite", {
+                sourceId: joinResult.leagueId,
+                metadata: { inviteCode: leagueInviteCode },
+              })
+              growthAttributionRecorded = true
+            }
+          }
+        }
+        if (!growthAttributionRecorded) {
+          await recordAttribution(user.id, "organic", {})
+        }
+      } catch (growthErr) {
+        console.warn("[register] Growth attribution failed (non-blocking):", growthErr)
       }
-      if (!growthAttributionRecorded) {
-        await recordAttribution(user.id, "organic", {})
-      }
-    } catch (growthErr) {
-      console.warn("[register] Growth attribution failed (non-blocking):", growthErr)
     }
 
     if (method === "PHONE") {
@@ -262,27 +270,28 @@ export async function POST(req: Request) {
     }
 
     let emailVerificationPrepared = false
-    try {
-      const rawToken = makeToken(32)
-      const tokenHash = sha256Hex(rawToken)
-      const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
+    if (!isE2ERequest) {
+      try {
+        const rawToken = makeToken(32)
+        const tokenHash = sha256Hex(rawToken)
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
 
-      await (prisma as any).emailVerifyToken.create({
-        data: { userId: user.id, tokenHash, expiresAt },
-      })
+        await (prisma as any).emailVerifyToken.create({
+          data: { userId: user.id, tokenHash, expiresAt },
+        })
 
-      const { getResendClient } = await import("@/lib/resend-client")
-      const { client, fromEmail } = await getResendClient()
+        const { getResendClient } = await import("@/lib/resend-client")
+        const { client, fromEmail } = await getResendClient()
 
-      const { getBaseUrl } = await import("@/lib/get-base-url")
-      const baseUrl = getBaseUrl()
-      const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}`
+        const { getBaseUrl } = await import("@/lib/get-base-url")
+        const baseUrl = getBaseUrl()
+        const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}`
 
-      await client.emails.send({
-        from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
-        to: email,
-        subject: "Verify your AllFantasy.ai email",
-        html: `
+        await client.emails.send({
+          from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+          to: email,
+          subject: "Verify your AllFantasy.ai email",
+          html: `
 <!DOCTYPE html>
 <html>
 <head>
@@ -310,10 +319,11 @@ export async function POST(req: Request) {
   </div>
 </body>
 </html>`,
-      })
-      emailVerificationPrepared = true
-    } catch (emailErr) {
-      console.error("[register] Failed to create/send verification email (non-blocking):", emailErr)
+        })
+        emailVerificationPrepared = true
+      } catch (emailErr) {
+        console.error("[register] Failed to create/send verification email (non-blocking):", emailErr)
+      }
     }
 
     return NextResponse.json({
@@ -336,7 +346,7 @@ export async function POST(req: Request) {
           error: "Database temporarily unavailable. Please try again in a minute.",
           code: "DB_UNAVAILABLE",
         },
-        { status: 503 }
+        { status: 503, headers: { "Retry-After": "1" } }
       )
     }
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

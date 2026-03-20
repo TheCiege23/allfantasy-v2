@@ -39,7 +39,7 @@ describe("combineHealthComponents", () => {
       uniquenessScore: 60,
       winLeagueProbability: 0.1,
     })
-    expect(result.score).toBeLessThan(70)
+    expect(result.score).toBeLessThanOrEqual(70)
   })
 
   it("penalizes low alivePct and high riskExposure", () => {

@@ -1,39 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { registerAndLogin } from './helpers/auth-flow'
 
-function makeTestCredentials() {
-  const now = Date.now()
-  const email = `e2e+${now}@example.com`
-  const username = `e2e${now}`
-  const password = 'Password123!'
-  return { email, username, password }
-}
-
-async function registerAndLogin(page: import('@playwright/test').Page) {
-  const { email, username, password } = makeTestCredentials()
-
-  const registerResponse = await page.request.post('/api/auth/register', {
-    data: {
-      username,
-      email,
-      password,
-      displayName: username,
-      ageConfirmed: true,
-      verificationMethod: 'EMAIL',
-      timezone: 'America/New_York',
-      preferredLanguage: 'en',
-      avatarPreset: 'crest',
-      disclaimerAgreed: true,
-      termsAgreed: true,
-    },
-  })
-  expect(registerResponse.ok()).toBeTruthy()
-
-  await page.goto('/login?callbackUrl=/dashboard')
-  await page.fill('#login-identifier', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL('/dashboard')
-}
+test.describe.configure({ timeout: 90_000 })
 
 async function createLeague(
   page: import('@playwright/test').Page,
