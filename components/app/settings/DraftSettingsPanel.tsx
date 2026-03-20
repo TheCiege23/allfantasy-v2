@@ -59,6 +59,36 @@ const TIMER_MODE_OPTIONS: { value: TimerMode; label: string }[] = [
   { value: 'none', label: 'None' },
 ]
 
+const AUTOPICK_BEHAVIOR_OPTIONS = [
+  { value: 'queue-first', label: 'Queue first' },
+  { value: 'bpa', label: 'Best player available' },
+  { value: 'need-based', label: 'Need based' },
+  { value: 'skip', label: 'Skip pick' },
+] as const
+
+const PRE_DRAFT_RANKING_SOURCE_OPTIONS = [
+  { value: 'adp', label: 'ADP' },
+  { value: 'ecr', label: 'ECR' },
+  { value: 'projections', label: 'Projections' },
+  { value: 'tiers', label: 'Tiers' },
+  { value: 'custom', label: 'Custom' },
+  { value: 'sport_default', label: 'Sport default' },
+] as const
+
+const ROSTER_FILL_ORDER_OPTIONS = [
+  { value: 'starter_first', label: 'Starter first' },
+  { value: 'need_based', label: 'Need based' },
+  { value: 'bpa', label: 'Best player available' },
+  { value: 'position_scarcity', label: 'Position scarcity' },
+] as const
+
+const POSITION_FILTER_BEHAVIOR_OPTIONS = [
+  { value: 'all', label: 'All players' },
+  { value: 'by_slot', label: 'By slot' },
+  { value: 'by_need', label: 'By need' },
+  { value: 'by_eligibility', label: 'By eligibility' },
+] as const
+
 export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const [data, setData] = useState<DraftSettingsResponse | null>(null)
   const [loading, setLoading] = useState(!!leagueId)
@@ -298,8 +328,85 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
             </div>
             )}
             <div><dt className="text-white/50">Autopick</dt><dd className="text-white/90">{effectiveConfig.autopick_behavior ?? '—'}</dd></div>
-            <div><dt className="text-white/50">Queue size limit</dt><dd className="text-white/90">{effectiveConfig.queue_size_limit ?? '—'}</dd></div>
-            <div><dt className="text-white/50">Ranking source</dt><dd className="text-white/90">{effectiveConfig.pre_draft_ranking_source ?? '—'}</dd></div>
+            <div>
+              <dt className="text-white/50">Autopick</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={effectiveConfig.autopick_behavior ?? 'queue-first'}
+                    onChange={(e) => setConfigField('autopick_behavior', e.target.value)}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    {AUTOPICK_BEHAVIOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : (effectiveConfig.autopick_behavior ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Queue size limit</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={effectiveConfig.queue_size_limit ?? 50}
+                    onChange={(e) => setConfigField('queue_size_limit', parseInt(e.target.value, 10) || 50)}
+                    className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  />
+                ) : (effectiveConfig.queue_size_limit ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Ranking source</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={effectiveConfig.pre_draft_ranking_source ?? 'adp'}
+                    onChange={(e) => setConfigField('pre_draft_ranking_source', e.target.value)}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    {PRE_DRAFT_RANKING_SOURCE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : (effectiveConfig.pre_draft_ranking_source ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Roster fill order</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={effectiveConfig.roster_fill_order ?? 'starter_first'}
+                    onChange={(e) => setConfigField('roster_fill_order', e.target.value)}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    {ROSTER_FILL_ORDER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : (effectiveConfig.roster_fill_order ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Position filter behavior</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={effectiveConfig.position_filter_behavior ?? 'by_eligibility'}
+                    onChange={(e) => setConfigField('position_filter_behavior', e.target.value)}
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    {POSITION_FILTER_BEHAVIOR_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                ) : (effectiveConfig.position_filter_behavior ?? '—')}
+              </dd>
+            </div>
           </dl>
 
           <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70 mt-4">Draft order mode</h4>

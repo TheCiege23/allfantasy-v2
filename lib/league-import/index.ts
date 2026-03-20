@@ -10,6 +10,8 @@ export type { ImportedLeagueNormalizationResult, ImportedLeagueNormalizationErro
 export { buildImportedLeaguePreview } from './ImportedLeaguePreviewBuilder'
 export type { ImportPreviewResponse, ImportPreviewLeague, ImportPreviewManager, ImportPreviewDataQuality } from './ImportedLeaguePreviewBuilder'
 export { fetchSleeperLeagueForImport } from './sleeper/SleeperLeagueFetchService'
+export { getSleeperImportPreview } from './sleeper/SleeperImportPreviewService'
+export { fetchFantraxLeagueForImport } from './fantrax/FantraxLeagueFetchService'
 export { fetchImportPreview, submitImportCreation } from './LeagueCreationImportSubmissionService'
 export type { FetchPreviewResult, SubmitImportResult } from './LeagueCreationImportSubmissionService'
 export { IMPORT_PROVIDER_UI_OPTIONS, getImportProviderLabel, isImportProviderAvailable } from './provider-ui-config'

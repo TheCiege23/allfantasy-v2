@@ -9,6 +9,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import type { QueueEntry } from '@/lib/live-draft-engine/types'
+import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,11 @@ export async function PUT(
     return NextResponse.json({ error: 'No draft session' }, { status: 404 })
   }
 
-  const normalized = queue.slice(0, 50).map((e: any) => ({
+  const { getDraftConfigForLeague } = await import('@/lib/draft-defaults/DraftRoomConfigResolver')
+  const draftConfig = await getDraftConfigForLeague(leagueId)
+  const queueSizeLimit = normalizeDraftQueueSizeLimit(draftConfig?.queue_size_limit)
+
+  const normalized = trimDraftQueue(queue, queueSizeLimit).map((e: any) => ({
     playerName: e.playerName ?? e.player_name ?? '',
     position: e.position ?? '',
     team: e.team ?? null,

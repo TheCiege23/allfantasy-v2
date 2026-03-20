@@ -19,11 +19,29 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function computeBackoffMs(attempt: number): number {
+  const base = Math.min(1000 * 2 ** (attempt - 1), 20_000)
+  const jitter = Math.floor(Math.random() * 300)
+  return base + jitter
+}
+
+function parseRetryAfterMs(value: string | undefined): number | null {
+  if (!value) return null
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.floor(seconds * 1000)
+  }
+  const targetMs = Date.parse(value)
+  if (Number.isNaN(targetMs)) return null
+  const delta = targetMs - Date.now()
+  return delta > 0 ? delta : null
+}
+
 async function registerWithRetry(
   page: Page,
   credentials: TestCredentials
 ): Promise<void> {
-  const maxAttempts = 3
+  const maxAttempts = 12
   let lastStatus = 0
   let lastBody = ""
   let lastError = ""
@@ -53,7 +71,7 @@ async function registerWithRetry(
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)
       if (attempt < maxAttempts) {
-        await delay(300 * attempt)
+        await delay(computeBackoffMs(attempt))
         continue
       }
       break
@@ -66,16 +84,27 @@ async function registerWithRetry(
       return
     }
 
+    let errorCode: string | undefined
+    try {
+      const parsed = JSON.parse(lastBody) as { code?: string }
+      errorCode = parsed?.code
+    } catch {}
+
     const isDbUnavailable =
       lastStatus === 503 &&
-      (lastBody.includes('"code":"DB_UNAVAILABLE"') ||
+      (errorCode === "DB_UNAVAILABLE" ||
+        lastBody.includes('"code":"DB_UNAVAILABLE"') ||
         lastBody.toLowerCase().includes("database temporarily unavailable"))
 
     if (!isDbUnavailable || attempt === maxAttempts) {
       break
     }
 
-    await delay(300 * attempt)
+    const retryAfterMs = parseRetryAfterMs(response.headers()["retry-after"])
+    const retryDelayMs = retryAfterMs != null
+      ? Math.min(retryAfterMs, 20_000)
+      : computeBackoffMs(attempt)
+    await delay(retryDelayMs)
   }
 
   if (lastError) {
@@ -86,19 +115,39 @@ async function registerWithRetry(
 }
 
 async function loginWithRetry(page: Page, credentials: TestCredentials): Promise<void> {
-  const maxAttempts = 3
+  const maxAttempts = 8
   let lastError = ""
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const csrfResponse = await page.request.get("/api/auth/csrf", { timeout: 10_000 })
-      const csrfPayload = (await csrfResponse.json()) as { csrfToken?: string }
+      const csrfResponse = await page.request.get("/api/auth/csrf", { timeout: 15_000 })
+      const csrfText = await csrfResponse.text()
+      if (!csrfResponse.ok()) {
+        lastError = `csrf status=${csrfResponse.status()} body=${csrfText}`
+        if (attempt < maxAttempts) {
+          await delay(computeBackoffMs(attempt))
+          continue
+        }
+        break
+      }
+
+      let csrfPayload: { csrfToken?: string } = {}
+      try {
+        csrfPayload = JSON.parse(csrfText) as { csrfToken?: string }
+      } catch {
+        lastError = `Invalid csrf response body: ${csrfText.slice(0, 120)}`
+        if (attempt < maxAttempts) {
+          await delay(computeBackoffMs(attempt))
+          continue
+        }
+        break
+      }
       const csrfToken = csrfPayload?.csrfToken
 
       if (!csrfToken) {
         lastError = `Missing csrfToken (status ${csrfResponse.status()})`
         if (attempt < maxAttempts) {
-          await delay(250 * attempt)
+          await delay(computeBackoffMs(attempt))
           continue
         }
         break
@@ -124,7 +173,7 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
       if (!signInResponse.ok() || maybeErrorUrl) {
         lastError = `signIn status=${signInResponse.status()} body=${signInText}`
         if (attempt < maxAttempts) {
-          await delay(250 * attempt)
+          await delay(computeBackoffMs(attempt))
           continue
         }
         break
@@ -132,7 +181,7 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)
       if (attempt < maxAttempts) {
-        await delay(250 * attempt)
+        await delay(computeBackoffMs(attempt))
         continue
       }
       break
@@ -145,7 +194,7 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)
       if (attempt < maxAttempts) {
-        await delay(250 * attempt)
+        await delay(computeBackoffMs(attempt))
       }
     }
   }

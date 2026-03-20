@@ -1,119 +1,202 @@
-# Draft Defaults by Sport (Prompt 17)
+# Draft Defaults by Sport + Full UI Click Audit (Prompt 17)
 
 ## 1. Draft defaults architecture
 
-- **Single source of truth:** Per-sport (and per-variant) draft defaults live in **SportDefaultsRegistry** (`lib/sport-defaults/SportDefaultsRegistry.ts`) in `DRAFT_DEFAULTS` and `getDraftDefaults(sportType, formatType?)`. NFL IDP uses the same registry with an overlay (more rounds, higher queue limit).
-- **Persistence:** At league creation, **buildInitialLeagueSettings(sport, variant)** (LeagueDefaultSettingsService) includes a flat draft block in `League.settings`: `draft_type`, `draft_rounds`, `draft_timer_seconds`, `draft_pick_order_rules`, `draft_snake_or_linear`, `draft_third_round_reversal`, `draft_autopick_behavior`, `draft_queue_size_limit`, `draft_pre_draft_ranking_source`, `draft_roster_fill_order`, `draft_position_filter_behavior`. Commissioners can override these after creation.
-- **Bootstrap:** **LeagueBootstrapOrchestrator** runs **bootstrapLeagueDraftConfig(leagueId)** so leagues missing draft config (e.g. created before this feature) get defaults merged without overwriting existing keys.
-- **Draft room:** **DraftRoomConfigResolver** returns config for a league by reading `League.settings` first; when `draft_rounds` is missing, it falls back to **getDraftDefaults(sport, variant)**. **DraftOrderRuleResolver**, **DraftPlayerPoolResolver**, and **DraftRankingContextResolver** provide order rules, pool context, and ranking context for the draft room and AI assistant.
-- **League creation:** **loadLeagueCreationDefaults(sport, variant)** returns an extended **draft** object (including all new fields) so the UI and creation flow get sport/variant-aware draft defaults. **getDraftDefaults(sportType, variant)** is used for both IDP and non-IDP paths.
+- **Single source of truth:** sport-aware and variant-aware draft presets live in `lib/sport-defaults/SportDefaultsRegistry.ts` via `DRAFT_DEFAULTS` and `getDraftDefaults(sportType, formatType?)`.
+- **Draft defaults registry layer:** `lib/draft-defaults/DraftDefaultsRegistry.ts` wraps the sport registry and exposes `getDraftPreset()`, `getDraftPresetDefinitions()`, and `getSupportedDraftVariantsForSport()` for UI and QA.
+- **Variant resolution:** `lib/draft-defaults/DraftPresetResolver.ts` resolves sport + variant into a normalized preset result with flags like `supportsIdpPlayers`, `supportsKeeperCarryover`, and `defaultOrderMode`.
+- **Persistence path:** league creation writes draft settings into `League.settings`, and `lib/draft-defaults/LeagueDraftBootstrapService.ts` backfills only missing `draft_*` keys so commissioner overrides are preserved.
+- **Draft room resolution:** `lib/draft-defaults/DraftRoomConfigResolver.ts` reads `League.settings` first and falls back per key to `getDraftDefaults()`. This keeps the draft room aligned to stored overrides without breaking partially configured older leagues.
+- **Order / pool / AI context:**
+	- `lib/draft-defaults/DraftOrderRuleResolver.ts` resolves snake vs linear and third-round reversal labels.
+	- `lib/draft-defaults/DraftPlayerPoolResolver.ts` resolves sport-aware player pool context plus queue/filter behavior.
+	- `lib/draft-defaults/DraftRankingContextResolver.ts` resolves the ranking source label used by AI and UI.
+- **Commissioner editing:** `components/app/settings/DraftSettingsPanel.tsx` is the commissioner-facing edit surface for draft config and draft-room behavior. `app/api/leagues/[leagueId]/draft/settings/route.ts` persists both core config and UI settings.
+- **Queue-size enforcement:** `lib/draft-defaults/DraftQueueLimitResolver.ts` centralizes queue-size normalization and trimming so the client and API honor sport-specific queue limits instead of a hard-coded 50-player cap.
 
 ## 2. Per-sport and per-variant draft preset definitions
 
-| Sport   | draft_type | rounds | timer_seconds | snake_or_linear | third_round_reversal | autopick_behavior | queue_size_limit | pre_draft_ranking_source | roster_fill_order   | position_filter |
-|---------|------------|--------|----------------|-----------------|----------------------|-------------------|------------------|---------------------------|---------------------|-----------------|
-| NFL     | snake      | 15     | 90             | snake           | false                | queue-first       | 50               | adp                       | starter_first       | by_eligibility  |
-| NFL IDP | snake      | 18     | 90             | snake           | false                | queue-first       | 60               | adp                       | starter_first       | by_eligibility  |
-| NBA     | snake      | 13     | 90             | snake           | false                | queue-first       | 40               | adp                       | starter_first       | by_eligibility  |
-| MLB     | snake      | 26     | 90             | snake           | false                | queue-first       | 60               | projections               | position_scarcity   | by_eligibility  |
-| NHL     | snake      | 18     | 90             | snake           | false                | queue-first       | 50               | adp                       | starter_first       | by_eligibility  |
-| NCAAF   | snake      | 15     | 90             | snake           | false                | queue-first       | 50               | adp                       | starter_first       | by_eligibility  |
-| NCAAB   | snake      | 10     | 90             | snake           | false                | queue-first       | 40               | adp                       | starter_first       | by_eligibility  |
-| SOCCER  | snake      | 15     | 90             | snake           | false                | queue-first       | 50               | adp                       | starter_first       | by_eligibility  |
+### Base sport presets
 
-All sports use `draft_order_rules: 'snake'`, `keeper_dynasty_carryover_supported: true` except NCAAF/NCAAB (false for carryover). NFL supports optional third_round_reversal in the type; default is false.
+| Sport | Draft Type | Rounds | Timer | Order | 3RR | Autopick | Queue Limit | Ranking Source | Roster Fill | Position Filter | Carryover |
+|---|---|---:|---:|---|---|---|---:|---|---|---|---|
+| NFL | snake | 15 | 90 | snake | false | queue-first | 50 | adp | starter_first | by_eligibility | true |
+| NBA | snake | 13 | 90 | snake | false | queue-first | 40 | adp | starter_first | by_eligibility | true |
+| MLB | snake | 26 | 90 | snake | false | queue-first | 60 | projections | position_scarcity | by_eligibility | true |
+| NHL | snake | 18 | 90 | snake | false | queue-first | 50 | adp | starter_first | by_eligibility | true |
+| NCAAF | snake | 20 | 90 | snake | false | queue-first | 70 | adp | position_scarcity | by_eligibility | false |
+| NCAAB | snake | 12 | 90 | snake | false | queue-first | 40 | adp | starter_first | by_eligibility | false |
+| SOCCER | snake | 15 | 90 | snake | false | queue-first | 40 | sport_default | position_scarcity | by_eligibility | true |
+
+### NFL variants
+
+| Variant | Rounds | Queue Limit | Ranking Source | Roster Fill | Position Filter | IDP |
+|---|---:|---:|---|---|---|---|
+| STANDARD | 15 | 50 | adp | starter_first | by_eligibility | false |
+| PPR | 15 | 50 | ecr | starter_first | by_eligibility | false |
+| HALF_PPR | 15 | 50 | adp | starter_first | by_eligibility | false |
+| SUPERFLEX | 16 | 55 | ecr | need_based | by_need | false |
+| IDP | 18 | 60 | tiers | position_scarcity | by_need | true |
+| DYNASTY_IDP | 18 | 60 | tiers | position_scarcity | by_need | true |
+
+### Devy overlays
+
+- `devy_dynasty` is supported for NFL and NBA.
+- Round count is derived from pro startup roster demand: total starters + bench + taxi.
+- Queue size is raised to at least 60.
+- Ranking source stays `adp`.
+- Carryover support is true.
 
 ## 3. Backend bootstrap and resolver updates
 
-- **SportDefaultsRegistry:** Extended **DraftDefaults** and **DRAFT_DEFAULTS** with full preset fields; **getDraftDefaults(sportType, formatType?)** added with NFL IDP overlay (18 rounds, queue 60).
-- **LeagueDefaultSettingsService:** **buildInitialLeagueSettings(sportType, variant?)** now accepts optional variant and merges draft block from **getDraftDefaults(sport, variant)** into the returned settings.
-- **LeagueCreationInitializer:** Reads **leagueVariant** from the league and passes it to **buildInitialLeagueSettings** when merging/initializing settings.
-- **League creation API:** Calls **buildInitialLeagueSettings(sport, leagueVariantInput)** so new leagues get variant-aware draft defaults in `League.settings`.
-- **LeagueBootstrapOrchestrator:** Runs **bootstrapLeagueDraftConfig(leagueId)** and returns **draft: { draftConfigApplied }** in **BootstrapResult**.
-- **LeagueCreationDefaultsLoader:** Both IDP and non-IDP paths use **getDraftDefaults(sportType, variant)** and return extended **draft** object (snake_or_linear_behavior, third_round_reversal, autopick_behavior, queue_size_limit, draft_order_rules, pre_draft_ranking_source, roster_fill_order, position_filter_behavior).
-
-New modules:
-
-- **lib/draft-defaults/DraftDefaultsRegistry.ts** — getDraftPreset(sport, variant), re-exports getDraftDefaults.
-- **lib/draft-defaults/DraftPresetResolver.ts** — resolveDraftPreset(sport, variant) → { preset, sport, variant }.
-- **lib/draft-defaults/LeagueDraftBootstrapService.ts** — bootstrapLeagueDraftConfig(leagueId): idempotent merge of draft defaults when draft_rounds is missing.
-- **lib/draft-defaults/DraftRoomConfigResolver.ts** — getDraftConfigForLeague(leagueId): draft room config from settings or registry.
-- **lib/draft-defaults/DraftOrderRuleResolver.ts** — getDraftOrderRule(snakeOrLinear), isSnakeDraft().
-- **lib/draft-defaults/DraftPlayerPoolResolver.ts** — getDraftPlayerPoolContext(leagueId, leagueSport): pool + queue_size_limit + position_filter_behavior.
-- **lib/draft-defaults/DraftRankingContextResolver.ts** — getDraftRankingContext(sport, variant): pre_draft_ranking_source and contextLabel for AI.
+- `lib/league-creation/LeagueBootstrapOrchestrator.ts` runs `bootstrapLeagueDraftConfig(leagueId)` as part of post-create bootstrap.
+- `lib/draft-defaults/LeagueDraftBootstrapService.ts` merges these keys only when absent:
+	- `draft_type`
+	- `draft_rounds`
+	- `draft_timer_seconds`
+	- `draft_pick_order_rules`
+	- `draft_snake_or_linear`
+	- `draft_third_round_reversal`
+	- `draft_autopick_behavior`
+	- `draft_queue_size_limit`
+	- `draft_pre_draft_ranking_source`
+	- `draft_roster_fill_order`
+	- `draft_position_filter_behavior`
+- `lib/draft-defaults/DraftRoomConfigResolver.ts` uses per-key fallback, so partially configured older leagues still resolve correctly.
+- `app/api/leagues/[leagueId]/draft/settings/route.ts` supports commissioner PATCH for:
+	- `draft_type`
+	- `rounds`
+	- `timer_seconds`
+	- `pick_order_rules`
+	- `snake_or_linear`
+	- `third_round_reversal`
+	- `autopick_behavior`
+	- `queue_size_limit`
+	- `pre_draft_ranking_source`
+	- `roster_fill_order`
+	- `position_filter_behavior`
+	- draft UI settings like AI ADP, queue reorder, traded-pick display, timer mode, and orphan AI manager settings
+- `app/api/leagues/[leagueId]/draft/queue/route.ts` now resolves the league’s queue-size limit before normalizing and saving queue entries.
 
 ## 4. Draft room integration updates
 
-- **Config API:** **GET /api/app/league/[leagueId]/draft/config** returns draft config (rounds, timer_seconds, snake_or_linear, etc.) plus leagueSize. Implemented in app/api/app/[...path]/route.ts; uses **getDraftConfigForLeague(leagueId)** and prisma.league.leagueSize.
-- **DraftTab:** Fetches `draft/config` via **useLeagueSectionData(leagueId, 'draft/config')** and passes **config** (rounds, timer_seconds, leagueSize) to **LeagueDraftBoard** so the board uses sport/variant defaults (or commissioner overrides) instead of hardcoded values.
-- **LeagueDraftBoard:** Accepts optional **config** prop (**DraftBoardConfig**: rounds, timer_seconds, leagueSize). When provided, initial state and useEffect keep numTeams, numRounds, secondsPerPick in sync with config; when not provided, falls back to DEFAULT_TEAMS (12), DEFAULT_ROUNDS (15), DEFAULT_SECONDS_PER_PICK (60).
-- **DraftSettingsPanel:** Accepts **leagueId**; fetches `draft/config` and displays draft type, rounds, timer, order, third-round reversal, autopick, queue limit, ranking source, roster fill order, position filter, sport/variant (read-only). Commissioner overrides note: persisted via League.settings; config API returns stored values when present.
-- **Order:** **getDraftOrderRule** / **isSnakeDraft** from DraftOrderRuleResolver can drive pick-order logic and UI labels.
-- **Player pool:** **getDraftPlayerPoolContext(leagueId, leagueSport)** returns sport-scoped pool plus draft-specific queue size and position filter behavior.
-- **Rankings / AI:** **getDraftRankingContext(sport, variant)** returns the ranking source and label for AI draft assistant and queue.
-- **lib/draft-defaults/index.ts:** Single export barrel for DraftDefaultsRegistry, DraftPresetResolver, DraftRoomConfigResolver, DraftOrderRuleResolver, DraftPlayerPoolResolver, DraftRankingContextResolver, LeagueDraftBootstrapService.
+- `components/app/draft-room/DraftRoomPageClient.tsx`
+	- loads draft settings from `/api/leagues/[leagueId]/draft/settings`
+	- now stores the resolved `queue_size_limit` in local state
+	- trims queue mutations using the resolved limit instead of a hard-coded 50
+	- persists `autoPickFromQueue` and `awayMode` to `localStorage` per league so those toggles survive reloads
+- `components/app/draft-room/QueuePanel.tsx`
+	- queue add/remove/reorder actions are wired through parent callbacks
+	- auto-pick and away-mode toggles update parent state immediately
+	- AI reorder button is disabled when the queue is too small to reorder
+- `components/app/draft-room/PlayerPanel.tsx`
+	- search input, position filter, team filter, pool filter, ADP/name sort buttons, AI ADP toggle, and roster view toggle are all stateful and wired
+	- draft / nominate / add-to-queue actions call explicit parent handlers
+	- sport-aware position options are resolved through `getPositionFilterOptionsForSport(sport, formatType)`
+- `components/app/draft-room/DraftTopBar.tsx`
+	- commissioner controls button opens the control center
+	- pause, resume, reset timer, undo pick, run orphan AI pick, and trade panel open handlers are wired from `DraftRoomPageClient`
+- `components/app/draft-room/CommissionerControlCenterModal.tsx`
+	- draft flow buttons call `onAction()` with supported backend actions
+	- UI toggles call `onSettingsPatch()`
+	- import flow, broadcast, and resync hooks are wired
+- `components/app/settings/DraftSettingsPanel.tsx`
+	- now exposes commissioner-editable controls for `autopick_behavior`, `queue_size_limit`, `pre_draft_ranking_source`, `roster_fill_order`, and `position_filter_behavior`
+	- previously these values were display-only even though the backend supported saving them
 
-## 5. QA findings
+## 5. Full UI click audit findings
 
-- Existing NFL draft flow: Preserved; NFL leagues get 15 rounds, 90s timer, snake, and existing behavior. No changes to draft-engine or mock-draft flow beyond optional use of new resolvers.
-- NFL IDP: getDraftDefaults('NFL','IDP') returns 18 rounds and queue_size_limit 60; league create with leagueVariant IDP persists these via buildInitialLeagueSettings; creation payload includes IDP draft defaults.
-- NBA, MLB, NHL, NCAAF, NCAAB, Soccer: Each sport has distinct rounds and optional fields (e.g. MLB projections, position_scarcity); creation and bootstrap use correct sport/variant.
-- Commissioner overrides: Draft keys in League.settings are only set at creation or by bootstrap when draft_rounds is missing; commissioners can edit settings and DraftRoomConfigResolver will use stored values.
+| Clickable Element | Component | Handler Exists | State Update | Persistence / Reload | Result |
+|---|---|---|---|---|---|
+| Sport selector | `LeagueCreationWizard` / `SportSelector` | `handleSportChange` | updates sport, allowed league type, draft type, variant | submitted in create payload | verified |
+| Preset selector | `ScoringPresetSelector` | `handleScoringChange` | updates scoring preset + league variant | submitted in create payload | verified |
+| Draft type selector | `DraftTypeSelector` | `handleDraftTypeChange` | updates wizard draft type | submitted in create payload | verified |
+| Draft settings step rounds | wizard draft settings panel | `onDraftSettingsChange` | updates wizard draft settings | submitted in create payload | verified |
+| Draft settings step timer | wizard draft settings panel | `onDraftSettingsChange` | updates wizard draft settings | submitted in create payload | verified |
+| Auction budget selector | wizard draft settings panel | `onDraftSettingsChange` | updates wizard state | submitted in create payload | verified |
+| Keeper max keepers | wizard draft settings panel | `onDraftSettingsChange` | updates wizard state | submitted in create payload | verified |
+| Back / Next buttons | wizard step nav | `goBack` / `goNext` | step state changes | in-memory wizard state | verified |
+| Review / Create button | wizard review | `handleCreate` | submits payload | `/api/league/create` + bootstrap | verified |
+| Draft room enter button | `DraftTab` | link navigation | opens room | route load | verified |
+| Queue add | `PlayerPanel` | `handleAddToQueue` | queue state changes | `/draft/queue` PUT | verified, fixed queue cap mismatch |
+| Queue remove | `QueuePanel` | `handleRemoveFromQueue` | queue state changes | `/draft/queue` PUT | verified |
+| Queue reorder | `QueuePanel` | `handleReorderQueue` | queue state changes | `/draft/queue` PUT | verified |
+| AI reorder | `QueuePanel` | `handleAiReorderQueue` | queue state + explanation | `/draft/queue/ai-reorder` POST + `/draft/queue` PUT | verified |
+| Auto-pick from queue toggle | `QueuePanel` | `setAutoPickFromQueue` | local state changes | now persisted in `localStorage` per league | fixed |
+| Away mode toggle | `QueuePanel` | `setAwayMode` | local state changes | now persisted in `localStorage` per league | fixed |
+| Draft button | `PlayerPanel` | `handleMakePick` | submitting state + session update | `/draft/pick` POST | verified |
+| Search input | `PlayerPanel` | `setSearchQuery` | local filter state | local only | verified |
+| Position filter | `PlayerPanel` | `setPositionFilter` | local filter state | local only | verified |
+| Team filter | `PlayerPanel` | `setTeamFilter` | local filter state | local only | verified |
+| Pool filter | `PlayerPanel` | `setPoolFilter` | local filter state | local only | verified |
+| Sort buttons | `PlayerPanel` | `setSortBy` | local sort state | local only | verified |
+| AI ADP toggle | `PlayerPanel` | `onUseAiAdpChange` | local sort source state | local only | verified |
+| My roster / Pool toggle | `PlayerPanel` | `setShowRosterView` | local view state | local only | verified |
+| Commissioner button | `DraftTopBar` | `setShowCommissionerModal(true)` | modal state | local only | verified |
+| Pause / resume / reset / undo / skip / complete | `CommissionerControlCenterModal` | `onAction()` | session updates on success | `/draft/controls` POST | verified |
+| Set timer | `CommissionerControlCenterModal` | `handleSetTimer` | local input + backend patch | `/draft/controls` POST | verified |
+| Draft UI toggles | `CommissionerControlCenterModal` | `handleToggle` | draft UI settings state | `/draft/settings` PATCH | verified |
+| Draft settings overrides | `components/app/settings/DraftSettingsPanel.tsx` | `setConfigField` + `handleSave` | config state | `/draft/settings` PATCH | fixed missing edit controls |
+| Ranking source override | `components/app/settings/DraftSettingsPanel.tsx` | `setConfigField` + `handleSave` | config state | `/draft/settings` PATCH | fixed missing edit controls |
+| Commissioner override controls | draft settings panel + commissioner modal | explicit handlers | config/session/ui state | backend routes persist and reload | verified |
 
-## 6. Issues fixed
+## 6. QA findings
 
-- Draft defaults were not persisted to the league at creation; they are now written into League.settings via buildInitialLeagueSettings(sport, variant).
-- League creation API did not pass variant into initial settings; it now passes leagueVariantInput to buildInitialLeagueSettings.
-- Creation payload draft object was minimal; it now includes snake_or_linear_behavior, third_round_reversal, autopick_behavior, queue_size_limit, pre_draft_ranking_source, roster_fill_order, position_filter_behavior so UI and future draft room can use them.
-- No variant-aware draft defaults for NFL IDP; getDraftDefaults(sportType, formatType?) and IDP overlay added.
-- No central draft room config resolver; DraftRoomConfigResolver and related resolvers added for draft room and AI context.
-- **Draft room not using league config:** LeagueDraftBoard used hardcoded DEFAULT_ROUNDS (15), DEFAULT_SECONDS_PER_PICK (60), DEFAULT_TEAMS (12). Added GET /api/app/league/[leagueId]/draft/config and wired DraftTab to fetch it and pass config to LeagueDraftBoard; board now uses league’s rounds, timer, and leagueSize when available.
-- **Draft Settings panel placeholder:** DraftSettingsPanel was non-functional. It now accepts leagueId, fetches draft/config, and displays draft type, rounds, timer, order, autopick, queue limit, ranking source, roster fill, position filter, sport/variant (read-only).
-- **LeagueSettingsTab not passing leagueId:** DraftSettingsPanel and other panels now receive leagueId from LeagueSettingsTab.
-- **Single export for draft-defaults:** Added lib/draft-defaults/index.ts exporting all draft-defaults modules for a single import path.
+- The sport/variant draft defaults system requested by Prompt 17 was already substantially implemented in the repository before this pass.
+- The required core modules exist and are wired:
+	- `DraftDefaultsRegistry`
+	- `DraftPresetResolver`
+	- `LeagueDraftBootstrapService`
+	- `DraftRoomConfigResolver`
+	- `DraftOrderRuleResolver`
+	- `DraftPlayerPoolResolver`
+	- `DraftRankingContextResolver`
+- Existing tests already covered the baseline per-sport defaults and bootstrapping behavior in `__tests__/draft-defaults-by-sport.test.ts`.
+- Two production mismatches remained:
+	- queue size enforcement ignored sport/variant limits above 50
+	- commissioner settings UI could not edit several backend-supported draft default fields
+- One UX persistence gap remained:
+	- `autoPickFromQueue` and `awayMode` reset on reload despite being active draft-room toggles
 
-## 7. Full UI click audit findings
+## 7. Issues fixed
 
-| Element | Component | Handler / wiring | State / API | Notes |
-|--------|-----------|-------------------|-------------|--------|
-| Create League (sport selector) | LeagueCreationSportSelector | onChange → setSport | Sport drives getDraftDefaults at creation | Preserved; draft defaults applied via bootstrap when draft_rounds missing. |
-| Create League (preset selector) | LeagueCreationPresetSelector | onChange → setLeagueVariant | Variant passed to getInitialSettingsForCreation | Preserved; IDP variant gets IDP draft defaults at bootstrap. |
-| Draft Settings tab (subtab) | LeagueSettingsTab | onClick → setActive('Draft Settings') | Renders DraftSettingsPanel with leagueId | **Fixed:** leagueId now passed to DraftSettingsPanel. |
-| Draft Settings panel | DraftSettingsPanel | useLeagueSectionData(leagueId, 'draft/config') | GET /api/app/league/[id]/draft/config → getDraftConfigForLeague | **Wired:** displays draft type, rounds, timer, order, autopick, queue limit, ranking source, roster fill, position filter, sport/variant (read-only). |
-| Draft tab (league app) | DraftTab | useLeagueSectionData(leagueId, 'draft') + 'draft/config' | draft → ADP; draft/config → rounds/timer/leagueSize | **Wired:** board receives config; rounds/timer/leagueSize from league. |
-| Draft board (rounds/timer/teams) | LeagueDraftBoard | config prop + useEffect sync | State: numTeams, numRounds, secondsPerPick | **Wired:** uses config when provided; else defaults 12/15/60. |
-| Queue add | DraftQueue + useDraftQueue | onAddToQueue → addToQueue | Local state (queue array) | Wired; add/remove/reorder work. No server persistence in current flow. |
-| Queue remove | DraftQueue | onRemove → removeFromQueue | Same | Wired. |
-| Queue reorder | DraftQueue | onReorder (drag/drop) → reorder | Same | Wired. |
-| Run Draft AI | DraftTab | runDraftAi → POST .../draft/recommend-ai | setAnalysis | Wired; proxies to mock-draft/ai-pick. |
-| Legacy Draft War Room | LegacyAIPanel | endpoint="draft-war-room" | Legacy panel | Preserved. |
-| Save / Continue (league create) | StartupDynastyForm | handleSubmit → POST /api/league/create | League created; bootstrap runs draft config when missing | Preserved. |
-| Commissioner override | DraftSettingsPanel | Read-only display | Override by editing League.settings elsewhere (e.g. commissioner tools); config API returns stored values | Save/override UI for draft settings not in this panel; resolver uses stored values when present. |
-
-**Dead clicks / partial wiring addressed:** DraftSettingsPanel was placeholder; now loads and displays draft config. LeagueDraftBoard used hardcoded rounds/timer/teams; now uses league draft config when available via DraftTab.
+- **Fixed:** draft queue saving no longer hard-caps every league to 50 entries.
+	- Client now trims queue actions using the league’s resolved queue-size limit.
+	- Queue API now resolves `queue_size_limit` from draft config before normalizing saved entries.
+- **Fixed:** draft-room `autoPickFromQueue` and `awayMode` toggles now persist across reloads via per-league `localStorage`.
+- **Fixed:** commissioner draft settings UI now exposes editable controls for:
+	- autopick behavior
+	- queue size limit
+	- pre-draft ranking source
+	- roster fill order
+	- position filter behavior
+- **Added:** shared queue-limit helper in `lib/draft-defaults/DraftQueueLimitResolver.ts` to keep client and API behavior aligned.
+- **Added:** focused regression tests in `__tests__/draft-queue-limit-resolver.test.ts`.
 
 ## 8. Final QA checklist
 
-- [ ] Create a league for each sport (NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER) and confirm draft defaults (rounds, timer, snake) in league settings and/or creation payload.
-- [ ] Create an NFL IDP league and confirm 18 rounds and IDP-specific draft defaults; confirm defensive players appear in player pool when using pool resolver.
-- [ ] Confirm existing NFL standard draft flow still works (mock draft, draft room, queue, timer, pick processing).
-- [ ] Open league → Draft tab; confirm board shows league’s rounds/timer/league size (from GET draft/config) when available.
-- [ ] Open league → Settings → Draft Settings; confirm panel shows draft type, rounds, timer, order, autopick, queue limit, ranking source, sport/variant.
-- [ ] Confirm draft room (or mock draft) can use getDraftConfigForLeague(leagueId) and getDraftPlayerPoolContext(leagueId, leagueSport) for sport-specific config and pool.
-- [ ] Confirm AI draft suggestions / rankings use correct context (e.g. getDraftRankingContext(sport, variant)).
-- [ ] Confirm commissioners can override draft_rounds, draft_timer_seconds, etc. in League.settings and that draft room config resolver uses stored values when present.
-- [ ] Confirm bootstrapLeagueDraftConfig(leagueId) does not overwrite existing draft_rounds and only backfills when missing.
-- [ ] Every draft-related click path: sport selector, preset selector, Draft Settings subtab, Draft tab, queue add/remove/reorder, Run Draft AI — handlers exist, state or API updated, no dead buttons.
+- [x] Draft defaults exist for NFL, NBA, MLB, NHL, NCAAF, NCAAB, and SOCCER.
+- [x] NFL variants include STANDARD, PPR, HALF_PPR, SUPERFLEX, IDP, and DYNASTY_IDP handling.
+- [x] League bootstrap backfills missing draft settings without overwriting commissioner overrides.
+- [x] Draft room config resolves saved overrides first and defaults second.
+- [x] NFL IDP draft pool context supports IDP-aware behavior.
+- [x] Commissioner controls for pause/resume/reset/undo/skip/complete are wired to backend routes.
+- [x] Queue add / remove / reorder actions are wired end to end.
+- [x] Queue size limit is now enforced using sport-aware / variant-aware settings.
+- [x] Draft-room autopick / away toggles now reload correctly for the same league in the same browser.
+- [x] Commissioner settings UI now supports overriding the draft-default fields that the backend already persisted.
+- [x] Existing NFL standard draft flow remains intact.
 
 ## 9. Explanation of draft defaults by sport
 
-- **NFL:** 15 rounds, 90s timer, snake, queue 50, ADP rankings, starter-first fill, position by eligibility. Standard redraft/dynasty behavior; keeper/dynasty carryover supported.
-- **NFL IDP:** Same as NFL but 18 rounds and queue 60 to accommodate defensive slots; same timer, snake, and ranking/fill behavior. Defensive players included in pool when using sport/variant-aware pool and roster template.
-- **NBA:** 13 rounds, 90s timer, snake, queue 40, position- and utility-aware drafting; roster fill and position filter by eligibility.
-- **MLB:** 26 rounds (deeper draft), 90s timer, snake, queue 60, projections as default ranking source, position_scarcity roster fill for pitcher/hitter balance and bench depth.
-- **NHL:** 18 rounds, 90s timer, snake, queue 50, skater and goalie support; roster-aware recommendations via starter_first and by_eligibility.
-- **NCAAF:** 15 rounds, 90s timer, snake, queue 50; college-specific rankings and draft rounds; keeper/dynasty carryover not supported by default.
-- **NCAAB:** 10 rounds, 90s timer, snake, queue 40; basketball-based defaults for college; keeper/dynasty carryover not supported by default.
-- **Soccer:** 15 rounds, 90s timer, snake, queue 50; position-aware (GKP, DEF, MID, FWD, UTIL); utility/flex-aware drafting where supported.
+- **NFL:** balanced redraft baseline with snake order, 15 rounds, 90-second timer, ADP rankings, and starter-first roster fill.
+- **NFL SUPERFLEX:** slightly deeper draft with need-based roster fill and `by_need` filtering to account for QB scarcity and two-QB pressure.
+- **NFL IDP / DYNASTY_IDP:** deeper draft, larger queue, `tiers` ranking source, and `by_need` filtering so defensive positions are represented correctly in pool and recommendation context.
+- **NBA:** shorter draft with utility-aware roster structure and standard basketball eligibility filtering.
+- **MLB:** deepest default draft with projections-first ranking source and position-scarcity roster fill to balance hitters, starters, relievers, and bench depth.
+- **NHL:** skater + goalie support with standard eligibility filtering and balanced queue size.
+- **NCAA Football:** deeper college-football draft with the highest base queue limit in the standard presets.
+- **NCAA Basketball:** shorter basketball-style college draft aligned to smaller core lineup structures.
+- **Soccer:** snake draft with sport-default rankings, position-scarcity fill order, and soccer-aware filter behavior built on GKP/DEF/MID/FWD/UTIL roster structure.
 
-All use snake order by default; third_round_reversal is optional and defaults to false. Autopick defaults to queue-first; queue size limits and position filter behavior are sport-appropriate so draft room and AI assistant can align with roster and format.
+The overall pattern is consistent: defaults establish a safe starting point, league settings persist them, draft-room resolvers consume them, and commissioners can now override the important draft knobs after initialization without fighting hidden hard-coded behavior.

@@ -1,17 +1,17 @@
 import type { ImportProvider } from './types'
 import type { ILeagueImportAdapter } from './adapters/ILeagueImportAdapter'
 import { EspnAdapter } from './adapters/espn/EspnAdapter'
+import { FantraxAdapter } from './adapters/fantrax/FantraxAdapter'
 import { MflAdapter } from './adapters/mfl/MflAdapter'
-import { SleeperAdapter } from './adapters/sleeper/SleeperAdapter'
+import { SleeperLeagueImportAdapter } from './adapters/sleeper/SleeperLeagueImportAdapter'
 import { YahooAdapter } from './adapters/yahoo/YahooAdapter'
-import { FantraxStubAdapter } from './adapters/stubAdapter'
 import { IMPORT_PROVIDERS } from './types'
 
 const registry: Record<ImportProvider, ILeagueImportAdapter<unknown>> = {
-  sleeper: SleeperAdapter as ILeagueImportAdapter<unknown>,
+  sleeper: SleeperLeagueImportAdapter as ILeagueImportAdapter<unknown>,
   espn: EspnAdapter as ILeagueImportAdapter<unknown>,
   yahoo: YahooAdapter as ILeagueImportAdapter<unknown>,
-  fantrax: FantraxStubAdapter,
+  fantrax: FantraxAdapter as ILeagueImportAdapter<unknown>,
   mfl: MflAdapter as ILeagueImportAdapter<unknown>,
 }
 
@@ -26,5 +26,5 @@ export function getSupportedProviders(): readonly ImportProvider[] {
 }
 
 export function hasFullAdapter(provider: ImportProvider): boolean {
-  return provider === 'sleeper' || provider === 'yahoo' || provider === 'espn' || provider === 'mfl'
+  return provider === 'sleeper' || provider === 'yahoo' || provider === 'espn' || provider === 'mfl' || provider === 'fantrax'
 }

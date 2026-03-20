@@ -38,6 +38,7 @@ const KeeperPanel = dynamic(
 )
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
 import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
@@ -55,6 +56,7 @@ export type DraftRoomPageClientProps = {
 const POLL_MS = 8000
 const POLL_MS_BACKGROUND = 30000
 const AI_ADP_POLL_SKIP_MS = 30 * 60 * 1000
+const DRAFT_ROOM_LOCAL_PREFS_KEY_PREFIX = 'af:draft-room-prefs:'
 
 export function DraftRoomPageClient({
   leagueId,
@@ -72,6 +74,7 @@ export function DraftRoomPageClient({
   const [commissionerLoading, setCommissionerLoading] = useState(false)
   const [pickSubmitting, setPickSubmitting] = useState(false)
   const [draftUISettings, setDraftUISettings] = useState<DraftUISettings | null>(null)
+  const [draftQueueSizeLimit, setDraftQueueSizeLimit] = useState<number>(normalizeDraftQueueSizeLimit(null))
   const [leagueAiAdp, setLeagueAiAdp] = useState<{
     enabled: boolean
     entries: Array<{ playerName: string; position: string; team: string | null; adp: number; sampleSize: number; lowSample?: boolean }>
@@ -111,6 +114,8 @@ export function DraftRoomPageClient({
   const [auctionBidLoading, setAuctionBidLoading] = useState(false)
   const [auctionResolveLoading, setAuctionResolveLoading] = useState(false)
   const [autopickExpiredLoading, setAutopickExpiredLoading] = useState(false)
+
+  const localPrefsKey = `${DRAFT_ROOM_LOCAL_PREFS_KEY_PREFIX}${leagueId}`
 
   /** Draft room uses normalized pool from fetchDraftPool only; skip useLeagueSectionData to avoid duplicate /api/mock-draft/adp. */
   const draftData = null as { entries?: PlayerEntry[] } | null
@@ -234,13 +239,40 @@ export function DraftRoomPageClient({
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         if (data.draftUISettings) setDraftUISettings(data.draftUISettings)
+        setDraftQueueSizeLimit(normalizeDraftQueueSizeLimit(data?.config?.queue_size_limit))
         setIdpRosterSummary(data.idpRosterSummary ?? null)
       }
     } catch {
       setDraftUISettings(null)
+      setDraftQueueSizeLimit(normalizeDraftQueueSizeLimit(null))
       setIdpRosterSummary(null)
     }
   }, [leagueId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !leagueId) return
+    try {
+      const raw = window.localStorage.getItem(localPrefsKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { autoPickFromQueue?: boolean; awayMode?: boolean }
+      if (typeof parsed.autoPickFromQueue === 'boolean') setAutoPickFromQueue(parsed.autoPickFromQueue)
+      if (typeof parsed.awayMode === 'boolean') setAwayMode(parsed.awayMode)
+    } catch {
+      // Ignore malformed local preferences.
+    }
+  }, [leagueId, localPrefsKey])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !leagueId) return
+    try {
+      window.localStorage.setItem(
+        localPrefsKey,
+        JSON.stringify({ autoPickFromQueue, awayMode })
+      )
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [leagueId, localPrefsKey, autoPickFromQueue, awayMode])
 
   const fetchLeagueAiAdp = useCallback(async () => {
     if (!draftUISettings?.aiAdpEnabled) {
@@ -740,17 +772,18 @@ export function DraftRoomPageClient({
 
   const handleQueueSave = useCallback(
     async (newOrder: QueueEntry[]) => {
+      const limitedQueue = trimDraftQueue(newOrder, draftQueueSizeLimit)
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/queue`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queue: newOrder }),
+        body: JSON.stringify({ queue: limitedQueue }),
       })
       if (res.ok) {
         const data = await res.json().catch(() => ({}))
         if (Array.isArray(data.queue)) setQueue(data.queue)
       }
     },
-    [leagueId],
+    [leagueId, draftQueueSizeLimit],
   )
 
   const handleRemoveFromQueue = useCallback(
@@ -811,11 +844,11 @@ export function DraftRoomPageClient({
         position: player.position,
         team: player.team ?? null,
       }
-      const next = [...queue, entry].slice(0, 50)
+      const next = trimDraftQueue([...queue, entry], draftQueueSizeLimit)
       setQueue(next)
       handleQueueSave(next)
     },
-    [queue, handleQueueSave],
+    [queue, handleQueueSave, draftQueueSizeLimit],
   )
 
   const handleDraftFromQueue = useCallback(

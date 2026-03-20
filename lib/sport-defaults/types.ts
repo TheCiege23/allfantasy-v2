@@ -57,13 +57,13 @@ export interface DefaultPlayoffConfig {
   bracket_type: 'single_elimination' | 'double_elimination' | 'consolation'
   consolation_plays_for: 'pick' | 'none' | 'cash'
   /** Week (1-based) when playoffs start; e.g. 15 for NFL. */
-  playoff_start_week?: number
+  playoff_start_week?: number | null
   /** Seeding rules description; e.g. 'standard_standings', 'division_winners_first'. */
   seeding_rules?: string
   /** Playoff tiebreaker order (e.g. ['points_for', 'head_to_head']). */
   tiebreaker_rules?: string[]
   /** Bye rules description; first_round_byes is the numeric value. */
-  bye_rules?: string
+  bye_rules?: string | null
   /** Matchup length in schedule units (e.g. 1 = one week per matchup). */
   matchup_length?: number
   /** Total playoff rounds (e.g. 3 for 6-team bracket). */

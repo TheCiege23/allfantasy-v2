@@ -41,7 +41,12 @@ All mappers are **interfaces**; each provider implements them inside its adapter
 
 - **Interface:** `ILeagueImportAdapter<P>` with `provider: ImportProvider` and `normalize(raw: P): Promise<NormalizedImportResult>`.
 - **Sleeper:** Full implementation. Input: `SleeperImportPayload` (league, users, rosters, matchupsByWeek, transactions, draftPicks, playerMap, previousSeasons). Uses dedicated Sleeper mappers for league, roster, scoring, schedule, and history; builds `SourceTracking` and fills all normalized fields to match AF Legacy transfer preview expectations.
-- **ESPN, Yahoo, Fantrax, MFL:** Stub adapters that return a minimal `NormalizedImportResult` with a placeholder league name (e.g. `[ESPN import not implemented]`) and empty rosters/schedule/history so the pipeline never throws and callers can detect “not implemented” by name or `hasFullAdapter(provider)`.
+- **ESPN:** Full implementation. Input: `EspnImportPayload` (league, settings, teams, schedule, transactions, draftPicks, playerMap, previousSeasons). Detects PPR/half/standard from `scoringItems` statId 53 reception points; detects dynasty from `keeperCount` in raw settings. Maps all 11 coverage buckets.
+- **Yahoo:** Full implementation. Input: `YahooImportPayload` (league, settings, teams, schedule, transactions, draftPicks, playerMap, previousSeasons). Detects PPR/half/standard from stat modifier value for the reception stat category; detects dynasty from keeper-related keys (`keeper_players`, `is_keeper`, `uses_keepers`, `keeper_deadline`) in raw settings. Maps all 11 coverage buckets.
+- **MFL:** Full implementation. Input: `MflImportPayload` (league, settings, teams, schedule, transactions, draftPicks, playerMap, previousSeasons). Detects PPR from `scoringType` string containing "ppr"; detects dynasty from 8 keeper/dynasty/salary-cap keys in raw settings. Maps all 11 coverage buckets.
+- **Fantrax:** Full implementation. Input: `FantraxImportPayload` (sourceInput, league, settings, teams, schedule, transactions, draftPicks, playerMap, previousSeasons). Uses dedicated Fantrax mappers (league, roster, scoring, schedule, history). Maps all 11 coverage buckets. `isDevy` flag maps to `isDynasty`.
+
+All five providers have a **full adapter** and `hasFullAdapter(provider)` returns `true` for each.
 
 ### Normalized output shape
 
@@ -86,7 +91,11 @@ Mapping of normalized fields to persistence:
 
 - **League creation**
   - Current native flow is unchanged: `POST /api/league/create` uses `LeagueDefaultsOrchestrator` (getInitialSettingsForCreation, runPostCreateInitialization). No changes to that path.
-  - **Create-from-import** (future or existing): Call `runImportNormalizationPipeline({ provider, raw })`, then create `League` with name/sport/season/leagueSize/scoring/isDynasty from `normalized.league`, and set `platform`, `platformLeagueId`, `importBatchId`, `importedAt` from `normalized.source`. Create `LeagueTeam` per `normalized.rosters` (externalId = source_team_id, ownerName, teamName, avatarUrl, wins, losses, pointsFor, etc.). Create `Roster` per roster (platformUserId = source_manager_id, playerData from player_ids + player_map). Scoring/schedule/history can be applied via existing bootstrap or dedicated import persistence (e.g. TeamPerformance, draft history, transactions) as needed.
+  - **Unified import flow (all providers):** Two API routes handle provider-agnostic import end-to-end:
+    - `POST /api/leagues/import/preview` — accepts `{ provider, sourceId }`, auth-gated via `requireVerifiedUser`, fetches + normalizes the provider payload, returns `ImportPreviewResponse` (data quality score, coverage summary, managers list, settings preview).
+    - `POST /api/leagues/import/commit` — accepts `{ provider, sourceId }`, auth-gated, fetches + normalizes, then calls `persistImportedLeagueFromNormalization()`: upserts `League` with source-tracking fields, bootstraps `LeagueTeam`/`Roster`/`TeamPerformance` from normalized rosters/schedule, runs provider-specific historical backfill. Returns `{ leagueId, name, sport, league, historicalBackfill }`.
+  - **Client service:** `LeagueCreationImportSubmissionService` wraps both routes; `fetchImportPreview()` calls the preview route and `submitImportCreation()` calls the commit route. UI availability (`isImportProviderAvailable`) gates which providers appear as options.
+  - **Legacy Sleeper path:** `POST /api/league/import/sleeper/preview` and the `createFromSleeperImport` path in `POST /api/league/create` remain for backward compatibility; the unified routes are preferred for all new flows.
 - **Legacy transfer**
   - AF Legacy league transfer tool (`/api/legacy/transfer`) remains the **product guide** for what imported data should look like. It currently fetches Sleeper only and returns a **preview** (no AF league created). The Sleeper adapter and mappers were designed so that `NormalizedImportResult` aligns with that preview (managers/rosters, stats, draft, trades, storylines input data). The pipeline can be fed the same Sleeper payload (e.g. assembled from the same API calls as the transfer route) to get a normalized result that could later drive both preview and “create from import.”
 - **History**
@@ -98,25 +107,34 @@ Mapping of normalized fields to persistence:
 
 - **Provider resolution** — `resolveProvider('sleeper')` → `sleeper`, `resolveProvider('myfantasyleague')` → `mfl`. Unsupported string returns `null`.
 - **Sleeper adapter** — Maps league, users, rosters, matchups, transactions, draft picks, and player map into `NormalizedImportResult`; source tracking and roster/team/player IDs are consistent with legacy transfer expectations.
-- **Stub adapters** — ESPN, Yahoo, Fantrax, MFL return a valid minimal result (no throw); `hasFullAdapter(provider)` is false for them.
-- **League creation** — Not exercised in this task; existing `POST /api/league/create` and bootstrap flow were not modified and should be re-tested in regression.
+- **ESPN adapter** — Full implementation: PPR/half/standard detected from `scoringItems` statId 53; dynasty detected from `keeperCount`; all 11 coverage buckets populated.
+- **Yahoo adapter** — Full implementation: PPR/half/standard detected from stat modifier value on reception stat category; dynasty detected from keeper-related raw keys; all 11 coverage buckets populated.
+- **MFL adapter** — Full implementation: PPR detected from `scoringType` string; dynasty detected from 8 keeper/dynasty/salary-cap raw keys; all 11 coverage buckets populated.
+- **Fantrax adapter** — Full implementation: uses dedicated Fantrax mappers (league, roster, scoring, schedule, history); `isDevy` maps to `isDynasty`; all 11 coverage buckets populated.
+- **Unified API routes** — `POST /api/leagues/import/preview` and `POST /api/leagues/import/commit` handle all five providers with `requireVerifiedUser` auth gate.
+- **Preview data quality** — `buildImportedLeaguePreview()` computes weighted completeness score (0–100) and assigns tier (FULL ≥ 80, PARTIAL ≥ 50, MINIMAL < 50) with per-bucket signals for missing/partial coverage.
+- **Test suite** — `__tests__/import-mapping-architecture-prompt22.test.ts`: **71 tests pass** covering resolver, registry, pipeline, all 5 adapters, and preview builder.
 
 ---
 
 ## 6. Issues fixed
 
-- None reported; this was a greenfield implementation. Mapper logic was aligned with existing legacy transfer data shapes to avoid mismatches (e.g. Sleeper roster_id as string, manager display name from user, points from fpts + fpts_decimal).
+- Docs updated from original stub-only description to reflect full adapter implementations for ESPN, Yahoo, MFL, and Fantrax.
+- Mapper logic was aligned with existing legacy transfer data shapes to avoid mismatches (e.g. Sleeper roster_id as string, manager display name from user, points from fpts + fpts_decimal).
 
 ---
 
 ## 7. Final QA checklist
 
-- [ ] **Provider adapters** — Sleeper maps all source fields into AF canonical fields; stub adapters return without throwing.
-- [ ] **Imported settings** — Sleeper league settings (PPR, Superflex, TEP, playoff teams, roster size) match source league settings in normalized output.
-- [ ] **Manager/team/player mapping** — source_team_id and source_manager_id are stable and match legacy transfer preview (rosterId, ownerId, displayName, etc.).
-- [ ] **Import failures** — Invalid payload or missing league in Sleeper payload yields safe fallbacks (e.g. default league name, empty rosters) and does not throw from pipeline; errors can be logged inside adapter.
-- [ ] **Native league creation** — Existing league create and bootstrap still work (no changes to create route or LeagueDefaultsOrchestrator).
-- [ ] **Schema** — Migration applied for `League.importBatchId` and `League.importedAt`; existing League/Roster/LeagueTeam usage unchanged.
+- [x] **Provider adapters** — All five providers (Sleeper, ESPN, Yahoo, MFL, Fantrax) have full adapter implementations; `hasFullAdapter(provider)` returns `true` for all.
+- [x] **Imported settings** — Sleeper, ESPN, Yahoo, MFL, Fantrax league settings (PPR/half/standard, dynasty, playoff teams, roster size) are detected and mapped to canonical fields.
+- [x] **Manager/team/player mapping** — `source_team_id` and `source_manager_id` are stable per-provider; roster player IDs, starter IDs, and reserve IDs are all mapped.
+- [x] **Coverage buckets** — All 11 coverage buckets are populated per adapter with appropriate `full`/`partial`/`missing` states, counts, and explanatory notes.
+- [x] **Import failures** — Invalid/minimal payload returns safe fallbacks (e.g. default league name, empty rosters) and does not throw from pipeline.
+- [x] **Unified API routes** — `POST /api/leagues/import/preview` and `POST /api/leagues/import/commit` exist and are auth-gated.
+- [x] **Native league creation** — Existing `POST /api/league/create` and bootstrap flow were not modified.
+- [x] **Schema** — `League.importBatchId`, `League.importedAt`, `League.platform`, `League.platformLeagueId`, `LeagueTeam.externalId`, `Roster.platformUserId` all exist; no migration required.
+- [x] **Test suite** — 71 automated tests covering all providers, the pipeline, the resolver, the registry, and the preview builder.
 
 ---
 

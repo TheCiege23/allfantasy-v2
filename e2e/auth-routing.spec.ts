@@ -16,7 +16,7 @@ async function signOutSession(page: import('@playwright/test').Page) {
   });
 }
 
-test.describe('Protected route enforcement', () => {
+test.describe('@db Protected route enforcement', () => {
   test.describe.configure({ mode: 'serial', timeout: 120_000 });
 
   const protectedRouteExpectations: Array<{ path: string; loginUrlPattern: RegExp }> = [

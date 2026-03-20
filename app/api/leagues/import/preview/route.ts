@@ -13,8 +13,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireVerifiedUser } from '@/lib/auth-guard'
 import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
 import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
+import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
-import type { ImportProvider } from '@/lib/league-import/types'
+import { getSleeperImportPreview } from '@/lib/league-import/sleeper/SleeperImportPreviewService'
 
 function mapImportPreviewErrorStatus(code: string): number {
   if (code === 'LEAGUE_NOT_FOUND') return 404
@@ -36,11 +37,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const provider = (body.provider ?? '').trim().toLowerCase() as ImportProvider
+  const provider = resolveProvider(body.provider ?? '')
   const sourceId = typeof body.sourceId === 'string' ? body.sourceId.trim() : ''
 
   if (!sourceId) {
     return NextResponse.json({ error: 'sourceId is required' }, { status: 400 })
+  }
+
+  if (!provider) {
+    return NextResponse.json({ error: 'Unsupported import provider' }, { status: 400 })
   }
 
   if (!isImportProviderAvailable(provider)) {
@@ -48,6 +53,20 @@ export async function POST(req: NextRequest) {
       { error: `Import from ${provider} is not yet available.` },
       { status: 400 }
     )
+  }
+
+  if (provider === 'sleeper') {
+    const sleeperPreview = await getSleeperImportPreview({
+      sourceId,
+      userId: auth.userId,
+    })
+    if (!sleeperPreview.success) {
+      return NextResponse.json(
+        { error: sleeperPreview.error },
+        { status: mapImportPreviewErrorStatus(sleeperPreview.code) }
+      )
+    }
+    return NextResponse.json(sleeperPreview.preview)
   }
 
   const result = await runImportedLeagueNormalizationPipeline({

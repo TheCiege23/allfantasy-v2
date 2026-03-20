@@ -37,9 +37,9 @@ const PROVIDER_INPUT_CONFIG: Record<
     help: 'Connect Yahoo in League Sync first, then paste the full Yahoo league key or numeric league ID.',
   },
   fantrax: {
-    label: 'Fantrax League ID',
-    placeholder: 'e.g. abc123',
-    help: 'Import from Fantrax will be available in a future update.',
+    label: 'Fantrax Source',
+    placeholder: 'e.g. id:<legacy-uuid> or username|2025|League Name',
+    help: 'Import uses Fantrax legacy league snapshots. Provide the legacy Fantrax league UUID or username with optional season/league name.',
   },
   mfl: {
     label: 'MFL League ID',
@@ -69,7 +69,7 @@ export function ImportSourceInputPanel({
       <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-3 flex items-start gap-2">
         <Info className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
         <div className="text-sm text-white/90">
-          <p className="font-medium text-amber-200">Import from {getImportProviderLabel(provider)} is not yet available</p>
+          <p className="font-medium text-amber-200">Import from {getImportProviderLabel(provider)} is coming soon</p>
           <p className="mt-1 text-white/60">We&apos;re working on it. Use one of the available providers for now, or build a new league manually.</p>
         </div>
       </div>

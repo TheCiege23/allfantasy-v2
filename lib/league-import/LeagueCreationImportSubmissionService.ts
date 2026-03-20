@@ -86,10 +86,25 @@ export async function submitImportCreation(
   }
 
   try {
-    const res = await fetch('/api/leagues/import/commit', {
+    const request =
+      provider === 'sleeper'
+        ? {
+            url: '/api/league/create',
+            body: {
+              platform: 'sleeper',
+              createFromSleeperImport: true,
+              sleeperLeagueId: trimmed,
+            },
+          }
+        : {
+            url: '/api/leagues/import/commit',
+            body: { provider, sourceId: trimmed },
+          };
+
+    const res = await fetch(request.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, sourceId: trimmed }),
+      body: JSON.stringify(request.body),
     });
     const data = await res.json();
     if (!res.ok) {

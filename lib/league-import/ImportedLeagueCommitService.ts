@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { ImportProvider, NormalizedImportResult } from './types'
 
 export class ImportedLeagueConflictError extends Error {}
@@ -21,16 +22,7 @@ export interface PersistImportedLeagueResult {
 }
 
 function resolveImportedLeagueSport(normalized: NormalizedImportResult): string {
-  const normalizedSport = String(normalized.league.sport ?? '').toUpperCase()
-  return normalizedSport === 'NFL' ||
-    normalizedSport === 'NBA' ||
-    normalizedSport === 'MLB' ||
-    normalizedSport === 'NHL' ||
-    normalizedSport === 'NCAAF' ||
-    normalizedSport === 'NCAAB' ||
-    normalizedSport === 'SOCCER'
-    ? normalizedSport
-    : 'NFL'
+  return normalizeToSupportedSport(normalized.league.sport)
 }
 
 function buildImportedLeagueSettings(normalized: NormalizedImportResult): Record<string, unknown> {
@@ -39,6 +31,10 @@ function buildImportedLeagueSettings(normalized: NormalizedImportResult): Record
     playoff_team_count: normalized.league.playoff_team_count,
     roster_positions: (normalized.league as Record<string, unknown>).roster_positions,
     scoring_settings: (normalized.league as Record<string, unknown>).scoring_settings,
+    source_tracking: {
+      ...normalized.source,
+    },
+    identity_mappings: normalized.identity_mappings ?? [],
   }
 }
 

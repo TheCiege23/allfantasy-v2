@@ -35,7 +35,7 @@ export function ImportProviderSelector({
               disabled={!opt.available}
             >
               {opt.label}
-              {!opt.available && ' (not yet available)'}
+              {!opt.available && ' (coming soon)'}
             </SelectItem>
           ))}
         </SelectContent>

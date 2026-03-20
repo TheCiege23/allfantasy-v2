@@ -24,12 +24,16 @@ export function LeagueCreationImportSelector({
         onValueChange={(v) => onChange(v as CreationMode)}
         disabled={disabled}
       >
-        <SelectTrigger className="bg-gray-900 border-purple-600/40">
+        <SelectTrigger
+          className="bg-gray-900 border-purple-600/40"
+          aria-label="League creation mode"
+          data-testid="league-creation-mode-select"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="create">Create New AF League — set sport, scoring, and size manually</SelectItem>
-          <SelectItem value="import">Import Existing League — bring in a Sleeper league with settings, rosters, and history</SelectItem>
+          <SelectItem value="import">Import Existing League — import from Sleeper, ESPN, Yahoo, Fantrax, or MFL</SelectItem>
         </SelectContent>
       </Select>
     </div>

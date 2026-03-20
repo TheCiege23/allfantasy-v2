@@ -138,88 +138,55 @@ export async function POST(req: Request) {
       }
 
       const cleanSleeperId = sleeperLeagueId.trim();
-      const existing = await (prisma as any).league.findFirst({
-        where: {
-          userId: verifiedAuth.userId,
-          platform: 'sleeper',
-          platformLeagueId: cleanSleeperId,
-        },
-      });
-      if (existing) {
-        return NextResponse.json({ error: 'This league already exists in your account' }, { status: 409 });
-      }
       const { runImportedLeagueNormalizationPipeline } = await import('@/lib/league-import/ImportedLeagueNormalizationPipeline');
-      const result = await runImportedLeagueNormalizationPipeline(cleanSleeperId);
+      const result = await runImportedLeagueNormalizationPipeline({
+        provider: 'sleeper',
+        sourceId: cleanSleeperId,
+        userId: verifiedAuth.userId,
+      });
       if (!result.success) {
         return NextResponse.json(
           { error: result.error },
-          { status: result.code === 'LEAGUE_NOT_FOUND' ? 404 : 500 }
+          {
+            status:
+              result.code === 'LEAGUE_NOT_FOUND'
+                ? 404
+                : result.code === 'UNAUTHORIZED'
+                  ? 401
+                  : result.code === 'CONNECTION_REQUIRED'
+                    ? 400
+                    : 500,
+          }
         );
       }
-      const { normalized } = result;
-      const leagueSport = (normalized.league.sport === 'NFL' || normalized.league.sport === 'NBA' || normalized.league.sport === 'MLB' || normalized.league.sport === 'NHL' || normalized.league.sport === 'NCAAF' || normalized.league.sport === 'NCAAB' || normalized.league.sport === 'SOCCER')
-        ? normalized.league.sport
-        : 'NFL';
-      const settingsFromImport: Record<string, unknown> = {
-        ...(normalized.league as Record<string, unknown>),
-        playoff_team_count: normalized.league.playoff_team_count,
-        roster_positions: (normalized.league as Record<string, unknown>).roster_positions,
-        scoring_settings: (normalized.league as Record<string, unknown>).scoring_settings,
-      };
-      const league = await (prisma as any).league.create({
-        data: {
+
+      const {
+        ImportedLeagueConflictError,
+        persistImportedLeagueFromNormalization,
+      } = await import('@/lib/league-import/ImportedLeagueCommitService');
+      let persisted:
+        | {
+            league: { id: string; name: string; sport: string };
+            historicalBackfill: unknown;
+          }
+        | null = null;
+      try {
+        persisted = await persistImportedLeagueFromNormalization({
           userId: verifiedAuth.userId,
-          name: normalized.league.name,
-          platform: 'sleeper',
-          platformLeagueId: cleanSleeperId,
-          leagueSize: normalized.league.leagueSize,
-          scoring: normalized.league.scoring ?? undefined,
-          isDynasty: normalized.league.isDynasty,
-          sport: leagueSport,
-          leagueVariant: null,
-          season: normalized.league.season ?? undefined,
-          rosterSize: normalized.league.rosterSize ?? undefined,
-          starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
-          avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
-          settings: settingsFromImport,
-          syncStatus: 'pending',
-          importBatchId: normalized.source.import_batch_id ?? undefined,
-          importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
-        },
-      });
-      try {
-        const { bootstrapLeagueFromSleeperImport } = await import('@/lib/league-import/sleeper/SleeperLeagueCreationBootstrapService');
-        await bootstrapLeagueFromSleeperImport(league.id, normalized);
-      } catch (err) {
-        console.warn('[league/create] Sleeper import bootstrap non-fatal:', err);
-      }
-      try {
-        const { bootstrapLeagueDraftConfig } = await import('@/lib/draft-defaults/LeagueDraftBootstrapService');
-        const { bootstrapLeagueWaiverSettings } = await import('@/lib/waiver-defaults/LeagueWaiverBootstrapService');
-        const { bootstrapLeaguePlayoffConfig } = await import('@/lib/playoff-defaults/LeaguePlayoffBootstrapService');
-        const { bootstrapLeagueScheduleConfig } = await import('@/lib/schedule-defaults/LeagueScheduleBootstrapService');
-        await Promise.all([
-          bootstrapLeagueDraftConfig(league.id),
-          bootstrapLeagueWaiverSettings(league.id),
-          bootstrapLeaguePlayoffConfig(league.id),
-          bootstrapLeagueScheduleConfig(league.id),
-        ]);
-      } catch (err) {
-        console.warn('[league/create] Import gap-fill (draft/waiver/playoff/schedule) non-fatal:', err);
-      }
-      let historicalBackfill: unknown = null;
-      try {
-        const { syncSleeperHistoricalBackfillAfterImport } = await import('@/lib/league-import/sleeper/SleeperHistoricalBackfillService');
-        historicalBackfill = await syncSleeperHistoricalBackfillAfterImport({
-          leagueId: league.id,
-          isDynasty: normalized.league.isDynasty,
+          provider: 'sleeper',
+          normalized: result.normalized,
+          allowUpdateExisting: false,
         });
-      } catch (err) {
-        console.warn('[league/create] Historical Sleeper backfill non-fatal:', err);
+      } catch (error) {
+        if (error instanceof ImportedLeagueConflictError) {
+          return NextResponse.json({ error: error.message }, { status: 409 });
+        }
+        throw error;
       }
+
       return NextResponse.json({
-        league: { id: league.id, name: league.name, sport: league.sport },
-        historicalBackfill,
+        league: persisted.league,
+        historicalBackfill: persisted.historicalBackfill,
       });
     }
 

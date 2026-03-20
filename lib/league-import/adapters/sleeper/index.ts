@@ -1,4 +1,5 @@
 export { SleeperLeagueMapper } from './SleeperLeagueMapper'
+export { SleeperLeagueImportAdapter } from './SleeperLeagueImportAdapter'
 export { SleeperRosterMapper } from './SleeperRosterMapper'
 export { SleeperScoringMapper } from './SleeperScoringMapper'
 export { SleeperScheduleMapper } from './SleeperScheduleMapper'

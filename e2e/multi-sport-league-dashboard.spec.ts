@@ -23,7 +23,7 @@ async function createLeague(
   return payload?.league as { id?: string; name?: string; sport?: string } | undefined
 }
 
-test('creates multi-sport leagues and shows grouped dashboard ordering', async ({ page }) => {
+test('@db creates multi-sport leagues and shows grouped dashboard ordering', async ({ page }) => {
   await registerAndLogin(page)
 
   const suffix = Date.now()

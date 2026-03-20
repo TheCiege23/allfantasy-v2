@@ -142,6 +142,7 @@ export interface NormalizedImportResult {
   transactions: NormalizedTransaction[]
   standings: NormalizedStandingsEntry[]
   player_map: Record<string, { name: string; position: string; team: string }>
+  identity_mappings?: ExternalIdentityMapping[]
   league_branding?: { avatar_url?: string | null; name?: string }
   previous_seasons?: Array<{ season: string; source_league_id: string }>
   coverage: ImportCoverage

@@ -2,6 +2,7 @@ import { resolveProvider } from './ImportProviderResolver'
 import { getAdapter } from './LeagueImportRegistry'
 import type { NormalizedImportResult } from './types'
 import type { ImportProvider } from './types'
+import { DefaultExternalIdentityMapper } from './mappers/DefaultExternalIdentityMapper'
 
 export interface PipelineInput {
   provider: ImportProvider | string
@@ -16,5 +17,19 @@ export async function runImportNormalizationPipeline(input: PipelineInput): Prom
   const provider = typeof input.provider === 'string' ? resolveProvider(input.provider) : input.provider
   if (!provider) throw new Error(`Unsupported import provider: ${input.provider}`)
   const adapter = getAdapter(provider)
-  return adapter.normalize(input.raw)
+  const normalized = await adapter.normalize(input.raw)
+  if (!normalized.identity_mappings || normalized.identity_mappings.length === 0) {
+    const identityMappings = DefaultExternalIdentityMapper.buildMappings?.(provider, {
+      source: normalized.source,
+      rosters: normalized.rosters,
+      player_map: normalized.player_map,
+    })
+    if (identityMappings && identityMappings.length > 0) {
+      return {
+        ...normalized,
+        identity_mappings: identityMappings,
+      }
+    }
+  }
+  return normalized
 }

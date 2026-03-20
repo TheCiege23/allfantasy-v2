@@ -16,8 +16,8 @@ import {
   ImportedLeagueConflictError,
   persistImportedLeagueFromNormalization,
 } from '@/lib/league-import/ImportedLeagueCommitService'
+import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
-import type { ImportProvider } from '@/lib/league-import/types'
 
 function mapImportCommitErrorStatus(code: string): number {
   if (code === 'LEAGUE_NOT_FOUND') return 404
@@ -39,11 +39,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const provider = (body.provider ?? '').trim().toLowerCase() as ImportProvider
+  const provider = resolveProvider(body.provider ?? '')
   const sourceId = typeof body.sourceId === 'string' ? body.sourceId.trim() : ''
 
   if (!sourceId) {
     return NextResponse.json({ error: 'sourceId is required' }, { status: 400 })
+  }
+
+  if (!provider) {
+    return NextResponse.json({ error: 'Unsupported import provider' }, { status: 400 })
   }
 
   if (!isImportProviderAvailable(provider)) {
