@@ -242,7 +242,7 @@ export async function generateStrategyMetaReports(opts: {
 
       const players = await prisma.player.findMany({
         where: { id: { in: [...allPlayerIds] }, sport },
-        select: { id: true, position: true, team: true, age: true },
+        select: { id: true, position: true, team: true, birthYear: true },
       })
       const playerMap = new Map(players.map((p) => [p.id, p]))
       const positionByPlayerId: Record<string, string> = {}
@@ -285,8 +285,9 @@ export async function generateStrategyMetaReports(opts: {
           rosterPlayers.map((p) => ({ position: p.position ?? undefined }))
         )
 
-        const rookieCount = rosterPlayers.filter((p) => p.age != null && p.age <= 24).length
-        const veteranCount = rosterPlayers.filter((p) => p.age != null && p.age >= 28).length
+        const currentYear = new Date().getUTCFullYear()
+        const rookieCount = rosterPlayers.filter((p) => p.birthYear != null && currentYear - p.birthYear <= 24).length
+        const veteranCount = rosterPlayers.filter((p) => p.birthYear != null && currentYear - p.birthYear >= 28).length
 
         const teamCounts = new Map<string, { qb: number; wrte: number; total: number; players: string[] }>()
         for (const p of picksForRoster) {
