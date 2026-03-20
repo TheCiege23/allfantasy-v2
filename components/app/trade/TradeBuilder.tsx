@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Scale, Users } from "lucide-react"
 import { useTradeBuilder } from "./useTradeBuilder"
 
@@ -8,40 +8,111 @@ type TradeBuilderProps = {
   leagueId?: string
 }
 
+type Manager = {
+  rosterId: number
+  displayName: string
+  userId: string
+  players: { id: string; name: string; pos: string; team?: string }[]
+  draftPicks: { season: string; round: number; slot: number | null; originalOwner: string; originalRosterId: number }[]
+}
+
 export function TradeBuilder({ leagueId }: TradeBuilderProps) {
-  const { proposal, setPartner, togglePlayer, togglePick, submitProposal, saving, error } =
+  const { proposal, setFromTeam, setPartner, togglePlayer, togglePick, submitProposal, saving, error } =
     useTradeBuilder({ leagueId })
-  const [selectedPartner, setSelectedPartner] = useState<string>("u2")
+  const [selectedPartner, setSelectedPartner] = useState<string>("")
+  const [managers, setManagers] = useState<Manager[]>([])
+  const [loadingManagers, setLoadingManagers] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const mockPartners = [
-    { userId: "u2", teamName: "Rival GM" },
-    { userId: "u3", teamName: "Rebuild Squad" },
-  ]
+  useEffect(() => {
+    let cancelled = false
+    async function loadManagers() {
+      if (!leagueId) {
+        setManagers([])
+        setLoadError("Missing league context.")
+        return
+      }
+      setLoadingManagers(true)
+      setLoadError(null)
+      try {
+        const managersRes = await fetch(`/api/legacy/trade/league-managers?league_id=${encodeURIComponent(leagueId)}&sport=nfl`, {
+          cache: "no-store",
+        })
+        const managersData = await managersRes.json().catch(() => null)
+        if (!managersRes.ok || !Array.isArray(managersData?.managers)) {
+          throw new Error(managersData?.error || "Unable to load league managers.")
+        }
+        const loadedManagers = managersData.managers as Manager[]
+        if (loadedManagers.length < 2) {
+          throw new Error("Trade Builder needs at least two managers in the league.")
+        }
 
-  const mockRoster = [
-    { id: "p1", name: "Garrett Wilson", team: "NYJ", position: "WR", value: 82 },
-    { id: "p2", name: "Drake London", team: "ATL", position: "WR", value: 76 },
-    { id: "p3", name: "Rachaad White", team: "TB", position: "RB", value: 71 },
-  ]
-  const mockPartnerRoster = [
-    { id: "p4", name: "Brandon Aiyuk", team: "SF", position: "WR", value: 84 },
-    { id: "p5", name: "Travis Etienne", team: "JAX", position: "RB", value: 80 },
-    { id: "p6", name: "George Pickens", team: "PIT", position: "WR", value: 70 },
-  ]
+        const rosterRes = await fetch(`/api/league/roster?leagueId=${encodeURIComponent(leagueId)}`, {
+          cache: "no-store",
+        })
+        const rosterData = await rosterRes.json().catch(() => null)
+        const myPlayerIdsRaw = rosterData?.roster
+        const myPlayerIds = Array.isArray(myPlayerIdsRaw)
+          ? myPlayerIdsRaw
+          : Array.isArray(myPlayerIdsRaw?.players)
+            ? myPlayerIdsRaw.players
+            : []
+        const myIdsSet = new Set<string>(myPlayerIds)
 
-  const mockPicks = [
-    { id: "2025-1", label: "2025 1st", value: 90 },
-    { id: "2025-2", label: "2025 2nd", value: 70 },
-    { id: "2026-1", label: "2026 1st", value: 80 },
-  ]
+        const byOverlap = [...loadedManagers]
+          .map((m) => ({
+            manager: m,
+            overlap: m.players.reduce((n, p) => (myIdsSet.has(p.id) ? n + 1 : n), 0),
+          }))
+          .sort((a, b) => b.overlap - a.overlap)
 
-  const totalValueFrom =
-    sumValues(mockRoster, proposal.from.players) + sumPicks(mockPicks, proposal.from.picks)
-  const totalValueTo =
-    sumValues(mockPartnerRoster, proposal.to.players) + sumPicks(mockPicks, proposal.to.picks)
+        const fromManager = byOverlap[0]?.overlap > 0 ? byOverlap[0].manager : loadedManagers[0]
+        const partnerManager = loadedManagers.find((m) => m.rosterId !== fromManager.rosterId) || loadedManagers[1]
 
-  const fairnessDelta = totalValueFrom - totalValueTo
-  const fairnessScore = 50 + Math.max(-25, Math.min(25, fairnessDelta / 4))
+        if (!cancelled) {
+          setManagers(loadedManagers)
+          setSelectedPartner(String(partnerManager.rosterId))
+          setFromTeam(String(fromManager.rosterId), fromManager.displayName)
+          setPartner(String(partnerManager.rosterId), partnerManager.displayName)
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setManagers([])
+          setLoadError(e?.message || "Unable to load league managers.")
+        }
+      } finally {
+        if (!cancelled) setLoadingManagers(false)
+      }
+    }
+    void loadManagers()
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId, setFromTeam, setPartner])
+
+  const fromManager = useMemo(
+    () => managers.find((m) => String(m.rosterId) === proposal.from.userId) || null,
+    [managers, proposal.from.userId],
+  )
+  const toManager = useMemo(
+    () => managers.find((m) => String(m.rosterId) === proposal.to.userId) || null,
+    [managers, proposal.to.userId],
+  )
+
+  const fromRoster = fromManager?.players || []
+  const toRoster = toManager?.players || []
+  const fromPicks = (fromManager?.draftPicks || []).map((pick) => ({
+    id: `${pick.season}-${pick.round}-${pick.originalRosterId}`,
+    label: `${pick.season} R${pick.round}${pick.slot ? ` (#${pick.slot})` : ""}`,
+  }))
+  const toPicks = (toManager?.draftPicks || []).map((pick) => ({
+    id: `${pick.season}-${pick.round}-${pick.originalRosterId}`,
+    label: `${pick.season} R${pick.round}${pick.slot ? ` (#${pick.slot})` : ""}`,
+  }))
+
+  const sentAssets = proposal.from.players.length + proposal.from.picks.length
+  const recvAssets = proposal.to.players.length + proposal.to.picks.length
+  const fairnessScore = 50 + Math.max(-25, Math.min(25, (sentAssets - recvAssets) * 8))
 
   return (
     <section className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/80">
@@ -53,11 +124,26 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
           <div className="leading-tight">
             <p className="text-sm font-semibold">Trade Center</p>
             <p className="text-[10px] text-white/65">
-              Build and review offers. AI fairness and coaching wire in next steps.
+              Build and submit trade offers from live league rosters.
             </p>
           </div>
         </div>
       </header>
+
+      {loadingManagers && (
+        <div className="rounded-xl border border-white/12 bg-black/40 p-3 text-white/70">Loading league managers...</div>
+      )}
+      {loadError && (
+        <div className="rounded-xl border border-red-400/30 bg-red-950/20 p-3 text-red-200">{loadError}</div>
+      )}
+      {!loadingManagers && !loadError && managers.length < 2 && (
+        <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3 text-amber-200">
+          Trade Builder is unavailable until manager data is loaded.
+        </div>
+      )}
+
+      {!loadingManagers && !loadError && managers.length >= 2 && (
+        <>
 
       <div className="rounded-xl border border-white/12 bg-black/40 p-2.5">
         <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -69,14 +155,16 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
               onChange={(e) => {
                 const id = e.target.value
                 setSelectedPartner(id)
-                const p = mockPartners.find((m) => m.userId === id)
-                if (p) setPartner(p.userId, p.teamName)
+                const p = managers.find((m) => String(m.rosterId) === id)
+                if (p) setPartner(String(p.rosterId), p.displayName)
               }}
               className="rounded-lg border border-white/20 bg-black/60 px-2 py-1 text-[11px] outline-none"
             >
-              {mockPartners.map((p) => (
-                <option key={p.userId} value={p.userId}>
-                  {p.teamName}
+              {managers
+                .filter((m) => String(m.rosterId) !== proposal.from.userId)
+                .map((m) => (
+                <option key={m.rosterId} value={String(m.rosterId)}>
+                  {m.displayName}
                 </option>
               ))}
             </select>
@@ -85,9 +173,9 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
 
         <div className="grid gap-2 md:grid-cols-2">
           <RosterSide
-            label="Your roster"
-            roster={mockRoster}
-            picks={mockPicks}
+            label={proposal.from.teamName || "Your roster"}
+            roster={fromRoster}
+            picks={fromPicks}
             selectedPlayers={proposal.from.players}
             selectedPicks={proposal.from.picks}
             onTogglePlayer={(id) => togglePlayer("from", id)}
@@ -95,8 +183,8 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
           />
           <RosterSide
             label={proposal.to.teamName || "Partner roster"}
-            roster={mockPartnerRoster}
-            picks={mockPicks}
+            roster={toRoster}
+            picks={toPicks}
             selectedPlayers={proposal.to.players}
             selectedPicks={proposal.to.picks}
             onTogglePlayer={(id) => togglePlayer("to", id)}
@@ -109,22 +197,22 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
         <div className="mb-1.5 flex items-center justify-between gap-2 text-[11px] text-white/70">
           <span className="font-semibold">Trade summary</span>
           <span className="text-white/60">
-            Value: you {totalValueFrom.toFixed(0)} • them {totalValueTo.toFixed(0)}
+            Assets selected: you {sentAssets} • partner {recvAssets}
           </span>
         </div>
         <div className="grid gap-2 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <div className="space-y-1.5 text-[11px] text-white/80">
             <p className="text-white/65">You send:</p>
             <SummaryList
-              players={mockRoster}
-              picks={mockPicks}
+              players={fromRoster}
+              picks={fromPicks}
               selectedPlayers={proposal.from.players}
               selectedPicks={proposal.from.picks}
             />
             <p className="mt-1 text-white/65">You receive:</p>
             <SummaryList
-              players={mockPartnerRoster}
-              picks={mockPicks}
+              players={toRoster}
+              picks={toPicks}
               selectedPlayers={proposal.to.players}
               selectedPicks={proposal.to.picks}
             />
@@ -134,7 +222,7 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
             <div className="flex items-center justify-between gap-2 text-[11px] text-white/70">
               <div className="flex items-center gap-1.5">
                 <Scale className="h-3.5 w-3.5 text-emerald-300" />
-                <span>Fairness meter (placeholder)</span>
+                <span>Asset balance</span>
               </div>
               <span className="text-[11px] font-semibold text-emerald-300">
                 {fairnessScore.toFixed(0)}/100
@@ -147,13 +235,12 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
               />
             </div>
             <p className="mt-1 text-[10px] text-white/60">
-              Positive scores lean in your favor; negative scores lean toward your partner. AI coach will refine this
-              later.
+              This balance tracks selected asset counts only. Final review should use Trade Analyzer.
             </p>
             <button
               type="button"
               onClick={() => void submitProposal()}
-              disabled={saving}
+              disabled={saving || !proposal.from.userId || !proposal.to.userId}
               className="mt-2 inline-flex items-center justify-center rounded-full bg-cyan-400 px-3 py-1.5 text-[11px] font-semibold text-black shadow-sm hover:bg-cyan-300 disabled:opacity-50"
             >
               {saving ? "Submitting..." : "Submit trade offer"}
@@ -166,26 +253,16 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
           </div>
         </div>
       </div>
+      </>
+      )}
     </section>
   )
 }
 
-function sumValues(roster: { id: string; value: number }[], ids: string[]) {
-  return roster
-    .filter((p) => ids.includes(p.id))
-    .reduce((sum, p) => sum + (p.value || 0), 0)
-}
-
-function sumPicks(picks: { id: string; value: number }[], ids: string[]) {
-  return picks
-    .filter((p) => ids.includes(p.id))
-    .reduce((sum, p) => sum + (p.value || 0), 0)
-}
-
 type RosterSideProps = {
   label: string
-  roster: { id: string; name: string; team: string; position: string; value: number }[]
-  picks: { id: string; label: string; value: number }[]
+  roster: { id: string; name: string; team?: string; pos: string }[]
+  picks: { id: string; label: string }[]
   selectedPlayers: string[]
   selectedPicks: string[]
   onTogglePlayer: (id: string) => void
@@ -220,14 +297,14 @@ function RosterSide({
             >
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold">
-                  {p.position}
+                  {p.pos}
                 </span>
                 <div className="min-w-0">
                   <p className="truncate font-medium">{p.name}</p>
-                  <p className="text-[10px] text-white/60">{p.team}</p>
+                  <p className="text-[10px] text-white/60">{p.team || "FA"}</p>
                 </div>
               </div>
-              <span className="text-[10px] text-emerald-200">Val {p.value}</span>
+              <span className="text-[10px] text-emerald-200">{p.id.slice(0, 8)}</span>
             </button>
           )
         })}
@@ -248,7 +325,7 @@ function RosterSide({
               }`}
             >
               <span>{pick.label}</span>
-              <span className="text-[10px] text-indigo-200">Val {pick.value}</span>
+              <span className="text-[10px] text-indigo-200">Pick</span>
             </button>
           )
         })}
@@ -258,7 +335,7 @@ function RosterSide({
 }
 
 type SummaryListProps = {
-  players: { id: string; name: string; team: string; position: string }[]
+  players: { id: string; name: string; team?: string; pos: string }[]
   picks: { id: string; label: string }[]
   selectedPlayers: string[]
   selectedPicks: string[]
@@ -278,7 +355,7 @@ function SummaryList({ players, picks, selectedPlayers, selectedPicks }: Summary
         .filter((p) => selectedPlayers.includes(p.id))
         .map((p) => (
           <li key={p.id}>
-            {p.position} {p.name} ({p.team})
+            {p.pos} {p.name} ({p.team || "FA"})
           </li>
         ))}
       {picks

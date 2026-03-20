@@ -285,6 +285,8 @@ export default function DynastyTradeForm() {
       });
       if (data.sections) {
         setSections(data.sections);
+      } else {
+        setSections(null);
       }
       if (data.canonicalContext) {
         setCanonicalCtx(data.canonicalContext);

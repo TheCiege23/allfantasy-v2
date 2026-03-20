@@ -31,6 +31,13 @@ export function useTradeBuilder(initial: Partial<TradeProposal> = {}) {
     }))
   }, [])
 
+  const setFromTeam = useCallback((userId: string, teamName: string) => {
+    setProposal((prev) => ({
+      ...prev,
+      from: { ...prev.from, userId, teamName },
+    }))
+  }, [])
+
   const togglePlayer = useCallback(
     (side: "from" | "to", playerId: string) => {
       setProposal((prev) => {
@@ -69,11 +76,32 @@ export function useTradeBuilder(initial: Partial<TradeProposal> = {}) {
     setSaving(true)
     setError(null)
     try {
-      await fetch("/api/trades/propose", {
+      const offerFrom = Number(proposal.from.userId)
+      const offerTo = Number(proposal.to.userId)
+
+      if (!proposal.leagueId) {
+        throw new Error("Missing league context for this trade proposal.")
+      }
+      if (!Number.isFinite(offerFrom) || !Number.isFinite(offerTo)) {
+        throw new Error("Trade proposal is not connected to real roster IDs yet.")
+      }
+
+      const res = await fetch("/api/trade/propose", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(proposal),
+        body: JSON.stringify({
+          leagueId: proposal.leagueId,
+          offerFrom,
+          offerTo,
+          adds: [...proposal.from.players, ...proposal.from.picks],
+          drops: [...proposal.to.players, ...proposal.to.picks],
+        }),
       })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || "Unable to submit trade.")
+      }
     } catch (err: any) {
       setError(err?.message || "Unable to submit trade.")
     } finally {
@@ -83,6 +111,7 @@ export function useTradeBuilder(initial: Partial<TradeProposal> = {}) {
 
   return {
     proposal,
+    setFromTeam,
     setPartner,
     togglePlayer,
     togglePick,

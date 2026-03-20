@@ -58,10 +58,7 @@ export async function selectBestProvider(): Promise<BracketDataProvider> {
 
   const providers = buildProviders()
   if (providers.length === 0) {
-    console.warn("[ProviderSelector] No providers available, falling back to mock")
-    cachedProvider = new MockProvider()
-    cachedAt = Date.now()
-    return cachedProvider
+    throw new Error("[ProviderSelector] No bracket data providers configured")
   }
 
   const scored: Array<{ provider: BracketDataProvider; score: number; healthy: boolean }> = []

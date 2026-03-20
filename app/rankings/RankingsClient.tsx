@@ -46,13 +46,6 @@ interface LeagueData {
   teams: TeamData[];
 }
 
-function generateMockPerfs(base: number, trend: 'up' | 'down' | 'steady'): PerformancePoint[] {
-  return Array.from({ length: 7 }, (_, i) => ({
-    week: i + 1,
-    points: base + (trend === 'up' ? i * 8 : trend === 'down' ? -i * 6 : 0) + (Math.random() * 20 - 10),
-  }));
-}
-
 function getTrend(perfs: PerformancePoint[]): 'up' | 'down' | 'steady' {
   if (perfs.length < 3) return 'steady';
   const recent = perfs.slice(-3);
@@ -66,31 +59,6 @@ function getTrend(perfs: PerformancePoint[]): 'up' | 'down' | 'steady' {
   return 'steady';
 }
 
-const mockLeague: LeagueData = {
-  id: "mock",
-  name: "Sample Dynasty League",
-  sport: "NFL",
-  season: 2025,
-  scoring: "ppr",
-  leagueSize: 12,
-  teams: [
-    { id: "m1", externalId: "m1", teamName: "Gridiron Gods", ownerName: "Cjabar", pointsFor: 1428.6, pointsAgainst: 1180.2, wins: 6, losses: 1, ties: 0, currentRank: 1, aiPowerScore: 92, projectedWins: 10.2, strengthNotes: "Elite RB depth", riskNotes: "QB injury prone", avatarUrl: null, performances: generateMockPerfs(140, 'up') },
-    { id: "m2", externalId: "m2", teamName: "Sleeper Agents", ownerName: "commissioner", pointsFor: 1389.2, pointsAgainst: 1210.5, wins: 5, losses: 2, ties: 0, currentRank: 2, aiPowerScore: 87, projectedWins: 9.1, strengthNotes: "WR corps on fire", riskNotes: "Bye week hell", avatarUrl: null, performances: generateMockPerfs(135, 'steady') },
-    { id: "m3", externalId: "m3", teamName: "Touchdown Tyrants", ownerName: "ballerNJ", pointsFor: 1351.8, pointsAgainst: 1260.1, wins: 5, losses: 2, ties: 0, currentRank: 3, aiPowerScore: 84, projectedWins: 8.7, strengthNotes: "Streaming defense wins", riskNotes: "Low bench upside", avatarUrl: null, performances: generateMockPerfs(130, 'up') },
-    { id: "m4", externalId: "m4", teamName: "Jersey Jokers", ownerName: "you", pointsFor: 1297.4, pointsAgainst: 1290.0, wins: 4, losses: 3, ties: 0, currentRank: 4, aiPowerScore: 79, projectedWins: 7.5, strengthNotes: "Balanced roster", riskNotes: "Aging stars", avatarUrl: null, performances: generateMockPerfs(125, 'steady') },
-    { id: "m5", externalId: "m5", teamName: "Draft Day Divas", ownerName: "queenB", pointsFor: 1265.1, pointsAgainst: 1275.0, wins: 3, losses: 4, ties: 0, currentRank: 5, aiPowerScore: 76, projectedWins: 6.8, strengthNotes: "TE advantage", riskNotes: "Thin at WR", avatarUrl: null, performances: generateMockPerfs(120, 'down') },
-    { id: "m6", externalId: "m6", teamName: "Waiver Warriors", ownerName: "pickupKing", pointsFor: 1242.7, pointsAgainst: 1310.2, wins: 3, losses: 4, ties: 0, currentRank: 6, aiPowerScore: 73, projectedWins: 6.2, strengthNotes: "Waiver wire gold", riskNotes: "No true WR1", avatarUrl: null, performances: generateMockPerfs(115, 'steady') },
-    { id: "m7", externalId: "m7", teamName: "Dynasty Demons", ownerName: "longGame", pointsFor: 1198.3, pointsAgainst: 1340.0, wins: 2, losses: 5, ties: 0, currentRank: 7, aiPowerScore: 70, projectedWins: 5.1, strengthNotes: "Young core", riskNotes: "Not contending yet", avatarUrl: null, performances: generateMockPerfs(110, 'up') },
-    { id: "m8", externalId: "m8", teamName: "Punt City", ownerName: "tankCommander", pointsFor: 1156.9, pointsAgainst: 1380.5, wins: 1, losses: 6, ties: 0, currentRank: 8, aiPowerScore: 65, projectedWins: 3.8, strengthNotes: "2026 draft capital", riskNotes: "Worst roster now", avatarUrl: null, performances: generateMockPerfs(100, 'down') },
-  ],
-};
-
-const aiTakes: Record<number, string> = {
-  1: "Dominant roster with elite RB depth. Projected to hold #1 through Week 10 if QB stays healthy.",
-  2: "WR corps is carrying this team. Watch the bye weeks in Week 9-10 \u2014 could drop 2-3 spots without smart streaming.",
-  3: "Streaming defense strategy is working now but gets harder post-Week 10. Consider trading for a set-and-forget D/ST.",
-};
-
 interface RankingsClientProps {
   leagues: LeagueData[];
   isSignedIn: boolean;
@@ -98,7 +66,7 @@ interface RankingsClientProps {
 
 export default function RankingsClient({ leagues, isSignedIn }: RankingsClientProps) {
   const hasRealData = leagues.length > 0;
-  const allLeagues = hasRealData ? leagues : [mockLeague];
+  const allLeagues = leagues;
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [dynastyLoading, setDynastyLoading] = useState(false);
@@ -106,19 +74,19 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
   const [dynastyTeamId, setDynastyTeamId] = useState<string | null>(null);
   const [dynastyError, setDynastyError] = useState<string | null>(null);
 
-  const league = allLeagues[selectedIdx] || allLeagues[0];
-  const displayTeams = league.teams;
+  const league = allLeagues[selectedIdx] || allLeagues[0] || null;
+  const displayTeams = league?.teams || [];
 
-  const headerTitle = hasRealData
+  const headerTitle = hasRealData && league
     ? `${league.name || "Your League"} Power Rankings`
-    : "Sample League Power Rankings";
+    : "League Power Rankings";
 
-  const headerSub = hasRealData
+  const headerSub = hasRealData && league
     ? `Season ${league.season ?? ""} \u2022 ${league.sport}${league.scoring ? ` \u2022 ${league.scoring.toUpperCase()}` : ""}${league.leagueSize ? ` \u2022 ${league.leagueSize}-team` : ""}`
-    : "Mock data \u2013 connect Sleeper to see real leagues";
+    : "Connect Sleeper to see real league rankings";
 
   async function handleDynastyOutlook(teamExternalId?: string) {
-    if (!hasRealData) return;
+    if (!hasRealData || !league) return;
     setDynastyLoading(true);
     setDynastyTeamId(teamExternalId || null);
     setDynastyError(null);
@@ -149,7 +117,7 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
   }
 
   async function handleRefresh() {
-    if (!hasRealData || refreshing) return;
+    if (!hasRealData || refreshing || !league) return;
     setRefreshing(true);
     try {
       const res = await fetch("/api/rankings", {
@@ -239,6 +207,12 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
           </div>
         </div>
 
+        {!hasRealData && (
+          <div className="mb-8 rounded-lg border border-cyan-800/40 bg-cyan-950/20 p-4 text-center text-gray-300">
+            No connected leagues found yet. Connect a league to run AI power rankings.
+          </div>
+        )}
+
         {displayTeams.length > 0 && (() => {
           const totalPoints = displayTeams.reduce((sum, t) => sum + (t.pointsFor || 0), 0);
           const barColors = [
@@ -301,7 +275,7 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
         })()}
 
         <motion.div
-          key={league.id}
+          key={league?.id || 'rankings-empty'}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -481,7 +455,9 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
                     </div>
                     <p className="text-sm text-gray-300">
                       <strong>AI Take:</strong>{" "}
-                      {aiTakes[i + 1] || `${team.strengthNotes || "Solid roster"} but watch out for ${team.riskNotes?.toLowerCase() || "potential risks"}.`}
+                      {(team.strengthNotes || team.riskNotes)
+                        ? `${team.strengthNotes || "Solid roster"}${team.riskNotes ? `; watch out for ${team.riskNotes.toLowerCase()}.` : "."}`
+                        : "AI summary will appear after rankings refresh."}
                     </p>
                   </div>
                 </CardContent>
