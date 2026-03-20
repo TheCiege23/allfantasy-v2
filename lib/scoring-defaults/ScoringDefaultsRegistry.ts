@@ -7,6 +7,9 @@
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import type { SportType, ScoringRuleDefinition, ScoringTemplateDefinition } from './types'
 
+/** Bumped whenever a template definition or stat key changes. */
+export const SCORING_DEFAULTS_REGISTRY_VERSION = '2026-03-20.1'
+
 export interface LeagueSettingsForScoringDefaults {
   scoring_format?: string | null
   leagueVariant?: string | null
@@ -407,4 +410,39 @@ export function getScoringContextForAI(
     .slice(0, 12)
     .map((r) => `${r.statKey}: ${r.pointsValue > 0 ? '+' : ''}${r.pointsValue}`)
   return `Scoring: ${template.name}. Key rules: ${topRules.join(', ')}.`
+}
+
+/**
+ * Get the list of valid scoring format strings for a sport.
+ * Used by creation UX, validation, and format-resolution guards.
+ */
+export function getSupportedScoringFormats(sportType: SportType | string): string[] {
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  switch (sport) {
+    case 'NFL':
+      return [
+        'PPR',
+        'half_ppr',
+        'standard',
+        'TE_PREMIUM',
+        'dynasty_6pt_pass_td',
+        'IDP',
+        'IDP-balanced',
+        'IDP-tackle_heavy',
+        'IDP-big_play_heavy',
+      ]
+    case 'NBA':
+    case 'NCAAB':
+      return ['points', 'standard']
+    case 'MLB':
+      return ['standard']
+    case 'NHL':
+      return ['standard']
+    case 'NCAAF':
+      return ['PPR', 'standard']
+    case 'SOCCER':
+      return ['standard']
+    default:
+      return ['standard']
+  }
 }

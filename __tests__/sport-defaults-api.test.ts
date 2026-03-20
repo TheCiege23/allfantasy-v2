@@ -30,6 +30,15 @@ function makePayload(sport: LeagueSport) {
       short_name: sport,
       icon: 'x',
       logo_strategy: 'sleeper',
+      default_season_type: 'regular',
+      player_pool_source: 'sports_player',
+      display_labels: {
+        roster: 'Roster',
+        matchups: 'Matchups',
+        draft: 'Draft',
+        waivers: 'Waivers',
+        standings: 'Standings',
+      },
     },
     league: {
       default_league_name_pattern: `My ${sport} League`,
@@ -162,6 +171,13 @@ describe('GET /api/sport-defaults?load=creation', () => {
         body.league.default_playoff_team_count
       )
       expect(Array.isArray(body.defaultLeagueSettings.standings_tiebreakers)).toBe(true)
+      expect(body.metadata.default_season_type).toBe('regular')
+      expect(body.metadata.player_pool_source).toBe('sports_player')
+      expect(body.metadata.display_labels).toBeTruthy()
+      expect(body.registry?.version).toBeTypeOf('string')
+      expect(Array.isArray(body.registry?.supported_sports)).toBe(true)
+      expect(body.registry?.supported_sports).toContain('NFL')
+      expect(body.registry?.supported_sports).toContain('NCAAB')
     }
 
     expect(getCreationPayloadMock).toHaveBeenCalledTimes(sports.length)

@@ -6,6 +6,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadSportPresetForCreation } from '@/lib/league-creation/SportPresetLoader'
 import { resolveSportDefaults } from '@/lib/sport-defaults/SportDefaultsResolver'
+import {
+  SPORT_DEFAULTS_CORE_REGISTRY_VERSION,
+  getSupportedSportDefaultsSports,
+} from '@/lib/sport-defaults/SportDefaultsRegistry'
 
 const LEAGUE_SPORT_VALUES = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 
@@ -26,7 +30,13 @@ export async function GET(request: NextRequest) {
 
     if (load === 'creation') {
       const payload = await loadSportPresetForCreation(sport, variantParam)
-      return NextResponse.json(payload)
+      return NextResponse.json({
+        ...payload,
+        registry: {
+          version: SPORT_DEFAULTS_CORE_REGISTRY_VERSION,
+          supported_sports: getSupportedSportDefaultsSports(),
+        },
+      })
     }
 
     if (load === 'featureFlags') {
@@ -36,7 +46,13 @@ export async function GET(request: NextRequest) {
     }
 
     const defaults = resolveSportDefaults(sportParam)
-    return NextResponse.json(defaults)
+    return NextResponse.json({
+      ...defaults,
+      registry: {
+        version: SPORT_DEFAULTS_CORE_REGISTRY_VERSION,
+        supported_sports: getSupportedSportDefaultsSports(),
+      },
+    })
   } catch (e) {
     console.error('[sport-defaults] Error:', e)
     return NextResponse.json({ error: 'Failed to load sport defaults' }, { status: 500 })

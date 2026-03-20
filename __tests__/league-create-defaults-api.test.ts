@@ -137,6 +137,9 @@ describe('POST /api/league/create sport defaults integration', () => {
           schedule_unit: 'week',
           trade_review_mode: 'commissioner',
           standings_tiebreakers: ['points_for', 'head_to_head'],
+          draft_type: expect.any(String),
+          draft_rounds: expect.any(Number),
+          waiver_type: expect.any(String),
         })
       )
     }

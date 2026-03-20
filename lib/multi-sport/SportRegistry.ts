@@ -4,6 +4,7 @@
  */
 import type { SportType } from './sport-types'
 import { SPORT_TYPES, SPORT_DISPLAY_NAMES, SPORT_EMOJI } from './sport-types'
+import { getPositionsForSport as getPositionsFromRosterDefaults } from '@/lib/roster-defaults/PositionEligibilityResolver'
 
 export const NFL_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'] as const
 /** NFL + IDP positions; DL/DB/IDP_FLEX are slot names; DE, DT, LB, CB, S are player positions. */
@@ -67,10 +68,13 @@ export function getAllSportConfigs(): SportConfig[] {
  * Get positions for a sport. For NFL with formatType 'IDP' or 'idp', returns offensive + IDP positions.
  */
 export function getPositionsForSport(sportType: SportType, formatType?: string): string[] {
-  const positions = SPORT_POSITIONS[sportType] ?? []
+  const positions = getPositionsFromRosterDefaults(sportType, formatType)
+  if (positions.length > 0) return positions
+
+  const fallback = SPORT_POSITIONS[sportType] ?? []
   const normalizedFormat = (formatType ?? '').toUpperCase()
   if (sportType === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'DYNASTY_IDP')) {
     return [...NFL_IDP_POSITIONS]
   }
-  return [...positions]
+  return [...fallback]
 }

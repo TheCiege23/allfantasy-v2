@@ -23,7 +23,7 @@ async function registerWithRetry(
   page: Page,
   credentials: TestCredentials
 ): Promise<void> {
-  const maxAttempts = 2
+  const maxAttempts = 3
   let lastStatus = 0
   let lastBody = ""
   let lastError = ""
@@ -48,7 +48,7 @@ async function registerWithRetry(
           disclaimerAgreed: true,
           termsAgreed: true,
         },
-        timeout: 20_000,
+        timeout: 45_000,
       })
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)

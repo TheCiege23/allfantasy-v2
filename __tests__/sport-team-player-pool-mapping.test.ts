@@ -238,4 +238,84 @@ describe('Sport teams, logos, and player pool mapping', () => {
     expect(result.playerCount).toBe(2)
     expect(result.teamCount).toBe(2)
   })
+
+  it('exports SPORT_TEAM_METADATA_REGISTRY_VERSION with expected format', async () => {
+    const { SPORT_TEAM_METADATA_REGISTRY_VERSION } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    expect(typeof SPORT_TEAM_METADATA_REGISTRY_VERSION).toBe('string')
+    expect(SPORT_TEAM_METADATA_REGISTRY_VERSION).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/)
+  })
+
+  it('getSupportedTeamSports returns all 7 sports', async () => {
+    const { getSupportedTeamSports } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    const sports = getSupportedTeamSports()
+    expect(sports).toEqual(expect.arrayContaining(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']))
+    expect(sports).toHaveLength(7)
+  })
+
+  it('getTeamMetadataForSport returns correct static team counts per sport', async () => {
+    const { getTeamMetadataForSport } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    expect(getTeamMetadataForSport('NFL')).toHaveLength(32)
+    expect(getTeamMetadataForSport('NBA')).toHaveLength(30)
+    expect(getTeamMetadataForSport('MLB')).toHaveLength(30)
+    expect(getTeamMetadataForSport('NHL')).toHaveLength(32)
+    expect(getTeamMetadataForSport('SOCCER')).toHaveLength(24)
+  })
+
+  it('getTeamByAbbreviation finds a team by abbreviation for each sport', async () => {
+    const { getTeamByAbbreviation } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    const nfl = getTeamByAbbreviation('NFL', 'KC')
+    expect(nfl).not.toBeNull()
+    expect(nfl?.sport_type).toBe('NFL')
+
+    const nba = getTeamByAbbreviation('NBA', 'LAL')
+    expect(nba).not.toBeNull()
+    expect(nba?.abbreviation).toBe('LAL')
+
+    const mlb = getTeamByAbbreviation('MLB', 'NYY')
+    expect(mlb).not.toBeNull()
+    expect(mlb?.abbreviation).toBe('NYY')
+
+    const nhl = getTeamByAbbreviation('NHL', 'TOR')
+    expect(nhl).not.toBeNull()
+    expect(nhl?.abbreviation).toBe('TOR')
+
+    const soccer = getTeamByAbbreviation('SOCCER', 'MIA')
+    expect(soccer).not.toBeNull()
+    expect(soccer?.team_name).toBe('Inter Miami CF')
+  })
+
+  it('getPrimaryLogoUrlForTeam returns ESPN CDN URL for each sport', async () => {
+    const { getPrimaryLogoUrlForTeam } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    const nflUrl = getPrimaryLogoUrlForTeam('NFL', 'KC')
+    expect(nflUrl).toMatch(/espncdn\.com\/i\/teamlogos\/nfl/)
+    expect(nflUrl).toMatch(/\.png$/)
+
+    const nbaUrl = getPrimaryLogoUrlForTeam('NBA', 'LAL')
+    expect(nbaUrl).toContain('/nba/500/lal.png')
+
+    const mlbUrl = getPrimaryLogoUrlForTeam('MLB', 'NYY')
+    expect(mlbUrl).toContain('/mlb/500/nyy.png')
+
+    const nhlUrl = getPrimaryLogoUrlForTeam('NHL', 'TOR')
+    expect(nhlUrl).toContain('/nhl/500/tor.png')
+
+    const soccerUrl = getPrimaryLogoUrlForTeam('SOCCER', 'MIA')
+    expect(soccerUrl).toContain('/soccer/500/mia.png')
+  })
+
+  it('getTeamIdByAbbreviationMap has correct size for NBA, MLB, NHL', async () => {
+    const { getTeamIdByAbbreviationMap } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    expect(getTeamIdByAbbreviationMap('NBA').size).toBe(30)
+    expect(getTeamIdByAbbreviationMap('MLB').size).toBe(30)
+    expect(getTeamIdByAbbreviationMap('NHL').size).toBe(32)
+  })
+
+  it('getTeamMetadataForSportDbAware falls back to static registry when DB returns empty', async () => {
+    const { getTeamMetadataForSportDbAware } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+    sportsTeamFindManyMock.mockResolvedValueOnce([])
+    const teams = await getTeamMetadataForSportDbAware('NHL')
+    expect(teams.length).toBe(32)
+    expect(teams.every((t) => t.sport_type === 'NHL')).toBe(true)
+    expect(teams.every((t) => t.primary_logo_url?.includes('/nhl/500/'))).toBe(true)
+  })
 })

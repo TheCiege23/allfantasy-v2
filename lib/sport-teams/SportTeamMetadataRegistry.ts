@@ -258,3 +258,16 @@ export async function getTeamMetadataForSportDbAware(
 
   return [...deduped.values()]
 }
+
+/**
+ * Registry schema version — bump when static team data or logo-key maps change.
+ * Format: YYYY-MM-DD.revision
+ */
+export const SPORT_TEAM_METADATA_REGISTRY_VERSION = '2026-03-20.1'
+
+/**
+ * List sports that have team metadata registered in the static registry.
+ */
+export function getSupportedTeamSports(): SportType[] {
+  return ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
+}

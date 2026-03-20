@@ -4,7 +4,7 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { attachRosterConfigForLeague } from '@/lib/multi-sport/MultiSportLeagueService'
+import { bootstrapLeagueRoster } from '@/lib/roster-defaults/LeagueRosterBootstrapService'
 import { initializeLeagueWithSportDefaults } from '@/lib/sport-defaults/LeagueCreationInitializer'
 import { resolveSportConfigForLeague } from '@/lib/multi-sport/SportConfigResolver'
 import { bootstrapLeagueScoring } from '@/lib/scoring-defaults/LeagueScoringBootstrapService'
@@ -48,7 +48,7 @@ export async function runLeagueBootstrap(
     (rosterFormat === 'IDP' || rosterFormat === 'idp' || scoringFormatResolved === 'IDP' || scoringFormatResolved === 'idp')
 
   const [rosterResult, settingsResult, scoringResult, poolResult, draftResult, waiverResult, playoffResult, scheduleResult] = await Promise.all([
-    attachRosterConfigForLeague(leagueId, leagueSport, rosterFormat).then((r) => ({ templateId: r.templateId })),
+    bootstrapLeagueRoster(leagueId, leagueSport, rosterFormat).then((r) => ({ templateId: r.templateId })),
     initializeLeagueWithSportDefaults({ leagueId, sport: leagueSport, mergeIfExisting: false }),
     bootstrapLeagueScoring(leagueId, leagueSport, scoringFormatResolved).then((r) => ({
       templateId: r.templateId,

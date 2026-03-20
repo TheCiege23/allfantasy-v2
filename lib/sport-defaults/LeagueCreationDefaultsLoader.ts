@@ -22,6 +22,9 @@ export interface LeagueCreationDefaultsPayload {
     short_name: string
     icon: string
     logo_strategy: string
+    default_season_type: string
+    player_pool_source: string
+    display_labels: Record<string, string>
   }
   /** Team metadata defaults (abbrev + logos) for sport-aware branding and selectors. */
   teamMetadata: {
@@ -187,6 +190,9 @@ export async function loadLeagueCreationDefaults(
         short_name: metadata.short_name,
         icon: metadata.icon,
         logo_strategy: metadata.logo_strategy,
+        default_season_type: metadata.default_season_type,
+        player_pool_source: metadata.player_pool_source ?? 'sports_player',
+        display_labels: metadata.display_labels ?? {},
       },
       teamMetadata,
       league: {
@@ -322,6 +328,9 @@ export async function loadLeagueCreationDefaults(
       short_name: defaults.metadata.short_name,
       icon: defaults.metadata.icon,
       logo_strategy: defaults.metadata.logo_strategy,
+      default_season_type: defaults.metadata.default_season_type,
+      player_pool_source: defaults.metadata.player_pool_source ?? 'sports_player',
+      display_labels: defaults.metadata.display_labels ?? {},
     },
     teamMetadata: defaults.teamMetadata ?? getTeamMetadataDefaults(sportType),
     league: {

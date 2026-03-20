@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   getDefaultScoringTemplate,
   resolveDefaultScoringTemplate,
+  getScoringContextForAI,
+  getSupportedScoringFormats,
+  SCORING_DEFAULTS_REGISTRY_VERSION,
 } from '@/lib/scoring-defaults/ScoringDefaultsRegistry'
 import {
   computeFantasyPoints,
@@ -160,5 +163,148 @@ describe('Default Scoring Settings by Sport', () => {
     expect(byKey.get('passing_td')?.pointsValue).toBe(6)
     expect(byKey.get('interception')?.pointsValue).toBe(-1)
     expect(byKey.get('receptions')?.pointsValue).toBe(0.5)
+  })
+
+  it('exports a registry version string', () => {
+    expect(typeof SCORING_DEFAULTS_REGISTRY_VERSION).toBe('string')
+    expect(SCORING_DEFAULTS_REGISTRY_VERSION.length).toBeGreaterThan(0)
+  })
+
+  it('returns correct point values for NFL PPR, Half PPR, and Standard templates', () => {
+    const ppr = getDefaultScoringTemplate('NFL', 'PPR')
+    const halfPpr = getDefaultScoringTemplate('NFL', 'half_ppr')
+    const standard = getDefaultScoringTemplate('NFL', 'standard')
+
+    const byKey = (rules: typeof ppr.rules) => new Map(rules.map((r) => [r.statKey, r]))
+
+    const pprMap = byKey(ppr.rules)
+    expect(pprMap.get('passing_td')?.pointsValue).toBe(4)
+    expect(pprMap.get('receptions')?.pointsValue).toBe(1)
+    expect(pprMap.get('rushing_td')?.pointsValue).toBe(6)
+    expect(pprMap.get('receiving_td')?.pointsValue).toBe(6)
+    expect(pprMap.get('interception')?.pointsValue).toBe(-2)
+    expect(pprMap.get('fumble_lost')?.pointsValue).toBe(-2)
+    expect(pprMap.get('fg_50_plus')?.pointsValue).toBe(5)
+    expect(pprMap.get('dst_points_allowed_0')?.pointsValue).toBe(10)
+
+    expect(byKey(halfPpr.rules).get('receptions')?.pointsValue).toBe(0.5)
+    expect(byKey(standard.rules).get('receptions')?.pointsValue).toBe(0)
+  })
+
+  it('returns correct point values for NHL skater and goalie stats', () => {
+    const nhl = getDefaultScoringTemplate('NHL', 'standard')
+    const byKey = new Map(nhl.rules.map((r) => [r.statKey, r]))
+
+    expect(byKey.get('goal')?.pointsValue).toBe(3)
+    expect(byKey.get('assist')?.pointsValue).toBe(2)
+    expect(byKey.get('shot_on_goal')?.pointsValue).toBe(0.5)
+    expect(byKey.get('blocked_shot')?.pointsValue).toBe(0.5)
+    expect(byKey.get('power_play_point')?.pointsValue).toBe(1)
+    expect(byKey.get('short_handed_point')?.pointsValue).toBe(2)
+    expect(byKey.get('save')?.pointsValue).toBe(0.6)
+    expect(byKey.get('goal_allowed')?.pointsValue).toBe(-3)
+    expect(byKey.get('win')?.pointsValue).toBe(5)
+    expect(byKey.get('shutout')?.pointsValue).toBe(3)
+  })
+
+  it('returns correct point values for MLB batter and pitcher stats', () => {
+    const mlb = getDefaultScoringTemplate('MLB', 'standard')
+    const byKey = new Map(mlb.rules.map((r) => [r.statKey, r]))
+
+    // Batter
+    expect(byKey.get('single')?.pointsValue).toBe(1)
+    expect(byKey.get('double')?.pointsValue).toBe(2)
+    expect(byKey.get('triple')?.pointsValue).toBe(3)
+    expect(byKey.get('home_run')?.pointsValue).toBe(4)
+    expect(byKey.get('rbi')?.pointsValue).toBe(1)
+    expect(byKey.get('run')?.pointsValue).toBe(1)
+    expect(byKey.get('walk')?.pointsValue).toBe(1)
+    expect(byKey.get('stolen_base')?.pointsValue).toBe(2)
+    expect(byKey.get('strikeout')?.pointsValue).toBe(-0.5) // batter K
+
+    // Pitcher
+    expect(byKey.get('innings_pitched')?.pointsValue).toBe(3)
+    expect(byKey.get('earned_runs')?.pointsValue).toBe(-2)
+    expect(byKey.get('strikeouts_pitched')?.pointsValue).toBe(1)
+    expect(byKey.get('save')?.pointsValue).toBe(5)
+    expect(byKey.get('hold')?.pointsValue).toBe(4)
+    expect(byKey.get('win')?.pointsValue).toBe(5)
+    expect(byKey.get('quality_start')?.pointsValue).toBe(4)
+  })
+
+  it('returns correct point values for NBA stats', () => {
+    const nba = getDefaultScoringTemplate('NBA', 'points')
+    const byKey = new Map(nba.rules.map((r) => [r.statKey, r]))
+
+    expect(byKey.get('points')?.pointsValue).toBe(1)
+    expect(byKey.get('rebounds')?.pointsValue).toBe(1.2)
+    expect(byKey.get('assists')?.pointsValue).toBe(1.5)
+    expect(byKey.get('steals')?.pointsValue).toBe(3)
+    expect(byKey.get('blocks')?.pointsValue).toBe(3)
+    expect(byKey.get('turnovers')?.pointsValue).toBe(-1)
+    expect(byKey.get('three_pointers_made')?.pointsValue).toBe(0.5)
+    expect(byKey.get('double_double')?.pointsValue).toBe(1.5)
+    expect(byKey.get('triple_double')?.pointsValue).toBe(3)
+  })
+
+  it('getSupportedScoringFormats returns expected formats for each sport', () => {
+    const nfl = getSupportedScoringFormats('NFL')
+    expect(nfl).toEqual(expect.arrayContaining(['PPR', 'half_ppr', 'standard', 'IDP', 'IDP-balanced', 'IDP-tackle_heavy', 'IDP-big_play_heavy']))
+
+    expect(getSupportedScoringFormats('NBA')).toEqual(expect.arrayContaining(['points', 'standard']))
+    expect(getSupportedScoringFormats('NCAAB')).toEqual(expect.arrayContaining(['points', 'standard']))
+    expect(getSupportedScoringFormats('MLB')).toContain('standard')
+    expect(getSupportedScoringFormats('NHL')).toContain('standard')
+    expect(getSupportedScoringFormats('NCAAF')).toEqual(expect.arrayContaining(['PPR', 'standard']))
+    expect(getSupportedScoringFormats('SOCCER')).toContain('standard')
+  })
+
+  it('getScoringContextForAI returns a non-empty scoring context string for each sport', () => {
+    const sports: Array<[string, string]> = [
+      ['NFL', 'PPR'],
+      ['NFL', 'IDP'],
+      ['NBA', 'points'],
+      ['MLB', 'standard'],
+      ['NHL', 'standard'],
+      ['NCAAF', 'PPR'],
+      ['NCAAB', 'points'],
+      ['SOCCER', 'standard'],
+    ]
+    for (const [sport, format] of sports) {
+      const ctx = getScoringContextForAI(sport, format)
+      expect(typeof ctx).toBe('string')
+      expect(ctx.length).toBeGreaterThan(10)
+      expect(ctx).toMatch(/Scoring:/)
+      expect(ctx).toMatch(/Key rules:/)
+    }
+  })
+
+  it('NCAAF shares NFL stat keys and NCAAB shares NBA stat keys', () => {
+    const ncaaf = getDefaultScoringTemplate('NCAAF', 'PPR')
+    expect(ncaaf.rules.some((r) => r.statKey === 'passing_yards')).toBe(true)
+    expect(ncaaf.rules.some((r) => r.statKey === 'receptions')).toBe(true)
+    expect(ncaaf.rules.some((r) => r.statKey === 'rushing_td')).toBe(true)
+
+    const ncaab = getDefaultScoringTemplate('NCAAB', 'points')
+    expect(ncaab.rules.some((r) => r.statKey === 'points')).toBe(true)
+    expect(ncaab.rules.some((r) => r.statKey === 'assists')).toBe(true)
+    expect(ncaab.rules.some((r) => r.statKey === 'triple_double')).toBe(true)
+  })
+
+  it('NFL IDP template contains offensive and defensive stat keys with correct values', () => {
+    const idp = getDefaultScoringTemplate('NFL', 'IDP')
+    const byKey = new Map(idp.rules.map((r) => [r.statKey, r]))
+
+    // Offensive stats preserved
+    expect(byKey.get('passing_td')?.pointsValue).toBe(4)
+    expect(byKey.get('receptions')?.pointsValue).toBe(1)
+
+    // IDP defensive stats
+    expect(byKey.get('idp_sack')?.pointsValue).toBe(4)
+    expect(byKey.get('idp_interception')?.pointsValue).toBe(3)
+    expect(byKey.get('idp_solo_tackle')?.pointsValue).toBe(1)
+    expect(byKey.get('idp_assist_tackle')?.pointsValue).toBe(0.5)
+    expect(byKey.get('idp_forced_fumble')?.pointsValue).toBe(3)
+    expect(byKey.get('idp_defensive_touchdown')?.pointsValue).toBe(6)
   })
 })

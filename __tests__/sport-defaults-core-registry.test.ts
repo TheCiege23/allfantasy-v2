@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { getTeamMetadataDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
+import {
+  getSupportedSportDefaultsSports,
+  getTeamMetadataDefaults,
+} from '@/lib/sport-defaults/SportDefaultsRegistry'
 import { resolveSportDefaults } from '@/lib/sport-defaults/SportDefaultsResolver'
 
 describe('Sport Defaults Core Registry', () => {
@@ -19,5 +22,15 @@ describe('Sport Defaults Core Registry', () => {
     expect(defaults.teamMetadata).not.toBeNull()
     expect(defaults.teamMetadata?.teams.length).toBeGreaterThan(0)
     expect(defaults.teamMetadata?.teams.some((team) => team.abbreviation === 'MIA')).toBe(true)
+  })
+
+  it('includes required sports and enriched metadata fields in core registry', () => {
+    const supported = getSupportedSportDefaultsSports()
+    expect(supported).toEqual(expect.arrayContaining(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB']))
+
+    const nbaDefaults = resolveSportDefaults('NBA')
+    expect(nbaDefaults.metadata.default_season_type).toBe('regular')
+    expect(nbaDefaults.metadata.player_pool_source).toBe('sports_player')
+    expect(nbaDefaults.metadata.display_labels?.roster).toBeTruthy()
   })
 })

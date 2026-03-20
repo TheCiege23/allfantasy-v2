@@ -5,6 +5,7 @@
 
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getPositionsForSport } from '@/lib/roster-defaults/PositionEligibilityResolver'
+import { getSlotNamesForSport } from '@/lib/roster-defaults/RosterDefaultsRegistry'
 
 export type PositionFilterOption = { value: string; label: string }
 
@@ -61,16 +62,7 @@ export function getPositionFilterOptionsForSport(
  */
 export function getDefaultRosterSlotsForSport(sport: string): string[] {
   const normalized = normalizeToSupportedSport(sport)
-  const map: Record<string, string[]> = {
-    NFL: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-    NHL: ['C', 'C', 'LW', 'LW', 'RW', 'RW', 'D', 'D', 'G', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-    NBA: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-    MLB: ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'UTIL', 'SP', 'SP', 'RP', 'RP', 'P', 'BENCH', 'BENCH', 'BENCH'],
-    NCAAB: ['G', 'G', 'F', 'F', 'C', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-    NCAAF: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-    SOCCER: ['GKP', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD', 'UTIL', 'BENCH', 'BENCH', 'BENCH', 'BENCH', 'BENCH'],
-  }
-  return map[normalized] ?? map.NFL
+  return getSlotNamesForSport(normalized)
 }
 
 /**

@@ -296,6 +296,34 @@ export async function POST(req: Request) {
     if (settingsWizard && typeof settingsWizard === 'object') {
       Object.assign(initialSettings, settingsWizard);
     }
+
+    // Ensure sport-specific draft/waiver defaults are always present unless explicitly overridden.
+    {
+      const { getDraftDefaults, getWaiverDefaults } = await import('@/lib/sport-defaults/SportDefaultsRegistry');
+      const draftDefaults = getDraftDefaults(sport as any, presetVariant ?? null);
+      const waiverDefaults = getWaiverDefaults(sport as any, presetVariant ?? null);
+
+      if (initialSettings.draft_type == null) initialSettings.draft_type = draftDefaults.draft_type;
+      if (initialSettings.draft_rounds == null) initialSettings.draft_rounds = draftDefaults.rounds_default;
+      if (initialSettings.draft_timer_seconds == null) initialSettings.draft_timer_seconds = draftDefaults.timer_seconds_default;
+      if (initialSettings.draft_pick_order_rules == null) initialSettings.draft_pick_order_rules = draftDefaults.pick_order_rules;
+
+      if (initialSettings.waiver_type == null) initialSettings.waiver_type = waiverDefaults.waiver_type;
+      if (initialSettings.waiver_processing_days == null) initialSettings.waiver_processing_days = waiverDefaults.processing_days;
+      if (initialSettings.faab_budget == null && waiverDefaults.FAAB_budget_default != null) {
+        initialSettings.faab_budget = waiverDefaults.FAAB_budget_default;
+      }
+      if (initialSettings.waiver_processing_time_utc == null && waiverDefaults.processing_time_utc != null) {
+        initialSettings.waiver_processing_time_utc = waiverDefaults.processing_time_utc;
+      }
+      if (initialSettings.waiver_claim_priority_behavior == null && waiverDefaults.claim_priority_behavior != null) {
+        initialSettings.waiver_claim_priority_behavior = waiverDefaults.claim_priority_behavior;
+      }
+      if (initialSettings.waiver_game_lock_behavior == null && waiverDefaults.game_lock_behavior != null) {
+        initialSettings.waiver_game_lock_behavior = waiverDefaults.game_lock_behavior;
+      }
+    }
+
     const generatedInviteCode = (await import('crypto')).randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
     const resolvedInviteCode =
       typeof initialSettings.inviteCode === 'string' && initialSettings.inviteCode.trim()

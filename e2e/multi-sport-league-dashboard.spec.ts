@@ -18,7 +18,9 @@ async function createLeague(
       isDynasty: false,
     },
   })
-  expect(res.ok()).toBeTruthy()
+  const payload = await res.json().catch(() => ({}))
+  expect(res.ok(), JSON.stringify(payload)).toBeTruthy()
+  return payload?.league as { id?: string; name?: string; sport?: string } | undefined
 }
 
 test('creates multi-sport leagues and shows grouped dashboard ordering', async ({ page }) => {
@@ -32,20 +34,32 @@ test('creates multi-sport leagues and shows grouped dashboard ordering', async (
   await createLeague(page, 'MLB', mlbLeagueName)
 
   await page.goto('/dashboard')
+  await page.waitForURL('/dashboard')
 
-  await expect(page.getByText(nhlLeagueName)).toBeVisible()
-  await expect(page.getByText(mlbLeagueName)).toBeVisible()
+  // Switch to the My Leagues tab where sport groups are rendered
+  await page.getByRole('button', { name: 'My Leagues' }).click()
 
-  const nhlHeader = page.locator('h4', { hasText: 'NHL' }).first()
-  const mlbHeader = page.locator('h4', { hasText: 'MLB' }).first()
+  // Trigger a fresh fetch (leagues were created after initial mount-time fetch)
+  await page.getByRole('button', { name: 'Refresh' }).click()
 
-  await expect(nhlHeader).toBeVisible()
-  await expect(mlbHeader).toBeVisible()
+  // Wait for loading indicator to clear before asserting sections
+  await expect(page.locator('text=Loading your connected leagues...')).not.toBeVisible({ timeout: 20_000 })
 
-  const nhlBox = await nhlHeader.boundingBox()
-  const mlbBox = await mlbHeader.boundingBox()
+  const nhlSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^NHL$/ }) }).first()
+  const mlbSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^MLB$/ }) }).first()
 
-  expect(nhlBox).not.toBeNull()
-  expect(mlbBox).not.toBeNull()
-  expect((nhlBox as { y: number }).y).toBeLessThan((mlbBox as { y: number }).y)
+  await expect(nhlSection.getByText(nhlLeagueName)).toBeVisible({ timeout: 45_000 })
+  await expect(mlbSection.getByText(mlbLeagueName)).toBeVisible({ timeout: 45_000 })
+
+  await expect(nhlSection).toBeVisible()
+  await expect(mlbSection).toBeVisible()
+
+  const headingOrder = await page.getByRole('heading', { level: 3 }).evaluateAll((nodes) =>
+    nodes.map((node) => node.textContent?.trim() || '').filter(Boolean)
+  )
+  const nhlIndex = headingOrder.indexOf('NHL')
+  const mlbIndex = headingOrder.indexOf('MLB')
+  expect(nhlIndex).toBeGreaterThanOrEqual(0)
+  expect(mlbIndex).toBeGreaterThanOrEqual(0)
+  expect(nhlIndex).toBeLessThan(mlbIndex)
 })

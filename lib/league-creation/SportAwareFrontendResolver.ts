@@ -67,3 +67,22 @@ export function resolveSportAwareFrontendContext(
     },
   }
 }
+
+/**
+ * Get team logos for a specific sport (for sport selector or team display).
+ * Used in league creation wizard to show team previews per sport.
+ */
+export async function resolveSportTeamLogos(
+  sport: string
+): Promise<Array<{ abbreviation: string; primary_logo_url: string | null }>> {
+  const { getTeamMetadataForSportDbAware } = await import('@/lib/sport-teams/SportTeamMetadataRegistry')
+  try {
+    const teams = await getTeamMetadataForSportDbAware(sport as any)
+    return teams.map((t) => ({
+      abbreviation: t.abbreviation,
+      primary_logo_url: t.primary_logo_url,
+    }))
+  } catch {
+    return []
+  }
+}

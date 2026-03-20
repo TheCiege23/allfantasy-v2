@@ -15,6 +15,12 @@ import { SPORT_TYPES } from './types'
 import { getRosterOverlayForVariant } from './LeagueVariantRegistry'
 import { getTeamMetadataForSport } from '@/lib/sport-teams/SportTeamMetadataRegistry'
 
+export const SPORT_DEFAULTS_CORE_REGISTRY_VERSION = '2026-03-20.1'
+
+export function getSupportedSportDefaultsSports(): SportType[] {
+  return [...SPORT_TYPES]
+}
+
 const LEAGUE_DEFAULTS: Record<SportType, LeagueDefaults> = {
   NFL: {
     sport_type: 'NFL',
