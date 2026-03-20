@@ -8,7 +8,7 @@ import {
   DraftTopBar,
   DraftManagerStrip,
   DraftBoard,
-  PlayerPanel,
+  SportAwareDraftRoom,
   QueuePanel,
   DraftChatPanel,
   DraftHelperPanel,
@@ -1088,7 +1088,7 @@ export function DraftRoomPageClient({
         />
       }
       playerPanel={
-        <PlayerPanel
+        <SportAwareDraftRoom
           players={players}
           draftedNames={draftedNames}
           sport={effectiveDraftSport}

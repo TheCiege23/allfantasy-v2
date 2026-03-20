@@ -9,10 +9,31 @@ const DATABASE_URL_ENV_KEYS = [
 type DatabaseEnv = Partial<Record<(typeof DATABASE_URL_ENV_KEYS)[number], string | undefined>>
 type EnvLike = Record<string, string | undefined>
 
+function normalizeDatabaseUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+
+    // Supabase transaction pooler requires PgBouncer-safe Prisma settings.
+    if (parsed.hostname.endsWith("pooler.supabase.com") && parsed.port === "6543") {
+      if (!parsed.searchParams.has("pgbouncer")) {
+        parsed.searchParams.set("pgbouncer", "true")
+      }
+      if (!parsed.searchParams.has("connection_limit")) {
+        parsed.searchParams.set("connection_limit", "1")
+      }
+      return parsed.toString()
+    }
+
+    return url
+  } catch {
+    return url
+  }
+}
+
 export function resolveDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): string | null {
   for (const key of DATABASE_URL_ENV_KEYS) {
     const value = env[key]?.trim()
-    if (value) return value
+    if (value) return normalizeDatabaseUrl(value)
   }
 
   return null

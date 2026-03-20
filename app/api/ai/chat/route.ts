@@ -9,6 +9,7 @@ import { getUniversalAIContext } from '@/lib/ai-player-context'
 import { getPlayerAnalyticsBatch, computeAthleticGrade, computeCollegeProductionGrade, type PlayerAnalytics } from '@/lib/player-analytics'
 import { logUserEventByUsername } from '@/lib/user-events'
 import { logAiOutput } from '@/lib/ai/output-logger'
+import { buildSportContextString, resolveSportForAI } from '@/lib/ai/AISportContextResolver'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -113,10 +114,17 @@ async function getLegacyContext(sleeperUsername: string) {
   }
 }
 
-function buildSystemPrompt(legacyContext: Awaited<ReturnType<typeof getLegacyContext>>, playerAnalyticsContext?: string) {
+function buildSystemPrompt(
+  legacyContext: Awaited<ReturnType<typeof getLegacyContext>>,
+  sportContext: string,
+  playerAnalyticsContext?: string
+) {
   let basePrompt = `You are THE ELITE AllFantasy AI Assistant - the #1 dynasty fantasy sports advisor.
 
 ${getUniversalAIContext()}
+
+## SPORT CONTEXT
+${sportContext}
 
 ## YOUR EXPERT KNOWLEDGE
 You have encyclopedic knowledge of dynasty fantasy strategy:
@@ -194,6 +202,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
 
     const { context_scope, message, conversation_history } = parseResult.data
     const sleeperUsername = context_scope.sleeper_username?.trim()?.toLowerCase()
+    const resolvedSport = resolveSportForAI(body as Record<string, unknown>)
 
     if (!sleeperUsername) {
       return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
@@ -234,7 +243,14 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       }
     }
 
-    const systemPrompt = buildSystemPrompt(legacyContext, playerAnalyticsContext)
+    const sportContext = buildSportContextString({
+      sport: resolvedSport,
+      leagueName: legacyContext?.recent_leagues?.[0]?.name ?? null,
+      format: 'dynasty',
+      strategyMode: 'balanced',
+    })
+
+    const systemPrompt = buildSystemPrompt(legacyContext, sportContext, playerAnalyticsContext)
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },

@@ -16,9 +16,9 @@ export async function GET() {
 
   const availability = checkProviderAvailability()
   const providers = [
-    { id: 'openai', name: 'OpenAI', available: availability.openai, role: 'Final explanation, action plan, Chimmy' },
-    { id: 'deepseek', name: 'DeepSeek', available: availability.deepseek, role: 'Analytical reasoning, numeric interpretation' },
-    { id: 'grok', name: 'Grok', available: availability.grok, role: 'Narrative framing, trend explanation' },
+    { id: 'openai', name: 'OpenAI', available: availability.openai, role: 'Sport-aware user explanations, draft/waiver advice, roster suggestions, matchup summaries' },
+    { id: 'deepseek', name: 'DeepSeek', available: availability.deepseek, role: 'Sport-aware statistical modeling, projections, and matchup scoring context' },
+    { id: 'grok', name: 'Grok', available: availability.grok, role: 'Sport-aware trend detection, narrative context, and storyline framing' },
   ]
   return NextResponse.json({ providers, availability })
 }

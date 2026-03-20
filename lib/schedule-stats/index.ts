@@ -3,3 +3,4 @@
  */
 export * from './StatNormalizationService'
 export * from './ScheduleIngestionService'
+export * from './StatIngestionService'

@@ -446,6 +446,10 @@ export function combineHealthComponents(args: {
     0.1 * winProbFactor +
     0.1 * uniqFactor
 
+  if (!championAlive) {
+    s -= 0.05
+  }
+
   s = Math.max(0, Math.min(1, s))
 
   const score = Math.round(s * 100)

@@ -6,7 +6,7 @@ import TabDataState from '@/components/app/tabs/TabDataState'
 import LegacyAIPanel from '@/components/app/tabs/LegacyAIPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { SmartDataView } from '@/components/app/league/SmartDataView'
-import WaiverWirePage from '@/components/waiver-wire/WaiverWirePage'
+import { SportAwareWaiverWire } from '@/components/waiver-wire/SportAwareWaiverWire'
 
 export default function WaiversTab({ leagueId }: LeagueTabProps) {
   const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'waivers')
@@ -31,7 +31,7 @@ export default function WaiversTab({ leagueId }: LeagueTabProps) {
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
-        <WaiverWirePage leagueId={leagueId} />
+        <SportAwareWaiverWire leagueId={leagueId} />
         <TabDataState title="Waiver AI suggestions" loading={loading} error={error} onReload={() => void reload()}>
           <div className="space-y-4">
             <div className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-3">

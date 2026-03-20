@@ -61,10 +61,11 @@ export async function computeRosterScoreForWeek(
   let totalPoints = 0
   for (const row of stats) {
     const raw = row.normalizedStatMap as Record<string, number> | null
+    // Always prefer league-rule recalculation so overrides/custom templates are respected.
     const points =
-      row.fantasyPoints != null && row.fantasyPoints > 0
-        ? row.fantasyPoints
-        : computeFantasyPoints((raw ?? {}) as PlayerStatsRecord, rules as ScoringRuleDto[])
+      raw && Object.keys(raw).length > 0
+        ? computeFantasyPoints(raw as PlayerStatsRecord, rules as ScoringRuleDto[])
+        : (row.fantasyPoints ?? 0)
     byPlayerId[row.playerId] = Math.round(points * 100) / 100
     totalPoints += byPlayerId[row.playerId]
   }

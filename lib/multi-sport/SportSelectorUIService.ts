@@ -13,9 +13,9 @@ import {
 /** Dashboard display order requested for homepage grouping. */
 export const DASHBOARD_SPORT_ORDER: SportType[] = [
   'NFL',
-  'NBA',
-  'MLB',
   'NHL',
+  'MLB',
+  'NBA',
   'NCAAF',
   'NCAAB',
   'SOCCER',

@@ -38,8 +38,12 @@ function isConnectionError(error: unknown): boolean {
 
   if (
     message.includes("prepared statement") &&
-    message.includes("does not exist")
+    (message.includes("does not exist") || message.includes("already exists"))
   ) {
+    return true;
+  }
+
+  if (message.includes("bind message supplies") && message.includes("prepared statement")) {
     return true;
   }
 

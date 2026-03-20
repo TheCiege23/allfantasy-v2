@@ -14,7 +14,7 @@ const SPORT_LABELS: Record<LeagueSportOption, string> = {
   SOCCER: 'Soccer',
 };
 
-const LEAGUE_SPORTS: LeagueSportOption[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'];
+const LEAGUE_SPORTS: LeagueSportOption[] = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'];
 
 const SPORT_EMOJI: Record<LeagueSportOption, string> = {
   NFL: '🏈',

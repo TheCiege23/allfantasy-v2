@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronRight, Users, Loader2 } from "lucide-react"
+import { Users, Loader2, ChevronRight } from "lucide-react"
 import { groupLeaguesBySport } from "@/lib/dashboard"
 import type { LeagueForGrouping } from "@/lib/dashboard"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { DashboardSportGroups } from '@/components/dashboard/DashboardSportGroups'
 
 export function ActiveLeaguesSection() {
   const { t } = useLanguage()
@@ -67,32 +68,12 @@ export function ActiveLeaguesSection() {
         <Link href="/leagues" className="text-xs text-white/50 hover:text-white/70">{t("dashboard.viewAll")}</Link>
       </div>
       <div className="space-y-6">
-        {groups.map((group) => (
-          <div key={group.sport}>
-            <h4 className="text-xs font-medium text-white/50 mb-2 flex items-center gap-1.5">
-              <span>{group.emoji}</span>
-              <span>{group.label}</span>
-            </h4>
-            <div className="space-y-2">
-              {group.leagues.slice(0, 3).map((league) => (
-                <Link
-                  key={league.id}
-                  href={`/leagues/${league.id}`}
-                  className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3 hover:bg-white/[0.05] transition group"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{league.name || t("dashboard.unnamedLeague")}</div>
-                    <div className="text-xs text-white/40">{league.leagueSize ?? "?"}-{t("dashboard.team")} · {league.isDynasty ? t("dashboard.dynasty") : t("dashboard.redraft")}</div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-white/20 group-hover:text-white/50 shrink-0" />
-                </Link>
-              ))}
-              {group.leagues.length > 3 && (
-                <Link href="/leagues" className="block text-xs text-white/40 hover:text-white/60 py-1">+{group.leagues.length - 3} {t("dashboard.more")}</Link>
-              )}
-            </div>
-          </div>
-        ))}
+        <DashboardSportGroups
+          groups={groups}
+          maxPerGroup={3}
+          emptyLeagueLabel={t('dashboard.unnamedLeague')}
+          renderLeagueHref={(league) => `/leagues/${league.id}`}
+        />
       </div>
     </section>
   )
