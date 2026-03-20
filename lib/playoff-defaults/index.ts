@@ -1,7 +1,12 @@
 /**
  * Playoff defaults and resolvers — sport- and variant-aware playoff presets and league config.
  */
-export { getPlayoffPreset, resolveDefaultPlayoffConfig } from './PlayoffDefaultsRegistry'
+export {
+	getPlayoffPreset,
+	resolveDefaultPlayoffConfig,
+	getPlayoffPresetDefinitions,
+	getSupportedPlayoffVariantsForSport,
+} from './PlayoffDefaultsRegistry'
 export type { DefaultPlayoffConfig } from '@/lib/sport-defaults/types'
 export { resolvePlayoffPreset } from './PlayoffPresetResolver'
 export type { PlayoffPresetResult } from './PlayoffPresetResolver'

@@ -36,10 +36,12 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
   const variantText = String(state.leagueVariant ?? state.scoringPreset ?? '').toUpperCase()
   const sportText = String(state.sport).toUpperCase()
+  const isSoccer = sportText === 'SOCCER'
+  const isNflIdp = sportText === 'NFL' && variantText.includes('IDP')
   const playerPoolLabel =
-    sportText === 'SOCCER'
+    isSoccer
       ? 'Soccer-only pool (GK/GKP, DEF, MID, FWD)'
-      : sportText === 'NFL' && variantText.includes('IDP')
+      : isNflIdp
         ? 'NFL offensive + IDP defenders (DL, LB, DB, IDP FLEX)'
         : sportText === 'NFL'
           ? 'NFL offensive + DST'
@@ -51,6 +53,12 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         .join(', ')
     : null
   const scoringLabel = state.leagueVariant ?? state.scoringPreset ?? 'Default'
+  const presetContextLabel =
+    isSoccer
+      ? 'Soccer sport with the soccer-specific default preset'
+      : isNflIdp
+        ? 'NFL sport with an IDP preset layered on top of NFL defaults'
+        : null
   const scheduleLabel = creationPreset?.scheduleTemplate
     ? creationPreset.scheduleTemplate.playoffWeeks > 0
       ? `${creationPreset.scheduleTemplate.regularSeasonWeeks} wk regular, ${creationPreset.scheduleTemplate.playoffWeeks} wk playoffs · ${creationPreset.scheduleTemplate.matchupType.replace(/_/g, ' ')}`
@@ -89,6 +97,7 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
       <SummarySection title="Scoring rules">
         <SummaryRow label="Scoring" value={scoringLabel} />
         <SummaryRow label="Player pool" value={playerPoolLabel} />
+        {presetContextLabel != null && <SummaryRow label="Preset context" value={presetContextLabel} />}
         {leagueDefaultsLabel != null && <SummaryRow label="League defaults" value={leagueDefaultsLabel} />}
       </SummarySection>
 

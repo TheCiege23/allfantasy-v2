@@ -153,7 +153,38 @@ const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
  */
 export function resolveDefaultPlayoffConfig(
   sportType: SportType,
-  _formatType?: string | null
+  formatType?: string | null
 ): DefaultPlayoffConfig {
-  return CONFIGS[sportType] ?? CONFIGS.NFL
+  const base = CONFIGS[sportType] ?? CONFIGS.NFL
+  const variant = String(formatType ?? '').trim().toUpperCase()
+
+  if (sportType === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
+    return {
+      ...base,
+      seeding_rules: 'standard_standings',
+      tiebreaker_rules: ['points_for', 'head_to_head', 'points_against', 'division_record'],
+      bye_rules: 'top_two_seeds_bye',
+      reseed_behavior: 'fixed_bracket',
+    }
+  }
+
+  if (sportType === 'SOCCER' && variant === 'NO_PLAYOFF') {
+    return {
+      ...base,
+      playoff_team_count: 0,
+      playoff_weeks: 0,
+      first_round_byes: 0,
+      playoff_start_week: null,
+      bye_rules: null,
+      total_rounds: 0,
+      consolation_plays_for: 'none',
+      consolation_bracket_enabled: false,
+      third_place_game_enabled: false,
+      toilet_bowl_enabled: false,
+      championship_length: 0,
+      reseed_behavior: 'fixed_bracket',
+    }
+  }
+
+  return base
 }

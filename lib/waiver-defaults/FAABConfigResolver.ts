@@ -37,15 +37,17 @@ export async function getFAABConfigForLeague(leagueId: string): Promise<FAABConf
   const sportType = toSportType(sport) as SportType
   const defaults = getWaiverDefaults(sportType, variant ?? undefined)
 
-  const useStored = settings != null
-  const waiverType = useStored ? (settings.waiverType ?? defaults.waiver_type) : defaults.waiver_type
+  const fromSettings = <T>(value: T | null | undefined, fallback: T): T =>
+    value === undefined || value === null ? fallback : value
+
+  const waiverType = fromSettings<string | null>(settings?.waiverType ?? null, defaults.waiver_type) ?? defaults.waiver_type
   const faab_enabled = waiverType === 'faab'
 
   return {
     faab_enabled,
-    faab_budget: useStored ? settings.faabBudget : (defaults.FAAB_budget_default ?? null),
-    faab_reset_rules: useStored ? null : (defaults.faab_reset_rules ?? null),
-    faab_reset_date: useStored ? settings.faabResetDate ?? null : null,
+    faab_budget: fromSettings<number | null>(settings?.faabBudget ?? null, defaults.FAAB_budget_default ?? null),
+    faab_reset_rules: defaults.faab_reset_rules ?? null,
+    faab_reset_date: settings?.faabResetDate ?? null,
     sport,
     variant,
   }

@@ -30,7 +30,11 @@ export function getDraftRankingContext(sport: string, variant?: string | null): 
   const sportType = toSportType(sport) as SportType
   const draft = getDraftDefaults(sportType, variant ?? undefined)
   const source = draft.pre_draft_ranking_source ?? 'adp'
-  const contextLabel = SOURCE_LABELS[source] ?? source
+  const sourceLabel = SOURCE_LABELS[source] ?? source
+  const sportUpper = String(sport).toUpperCase()
+  const variantUpper = String(variant ?? '').toUpperCase()
+  const variantLabel = variantUpper ? ` ${variantUpper}` : ''
+  const contextLabel = `${sourceLabel} (${sportUpper}${variantLabel})`
 
   return {
     pre_draft_ranking_source: source,

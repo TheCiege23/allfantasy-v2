@@ -10,6 +10,7 @@ export interface PlayoffConfigForLeague {
   playoff_team_count: number
   playoff_weeks: number
   playoff_start_week: number | null
+  playoff_start_point: number | null
   first_round_byes: number
   bracket_type: string
   matchup_length: number

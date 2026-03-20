@@ -26,9 +26,17 @@ export async function getStandingsTiebreakersForLeague(leagueId: string): Promis
   const variant = league.leagueVariant ?? null
 
   const stored = settings.standings_tiebreakers
+  const structure = settings.playoff_structure != null && typeof settings.playoff_structure === 'object'
+    ? (settings.playoff_structure as Record<string, unknown>)
+    : {}
+  const structureRules = Array.isArray(structure.tiebreaker_rules)
+    ? (structure.tiebreaker_rules as string[])
+    : null
   const tiebreakers = Array.isArray(stored) && stored.length > 0
     ? (stored as string[])
-    : getDefaultLeagueSettings(sport).standings_tiebreakers
+    : (structureRules && structureRules.length > 0)
+      ? structureRules
+      : getDefaultLeagueSettings(sport).standings_tiebreakers
 
   return {
     tiebreakers,

@@ -154,6 +154,70 @@ describe('Sport teams, logos, and player pool mapping', () => {
     expect(nflDl.map((p) => p.position)).toEqual(expect.arrayContaining(['DE', 'DT']))
   })
 
+  it('normalizes NFL defensive aliases in pool and slot eligibility (EDGE/OLB/FS/NT)', async () => {
+    const { getPlayerPoolForSport } = await import('@/lib/sport-teams/SportPlayerPoolResolver')
+    const { isPositionEligibleForSlot } = await import('@/lib/roster-defaults/PositionEligibilityResolver')
+
+    sportsPlayerFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'nfl-edge-1',
+        sport: 'NFL',
+        teamId: 'DAL',
+        team: 'DAL',
+        name: 'Edge Alias',
+        position: 'EDGE',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-edge-1',
+        age: 24,
+      },
+      {
+        id: 'nfl-olb-1',
+        sport: 'NFL',
+        teamId: 'DAL',
+        team: 'DAL',
+        name: 'Linebacker Alias',
+        position: 'OLB',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-olb-1',
+        age: 26,
+      },
+      {
+        id: 'nfl-fs-1',
+        sport: 'NFL',
+        teamId: 'DAL',
+        team: 'DAL',
+        name: 'Safety Alias',
+        position: 'FS',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-fs-1',
+        age: 27,
+      },
+      {
+        id: 'nfl-nt-1',
+        sport: 'NFL',
+        teamId: 'DAL',
+        team: 'DAL',
+        name: 'Nose Tackle Alias',
+        position: 'NT',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-nt-1',
+        age: 29,
+      },
+    ])
+
+    const aliases = await getPlayerPoolForSport('NFL', { teamId: 'DAL', limit: 10 })
+    expect(aliases.map((p) => p.position)).toEqual(expect.arrayContaining(['DE', 'LB', 'S', 'DT']))
+
+    expect(isPositionEligibleForSlot('NFL', 'DE', 'EDGE', 'IDP')).toBe(true)
+    expect(isPositionEligibleForSlot('NFL', 'LB', 'OLB', 'IDP')).toBe(true)
+    expect(isPositionEligibleForSlot('NFL', 'S', 'FS', 'IDP')).toBe(true)
+    expect(isPositionEligibleForSlot('NFL', 'DT', 'NT', 'IDP')).toBe(true)
+  })
+
   it('falls back to identity defensive players for NFL IDP when sportsPlayer rows are sparse', async () => {
     const { getPlayerPoolForSport } = await import('@/lib/sport-teams/SportPlayerPoolResolver')
 

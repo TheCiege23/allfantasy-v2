@@ -1,6 +1,6 @@
 /**
  * Ensures a league has schedule behavior config in League.settings (sport- and variant-aware).
- * Idempotent: merges default schedule keys only when missing so commissioner overrides are preserved.
+ * Idempotent: merges missing schedule keys only, preserving commissioner overrides.
  */
 import { prisma } from '@/lib/prisma'
 import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
@@ -15,6 +15,9 @@ export interface LeagueScheduleBootstrapResult {
 }
 
 const SCHEDULE_KEYS = [
+  'schedule_unit',
+  'matchup_frequency',
+  'regular_season_length',
   'schedule_cadence',
   'schedule_head_to_head_behavior',
   'schedule_lock_window_behavior',
@@ -26,7 +29,7 @@ const SCHEDULE_KEYS = [
 ] as const
 
 /**
- * Ensure league has schedule behavior keys in League.settings. If any are missing, merge in sport defaults.
+ * Ensure league has schedule behavior keys in League.settings. Missing keys are backfilled.
  */
 export async function bootstrapLeagueScheduleConfig(leagueId: string): Promise<LeagueScheduleBootstrapResult> {
   const league = await (prisma as any).league.findUnique({
@@ -43,12 +46,10 @@ export async function bootstrapLeagueScheduleConfig(leagueId: string): Promise<L
   const sportType = toSportType(sport) as SportType
   const schedule = resolveDefaultScheduleConfig(sportType, variant ?? undefined)
 
-  const hasAnyScheduleKey = SCHEDULE_KEYS.some((k) => settings[k] !== undefined)
-  if (hasAnyScheduleKey) {
-    return { leagueId, scheduleConfigApplied: false, sport, variant }
-  }
-
   const scheduleBlock = {
+    schedule_unit: schedule.schedule_unit,
+    matchup_frequency: schedule.matchup_frequency,
+    regular_season_length: schedule.regular_season_length,
     schedule_cadence: schedule.matchup_cadence ?? schedule.matchup_frequency,
     schedule_head_to_head_behavior: schedule.head_to_head_or_points_behavior ?? 'head_to_head',
     schedule_lock_window_behavior: schedule.lock_window_behavior ?? schedule.lock_time_behavior,
@@ -59,9 +60,22 @@ export async function bootstrapLeagueScheduleConfig(leagueId: string): Promise<L
     schedule_generation_strategy: schedule.schedule_generation_strategy ?? 'round_robin',
   }
 
+  const nextSettings: Record<string, unknown> = { ...settings }
+  let applied = false
+  for (const key of SCHEDULE_KEYS) {
+    if (nextSettings[key] === undefined || nextSettings[key] === null) {
+      nextSettings[key] = scheduleBlock[key]
+      applied = true
+    }
+  }
+
+  if (!applied) {
+    return { leagueId, scheduleConfigApplied: false, sport, variant }
+  }
+
   await (prisma as any).league.update({
     where: { id: leagueId },
-    data: { settings: { ...settings, ...scheduleBlock } },
+    data: { settings: nextSettings },
   })
 
   return { leagueId, scheduleConfigApplied: true, sport, variant }

@@ -33,11 +33,6 @@ export async function bootstrapLeagueDraftConfig(leagueId: string): Promise<Leag
   const sportType = toSportType(sport) as SportType
   const draft = getDraftDefaults(sportType, variant ?? undefined)
 
-  // Only apply when draft config is missing (e.g. legacy league or pre-Prompt17 create).
-  if (settings.draft_rounds !== undefined && settings.draft_rounds !== null) {
-    return { leagueId, draftConfigApplied: false, sport, variant }
-  }
-
   const draftBlock = {
     draft_type: draft.draft_type,
     draft_rounds: draft.rounds_default,
@@ -52,9 +47,22 @@ export async function bootstrapLeagueDraftConfig(leagueId: string): Promise<Leag
     draft_position_filter_behavior: draft.position_filter_behavior ?? 'by_eligibility',
   }
 
+  const mergeOnlyMissing: Record<string, unknown> = { ...settings }
+  let applied = false
+  for (const [key, value] of Object.entries(draftBlock)) {
+    if (mergeOnlyMissing[key] === undefined || mergeOnlyMissing[key] === null) {
+      mergeOnlyMissing[key] = value
+      applied = true
+    }
+  }
+
+  if (!applied) {
+    return { leagueId, draftConfigApplied: false, sport, variant }
+  }
+
   await (prisma as any).league.update({
     where: { id: leagueId },
-    data: { settings: { ...settings, ...draftBlock } },
+    data: { settings: mergeOnlyMissing },
   })
 
   return { leagueId, draftConfigApplied: true, sport, variant }

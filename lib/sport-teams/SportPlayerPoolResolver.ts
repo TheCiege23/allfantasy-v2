@@ -27,12 +27,56 @@ const NFL_IDP_GROUP_MAP: Record<string, string[]> = {
   IDP_FLEX: ['DE', 'DT', 'LB', 'CB', 'S'],
 }
 
+const NFL_IDP_POSITION_ALIASES: Record<string, string> = {
+  EDGE: 'DE',
+  OLB: 'LB',
+  ILB: 'LB',
+  MLB: 'LB',
+  SS: 'S',
+  FS: 'S',
+  NT: 'DT',
+}
+
+const NFL_IDP_QUERY_EXPANSION: Record<string, string[]> = {
+  DE: ['DE', 'EDGE'],
+  DT: ['DT', 'NT'],
+  LB: ['LB', 'OLB', 'ILB', 'MLB'],
+  S: ['S', 'SS', 'FS'],
+  CB: ['CB'],
+}
+
+function normalizeNflIdpPosition(position: string): string {
+  return NFL_IDP_POSITION_ALIASES[position] ?? position
+}
+
+function expandNflIdpPositions(positions: string[]): string[] {
+  const expanded = new Set<string>()
+  for (const position of positions) {
+    const canonical = normalizeNflIdpPosition(position)
+    expanded.add(canonical)
+    const aliases = NFL_IDP_QUERY_EXPANSION[canonical]
+    if (aliases && aliases.length > 0) {
+      for (const alias of aliases) expanded.add(alias)
+    }
+  }
+  return [...expanded]
+}
+
+function normalizePoolPosition(sport: string, position: string | null): string {
+  const raw = String(position ?? '').trim().toUpperCase()
+  if (!raw) return ''
+  if (sport === 'SOCCER' && raw === 'GK') return 'GKP'
+  if (sport === 'NFL') return normalizeNflIdpPosition(raw)
+  return raw
+}
+
 function normalizePositionFilter(sport: string, position?: string): string[] | null {
   const raw = position?.trim()
   if (!raw) return null
   const upper = raw.toUpperCase()
   if (sport === 'SOCCER' && (upper === 'GK' || upper === 'GKP')) return ['GK', 'GKP']
   if (sport === 'NFL' && NFL_IDP_GROUP_MAP[upper]) return NFL_IDP_GROUP_MAP[upper]
+  if (sport === 'NFL') return [normalizeNflIdpPosition(upper)]
   return [upper]
 }
 
@@ -46,6 +90,10 @@ export async function getPlayerPoolForSport(
   const sport = normalizeSport(sportType)
   const teamIdByAbbrev = getTeamIdByAbbreviationMap(sport)
   const normalizedPositions = normalizePositionFilter(sport, options?.position)
+  const dbPositionFilters =
+    sport === 'NFL' && normalizedPositions
+      ? expandNflIdpPositions(normalizedPositions)
+      : normalizedPositions
   const where: {
     sport: string
     team?: string
@@ -53,10 +101,10 @@ export async function getPlayerPoolForSport(
     OR?: Array<{ position: string }>
   } = { sport }
   if (options?.teamId?.trim()) where.team = options.teamId.trim()
-  if (normalizedPositions && normalizedPositions.length === 1) {
-    where.position = normalizedPositions[0]
-  } else if (normalizedPositions && normalizedPositions.length > 1) {
-    where.OR = normalizedPositions.map((p) => ({ position: p }))
+  if (dbPositionFilters && dbPositionFilters.length === 1) {
+    where.position = dbPositionFilters[0]
+  } else if (dbPositionFilters && dbPositionFilters.length > 1) {
+    where.OR = dbPositionFilters.map((p) => ({ position: p }))
   }
 
   const rows = await prisma.sportsPlayer.findMany({
@@ -73,7 +121,7 @@ export async function getPlayerPoolForSport(
       r.teamId ??
       (r.team ? teamIdByAbbrev.get(r.team.toUpperCase()) ?? null : null),
     full_name: r.name,
-    position: r.position ?? '',
+      position: normalizePoolPosition(sport, r.position),
     status: r.status ?? null,
     injury_status: deriveInjuryStatus(r.status),
     external_source_id: r.sleeperId ?? r.externalId ?? null,
@@ -101,9 +149,11 @@ export async function getPlayerPoolForSport(
     currentTeam?: string
   } = { sport }
   if (normalizedPositions && normalizedPositions.length > 0) {
-    identityWhere.position = { in: normalizedPositions }
+    identityWhere.position = {
+      in: sport === 'NFL' ? expandNflIdpPositions(normalizedPositions) : normalizedPositions,
+    }
   } else {
-    identityWhere.position = { in: ['DE', 'DT', 'LB', 'CB', 'S'] }
+    identityWhere.position = { in: expandNflIdpPositions(['DE', 'DT', 'LB', 'CB', 'S']) }
   }
   if (options?.teamId?.trim()) identityWhere.currentTeam = options.teamId.trim()
 
@@ -117,7 +167,7 @@ export async function getPlayerPoolForSport(
   const existingKeys = new Set(primary.map((p) => `${p.full_name.toLowerCase()}::${p.position.toUpperCase()}`))
   for (const row of identityRows) {
     const externalId = row.sleeperId ?? row.apiSportsId ?? row.fantasyCalcId ?? row.id
-    const position = String(row.position ?? '').toUpperCase()
+    const position = normalizePoolPosition(sport, row.position ?? null)
     const fullName = row.canonicalName
     if (!fullName || !position) continue
     if (existingExternalIds.has(String(externalId))) continue

@@ -10,6 +10,13 @@ export interface DraftOrderRuleDescription {
   description: string
 }
 
+export interface DraftOrderBehavior {
+  rule: DraftOrderRule
+  thirdRoundReversal: boolean
+  label: string
+  description: string
+}
+
 const RULES: Record<DraftOrderRule, DraftOrderRuleDescription> = {
   snake: {
     rule: 'snake',
@@ -36,4 +43,23 @@ export function getDraftOrderRule(snakeOrLinear: string | undefined | null): Dra
  */
 export function isSnakeDraft(snakeOrLinear: string | undefined | null): boolean {
   return (snakeOrLinear ?? 'snake').toString().toLowerCase() !== 'linear'
+}
+
+/**
+ * Resolve full draft order behavior including third-round reversal support.
+ */
+export function getDraftOrderBehavior(
+  snakeOrLinear: string | undefined | null,
+  thirdRoundReversal: boolean | undefined | null
+): DraftOrderBehavior {
+  const base = getDraftOrderRule(snakeOrLinear)
+  const enable3rr = base.rule === 'snake' && Boolean(thirdRoundReversal)
+  return {
+    rule: base.rule,
+    thirdRoundReversal: enable3rr,
+    label: enable3rr ? `${base.label} (3RR)` : base.label,
+    description: enable3rr
+      ? `${base.description} Third round uses reversal to reduce early-slot advantage.`
+      : base.description,
+  }
 }

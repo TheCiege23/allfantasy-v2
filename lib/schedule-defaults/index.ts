@@ -1,7 +1,12 @@
 /**
  * Schedule defaults and resolvers — sport- and variant-aware schedule behavior and league config.
  */
-export { getSchedulePreset, resolveDefaultScheduleConfig } from './ScheduleDefaultsRegistry'
+export {
+	getSchedulePreset,
+	resolveDefaultScheduleConfig,
+	getSchedulePresetDefinitions,
+	getSupportedScheduleVariantsForSport,
+} from './ScheduleDefaultsRegistry'
 export type { DefaultScheduleConfig } from '@/lib/sport-defaults/types'
 export { resolveSchedulePreset } from './SchedulePresetResolver'
 export type { SchedulePresetResult } from './SchedulePresetResolver'

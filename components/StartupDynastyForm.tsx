@@ -215,6 +215,7 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
         />
         {presetLoading && <p className="text-white/50 text-xs mt-1">Loading preset…</p>}
         <LeagueCreationPresetSelector
+          sport={sport}
           variantOptions={variantOptions}
           value={leagueVariant}
           onChange={setLeagueVariant}

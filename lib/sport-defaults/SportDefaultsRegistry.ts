@@ -268,24 +268,24 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
   NCAAF: {
     sport_type: 'NCAAF',
     draft_type: 'snake',
-    rounds_default: 15,
+    rounds_default: 20,
     timer_seconds_default: 90,
     pick_order_rules: 'snake',
     timer_defaults: { per_pick_seconds: 90, auto_pick_enabled: false },
     snake_or_linear_behavior: 'snake',
     third_round_reversal: false,
     autopick_behavior: 'queue-first',
-    queue_size_limit: 50,
+    queue_size_limit: 70,
     draft_order_rules: 'snake',
     pre_draft_ranking_source: 'adp',
-    roster_fill_order: 'starter_first',
+    roster_fill_order: 'position_scarcity',
     position_filter_behavior: 'by_eligibility',
     keeper_dynasty_carryover_supported: false,
   },
   NCAAB: {
     sport_type: 'NCAAB',
     draft_type: 'snake',
-    rounds_default: 10,
+    rounds_default: 12,
     timer_seconds_default: 90,
     pick_order_rules: 'snake',
     timer_defaults: { per_pick_seconds: 90, auto_pick_enabled: false },
@@ -309,10 +309,10 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
     snake_or_linear_behavior: 'snake',
     third_round_reversal: false,
     autopick_behavior: 'queue-first',
-    queue_size_limit: 50,
+    queue_size_limit: 40,
     draft_order_rules: 'snake',
-    pre_draft_ranking_source: 'adp',
-    roster_fill_order: 'starter_first',
+    pre_draft_ranking_source: 'sport_default',
+    roster_fill_order: 'position_scarcity',
     position_filter_behavior: 'by_eligibility',
     keeper_dynasty_carryover_supported: true,
   },
@@ -487,7 +487,9 @@ export function getScoringDefaults(sportType: SportType): ScoringDefaults {
  */
 export function getDraftDefaults(sportType: SportType, formatType?: string | null): DraftDefaults {
   const base = DRAFT_DEFAULTS[sportType] ?? DRAFT_DEFAULTS.NFL
-  if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
+  const normalizedVariant = (formatType ?? '').trim().toUpperCase()
+  const variantLower = (formatType ?? '').trim().toLowerCase()
+  if (variantLower === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
     const roster = DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
     const totalProSlots =
       Object.values(roster.starter_slots).reduce((a, b) => a + b, 0) + roster.bench_slots + roster.taxi_slots
@@ -501,12 +503,43 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
       keeper_dynasty_carryover_supported: true,
     }
   }
-  if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
+  if (sportType === 'NFL' && (normalizedVariant === 'IDP' || normalizedVariant === 'DYNASTY_IDP')) {
     return {
       ...base,
       rounds_default: 18,
       queue_size_limit: 60,
+      pre_draft_ranking_source: 'tiers',
+      roster_fill_order: 'position_scarcity',
+      position_filter_behavior: 'by_need',
+      draft_order_rules: 'snake',
+    }
+  }
+  if (sportType === 'NFL' && normalizedVariant === 'SUPERFLEX') {
+    return {
+      ...base,
+      rounds_default: 16,
+      queue_size_limit: 55,
+      pre_draft_ranking_source: 'ecr',
+      roster_fill_order: 'need_based',
+      position_filter_behavior: 'by_need',
+      draft_order_rules: 'snake',
+    }
+  }
+  if (sportType === 'NFL' && normalizedVariant === 'PPR') {
+    return {
+      ...base,
+      pre_draft_ranking_source: 'ecr',
+      roster_fill_order: 'starter_first',
+      position_filter_behavior: 'by_eligibility',
+      draft_order_rules: 'snake',
+    }
+  }
+  if (sportType === 'NFL' && normalizedVariant === 'HALF_PPR') {
+    return {
+      ...base,
       pre_draft_ranking_source: 'adp',
+      roster_fill_order: 'starter_first',
+      position_filter_behavior: 'by_eligibility',
       draft_order_rules: 'snake',
     }
   }

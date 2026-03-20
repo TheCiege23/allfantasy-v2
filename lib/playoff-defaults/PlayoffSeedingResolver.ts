@@ -32,18 +32,23 @@ export async function getSeedingRulesForLeague(leagueId: string): Promise<Playof
   const sportType = toSportType(sport) as SportType
   const defaults = resolveDefaultPlayoffConfig(sportType, variant ?? undefined)
 
-  const structure = settings.playoff_structure as Record<string, unknown> | undefined
-  const useStored = structure != null && typeof structure === 'object'
+  const structure = settings.playoff_structure != null && typeof settings.playoff_structure === 'object'
+    ? (settings.playoff_structure as Record<string, unknown>)
+    : {}
+  const fromStructure = <T>(key: string, fallback: T): T => {
+    const value = structure[key]
+    return value === undefined || value === null ? fallback : (value as T)
+  }
 
-  const tiebreaker_rules = useStored && Array.isArray(structure?.tiebreaker_rules)
+  const tiebreaker_rules = Array.isArray(structure.tiebreaker_rules)
     ? (structure.tiebreaker_rules as string[])
     : (defaults.tiebreaker_rules ?? [])
 
   return {
-    seeding_rules: useStored ? (structure?.seeding_rules as string) ?? defaults.seeding_rules ?? 'standard_standings' : (defaults.seeding_rules ?? 'standard_standings'),
+    seeding_rules: fromStructure<string>('seeding_rules', defaults.seeding_rules ?? 'standard_standings'),
     tiebreaker_rules,
-    bye_rules: useStored ? (structure?.bye_rules as string) ?? defaults.bye_rules ?? null : (defaults.bye_rules ?? null),
-    reseed_behavior: useStored ? (structure?.reseed_behavior as string) ?? defaults.reseed_behavior ?? 'fixed_bracket' : (defaults.reseed_behavior ?? 'fixed_bracket'),
+    bye_rules: fromStructure<string | null>('bye_rules', defaults.bye_rules ?? null),
+    reseed_behavior: fromStructure<string>('reseed_behavior', defaults.reseed_behavior ?? 'fixed_bracket'),
     sport,
     variant,
   }

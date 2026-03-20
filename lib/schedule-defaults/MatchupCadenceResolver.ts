@@ -10,6 +10,7 @@ export interface MatchupCadenceConfig {
   schedule_unit: string
   matchup_frequency: string
   matchup_cadence: string
+  head_to_head_behavior: string
   regular_season_length: number
   schedule_generation_strategy: string
   sport: string
@@ -32,14 +33,20 @@ export async function getMatchupCadenceForLeague(leagueId: string): Promise<Matc
   const sportType = toSportType(sport) as SportType
   const defaults = resolveDefaultScheduleConfig(sportType, variant ?? undefined)
 
-  const cadence = settings.schedule_cadence ?? defaults.matchup_cadence ?? defaults.matchup_frequency
-  const strategy = settings.schedule_generation_strategy ?? defaults.schedule_generation_strategy ?? 'round_robin'
+  const fromSettings = <T>(key: string, fallback: T): T => {
+    const value = settings[key]
+    return value === undefined || value === null ? fallback : (value as T)
+  }
+
+  const cadence = fromSettings<string>('schedule_cadence', defaults.matchup_cadence ?? defaults.matchup_frequency)
+  const strategy = fromSettings<string>('schedule_generation_strategy', defaults.schedule_generation_strategy ?? 'round_robin')
 
   return {
-    schedule_unit: (settings.schedule_unit as string) ?? defaults.schedule_unit,
-    matchup_frequency: (settings.matchup_frequency as string) ?? defaults.matchup_frequency,
+    schedule_unit: fromSettings<string>('schedule_unit', defaults.schedule_unit),
+    matchup_frequency: fromSettings<string>('matchup_frequency', defaults.matchup_frequency),
     matchup_cadence: typeof cadence === 'string' ? cadence : defaults.matchup_frequency,
-    regular_season_length: (settings.regular_season_length as number) ?? defaults.regular_season_length,
+    head_to_head_behavior: fromSettings<string>('schedule_head_to_head_behavior', defaults.head_to_head_or_points_behavior ?? 'head_to_head'),
+    regular_season_length: fromSettings<number>('regular_season_length', defaults.regular_season_length),
     schedule_generation_strategy: typeof strategy === 'string' ? strategy : 'round_robin',
     sport,
     variant,

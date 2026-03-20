@@ -95,7 +95,7 @@ describe('POST /api/league/create sport defaults integration', () => {
   it('persists sport-specific initial settings for required sports', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
-    const sports = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB'] as const
+    const sports = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 
     for (const sport of sports) {
       const req = new Request('http://localhost/api/league/create', {
@@ -160,6 +160,50 @@ describe('POST /api/league/create sport defaults integration', () => {
         lock_time_behavior: 'first_game',
         injury_slot_behavior: 'ir_or_out',
       })
+    )
+  })
+
+  it('persists NFL variant matrix and Soccer standard variant', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      { sport: 'NFL', variant: 'STANDARD' },
+      { sport: 'NFL', variant: 'PPR' },
+      { sport: 'NFL', variant: 'SUPERFLEX' },
+      { sport: 'NFL', variant: 'IDP' },
+      { sport: 'NFL', variant: 'DYNASTY_IDP' },
+      { sport: 'SOCCER', variant: 'STANDARD' },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.sport} ${c.variant} League`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueVariant: c.variant,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.variant === 'DYNASTY_IDP',
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sport: 'NFL', leagueVariant: 'STANDARD' }),
+        expect.objectContaining({ sport: 'NFL', leagueVariant: 'PPR' }),
+        expect.objectContaining({ sport: 'NFL', leagueVariant: 'SUPERFLEX' }),
+        expect.objectContaining({ sport: 'NFL', leagueVariant: 'IDP' }),
+        expect.objectContaining({ sport: 'NFL', leagueVariant: 'DYNASTY_IDP' }),
+        expect.objectContaining({ sport: 'SOCCER', leagueVariant: 'STANDARD' }),
+      ])
     )
   })
 })

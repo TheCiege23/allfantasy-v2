@@ -12,6 +12,21 @@ function normalizeSoccerPositionAlias(sport: SportType, position: string): strin
   return pos
 }
 
+function normalizeNflIdpPositionAlias(position: string): string {
+  const pos = position.toUpperCase()
+  if (pos === 'EDGE') return 'DE'
+  if (pos === 'OLB' || pos === 'ILB' || pos === 'MLB') return 'LB'
+  if (pos === 'SS' || pos === 'FS') return 'S'
+  if (pos === 'NT') return 'DT'
+  return pos
+}
+
+function normalizePositionAlias(sport: SportType, position: string): string {
+  const soccerNormalized = normalizeSoccerPositionAlias(sport, position)
+  if (sport === 'NFL') return normalizeNflIdpPositionAlias(soccerNormalized)
+  return soccerNormalized
+}
+
 function expandSoccerAllowedAliases(sport: SportType, positions: string[]): string[] {
   if (sport !== 'SOCCER') return positions
   const expanded = new Set<string>()
@@ -61,7 +76,7 @@ export function isPositionEligibleForSlot(
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
   const allowed = getAllowedPositionsForSlot(sport, slotName, formatType)
   if (allowed.includes('*')) return true
-  const pos = normalizeSoccerPositionAlias(sport, position)
+  const pos = normalizePositionAlias(sport, position)
   if (allowed.map((p) => p.toUpperCase()).includes(pos)) return true
   return false
 }

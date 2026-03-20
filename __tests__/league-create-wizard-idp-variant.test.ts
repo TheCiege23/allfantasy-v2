@@ -132,4 +132,69 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
       })
     )
   })
+
+  it('persists soccer sport with STANDARD variant for soccer creation defaults', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    leagueCreateMock.mockResolvedValueOnce({
+      id: 'league-soccer-1',
+      name: 'Soccer Wizard League',
+      sport: 'SOCCER',
+    })
+
+    getInitialSettingsForCreationMock.mockImplementationOnce((_sport: string, variant: string | undefined) => ({
+      sport_type: 'SOCCER',
+      roster_format_type: 'standard',
+      scoring_format_type: 'standard',
+      starter_slots: { GKP: 1, DEF: 4, MID: 4, FWD: 2 },
+      bench_slots: 4,
+      league_variant: variant ?? 'STANDARD',
+    }))
+
+    const req = new Request('http://localhost/api/league/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Soccer Wizard League',
+        platform: 'manual',
+        sport: 'SOCCER',
+        leagueType: 'redraft',
+        leagueVariant: 'STANDARD',
+        leagueSize: 12,
+        isDynasty: false,
+        settings: {},
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+
+    const createData = leagueCreateMock.mock.calls.at(-1)?.[0]?.data
+    expect(createData.sport).toBe('SOCCER')
+    expect(createData.leagueVariant).toBe('STANDARD')
+    expect(runPostCreateInitializationMock).toHaveBeenCalledWith('league-soccer-1', 'SOCCER', 'STANDARD')
+  })
+
+  it('rejects Soccer when an NFL-only IDP preset is requested', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const req = new Request('http://localhost/api/league/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Invalid Soccer IDP League',
+        platform: 'manual',
+        sport: 'SOCCER',
+        leagueVariant: 'IDP',
+        leagueSize: 12,
+      }),
+    })
+
+    const res = await POST(req)
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toContain('IDP leagues are only supported for NFL')
+    expect(leagueCreateMock).toHaveBeenCalledTimes(0)
+  })
 })

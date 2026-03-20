@@ -33,13 +33,18 @@ export async function getScoringWindowConfigForLeague(leagueId: string): Promise
   const sportType = toSportType(sport) as SportType
   const defaults = resolveDefaultScheduleConfig(sportType, variant ?? undefined)
 
+  const fromSettings = <T>(key: string, fallback: T): T => {
+    const value = settings[key]
+    return value === undefined || value === null ? fallback : (value as T)
+  }
+
   return {
-    lock_time_behavior: (settings.lock_time_behavior as string) ?? defaults.lock_time_behavior,
-    lock_window_behavior: (settings.schedule_lock_window_behavior as string) ?? defaults.lock_window_behavior ?? defaults.lock_time_behavior,
-    scoring_period_behavior: (settings.schedule_scoring_period_behavior as string) ?? defaults.scoring_period_behavior ?? 'full_period',
-    schedule_unit: (settings.schedule_unit as string) ?? defaults.schedule_unit,
-    reschedule_handling: (settings.schedule_reschedule_handling as string) ?? defaults.reschedule_handling ?? 'use_final_time',
-    doubleheader_handling: (settings.schedule_doubleheader_handling as string) ?? defaults.doubleheader_or_multi_game_handling ?? 'all_games_count',
+    lock_time_behavior: fromSettings<string>('lock_time_behavior', defaults.lock_time_behavior),
+    lock_window_behavior: fromSettings<string>('schedule_lock_window_behavior', defaults.lock_window_behavior ?? defaults.lock_time_behavior),
+    scoring_period_behavior: fromSettings<string>('schedule_scoring_period_behavior', defaults.scoring_period_behavior ?? 'full_period'),
+    schedule_unit: fromSettings<string>('schedule_unit', defaults.schedule_unit),
+    reschedule_handling: fromSettings<string>('schedule_reschedule_handling', defaults.reschedule_handling ?? 'use_final_time'),
+    doubleheader_handling: fromSettings<string>('schedule_doubleheader_handling', defaults.doubleheader_or_multi_game_handling ?? 'all_games_count'),
     sport,
     variant,
   }

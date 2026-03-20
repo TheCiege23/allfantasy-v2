@@ -12,6 +12,7 @@ export interface LeagueScheduleGenerationContext {
   regular_season_length: number
   schedule_unit: string
   matchup_frequency: string
+  schedule_cadence: string
   schedule_generation_strategy: string
   playoff_transition_point: number | null
   sport: string
@@ -37,13 +38,19 @@ export async function getLeagueScheduleGenerationContext(
   const sportType = toSportType(sport) as SportType
   const defaults = resolveDefaultScheduleConfig(sportType, variant ?? undefined)
 
-  const playoffTransition = settings.schedule_playoff_transition_point ?? defaults.playoff_transition_point ?? null
+  const fromSettings = <T>(key: string, fallback: T): T => {
+    const value = settings[key]
+    return value === undefined || value === null ? fallback : (value as T)
+  }
+
+  const playoffTransition = fromSettings<number | null>('schedule_playoff_transition_point', defaults.playoff_transition_point ?? null)
 
   return {
-    regular_season_length: (settings.regular_season_length as number) ?? defaults.regular_season_length,
-    schedule_unit: (settings.schedule_unit as string) ?? defaults.schedule_unit,
-    matchup_frequency: (settings.matchup_frequency as string) ?? defaults.matchup_frequency,
-    schedule_generation_strategy: (settings.schedule_generation_strategy as string) ?? defaults.schedule_generation_strategy ?? 'round_robin',
+    regular_season_length: fromSettings<number>('regular_season_length', defaults.regular_season_length),
+    schedule_unit: fromSettings<string>('schedule_unit', defaults.schedule_unit),
+    matchup_frequency: fromSettings<string>('matchup_frequency', defaults.matchup_frequency),
+    schedule_cadence: fromSettings<string>('schedule_cadence', defaults.matchup_cadence ?? defaults.matchup_frequency),
+    schedule_generation_strategy: fromSettings<string>('schedule_generation_strategy', defaults.schedule_generation_strategy ?? 'round_robin'),
     playoff_transition_point: playoffTransition != null ? Number(playoffTransition) : null,
     sport,
     variant,

@@ -62,9 +62,9 @@ export function LeagueSettingsPreviewPanel({
 
   const contextMessage =
     isSoccer
-      ? 'Soccer is its own sport; roster and scoring are soccer-specific.'
+      ? 'Soccer is a separate sport selection, so this preview uses soccer-specific roster slots, scoring, and player pools.'
       : isNflIdp
-        ? 'IDP is an NFL preset: offensive plus defensive player pools and scoring.'
+        ? 'IDP keeps NFL as the sport, but expands the preset to include defensive starters, defenders in the player pool, and IDP scoring.'
         : null;
 
   return (

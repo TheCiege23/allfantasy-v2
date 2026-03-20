@@ -39,21 +39,23 @@ export async function getDraftConfigForLeague(leagueId: string): Promise<DraftRo
   const variant = league.leagueVariant ?? null
   const sportType = toSportType(sport) as SportType
   const defaults = getDraftDefaults(sportType, variant ?? undefined)
-
-  const hasStoredDraft = settings.draft_rounds !== undefined && settings.draft_rounds !== null
+  const fromSettings = <T>(key: string, fallback: T): T => {
+    const value = settings[key]
+    return (value === undefined || value === null ? fallback : (value as T))
+  }
 
   return {
-    draft_type: (hasStoredDraft ? settings.draft_type : defaults.draft_type) as DraftRoomConfig['draft_type'],
-    rounds: (hasStoredDraft ? settings.draft_rounds : defaults.rounds_default) as number,
-    timer_seconds: (hasStoredDraft ? settings.draft_timer_seconds : defaults.timer_seconds_default) as number | null,
-    pick_order_rules: (hasStoredDraft ? settings.draft_pick_order_rules : defaults.pick_order_rules) as string,
-    snake_or_linear: (hasStoredDraft ? settings.draft_snake_or_linear : (defaults.snake_or_linear_behavior ?? defaults.pick_order_rules)) as string,
-    third_round_reversal: (hasStoredDraft ? settings.draft_third_round_reversal : (defaults.third_round_reversal ?? false)) as boolean,
-    autopick_behavior: (hasStoredDraft ? settings.draft_autopick_behavior : (defaults.autopick_behavior ?? 'queue-first')) as string,
-    queue_size_limit: (hasStoredDraft ? settings.draft_queue_size_limit : (defaults.queue_size_limit ?? null)) as number | null,
-    pre_draft_ranking_source: (hasStoredDraft ? settings.draft_pre_draft_ranking_source : (defaults.pre_draft_ranking_source ?? 'adp')) as string,
-    roster_fill_order: (hasStoredDraft ? settings.draft_roster_fill_order : (defaults.roster_fill_order ?? 'starter_first')) as string,
-    position_filter_behavior: (hasStoredDraft ? settings.draft_position_filter_behavior : (defaults.position_filter_behavior ?? 'by_eligibility')) as string,
+    draft_type: fromSettings<DraftRoomConfig['draft_type']>('draft_type', defaults.draft_type),
+    rounds: fromSettings<number>('draft_rounds', defaults.rounds_default),
+    timer_seconds: fromSettings<number | null>('draft_timer_seconds', defaults.timer_seconds_default),
+    pick_order_rules: fromSettings<string>('draft_pick_order_rules', defaults.pick_order_rules),
+    snake_or_linear: fromSettings<string>('draft_snake_or_linear', defaults.snake_or_linear_behavior ?? defaults.pick_order_rules),
+    third_round_reversal: fromSettings<boolean>('draft_third_round_reversal', defaults.third_round_reversal ?? false),
+    autopick_behavior: fromSettings<string>('draft_autopick_behavior', defaults.autopick_behavior ?? 'queue-first'),
+    queue_size_limit: fromSettings<number | null>('draft_queue_size_limit', defaults.queue_size_limit ?? null),
+    pre_draft_ranking_source: fromSettings<string>('draft_pre_draft_ranking_source', defaults.pre_draft_ranking_source ?? 'adp'),
+    roster_fill_order: fromSettings<string>('draft_roster_fill_order', defaults.roster_fill_order ?? 'starter_first'),
+    position_filter_behavior: fromSettings<string>('draft_position_filter_behavior', defaults.position_filter_behavior ?? 'by_eligibility'),
     sport,
     variant,
   }

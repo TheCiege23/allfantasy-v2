@@ -32,6 +32,7 @@ export function ScoringPresetSelector({ sport, value, onChange }: ScoringPresetS
       <div className="space-y-1.5">
         <Label className="text-white/90">Preset</Label>
         <LeagueCreationPresetSelector
+          sport={sport}
           variantOptions={variants}
           value={safeValue ?? 'STANDARD'}
           onChange={(v) => onChange(v)}

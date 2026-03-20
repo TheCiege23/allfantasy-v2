@@ -12,6 +12,7 @@ export interface ScheduleConfigForLeague {
   regular_season_length: number
   matchup_frequency: string
   matchup_cadence: string
+  schedule_cadence: string
   schedule_generation_strategy: string
   playoff_transition_point: number | null
   head_to_head_behavior: string
@@ -36,12 +37,13 @@ export async function getScheduleConfigForLeague(leagueId: string): Promise<Sche
   ])
   if (!cadence || !generation) return null
   const settings = (league?.settings as Record<string, unknown>) ?? {}
-  const headToHead = (settings.schedule_head_to_head_behavior as string) ?? 'head_to_head'
+  const headToHead = (settings.schedule_head_to_head_behavior as string) ?? cadence.head_to_head_behavior ?? 'head_to_head'
   return {
     schedule_unit: cadence.schedule_unit ?? generation.schedule_unit,
     regular_season_length: cadence.regular_season_length ?? generation.regular_season_length,
     matchup_frequency: cadence.matchup_frequency ?? generation.matchup_frequency,
     matchup_cadence: cadence.matchup_cadence ?? generation.matchup_frequency,
+    schedule_cadence: cadence.matchup_cadence ?? generation.schedule_cadence ?? generation.matchup_frequency,
     schedule_generation_strategy: cadence.schedule_generation_strategy ?? generation.schedule_generation_strategy,
     playoff_transition_point: generation.playoff_transition_point ?? null,
     head_to_head_behavior: headToHead,

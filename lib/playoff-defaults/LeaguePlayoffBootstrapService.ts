@@ -1,11 +1,10 @@
 /**
  * Ensures a league has playoff config in League.settings (sport- and variant-aware).
- * Idempotent: merges default playoff keys only when playoff_team_count or playoff_structure is missing.
+ * Idempotent: creates/merges only missing playoff keys while preserving commissioner overrides.
  */
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { getDefaultLeagueSettings } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
-import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
 export interface LeaguePlayoffBootstrapResult {
   leagueId: string
@@ -15,8 +14,7 @@ export interface LeaguePlayoffBootstrapResult {
 }
 
 /**
- * Ensure league has playoff config in League.settings. If playoff_team_count or playoff_structure
- * is missing, merge in sport defaults without overwriting existing keys.
+ * Ensure league has playoff config in League.settings. Missing keys are backfilled from defaults.
  */
 export async function bootstrapLeaguePlayoffConfig(leagueId: string): Promise<LeaguePlayoffBootstrapResult> {
   const league = await (prisma as any).league.findUnique({
@@ -31,23 +29,43 @@ export async function bootstrapLeaguePlayoffConfig(leagueId: string): Promise<Le
   const sport = (league.sport as string) || DEFAULT_SPORT
   const variant = league.leagueVariant ?? null
 
-  const hasPlayoffTeamCount = settings.playoff_team_count !== undefined && settings.playoff_team_count !== null
-  const hasPlayoffStructure = settings.playoff_structure != null && typeof settings.playoff_structure === 'object'
-  if (hasPlayoffTeamCount && hasPlayoffStructure) {
-    return { leagueId, playoffConfigApplied: false, sport, variant }
+  const def = getDefaultLeagueSettings(sport)
+  const currentStructure = settings.playoff_structure != null && typeof settings.playoff_structure === 'object'
+    ? (settings.playoff_structure as Record<string, unknown>)
+    : {}
+  const defaultStructure = (def.playoff_structure ?? {}) as Record<string, unknown>
+
+  const nextStructure: Record<string, unknown> = { ...currentStructure }
+  let applied = false
+
+  for (const [key, value] of Object.entries(defaultStructure)) {
+    if (nextStructure[key] === undefined || nextStructure[key] === null) {
+      nextStructure[key] = value
+      applied = true
+    }
   }
 
-  const def = getDefaultLeagueSettings(sport)
-  const playoffBlock: Record<string, unknown> = {}
-  if (!hasPlayoffTeamCount) playoffBlock.playoff_team_count = def.playoff_team_count
-  if (!hasPlayoffStructure) playoffBlock.playoff_structure = def.playoff_structure
-  if (Object.keys(playoffBlock).length === 0) {
+  const nextSettings: Record<string, unknown> = { ...settings }
+  if (nextSettings.playoff_team_count === undefined || nextSettings.playoff_team_count === null) {
+    nextSettings.playoff_team_count = def.playoff_team_count
+    applied = true
+  }
+  if (nextSettings.standings_tiebreakers === undefined || nextSettings.standings_tiebreakers === null) {
+    nextSettings.standings_tiebreakers = def.standings_tiebreakers
+    applied = true
+  }
+
+  if (currentStructure !== nextStructure || Object.keys(nextStructure).length > 0) {
+    nextSettings.playoff_structure = nextStructure
+  }
+
+  if (!applied) {
     return { leagueId, playoffConfigApplied: false, sport, variant }
   }
 
   await (prisma as any).league.update({
     where: { id: leagueId },
-    data: { settings: { ...settings, ...playoffBlock } },
+    data: { settings: nextSettings },
   })
 
   return { leagueId, playoffConfigApplied: true, sport, variant }
