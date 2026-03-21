@@ -87,9 +87,23 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const teamMetadataLabel = creationPreset?.teamMetadata?.teams?.length
     ? `${creationPreset.teamMetadata.teams.length} teams with logo metadata`
     : null
-  const leagueDefaultsLabel = creationPreset?.league
-    ? `${creationPreset.league.default_team_count} teams · ${creationPreset.league.default_playoff_team_count} playoff teams · ${creationPreset.league.default_regular_season_length} ${creationPreset.league.default_matchup_unit}`
-    : null
+  const defaultLeagueSettings =
+    creationPreset?.defaultLeagueSettings && typeof creationPreset.defaultLeagueSettings === 'object'
+      ? (creationPreset.defaultLeagueSettings as Record<string, unknown>)
+      : null
+  const leagueDefaultsLabel = `${state.teamCount} teams · ${playoffSettings.playoffTeamCount} playoff teams · ${scheduleSettings.regularSeasonLength} ${scheduleSettings.scheduleUnit}`
+  const policyDefaultsLabel = [
+    `scoring_mode=${String(defaultLeagueSettings?.scoring_mode ?? 'points')}`,
+    `roster_mode=${
+      state.leagueType === 'dynasty' || state.leagueType === 'devy' || state.leagueType === 'c2c'
+        ? 'dynasty'
+        : state.leagueType === 'keeper'
+          ? 'keeper'
+          : 'redraft'
+    }`,
+    `waiver_mode=${waiverSettings.waiverType}`,
+    `trade_review_mode=${String(defaultLeagueSettings?.trade_review_mode ?? 'commissioner')}`,
+  ].join(' · ')
 
   return (
     <div className="space-y-6">
@@ -114,7 +128,8 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         <SummaryRow label="Scoring" value={scoringLabel} />
         <SummaryRow label="Player pool" value={playerPoolLabel} />
         {presetContextLabel != null && <SummaryRow label="Preset context" value={presetContextLabel} />}
-        {leagueDefaultsLabel != null && <SummaryRow label="League defaults" value={leagueDefaultsLabel} />}
+        <SummaryRow label="League defaults" value={leagueDefaultsLabel} />
+        <SummaryRow label="Policy defaults" value={policyDefaultsLabel} />
       </SummarySection>
 
       {(scheduleLabel != null || calendarLabel != null) && (

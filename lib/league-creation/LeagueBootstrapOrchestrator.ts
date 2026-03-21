@@ -47,42 +47,58 @@ export async function runLeagueBootstrap(
     leagueSport === 'NFL' &&
     (rosterFormat === 'IDP' || rosterFormat === 'idp' || scoringFormatResolved === 'IDP' || scoringFormatResolved === 'idp')
 
-  const [rosterResult, settingsResult, scoringResult, poolResult, draftResult, waiverResult, playoffResult, scheduleResult] = await Promise.all([
-    bootstrapLeagueRoster(leagueId, leagueSport, rosterFormat).then((r) => ({ templateId: r.templateId })),
-    initializeLeagueWithSportDefaults({ leagueId, sport: leagueSport, mergeIfExisting: false }),
-    bootstrapLeagueScoring(leagueId, leagueSport, scoringFormatResolved).then((r) => ({
+  const rosterResult = await bootstrapLeagueRoster(leagueId, leagueSport, rosterFormat).then((r) => ({
+    templateId: r.templateId,
+  }))
+
+  // Apply/merge full sport defaults first so downstream boosters only backfill true gaps.
+  const settingsResult = await initializeLeagueWithSportDefaults({
+    leagueId,
+    sport: leagueSport,
+    mergeIfExisting: true,
+  })
+
+  const scoringResult = await bootstrapLeagueScoring(leagueId, leagueSport, scoringFormatResolved).then(
+    (r) => ({
       templateId: r.templateId,
       isDefault: r.isDefault,
-    })),
-    bootstrapLeaguePlayerPool(leagueId, leagueSport).catch(() => ({
-      playerCount: 0,
-      teamCount: 0,
-    } as { playerCount: number; teamCount: number })),
-    bootstrapLeagueDraftConfig(leagueId).catch(() => ({
-      leagueId,
-      draftConfigApplied: false,
-      sport: String(leagueSport),
-      variant: null,
-    })),
-    bootstrapLeagueWaiverSettings(leagueId).catch(() => ({
-      leagueId,
-      waiverSettingsApplied: false,
-      sport: String(leagueSport),
-      variant: null,
-    })),
-    bootstrapLeaguePlayoffConfig(leagueId).catch(() => ({
-      leagueId,
-      playoffConfigApplied: false,
-      sport: String(leagueSport),
-      variant: null,
-    })),
-    bootstrapLeagueScheduleConfig(leagueId).catch(() => ({
-      leagueId,
-      scheduleConfigApplied: false,
-      sport: String(leagueSport),
-      variant: null,
-    })),
-  ])
+    })
+  )
+
+  const poolResult = await bootstrapLeaguePlayerPool(leagueId, leagueSport).catch(
+    () =>
+      ({
+        playerCount: 0,
+        teamCount: 0,
+      }) as { playerCount: number; teamCount: number }
+  )
+
+  // Keep settings writes sequential to avoid read-modify-write races.
+  const draftResult = await bootstrapLeagueDraftConfig(leagueId).catch(() => ({
+    leagueId,
+    draftConfigApplied: false,
+    sport: String(leagueSport),
+    variant: null,
+  }))
+  const playoffResult = await bootstrapLeaguePlayoffConfig(leagueId).catch(() => ({
+    leagueId,
+    playoffConfigApplied: false,
+    sport: String(leagueSport),
+    variant: null,
+  }))
+  const scheduleResult = await bootstrapLeagueScheduleConfig(leagueId).catch(() => ({
+    leagueId,
+    scheduleConfigApplied: false,
+    sport: String(leagueSport),
+    variant: null,
+  }))
+
+  const waiverResult = await bootstrapLeagueWaiverSettings(leagueId).catch(() => ({
+    leagueId,
+    waiverSettingsApplied: false,
+    sport: String(leagueSport),
+    variant: null,
+  }))
 
   if (isIdp) {
     try {

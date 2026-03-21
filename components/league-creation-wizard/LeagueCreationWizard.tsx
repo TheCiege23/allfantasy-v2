@@ -308,6 +308,12 @@ export function LeagueCreationWizard({
   const skipInitialSchedulePresetSyncRef = useRef(Boolean(initialWizardState?.scheduleSettings))
   const lastSchedulePresetKeyRef = useRef<string | null>(null)
   const scheduleManualOverrideKeyRef = useRef<string | null>(null)
+  const skipInitialTeamPresetSyncRef = useRef(Boolean(initialWizardState?.teamCount))
+  const lastTeamPresetKeyRef = useRef<string | null>(null)
+  const teamManualOverrideKeyRef = useRef<string | null>(null)
+  const skipInitialLeagueNamePresetSyncRef = useRef(Boolean(initialWizardState?.name))
+  const lastLeagueNamePresetKeyRef = useRef<string | null>(null)
+  const leagueNameManualOverrideKeyRef = useRef<string | null>(null)
 
   const {
     preset: creationPreset,
@@ -366,8 +372,20 @@ export function LeagueCreationWizard({
     setState((s) => ({ ...s, draftType: d }))
   }, [])
 
-  const handleNameChange = useCallback((n: string) => setState((s) => ({ ...s, name: n })), [])
-  const handleTeamCountChange = useCallback((n: number) => setState((s) => ({ ...s, teamCount: n })), [])
+  const handleNameChange = useCallback((n: string) => {
+    setState((s) => {
+      const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
+      leagueNameManualOverrideKeyRef.current = key
+      return { ...s, name: n }
+    })
+  }, [])
+  const handleTeamCountChange = useCallback((n: number) => {
+    setState((s) => {
+      const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
+      teamManualOverrideKeyRef.current = key
+      return { ...s, teamCount: n }
+    })
+  }, [])
   const handleRosterSizeChange = useCallback((n: number | null) => setState((s) => ({ ...s, rosterSize: n })), [])
 
   const handleScoringChange = useCallback((v: string | null) => {
@@ -607,6 +625,45 @@ export function LeagueCreationWizard({
     lastSchedulePresetKeyRef.current = key
   }, [creationPreset?.defaultLeagueSettings, state.sport, state.leagueVariant, state.scoringPreset])
 
+  useEffect(() => {
+    const defaultTeamCount = creationPreset?.league?.default_team_count
+    if (typeof defaultTeamCount !== 'number' || !Number.isFinite(defaultTeamCount)) return
+    const key = `${state.sport}|${state.leagueVariant ?? state.scoringPreset ?? ''}`
+    if (skipInitialTeamPresetSyncRef.current) {
+      skipInitialTeamPresetSyncRef.current = false
+      lastTeamPresetKeyRef.current = key
+      return
+    }
+    if (teamManualOverrideKeyRef.current === key) {
+      lastTeamPresetKeyRef.current = key
+      return
+    }
+    if (lastTeamPresetKeyRef.current === key) return
+    setState((s) => ({ ...s, teamCount: defaultTeamCount }))
+    lastTeamPresetKeyRef.current = key
+  }, [creationPreset?.league?.default_team_count, state.sport, state.leagueVariant, state.scoringPreset])
+
+  useEffect(() => {
+    const defaultLeagueName = creationPreset?.league?.default_league_name_pattern
+    if (!defaultLeagueName || typeof defaultLeagueName !== 'string') return
+    const key = `${state.sport}|${state.leagueVariant ?? state.scoringPreset ?? ''}`
+    if (skipInitialLeagueNamePresetSyncRef.current) {
+      skipInitialLeagueNamePresetSyncRef.current = false
+      lastLeagueNamePresetKeyRef.current = key
+      return
+    }
+    if (leagueNameManualOverrideKeyRef.current === key) {
+      lastLeagueNamePresetKeyRef.current = key
+      return
+    }
+    if (lastLeagueNamePresetKeyRef.current === key) return
+    setState((s) => ({
+      ...s,
+      name: s.name.trim().length === 0 ? defaultLeagueName : s.name,
+    }))
+    lastLeagueNamePresetKeyRef.current = key
+  }, [creationPreset?.league?.default_league_name_pattern, state.sport, state.leagueVariant, state.scoringPreset])
+
   return (
     <div className="mx-auto max-w-lg px-4 py-6 min-h-0 flex flex-col">
       <div className="rounded-xl border border-white/10 bg-black/20 p-4 sm:p-5 flex flex-col min-h-0">
@@ -681,6 +738,10 @@ export function LeagueCreationWizard({
                   preset={creationPreset}
                   sport={String(state.sport)}
                   presetLabel={getVariantsForSport(state.sport).find((v) => v.value === (state.scoringPreset ?? state.leagueVariant ?? ''))?.label}
+                  teamCountOverride={state.teamCount}
+                  playoffTeamCountOverride={state.playoffSettings.playoffTeamCount}
+                  regularSeasonLengthOverride={state.scheduleSettings.regularSeasonLength}
+                  matchupUnitOverride={state.scheduleSettings.scheduleUnit}
                 />
                 {creationPresetLoading && (
                   <p className="text-xs text-white/55" role="status">

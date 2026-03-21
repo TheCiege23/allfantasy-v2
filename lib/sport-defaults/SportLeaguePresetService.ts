@@ -5,6 +5,7 @@
 import type { LeagueSport } from '@prisma/client'
 import { resolveSportDefaults } from './SportDefaultsResolver'
 import type { SportType, SportDefaultSet } from './types'
+import { getFormatTypeForVariant } from './LeagueVariantRegistry'
 import { getLeagueCreationPreset } from '@/lib/multi-sport/MultiSportLeagueService'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 
@@ -26,7 +27,8 @@ export async function getFullLeaguePreset(
 ): Promise<FullLeaguePreset> {
   const sportType = leagueSportToSportType(leagueSport) as SportType
   const defaults = resolveSportDefaults(sportType, leagueVariant)
-  const preset = await getLeagueCreationPreset(leagueSport)
+  const formatType = getFormatTypeForVariant(sportType, leagueVariant ?? null)
+  const preset = await getLeagueCreationPreset(leagueSport, formatType)
   return { defaults, preset }
 }
 

@@ -14,6 +14,7 @@ import { getLeagueDefaults, getWaiverDefaults, getDraftDefaults } from './SportD
 import { resolveDefaultPlayoffConfig } from './DefaultPlayoffConfigResolver'
 import { resolveDefaultScheduleConfig } from './DefaultScheduleConfigResolver'
 import { toSportType } from './sport-type-utils'
+import { resolveLeagueVariant } from './LeagueVariantResolver'
 
 /** Per-sport default tiebreakers (order of application). */
 const DEFAULT_TIEBREAKERS: Record<SportType, string[]> = {
@@ -76,13 +77,20 @@ export function getDefaultLeagueSettingsForVariant(
   variant?: string | null
 ): DefaultLeagueSettings {
   const sport = typeof sportType === 'string' ? toSportType(sportType) : sportType
-  const league = getLeagueDefaults(sport)
-  const waiver = getWaiverDefaults(sport, variant ?? undefined)
-  const playoff = resolveDefaultPlayoffConfig(sport, variant ?? undefined)
-  const schedule = resolveDefaultScheduleConfig(sport, variant ?? undefined)
+  const variantContext = resolveLeagueVariant(sport, variant)
+  const league = getLeagueDefaults(variantContext.sportType)
+  const waiver = getWaiverDefaults(variantContext.sportType, variantContext.variant ?? undefined)
+  const playoff = resolveDefaultPlayoffConfig(
+    variantContext.sportType,
+    variantContext.variant ?? undefined
+  )
+  const schedule = resolveDefaultScheduleConfig(
+    variantContext.sportType,
+    variantContext.variant ?? undefined
+  )
 
   return {
-    sport_type: sport,
+    sport_type: variantContext.sportType,
     default_team_count: league.default_team_count,
     regular_season_length: schedule.regular_season_length,
     playoff_team_count: playoff.playoff_team_count,
@@ -106,11 +114,12 @@ export function getDefaultLeagueSettingsForVariant(
     },
     matchup_frequency: schedule.matchup_frequency,
     season_labeling: schedule.season_labeling,
-    scoring_mode: DEFAULT_SCORING_MODE[sport] ?? 'points',
-    roster_mode: DEFAULT_ROSTER_MODE[sport] ?? 'redraft',
+    scoring_mode: DEFAULT_SCORING_MODE[variantContext.sportType] ?? 'points',
+    roster_mode: DEFAULT_ROSTER_MODE[variantContext.sportType] ?? 'redraft',
     waiver_mode: waiver.waiver_type,
-    trade_review_mode: DEFAULT_TRADE_REVIEW[sport],
-    standings_tiebreakers: DEFAULT_TIEBREAKERS[sport] ?? DEFAULT_TIEBREAKERS.NFL,
+    trade_review_mode: DEFAULT_TRADE_REVIEW[variantContext.sportType],
+    standings_tiebreakers:
+      DEFAULT_TIEBREAKERS[variantContext.sportType] ?? DEFAULT_TIEBREAKERS.NFL,
     schedule_unit: schedule.schedule_unit,
     injury_slot_behavior: schedule.injury_slot_behavior,
     lock_time_behavior: schedule.lock_time_behavior,
@@ -128,9 +137,13 @@ export function buildInitialLeagueSettings(
   variant?: string | null
 ): Record<string, unknown> {
   const sport = typeof sportType === 'string' ? toSportType(sportType) : sportType
-  const def = getDefaultLeagueSettingsForVariant(sport, variant)
-  const draft = getDraftDefaults(sport, variant ?? undefined)
-  const schedule = resolveDefaultScheduleConfig(sport, variant ?? undefined)
+  const variantContext = resolveLeagueVariant(sport, variant)
+  const def = getDefaultLeagueSettingsForVariant(variantContext.sportType, variantContext.variant)
+  const draft = getDraftDefaults(variantContext.sportType, variantContext.variant ?? undefined)
+  const schedule = resolveDefaultScheduleConfig(
+    variantContext.sportType,
+    variantContext.variant ?? undefined
+  )
   return {
     sport_type: def.sport_type,
     default_team_count: def.default_team_count,

@@ -231,7 +231,7 @@ describe('LeagueCreationDefaultsLoader variant resolution', () => {
     const payload = await loadLeagueCreationDefaults('SOCCER', null)
 
     expect(resolveLeaguePresetMock).not.toHaveBeenCalled()
-    expect(getFullLeaguePresetMock).toHaveBeenCalledWith('SOCCER')
+    expect(getFullLeaguePresetMock).toHaveBeenCalledWith('SOCCER', null)
     expect(payload.sport).toBe('SOCCER')
     expect(payload.roster.starter_slots).toEqual(expect.objectContaining({ GKP: 1, DEF: 4, MID: 4, FWD: 2 }))
   })

@@ -10,6 +10,10 @@ export interface LeagueSettingsPreviewPanelProps {
   preset: LeagueCreationPresetPayload | null;
   sport: string;
   presetLabel?: string;
+  teamCountOverride?: number | null;
+  playoffTeamCountOverride?: number | null;
+  regularSeasonLengthOverride?: number | null;
+  matchupUnitOverride?: string | null;
   className?: string;
 }
 
@@ -17,6 +21,10 @@ export function LeagueSettingsPreviewPanel({
   preset,
   sport,
   presetLabel,
+  teamCountOverride,
+  playoffTeamCountOverride,
+  regularSeasonLengthOverride,
+  matchupUnitOverride,
   className = '',
 }: LeagueSettingsPreviewPanelProps) {
   if (!preset) return null;
@@ -54,10 +62,53 @@ export function LeagueSettingsPreviewPanel({
   const teamMetadata = preset.teamMetadata?.teams ?? [];
   const teamMetadataSamples = teamMetadata.slice(0, 6);
 
+  const defaultLeagueSettings =
+    preset.defaultLeagueSettings && typeof preset.defaultLeagueSettings === 'object'
+      ? (preset.defaultLeagueSettings as Record<string, unknown>)
+      : null;
+  const effectiveTeamCount = teamCountOverride ?? preset.league?.default_team_count ?? null;
+  const effectivePlayoffCount =
+    playoffTeamCountOverride ??
+    (typeof defaultLeagueSettings?.playoff_team_count === 'number'
+      ? defaultLeagueSettings.playoff_team_count
+      : preset.league?.default_playoff_team_count ?? null);
+  const effectiveSeasonLength =
+    regularSeasonLengthOverride ??
+    (typeof defaultLeagueSettings?.regular_season_length === 'number'
+      ? defaultLeagueSettings.regular_season_length
+      : preset.league?.default_regular_season_length ?? null);
+  const effectiveMatchupUnit =
+    matchupUnitOverride ??
+    (typeof defaultLeagueSettings?.schedule_unit === 'string'
+      ? defaultLeagueSettings.schedule_unit
+      : preset.league?.default_matchup_unit ?? null);
+
   const leagueDefaults = [
-    `Teams: ${preset.league?.default_team_count ?? '—'}`,
-    `Playoffs: ${preset.league?.default_playoff_team_count ?? '—'} teams`,
-    `Season: ${preset.league?.default_regular_season_length ?? '—'} ${preset.league?.default_matchup_unit ?? 'weeks'}`,
+    `Teams: ${effectiveTeamCount ?? '—'}`,
+    `Playoffs: ${effectivePlayoffCount ?? '—'} teams`,
+    `Season: ${effectiveSeasonLength ?? '—'} ${effectiveMatchupUnit ?? 'weeks'}`,
+  ].join(' · ');
+  const defaultModes = [
+    `Scoring mode: ${
+      typeof defaultLeagueSettings?.scoring_mode === 'string'
+        ? defaultLeagueSettings.scoring_mode
+        : 'points'
+    }`,
+    `Roster mode: ${
+      typeof defaultLeagueSettings?.roster_mode === 'string'
+        ? defaultLeagueSettings.roster_mode
+        : 'redraft'
+    }`,
+    `Waiver mode: ${
+      typeof defaultLeagueSettings?.waiver_mode === 'string'
+        ? defaultLeagueSettings.waiver_mode
+        : preset.waiver?.waiver_type ?? '—'
+    }`,
+    `Trade review: ${
+      typeof defaultLeagueSettings?.trade_review_mode === 'string'
+        ? defaultLeagueSettings.trade_review_mode
+        : 'commissioner'
+    }`,
   ].join(' · ');
 
   const contextMessage =
@@ -92,6 +143,9 @@ export function LeagueSettingsPreviewPanel({
         </li>
         <li>
           <span className="text-white/60">League defaults:</span> {leagueDefaults}
+        </li>
+        <li>
+          <span className="text-white/60">League settings:</span> {defaultModes}
         </li>
         {teamMetadata.length > 0 && (
           <li>

@@ -16,7 +16,7 @@ import { toSportType } from './sport-type-utils'
 export interface InitializeLeagueOptions {
   leagueId: string
   sport: SportType | string
-  /** If true, only set settings when current settings are empty or null */
+  /** If false, only set settings when current settings are empty or null */
   mergeIfExisting?: boolean
 }
 
@@ -43,7 +43,6 @@ export async function initializeLeagueWithSportDefaults(
   let settingsApplied = false
   const existingSettings = (league.settings as Record<string, unknown>) ?? {}
   const hasExisting = Object.keys(existingSettings).length > 0
-  const shouldSetSettings = !hasExisting || (mergeIfExisting === false && !hasExisting)
   if (!hasExisting) {
     await (prisma as any).league.update({
       where: { id: leagueId },
@@ -80,9 +79,32 @@ export async function initializeLeagueWithSportDefaults(
         },
       })
       waiverApplied = true
+    } else {
+      const patch: Record<string, unknown> = {}
+      const defaults = {
+        waiverType: waiverDef.waiver_type,
+        faabBudget: waiverDef.FAAB_budget_default,
+        processingDayOfWeek: waiverDef.processing_days?.[0] ?? null,
+        processingTimeUtc: waiverDef.processing_time_utc ?? null,
+        claimLimitPerPeriod: waiverDef.max_claims_per_period ?? null,
+        tiebreakRule: (waiverDef.claim_priority_behavior as string) ?? null,
+        lockType: (waiverDef.game_lock_behavior as string) ?? null,
+        instantFaAfterClear: waiverDef.free_agent_unlock_behavior === 'instant',
+      }
+      for (const [key, value] of Object.entries(defaults)) {
+        const current = (existing as Record<string, unknown>)[key]
+        if (current === undefined || current === null) patch[key] = value
+      }
+      if (Object.keys(patch).length > 0) {
+        await (prisma as any).leagueWaiverSettings.update({
+          where: { leagueId },
+          data: patch,
+        })
+        waiverApplied = true
+      }
     }
-  } catch {
-    // non-fatal
+  } catch (error) {
+    console.warn('[league-defaults/initializer] Failed to initialize waiver defaults:', error)
   }
 
   return { settingsApplied, waiverApplied }

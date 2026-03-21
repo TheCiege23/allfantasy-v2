@@ -21,10 +21,13 @@ export interface LeagueCreationPreset {
 /**
  * Load creation preset for a sport (roster + scoring templates). Used by league creation UI.
  */
-export async function getLeagueCreationPreset(leagueSport: LeagueSport): Promise<LeagueCreationPreset> {
+export async function getLeagueCreationPreset(
+  leagueSport: LeagueSport,
+  formatTypeOverride?: string | null
+): Promise<LeagueCreationPreset> {
   const config = resolveSportConfigForLeague(leagueSport)
   const sportType = leagueSportToSportType(leagueSport)
-  const formatType = config.defaultFormat
+  const formatType = formatTypeOverride?.trim() || config.defaultFormat
   const [rosterTemplate, scoringTemplate] = await Promise.all([
     getRosterTemplate(sportType, formatType),
     getScoringTemplate(sportType, formatType),
