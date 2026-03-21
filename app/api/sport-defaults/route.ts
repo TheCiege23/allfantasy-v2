@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ sport, featureFlags })
     }
 
-    const defaults = resolveSportDefaults(sportParam)
+    const defaults = resolveSportDefaults(sport, variantParam)
     return NextResponse.json({
       ...defaults,
       registry: {

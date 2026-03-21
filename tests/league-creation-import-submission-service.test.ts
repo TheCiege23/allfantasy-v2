@@ -3,9 +3,11 @@ import {
   fetchImportPreview,
   submitImportCreation,
 } from '@/lib/league-import/LeagueCreationImportSubmissionService'
+import * as providerUiConfig from '@/lib/league-import/provider-ui-config'
 
 describe('LeagueCreationImportSubmissionService', () => {
   const fetchMock = vi.fn()
+  let availabilitySpy: ReturnType<typeof vi.spyOn> | null = null
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -13,6 +15,8 @@ describe('LeagueCreationImportSubmissionService', () => {
   })
 
   afterEach(() => {
+    availabilitySpy?.mockRestore()
+    availabilitySpy = null
     vi.unstubAllGlobals()
   })
 
@@ -135,5 +139,23 @@ describe('LeagueCreationImportSubmissionService', () => {
       provider: 'mfl',
       sourceId: '2026:12345',
     })
+  })
+
+  it('fails gracefully when preview provider is unavailable', async () => {
+    availabilitySpy = vi.spyOn(providerUiConfig, 'isImportProviderAvailable').mockReturnValue(false)
+
+    const result = await fetchImportPreview('sleeper', '12345')
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/not yet available/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails gracefully when submit provider is unavailable', async () => {
+    availabilitySpy = vi.spyOn(providerUiConfig, 'isImportProviderAvailable').mockReturnValue(false)
+
+    const result = await submitImportCreation('sleeper', '12345', 'user-1')
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/not yet available/i)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

@@ -63,6 +63,7 @@ export function LeagueCreationSportSelector({
             type="button"
             onClick={() => onChange(s)}
             disabled={disabled}
+            data-testid={`league-creation-sport-${s.toLowerCase()}`}
             className={`group relative overflow-hidden rounded-xl border text-left transition ${
               value === s
                 ? 'border-cyan-400/40 bg-cyan-400/10'

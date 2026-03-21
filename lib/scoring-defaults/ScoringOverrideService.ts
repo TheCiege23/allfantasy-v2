@@ -54,6 +54,28 @@ export async function upsertLeagueScoringOverrides(
 }
 
 /**
+ * Replace all overrides for a league in one operation.
+ * Useful for commissioner settings screens that submit the full rule table.
+ */
+export async function replaceLeagueScoringOverrides(
+  leagueId: string,
+  overrides: ScoringOverrideInput[]
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.leagueScoringOverride.deleteMany({ where: { leagueId } })
+    if (overrides.length === 0) return
+    await tx.leagueScoringOverride.createMany({
+      data: overrides.map((o) => ({
+        leagueId,
+        statKey: o.statKey,
+        pointsValue: o.pointsValue,
+        enabled: o.enabled,
+      })),
+    })
+  })
+}
+
+/**
  * Merge template rules with league overrides (same logic as getLeagueScoringRules, for use in services).
  */
 export function mergeRulesWithOverrides(

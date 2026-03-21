@@ -25,12 +25,48 @@ function resolveImportedLeagueSport(normalized: NormalizedImportResult): string 
   return normalizeToSupportedSport(normalized.league.sport)
 }
 
+function resolveImportedLeagueVariant(normalized: NormalizedImportResult): string | null {
+  const leagueData = normalized.league as Record<string, unknown>
+  const explicit =
+    leagueData.league_variant ??
+    leagueData.leagueVariant ??
+    leagueData.variant
+  if (typeof explicit === 'string' && explicit.trim()) {
+    return explicit.trim()
+  }
+
+  const sport = resolveImportedLeagueSport(normalized)
+  if (sport !== 'NFL') return null
+
+  const scoringFormat = String(
+    normalized.league.scoring ??
+      normalized.scoring?.scoring_format ??
+      ''
+  ).toUpperCase()
+  const rosterPositions = Array.isArray(leagueData.roster_positions)
+    ? (leagueData.roster_positions as unknown[])
+        .map((p) => String(p).toUpperCase())
+    : []
+  const hasIdpSignal =
+    scoringFormat.includes('IDP') ||
+    rosterPositions.some((p) =>
+      ['DE', 'DT', 'LB', 'CB', 'S', 'DL', 'DB', 'IDP_FLEX'].includes(p)
+    )
+
+  if (!hasIdpSignal) return null
+  return normalized.league.isDynasty ? 'DYNASTY_IDP' : 'IDP'
+}
+
 function buildImportedLeagueSettings(normalized: NormalizedImportResult): Record<string, unknown> {
+  const sportType = resolveImportedLeagueSport(normalized)
+  const leagueVariant = resolveImportedLeagueVariant(normalized)
   return {
     ...(normalized.league as Record<string, unknown>),
     playoff_team_count: normalized.league.playoff_team_count,
     roster_positions: (normalized.league as Record<string, unknown>).roster_positions,
     scoring_settings: (normalized.league as Record<string, unknown>).scoring_settings,
+    sport_type: sportType,
+    league_variant: leagueVariant,
     source_tracking: {
       ...normalized.source,
     },
@@ -84,6 +120,16 @@ async function runHistoricalBackfill(args: {
     })
   }
 
+  if (args.provider === 'fantrax') {
+    const { syncFantraxHistoricalBackfillAfterImport } = await import(
+      '@/lib/league-import/fantrax/FantraxHistoricalBackfillService'
+    )
+    return syncFantraxHistoricalBackfillAfterImport({
+      leagueId: args.leagueId,
+      userId: args.userId,
+    })
+  }
+
   return null
 }
 
@@ -104,6 +150,8 @@ export async function persistImportedLeagueFromNormalization(
     throw new ImportedLeagueConflictError('This league already exists in your account')
   }
 
+  const resolvedSport = resolveImportedLeagueSport(normalized)
+  const resolvedVariant = resolveImportedLeagueVariant(normalized)
   const leaguePayload = {
     name: normalized.league.name,
     platform: provider,
@@ -111,13 +159,14 @@ export async function persistImportedLeagueFromNormalization(
     leagueSize: normalized.league.leagueSize,
     scoring: normalized.league.scoring ?? undefined,
     isDynasty: normalized.league.isDynasty,
-    sport: resolveImportedLeagueSport(normalized),
+    sport: resolvedSport,
     season: normalized.league.season ?? undefined,
     rosterSize: normalized.league.rosterSize ?? undefined,
     starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
     avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
     settings: buildImportedLeagueSettings(normalized),
     syncStatus: 'pending',
+    leagueVariant: resolvedVariant,
     importBatchId: normalized.source.import_batch_id ?? undefined,
     importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
   }
@@ -130,7 +179,6 @@ export async function persistImportedLeagueFromNormalization(
     : await (prisma as any).league.create({
         data: {
           userId,
-          leagueVariant: null,
           ...leaguePayload,
         },
       })

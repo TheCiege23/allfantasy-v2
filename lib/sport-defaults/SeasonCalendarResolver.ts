@@ -122,5 +122,6 @@ export async function getSeasonCalendar(
   return {
     calendarId: `in-memory-${sport}-${formatType}`,
     ...fallback,
+    formatType,
   }
 }

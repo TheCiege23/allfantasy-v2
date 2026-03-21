@@ -9,6 +9,7 @@ const bootstrapLeagueWaiverSettingsMock = vi.fn()
 const bootstrapLeaguePlayoffConfigMock = vi.fn()
 const bootstrapLeagueScheduleConfigMock = vi.fn()
 const syncSleeperHistoricalBackfillAfterImportMock = vi.fn()
+const syncFantraxHistoricalBackfillAfterImportMock = vi.fn()
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -44,6 +45,10 @@ vi.mock('@/lib/league-import/sleeper/SleeperHistoricalBackfillService', () => ({
   syncSleeperHistoricalBackfillAfterImport: syncSleeperHistoricalBackfillAfterImportMock,
 }))
 
+vi.mock('@/lib/league-import/fantrax/FantraxHistoricalBackfillService', () => ({
+  syncFantraxHistoricalBackfillAfterImport: syncFantraxHistoricalBackfillAfterImportMock,
+}))
+
 describe('ImportedLeagueCommitService source tracking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -59,6 +64,7 @@ describe('ImportedLeagueCommitService source tracking', () => {
     bootstrapLeaguePlayoffConfigMock.mockResolvedValue(undefined)
     bootstrapLeagueScheduleConfigMock.mockResolvedValue(undefined)
     syncSleeperHistoricalBackfillAfterImportMock.mockResolvedValue({ status: 'queued' })
+    syncFantraxHistoricalBackfillAfterImportMock.mockResolvedValue({ status: 'queued-fantrax' })
   })
 
   it('stores source metadata and identity mappings on imported league', async () => {
@@ -145,5 +151,66 @@ describe('ImportedLeagueCommitService source tracking', () => {
       name: 'Imported League',
       sport: 'NFL',
     })
+  })
+
+  it('runs fantrax historical backfill for fantrax imports', async () => {
+    leagueCreateMock.mockResolvedValue({
+      id: 'league-fantrax',
+      name: 'Fantrax League',
+      sport: 'NCAAF',
+    })
+
+    const { persistImportedLeagueFromNormalization } = await import(
+      '@/lib/league-import/ImportedLeagueCommitService'
+    )
+
+    const result = await persistImportedLeagueFromNormalization({
+      userId: 'u1',
+      provider: 'fantrax',
+      normalized: {
+        source: {
+          source_provider: 'fantrax',
+          source_league_id: 'fantrax-league-id',
+          source_season_id: '2025',
+          import_batch_id: 'fantrax-fantrax-league-id-batch',
+          imported_at: '2026-03-21T00:00:00.000Z',
+        },
+        league: {
+          name: 'Fantrax League',
+          sport: 'NCAAF',
+          season: 2025,
+          leagueSize: 12,
+          rosterSize: 20,
+          scoring: 'devy',
+          isDynasty: true,
+        },
+        rosters: [],
+        scoring: null,
+        schedule: [],
+        draft_picks: [],
+        transactions: [],
+        standings: [],
+        player_map: {},
+        coverage: {
+          leagueSettings: { state: 'full' },
+          currentRosters: { state: 'missing' },
+          historicalRosterSnapshots: { state: 'missing' },
+          scoringSettings: { state: 'partial' },
+          playoffSettings: { state: 'partial' },
+          currentStandings: { state: 'missing' },
+          currentSchedule: { state: 'missing' },
+          draftHistory: { state: 'missing' },
+          tradeHistory: { state: 'missing' },
+          previousSeasons: { state: 'missing' },
+          playerIdentityMap: { state: 'missing' },
+        },
+      },
+    })
+
+    expect(syncFantraxHistoricalBackfillAfterImportMock).toHaveBeenCalledWith({
+      leagueId: 'league-fantrax',
+      userId: 'u1',
+    })
+    expect(result.historicalBackfill).toEqual({ status: 'queued-fantrax' })
   })
 })

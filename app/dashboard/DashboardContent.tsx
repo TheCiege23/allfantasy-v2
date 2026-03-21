@@ -178,8 +178,37 @@ export default function DashboardContent({ user, profile, leagues, entries, user
   )
 
   const selectedConnectedLeague = useMemo(
-    () => connectedLeagues.find((league) => league.id === selectedLeague?.id) || null,
+    () => {
+      if (selectedLeague?.id) {
+        return connectedLeagues.find((league) => league.id === selectedLeague.id) || null
+      }
+      return connectedLeagues[0] || null
+    },
     [connectedLeagues, selectedLeague?.id]
+  )
+
+  const selectedLeagueContext = useMemo(
+    () =>
+      selectedLeague
+        ? {
+            id: selectedLeague.id,
+            sport: selectedConnectedLeague?.sport ?? null,
+            leagueVariant: selectedConnectedLeague?.leagueVariant ?? selectedConnectedLeague?.league_variant ?? null,
+          }
+        : selectedConnectedLeague
+          ? {
+              id: selectedConnectedLeague.id,
+              sport: selectedConnectedLeague.sport ?? null,
+              leagueVariant: selectedConnectedLeague.leagueVariant ?? selectedConnectedLeague.league_variant ?? null,
+            }
+          : null,
+    [
+      selectedConnectedLeague?.id,
+      selectedConnectedLeague?.leagueVariant,
+      selectedConnectedLeague?.league_variant,
+      selectedConnectedLeague?.sport,
+      selectedLeague,
+    ]
   )
 
   const connectedPlatforms = useMemo(
@@ -196,11 +225,34 @@ export default function DashboardContent({ user, profile, leagues, entries, user
   const heroLabel = profile.sleeperUsername ? `Connected as @${profile.sleeperUsername}` : "Connect Sleeper to unlock league-aware tools"
   const inviteCode = selectedLeague?.joinCode || (selectedLeague?.id ? selectedLeague.id.slice(0, 11) : null)
   const inviteLink = inviteCode ? `https://allfantasy.ai/j/${inviteCode}` : null
-  const leagueSummaryHref = selectedLeague ? `/app/league/${selectedLeague.id}` : "/leagues"
-  const matchupsHref = selectedLeague ? `/app/league/${selectedLeague.id}?tab=Matchups` : "/matchup-simulator"
-  const teamHref = selectedLeague ? `/app/league/${selectedLeague.id}?tab=Roster` : "/player-comparison"
-  const draftHref = selectedLeague ? `/app/league/${selectedLeague.id}/draft` : "/mock-draft"
-  const intelligenceHref = selectedLeague ? `/app/league/${selectedLeague.id}?tab=Intelligence` : "/chimmy"
+  const buildLeagueContextHref = useCallback(
+    (basePath: string): string => {
+      if (!selectedLeagueContext) return basePath
+      const params = new URLSearchParams()
+      params.set("leagueId", selectedLeagueContext.id)
+      if (selectedLeagueContext.sport) {
+        params.set("sport", String(selectedLeagueContext.sport).toUpperCase())
+      }
+      if (selectedLeagueContext.leagueVariant) {
+        params.set("leagueVariant", String(selectedLeagueContext.leagueVariant))
+      }
+      const query = params.toString()
+      if (!query) return basePath
+      return `${basePath}${basePath.includes("?") ? "&" : "?"}${query}`
+    },
+    [selectedLeagueContext]
+  )
+  const leagueSummaryHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}` : "/leagues"
+  const matchupsHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Matchups` : "/matchup-simulator"
+  const teamHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Roster` : "/player-comparison"
+  const draftHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}/draft` : "/mock-draft"
+  const intelligenceHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Intelligence` : buildLeagueContextHref("/chimmy")
+  const chimmyHref = buildLeagueContextHref("/chimmy")
+  const tradeAnalyzerHref = buildLeagueContextHref("/trade-analyzer")
+  const tradeFinderHref = buildLeagueContextHref("/trade-finder")
+  const waiverAiHref = buildLeagueContextHref("/waiver-ai")
+  const tradeEvaluatorHref = buildLeagueContextHref("/trade-evaluator")
+  const coachHref = buildLeagueContextHref("/app/coach")
 
   const compactChecklist = useMemo(
     () => [
@@ -215,9 +267,9 @@ export default function DashboardContent({ user, profile, leagues, entries, user
   const toolCards = useMemo(
     () => [
       { title: "Rankings", description: "League-aware rankings and player values.", href: "/rankings", accent: "from-cyan-500/20 to-blue-500/10" },
-      { title: "Trade Analyzer", description: "Context-aware trade evaluation and counters.", href: "/trade-analyzer", accent: "from-emerald-500/20 to-cyan-500/10" },
-      { title: "Trade Finder", description: "Find partners and package ideas.", href: "/trade-finder", accent: "from-fuchsia-500/20 to-violet-500/10" },
-      { title: "Waiver AI", description: "Pickup advice and FAAB guidance.", href: "/waiver-ai", accent: "from-amber-500/20 to-orange-500/10" },
+      { title: "Trade Analyzer", description: "Context-aware trade evaluation and counters.", href: tradeAnalyzerHref, accent: "from-emerald-500/20 to-cyan-500/10" },
+      { title: "Trade Finder", description: "Find partners and package ideas.", href: tradeFinderHref, accent: "from-fuchsia-500/20 to-violet-500/10" },
+      { title: "Waiver AI", description: "Pickup advice and FAAB guidance.", href: waiverAiHref, accent: "from-amber-500/20 to-orange-500/10" },
       { title: "League Pulse", description: "Open your current league intelligence view.", href: intelligenceHref, accent: "from-sky-500/20 to-cyan-500/10" },
       { title: "Mock Draft", description: "Practice drafts without leaving the workflow.", href: "/mock-draft", accent: "from-indigo-500/25 to-violet-500/10" },
       { title: "Draft Room", description: "Jump into your active league draft flow.", href: draftHref, accent: "from-violet-500/20 to-cyan-500/10" },
@@ -225,18 +277,18 @@ export default function DashboardContent({ user, profile, leagues, entries, user
       { title: "Player Comparison", description: "Head-to-head player analysis.", href: "/player-comparison", accent: "from-slate-500/20 to-cyan-500/10" },
       { title: "Matchup Simulator", description: "Run matchup scenarios and game swings.", href: "/matchup-simulator", accent: "from-cyan-500/20 to-indigo-500/10" },
     ],
-    [draftHref, intelligenceHref]
+    [draftHref, intelligenceHref, tradeAnalyzerHref, tradeFinderHref, waiverAiHref]
   )
 
   const aiShortcuts = useMemo(
     () => [
-      { title: "Ask Chimmy", href: "/chimmy", subtitle: "Private AI chat with league context" },
-      { title: "Trade Advice", href: "/trade-evaluator", subtitle: "Instant deal analysis and negotiation help" },
-      { title: "Waiver Advice", href: "/waiver-ai", subtitle: "Free-agent priorities and FAAB plan" },
-      { title: "Lineup Help", href: "/app/coach", subtitle: "Start or sit and roster construction guidance" },
+      { title: "Ask Chimmy", href: chimmyHref, subtitle: "Private AI chat with league context" },
+      { title: "Trade Advice", href: tradeEvaluatorHref, subtitle: "Instant deal analysis and negotiation help" },
+      { title: "Waiver Advice", href: waiverAiHref, subtitle: "Free-agent priorities and FAAB plan" },
+      { title: "Lineup Help", href: coachHref, subtitle: "Start or sit and roster construction guidance" },
       { title: "League Recap", href: intelligenceHref, subtitle: "League-aware pulse, recap, and next moves" },
     ],
-    [intelligenceHref]
+    [chimmyHref, coachHref, intelligenceHref, tradeEvaluatorHref, waiverAiHref]
   )
 
   const normalizeChatMessage = useCallback((msg: any): LeagueChatMessage => {
@@ -519,12 +571,12 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               <p className="mt-2 text-base font-bold text-white">Draft room access</p>
               <p className="mt-1 text-sm text-slate-300">Jump into live or practice drafting.</p>
             </Link>
-            <Link href="/waiver-ai" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+            <Link href={waiverAiHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Waiver Alert</p>
               <p className="mt-2 text-base font-bold text-white">Open waiver priorities</p>
               <p className="mt-1 text-sm text-slate-300">Get pickup advice tied to league context.</p>
             </Link>
-            <Link href="/trade-analyzer" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+            <Link href={tradeAnalyzerHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Trade Alert</p>
               <p className="mt-2 text-base font-bold text-white">Analyze current market</p>
               <p className="mt-1 text-sm text-slate-300">Open live trade evaluation and counters.</p>
@@ -649,8 +701,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {group.leagues.map((league) => {
                 const leagueMeta = league as DashboardLeague
-                const hasBracketContext = visibleLeagues.some((item) => item.id === league.id)
-                const href = hasBracketContext ? `/app/league/${league.id}` : "/leagues"
+                const href = `/app/league/${league.id}`
                 return (
                   <Link key={league.id} href={href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
                     <div className="flex items-start justify-between gap-3">
@@ -722,9 +773,11 @@ export default function DashboardContent({ user, profile, leagues, entries, user
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           { label: "Fantasy Football", href: "/sports/fantasy-football" },
-          { label: "Fantasy Basketball", href: "/sports/fantasy-basketball" },
-          { label: "Fantasy Baseball", href: "/sports/fantasy-baseball" },
           { label: "Fantasy Hockey", href: "/sports/fantasy-hockey" },
+          { label: "Fantasy Baseball", href: "/sports/fantasy-baseball" },
+          { label: "Fantasy Basketball", href: "/sports/fantasy-basketball" },
+          { label: "NCAA Football Fantasy", href: "/sports/ncaa-football-fantasy" },
+          { label: "NCAA Basketball Fantasy", href: "/sports/ncaa-basketball-fantasy" },
           { label: "Fantasy Soccer", href: "/sports/fantasy-soccer" },
         ].map((item) => (
           <Link key={item.href} href={item.href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
@@ -790,13 +843,15 @@ export default function DashboardContent({ user, profile, leagues, entries, user
         </section>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "NFL", href: "/fantasy-football", icon: Goal },
-          { label: "NBA", href: "/fantasy-basketball", icon: Activity },
+          { label: "NHL", href: "/fantasy-hockey", icon: Activity },
           { label: "MLB", href: "/fantasy-baseball", icon: Activity },
+          { label: "NBA", href: "/fantasy-basketball", icon: Activity },
+          { label: "NCAA Football", href: "/sports/ncaa-football-fantasy", icon: Goal },
+          { label: "NCAA Basketball", href: "/sports/ncaa-basketball-fantasy", icon: Activity },
           { label: "SOCCER", href: "/fantasy-soccer", icon: Goal },
-          { label: "NCAA", href: "/fantasy-ncaa", icon: Activity },
         ].map((sport) => (
           <Link key={sport.href} href={sport.href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
             <sport.icon className="h-5 w-5 text-cyan-300" />
@@ -851,7 +906,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               <span>Open player finder</span>
               <ChevronRight className="h-4 w-4 text-cyan-300" />
             </Link>
-            <Link href="/waiver-ai" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white hover:bg-white/[0.08]">
+            <Link href={waiverAiHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white hover:bg-white/[0.08]">
               <span>Check waiver priorities</span>
               <ChevronRight className="h-4 w-4 text-cyan-300" />
             </Link>
@@ -959,7 +1014,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <p className="mt-2 text-2xl font-black text-white">Open inbox</p>
             <p className="mt-2 text-sm text-slate-300">DMs, group threads, polls, media sharing, and league mentions.</p>
           </Link>
-          <Link href="/chimmy" className="block rounded-3xl border border-white/10 bg-white/[0.04] p-5 hover:bg-white/[0.08]">
+          <Link href={chimmyHref} className="block rounded-3xl border border-white/10 bg-white/[0.04] p-5 hover:bg-white/[0.08]">
             <p className="text-xs uppercase tracking-[0.16em] text-slate-400">AI private chat</p>
             <p className="mt-2 text-2xl font-black text-white">Chimmy</p>
             <p className="mt-2 text-sm text-slate-300">Continue private AI conversations about trades, waivers, matchups, and league strategy.</p>
@@ -1043,7 +1098,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               </Link>
               <div className="grid grid-cols-2 gap-2">
                 <Link href="/messages" className="flex min-h-[52px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">Open Messages</Link>
-                <Link href="/chimmy" className="flex min-h-[52px] items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300">Ask Chimmy</Link>
+                <Link href={chimmyHref} className="flex min-h-[52px] items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300">Ask Chimmy</Link>
               </div>
             </div>
           </div>
@@ -1143,7 +1198,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                     <span className="flex items-center gap-2"><Inbox className="h-4 w-4 text-cyan-300" /> Inbox</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>
-                  <Link href="/chimmy" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
+                  <Link href={chimmyHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
                     <span className="flex items-center gap-2"><Bot className="h-4 w-4 text-cyan-300" /> Chimmy</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>

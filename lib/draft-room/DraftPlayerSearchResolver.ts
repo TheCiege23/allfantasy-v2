@@ -44,6 +44,9 @@ export function filterByPosition(
   positionFilter: string
 ): DraftPlayer[] {
   if (!positionFilter || positionFilter === 'All') return players
+  if (positionFilter === 'GK') {
+    return players.filter((p) => ['GK', 'GKP'].includes((p.position ?? '').toUpperCase()))
+  }
   if (positionFilter === 'FLEX') {
     return players.filter((p) => ['RB', 'WR', 'TE'].includes(p.position))
   }
@@ -57,6 +60,9 @@ export function filterByPosition(
     return players.filter((p) => DB_POSITIONS.has(p.position?.toUpperCase() ?? ''))
   }
   if (positionFilter === 'IDP_FLEX') {
+    return players.filter((p) => IDP_FLEX_POSITIONS.has(p.position?.toUpperCase() ?? ''))
+  }
+  if (positionFilter === 'IDP FLEX') {
     return players.filter((p) => IDP_FLEX_POSITIONS.has(p.position?.toUpperCase() ?? ''))
   }
   return players.filter((p) => p.position === positionFilter)

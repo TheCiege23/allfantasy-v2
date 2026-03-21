@@ -3,7 +3,16 @@
 import { useSportRules } from '@/hooks/useSportRules'
 import { useSportPreset } from '@/hooks/useSportPreset'
 import { LEAGUE_TYPE_LABELS, DRAFT_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
-import type { LeagueCreationWizardState } from '@/lib/league-creation-wizard/types'
+import {
+  DEFAULT_AI_SETTINGS,
+  DEFAULT_AUTOMATION_SETTINGS,
+  DEFAULT_DRAFT_SETTINGS,
+  DEFAULT_PLAYOFF_SETTINGS,
+  DEFAULT_PRIVACY_SETTINGS,
+  DEFAULT_SCHEDULE_SETTINGS,
+  DEFAULT_WAIVER_SETTINGS,
+  type LeagueCreationWizardState,
+} from '@/lib/league-creation-wizard/types'
 
 export type LeagueSummaryPanelProps = {
   state: LeagueCreationWizardState
@@ -34,6 +43,13 @@ function SummarySection({ title, children }: { title: string; children: React.Re
 export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const { rules } = useSportRules(state.sport, state.leagueVariant ?? undefined)
   const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
+  const draftSettings = state.draftSettings ?? DEFAULT_DRAFT_SETTINGS
+  const waiverSettings = state.waiverSettings ?? DEFAULT_WAIVER_SETTINGS
+  const playoffSettings = state.playoffSettings ?? DEFAULT_PLAYOFF_SETTINGS
+  const scheduleSettings = state.scheduleSettings ?? DEFAULT_SCHEDULE_SETTINGS
+  const aiSettings = state.aiSettings ?? DEFAULT_AI_SETTINGS
+  const automationSettings = state.automationSettings ?? DEFAULT_AUTOMATION_SETTINGS
+  const privacySettings = state.privacySettings ?? DEFAULT_PRIVACY_SETTINGS
   const variantText = String(state.leagueVariant ?? state.scoringPreset ?? '').toUpperCase()
   const sportText = String(state.sport).toUpperCase()
   const isSoccer = sportText === 'SOCCER'
@@ -110,27 +126,27 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
       )}
 
       <SummarySection title="Draft details">
-        <SummaryRow label="Rounds" value={state.draftSettings.rounds} />
+        <SummaryRow label="Rounds" value={draftSettings.rounds} />
         <SummaryRow
           label="Timer"
           value={
-            state.draftSettings.timerSeconds != null && state.draftSettings.timerSeconds > 0
-              ? `${state.draftSettings.timerSeconds}s`
+            draftSettings.timerSeconds != null && draftSettings.timerSeconds > 0
+              ? `${draftSettings.timerSeconds}s`
               : 'None'
           }
         />
         {state.draftType === 'auction' && (
-          <SummaryRow label="Auction budget" value={`$${state.draftSettings.auctionBudgetPerTeam ?? 200}`} />
+          <SummaryRow label="Auction budget" value={`$${draftSettings.auctionBudgetPerTeam ?? 200}`} />
         )}
       </SummarySection>
 
       <SummarySection title="Waiver defaults">
-        <SummaryRow label="Waiver type" value={state.waiverSettings.waiverType} />
+        <SummaryRow label="Waiver type" value={waiverSettings.waiverType} />
         <SummaryRow
           label="Processing days"
           value={
-            state.waiverSettings.processingDays.length > 0
-              ? state.waiverSettings.processingDays
+            waiverSettings.processingDays.length > 0
+              ? waiverSettings.processingDays
                   .map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d] ?? String(d))
                   .join(', ')
               : 'None'
@@ -138,103 +154,103 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         />
         <SummaryRow
           label="Processing time (UTC)"
-          value={state.waiverSettings.processingTimeUtc ?? '—'}
+          value={waiverSettings.processingTimeUtc ?? '—'}
         />
         <SummaryRow
           label="FAAB"
           value={
-            state.waiverSettings.faabEnabled
-              ? `$${state.waiverSettings.faabBudget ?? 0}`
+            waiverSettings.faabEnabled
+              ? `$${waiverSettings.faabBudget ?? 0}`
               : 'Disabled'
           }
         />
         <SummaryRow
           label="Claim priority"
-          value={state.waiverSettings.claimPriorityBehavior ?? '—'}
+          value={waiverSettings.claimPriorityBehavior ?? '—'}
         />
         <SummaryRow
           label="Free agent unlock"
-          value={state.waiverSettings.freeAgentUnlockBehavior ?? '—'}
+          value={waiverSettings.freeAgentUnlockBehavior ?? '—'}
         />
       </SummarySection>
 
       <SummarySection title="Playoff defaults">
-        <SummaryRow label="Playoff teams" value={state.playoffSettings.playoffTeamCount} />
-        <SummaryRow label="Playoff weeks" value={state.playoffSettings.playoffWeeks} />
+        <SummaryRow label="Playoff teams" value={playoffSettings.playoffTeamCount} />
+        <SummaryRow label="Playoff weeks" value={playoffSettings.playoffWeeks} />
         <SummaryRow
           label="Playoff start week"
-          value={state.playoffSettings.playoffStartWeek ?? '—'}
+          value={playoffSettings.playoffStartWeek ?? '—'}
         />
         <SummaryRow
           label="Seeding rules"
-          value={state.playoffSettings.seedingRules}
+          value={playoffSettings.seedingRules}
         />
         <SummaryRow
           label="Tiebreakers"
           value={
-            state.playoffSettings.tiebreakerRules.length > 0
-              ? state.playoffSettings.tiebreakerRules.join(', ')
+            playoffSettings.tiebreakerRules.length > 0
+              ? playoffSettings.tiebreakerRules.join(', ')
               : '—'
           }
         />
         <SummaryRow
           label="Byes / rounds"
-          value={`${state.playoffSettings.firstRoundByes} byes · ${state.playoffSettings.totalRounds ?? 'auto'} rounds`}
+          value={`${playoffSettings.firstRoundByes} byes · ${playoffSettings.totalRounds ?? 'auto'} rounds`}
         />
         <SummaryRow
           label="Consolation / third-place"
-          value={`${state.playoffSettings.consolationBracketEnabled ? 'On' : 'Off'} · ${state.playoffSettings.thirdPlaceGameEnabled ? '3rd place on' : '3rd place off'}`}
+          value={`${playoffSettings.consolationBracketEnabled ? 'On' : 'Off'} · ${playoffSettings.thirdPlaceGameEnabled ? '3rd place on' : '3rd place off'}`}
         />
       </SummarySection>
 
       <SummarySection title="Schedule defaults">
-        <SummaryRow label="Schedule unit" value={state.scheduleSettings.scheduleUnit} />
-        <SummaryRow label="Regular season length" value={state.scheduleSettings.regularSeasonLength} />
-        <SummaryRow label="Matchup frequency" value={state.scheduleSettings.matchupFrequency} />
-        <SummaryRow label="Matchup cadence" value={state.scheduleSettings.matchupCadence} />
+        <SummaryRow label="Schedule unit" value={scheduleSettings.scheduleUnit} />
+        <SummaryRow label="Regular season length" value={scheduleSettings.regularSeasonLength} />
+        <SummaryRow label="Matchup frequency" value={scheduleSettings.matchupFrequency} />
+        <SummaryRow label="Matchup cadence" value={scheduleSettings.matchupCadence} />
         <SummaryRow
           label="Head-to-head / points"
-          value={state.scheduleSettings.headToHeadOrPointsBehavior}
+          value={scheduleSettings.headToHeadOrPointsBehavior}
         />
-        <SummaryRow label="Lock time" value={state.scheduleSettings.lockTimeBehavior} />
-        <SummaryRow label="Lock window" value={state.scheduleSettings.lockWindowBehavior} />
+        <SummaryRow label="Lock time" value={scheduleSettings.lockTimeBehavior} />
+        <SummaryRow label="Lock window" value={scheduleSettings.lockWindowBehavior} />
         <SummaryRow
           label="Scoring period"
-          value={state.scheduleSettings.scoringPeriodBehavior}
+          value={scheduleSettings.scoringPeriodBehavior}
         />
         <SummaryRow
           label="Reschedule handling"
-          value={state.scheduleSettings.rescheduleHandling}
+          value={scheduleSettings.rescheduleHandling}
         />
         <SummaryRow
           label="Multi-game handling"
-          value={state.scheduleSettings.doubleheaderOrMultiGameHandling}
+          value={scheduleSettings.doubleheaderOrMultiGameHandling}
         />
         <SummaryRow
           label="Playoff transition point"
-          value={state.scheduleSettings.playoffTransitionPoint ?? '—'}
+          value={scheduleSettings.playoffTransitionPoint ?? '—'}
         />
         <SummaryRow
           label="Generation strategy"
-          value={state.scheduleSettings.scheduleGenerationStrategy}
+          value={scheduleSettings.scheduleGenerationStrategy}
         />
       </SummarySection>
 
       <SummarySection title="AI settings">
-        <SummaryRow label="AI ADP" value={state.aiSettings.aiAdpEnabled ? 'On' : 'Off'} />
-        <SummaryRow label="Orphan AI manager" value={state.aiSettings.orphanTeamAiManagerEnabled ? 'On' : 'Off'} />
-        <SummaryRow label="Draft helper" value={state.aiSettings.draftHelperEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="AI ADP" value={aiSettings.aiAdpEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="Orphan AI manager" value={aiSettings.orphanTeamAiManagerEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="Draft helper" value={aiSettings.draftHelperEnabled ? 'On' : 'Off'} />
       </SummarySection>
 
       <SummarySection title="Automation settings">
-        <SummaryRow label="Draft notifications" value={state.automationSettings.draftNotificationsEnabled ? 'On' : 'Off'} />
-        <SummaryRow label="Autopick from queue" value={state.automationSettings.autopickFromQueueEnabled ? 'On' : 'Off'} />
-        <SummaryRow label="Slow draft reminders" value={state.automationSettings.slowDraftRemindersEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="Draft notifications" value={automationSettings.draftNotificationsEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="Autopick from queue" value={automationSettings.autopickFromQueueEnabled ? 'On' : 'Off'} />
+        <SummaryRow label="Slow draft reminders" value={automationSettings.slowDraftRemindersEnabled ? 'On' : 'Off'} />
       </SummarySection>
 
       <SummarySection title="Privacy settings">
-        <SummaryRow label="Visibility" value={state.privacySettings.visibility} />
-        <SummaryRow label="Invite link" value={state.privacySettings.allowInviteLink ? 'Allowed' : 'Disabled'} />
+        <SummaryRow label="Visibility" value={privacySettings.visibility} />
+        <SummaryRow label="Invite link" value={privacySettings.allowInviteLink ? 'Allowed' : 'Disabled'} />
       </SummarySection>
     </div>
   )

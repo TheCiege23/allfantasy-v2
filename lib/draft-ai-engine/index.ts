@@ -21,6 +21,8 @@ export interface DraftAIAssistInput {
 export interface DraftAIAssistOptions {
   explanation?: boolean
   sport?: string
+  idp?: boolean
+  recommendationContext?: string
   leagueId?: string
 }
 
@@ -62,8 +64,14 @@ export async function runDraftAIAssist(
     byeNote: null,
     caveats: null,
   }
+  const contextSummary = _options.recommendationContext
+    ? ` Context: ${_options.recommendationContext}.`
+    : ''
+  const idpSummary = _options.idp ? ' IDP roster/scoring context is enabled.' : ''
   return {
     recommendation: rec,
-    explanation: _options.explanation ? `Top of board by ADP: ${rec.recommendation}.` : null,
+    explanation: _options.explanation
+      ? `Top of board by ADP: ${rec.recommendation}.${_options.sport ? ` Sport: ${_options.sport}.` : ''}${idpSummary}${contextSummary}`
+      : null,
   }
 }

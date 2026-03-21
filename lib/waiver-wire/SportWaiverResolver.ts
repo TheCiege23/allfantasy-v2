@@ -12,7 +12,7 @@ const POSITIONS_BY_SPORT: Record<string, string[]> = {
   NHL: ["C", "LW", "RW", "D", "G", "UTIL"],
   NCAAF: ["QB", "RB", "WR", "TE", "FLEX", "K", "DST"],
   NCAAB: ["G", "F", "C", "UTIL"],
-  SOCCER: ["GKP", "DEF", "MID", "FWD", "UTIL"],
+  SOCCER: ["GK", "DEF", "MID", "FWD", "UTIL"],
 }
 
 /** NFL IDP: offense + IDP position filters for waiver wire. */
@@ -36,11 +36,13 @@ export function getPositionFiltersForSport(sport: string | null | undefined, for
 export function waiverPositionMatches(playerPosition: string | null, positionFilter: string): boolean {
   if (!positionFilter || positionFilter === "ALL") return true
   const pos = (playerPosition ?? "").toUpperCase()
+  const filter = positionFilter.toUpperCase()
+  if ((filter === "GK" && pos === "GKP") || (filter === "GKP" && pos === "GK")) return true
   if (positionFilter === "Offense") return ["QB", "RB", "WR", "TE", "K"].includes(pos)
   if (positionFilter === "DL") return ["DE", "DT"].includes(pos)
   if (positionFilter === "DB") return ["CB", "S", "SS", "FS"].includes(pos)
   if (positionFilter === "IDP FLEX") return ["DE", "DT", "LB", "CB", "S", "SS", "FS"].includes(pos)
-  return pos === positionFilter.toUpperCase()
+  return pos === filter
 }
 
 export function getSportDisplayLabel(sport: string): string {

@@ -29,8 +29,10 @@ export interface TeamMetadata {
 export interface PoolPlayerRecord {
   player_id: string
   sport_type: SportType
+  league_variant?: string | null
   team_id: string | null
   team_abbreviation: string | null
+  team?: string | null
   full_name: string
   position: string
   status: string | null

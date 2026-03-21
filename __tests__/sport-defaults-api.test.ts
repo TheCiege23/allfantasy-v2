@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-type LeagueSport = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB'
+type LeagueSport = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER'
 
 const getCreationPayloadMock = vi.fn()
 const getSportFeatureFlagsMock = vi.fn()
@@ -21,6 +21,7 @@ function makePayload(sport: LeagueSport) {
     NHL: 25,
     NCAAF: 15,
     NCAAB: 18,
+    SOCCER: 38,
   }
 
   return {
@@ -151,7 +152,7 @@ describe('GET /api/sport-defaults?load=creation', () => {
 
   it('returns creation payload with scoringTemplate and defaultLeagueSettings consistent per sport', async () => {
     const { GET } = await import('@/app/api/sport-defaults/route')
-    const sports: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB']
+    const sports: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 
     for (const sport of sports) {
       const req = new Request(`http://localhost/api/sport-defaults?sport=${sport}&load=creation`)
@@ -178,6 +179,7 @@ describe('GET /api/sport-defaults?load=creation', () => {
       expect(Array.isArray(body.registry?.supported_sports)).toBe(true)
       expect(body.registry?.supported_sports).toContain('NFL')
       expect(body.registry?.supported_sports).toContain('NCAAB')
+      expect(body.registry?.supported_sports).toContain('SOCCER')
     }
 
     expect(getCreationPayloadMock).toHaveBeenCalledTimes(sports.length)

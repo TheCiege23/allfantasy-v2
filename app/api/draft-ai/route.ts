@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { runDraftAIAssist } from '@/lib/draft-ai-engine'
+import { resolveSportForAI } from '@/lib/ai/AISportContextResolver'
+import { buildDraftRecommendationContext } from '@/lib/ai/SportAwareRecommendationService'
+import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,9 +24,17 @@ export async function POST(req: NextRequest) {
   const round = Math.max(1, Number(body.round) || 1)
   const pick = Math.max(1, Number(body.pick) || 1)
   const totalTeams = Math.max(2, Math.min(24, Number(body.totalTeams) || 12))
-  const sport = String(body.sport || 'NFL').toUpperCase()
+  const leagueVariant =
+    typeof body.leagueVariant === 'string'
+      ? body.leagueVariant
+      : typeof body.league_variant === 'string'
+        ? body.league_variant
+        : null
+  const variantContext = resolveSportVariantContext(resolveSportForAI(body as Record<string, unknown>), leagueVariant)
+  const sport = variantContext.sport
   const isDynasty = Boolean(body.isDynasty)
   const isSF = Boolean(body.isSF)
+  const isIdp = variantContext.isNflIdp || Boolean(body.idp) || Boolean(body.is_idp)
   const mode: 'bpa' | 'needs' = body.mode === 'bpa' ? 'bpa' : 'needs'
   const aiAdpByKey = body.aiAdpByKey && typeof body.aiAdpByKey === 'object' ? body.aiAdpByKey : undefined
   const byeByKey = body.byeByKey && typeof body.byeByKey === 'object' ? body.byeByKey : undefined
@@ -67,6 +78,15 @@ export async function POST(req: NextRequest) {
   const result = await runDraftAIAssist(input, {
     explanation,
     sport,
+    idp: isIdp,
+    recommendationContext: buildDraftRecommendationContext({
+      sport,
+      format: isDynasty ? 'dynasty' : 'redraft',
+      superflex: isSF,
+      idp: isIdp,
+      numTeams: totalTeams,
+      leagueName: typeof body.leagueName === 'string' ? body.leagueName : undefined,
+    }),
     leagueId,
   })
 

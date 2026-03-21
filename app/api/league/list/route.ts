@@ -73,10 +73,18 @@ export async function GET() {
       }),
     ]);
 
+    const normalizedGeneric = genericLeagues.map((lg: any) => ({
+      ...lg,
+      sport_type: lg.sport ?? 'NFL',
+      league_variant: lg.leagueVariant ?? null,
+    }));
+
     const normalizedSleeper = sleeperLeagues.map((lg: any) => ({
       id: lg.id,
       name: lg.name,
       sport: (lg.sport as string) || 'NFL',
+      sport_type: (lg.sport as string) || 'NFL',
+      league_variant: null,
       platform: 'sleeper',
       platformLeagueId: lg.sleeperLeagueId,
       leagueSize: lg.totalTeams,
@@ -99,7 +107,7 @@ export async function GET() {
       })),
     }));
 
-    const leagues = [...genericLeagues, ...normalizedSleeper]
+    const leagues = [...normalizedGeneric, ...normalizedSleeper]
       .sort((a: any, b: any) => {
         const aDate = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0;
         const bDate = b.lastSyncedAt ? new Date(b.lastSyncedAt).getTime() : 0;

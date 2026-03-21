@@ -14,13 +14,13 @@ describe('Prompt 4 multi-sport UI + AI integration', () => {
   it('exposes required league creation sports in selector options', () => {
     const selectorSports = getSportsForSelector().map((s) => s.value)
     expect(selectorSports).toEqual(
-      expect.arrayContaining(['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB'])
+      expect.arrayContaining(['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'])
     )
   })
 
   it('orders dashboard sport groups in requested order while preserving NFL first', () => {
     const order = getDashboardSportOrder()
-    expect(order.slice(0, 6)).toEqual(['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB'])
+    expect(order.slice(0, 7)).toEqual(['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'])
   })
 
   it('groups leagues visually by sport with requested section ordering', () => {
@@ -29,9 +29,10 @@ describe('Prompt 4 multi-sport UI + AI integration', () => {
       { id: '2', sport: 'NHL', name: 'NHL League' },
       { id: '3', sport: 'NFL', name: 'NFL League' },
       { id: '4', sport: 'NCAAB', name: 'NCAAB League' },
+      { id: '5', sport: 'SOCCER', name: 'Soccer League' },
     ])
 
-    expect(groups.map((g) => g.sport)).toEqual(['NFL', 'NHL', 'NBA', 'NCAAB'])
+    expect(groups.map((g) => g.sport)).toEqual(['NFL', 'NHL', 'NBA', 'NCAAB', 'SOCCER'])
     expect(groups[0]?.emoji).toBe('🏈')
     expect(groups[1]?.emoji).toBe('🏒')
   })

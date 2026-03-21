@@ -24,7 +24,7 @@ export async function resolveSportLeaguePreset(
   leagueSport: LeagueSport,
   leagueVariant?: string | null
 ): Promise<ResolvedLeaguePreset> {
-  const preset = await getFullLeaguePreset(leagueSport)
+  const preset = await getFullLeaguePreset(leagueSport, leagueVariant)
   const sportType = leagueSportToSportType(leagueSport) as SportType
   const defaultLeagueSettings = getDefaultLeagueSettingsForVariant(sportType, leagueVariant ?? undefined)
   const initialSettingsJson = buildInitialLeagueSettings(sportType, leagueVariant ?? undefined)

@@ -68,7 +68,11 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'matchups') {
-    return proxyToExisting(req, { targetPath: '/api/bracket/live' })
+    const week = req.nextUrl.searchParams.get('week')
+    return proxyToExisting(req, {
+      targetPath: `/api/leagues/${leagueId}/matchups`,
+      query: week ? { week } : undefined,
+    })
   }
 
   if (leagueId && section === 'roster') {
@@ -142,6 +146,26 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     } catch (e) {
       console.warn('[app/league/schedule/config]', e)
       return NextResponse.json({ error: 'Failed to load schedule config' }, { status: 500 })
+    }
+  }
+
+  if (leagueId && path[2] === 'scoring' && path[3] === 'config') {
+    try {
+      const { getLeagueScoringConfig } = await import('@/lib/scoring-defaults/LeagueScoringConfigResolver')
+      const config = await getLeagueScoringConfig(leagueId)
+      if (!config) {
+        return NextResponse.json(
+          { error: 'League or scoring config not found' },
+          { status: 404 }
+        )
+      }
+      return NextResponse.json(config)
+    } catch (e) {
+      console.warn('[app/league/scoring/config]', e)
+      return NextResponse.json(
+        { error: 'Failed to load scoring config' },
+        { status: 500 }
+      )
     }
   }
 

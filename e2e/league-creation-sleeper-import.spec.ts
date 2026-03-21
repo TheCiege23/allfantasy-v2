@@ -208,7 +208,7 @@ async function openImportPreviewFlowForProvider(
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
 
-  const providerSelect = page.getByRole('combobox').nth(1)
+  const providerSelect = page.getByRole('combobox', { name: /import provider/i })
   await providerSelect.click()
   await page.getByRole('option', { name: args.providerLabel }).click()
 
@@ -337,6 +337,45 @@ test('creates league from Yahoo import via creation UI', async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
 })
 
+test('creates league from Fantrax import via creation UI', async ({ page }) => {
+  const sourceId = `id:fantrax-${Date.now()}`
+  const mockedLeagueId = `league-imported-fantrax-${Date.now()}`
+
+  await mockLeagueTemplates(page)
+  await mockImportPreview(page, {
+    provider: 'fantrax',
+    sourceId,
+    leagueName: 'E2E Fantrax League',
+    sport: 'NCAAF',
+  })
+
+  await page.route('**/api/leagues/import/commit', async (route) => {
+    const payload = route.request().postDataJSON() as { provider?: string; sourceId?: string }
+    expect(payload.provider).toBe('fantrax')
+    expect(payload.sourceId).toBe(sourceId)
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        leagueId: mockedLeagueId,
+        name: 'E2E Fantrax League',
+        sport: 'NCAAF',
+        league: { id: mockedLeagueId, name: 'E2E Fantrax League', sport: 'NCAAF' },
+      }),
+    })
+  })
+
+  await openImportPreviewFlowForProvider(page, {
+    providerLabel: /^Fantrax$/i,
+    sourceId,
+    leagueName: /import preview: e2e fantrax league/i,
+  })
+  await page.getByRole('button', { name: /create league from import/i }).click()
+  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+})
+
 test('creates league from MFL import via creation UI', async ({ page }) => {
   const sourceId = `2026:${Date.now()}`
   const mockedLeagueId = `league-imported-mfl-${Date.now()}`
@@ -374,6 +413,131 @@ test('creates league from MFL import via creation UI', async ({ page }) => {
   await page.getByRole('button', { name: /create league from import/i }).click()
   await page.waitForURL(`**/app/league/${mockedLeagueId}`)
   await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+})
+
+test('supports retry, back, and mode cancel actions in import flow', async ({ page }) => {
+  const sourceId = `retry-${Date.now()}`
+  let previewRequestCount = 0
+
+  await mockLeagueTemplates(page)
+  await page.route('**/api/leagues/import/preview', async (route) => {
+    previewRequestCount += 1
+    const payload = route.request().postDataJSON() as { provider?: string; sourceId?: string }
+    expect(payload.provider).toBe('sleeper')
+    expect(payload.sourceId).toBe(sourceId)
+
+    if (previewRequestCount === 1) {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'League not found. Please check your League ID.',
+        }),
+      })
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        dataQuality: {
+          fetchedAt: Date.now(),
+          sources: {
+            users: true,
+            rosters: true,
+            matchups: true,
+            trades: true,
+            draftPicks: true,
+            playerMap: true,
+            history: false,
+          },
+          rosterCoverage: 100,
+          matchupWeeksCovered: 12,
+          completenessScore: 88,
+          tier: 'FULL',
+          signals: [],
+          coverageSummary: [
+            { key: 'leagueSettings', label: 'League settings', state: 'full' },
+          ],
+        },
+        league: {
+          id: sourceId,
+          name: 'Retry Import League',
+          sport: 'NFL',
+          season: 2025,
+          type: 'Dynasty',
+          teamCount: 12,
+          playoffTeams: 6,
+          avatar: null,
+          settings: {
+            ppr: true,
+            superflex: true,
+            tep: false,
+            rosterPositions: ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX'],
+          },
+        },
+        managers: [
+          {
+            rosterId: '1',
+            ownerId: 'u1',
+            username: 'manager1',
+            displayName: 'Manager One',
+            avatar: null,
+            wins: 8,
+            losses: 6,
+            ties: 0,
+            pointsFor: '1450.20',
+            rosterSize: 30,
+            starters: ['p1'],
+            players: ['p1', 'p2'],
+            reserve: [],
+            taxi: [],
+          },
+        ],
+        rosterPositions: ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX'],
+        playerMap: {
+          p1: { name: 'Player One', position: 'QB', team: 'KC' },
+        },
+        draftPickCount: 48,
+        transactionCount: 64,
+        matchupWeeks: 12,
+        source: {
+          source_provider: 'sleeper',
+          source_league_id: sourceId,
+          imported_at: new Date().toISOString(),
+        },
+      }),
+    })
+  })
+
+  await page.goto('/create-league?e2eAuth=1')
+  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await page.getByRole('combobox', { name: /league creation mode/i }).click()
+  await page.getByRole('option', { name: /import existing league/i }).click()
+
+  await page.fill('#import-source-input', sourceId)
+  await page.getByRole('button', { name: /fetch & preview/i }).click()
+  await expect(page.getByText(/import preview: retry import league/i)).not.toBeVisible()
+  await expect(page.getByRole('button', { name: /fetch & preview/i })).toBeEnabled()
+  expect(previewRequestCount).toBe(1)
+
+  await page.getByRole('button', { name: /fetch & preview/i }).click()
+  await expect(page.getByText(/import preview: retry import league/i)).toBeVisible()
+  expect(previewRequestCount).toBe(2)
+
+  await page.getByRole('button', { name: /try different league id/i }).click()
+  await expect(page.getByText(/import preview: retry import league/i)).not.toBeVisible()
+  await expect(page.locator('#import-source-input')).toHaveValue(sourceId)
+
+  await page.getByRole('combobox', { name: /league creation mode/i }).click()
+  await page.getByRole('option', { name: /build new league/i }).click()
+  await expect(page.getByText(/start from template/i)).toBeVisible()
+
+  await page.getByRole('combobox', { name: /league creation mode/i }).click()
+  await page.getByRole('option', { name: /import existing league/i }).click()
+  await expect(page.locator('#import-source-input')).toBeVisible()
+  await expect(page.getByText(/import preview: retry import league/i)).not.toBeVisible()
 })
 
 test('shows conflict toast and stays on create page when import already exists', async ({ page }) => {
@@ -421,7 +585,7 @@ test('shows provider-ready list with sleeper enabled first', async ({ page }) =>
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
 
-  const providerSelect = page.getByRole('combobox').nth(1)
+  const providerSelect = page.getByRole('combobox', { name: /import provider/i })
   await providerSelect.click()
 
   await expect(page.getByRole('option', { name: /^Sleeper$/ })).toBeVisible()
@@ -432,9 +596,46 @@ test('shows provider-ready list with sleeper enabled first', async ({ page }) =>
 
   await expect(page.getByRole('option', { name: /^ESPN$/i })).not.toHaveAttribute('aria-disabled', 'true')
   await expect(page.getByRole('option', { name: /^Yahoo$/i })).not.toHaveAttribute('aria-disabled', 'true')
+  await expect(page.getByRole('option', { name: /^Fantrax$/i })).not.toHaveAttribute('aria-disabled', 'true')
   await expect(page.getByRole('option', { name: /^MyFantasyLeague \(MFL\)$/i })).not.toHaveAttribute('aria-disabled', 'true')
 
   await page.keyboard.press('Escape')
   await expect(page.locator('#import-source-input')).toBeVisible()
   await expect(page.locator('#import-source-input')).toHaveAttribute('placeholder', /123456789/)
+})
+
+test('clears stale source and preview when switching providers', async ({ page }) => {
+  const sleeperSourceId = `stale-${Date.now()}`
+
+  await mockLeagueTemplates(page)
+  await mockSleeperPreview(page, sleeperSourceId)
+
+  await openImportPreviewFlow(page, sleeperSourceId)
+  await expect(page.getByText(/import preview: e2e sleeper league/i)).toBeVisible()
+  await expect(page.locator('#import-source-input')).toHaveValue(sleeperSourceId)
+
+  await page.getByRole('combobox', { name: /import provider/i }).click()
+  await page.getByRole('option', { name: /^ESPN$/i }).click()
+
+  await expect(page.getByText(/import preview: e2e sleeper league/i)).not.toBeVisible()
+  await expect(page.locator('#import-source-input')).toHaveValue('')
+  await expect(page.locator('#import-source-input')).toHaveAttribute('placeholder', /2025:12345678/i)
+  await expect(page.getByRole('button', { name: /fetch & preview/i })).toBeDisabled()
+})
+
+test('clears stale preview when source input changes after preview load', async ({ page }) => {
+  const sleeperSourceId = `source-change-${Date.now()}`
+
+  await mockLeagueTemplates(page)
+  await mockSleeperPreview(page, sleeperSourceId)
+
+  await openImportPreviewFlow(page, sleeperSourceId)
+  await expect(page.getByText(/import preview: e2e sleeper league/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /create league from import/i })).toBeVisible()
+
+  await page.fill('#import-source-input', `${sleeperSourceId}-edited`)
+
+  await expect(page.getByText(/import preview: e2e sleeper league/i)).not.toBeVisible()
+  await expect(page.getByRole('button', { name: /create league from import/i })).not.toBeVisible()
+  await expect(page.getByRole('button', { name: /fetch & preview/i })).toBeEnabled()
 })

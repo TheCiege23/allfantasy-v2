@@ -1,6 +1,6 @@
 /**
  * Sport Defaults Core Registry — shared types for all sport default domains.
- * Aligns with LeagueSport / SportType: NFL, NBA, MLB, NHL, NCAAF, NCAAB.
+ * Aligns with LeagueSport / SportType: NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER.
  */
 
 export type SportType =

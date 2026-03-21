@@ -16,6 +16,8 @@ import { trackLegacyToolUsage } from "@/lib/analytics-server"
 import { enrichRawWaiverSuggestionsWithGrok } from "@/lib/waiver-engine/waiver-grok-adapter"
 import { logAiOutput } from "@/lib/ai/output-logger"
 import { buildSportContextString } from "@/lib/ai/AISportContextResolver"
+import { buildWaiverRecommendationContext } from "@/lib/ai/SportAwareRecommendationService"
+import { resolveSportVariantContext } from "@/lib/league-defaults-orchestrator/SportVariantContextResolver"
 import {
   buildWaiverEnvelope,
   getMandatorySystemPromptSuffix,
@@ -148,10 +150,19 @@ function safeStr(v: any): string | undefined {
 function extractLeagueMeta(body: AnyObj) {
   const league = body?.league ?? body?.context?.league ?? body?.settings?.league ?? {}
 
-  const sport =
+  const sportRaw =
     safeStr(league?.sport) ||
     safeStr(body?.sport) ||
     undefined
+
+  const leagueVariant =
+    safeStr(league?.leagueVariant) ||
+    safeStr(league?.league_variant) ||
+    safeStr(body?.leagueVariant) ||
+    safeStr(body?.league_variant) ||
+    safeStr(body?.variant) ||
+    undefined
+  const variantCtx = resolveSportVariantContext(sportRaw ?? 'NFL', leagueVariant)
 
   const leagueName =
     safeStr(league?.name) ||
@@ -163,7 +174,7 @@ function extractLeagueMeta(body: AnyObj) {
     safeStr(league?.format) ||
     safeStr(body?.format) ||
     safeStr(body?.league_format) ||
-    undefined
+    variantCtx.formatType
 
   const superflex =
     safeBool(league?.superflex) ||
@@ -178,7 +189,8 @@ function extractLeagueMeta(body: AnyObj) {
   const idp =
     safeBool(league?.idp) ||
     safeBool(body?.idp) ||
-    safeBool(body?.is_idp)
+    safeBool(body?.is_idp) ||
+    variantCtx.isNflIdp
 
   const strategyMode =
     safeStr(body?.strategy_mode) ||
@@ -199,7 +211,9 @@ function extractLeagueMeta(body: AnyObj) {
     typeof body?.week === 'number' ? body.week : undefined
 
   return {
-    sport: sport ?? 'NFL',
+    sport: variantCtx.sport,
+    sportDisplayLabel: variantCtx.displayLabel,
+    leagueVariant: variantCtx.variant,
     leagueName,
     format,
     superflex,
@@ -301,10 +315,13 @@ async function runTripleAIWaiverAnalysis(
     ? `\nSTRATEGY MODE: ${leagueMeta.strategyMode.toUpperCase()} — ${STRATEGY_MODE_CONTEXT[leagueMeta.strategyMode]}`
     : ''
 
+  const sharedSportContext = buildWaiverRecommendationContext(leagueMeta)
   const sharedContext = `
-SPORT: ${leagueMeta.sport ?? 'NFL'}
+SPORT CONTEXT: ${sharedSportContext}
+SPORT LABEL: ${leagueMeta.sportDisplayLabel ?? leagueMeta.sport}
+LEAGUE VARIANT: ${leagueMeta.leagueVariant ?? 'STANDARD'}
 WAIVER CANDIDATES: ${candidateNames.join(', ')}
-LEAGUE: ${leagueMeta.format ?? 'dynasty'} | ${leagueMeta.superflex ? 'SuperFlex' : '1QB'} | ${leagueMeta.numTeams} teams
+LEAGUE: ${leagueMeta.format ?? 'standard'} | ${leagueMeta.superflex ? 'SuperFlex' : '1QB'} | ${leagueMeta.numTeams} teams
 FAAB BUDGET: $${leagueMeta.faabBudget}
 WEEK: ${leagueMeta.currentWeek ?? 'unknown'}
 TEAM NOTES: ${teamContextNotes.join(' ')}
@@ -575,7 +592,7 @@ export const POST = withApiUsage({
       trendResult,
       leagueMeta.strategyMode
     )
-    const sportContext = buildSportContextString(leagueMeta)
+    const sportContext = buildWaiverRecommendationContext(leagueMeta) || buildSportContextString(leagueMeta)
     const userMessage = `${sportContext}\n\n${enrichedPrompt}`
 
     const quantNames = new Set(

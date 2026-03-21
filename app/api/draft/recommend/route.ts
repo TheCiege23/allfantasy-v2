@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEngine'
+import { resolveSportForAI } from '@/lib/ai/AISportContextResolver'
+import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +23,13 @@ export async function POST(req: NextRequest) {
   const round = Math.max(1, Number(body.round) || 1)
   const pick = Math.max(1, Number(body.pick) || 1)
   const totalTeams = Math.max(2, Math.min(24, Number(body.totalTeams) || 12))
-  const sport = String(body.sport || 'NFL').toUpperCase()
+  const leagueVariant =
+    typeof body.leagueVariant === 'string'
+      ? body.leagueVariant
+      : typeof body.league_variant === 'string'
+        ? body.league_variant
+        : null
+  const sport = resolveSportVariantContext(resolveSportForAI(body as Record<string, unknown>), leagueVariant).sport
   const isDynasty = Boolean(body.isDynasty)
   const isSF = Boolean(body.isSF)
   const mode = body.mode === 'bpa' ? 'bpa' : 'needs'

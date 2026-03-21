@@ -27,11 +27,11 @@ import { ErrorBoundary } from '@/components/error-handling'
 import { RetentionStreakWidget, ReturnPromptCards, WeeklySummaryCard } from '@/components/onboarding-retention'
 import { DailyCheckInCard } from '@/components/daily-checkin/DailyCheckInCard'
 
-const QUICK_ACTIONS = [
-  { id: 'start-sit', label: 'Start / Sit', href: '/app/coach', icon: LayoutList, iconBg: 'bg-cyan-500/15', iconColor: 'text-cyan-400' },
-  { id: 'trade', label: 'Trade', href: '/trade-evaluator', icon: Swords, iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400' },
-  { id: 'draft', label: 'Draft', href: '/mock-draft', icon: ClipboardList, iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400' },
-  { id: 'waivers', label: 'Waivers', href: '/waiver-ai', icon: Zap, iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400' },
+const QUICK_ACTIONS_BASE = [
+  { id: 'start-sit', label: 'Start / Sit', basePath: '/app/coach', icon: LayoutList, iconBg: 'bg-cyan-500/15', iconColor: 'text-cyan-400' },
+  { id: 'trade', label: 'Trade', basePath: '/trade-evaluator', icon: Swords, iconBg: 'bg-emerald-500/15', iconColor: 'text-emerald-400' },
+  { id: 'draft', label: 'Draft', basePath: '/mock-draft', icon: ClipboardList, iconBg: 'bg-violet-500/15', iconColor: 'text-violet-400' },
+  { id: 'waivers', label: 'Waivers', basePath: '/waiver-ai', icon: Zap, iconBg: 'bg-amber-500/15', iconColor: 'text-amber-400' },
 ] as const
 
 const MAX_LEAGUES_PER_GROUP = 3
@@ -47,6 +47,33 @@ export default function FinalDashboardClient() {
   const hasMoreLeagues = groups.some((group) => group.leagues.length > MAX_LEAGUES_PER_GROUP)
   const firstLeague = leaguesFlat[0]
   const isAuthed = status === 'authenticated'
+  const buildLeagueContextHref = useMemo(
+    () =>
+      (basePath: string): string => {
+        if (!firstLeague?.id) return basePath
+        const params = new URLSearchParams()
+        params.set('leagueId', firstLeague.id)
+        if (firstLeague.sport) params.set('sport', String(firstLeague.sport).toUpperCase())
+        const variant = firstLeague.leagueVariant ?? firstLeague.league_variant
+        if (variant) params.set('leagueVariant', String(variant))
+        const query = params.toString()
+        return query ? `${basePath}${basePath.includes('?') ? '&' : '?'}${query}` : basePath
+      },
+    [firstLeague]
+  )
+  const quickActions = useMemo(
+    () =>
+      QUICK_ACTIONS_BASE.map((action) => ({
+        ...action,
+        href:
+          action.id === 'draft' && firstLeague?.id
+            ? `/app/league/${firstLeague.id}/draft`
+            : buildLeagueContextHref(action.basePath),
+      })),
+    [buildLeagueContextHref, firstLeague?.id]
+  )
+  const aiSuggestionsHref = firstLeague?.id ? `/app/league/${firstLeague.id}?tab=Advisor` : buildLeagueContextHref('/app/coach')
+  const chimmyHref = buildLeagueContextHref('/chimmy')
 
   if (status === 'loading') {
     return (
@@ -139,7 +166,7 @@ export default function FinalDashboardClient() {
       {/* Quick actions — 2x2 mobile, 4 in a row desktop */}
       <section className="mb-8" aria-label="Quick actions">
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
-          {QUICK_ACTIONS.map((action) => {
+          {quickActions.map((action) => {
             const Icon = action.icon
             return (
               <Link
@@ -286,7 +313,7 @@ export default function FinalDashboardClient() {
       {/* AI suggestions — single prominent card */}
       <section className="mb-8" aria-label="AI suggestions">
         <Link
-          href="/app/coach"
+          href={aiSuggestionsHref}
           className="flex items-center gap-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 p-4 min-h-[64px] hover:bg-cyan-500/15 active:scale-[0.99] transition"
         >
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
@@ -308,7 +335,7 @@ export default function FinalDashboardClient() {
       {/* Chimmy — compact secondary */}
       <section>
         <Link
-          href="/chimmy"
+          href={chimmyHref}
           className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 min-h-[56px] hover:bg-white/[0.05] active:scale-[0.99] transition"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/80">

@@ -125,5 +125,10 @@ test.describe('@playoff commissioner playoff settings panel', () => {
 
     await expect(page.getByText(/^8$/).first()).toBeVisible()
     await expect(page.getByText(/reseed_after_round/i)).toBeVisible()
+
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Playoff Settings', exact: true })).toBeVisible()
+    await expect(page.getByText(/^8$/).first()).toBeVisible()
+    await expect(page.getByText(/reseed_after_round/i)).toBeVisible()
   })
 })

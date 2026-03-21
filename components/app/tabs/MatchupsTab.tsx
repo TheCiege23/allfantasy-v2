@@ -1,64 +1,154 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import TabDataState from '@/components/app/tabs/TabDataState'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
 import { MatchupCard, type MatchupSummary } from '@/components/app/matchups/MatchupCard'
 import { MatchupDetailView } from '@/components/app/matchups/MatchupDetailView'
 
-const MOCK_MATCHUPS: MatchupSummary[] = [
-  {
-    id: 'm1',
-    teamA: 'Your Team',
-    teamB: 'Rival GM',
-    scoreA: 94.2,
-    scoreB: 87.5,
-    projA: 118.4,
-    projB: 112.1,
-    winProbA: 0.63,
-    remainingA: 6,
-    remainingB: 7,
-  },
-  {
-    id: 'm2',
-    teamA: 'Underdog United',
-    teamB: 'Stacked Contender',
-    scoreA: 72.1,
-    scoreB: 104.9,
-    projA: 95.3,
-    projB: 132.6,
-    winProbA: 0.19,
-    remainingA: 5,
-    remainingB: 4,
-  },
-]
+type MatchupsTabResponse = {
+  label: 'week' | 'round'
+  selectedWeekOrRound: number
+  totalWeeksOrRounds: number
+  availableWeeks: number[]
+  matchups: Array<{
+    id: string
+    teamAName: string
+    teamBName: string
+    scoreA: number
+    scoreB: number
+    projA: number
+    projB: number
+    winProbA: number
+    remainingA: number
+    remainingB: number
+  }>
+}
 
 export default function MatchupsTab({ leagueId }: LeagueTabProps) {
-  const { loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'matchups')
-  const [selected, setSelected] = useState<MatchupSummary | null>(MOCK_MATCHUPS[0] ?? null)
+  const [selectedWeekOrRound, setSelectedWeekOrRound] = useState<number | null>(null)
+  const sectionPath = selectedWeekOrRound
+    ? `matchups?week=${selectedWeekOrRound}`
+    : 'matchups'
+  const { data, loading, error, reload } = useLeagueSectionData<MatchupsTabResponse>(
+    leagueId,
+    sectionPath
+  )
+
+  useEffect(() => {
+    if (!data) return
+    if (selectedWeekOrRound != null) return
+    setSelectedWeekOrRound(data.selectedWeekOrRound)
+  }, [data, selectedWeekOrRound])
+
+  const matchups = useMemo<MatchupSummary[]>(
+    () =>
+      (data?.matchups ?? []).map((m) => ({
+        id: m.id,
+        teamA: m.teamAName,
+        teamB: m.teamBName,
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        projA: m.projA,
+        projB: m.projB,
+        winProbA: m.winProbA,
+        remainingA: m.remainingA,
+        remainingB: m.remainingB,
+      })),
+    [data]
+  )
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selected = useMemo(
+    () => matchups.find((m) => m.id === selectedId) ?? matchups[0] ?? null,
+    [matchups, selectedId]
+  )
 
   return (
     <TabDataState title="Matchups" loading={loading} error={error} onReload={() => void reload()}>
       <div className="space-y-3">
         <p className="text-xs text-white/60">
-          Weekly head-to-head matchups with live scoring, projections, and win probabilities.
+          Head-to-head matchups with live scoring, projections, and win probabilities.
         </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] text-white/55">
+            {data ? (
+              <>
+                Viewing {data.label} {data.selectedWeekOrRound} of{' '}
+                {data.totalWeeksOrRounds}
+              </>
+            ) : (
+              'Loading period context…'
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <button
+              type="button"
+              data-testid="matchups-prev-period"
+              disabled={!data || data.selectedWeekOrRound <= 1}
+              onClick={() =>
+                setSelectedWeekOrRound((prev) =>
+                  Math.max(1, (prev ?? data?.selectedWeekOrRound ?? 1) - 1)
+                )
+              }
+              className="rounded border border-white/20 px-2 py-1 text-white/75 hover:bg-white/10 disabled:opacity-40"
+            >
+              Prev {data?.label ?? 'period'}
+            </button>
+            <select
+              aria-label="Matchup period selector"
+              value={data?.selectedWeekOrRound ?? selectedWeekOrRound ?? 1}
+              onChange={(e) => setSelectedWeekOrRound(Math.max(1, Number(e.target.value) || 1))}
+              className="rounded border border-white/20 bg-black/50 px-2 py-1 text-white"
+            >
+              {(data?.availableWeeks?.length ? data.availableWeeks : [data?.selectedWeekOrRound ?? 1]).map((value) => (
+                <option key={value} value={value}>
+                  {data?.label ?? 'week'} {value}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              data-testid="matchups-next-period"
+              disabled={
+                !data ||
+                data.selectedWeekOrRound >= data.totalWeeksOrRounds
+              }
+              onClick={() =>
+                setSelectedWeekOrRound((prev) =>
+                  Math.min(
+                    data?.totalWeeksOrRounds ?? 1,
+                    (prev ?? data?.selectedWeekOrRound ?? 1) + 1
+                  )
+                )
+              }
+              className="rounded border border-white/20 px-2 py-1 text-white/75 hover:bg-white/10 disabled:opacity-40"
+            >
+              Next {data?.label ?? 'period'}
+            </button>
+          </div>
+        </div>
         <div className="grid gap-3 grid-cols-1 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <div className="space-y-2 min-w-0">
-            {MOCK_MATCHUPS.map((m) => (
-              <MatchupCard
-                key={m.id}
-                matchup={m}
-                onClick={() => setSelected(m)}
-              />
-            ))}
+            {matchups.length > 0 ? (
+              matchups.map((m) => (
+                <MatchupCard
+                  key={m.id}
+                  matchup={m}
+                  onClick={() => setSelectedId(m.id)}
+                />
+              ))
+            ) : (
+              <p className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/60">
+                No matchups found for this {data?.label ?? 'period'}.
+              </p>
+            )}
           </div>
           <div className="min-w-0">
             {selected && (
               <button
                 type="button"
-                onClick={() => setSelected(null)}
+                onClick={() => setSelectedId(null)}
                 className="md:hidden mb-2 text-[10px] text-white/50 hover:text-white/80"
               >
                 Clear selection

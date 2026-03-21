@@ -7,12 +7,15 @@ import {
   getSportEmoji,
   getDashboardSportOrder,
 } from '@/lib/multi-sport/SportSelectorUIService'
-import { toSportType } from '@/lib/multi-sport/sport-types'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export interface LeagueForGrouping {
   id: string
   name?: string | null
   sport?: string | null
+  sport_type?: string | null
+  leagueVariant?: string | null
+  league_variant?: string | null
   platform?: string
   platformLeagueId?: string
   leagueSize?: number | null
@@ -37,7 +40,9 @@ export interface SportGroup {
 export function groupLeaguesBySport(leagues: LeagueForGrouping[]): SportGroup[] {
   const bySport = new Map<string, LeagueForGrouping[]>()
   for (const lg of leagues) {
-    const sport = lg.sport ? toSportType(String(lg.sport)) : 'NFL'
+    const sport = normalizeToSupportedSport(
+      typeof lg.sport === 'string' ? lg.sport : typeof lg.sport_type === 'string' ? lg.sport_type : undefined
+    )
     if (!bySport.has(sport)) bySport.set(sport, [])
     bySport.get(sport)!.push(lg)
   }

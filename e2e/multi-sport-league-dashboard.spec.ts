@@ -30,8 +30,10 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   const nhlLeagueName = `E2E NHL ${suffix}`
   const mlbLeagueName = `E2E MLB ${suffix}`
 
-  await createLeague(page, 'NHL', nhlLeagueName)
-  await createLeague(page, 'MLB', mlbLeagueName)
+  const nhlLeague = await createLeague(page, 'NHL', nhlLeagueName)
+  const mlbLeague = await createLeague(page, 'MLB', mlbLeagueName)
+  expect(nhlLeague?.id).toBeTruthy()
+  expect(mlbLeague?.id).toBeTruthy()
 
   await page.goto('/dashboard')
   await page.waitForURL('/dashboard')
@@ -54,6 +56,12 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   await expect(nhlSection).toBeVisible()
   await expect(mlbSection).toBeVisible()
 
+  // League cards must route directly into league detail pages.
+  const nhlCard = nhlSection.getByRole('link', { name: new RegExp(nhlLeagueName) }).first()
+  const mlbCard = mlbSection.getByRole('link', { name: new RegExp(mlbLeagueName) }).first()
+  await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/app/league/${nhlLeague?.id ?? ''}$`))
+  await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/app/league/${mlbLeague?.id ?? ''}$`))
+
   const headingOrder = await page.getByRole('heading', { level: 3 }).evaluateAll((nodes) =>
     nodes.map((node) => node.textContent?.trim() || '').filter(Boolean)
   )
@@ -62,4 +70,25 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   expect(nhlIndex).toBeGreaterThanOrEqual(0)
   expect(mlbIndex).toBeGreaterThanOrEqual(0)
   expect(nhlIndex).toBeLessThan(mlbIndex)
+
+  // Tab transitions: verify click handlers switch dashboard sections.
+  await page.getByRole('button', { name: 'Sports' }).click()
+  await expect(page.getByRole('heading', { name: /^Sports$/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /NCAA Football Fantasy/i })).toBeVisible()
+  await expect(page.getByRole('link', { name: /NCAA Basketball Fantasy/i })).toBeVisible()
+  await page.getByRole('button', { name: 'AI' }).click()
+  await expect(page.getByRole('heading', { name: /^AI$/ })).toBeVisible()
+
+  // AI launch points must carry league context.
+  const askChimmyHrefs = await page.getByRole('link', { name: 'Ask Chimmy' }).evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('href') || '')
+  )
+  expect(
+    askChimmyHrefs.some(
+      (href) =>
+        /\/chimmy\?/.test(href) &&
+        /leagueId=/.test(href) &&
+        /sport=(NFL|NHL|MLB|NBA|NCAAF|NCAAB|SOCCER)/i.test(href)
+    )
+  ).toBeTruthy()
 })

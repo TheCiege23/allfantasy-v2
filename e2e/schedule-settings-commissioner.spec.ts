@@ -111,5 +111,10 @@ test.describe('@schedule commissioner schedule settings panel', () => {
 
     await expect(page.getByText(/^round$/).first()).toBeVisible()
     await expect(page.getByText(/^20$/).first()).toBeVisible()
+
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Schedule Settings', exact: true })).toBeVisible()
+    await expect(page.getByText(/^round$/).first()).toBeVisible()
+    await expect(page.getByText(/^20$/).first()).toBeVisible()
   })
 })

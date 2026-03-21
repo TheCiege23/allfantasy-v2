@@ -10,6 +10,7 @@ import { getPlayerAnalyticsBatch, computeAthleticGrade, computeCollegeProduction
 import { logUserEventByUsername } from '@/lib/user-events'
 import { logAiOutput } from '@/lib/ai/output-logger'
 import { buildSportContextString, resolveSportForAI } from '@/lib/ai/AISportContextResolver'
+import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -111,6 +112,61 @@ async function getLegacyContext(sleeperUsername: string) {
     strengths: (insights?.strengths as string[]) || [],
     weaknesses: (insights?.weaknesses as string[]) || [],
     recent_leagues: recentLeagues,
+  }
+}
+
+async function resolveChatLeagueMeta(
+  body: Record<string, unknown>,
+  legacyContext: Awaited<ReturnType<typeof getLegacyContext>>,
+  resolvedSport: string
+) {
+  const bodyLeague = body.league as Record<string, unknown> | undefined
+
+  const variantRaw =
+    (typeof body.leagueVariant === 'string' ? body.leagueVariant : null) ??
+    (typeof body.league_variant === 'string' ? body.league_variant : null) ??
+    (typeof bodyLeague?.leagueVariant === 'string' ? bodyLeague.leagueVariant : null) ??
+    (typeof bodyLeague?.league_variant === 'string' ? bodyLeague.league_variant : null)
+  const variantContext = resolveSportVariantContext(
+    String(bodyLeague?.sport ?? resolvedSport),
+    variantRaw
+  )
+
+  const formatRaw =
+    (typeof bodyLeague?.format === 'string' ? bodyLeague.format : null) ??
+    (typeof body.format === 'string' ? body.format : null)
+  const format =
+    formatRaw ??
+    (Boolean(bodyLeague?.isDynasty) || Boolean(body.isDynasty) ? 'dynasty' : null) ??
+    (variantContext.isNflIdp ? variantContext.formatType : 'redraft')
+
+  return {
+    sport: variantContext.sport,
+    leagueName:
+      (typeof bodyLeague?.name === 'string' ? bodyLeague.name : null) ??
+      legacyContext?.recent_leagues?.[0]?.name ??
+      null,
+    format,
+    strategyMode:
+      (typeof body.strategyMode === 'string' ? body.strategyMode : null) ??
+      (typeof body.strategy_mode === 'string' ? body.strategy_mode : null) ??
+      'balanced',
+    superflex:
+      Boolean((bodyLeague as Record<string, unknown> | undefined)?.superflex) ||
+      Boolean(body.superflex),
+    idp:
+      variantContext.isNflIdp ||
+      Boolean((bodyLeague as Record<string, unknown> | undefined)?.idp) ||
+      Boolean(body.idp),
+    tep:
+      Boolean((bodyLeague as Record<string, unknown> | undefined)?.tep) ||
+      Boolean(body.tep),
+    numTeams:
+      typeof bodyLeague?.numTeams === 'number'
+        ? (bodyLeague.numTeams as number)
+        : typeof body.numTeams === 'number'
+          ? (body.numTeams as number)
+          : undefined,
   }
 }
 
@@ -243,12 +299,12 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       }
     }
 
-    const sportContext = buildSportContextString({
-      sport: resolvedSport,
-      leagueName: legacyContext?.recent_leagues?.[0]?.name ?? null,
-      format: 'dynasty',
-      strategyMode: 'balanced',
-    })
+    const chatLeagueMeta = await resolveChatLeagueMeta(
+      body as Record<string, unknown>,
+      legacyContext,
+      resolvedSport
+    )
+    const sportContext = buildSportContextString(chatLeagueMeta)
 
     const systemPrompt = buildSystemPrompt(legacyContext, sportContext, playerAnalyticsContext)
 

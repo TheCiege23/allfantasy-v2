@@ -126,6 +126,10 @@ test.describe('@draft-room commissioner and queue regressions', () => {
     const latestPatch = patches[patches.length - 1]
     expect(latestPatch.aiQueueReorderEnabled).toBe(true)
     expect(latestPatch.autoPickEnabled).toBe(true)
+
+    await page.reload()
+    await expect(aiQueueReorderToggle).toBeChecked()
+    await expect(autoPickToggle).toBeChecked()
   })
 
   test('draft queue toggles and queue actions work in browser', async ({ page }) => {

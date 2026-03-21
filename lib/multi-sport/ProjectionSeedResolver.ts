@@ -3,7 +3,12 @@
  * Used by projection and simulation pipelines so they use league-specific scoring and period semantics.
  */
 import type { LeagueSport } from '@prisma/client'
-import { getScoringTemplateForSport } from './MultiSportScoringResolver'
+import {
+  getLeagueSettingsForScoring,
+  getScoringTemplateForSport,
+  resolveFormatTypeFromLeagueSettings,
+  resolveScoringRulesForLeague,
+} from './MultiSportScoringResolver'
 import { resolveScheduleContextForLeague } from './MultiSportScheduleResolver'
 import type { ScoringRuleDto } from './ScoringTemplateResolver'
 
@@ -32,23 +37,38 @@ export interface ProjectionSeed {
 export async function resolveProjectionSeed(
   input: ProjectionSeedInput
 ): Promise<ProjectionSeed> {
+  const leagueSettings = input.leagueId
+    ? await getLeagueSettingsForScoring(input.leagueId)
+    : null
+  const resolvedFormatType =
+    input.formatType ??
+    resolveFormatTypeFromLeagueSettings(input.leagueSport, leagueSettings)
+
   const template = await getScoringTemplateForSport(
     input.leagueSport,
-    input.formatType
+    resolvedFormatType
   )
   const scheduleCtx = await resolveScheduleContextForLeague(
     input.leagueSport,
     input.season,
     input.weekOrRound,
-    input.formatType
+    resolvedFormatType
   )
+  const scoringRules = input.leagueId
+    ? await resolveScoringRulesForLeague(
+        input.leagueId,
+        input.leagueSport,
+        input.formatType,
+        leagueSettings
+      )
+    : template.rules
   return {
     sportType: scheduleCtx.sportType,
     season: input.season,
     weekOrRound: input.weekOrRound,
     totalWeeksOrRounds: scheduleCtx.totalWeeksOrRounds,
     label: scheduleCtx.label,
-    scoringRules: template.rules,
+    scoringRules,
     templateId: template.templateId,
   }
 }

@@ -1,6 +1,6 @@
 /**
- * After creating a League from Sleeper import, populates LeagueTeam, Roster, and optionally
- * TeamPerformance from NormalizedImportResult. Uses imported data; no sport-defaults override.
+ * After creating a League from any normalized import, populates LeagueTeam, Roster,
+ * and TeamPerformance from NormalizedImportResult. Uses imported data directly.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -13,10 +13,10 @@ export interface SleeperLeagueBootstrapResult {
 }
 
 /**
- * Create LeagueTeam and Roster records for each normalized roster; optionally create
+ * Create LeagueTeam and Roster records for each normalized roster; also create
  * TeamPerformance from schedule. Call after League record exists.
  */
-export async function bootstrapLeagueFromSleeperImport(
+export async function bootstrapLeagueFromNormalizedImport(
   leagueId: string,
   normalized: NormalizedImportResult
 ): Promise<SleeperLeagueBootstrapResult> {
@@ -69,7 +69,12 @@ export async function bootstrapLeagueFromSleeperImport(
       starters: r.starter_ids,
       reserve: r.reserve_ids ?? [],
       taxi: r.taxi_ids ?? [],
+      source_provider: normalized.source.source_provider,
+      source_league_id: normalized.source.source_league_id,
       source_team_id: r.source_team_id,
+      source_manager_id: r.source_manager_id,
+      source_season_id: normalized.source.source_season_id ?? null,
+      import_batch_id: normalized.source.import_batch_id ?? null,
       imported_at: normalized.source.imported_at,
     }
 
@@ -167,4 +172,14 @@ export async function bootstrapLeagueFromSleeperImport(
   }
 
   return { leagueTeamsCreated, rostersCreated, teamPerformancesCreated }
+}
+
+/**
+ * Backward-compatible alias for older Sleeper-specific call sites.
+ */
+export async function bootstrapLeagueFromSleeperImport(
+  leagueId: string,
+  normalized: NormalizedImportResult
+): Promise<SleeperLeagueBootstrapResult> {
+  return bootstrapLeagueFromNormalizedImport(leagueId, normalized)
 }

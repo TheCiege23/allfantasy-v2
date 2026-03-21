@@ -26,11 +26,21 @@ describe('Sport Defaults Core Registry', () => {
 
   it('includes required sports and enriched metadata fields in core registry', () => {
     const supported = getSupportedSportDefaultsSports()
-    expect(supported).toEqual(expect.arrayContaining(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB']))
+    expect(supported).toEqual(expect.arrayContaining(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']))
 
     const nbaDefaults = resolveSportDefaults('NBA')
     expect(nbaDefaults.metadata.default_season_type).toBe('regular')
     expect(nbaDefaults.metadata.player_pool_source).toBe('sports_player')
     expect(nbaDefaults.metadata.display_labels?.roster).toBeTruthy()
+  })
+
+  it('resolves NFL IDP variant defaults for roster, scoring, and draft', () => {
+    const idpDefaults = resolveSportDefaults('NFL', 'IDP')
+
+    expect(idpDefaults.roster.starter_slots.DL).toBe(1)
+    expect(idpDefaults.roster.starter_slots.DB).toBe(1)
+    expect(idpDefaults.roster.starter_slots.IDP_FLEX).toBe(1)
+    expect(idpDefaults.scoring.scoring_format).toBe('IDP')
+    expect(idpDefaults.draft.rounds_default).toBeGreaterThanOrEqual(18)
   })
 })

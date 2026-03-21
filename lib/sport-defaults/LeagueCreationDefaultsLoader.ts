@@ -171,10 +171,11 @@ export async function loadLeagueCreationDefaults(
   const variant = leagueVariant ?? null
 
   if (variant) {
-    const [resolved, scheduleTemplate, seasonCalendar] = await Promise.all([
-      resolveLeaguePreset(leagueSport, variant),
-      getScheduleTemplate(sportType, 'DEFAULT'),
-      getSeasonCalendar(sportType, 'DEFAULT'),
+    const resolved = await resolveLeaguePreset(leagueSport, variant)
+    const formatTypeForSeason = resolved.formatType || 'DEFAULT'
+    const [scheduleTemplate, seasonCalendar] = await Promise.all([
+      getScheduleTemplate(sportType, formatTypeForSeason),
+      getSeasonCalendar(sportType, formatTypeForSeason),
     ])
     const defaults = getLeagueDefaults(sportType)
     const draftDef = getDraftDefaults(sportType, variant ?? undefined)
@@ -312,12 +313,13 @@ export async function loadLeagueCreationDefaults(
     }
   }
 
-  const [fullPreset, scheduleTemplate, seasonCalendar] = await Promise.all([
-    getFullLeaguePreset(leagueSport),
-    getScheduleTemplate(sportType, 'DEFAULT'),
-    getSeasonCalendar(sportType, 'DEFAULT'),
-  ])
+  const fullPreset = await getFullLeaguePreset(leagueSport, variant)
   const { defaults, preset } = fullPreset
+  const formatTypeForSeason = preset?.scoringTemplate?.formatType || preset?.rosterTemplate?.formatType || 'DEFAULT'
+  const [scheduleTemplate, seasonCalendar] = await Promise.all([
+    getScheduleTemplate(sportType, formatTypeForSeason),
+    getSeasonCalendar(sportType, formatTypeForSeason),
+  ])
   const defaultLeagueSettings = getDefaultLeagueSettingsForVariant(defaults.metadata.sport_type, variant ?? undefined)
 
   return {
@@ -350,8 +352,8 @@ export async function loadLeagueCreationDefaults(
       flex_definitions: defaults.roster.flex_definitions,
     },
     scoring: {
-      scoring_template_id: defaults.scoring.scoring_template_id,
-      scoring_format: defaults.scoring.scoring_format,
+      scoring_template_id: preset.scoringTemplate.templateId,
+      scoring_format: preset.scoringTemplate.formatType,
       category_type: defaults.scoring.category_type,
     },
     draft: (() => {

@@ -126,6 +126,11 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
     }, 800);
   };
 
+  const handleImportSourceInputChange = (value: string) => {
+    setImportSourceInput(value);
+    setImportPreview(null);
+  };
+
   const handleSaveAsTemplate = (state: LeagueCreationWizardState) => {
     const { step: _s, ...payload } = state;
     setSaveTemplateState({
@@ -238,7 +243,6 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
 
           <LeagueCreationWizard
             key={selectedTemplateId ?? 'create'}
-            onSuccess={(leagueId) => router.push(`/app/league/${leagueId}`)}
             initialWizardState={selectedTemplatePayload}
             onSaveAsTemplate={handleSaveAsTemplate}
             savingTemplate={savingTemplate}
@@ -252,6 +256,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
             value={importProvider}
             onChange={(p) => {
               setImportProvider(p);
+              setImportSourceInput('');
               setImportPreview(null);
             }}
             disabled={importPreviewLoading || createFromImportLoading}
@@ -259,7 +264,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
           <ImportSourceInputPanel
             provider={importProvider}
             sourceInput={importSourceInput}
-            onSourceInputChange={setImportSourceInput}
+            onSourceInputChange={handleImportSourceInputChange}
             onFetchPreview={handleFetchImportPreview}
             loading={importPreviewLoading}
             disabled={createFromImportLoading}

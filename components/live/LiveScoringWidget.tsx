@@ -12,6 +12,8 @@ type LiveMatchupState = {
   homeProj: number
   awayProj: number
   winProbHome: number
+  remainingHome: number
+  remainingAway: number
   status: string
 }
 
@@ -27,6 +29,33 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
       try {
         setLoading(true)
         setError(null)
+        if (leagueId) {
+          const matchupsRes = await fetch(
+            `/api/leagues/${encodeURIComponent(leagueId)}/matchups`,
+            { cache: 'no-store' }
+          )
+          if (matchupsRes.ok) {
+            const matchupJson = await matchupsRes.json().catch(() => null)
+            const rows = Array.isArray(matchupJson?.matchups) ? matchupJson.matchups : []
+            if (!mounted) return
+            if (rows.length > 0) {
+              const m = rows[0]
+              setMatchup({
+                homeTeam: m.teamAName ?? 'Team A',
+                awayTeam: m.teamBName ?? 'Team B',
+                homeScore: Number(m.scoreA ?? 0),
+                awayScore: Number(m.scoreB ?? 0),
+                homeProj: Number(m.projA ?? 0),
+                awayProj: Number(m.projB ?? 0),
+                winProbHome: Number(m.winProbA ?? 0.5),
+                remainingHome: Number(m.remainingA ?? 0),
+                remainingAway: Number(m.remainingB ?? 0),
+                status: `${matchupJson?.label ?? 'Week'} ${matchupJson?.selectedWeekOrRound ?? ''}`.trim(),
+              })
+              return
+            }
+          }
+        }
         const url = `/api/sports/live-scores${refresh ? "?refresh=true" : ""}`
         const res = await fetch(url, { cache: "no-store" })
         if (!res.ok) {
@@ -62,6 +91,8 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
           homeProj: homeScore + 20, // placeholder projection logic
           awayProj: awayScore + 20,
           winProbHome,
+          remainingHome: 0,
+          remainingAway: 0,
           status: game.statusDetail || "Scheduled",
         })
       } catch (err: any) {
@@ -83,7 +114,7 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
       mounted = false
       clearInterval(interval)
     }
-  }, [])
+  }, [leagueId])
 
   if (!matchup && loading) {
     return null
@@ -93,7 +124,7 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
     return null
   }
 
-  const linkHref = leagueId ? `/leagues/${leagueId}` : "/leagues"
+  const linkHref = leagueId ? `/app/league/${leagueId}?tab=Matchups` : "/leagues"
 
   return (
     <section className="rounded-2xl border border-cyan-400/35 bg-gradient-to-r from-cyan-500/15 via-cyan-500/5 to-transparent p-3 text-xs shadow-[0_12px_30px_rgba(8,47,73,0.7)]">
@@ -105,7 +136,7 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
           <div className="leading-tight">
             <p className="text-[11px] font-semibold">Live Matchup</p>
             <p className="text-[10px] text-cyan-100/80">
-              NFL live scores via ESPN feed, projected winner.
+              Live scoring and matchup projections.
             </p>
           </div>
         </div>
@@ -166,7 +197,9 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
             />
           </div>
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-white/55">
-            <span>Remaining players: 6 vs 7</span>
+            <span>
+              Remaining players: {matchup?.remainingHome ?? 0} vs {matchup?.remainingAway ?? 0}
+            </span>
             <span className="inline-flex items-center gap-1 text-emerald-200">
               <Activity className="h-3 w-3" />
               Live

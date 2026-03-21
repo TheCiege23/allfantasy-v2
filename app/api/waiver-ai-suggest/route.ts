@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { openaiChatJson } from '@/lib/openai-client';
+import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client';
+import { buildWaiverRecommendationContext } from '@/lib/ai/SportAwareRecommendationService';
+import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver';
 import { z } from 'zod';
 
 const requestSchema = z.object({
@@ -54,20 +56,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
 
+    const variantContext = resolveSportVariantContext(league.sport ?? 'NFL', league.leagueVariant ?? null);
     const userTeam = league.teams?.find((t: any) => t.isUserTeam) || league.teams?.[0];
     const rosterSummary = userTeam
       ? `Team: ${userTeam.name || 'My Team'}. Record: ${userTeam.wins ?? '?'}-${userTeam.losses ?? '?'}. Roster: ${(userTeam.roster || []).map((p: any) => `${p.name || p.player_name} (${p.position || p.pos})`).join(', ') || 'unknown'}`
       : 'No team data available';
 
-    const leagueContext = `League: ${league.name || leagueId}. Format: ${league.format || 'redraft'}. Scoring: ${league.scoringType || 'PPR'}. Teams: ${league.teams?.length || '?'}. ${league.isSuperflex ? 'Superflex.' : ''} ${league.isDynasty ? 'Dynasty.' : ''}`;
+    const leagueContext = buildWaiverRecommendationContext({
+      sport: variantContext.sport,
+      leagueName: league.name || leagueId,
+      format: league.format || (league.isDynasty ? 'dynasty' : 'redraft'),
+      numTeams: Array.isArray(league.teams) ? league.teams.length : undefined,
+      superflex: Boolean(league.isSuperflex),
+      idp: variantContext.isNflIdp,
+      strategyMode: 'balanced',
+    });
+    const leagueSummary = `Scoring: ${league.scoringType || 'standard'}. Variant: ${variantContext.displayLabel}.`;
 
-    const systemPrompt = `You are an expert fantasy football waiver wire analyst. Analyze the user's league and team to suggest the best available waiver wire pickups. Focus on players likely to be on waivers (not stars). Consider recent trends, matchups, injuries, and roster needs. Return ONLY valid JSON.`;
+    const systemPrompt = `You are an expert fantasy sports waiver wire analyst for NFL, NHL, MLB, NBA, NCAA Football, NCAA Basketball, and Soccer.
+Analyze league and team context to suggest realistic waiver wire pickups for the selected sport.
+Focus on likely available players (not stars), recent role changes, usage trends, matchups, and roster needs.
+Return ONLY valid JSON.`;
 
     const positionFocus = rosterWeakness ? `\nFOCUS: Prioritize ${rosterWeakness} suggestions - the user specifically needs help at this position.` : '';
 
     const userPrompt = `Based on this league and team context, suggest 5-8 waiver wire targets.
 
 ${leagueContext}
+${leagueSummary}
 ${rosterSummary}${positionFocus}
 
 Return JSON:
@@ -75,8 +91,8 @@ Return JSON:
   "suggestions": [
     {
       "playerName": "string",
-      "position": "QB|RB|WR|TE|K|DEF",
-      "team": "NFL team abbreviation",
+      "position": "sport-specific position code",
+      "team": "team abbreviation or club short name",
       "reason": "1-2 sentence explanation of why to add this player",
       "priority": number 1-10 (10 = must add)
     }
@@ -99,7 +115,8 @@ Sort by priority descending. Be specific about matchups and usage trends. Only s
       return NextResponse.json({ error: 'AI analysis failed' }, { status: 500 });
     }
 
-    const suggestions = result.json?.suggestions || [];
+    const parsed = parseJsonContentFromChatCompletion(result.json);
+    const suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
 
     return NextResponse.json({ suggestions });
   } catch (err) {

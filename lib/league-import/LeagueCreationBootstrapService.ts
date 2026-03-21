@@ -1,9 +1,9 @@
 import type { NormalizedImportResult } from './types'
-import { bootstrapLeagueFromSleeperImport } from './sleeper/SleeperLeagueCreationBootstrapService'
+import { bootstrapLeagueFromNormalizedImport } from './sleeper/SleeperLeagueCreationBootstrapService'
 
 export async function bootstrapLeagueFromImport(
   leagueId: string,
   normalized: NormalizedImportResult
 ) {
-  return bootstrapLeagueFromSleeperImport(leagueId, normalized)
+  return bootstrapLeagueFromNormalizedImport(leagueId, normalized)
 }

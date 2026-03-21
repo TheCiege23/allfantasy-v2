@@ -386,6 +386,9 @@ export async function POST(req: Request) {
       String(leagueTypeWizard ?? '').toLowerCase() === 'zombie';
     const effectiveDynasty = isGuillotine ? false : (isDevy || isC2C ? true : isDynasty);
     const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
+    // Canonical cross-module keys used by multi-sport services and downstream UIs.
+    initialSettings.sport_type = sport;
+    initialSettings.league_variant = resolvedVariant ?? null;
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,

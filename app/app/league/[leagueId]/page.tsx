@@ -41,6 +41,7 @@ type LeagueSummary = { id: string; name: string }
 const VALID_TABS = new Set<LeagueShellTab>([
   'Overview', 'Team', 'Matchups', 'Roster', 'Players', 'Waivers', 'Trades', 'Draft',
   'Standings / Playoffs', 'Rankings', 'Divisions', 'League', 'News', 'Hall of Fame', 'Legacy', 'Career', 'Awards', 'Record Books', 'Store', 'Intelligence', 'Chat',
+  'Advisor',
   'Settings', 'Commissioner', 'Previous Leagues',
 ])
 

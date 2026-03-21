@@ -17,11 +17,15 @@ export interface FullLeaguePreset {
 
 /**
  * Load full league preset for a sport: defaults (league/roster/scoring/draft/waiver/metadata) + roster & scoring templates.
+ * When leagueVariant is provided, defaults are resolved with variant-aware overlays.
  * Use in league creation flow (backend or API).
  */
-export async function getFullLeaguePreset(leagueSport: LeagueSport): Promise<FullLeaguePreset> {
+export async function getFullLeaguePreset(
+  leagueSport: LeagueSport,
+  leagueVariant?: string | null
+): Promise<FullLeaguePreset> {
   const sportType = leagueSportToSportType(leagueSport) as SportType
-  const defaults = resolveSportDefaults(sportType)
+  const defaults = resolveSportDefaults(sportType, leagueVariant)
   const preset = await getLeagueCreationPreset(leagueSport)
   return { defaults, preset }
 }
@@ -29,6 +33,9 @@ export async function getFullLeaguePreset(leagueSport: LeagueSport): Promise<Ful
 /**
  * Load only the sport default set (no DB template fetch). Use when templates are not needed yet.
  */
-export function getSportDefaultSetOnly(sportType: SportType | string): SportDefaultSet {
-  return resolveSportDefaults(sportType)
+export function getSportDefaultSetOnly(
+  sportType: SportType | string,
+  leagueVariant?: string | null
+): SportDefaultSet {
+  return resolveSportDefaults(sportType, leagueVariant)
 }

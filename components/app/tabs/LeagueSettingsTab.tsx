@@ -101,7 +101,7 @@ export default function LeagueSettingsTab({
       {active === 'Privacy & invites' && <LeaguePrivacyAndInvitesPanel leagueId={leagueId} />}
       {active === 'Team Settings' && <TeamSettingsPanel />}
       {active === 'Roster Settings' && <RosterSettingsPanel />}
-      {active === 'Scoring Settings' && <ScoringSettingsPanel />}
+      {active === 'Scoring Settings' && <ScoringSettingsPanel leagueId={leagueId} />}
       {active === 'Dynasty Settings' && (
         <DynastySettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
       )}

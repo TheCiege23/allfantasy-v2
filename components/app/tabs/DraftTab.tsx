@@ -22,10 +22,7 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
   const [analysis, setAnalysis] = useState<unknown>(null)
   const [running, setRunning] = useState(false)
 
-  const { queue, addToQueue, removeFromQueue, reorder } = useDraftQueue([
-    { id: 'p1', name: 'Garrett Wilson', position: 'WR', team: 'NYJ', rank: 18 },
-    { id: 'p2', name: 'Travis Etienne', position: 'RB', team: 'JAX', rank: 22 },
-  ])
+  const { queue, addToQueue, removeFromQueue, reorder } = useDraftQueue([])
 
   const boardConfig: DraftBoardConfig | null =
     draftConfig && typeof draftConfig.rounds === 'number'

@@ -547,8 +547,43 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
   return base
 }
 
-export function getScoringDefaults(sportType: SportType): ScoringDefaults {
-  return SCORING_DEFAULTS[sportType] ?? SCORING_DEFAULTS.NFL
+function getScoringDefaultsWithVariant(
+  sportType: SportType,
+  variantOrFormat?: string | null
+): ScoringDefaults {
+  const base = SCORING_DEFAULTS[sportType] ?? SCORING_DEFAULTS.NFL
+  if (sportType !== 'NFL') return base
+  const normalized = String(variantOrFormat ?? '').trim().toUpperCase()
+  if (!normalized) return base
+  if (normalized === 'IDP' || normalized === 'DYNASTY_IDP') {
+    return {
+      ...base,
+      scoring_template_id: 'default-NFL-IDP',
+      scoring_format: 'IDP',
+    }
+  }
+  if (normalized === 'HALF_PPR') {
+    return {
+      ...base,
+      scoring_template_id: 'default-NFL-HALF_PPR',
+      scoring_format: 'Half PPR',
+    }
+  }
+  if (normalized === 'STANDARD') {
+    return {
+      ...base,
+      scoring_template_id: 'default-NFL-standard',
+      scoring_format: 'standard',
+    }
+  }
+  return base
+}
+
+export function getScoringDefaults(
+  sportType: SportType,
+  variantOrFormat?: string | null
+): ScoringDefaults {
+  return getScoringDefaultsWithVariant(sportType, variantOrFormat)
 }
 
 /**

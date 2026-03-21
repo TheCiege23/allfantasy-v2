@@ -24,7 +24,10 @@ export function ImportProviderSelector({
         onValueChange={(v) => onChange((v || null) as ImportProvider | null)}
         disabled={disabled}
       >
-        <SelectTrigger className="bg-gray-900 border-purple-600/40">
+        <SelectTrigger
+          className="bg-gray-900 border-purple-600/40"
+          aria-label="Import provider"
+        >
           <SelectValue placeholder="Select platform" />
         </SelectTrigger>
         <SelectContent>

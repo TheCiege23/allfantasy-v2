@@ -1,5 +1,5 @@
 /**
- * Sport Defaults Core Registry — centralized defaults for NFL, NBA, MLB, NHL, NCAAF, NCAAB.
+ * Sport Defaults Core Registry — centralized defaults for NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER.
  */
 
 export * from './types'

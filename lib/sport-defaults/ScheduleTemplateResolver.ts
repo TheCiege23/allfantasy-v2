@@ -179,5 +179,6 @@ export async function getScheduleTemplate(
   return {
     templateId: `in-memory-${sport}-${formatType}`,
     ...fallback,
+    formatType,
   }
 }

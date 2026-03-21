@@ -31,6 +31,8 @@ export function MatchupCard({
     <button
       type="button"
       onClick={onClick}
+      data-testid={`matchup-card-${matchup.id}`}
+      aria-label={`${matchup.teamA} versus ${matchup.teamB}`}
       className="group flex w-full flex-col gap-1 rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-left text-xs transition hover:border-cyan-400/50 hover:bg-black/60"
     >
       <div className="flex items-start justify-between gap-2">

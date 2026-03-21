@@ -309,7 +309,11 @@ export function LeagueCreationWizard({
   const lastSchedulePresetKeyRef = useRef<string | null>(null)
   const scheduleManualOverrideKeyRef = useRef<string | null>(null)
 
-  const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
+  const {
+    preset: creationPreset,
+    loading: creationPresetLoading,
+    error: creationPresetError,
+  } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
   const stepIndex = WIZARD_STEP_ORDER.indexOf(state.step)
   const currentStepNumber = stepIndex + 1
   const totalSteps = WIZARD_STEP_ORDER.length
@@ -614,6 +618,20 @@ export function LeagueCreationWizard({
           {state.step === 'sport' && (
             <>
               <SportSelector value={state.sport} onChange={handleSportChange} />
+              {creationPresetLoading && (
+                <p
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65"
+                  role="status"
+                  data-testid="league-creation-template-loader"
+                >
+                  Loading default roster, scoring, draft, and schedule templates…
+                </p>
+              )}
+              {creationPresetError && (
+                <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  Could not load sport defaults: {creationPresetError}
+                </p>
+              )}
               {creationPreset && <SportSummaryCard preset={creationPreset} />}
               <WizardStepNav onNext={goNext} nextLabel="Next" />
             </>
@@ -664,6 +682,11 @@ export function LeagueCreationWizard({
                   sport={String(state.sport)}
                   presetLabel={getVariantsForSport(state.sport).find((v) => v.value === (state.scoringPreset ?? state.leagueVariant ?? ''))?.label}
                 />
+                {creationPresetLoading && (
+                  <p className="text-xs text-white/55" role="status">
+                    Refreshing preset templates for this sport and variant…
+                  </p>
+                )}
               </div>
               <WizardStepNav onBack={goBack} onNext={goNext} nextLabel="Next" />
             </>
