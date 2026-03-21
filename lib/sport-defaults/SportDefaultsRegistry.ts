@@ -318,12 +318,15 @@ const DRAFT_DEFAULTS: Record<SportType, DraftDefaults> = {
   },
 }
 
-/** Waiver defaults per sport; NFL IDP uses same as NFL via getWaiverDefaults(sport, variant). */
+/**
+ * Waiver defaults per sport (STANDARD preset). Variant overlays are applied in getWaiverDefaults.
+ * Modes covered: standard, rolling, reverse_standings, faab, fcfs.
+ */
 const WAIVER_DEFAULTS: Record<SportType, WaiverDefaults> = {
   NFL: {
     sport_type: 'NFL',
     waiver_type: 'faab',
-    processing_days: [3],
+    processing_days: [2],
     FAAB_budget_default: 100,
     processing_time_utc: '10:00',
     faab_enabled: true,
@@ -334,43 +337,27 @@ const WAIVER_DEFAULTS: Record<SportType, WaiverDefaults> = {
     game_lock_behavior: 'game_time',
     drop_lock_behavior: 'lock_with_game',
     same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
+    max_claims_per_period: 10,
   },
   NBA: {
     sport_type: 'NBA',
-    waiver_type: 'faab',
-    processing_days: [1, 4],
-    FAAB_budget_default: 100,
+    waiver_type: 'rolling',
+    processing_days: [1, 3, 5],
+    FAAB_budget_default: null,
     processing_time_utc: '12:00',
-    faab_enabled: true,
+    faab_enabled: false,
     faab_reset_rules: 'never',
-    claim_priority_behavior: 'faab_highest',
+    claim_priority_behavior: 'priority_lowest_first',
     continuous_waivers_behavior: true,
-    free_agent_unlock_behavior: 'after_waiver_run',
-    game_lock_behavior: 'game_time',
+    free_agent_unlock_behavior: 'daily',
+    game_lock_behavior: 'first_game',
     drop_lock_behavior: 'lock_with_game',
     same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
+    max_claims_per_period: 14,
   },
   MLB: {
     sport_type: 'MLB',
     waiver_type: 'faab',
-    processing_days: [1],
-    FAAB_budget_default: 100,
-    processing_time_utc: '12:00',
-    faab_enabled: true,
-    faab_reset_rules: 'never',
-    claim_priority_behavior: 'faab_highest',
-    continuous_waivers_behavior: true,
-    free_agent_unlock_behavior: 'after_waiver_run',
-    game_lock_behavior: 'first_game',
-    drop_lock_behavior: 'lock_with_game',
-    same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
-  },
-  NHL: {
-    sport_type: 'NHL',
-    waiver_type: 'faab',
     processing_days: [1, 4],
     FAAB_budget_default: 100,
     processing_time_utc: '12:00',
@@ -378,16 +365,32 @@ const WAIVER_DEFAULTS: Record<SportType, WaiverDefaults> = {
     faab_reset_rules: 'never',
     claim_priority_behavior: 'faab_highest',
     continuous_waivers_behavior: true,
-    free_agent_unlock_behavior: 'after_waiver_run',
+    free_agent_unlock_behavior: 'daily',
+    game_lock_behavior: 'first_game',
+    drop_lock_behavior: 'always_allow_drop',
+    same_day_add_drop_rules: 'allow_if_not_played',
+    max_claims_per_period: 14,
+  },
+  NHL: {
+    sport_type: 'NHL',
+    waiver_type: 'reverse_standings',
+    processing_days: [1, 3, 5],
+    FAAB_budget_default: null,
+    processing_time_utc: '12:00',
+    faab_enabled: false,
+    faab_reset_rules: 'never',
+    claim_priority_behavior: 'reverse_standings',
+    continuous_waivers_behavior: true,
+    free_agent_unlock_behavior: 'daily',
     game_lock_behavior: 'game_time',
     drop_lock_behavior: 'lock_with_game',
     same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
+    max_claims_per_period: 12,
   },
   NCAAF: {
     sport_type: 'NCAAF',
     waiver_type: 'faab',
-    processing_days: [3],
+    processing_days: [2],
     FAAB_budget_default: 100,
     processing_time_utc: '10:00',
     faab_enabled: true,
@@ -398,40 +401,108 @@ const WAIVER_DEFAULTS: Record<SportType, WaiverDefaults> = {
     game_lock_behavior: 'game_time',
     drop_lock_behavior: 'lock_with_game',
     same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
+    max_claims_per_period: 10,
   },
   NCAAB: {
     sport_type: 'NCAAB',
-    waiver_type: 'faab',
+    waiver_type: 'rolling',
     processing_days: [1, 4],
-    FAAB_budget_default: 100,
+    FAAB_budget_default: null,
     processing_time_utc: '12:00',
-    faab_enabled: true,
+    faab_enabled: false,
     faab_reset_rules: 'never',
-    claim_priority_behavior: 'faab_highest',
+    claim_priority_behavior: 'priority_lowest_first',
     continuous_waivers_behavior: true,
-    free_agent_unlock_behavior: 'after_waiver_run',
-    game_lock_behavior: 'game_time',
+    free_agent_unlock_behavior: 'daily',
+    game_lock_behavior: 'first_game',
     drop_lock_behavior: 'lock_with_game',
     same_day_add_drop_rules: 'allow_if_not_played',
-    max_claims_per_period: null,
+    max_claims_per_period: 12,
   },
   SOCCER: {
     sport_type: 'SOCCER',
-    waiver_type: 'faab',
-    processing_days: [1, 4],
-    FAAB_budget_default: 100,
-    processing_time_utc: '12:00',
-    faab_enabled: true,
+    waiver_type: 'fcfs',
+    processing_days: [],
+    FAAB_budget_default: null,
+    processing_time_utc: null,
+    faab_enabled: false,
     faab_reset_rules: 'never',
-    claim_priority_behavior: 'faab_highest',
+    claim_priority_behavior: 'earliest_claim',
     continuous_waivers_behavior: true,
-    free_agent_unlock_behavior: 'after_waiver_run',
+    free_agent_unlock_behavior: 'instant',
     game_lock_behavior: 'slate_lock',
-    drop_lock_behavior: 'lock_with_game',
+    drop_lock_behavior: 'always_allow_drop',
     same_day_add_drop_rules: 'allow_if_not_played',
     max_claims_per_period: null,
   },
+}
+
+const WAIVER_VARIANT_OVERRIDES: Partial<Record<SportType, Record<string, Partial<WaiverDefaults>>>> = {
+  NFL: {
+    STANDARD: {},
+    PPR: { max_claims_per_period: 12 },
+    HALF_PPR: { max_claims_per_period: 12 },
+    SUPERFLEX: {
+      waiver_type: 'rolling',
+      faab_enabled: false,
+      FAAB_budget_default: null,
+      claim_priority_behavior: 'priority_lowest_first',
+      free_agent_unlock_behavior: 'after_waiver_run',
+      max_claims_per_period: 12,
+    },
+    IDP: {
+      waiver_type: 'faab',
+      faab_enabled: true,
+      FAAB_budget_default: 100,
+      claim_priority_behavior: 'faab_highest',
+      game_lock_behavior: 'game_time',
+      drop_lock_behavior: 'lock_with_game',
+      same_day_add_drop_rules: 'allow_if_not_played',
+      max_claims_per_period: 14,
+    },
+    DYNASTY_IDP: {
+      waiver_type: 'faab',
+      processing_days: [1, 3, 5],
+      processing_time_utc: '12:00',
+      faab_enabled: true,
+      FAAB_budget_default: 100,
+      claim_priority_behavior: 'faab_highest',
+      continuous_waivers_behavior: true,
+      free_agent_unlock_behavior: 'daily',
+      game_lock_behavior: 'game_time',
+      drop_lock_behavior: 'lock_with_game',
+      same_day_add_drop_rules: 'allow_if_not_played',
+      max_claims_per_period: null,
+    },
+    DEVY_DYNASTY: {
+      waiver_type: 'rolling',
+      processing_days: [1, 3, 5],
+      faab_enabled: false,
+      FAAB_budget_default: null,
+      claim_priority_behavior: 'priority_lowest_first',
+      continuous_waivers_behavior: true,
+      free_agent_unlock_behavior: 'daily',
+      max_claims_per_period: null,
+    },
+    MERGED_DEVY_C2C: {
+      waiver_type: 'rolling',
+      processing_days: [1, 3, 5],
+      faab_enabled: false,
+      FAAB_budget_default: null,
+      claim_priority_behavior: 'priority_lowest_first',
+      continuous_waivers_behavior: true,
+      free_agent_unlock_behavior: 'daily',
+      max_claims_per_period: null,
+    },
+  },
+}
+
+function normalizeWaiverVariant(variant?: string | null): string {
+  const upper = String(variant ?? '').trim().toUpperCase()
+  if (!upper) return 'STANDARD'
+  if (upper === 'DEVY') return 'DEVY_DYNASTY'
+  if (upper === 'C2C') return 'MERGED_DEVY_C2C'
+  return upper
 }
 
 /** Team metadata: empty by default; can be populated from external source or DB. */
@@ -550,7 +621,14 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
  * Get waiver defaults for a sport. Optionally pass formatType (e.g. IDP); NFL IDP uses same waiver defaults as NFL.
  */
 export function getWaiverDefaults(sportType: SportType, _formatType?: string | null): WaiverDefaults {
-  return WAIVER_DEFAULTS[sportType] ?? WAIVER_DEFAULTS.NFL
+  const base = WAIVER_DEFAULTS[sportType] ?? WAIVER_DEFAULTS.NFL
+  const normalizedVariant = normalizeWaiverVariant(_formatType)
+  const variantOverrides = WAIVER_VARIANT_OVERRIDES[sportType]?.[normalizedVariant] ?? {}
+  return {
+    ...base,
+    ...variantOverrides,
+    sport_type: sportType,
+  }
 }
 
 export function getTeamMetadataDefaults(sportType: SportType): TeamMetadataDefaults {

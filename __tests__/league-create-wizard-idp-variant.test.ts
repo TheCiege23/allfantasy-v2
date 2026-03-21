@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getServerSessionMock = vi.fn()
 const leagueFindFirstMock = vi.fn()
 const leagueCreateMock = vi.fn()
-const getInitialSettingsForCreationMock = vi.fn()
+const getCreationPayloadAndSettingsMock = vi.fn()
 const validateLeagueSettingsMock = vi.fn()
 const validateLeagueFeatureFlagsMock = vi.fn()
 const runPostCreateInitializationMock = vi.fn()
@@ -35,7 +35,7 @@ vi.mock('@/lib/viral-loop', () => ({
 }))
 
 vi.mock('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator', () => ({
-  getInitialSettingsForCreation: getInitialSettingsForCreationMock,
+  getCreationPayloadAndSettings: getCreationPayloadAndSettingsMock,
   runPostCreateInitialization: runPostCreateInitializationMock,
 }))
 
@@ -67,17 +67,43 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
       sport: 'NFL',
     })
 
-    getInitialSettingsForCreationMock.mockImplementation((_sport: string, variant: string | undefined) => {
+    getCreationPayloadAndSettingsMock.mockImplementation((_sport: string, variant: string | undefined) => {
       const isIdp = String(variant ?? '').toUpperCase() === 'DYNASTY_IDP'
       return {
-        sport_type: 'NFL',
-        roster_mode: 'dynasty',
-        roster_format_type: isIdp ? 'IDP' : 'standard',
-        scoring_format_type: isIdp ? 'IDP' : 'PPR',
-        starter_slots: isIdp
-          ? { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, DE: 2, DT: 1, LB: 2, CB: 2, S: 2 }
-          : { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-        bench_slots: isIdp ? 9 : 7,
+        payload: {
+          draft: {
+            draft_type: 'snake',
+            rounds_default: 18,
+            timer_seconds_default: 90,
+            pick_order_rules: 'snake',
+            third_round_reversal: false,
+          },
+          waiver: {
+            waiver_type: 'faab',
+            processing_days: [2],
+            FAAB_budget_default: 100,
+            processing_time_utc: '10:00',
+            claim_priority_behavior: 'faab_highest',
+            game_lock_behavior: 'game_time',
+          },
+        },
+        initialSettings: {
+          sport_type: 'NFL',
+          roster_mode: 'dynasty',
+          roster_format_type: isIdp ? 'IDP' : 'standard',
+          scoring_format_type: isIdp ? 'IDP' : 'PPR',
+          starter_slots: isIdp
+            ? { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1, DE: 2, DT: 1, LB: 2, CB: 2, S: 2 }
+            : { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
+          bench_slots: isIdp ? 9 : 7,
+        },
+        settingsSummary: {
+          playoff_team_count: 6,
+        },
+        context: {
+          sport: 'NFL',
+          variant: variant ?? null,
+        },
       }
     })
 
@@ -142,13 +168,39 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
       sport: 'SOCCER',
     })
 
-    getInitialSettingsForCreationMock.mockImplementationOnce((_sport: string, variant: string | undefined) => ({
-      sport_type: 'SOCCER',
-      roster_format_type: 'standard',
-      scoring_format_type: 'standard',
-      starter_slots: { GKP: 1, DEF: 4, MID: 4, FWD: 2 },
-      bench_slots: 4,
-      league_variant: variant ?? 'STANDARD',
+    getCreationPayloadAndSettingsMock.mockImplementationOnce((_sport: string, variant: string | undefined) => ({
+      payload: {
+        draft: {
+          draft_type: 'snake',
+          rounds_default: 15,
+          timer_seconds_default: 90,
+          pick_order_rules: 'snake',
+          third_round_reversal: false,
+        },
+        waiver: {
+          waiver_type: 'fcfs',
+          processing_days: [],
+          FAAB_budget_default: null,
+          processing_time_utc: null,
+          claim_priority_behavior: 'earliest_claim',
+          game_lock_behavior: 'slate_lock',
+        },
+      },
+      initialSettings: {
+        sport_type: 'SOCCER',
+        roster_format_type: 'standard',
+        scoring_format_type: 'standard',
+        starter_slots: { GKP: 1, DEF: 4, MID: 4, FWD: 2 },
+        bench_slots: 4,
+        league_variant: variant ?? 'STANDARD',
+      },
+      settingsSummary: {
+        playoff_team_count: 6,
+      },
+      context: {
+        sport: 'SOCCER',
+        variant: variant ?? null,
+      },
     }))
 
     const req = new Request('http://localhost/api/league/create', {

@@ -2,8 +2,8 @@
  * Resolves standings tiebreaker order for a league. Used by standings display and playoff seeding.
  */
 import { prisma } from '@/lib/prisma'
-import { getDefaultLeagueSettings } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
-import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { getDefaultLeagueSettingsForVariant } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
 
 export interface StandingsTiebreakerConfig {
   tiebreakers: string[]
@@ -22,7 +22,7 @@ export async function getStandingsTiebreakersForLeague(leagueId: string): Promis
   if (!league) return null
 
   const settings = (league.settings as Record<string, unknown>) ?? {}
-  const sport = (league.sport as string) || 'NFL'
+  const sport = (league.sport as string) || DEFAULT_SPORT
   const variant = league.leagueVariant ?? null
 
   const stored = settings.standings_tiebreakers
@@ -36,7 +36,7 @@ export async function getStandingsTiebreakersForLeague(leagueId: string): Promis
     ? (stored as string[])
     : (structureRules && structureRules.length > 0)
       ? structureRules
-      : getDefaultLeagueSettings(sport).standings_tiebreakers
+      : getDefaultLeagueSettingsForVariant(sport, variant).standings_tiebreakers
 
   return {
     tiebreakers,

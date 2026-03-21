@@ -40,7 +40,11 @@ export function LeaguePrivacyPanel({ value, onChange }: LeaguePrivacyPanelProps)
             value={p.visibility}
             onValueChange={(v) => onChange({ visibility: v as WizardPrivacySettings['visibility'] })}
           >
-            <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]" title={VISIBILITY_OPTS.find((o) => o.value === p.visibility)?.title}>
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              title={VISIBILITY_OPTS.find((o) => o.value === p.visibility)?.title}
+              aria-label="Visibility"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

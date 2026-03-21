@@ -2,18 +2,18 @@
  * Schedule defaults registry — single entry for sport- and variant-aware schedule behavior.
  * Re-exports resolveDefaultScheduleConfig and provides getSchedulePreset for league creation and matchup generation.
  */
-import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
+import { resolveDefaultScheduleConfig, normalizeScheduleVariant } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
 import type { SportType, DefaultScheduleConfig } from '@/lib/sport-defaults/types'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
 const DEFAULT_SCHEDULE_VARIANTS_BY_SPORT: Record<SportType, string[]> = {
-  NFL: ['STANDARD', 'PPR', 'HALF_PPR', 'SUPERFLEX', 'IDP', 'DYNASTY_IDP', 'devy_dynasty'],
-  NBA: ['STANDARD', 'devy_dynasty'],
+  NFL: ['STANDARD', 'PPR', 'HALF_PPR', 'SUPERFLEX', 'IDP', 'DYNASTY_IDP', 'DEVY_DYNASTY', 'MERGED_DEVY_C2C'],
+  NBA: ['STANDARD', 'DEVY_DYNASTY', 'MERGED_DEVY_C2C'],
   MLB: ['STANDARD'],
   NHL: ['STANDARD'],
   NCAAF: ['STANDARD'],
   NCAAB: ['STANDARD'],
-  SOCCER: ['STANDARD'],
+  SOCCER: ['STANDARD', 'NO_PLAYOFF'],
 }
 
 /**
@@ -22,7 +22,8 @@ const DEFAULT_SCHEDULE_VARIANTS_BY_SPORT: Record<SportType, string[]> = {
  */
 export function getSchedulePreset(sport: SportType | string, variant?: string | null): DefaultScheduleConfig {
   const sportType = typeof sport === 'string' ? (toSportType(sport) as SportType) : sport
-  return resolveDefaultScheduleConfig(sportType, variant ?? undefined)
+  const normalizedVariant = normalizeScheduleVariant(variant)
+  return resolveDefaultScheduleConfig(sportType, normalizedVariant)
 }
 
 /**
@@ -46,4 +47,5 @@ export function getSupportedScheduleVariantsForSport(sport: SportType | string):
 }
 
 export { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
+export { normalizeScheduleVariant } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
 export type { DefaultScheduleConfig } from '@/lib/sport-defaults/types'

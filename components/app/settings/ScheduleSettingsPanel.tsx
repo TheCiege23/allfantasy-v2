@@ -1,6 +1,8 @@
 'use client'
 
 import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 type ScheduleConfig = {
   schedule_unit?: string
@@ -19,11 +21,116 @@ type ScheduleConfig = {
   variant?: string | null
 }
 
+type EditableScheduleForm = {
+  scheduleUnit: string
+  regularSeasonLength: number
+  matchupFrequency: string
+  matchupCadence: string
+  scheduleGenerationStrategy: string
+  playoffTransitionPoint: number | null
+  headToHeadBehavior: string
+  lockTimeBehavior: string
+  lockWindowBehavior: string
+  scoringPeriodBehavior: string
+  rescheduleHandling: string
+  doubleheaderHandling: string
+}
+
+const SCHEDULE_UNIT_OPTIONS = ['week', 'round', 'series', 'slate', 'scoring_period'] as const
+const MATCHUP_CADENCE_OPTIONS = ['weekly', 'daily', 'round', 'slate'] as const
+const HEAD_TO_HEAD_OPTIONS = ['head_to_head', 'points_only', 'both'] as const
+const LOCK_TIME_OPTIONS = ['game_time', 'first_game', 'slate_lock', 'manual'] as const
+const LOCK_WINDOW_OPTIONS = ['first_game_of_week', 'first_game_of_slate', 'game_time', 'slate_lock', 'manual'] as const
+const SCORING_PERIOD_OPTIONS = ['full_period', 'daily_rolling', 'slate_based'] as const
+const RESCHEDULE_OPTIONS = ['use_final_time', 'use_original_time', 'exclude'] as const
+const DOUBLEHEADER_OPTIONS = ['all_games_count', 'single_score_per_slot'] as const
+const STRATEGY_OPTIONS = ['round_robin', 'division_based', 'random'] as const
+
+function toEditableForm(config: ScheduleConfig): EditableScheduleForm {
+  return {
+    scheduleUnit: config.schedule_unit ?? 'week',
+    regularSeasonLength: Number(config.regular_season_length ?? 18),
+    matchupFrequency: config.matchup_frequency ?? 'weekly',
+    matchupCadence: config.matchup_cadence ?? 'weekly',
+    scheduleGenerationStrategy: config.schedule_generation_strategy ?? 'round_robin',
+    playoffTransitionPoint:
+      config.playoff_transition_point === undefined || config.playoff_transition_point === null
+        ? null
+        : Number(config.playoff_transition_point),
+    headToHeadBehavior: config.head_to_head_behavior ?? 'head_to_head',
+    lockTimeBehavior: config.lock_time_behavior ?? 'first_game',
+    lockWindowBehavior: config.lock_window_behavior ?? 'first_game_of_week',
+    scoringPeriodBehavior: config.scoring_period_behavior ?? 'full_period',
+    rescheduleHandling: config.reschedule_handling ?? 'use_final_time',
+    doubleheaderHandling: config.doubleheader_handling ?? 'all_games_count',
+  }
+}
+
 export default function ScheduleSettingsPanel({ leagueId }: { leagueId: string }) {
-  const { data: config, loading, error } = useLeagueSectionData<ScheduleConfig>(
+  const { data: config, loading, error, reload } = useLeagueSectionData<ScheduleConfig>(
     leagueId,
     'schedule/config',
   )
+  const [canEdit, setCanEdit] = useState(false)
+  const [checkingEditPermission, setCheckingEditPermission] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<EditableScheduleForm | null>(null)
+
+  useEffect(() => {
+    if (!leagueId) return
+    let active = true
+    setCheckingEditPermission(true)
+    fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/schedule?type=settings`, {
+      cache: 'no-store',
+    })
+      .then((res) => {
+        if (!active) return
+        setCanEdit(res.ok)
+      })
+      .catch(() => {
+        if (!active) return
+        setCanEdit(false)
+      })
+      .finally(() => {
+        if (!active) return
+        setCheckingEditPermission(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    if (!config) return
+    setForm(toEditableForm(config))
+  }, [config])
+
+  async function saveOverrides() {
+    if (!form || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch(
+        `/api/commissioner/leagues/${encodeURIComponent(leagueId)}/schedule`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        }
+      )
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(json?.error ?? 'Failed to save schedule overrides')
+        return
+      }
+      toast.success('Schedule overrides saved')
+      setEditing(false)
+      await reload()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (!leagueId) {
     return (
@@ -52,12 +159,249 @@ export default function ScheduleSettingsPanel({ leagueId }: { leagueId: string }
     )
   }
 
+  if (!form) return null
+
   return (
     <section className="rounded-xl border border-white/10 bg-black/20 p-4">
-      <h3 className="text-sm font-semibold text-white">Schedule Settings</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-white">Schedule Settings</h3>
+        {canEdit && (
+          <button
+            type="button"
+            data-testid="schedule-settings-edit-toggle"
+            disabled={checkingEditPermission || saving}
+            onClick={() => {
+              if (editing) {
+                setForm(toEditableForm(config))
+                setEditing(false)
+                return
+              }
+              setEditing(true)
+            }}
+            className="rounded border border-white/20 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50"
+          >
+            {editing ? 'Cancel' : 'Edit overrides'}
+          </button>
+        )}
+      </div>
       <p className="mt-1 text-xs text-white/65">
-        Sport-aware defaults from league creation. Commissioner overrides can be applied via league settings.
+        Sport-aware defaults from league creation. Commissioner overrides persist to league settings and refresh this view.
       </p>
+      {checkingEditPermission && (
+        <p className="mt-1 text-[11px] text-white/45">Checking commissioner access…</p>
+      )}
+
+      {editing ? (
+        <div className="mt-4 space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs text-white/70">
+              Schedule unit
+              <select
+                aria-label="Schedule unit"
+                value={form.scheduleUnit}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, scheduleUnit: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {SCHEDULE_UNIT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Regular season length
+              <input
+                aria-label="Regular season length"
+                type="number"
+                min={1}
+                value={form.regularSeasonLength}
+                onChange={(e) =>
+                  setForm((prev) =>
+                    prev
+                      ? { ...prev, regularSeasonLength: Math.max(1, Number(e.target.value) || 1) }
+                      : prev
+                  )
+                }
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              />
+            </label>
+            <label className="text-xs text-white/70">
+              Matchup frequency
+              <select
+                aria-label="Matchup frequency"
+                value={form.matchupFrequency}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, matchupFrequency: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {MATCHUP_CADENCE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Matchup cadence
+              <select
+                aria-label="Matchup cadence"
+                value={form.matchupCadence}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, matchupCadence: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {MATCHUP_CADENCE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Head-to-head / points behavior
+              <select
+                aria-label="Head-to-head / points behavior"
+                value={form.headToHeadBehavior}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, headToHeadBehavior: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {HEAD_TO_HEAD_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Lock time behavior
+              <select
+                aria-label="Lock time behavior"
+                value={form.lockTimeBehavior}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, lockTimeBehavior: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {LOCK_TIME_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Lock window behavior
+              <select
+                aria-label="Lock window behavior"
+                value={form.lockWindowBehavior}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, lockWindowBehavior: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {LOCK_WINDOW_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Scoring period behavior
+              <select
+                aria-label="Scoring period behavior"
+                value={form.scoringPeriodBehavior}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, scoringPeriodBehavior: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {SCORING_PERIOD_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Reschedule handling
+              <select
+                aria-label="Reschedule handling"
+                value={form.rescheduleHandling}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, rescheduleHandling: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {RESCHEDULE_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Doubleheader / multi-game handling
+              <select
+                aria-label="Doubleheader / multi-game handling"
+                value={form.doubleheaderHandling}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, doubleheaderHandling: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {DOUBLEHEADER_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-white/70">
+              Playoff transition point
+              <input
+                aria-label="Playoff transition point"
+                type="number"
+                min={1}
+                value={form.playoffTransitionPoint ?? ''}
+                onChange={(e) =>
+                  setForm((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          playoffTransitionPoint: e.target.value === '' ? null : Math.max(1, Number(e.target.value) || 1),
+                        }
+                      : prev
+                  )
+                }
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              />
+            </label>
+            <label className="text-xs text-white/70">
+              Schedule generation strategy
+              <select
+                aria-label="Schedule generation strategy"
+                value={form.scheduleGenerationStrategy}
+                onChange={(e) => setForm((prev) => (prev ? { ...prev, scheduleGenerationStrategy: e.target.value } : prev))}
+                className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+              >
+                {STRATEGY_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              data-testid="schedule-settings-cancel"
+              onClick={() => {
+                setForm(toEditableForm(config))
+                setEditing(false)
+              }}
+              className="rounded border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              data-testid="schedule-settings-save"
+              disabled={saving}
+              onClick={() => void saveOverrides()}
+              className="rounded bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-500 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Save overrides'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+        <a
+          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Matchups`}
+          className="rounded border border-white/15 px-2 py-1 text-white/75 hover:bg-white/10"
+        >
+          Open matchups / schedule
+        </a>
+        <a
+          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Standings%20%2F%20Playoffs`}
+          className="rounded border border-white/15 px-2 py-1 text-white/75 hover:bg-white/10"
+        >
+          Open standings / playoffs
+        </a>
+      </div>
+
       <dl className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
         <div>
           <dt className="text-white/50">Schedule unit</dt>
@@ -106,6 +450,13 @@ export default function ScheduleSettingsPanel({ leagueId }: { leagueId: string }
         <div>
           <dt className="text-white/50">Doubleheader / multi-game</dt>
           <dd className="text-white/90">{config.doubleheader_handling ?? '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-white/50">Schedule preview</dt>
+          <dd className="text-white/90">
+            {config.matchup_cadence ?? 'weekly'} cadence over {config.regular_season_length ?? '—'}{' '}
+            {config.schedule_unit ?? 'periods'}
+          </dd>
         </div>
         {config.sport && (
           <div>

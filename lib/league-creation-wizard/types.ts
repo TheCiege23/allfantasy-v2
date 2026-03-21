@@ -12,6 +12,9 @@ export type WizardStepId =
   | 'team_setup'
   | 'scoring'
   | 'draft_settings'
+  | 'waiver_settings'
+  | 'playoff_settings'
+  | 'schedule_settings'
   | 'ai_settings'
   | 'automation'
   | 'privacy'
@@ -61,6 +64,55 @@ export interface WizardAISettings {
   draftHelperEnabled: boolean
 }
 
+export interface WizardWaiverSettings {
+  waiverType: 'faab' | 'rolling' | 'reverse_standings' | 'fcfs' | 'standard'
+  processingDays: number[]
+  processingTimeUtc: string | null
+  faabEnabled: boolean
+  faabBudget: number | null
+  faabResetRules: string | null
+  claimPriorityBehavior: string | null
+  continuousWaiversBehavior: boolean
+  freeAgentUnlockBehavior: string | null
+  gameLockBehavior: string | null
+  dropLockBehavior: string | null
+  sameDayAddDropRules: string | null
+  maxClaimsPerPeriod: number | null
+}
+
+export interface WizardPlayoffSettings {
+  playoffTeamCount: number
+  playoffWeeks: number
+  playoffStartWeek: number | null
+  seedingRules: string
+  tiebreakerRules: string[]
+  byeRules: string | null
+  firstRoundByes: number
+  matchupLength: number
+  totalRounds: number | null
+  consolationBracketEnabled: boolean
+  thirdPlaceGameEnabled: boolean
+  toiletBowlEnabled: boolean
+  championshipLength: number
+  consolationPlaysFor: 'pick' | 'none' | 'cash'
+  reseedBehavior: string
+}
+
+export interface WizardScheduleSettings {
+  scheduleUnit: 'week' | 'round' | 'series' | 'slate' | 'scoring_period'
+  regularSeasonLength: number
+  matchupFrequency: 'weekly' | 'daily' | 'round' | 'slate'
+  matchupCadence: 'weekly' | 'daily' | 'round' | 'slate'
+  headToHeadOrPointsBehavior: string
+  lockTimeBehavior: 'game_time' | 'first_game' | 'slate_lock' | 'manual'
+  lockWindowBehavior: string
+  scoringPeriodBehavior: string
+  rescheduleHandling: string
+  doubleheaderOrMultiGameHandling: string
+  playoffTransitionPoint: number | null
+  scheduleGenerationStrategy: string
+}
+
 export interface WizardAutomationSettings {
   draftNotificationsEnabled: boolean
   autopickFromQueueEnabled: boolean
@@ -83,6 +135,9 @@ export interface LeagueCreationWizardState {
   scoringPreset: string | null
   leagueVariant: string | null
   draftSettings: WizardDraftSettings
+  waiverSettings: WizardWaiverSettings
+  playoffSettings: WizardPlayoffSettings
+  scheduleSettings: WizardScheduleSettings
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
   privacySettings: WizardPrivacySettings
@@ -95,6 +150,9 @@ export const WIZARD_STEP_ORDER: WizardStepId[] = [
   'team_setup',
   'scoring',
   'draft_settings',
+  'waiver_settings',
+  'playoff_settings',
+  'schedule_settings',
   'ai_settings',
   'automation',
   'privacy',
@@ -122,6 +180,55 @@ export const DEFAULT_AI_SETTINGS: WizardAISettings = {
   aiAdpEnabled: false,
   orphanTeamAiManagerEnabled: false,
   draftHelperEnabled: true,
+}
+
+export const DEFAULT_WAIVER_SETTINGS: WizardWaiverSettings = {
+  waiverType: 'faab',
+  processingDays: [2],
+  processingTimeUtc: '10:00',
+  faabEnabled: true,
+  faabBudget: 100,
+  faabResetRules: 'never',
+  claimPriorityBehavior: 'faab_highest',
+  continuousWaiversBehavior: false,
+  freeAgentUnlockBehavior: 'after_waiver_run',
+  gameLockBehavior: 'game_time',
+  dropLockBehavior: 'lock_with_game',
+  sameDayAddDropRules: 'allow_if_not_played',
+  maxClaimsPerPeriod: 10,
+}
+
+export const DEFAULT_PLAYOFF_SETTINGS: WizardPlayoffSettings = {
+  playoffTeamCount: 6,
+  playoffWeeks: 3,
+  playoffStartWeek: 15,
+  seedingRules: 'standard_standings',
+  tiebreakerRules: ['points_for', 'head_to_head', 'points_against'],
+  byeRules: 'top_two_seeds_bye',
+  firstRoundByes: 2,
+  matchupLength: 1,
+  totalRounds: 3,
+  consolationBracketEnabled: true,
+  thirdPlaceGameEnabled: true,
+  toiletBowlEnabled: false,
+  championshipLength: 1,
+  consolationPlaysFor: 'pick',
+  reseedBehavior: 'fixed_bracket',
+}
+
+export const DEFAULT_SCHEDULE_SETTINGS: WizardScheduleSettings = {
+  scheduleUnit: 'week',
+  regularSeasonLength: 18,
+  matchupFrequency: 'weekly',
+  matchupCadence: 'weekly',
+  headToHeadOrPointsBehavior: 'head_to_head',
+  lockTimeBehavior: 'first_game',
+  lockWindowBehavior: 'first_game_of_week',
+  scoringPeriodBehavior: 'full_period',
+  rescheduleHandling: 'use_final_time',
+  doubleheaderOrMultiGameHandling: 'all_games_count',
+  playoffTransitionPoint: 15,
+  scheduleGenerationStrategy: 'round_robin',
 }
 
 export const DEFAULT_AUTOMATION_SETTINGS: WizardAutomationSettings = {

@@ -53,7 +53,7 @@ export async function PUT(
 
   const body = await req.json().catch(() => ({}))
   const settings = await upsertLeagueWaiverSettings(params.leagueId, {
-    waiverType: body.waiverType ?? 'standard',
+    waiverType: body.waiverType,
     processingDayOfWeek: body.processingDayOfWeek,
     processingTimeUtc: body.processingTimeUtc,
     claimLimitPerPeriod: body.claimLimitPerPeriod,

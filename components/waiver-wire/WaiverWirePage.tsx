@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown, MessageSquare } from "lucide-react"
+import { toast } from "sonner"
 import WaiverFilters from "@/components/waiver-wire/WaiverFilters"
 import WaiverPlayerRow from "@/components/waiver-wire/WaiverPlayerRow"
 import WaiverClaimDrawer from "@/components/waiver-wire/WaiverClaimDrawer"
@@ -12,10 +13,14 @@ import {
   WAIVER_EMPTY_PLAYERS_HINT,
   WAIVER_EMPTY_PENDING_TITLE,
   WAIVER_EMPTY_HISTORY_TITLE,
+} from "@/lib/waiver-wire/WaiverWireViewService"
+import {
   getWaiverAIChatUrl,
   buildWaiverSummaryForAI,
+} from "@/lib/waiver-wire/WaiverToAIContextBridge"
+import {
   waiverPositionMatches,
-} from "@/lib/waiver-wire"
+} from "@/lib/waiver-wire/SportWaiverResolver"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 
 const WAIVER_TYPES = [
@@ -71,7 +76,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const [faabRemaining, setFaabRemaining] = useState<number | null>(null)
   const [rosterPlayerIds, setRosterPlayerIds] = useState<string[]>([])
   const [waiverPriority, setWaiverPriority] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<"available" | "pending" | "history">("available")
+  const [activeTab, setActiveTab] = useState<"available" | "trending" | "claimed" | "dropped" | "pending" | "history">("available")
 
   const [search, setSearch] = useState("")
   const [positionFilter, setPositionFilter] = useState("ALL")
@@ -147,6 +152,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         setDrawerOpen(false)
         setDrawerPlayer(null)
         load()
+      } else {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json?.error ?? "Failed to submit waiver claim")
       }
     } finally {
       setClaimLoading(false)
@@ -156,6 +164,10 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const cancelClaimById = async (claimId: string) => {
     const res = await fetch(`/api/waiver-wire/leagues/${leagueId}/claims/${claimId}`, { method: "DELETE" })
     if (res.ok) load()
+    else {
+      const json = await res.json().catch(() => ({}))
+      toast.error(json?.error ?? "Failed to cancel waiver claim")
+    }
   }
 
   const updateClaimById = async (claimId: string, patch: { faabBid?: number | null; priorityOrder?: number | null; dropPlayerId?: string | null }) => {
@@ -166,6 +178,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     })
     if (res.ok) {
       load()
+    } else {
+      const json = await res.json().catch(() => ({}))
+      toast.error(json?.error ?? "Failed to update waiver claim")
     }
   }
 
@@ -196,7 +211,8 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       list = list.filter((p) => waiverPositionMatches(p.position, positionFilter))
     }
     if (statusFilter === "available") {
-      list = list
+      const pendingIds = new Set(claims.map((c) => c.addPlayerId))
+      list = list.filter((p) => !pendingIds.has(p.id))
     }
     if (teamFilter) {
       const t = teamFilter.toLowerCase()
@@ -210,7 +226,37 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       list.sort((a, b) => (a.team || "").localeCompare(b.team || ""))
     }
     return list
-  }, [players, search, positionFilter, statusFilter, sort])
+  }, [players, search, positionFilter, statusFilter, teamFilter, sort, claims])
+
+  const trendScoreByPlayerId = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const tx of history.transactions) {
+      if (tx.addPlayerId) map.set(tx.addPlayerId, (map.get(tx.addPlayerId) ?? 0) + 2)
+      if (tx.dropPlayerId) map.set(tx.dropPlayerId, (map.get(tx.dropPlayerId) ?? 0) + 1)
+    }
+    for (const claim of claims) {
+      map.set(claim.addPlayerId, (map.get(claim.addPlayerId) ?? 0) + 1)
+    }
+    return map
+  }, [history.transactions, claims])
+
+  const trendingPlayers = useMemo(() => {
+    return [...filteredPlayers].sort((a, b) => {
+      const scoreDelta = (trendScoreByPlayerId.get(b.id) ?? 0) - (trendScoreByPlayerId.get(a.id) ?? 0)
+      if (scoreDelta !== 0) return scoreDelta
+      return a.name.localeCompare(b.name)
+    })
+  }, [filteredPlayers, trendScoreByPlayerId])
+
+  const claimedTransactions = useMemo(
+    () => history.transactions.filter((tx) => Boolean(tx.addPlayerId)),
+    [history.transactions]
+  )
+
+  const droppedTransactions = useMemo(
+    () => history.transactions.filter((tx) => Boolean(tx.dropPlayerId)),
+    [history.transactions]
+  )
 
   return (
     <div className="space-y-6">
@@ -246,7 +292,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       </div>
 
       <div className="flex gap-2 border-b border-white/10 pb-2">
-        {(["available", "pending", "history"] as const).map((tab) => (
+        {(["available", "trending", "claimed", "dropped", "pending", "history"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -255,12 +301,22 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
               activeTab === tab ? "bg-cyan-500/20 text-cyan-200" : "text-white/70 hover:text-white"
             }`}
           >
-            {getTabLabel(tab, tab === "pending" ? claims.length : undefined)}
+            {tab === "available"
+              ? "All players"
+              : tab === "trending"
+                ? "Trending"
+                : tab === "claimed"
+                  ? "Claimed"
+                  : tab === "dropped"
+                    ? "Dropped"
+                    : tab === "pending"
+                      ? getTabLabel("pending", claims.length)
+                      : getTabLabel("history")}
           </button>
         ))}
       </div>
 
-      {activeTab === "available" && (
+      {(activeTab === "available" || activeTab === "trending") && (
         <div className="rounded-xl border border-white/10 bg-black/20 p-0 sm:p-3">
           <WaiverFilters
             search={search}
@@ -278,18 +334,19 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             formatType={settings?.formatType ?? undefined}
           />
           <ul className="max-h-[480px] space-y-1.5 overflow-y-auto px-1 pb-3 pt-1 sm:px-0">
-            {filteredPlayers.length === 0 ? (
+            {(activeTab === "trending" ? trendingPlayers : filteredPlayers).length === 0 ? (
               <li className="py-6 text-center text-sm text-white/50">
                 {WAIVER_EMPTY_PLAYERS_TITLE}
                 <span className="block text-xs text-white/40 mt-1">{WAIVER_EMPTY_PLAYERS_HINT}</span>
               </li>
             ) : (
-              filteredPlayers.map((p) => {
+              (activeTab === "trending" ? trendingPlayers : filteredPlayers).map((p) => {
                 const alreadyClaimed = claims.some((c) => c.addPlayerId === p.id)
                 return (
                   <WaiverPlayerRow
                     key={p.id}
                     player={p}
+                    trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
                     onAddClick={() => {
                       if (alreadyClaimed) return
                       setDrawerPlayer(p)
@@ -299,6 +356,57 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                   />
                 )
               })
+            )}
+          </ul>
+        </div>
+      )}
+
+      {activeTab === "claimed" && (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-white">Recently claimed players</h3>
+          <ul className="space-y-1.5 text-sm">
+            {claimedTransactions.length === 0 ? (
+              <li className="py-4 text-center text-sm text-white/50">No successful claims yet.</li>
+            ) : (
+              claimedTransactions.map((t) => (
+                <li
+                  key={`claimed-${t.id}`}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-white/90"
+                >
+                  <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <span>Add {t.addPlayerId}</span>
+                  {t.faabSpent != null && <span className="text-cyan-300">${t.faabSpent}</span>}
+                  <span className="ml-auto text-xs text-white/50">
+                    {new Date(t.processedAt).toLocaleString()}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+
+      {activeTab === "dropped" && (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-white">Recently dropped players</h3>
+          <ul className="space-y-1.5 text-sm">
+            {droppedTransactions.length === 0 ? (
+              <li className="py-4 text-center text-sm text-white/50">No dropped players in recent waiver runs.</li>
+            ) : (
+              droppedTransactions.map((t) => (
+                <li
+                  key={`dropped-${t.id}`}
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-white/90"
+                >
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-amber-400/60 text-[10px] text-amber-300">
+                    -
+                  </span>
+                  <span>Drop {t.dropPlayerId}</span>
+                  <span className="ml-auto text-xs text-white/50">
+                    {new Date(t.processedAt).toLocaleString()}
+                  </span>
+                </li>
+              ))
             )}
           </ul>
         </div>
@@ -387,6 +495,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                         if (isFaab && nextBidRaw !== "") patch.faabBid = Number(nextBidRaw) || 0
                         void updateClaimById(c.id, patch)
                       }}
+                      data-testid={`waiver-claim-save-${c.id}`}
                       className="rounded border border-cyan-400/60 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/20"
                     >
                       Save
@@ -394,6 +503,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                     <button
                       type="button"
                       onClick={() => cancelClaimById(c.id)}
+                      data-testid={`waiver-claim-cancel-${c.id}`}
                       className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
                     >
                       <Trash2 className="mr-1 inline h-3 w-3" />

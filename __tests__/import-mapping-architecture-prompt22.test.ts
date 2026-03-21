@@ -100,17 +100,40 @@ function makeSleeperPayload(overrides?: Partial<SleeperImportPayload>): SleeperI
   }
 }
 
+type EspnPayloadOverrides = Partial<Omit<EspnImportPayload, 'league' | 'settings'>> & {
+  league?: Partial<EspnImportPayload['league']>
+  settings?: Partial<NonNullable<EspnImportPayload['settings']>> | null
+}
+
 /** Minimal valid ESPN import payload. */
-function makeEspnPayload(overrides?: Partial<EspnImportPayload>): EspnImportPayload {
-  return {
-    league: { leagueId: 'espn-001', name: 'Test ESPN League', sport: 'NFL', season: 2024, size: 2 },
+function makeEspnPayload(overrides: EspnPayloadOverrides = {}): EspnImportPayload {
+  const base: EspnImportPayload = {
+    sourceInput: 'espn-001',
+    league: {
+      leagueId: 'espn-001',
+      name: 'Test ESPN League',
+      sport: 'NFL',
+      season: 2024,
+      size: 2,
+      currentWeek: 1,
+      isFinished: false,
+      playoffTeamCount: 4,
+      regularSeasonLength: 14,
+    },
     settings: {
       scoringType: 'H2H_POINTS',
-      lineupSlotCounts: [{ slotId: 1, slotName: 'QB', count: 1 }, { slotId: 2, slotName: 'RB', count: 2 }],
+      draftType: 'SNAKE',
+      lineupSlotCounts: [{ slotId: 1, slot: 'QB', count: 1 }, { slotId: 2, slot: 'RB', count: 2 }],
       scoringItems: [
-        { statId: 3, statName: 'passing_tds', points: 4 },
-        { statId: 53, statName: 'rec', points: 1 },
+        { statId: 3, points: 4 },
+        { statId: 53, points: 1 },
       ],
+      usesFaab: true,
+      acquisitionBudget: 100,
+      waiverProcessDay: 2,
+      playoffTeamCount: 4,
+      matchupPeriodCount: 17,
+      regularSeasonMatchupCount: 14,
       raw: {},
     },
     teams: [
@@ -123,6 +146,7 @@ function makeEspnPayload(overrides?: Partial<EspnImportPayload>): EspnImportPayl
         wins: 9,
         losses: 4,
         ties: 0,
+        rank: 1,
         pointsFor: 1500,
         pointsAgainst: 1300,
         rosterPlayerIds: ['e1', 'e2'],
@@ -130,45 +154,86 @@ function makeEspnPayload(overrides?: Partial<EspnImportPayload>): EspnImportPayl
         reservePlayerIds: [],
         faabRemaining: 50,
         waiverPriority: 1,
+        playerMap: {},
       },
     ],
     schedule: [
       {
         week: 1,
         season: 2024,
-        matchups: [{ teamId1: 't1', teamId2: 't2', points1: 130, points2: 120, isPlayoff: false }],
+        matchups: [{ teamId1: 't1', teamId2: 't2', points1: 130, points2: 120 }],
       },
     ],
     transactions: [],
     draftPicks: [
-      { round: 1, pickNumber: 1, teamId: 't1', playerId: 'e1', playerName: 'JT', position: 'RB', team: 'IND' },
+      {
+        round: 1,
+        pickNumber: 1,
+        overallPickNumber: 1,
+        teamId: 't1',
+        playerId: 'e1',
+        playerName: 'JT',
+        position: 'RB',
+        team: 'IND',
+      },
     ],
-    playerMap: { e1: { name: 'JT', position: 'RB', team: 'IND' } },
+    transactionsFetched: true,
+    draftFetched: true,
     previousSeasons: [],
+  }
+
+  return {
+    ...base,
     ...overrides,
+    league: { ...base.league, ...(overrides.league ?? {}) },
+    settings:
+      overrides.settings === null
+        ? null
+        : ({ ...(base.settings ?? {}), ...(overrides.settings ?? {}) } as NonNullable<
+            EspnImportPayload['settings']
+          >),
   }
 }
 
+type YahooPayloadOverrides = Partial<Omit<YahooImportPayload, 'league' | 'settings'>> & {
+  league?: Partial<YahooImportPayload['league']>
+  settings?: Partial<NonNullable<YahooImportPayload['settings']>> | null
+}
+
 /** Minimal valid Yahoo import payload. */
-function makeYahooPayload(overrides?: Partial<YahooImportPayload>): YahooImportPayload {
-  return {
+function makeYahooPayload(overrides: YahooPayloadOverrides = {}): YahooImportPayload {
+  const base: YahooImportPayload = {
+    sourceInput: 'yahoo-001',
+    resolvedFromLeagueList: true,
     league: {
       leagueKey: 'yahoo-001',
       leagueId: '999',
       name: 'Test Yahoo League',
       sport: 'NFL',
       season: 2024,
-      size: 2,
+      numTeams: 2,
+      draftStatus: 'postdraft',
+      currentWeek: 1,
       startWeek: 1,
       endWeek: 14,
+      isFinished: false,
+      url: null,
     },
     settings: {
+      draftType: 'live',
       scoringType: 'headpoint',
-      rosterPositions: [{ position: 'QB', count: 1 }, { position: 'RB', count: 2 }],
-      statCategories: [{ statId: 77, name: 'rec', displayName: 'Receptions', isOffense: true }],
-      statModifiers: [{ statId: 77, value: 1 }],
       usesPlayoff: true,
       playoffStartWeek: 14,
+      usesPlayoffReseeding: false,
+      usesLockEliminatedTeams: false,
+      usesFaab: true,
+      tradeEndDate: null,
+      tradeRatifyType: 'commish',
+      rosterPositions: [{ position: 'QB', count: 1 }, { position: 'RB', count: 2 }],
+      statCategories: [
+        { statId: '77', name: 'rec', displayName: 'Receptions', enabled: true, positionType: 'O' },
+      ],
+      statModifiers: [{ statId: '77', value: 1 }],
       raw: {},
     },
     teams: [
@@ -183,6 +248,7 @@ function makeYahooPayload(overrides?: Partial<YahooImportPayload>): YahooImportP
         wins: 7,
         losses: 6,
         ties: 0,
+        rank: 1,
         pointsFor: 1200,
         pointsAgainst: 1100,
         rosterPlayerIds: ['yp1'],
@@ -190,33 +256,66 @@ function makeYahooPayload(overrides?: Partial<YahooImportPayload>): YahooImportP
         reservePlayerIds: [],
         faabBalance: 80,
         waiverPriority: 3,
+        clinchedPlayoffs: false,
+        playerMap: {},
       },
     ],
     schedule: [
       {
         week: 1,
         season: 2024,
-        matchups: [
-          { teamKey1: 'y.l.999.t.1', teamKey2: 'y.l.999.t.2', points1: 110, points2: 95 },
-        ],
+        matchups: [{ teamKey1: 'y.l.999.t.1', teamKey2: 'y.l.999.t.2', points1: 110, points2: 95 }],
       },
     ],
+    scheduleWeeksExpected: 14,
+    scheduleWeeksCovered: 1,
     transactions: [],
     draftPicks: [],
-    playerMap: { yp1: { name: 'Josh Allen', position: 'QB', team: 'BUF' } },
     previousSeasons: [],
+  }
+
+  return {
+    ...base,
     ...overrides,
+    league: { ...base.league, ...(overrides.league ?? {}) },
+    settings:
+      overrides.settings === null
+        ? null
+        : ({ ...(base.settings ?? {}), ...(overrides.settings ?? {}) } as NonNullable<
+            YahooImportPayload['settings']
+          >),
   }
 }
 
+type MflPayloadOverrides = Partial<Omit<MflImportPayload, 'league' | 'settings'>> & {
+  league?: Partial<MflImportPayload['league']>
+  settings?: Partial<NonNullable<MflImportPayload['settings']>> | null
+}
+
 /** Minimal valid MFL import payload. */
-function makeMflPayload(overrides?: Partial<MflImportPayload>): MflImportPayload {
-  return {
-    league: { leagueId: 'mfl-001', name: 'Test MFL League', sport: 'NFL', season: 2024 },
+function makeMflPayload(overrides: MflPayloadOverrides = {}): MflImportPayload {
+  const base: MflImportPayload = {
+    sourceInput: 'mfl-001',
+    league: {
+      leagueId: 'mfl-001',
+      name: 'Test MFL League',
+      sport: 'NFL',
+      season: 2024,
+      size: 2,
+      currentWeek: 1,
+      isFinished: false,
+      playoffTeamCount: 4,
+      regularSeasonLength: 14,
+      url: null,
+    },
     settings: {
       scoringType: 'PPR',
+      draftType: 'snake',
       rosterPositions: [{ position: 'QB', count: 1 }, { position: 'RB', count: 2 }],
-      lineupBreakdownAvailable: true,
+      usesFaab: true,
+      acquisitionBudget: 100,
+      waiverType: 'faab',
+      usesTaxi: false,
       raw: {},
     },
     teams: [
@@ -229,6 +328,7 @@ function makeMflPayload(overrides?: Partial<MflImportPayload>): MflImportPayload
         wins: 10,
         losses: 3,
         ties: 0,
+        rank: 1,
         pointsFor: 1600,
         pointsAgainst: null,
         rosterPlayerIds: ['mp1', 'mp2'],
@@ -236,13 +336,14 @@ function makeMflPayload(overrides?: Partial<MflImportPayload>): MflImportPayload
         reservePlayerIds: [],
         faabRemaining: null,
         waiverPriority: null,
+        playerMap: {},
       },
     ],
     schedule: [
       {
         week: 1,
         season: 2024,
-        matchups: [{ teamId1: 'mfl-t1', teamId2: 'mfl-t2', points1: 150, points2: 140 }],
+        matchups: [{ franchiseId1: 'mfl-t1', franchiseId2: 'mfl-t2', points1: 150, points2: 140 }],
       },
     ],
     transactions: [],
@@ -250,8 +351,20 @@ function makeMflPayload(overrides?: Partial<MflImportPayload>): MflImportPayload
       { round: 1, pickNumber: 1, franchiseId: 'mfl-t1', playerId: 'mp1', playerName: 'CeeDee', position: 'WR', team: 'DAL' },
     ],
     playerMap: { mp1: { name: 'CeeDee Lamb', position: 'WR', team: 'DAL' } },
+    lineupBreakdownAvailable: true,
     previousSeasons: [],
+  }
+
+  return {
+    ...base,
     ...overrides,
+    league: { ...base.league, ...(overrides.league ?? {}) },
+    settings:
+      overrides.settings === null
+        ? null
+        : ({ ...(base.settings ?? {}), ...(overrides.settings ?? {}) } as NonNullable<
+            MflImportPayload['settings']
+          >),
   }
 }
 
@@ -728,7 +841,7 @@ describe('EspnAdapter – normalize', () => {
       settings: {
         scoringType: 'H2H_POINTS',
         lineupSlotCounts: [],
-        scoringItems: [{ statId: 53, statName: 'rec', points: 0.5 }],
+        scoringItems: [{ statId: 53, points: 0.5 }],
         raw: {},
       },
     })
@@ -743,7 +856,7 @@ describe('EspnAdapter – normalize', () => {
       settings: {
         scoringType: 'H2H_POINTS',
         lineupSlotCounts: [],
-        scoringItems: [{ statId: 53, statName: 'rec', points: 0 }],
+        scoringItems: [{ statId: 53, points: 0 }],
         raw: {},
       },
     })
@@ -863,8 +976,8 @@ describe('YahooAdapter – normalize', () => {
       settings: {
         scoringType: 'headpoint',
         rosterPositions: [],
-        statCategories: [{ statId: 77, name: 'rec', displayName: 'Receptions', isOffense: true }],
-        statModifiers: [{ statId: 77, value: 0.5 }],
+        statCategories: [{ statId: '77', name: 'rec', displayName: 'Receptions', enabled: true, positionType: 'O' }],
+        statModifiers: [{ statId: '77', value: 0.5 }],
         usesPlayoff: true,
         playoffStartWeek: 14,
         raw: {},
@@ -881,8 +994,8 @@ describe('YahooAdapter – normalize', () => {
       settings: {
         scoringType: 'headpoint',
         rosterPositions: [],
-        statCategories: [{ statId: 1, name: 'pass_yd', displayName: 'Passing Yards', isOffense: true }],
-        statModifiers: [{ statId: 1, value: 0.04 }],
+        statCategories: [{ statId: '1', name: 'pass_yd', displayName: 'Passing Yards', enabled: true, positionType: 'O' }],
+        statModifiers: [{ statId: '1', value: 0.04 }],
         usesPlayoff: false,
         playoffStartWeek: null,
         raw: {},
@@ -965,7 +1078,6 @@ describe('MflAdapter – normalize', () => {
       settings: {
         scoringType: 'standard',
         rosterPositions: [],
-        lineupBreakdownAvailable: false,
         raw: { dynasty: 'yes' },
       },
     })
@@ -980,7 +1092,6 @@ describe('MflAdapter – normalize', () => {
       settings: {
         scoringType: 'standard',
         rosterPositions: [],
-        lineupBreakdownAvailable: false,
         raw: { salary_cap_amount: 200 },
       },
     })

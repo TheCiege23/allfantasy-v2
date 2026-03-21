@@ -11,6 +11,7 @@ const createSchema = z.object({
   platform: z.enum(['sleeper', 'espn', 'manual']),
   platformLeagueId: z.string().optional(),
   leagueSize: z.number().min(4).max(32).optional(),
+  rosterSize: z.number().min(1).max(64).optional(),
   scoring: z.string().optional(),
   isDynasty: z.boolean().optional(),
   isSuperflex: z.boolean().optional(),
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
     platform,
     platformLeagueId,
     leagueSize: leagueSizeInput,
+    rosterSize: rosterSizeInput,
     scoring: scoringInput,
     isDynasty: isDynastyInput,
     isSuperflex,
@@ -114,6 +116,7 @@ export async function POST(req: Request) {
   }
   let name = nameInput;
   let leagueSize = leagueSizeInput;
+  let rosterSize = rosterSizeInput;
   let scoring = scoringInput;
   let isDynasty = isDynastyInput;
   if (name == null || leagueSize == null || scoring == null || isDynasty == null) {
@@ -205,7 +208,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const { getInitialSettingsForCreation } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
+    const { getCreationPayloadAndSettings } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
     const presetVariant =
       String(leagueTypeWizard ?? leagueVariantInput ?? '').toLowerCase() === 'devy'
         ? 'devy_dynasty'
@@ -213,10 +216,20 @@ export async function POST(req: Request) {
           ? 'merged_devy_c2c'
           : (leagueVariantInput ?? undefined);
     const effectiveDynastyForCreation = isDevyRequested || isC2CRequested || (isDynasty === true);
-    const initialSettings = getInitialSettingsForCreation(sport as string, presetVariant, {
-      superflex: isSuperflex ?? false,
-      roster_mode: effectiveDynastyForCreation ? 'dynasty' : (isDynasty ? 'dynasty' : undefined),
-    }) as Record<string, unknown>;
+    const {
+      payload: creationPayload,
+      initialSettings: initialSettingsFromOrchestrator,
+    } = await getCreationPayloadAndSettings(
+      sport as string,
+      presetVariant,
+      {
+        superflex: isSuperflex ?? false,
+        roster_mode: effectiveDynastyForCreation ? 'dynasty' : (isDynasty ? 'dynasty' : undefined),
+      }
+    );
+    const initialSettings = {
+      ...(initialSettingsFromOrchestrator as Record<string, unknown>),
+    } as Record<string, unknown>;
     if (presetVariant === 'devy_dynasty' || presetVariant === 'merged_devy_c2c') {
       (initialSettings as Record<string, unknown>).roster_mode = 'dynasty';
     }
@@ -244,6 +257,7 @@ export async function POST(req: Request) {
     }
     if (leagueTypeWizard) initialSettings.league_type = leagueTypeWizard;
     if (draftTypeWizard) initialSettings.draft_type = draftTypeWizard;
+    if (rosterSize != null && initialSettings.roster_size == null) initialSettings.roster_size = rosterSize;
     // Best ball: set flag so feature-flag validation and downstream logic see best ball mode
     if (String(leagueTypeWizard ?? '').toLowerCase() === 'best_ball') {
       (initialSettings as Record<string, unknown>).best_ball = true;
@@ -264,16 +278,16 @@ export async function POST(req: Request) {
       Object.assign(initialSettings, settingsWizard);
     }
 
-    // Ensure sport-specific draft/waiver defaults are always present unless explicitly overridden.
+    // Ensure sport/variant defaults from orchestrator payload are always present unless explicitly overridden.
     {
-      const { getDraftDefaults, getWaiverDefaults } = await import('@/lib/sport-defaults/SportDefaultsRegistry');
-      const draftDefaults = getDraftDefaults(sport as any, presetVariant ?? null);
-      const waiverDefaults = getWaiverDefaults(sport as any, presetVariant ?? null);
+      const draftDefaults = creationPayload.draft;
+      const waiverDefaults = creationPayload.waiver;
 
       if (initialSettings.draft_type == null) initialSettings.draft_type = draftDefaults.draft_type;
       if (initialSettings.draft_rounds == null) initialSettings.draft_rounds = draftDefaults.rounds_default;
       if (initialSettings.draft_timer_seconds == null) initialSettings.draft_timer_seconds = draftDefaults.timer_seconds_default;
       if (initialSettings.draft_pick_order_rules == null) initialSettings.draft_pick_order_rules = draftDefaults.pick_order_rules;
+      if (initialSettings.draft_third_round_reversal == null) initialSettings.draft_third_round_reversal = draftDefaults.third_round_reversal ?? false;
 
       if (initialSettings.waiver_type == null) initialSettings.waiver_type = waiverDefaults.waiver_type;
       if (initialSettings.waiver_processing_days == null) initialSettings.waiver_processing_days = waiverDefaults.processing_days;
@@ -379,6 +393,7 @@ export async function POST(req: Request) {
         platform,
         platformLeagueId: platformLeagueId || `manual-${Date.now()}`,
         leagueSize,
+        rosterSize: typeof rosterSize === 'number' ? rosterSize : undefined,
         scoring,
         isDynasty: effectiveDynasty,
         sport,
@@ -394,6 +409,54 @@ export async function POST(req: Request) {
       await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
+    }
+
+    // Persist league-creation waiver choices after bootstrap so commissioner defaults match wizard selections.
+    try {
+      const { upsertLeagueWaiverSettings } = await import('@/lib/waiver-wire');
+      const waiverProcessingDaysRaw = initialSettings.waiver_processing_days;
+      const waiverProcessingDays = Array.isArray(waiverProcessingDaysRaw)
+        ? waiverProcessingDaysRaw
+            .map((d) => (typeof d === 'number' ? d : Number(d)))
+            .filter((d) => Number.isFinite(d))
+        : [];
+      await upsertLeagueWaiverSettings(league.id, {
+        waiverType:
+          typeof initialSettings.waiver_type === 'string'
+            ? initialSettings.waiver_type
+            : undefined,
+        processingDayOfWeek: waiverProcessingDays.length > 0 ? waiverProcessingDays[0] : undefined,
+        processingTimeUtc:
+          typeof initialSettings.waiver_processing_time_utc === 'string'
+            ? initialSettings.waiver_processing_time_utc
+            : undefined,
+        claimLimitPerPeriod:
+          typeof initialSettings.waiver_max_claims_per_period === 'number'
+            ? initialSettings.waiver_max_claims_per_period
+            : initialSettings.waiver_max_claims_per_period === null
+              ? null
+              : undefined,
+        faabBudget:
+          typeof initialSettings.faab_budget === 'number'
+            ? initialSettings.faab_budget
+            : initialSettings.faab_budget === null
+              ? null
+              : undefined,
+        tiebreakRule:
+          typeof initialSettings.waiver_claim_priority_behavior === 'string'
+            ? initialSettings.waiver_claim_priority_behavior
+            : undefined,
+        lockType:
+          typeof initialSettings.waiver_game_lock_behavior === 'string'
+            ? initialSettings.waiver_game_lock_behavior
+            : undefined,
+        instantFaAfterClear:
+          typeof initialSettings.waiver_free_agent_unlock_behavior === 'string'
+            ? initialSettings.waiver_free_agent_unlock_behavior.toLowerCase() === 'instant'
+            : undefined,
+      });
+    } catch (err) {
+      console.warn('[league/create] Waiver settings sync non-fatal:', err);
     }
 
     if (isGuillotine) {

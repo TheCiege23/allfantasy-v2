@@ -46,7 +46,7 @@ export function LeagueCreationPresetSelector({
     <div>
       <Label>{label}</Label>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="bg-gray-900 border-purple-600/40">
+        <SelectTrigger className="bg-gray-900 border-purple-600/40" aria-label={label}>
           <SelectValue placeholder="Select preset" />
         </SelectTrigger>
         <SelectContent>

@@ -1,8 +1,8 @@
 "use client"
 
 import { Filter, Search } from "lucide-react"
-import { getPositionFiltersForSport } from "@/lib/waiver-wire"
-import { WAIVER_STATUS_FILTERS, SORT_OPTIONS } from "@/lib/waiver-wire"
+import { getPositionFiltersForSport } from "@/lib/waiver-wire/SportWaiverResolver"
+import { WAIVER_STATUS_FILTERS, SORT_OPTIONS } from "@/lib/waiver-wire/WaiverFilterResolver"
 
 type Props = {
   search: string
@@ -52,6 +52,8 @@ export default function WaiverFilters({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search players…"
+            aria-label="Waiver player search"
+            data-testid="waiver-search-input"
             className="w-full rounded-full border border-white/15 bg-black/40 py-1.5 pl-7 pr-3 text-xs text-white placeholder:text-white/40 outline-none"
           />
         </div>
@@ -62,6 +64,7 @@ export default function WaiverFilters({
                 key={pos}
                 type="button"
                 onClick={() => onPositionChange(pos)}
+                data-testid={`waiver-position-filter-${pos}`}
                 className={`rounded-full border px-2.5 py-1 ${
                   position === pos ? "border-cyan-400 bg-cyan-500/20 text-cyan-100" : "border-white/15 bg-black/40 text-white/65"
                 }`}
@@ -74,6 +77,8 @@ export default function WaiverFilters({
             <select
               value={team}
               onChange={(e) => onTeamChange(e.target.value)}
+              aria-label="Waiver team filter"
+              data-testid="waiver-team-filter"
               className="ml-auto rounded-full border border-white/20 bg-black/40 px-2 py-1 text-[11px] text-white outline-none"
             >
               <option value="">All teams</option>
@@ -93,6 +98,7 @@ export default function WaiverFilters({
               key={s.value}
               type="button"
               onClick={() => onStatusChange(s.value)}
+              data-testid={`waiver-status-filter-${s.value}`}
               className={`rounded-full px-2 py-0.5 ${
                 status === s.value ? "bg-white text-black" : "bg-black/40 text-white/65"
               }`}
@@ -106,6 +112,8 @@ export default function WaiverFilters({
           <select
             value={sort}
             onChange={(e) => onSortChange(e.target.value)}
+            aria-label="Waiver sort order"
+            data-testid="waiver-sort-order"
             className="rounded-lg border border-white/15 bg-black/60 px-2 py-1 text-[11px] text-white outline-none"
           >
             {SORT_OPTIONS.map((o) => (

@@ -2,6 +2,7 @@
  * Resolves matchup cadence for a league. Used by matchup generation and schedule display.
  */
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
 import type { SportType } from '@/lib/sport-defaults/types'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
@@ -28,7 +29,7 @@ export async function getMatchupCadenceForLeague(leagueId: string): Promise<Matc
   if (!league) return null
 
   const settings = (league.settings as Record<string, unknown>) ?? {}
-  const sport = (league.sport as string) || 'NFL'
+  const sport = (league.sport as string) || DEFAULT_SPORT
   const variant = league.leagueVariant ?? null
   const sportType = toSportType(sport) as SportType
   const defaults = resolveDefaultScheduleConfig(sportType, variant ?? undefined)

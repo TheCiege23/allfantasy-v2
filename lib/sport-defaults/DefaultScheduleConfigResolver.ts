@@ -1,19 +1,12 @@
 /**
- * Resolves default schedule and lock behavior per sport.
+ * Resolves default schedule and lock behavior per sport and variant.
  * Used by LeagueDefaultSettingsService and league creation initialization.
- *
- * Sport-specific expectations:
- * - NFL: 18-week regular season, weekly matchups, lock at first game of week, IR allows Out.
- * - NBA: 24-week, weekly matchups, lineup lock at first game of slate.
- * - MLB: 26-week, slate_lock, heavier game volume and scoring period handling.
- * - NHL: 25-week, first_game lock, hockey schedule density.
- * - NCAAF: 15-week, weekly football cadence, shorter season.
- * - NCAAB: 18-week, basketball cadence for college.
- * - SOCCER: 38-week, weekly fixtures, sport-aware lock timing.
  */
 import type { SportType, DefaultScheduleConfig } from './types'
 
-const CONFIGS: Record<SportType, DefaultScheduleConfig> = {
+type ScheduleVariantMap = Partial<Record<SportType, Record<string, Partial<DefaultScheduleConfig>>>>
+
+const BASE_CONFIGS: Record<SportType, DefaultScheduleConfig> = {
   NFL: {
     sport_type: 'NFL',
     schedule_unit: 'week',
@@ -135,12 +128,85 @@ const CONFIGS: Record<SportType, DefaultScheduleConfig> = {
   },
 }
 
+const VARIANT_OVERRIDES: ScheduleVariantMap = {
+  NFL: {
+    STANDARD: {},
+    PPR: {},
+    HALF_PPR: {},
+    SUPERFLEX: {
+      schedule_generation_strategy: 'division_based',
+    },
+    IDP: {
+      lock_window_behavior: 'first_game_of_week',
+    },
+    DYNASTY_IDP: {
+      lock_window_behavior: 'first_game_of_week',
+    },
+    DEVY_DYNASTY: {
+      schedule_generation_strategy: 'division_based',
+    },
+    MERGED_DEVY_C2C: {
+      schedule_generation_strategy: 'division_based',
+    },
+  },
+  NBA: {
+    STANDARD: {},
+    DEVY_DYNASTY: {},
+    MERGED_DEVY_C2C: {},
+  },
+  MLB: {
+    STANDARD: {},
+  },
+  NHL: {
+    STANDARD: {},
+  },
+  NCAAF: {
+    STANDARD: {},
+  },
+  NCAAB: {
+    STANDARD: {},
+  },
+  SOCCER: {
+    STANDARD: {},
+    NO_PLAYOFF: {
+      playoff_transition_point: 39,
+    },
+  },
+}
+
+const SCHEDULE_VARIANT_ALIASES: Record<string, string> = {
+  '': 'STANDARD',
+  STANDARD: 'STANDARD',
+  PPR: 'PPR',
+  HALF_PPR: 'HALF_PPR',
+  SUPERFLEX: 'SUPERFLEX',
+  IDP: 'IDP',
+  DYNASTY_IDP: 'DYNASTY_IDP',
+  DEVY: 'DEVY_DYNASTY',
+  DEVY_DYNASTY: 'DEVY_DYNASTY',
+  C2C: 'MERGED_DEVY_C2C',
+  MERGED_DEVY_C2C: 'MERGED_DEVY_C2C',
+  NO_PLAYOFF: 'NO_PLAYOFF',
+}
+
+export function normalizeScheduleVariant(variant?: string | null): string {
+  const raw = String(variant ?? '').trim().toUpperCase()
+  return SCHEDULE_VARIANT_ALIASES[raw] ?? raw
+}
+
 /**
- * Resolve default schedule config for a sport. Optionally pass formatType (e.g. IDP); NFL IDP uses same as NFL.
+ * Resolve default schedule config for a sport and optional variant.
  */
 export function resolveDefaultScheduleConfig(
   sportType: SportType,
-  _formatType?: string | null
+  formatType?: string | null
 ): DefaultScheduleConfig {
-  return CONFIGS[sportType] ?? CONFIGS.NFL
+  const base = BASE_CONFIGS[sportType] ?? BASE_CONFIGS.NFL
+  const normalizedVariant = normalizeScheduleVariant(formatType)
+  const overlay = VARIANT_OVERRIDES[sportType]?.[normalizedVariant] ?? {}
+  return {
+    ...base,
+    ...overlay,
+    sport_type: sportType,
+  }
 }

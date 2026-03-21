@@ -49,7 +49,11 @@ export function DraftSettingsPanel({
         <div className="space-y-1.5">
           <Label className="text-white/90">Rounds</Label>
           <Select value={String(d.rounds)} onValueChange={(v) => onDraftSettingsChange({ rounds: Number(v) })}>
-            <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]" title="Total draft rounds; 15–18 is typical for redraft">
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              title="Total draft rounds; 15–18 is typical for redraft"
+              aria-label="Draft rounds"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -68,7 +72,11 @@ export function DraftSettingsPanel({
             value={d.timerSeconds != null ? String(d.timerSeconds) : '90'}
             onValueChange={(v) => onDraftSettingsChange({ timerSeconds: v === '0' ? 0 : Number(v) })}
           >
-            <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]" title="0 = no timer (slow draft); 90s is common for live">
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              title="0 = no timer (slow draft); 90s is common for live"
+              aria-label="Draft timer per pick"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

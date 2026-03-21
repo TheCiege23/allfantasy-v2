@@ -7,6 +7,9 @@ import type {
   LeagueTypeId,
   DraftTypeId,
   WizardDraftSettings,
+  WizardWaiverSettings,
+  WizardPlayoffSettings,
+  WizardScheduleSettings,
   WizardAISettings,
   WizardAutomationSettings,
   WizardPrivacySettings,
@@ -22,6 +25,9 @@ export interface LeagueTemplatePayload {
   scoringPreset: string | null
   leagueVariant: string | null
   draftSettings: WizardDraftSettings
+  waiverSettings: WizardWaiverSettings
+  playoffSettings: WizardPlayoffSettings
+  scheduleSettings?: WizardScheduleSettings
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
   privacySettings: WizardPrivacySettings

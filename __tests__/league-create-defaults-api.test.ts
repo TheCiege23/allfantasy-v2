@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getServerSessionMock = vi.fn()
 const leagueFindFirstMock = vi.fn()
 const leagueCreateMock = vi.fn()
-const getInitialSettingsForCreationMock = vi.fn()
+const getCreationPayloadAndSettingsMock = vi.fn()
 const validateLeagueSettingsMock = vi.fn()
 const validateLeagueFeatureFlagsMock = vi.fn()
 const runPostCreateInitializationMock = vi.fn()
@@ -34,7 +34,7 @@ vi.mock('@/lib/viral-loop', () => ({
 }))
 
 vi.mock('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator', () => ({
-  getInitialSettingsForCreation: getInitialSettingsForCreationMock,
+  getCreationPayloadAndSettings: getCreationPayloadAndSettingsMock,
   runPostCreateInitialization: runPostCreateInitializationMock,
 }))
 
@@ -58,33 +58,59 @@ describe('POST /api/league/create sport defaults integration', () => {
       sport: data.sport,
     }))
 
-    getInitialSettingsForCreationMock.mockImplementation((sport: string) => ({
-      sport_type: sport,
-      default_team_count: sport === 'MLB' ? 12 : 10,
-      regular_season_length:
-        sport === 'NFL'
-          ? 18
-          : sport === 'NBA'
-            ? 24
-            : sport === 'MLB'
-              ? 26
-              : sport === 'NHL'
-                ? 25
-                : sport === 'NCAAF'
-                  ? 15
-                  : 18,
-      playoff_team_count: 6,
-      playoff_structure: { bracket_type: 'single_elimination' },
-      matchup_frequency: 'weekly',
-      season_labeling: 'week',
-      scoring_mode: 'points',
-      roster_mode: 'redraft',
-      waiver_mode: 'faab',
-      trade_review_mode: 'commissioner',
-      standings_tiebreakers: ['points_for', 'head_to_head'],
-      schedule_unit: 'week',
-      injury_slot_behavior: sport === 'MLB' ? 'ir_only' : 'ir_or_out',
-      lock_time_behavior: sport === 'MLB' ? 'slate_lock' : 'first_game',
+    getCreationPayloadAndSettingsMock.mockImplementation((sport: string) => ({
+      payload: {
+        draft: {
+          draft_type: 'snake',
+          rounds_default: 15,
+          timer_seconds_default: 90,
+          pick_order_rules: 'snake',
+          third_round_reversal: false,
+        },
+        waiver: {
+          waiver_type: 'faab',
+          processing_days: [2],
+          FAAB_budget_default: 100,
+          processing_time_utc: '10:00',
+          claim_priority_behavior: 'faab_highest',
+          game_lock_behavior: 'game_time',
+        },
+      },
+      initialSettings: {
+        sport_type: sport,
+        default_team_count: sport === 'MLB' ? 12 : 10,
+        regular_season_length:
+          sport === 'NFL'
+            ? 18
+            : sport === 'NBA'
+              ? 24
+              : sport === 'MLB'
+                ? 26
+                : sport === 'NHL'
+                  ? 25
+                  : sport === 'NCAAF'
+                    ? 15
+                    : 18,
+        playoff_team_count: 6,
+        playoff_structure: { bracket_type: 'single_elimination' },
+        matchup_frequency: 'weekly',
+        season_labeling: 'week',
+        scoring_mode: 'points',
+        roster_mode: 'redraft',
+        waiver_mode: 'faab',
+        trade_review_mode: 'commissioner',
+        standings_tiebreakers: ['points_for', 'head_to_head'],
+        schedule_unit: 'week',
+        injury_slot_behavior: sport === 'MLB' ? 'ir_only' : 'ir_or_out',
+        lock_time_behavior: sport === 'MLB' ? 'slate_lock' : 'first_game',
+      },
+      settingsSummary: {
+        playoff_team_count: 6,
+      },
+      context: {
+        sport,
+        variant: null,
+      },
     }))
 
     validateLeagueSettingsMock.mockReturnValue({ valid: true, errors: [] })
@@ -117,12 +143,12 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(json?.league?.sport).toBe(sport)
     }
 
-    expect(getInitialSettingsForCreationMock).toHaveBeenCalledTimes(sports.length)
+    expect(getCreationPayloadAndSettingsMock).toHaveBeenCalledTimes(sports.length)
     for (const sport of sports) {
-      expect(getInitialSettingsForCreationMock).toHaveBeenCalledWith(
+      expect(getCreationPayloadAndSettingsMock).toHaveBeenCalledWith(
         sport,
         undefined,
-        expect.objectContaining({ roster_mode: undefined })
+        expect.objectContaining({ superflex: false, roster_mode: undefined })
       )
     }
 

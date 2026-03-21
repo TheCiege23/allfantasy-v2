@@ -99,6 +99,7 @@ export default function WaiverClaimDrawer({
             <select
               value={dropId}
               onChange={(e) => setDropId(e.target.value)}
+              aria-label="Drop player selector"
               className="flex-1 rounded-lg border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
             >
               <option value="">No drop (requires open roster spot)</option>
@@ -122,6 +123,7 @@ export default function WaiverClaimDrawer({
                 max={faabRemaining ?? undefined}
                 value={bid}
                 onChange={(e) => setBid(e.target.value)}
+                aria-label="FAAB bid input"
                 className="w-24 rounded-lg border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
               />
               {faabRemaining != null && (
@@ -138,6 +140,7 @@ export default function WaiverClaimDrawer({
             min={0}
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
+            aria-label="Claim priority input"
             className="w-28 rounded-lg border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white outline-none"
           />
         </div>
@@ -152,6 +155,7 @@ export default function WaiverClaimDrawer({
         <button
           type="button"
           onClick={onClose}
+          data-testid="waiver-claim-cancel"
           className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
         >
           Cancel
@@ -160,6 +164,7 @@ export default function WaiverClaimDrawer({
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
+          data-testid="waiver-claim-submit"
           className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-cyan-400 disabled:opacity-60"
         >
           {submitting && (

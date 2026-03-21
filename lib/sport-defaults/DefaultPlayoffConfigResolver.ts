@@ -1,28 +1,22 @@
 /**
- * Resolves default playoff configuration per sport.
- * Used by LeagueDefaultSettingsService and league creation initialization.
- *
- * Per-sport expectations:
- * - NFL: 6 teams, 4 weeks, 2 byes, single elimination, consolation for draft pick, weekly rounds.
- * - NBA: 6 teams, 3 weeks, 2 byes, consolation for pick.
- * - MLB: 6 teams, 4 weeks, no consolation (typical for baseball).
- * - NHL: 6 teams, 4 weeks, consolation for pick.
- * - NCAAF / NCAAB: 6 teams, 3 weeks, college season alignment; consolation for pick.
- * - SOCCER: 6 teams, 3 weeks; support no-playoff or playoff-enabled presets.
+ * Resolves default playoff configuration per sport and variant.
+ * Used by league creation initialization, standings, seeding and bracket rendering.
  */
 import type { SportType, DefaultPlayoffConfig } from './types'
 
-const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
+type PlayoffVariantMap = Partial<Record<SportType, Record<string, Partial<DefaultPlayoffConfig>>>>
+
+const BASE_CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
   NFL: {
     sport_type: 'NFL',
     playoff_team_count: 6,
-    playoff_weeks: 4,
+    playoff_weeks: 3,
     first_round_byes: 2,
     bracket_type: 'single_elimination',
     consolation_plays_for: 'pick',
     playoff_start_week: 15,
     seeding_rules: 'standard_standings',
-    tiebreaker_rules: ['points_for', 'head_to_head', 'points_against'],
+    tiebreaker_rules: ['points_for', 'head_to_head', 'points_against', 'division_record'],
     bye_rules: 'top_two_seeds_bye',
     matchup_length: 1,
     total_rounds: 3,
@@ -58,7 +52,7 @@ const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
     first_round_byes: 2,
     bracket_type: 'single_elimination',
     consolation_plays_for: 'none',
-    playoff_start_week: 24,
+    playoff_start_week: 23,
     seeding_rules: 'standard_standings',
     tiebreaker_rules: ['points_for', 'head_to_head', 'points_against'],
     bye_rules: 'top_two_seeds_bye',
@@ -67,7 +61,7 @@ const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
     consolation_bracket_enabled: false,
     third_place_game_enabled: false,
     toilet_bowl_enabled: false,
-    championship_length: 1,
+    championship_length: 2,
     reseed_behavior: 'fixed_bracket',
   },
   NHL: {
@@ -86,7 +80,7 @@ const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
     consolation_bracket_enabled: true,
     third_place_game_enabled: true,
     toilet_bowl_enabled: false,
-    championship_length: 1,
+    championship_length: 2,
     reseed_behavior: 'fixed_bracket',
   },
   NCAAF: {
@@ -148,29 +142,71 @@ const CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
   },
 }
 
-/**
- * Resolve default playoff config for a sport. Optionally pass formatType (e.g. IDP); NFL IDP uses same as NFL.
- */
-export function resolveDefaultPlayoffConfig(
-  sportType: SportType,
-  formatType?: string | null
-): DefaultPlayoffConfig {
-  const base = CONFIGS[sportType] ?? CONFIGS.NFL
-  const variant = String(formatType ?? '').trim().toUpperCase()
-
-  if (sportType === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
-    return {
-      ...base,
-      seeding_rules: 'standard_standings',
+const VARIANT_OVERRIDES: PlayoffVariantMap = {
+  NFL: {
+    STANDARD: {},
+    PPR: {},
+    HALF_PPR: {},
+    SUPERFLEX: {
+      reseed_behavior: 'reseed_after_round',
+    },
+    IDP: {
       tiebreaker_rules: ['points_for', 'head_to_head', 'points_against', 'division_record'],
-      bye_rules: 'top_two_seeds_bye',
       reseed_behavior: 'fixed_bracket',
-    }
-  }
-
-  if (sportType === 'SOCCER' && variant === 'NO_PLAYOFF') {
-    return {
-      ...base,
+    },
+    DYNASTY_IDP: {
+      tiebreaker_rules: ['points_for', 'head_to_head', 'points_against', 'division_record'],
+      reseed_behavior: 'fixed_bracket',
+    },
+    DEVY_DYNASTY: {
+      playoff_team_count: 8,
+      playoff_weeks: 3,
+      first_round_byes: 0,
+      bye_rules: null,
+      total_rounds: 3,
+      reseed_behavior: 'fixed_bracket',
+    },
+    MERGED_DEVY_C2C: {
+      playoff_team_count: 8,
+      playoff_weeks: 3,
+      first_round_byes: 0,
+      bye_rules: null,
+      total_rounds: 3,
+      reseed_behavior: 'fixed_bracket',
+    },
+  },
+  NBA: {
+    STANDARD: {},
+    DEVY_DYNASTY: {
+      playoff_team_count: 8,
+      playoff_weeks: 3,
+      first_round_byes: 0,
+      bye_rules: null,
+      total_rounds: 3,
+    },
+    MERGED_DEVY_C2C: {
+      playoff_team_count: 8,
+      playoff_weeks: 3,
+      first_round_byes: 0,
+      bye_rules: null,
+      total_rounds: 3,
+    },
+  },
+  MLB: {
+    STANDARD: {},
+  },
+  NHL: {
+    STANDARD: {},
+  },
+  NCAAF: {
+    STANDARD: {},
+  },
+  NCAAB: {
+    STANDARD: {},
+  },
+  SOCCER: {
+    STANDARD: {},
+    NO_PLAYOFF: {
       playoff_team_count: 0,
       playoff_weeks: 0,
       first_round_byes: 0,
@@ -183,8 +219,43 @@ export function resolveDefaultPlayoffConfig(
       toilet_bowl_enabled: false,
       championship_length: 0,
       reseed_behavior: 'fixed_bracket',
-    }
-  }
+    },
+  },
+}
 
-  return base
+const PLAYOFF_VARIANT_ALIASES: Record<string, string> = {
+  '': 'STANDARD',
+  STANDARD: 'STANDARD',
+  PPR: 'PPR',
+  HALF_PPR: 'HALF_PPR',
+  SUPERFLEX: 'SUPERFLEX',
+  IDP: 'IDP',
+  DYNASTY_IDP: 'DYNASTY_IDP',
+  DEVY: 'DEVY_DYNASTY',
+  DEVY_DYNASTY: 'DEVY_DYNASTY',
+  C2C: 'MERGED_DEVY_C2C',
+  MERGED_DEVY_C2C: 'MERGED_DEVY_C2C',
+  NO_PLAYOFF: 'NO_PLAYOFF',
+}
+
+export function normalizePlayoffVariant(variant?: string | null): string {
+  const raw = String(variant ?? '').trim().toUpperCase()
+  return PLAYOFF_VARIANT_ALIASES[raw] ?? raw
+}
+
+/**
+ * Resolve default playoff config for a sport and optional variant.
+ */
+export function resolveDefaultPlayoffConfig(
+  sportType: SportType,
+  formatType?: string | null
+): DefaultPlayoffConfig {
+  const base = BASE_CONFIGS[sportType] ?? BASE_CONFIGS.NFL
+  const normalizedVariant = normalizePlayoffVariant(formatType)
+  const overlay = VARIANT_OVERRIDES[sportType]?.[normalizedVariant] ?? {}
+  return {
+    ...base,
+    ...overlay,
+    sport_type: sportType,
+  }
 }

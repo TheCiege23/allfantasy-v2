@@ -4,7 +4,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
-import { getDefaultLeagueSettings } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
+import { getDefaultLeagueSettingsForVariant } from '@/lib/sport-defaults/LeagueDefaultSettingsService'
 
 export interface LeaguePlayoffBootstrapResult {
   leagueId: string
@@ -29,7 +29,7 @@ export async function bootstrapLeaguePlayoffConfig(leagueId: string): Promise<Le
   const sport = (league.sport as string) || DEFAULT_SPORT
   const variant = league.leagueVariant ?? null
 
-  const def = getDefaultLeagueSettings(sport)
+  const def = getDefaultLeagueSettingsForVariant(sport, variant)
   const currentStructure = settings.playoff_structure != null && typeof settings.playoff_structure === 'object'
     ? (settings.playoff_structure as Record<string, unknown>)
     : {}

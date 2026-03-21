@@ -11,7 +11,6 @@ export const DEFAULT_SORT = "name"
 export const WAIVER_STATUS_FILTERS = [
   { value: "all", label: "All" },
   { value: "available", label: "Available" },
-  { value: "watchlist", label: "Watchlist" },
 ] as const
 
 export const SORT_OPTIONS = [

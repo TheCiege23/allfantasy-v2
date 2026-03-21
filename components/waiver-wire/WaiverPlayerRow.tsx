@@ -11,11 +11,13 @@ type Props = {
   }
   onAddClick: () => void
   alreadyClaimed?: boolean
+  trendScore?: number
 }
 
-export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed }: Props) {
+export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed, trendScore }: Props) {
   const pos = player.position || "—"
   const team = player.team || "FA"
+  const trend = typeof trendScore === "number" ? trendScore : 0
 
   return (
     <li className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm sm:px-4">
@@ -31,9 +33,9 @@ export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed }: 
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/55">
             <span className="inline-flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-emerald-300" />
-              <span>Trend: placeholder</span>
+              <span>Trend: {trend > 0 ? `+${trend}` : 'neutral'}</span>
             </span>
-            <span className="text-white/40">Rostered: —%</span>
+            <span className="text-white/40">Waiver activity score</span>
           </div>
         </div>
       </div>
@@ -45,6 +47,7 @@ export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed }: 
         <button
           type="button"
           onClick={onAddClick}
+          data-testid={`waiver-claim-open-${player.id}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/50 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/25"
         >
           <Plus className="h-3.5 w-3.5" />

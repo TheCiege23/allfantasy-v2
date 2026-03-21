@@ -45,12 +45,23 @@ describe('Prompt 19 playoff defaults by sport and variant', () => {
   it('exposes supported NFL playoff variants including IDP and DYNASTY_IDP', () => {
     const variants = getSupportedPlayoffVariantsForSport('NFL')
     expect(variants).toEqual(
-      expect.arrayContaining(['STANDARD', 'PPR', 'HALF_PPR', 'SUPERFLEX', 'IDP', 'DYNASTY_IDP'])
+      expect.arrayContaining([
+        'STANDARD',
+        'PPR',
+        'HALF_PPR',
+        'SUPERFLEX',
+        'IDP',
+        'DYNASTY_IDP',
+        'DEVY_DYNASTY',
+        'MERGED_DEVY_C2C',
+      ])
     )
 
     const defs = getPlayoffPresetDefinitions('NFL')
-    expect(defs.length).toBeGreaterThanOrEqual(6)
-    expect(defs.map((d) => d.variant)).toEqual(expect.arrayContaining(['IDP', 'DYNASTY_IDP']))
+    expect(defs.length).toBeGreaterThanOrEqual(8)
+    expect(defs.map((d) => d.variant)).toEqual(
+      expect.arrayContaining(['IDP', 'DYNASTY_IDP', 'DEVY_DYNASTY', 'MERGED_DEVY_C2C'])
+    )
   })
 
   it('resolves NFL IDP preset with NFL-style postseason defaults', () => {
@@ -84,6 +95,18 @@ describe('Prompt 19 playoff defaults by sport and variant', () => {
     expect(resolved.default_playoff_start_point).toBe(15)
     expect(resolved.default_seeding_rules).toBe('standard_standings')
     expect(resolved.default_tiebreaker_rules).toEqual(expect.arrayContaining(['points_for']))
+  })
+
+  it('normalizes DEVY/C2C aliases to dynasty playoff overlays', () => {
+    const devyAlias = getPlayoffPreset('NFL', 'devy')
+    const devyCanonical = getPlayoffPreset('NFL', 'DEVY_DYNASTY')
+    expect(devyAlias.playoff_team_count).toBe(devyCanonical.playoff_team_count)
+    expect(devyAlias.first_round_byes).toBe(0)
+
+    const c2cAlias = getPlayoffPreset('NFL', 'c2c')
+    const c2cCanonical = getPlayoffPreset('NFL', 'MERGED_DEVY_C2C')
+    expect(c2cAlias.playoff_team_count).toBe(c2cCanonical.playoff_team_count)
+    expect(c2cAlias.bye_rules).toBeNull()
   })
 
   it('fills missing playoff keys during bootstrap while preserving existing overrides', async () => {

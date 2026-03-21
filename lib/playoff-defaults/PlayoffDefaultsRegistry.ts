@@ -7,8 +7,17 @@ import type { SportType, DefaultPlayoffConfig } from '@/lib/sport-defaults/types
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
 const DEFAULT_PLAYOFF_VARIANTS_BY_SPORT: Record<SportType, string[]> = {
-  NFL: ['STANDARD', 'PPR', 'HALF_PPR', 'SUPERFLEX', 'IDP', 'DYNASTY_IDP', 'devy_dynasty'],
-  NBA: ['STANDARD', 'devy_dynasty'],
+  NFL: [
+    'STANDARD',
+    'PPR',
+    'HALF_PPR',
+    'SUPERFLEX',
+    'IDP',
+    'DYNASTY_IDP',
+    'DEVY_DYNASTY',
+    'MERGED_DEVY_C2C',
+  ],
+  NBA: ['STANDARD', 'DEVY_DYNASTY', 'MERGED_DEVY_C2C'],
   MLB: ['STANDARD'],
   NHL: ['STANDARD'],
   NCAAF: ['STANDARD'],

@@ -20,6 +20,26 @@ export interface SportVariantContext {
   displayLabel: string
 }
 
+function toLeagueSport(sport: LeagueSport | string): LeagueSport {
+  const normalized = String(sport ?? '')
+    .trim()
+    .toUpperCase() as LeagueSport
+  return SUPPORTED_SPORTS.includes(normalized) ? normalized : DEFAULT_SPORT
+}
+
+function normalizeVariant(variant?: string | null): string | null {
+  const raw = String(variant ?? '').trim()
+  if (!raw) return null
+
+  const upper = raw.toUpperCase()
+  if (upper === 'DEVY' || upper === 'DEVY_DYNASTY') return 'devy_dynasty'
+  if (upper === 'C2C' || upper === 'MERGED_DEVY_C2C') return 'merged_devy_c2c'
+  if (upper === 'IDP' || upper === 'DYNASTY_IDP') return upper
+  if (upper === 'STANDARD' || upper === 'PPR' || upper === 'HALF_PPR' || upper === 'SUPERFLEX') return upper
+  if (upper === 'NO_PLAYOFF') return 'NO_PLAYOFF'
+  return raw
+}
+
 /**
  * Resolve sport and optional variant into a single context for defaults and initialization.
  */
@@ -27,8 +47,8 @@ export function resolveSportVariantContext(
   sport: LeagueSport | string,
   variant?: string | null
 ): SportVariantContext {
-  const s = (typeof sport === 'string' ? sport : sport) as LeagueSport
-  const v = variant?.trim() || null
+  const s = toLeagueSport(sport)
+  const v = normalizeVariant(variant)
   const upperV = v?.toUpperCase() ?? ''
   const isNflIdp = s === 'NFL' && (upperV === 'IDP' || upperV === 'DYNASTY_IDP')
   const formatType = isNflIdp ? 'IDP' : (v ?? 'STANDARD')
@@ -42,7 +62,7 @@ export function resolveSportVariantContext(
   else displayLabel = s
 
   return {
-    sport: SUPPORTED_SPORTS.includes(s) ? s : DEFAULT_SPORT,
+    sport: s,
     variant: v,
     formatType,
     isNflIdp,

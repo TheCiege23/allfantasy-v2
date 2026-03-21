@@ -39,10 +39,20 @@ describe('Prompt 18 waiver defaults by sport and variant', () => {
 
   it('defines waiver presets for supported sports with required fields', () => {
     const sports = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
+    const expectedModes: Record<(typeof sports)[number], string> = {
+      NFL: 'faab',
+      NBA: 'rolling',
+      MLB: 'faab',
+      NHL: 'reverse_standings',
+      NCAAF: 'faab',
+      NCAAB: 'rolling',
+      SOCCER: 'fcfs',
+    }
     for (const sport of sports) {
       const waiver = getWaiverPreset(sport, 'STANDARD')
       expect(waiver.sport_type).toBe(sport)
       expect(typeof waiver.waiver_type).toBe('string')
+      expect(waiver.waiver_type).toBe(expectedModes[sport] as any)
       expect(Array.isArray(waiver.processing_days)).toBe(true)
       expect(typeof waiver.claim_priority_behavior).toBe('string')
       expect(typeof waiver.free_agent_unlock_behavior).toBe('string')
@@ -54,12 +64,23 @@ describe('Prompt 18 waiver defaults by sport and variant', () => {
   it('exposes supported NFL waiver variants and preset definitions', () => {
     const variants = getSupportedWaiverVariantsForSport('NFL')
     expect(variants).toEqual(
-      expect.arrayContaining(['STANDARD', 'PPR', 'HALF_PPR', 'SUPERFLEX', 'IDP', 'DYNASTY_IDP'])
+      expect.arrayContaining([
+        'STANDARD',
+        'PPR',
+        'HALF_PPR',
+        'SUPERFLEX',
+        'IDP',
+        'DYNASTY_IDP',
+        'DEVY_DYNASTY',
+        'MERGED_DEVY_C2C',
+      ])
     )
 
     const defs = getWaiverPresetDefinitions('NFL')
-    expect(defs.length).toBeGreaterThanOrEqual(6)
-    expect(defs.map((d) => d.variant)).toEqual(expect.arrayContaining(['IDP', 'DYNASTY_IDP']))
+    expect(defs.length).toBeGreaterThanOrEqual(8)
+    expect(defs.map((d) => d.variant)).toEqual(
+      expect.arrayContaining(['IDP', 'DYNASTY_IDP', 'DEVY_DYNASTY', 'MERGED_DEVY_C2C'])
+    )
   })
 
   it('resolves waiver preset capabilities for NFL IDP and Soccer', () => {
@@ -70,7 +91,16 @@ describe('Prompt 18 waiver defaults by sport and variant', () => {
 
     const soccer = resolveWaiverPreset('SOCCER', 'STANDARD')
     expect(soccer.supportsIdpClaims).toBe(false)
-    expect(soccer.supportsFaab).toBe(true)
+    expect(soccer.supportsFaab).toBe(false)
+  })
+
+  it('normalizes DEVY and C2C aliases to NFL waiver variant overlays', () => {
+    const devy = getWaiverPreset('NFL', 'DEVY')
+    const c2c = getWaiverPreset('NFL', 'C2C')
+    expect(devy.waiver_type).toBe('rolling')
+    expect(devy.faab_enabled).toBe(false)
+    expect(c2c.waiver_type).toBe('rolling')
+    expect(c2c.faab_enabled).toBe(false)
   })
 
   it('fills only missing waiver keys during bootstrap', async () => {
@@ -100,12 +130,12 @@ describe('Prompt 18 waiver defaults by sport and variant', () => {
 
     const patch = leagueWaiverSettingsUpdateMock.mock.calls[0]?.[0]?.data
     expect(patch.waiverType).toBeUndefined()
-    expect(patch.processingDayOfWeek).toBe(1)
-    expect(patch.processingTimeUtc).toBe('12:00')
-    expect(patch.faabBudget).toBe(100)
-    expect(patch.tiebreakRule).toBe('faab_highest')
+    expect(patch.processingDayOfWeek).toBeNull()
+    expect(patch.processingTimeUtc).toBeNull()
+    expect(patch.faabBudget).toBeNull()
+    expect(patch.tiebreakRule).toBe('earliest_claim')
     expect(patch.lockType).toBe('slate_lock')
-    expect(patch.instantFaAfterClear).toBe(false)
+    expect(patch.instantFaAfterClear).toBe(true)
   })
 
   it('is idempotent when all waiver bootstrap keys already exist', async () => {
@@ -157,13 +187,13 @@ describe('Prompt 18 waiver defaults by sport and variant', () => {
     expect(config?.sport).toBe('NFL')
     expect(config?.variant).toBe('SUPERFLEX')
     expect(config?.waiver_type).toBe('rolling')
-    expect(config?.processing_days).toEqual([3])
+    expect(config?.processing_days).toEqual([2])
     expect(config?.claim_limit_per_period).toBe(6)
-    expect(config?.claim_priority_behavior).toBe('faab_highest')
+    expect(config?.claim_priority_behavior).toBe('priority_lowest_first')
     expect(config?.game_lock_behavior).toBe('game_time')
     expect(config?.free_agent_unlock_behavior).toBe('after_waiver_run')
     expect(config?.faab_enabled).toBe(false)
-    expect(config?.faab_budget).toBe(100)
+    expect(config?.faab_budget).toBeNull()
   })
 
   it('resolves FAAB config with per-key fallback for missing budget', async () => {

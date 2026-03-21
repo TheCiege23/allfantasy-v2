@@ -28,7 +28,7 @@ export const TIEBREAK_RULES = [
 export type TiebreakRule = (typeof TIEBREAK_RULES)[number]
 
 export type LeagueWaiverSettingsInput = {
-  waiverType: WaiverType
+  waiverType?: WaiverType | string
   processingDayOfWeek?: number | null
   processingTimeUtc?: string | null
   claimLimitPerPeriod?: number | null

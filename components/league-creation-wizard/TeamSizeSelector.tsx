@@ -57,7 +57,11 @@ export function TeamSizeSelector({
         <div className="space-y-1.5">
           <Label className="text-white/90">Number of teams</Label>
           <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
-            <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]" title="10 or 12 is most common">
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              title="10 or 12 is most common"
+              aria-label="Number of teams"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -76,7 +80,11 @@ export function TeamSizeSelector({
             value={rosterSize != null ? String(rosterSize) : 'default'}
             onValueChange={(v) => onRosterSizeChange(v === 'default' ? null : Number(v))}
           >
-            <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]" title="Default uses your sport and scoring preset">
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              title="Default uses your sport and scoring preset"
+              aria-label="Roster size"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
