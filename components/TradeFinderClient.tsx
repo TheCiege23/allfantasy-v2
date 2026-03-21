@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,9 +33,22 @@ function computeTradeGrade(finderScore: number, valueDeltaPct: number, confidenc
 }
 
 export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { initialLeagues: League[]; sleeperUserId?: string | null }) {
+  const searchParams = useSearchParams();
+  const requestedLeagueId = searchParams.get('leagueId');
+  const requestedStrategy = searchParams.get('strategy');
+  const dynastyContext = searchParams.get('context') === 'dynasty';
+  const dynastyTeamId = searchParams.get('dynastyTeamId') || '';
+  const initialLeagueId = useMemo(
+    () => (requestedLeagueId && initialLeagues.some((l) => l.id === requestedLeagueId) ? requestedLeagueId : (initialLeagues[0]?.id || '')),
+    [initialLeagues, requestedLeagueId]
+  );
+  const initialStrategy: 'win-now' | 'rebuild' | 'balanced' =
+    requestedStrategy === 'win-now' || requestedStrategy === 'rebuild' || requestedStrategy === 'balanced'
+      ? requestedStrategy
+      : 'balanced';
   const { callAI, loading, error } = useAI<{ recommendations?: any[]; suggestions?: any[]; candidates?: any[]; success?: boolean; meta?: any }>();
-  const [leagueId, setLeagueId] = useState(initialLeagues[0]?.id || '');
-  const [strategy, setStrategy] = useState<'win-now' | 'rebuild' | 'balanced'>('balanced');
+  const [leagueId, setLeagueId] = useState(initialLeagueId);
+  const [strategy, setStrategy] = useState<'win-now' | 'rebuild' | 'balanced'>(initialStrategy);
   const [preset, setPreset] = useState<'NONE' | 'TARGET_POSITION' | 'ACQUIRE_PICKS' | 'CONSOLIDATE'>('NONE');
   const [targetPosition, setTargetPosition] = useState<'QB' | 'RB' | 'WR' | 'TE'>('RB');
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -42,6 +56,7 @@ export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { i
   const [tab, setTab] = useState<'find' | 'partner'>('find');
   const [counterLoading, setCounterLoading] = useState<number | null>(null);
   const [expandedDeepWhy, setExpandedDeepWhy] = useState<Record<string, boolean>>({});
+  const [dismissDynastyContext, setDismissDynastyContext] = useState(false);
 
   const selectedLeague = initialLeagues.find(l => l.id === leagueId);
 
@@ -262,6 +277,25 @@ export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { i
           Partner Match
         </button>
       </div>
+
+      {dynastyContext && !dismissDynastyContext && (
+        <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 text-sm text-violet-100">
+          <div className="flex items-start justify-between gap-2">
+            <p>
+              Dynasty context enabled
+              {dynastyTeamId ? ` for team ${dynastyTeamId}` : ''}. Suggestions should prioritize
+              long-term roster direction, aging risk, and pick-value leverage.
+            </p>
+            <button
+              type="button"
+              onClick={() => setDismissDynastyContext(true)}
+              className="shrink-0 rounded border border-violet-400/30 px-2 py-0.5 text-xs text-violet-200 hover:bg-violet-500/20"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {tab === 'partner' ? (
         <PartnerMatchView leagueId={selectedLeague?.id || leagueId || ''} />

@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import { getDynastyProjectionsForLeague } from '@/lib/dynasty-engine/DynastyQueryService';
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' });
 
@@ -48,6 +50,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
+    const sport = normalizeToSupportedSport(league.sport ?? 'NFL');
+    const sportLower = sport.toLowerCase();
+
     const teams = await (prisma as any).leagueTeam.findMany({
       where: { leagueId },
       include: {
@@ -65,10 +70,12 @@ export async function POST(req: Request) {
     });
 
     const cachedPlayers = await (prisma as any).sportsPlayer.findMany({
-      where: { sport: 'nfl' },
+      where: { sport: sportLower },
       take: 50,
       orderBy: { fetchedAt: 'desc' },
     });
+
+    const dynastyProjections = await getDynastyProjectionsForLeague(leagueId, sport).catch(() => []);
 
     const playerMap = new Map<string, any>();
     for (const p of cachedPlayers) {
@@ -121,12 +128,26 @@ export async function POST(req: Request) {
       ? teamsData.find((t: any) => t.externalId === teamId)
       : null;
 
-    const prompt = `You are a dynasty fantasy expert with 20+ years experience. Focus on long-term value, aging curves, and roster construction.
+    const targetProjection = teamId
+      ? dynastyProjections.find((p) => p.teamId === teamId)
+      : null;
+    const projectionSummary = (targetProjection ? [targetProjection] : dynastyProjections.slice(0, 10))
+      .map((p) =>
+        `Team ${p.teamId}: 3yr ${p.rosterStrength3Year.toFixed(1)}, 5yr ${p.rosterStrength5Year.toFixed(1)}, rebuild ${(
+          p.rebuildProbability * 100
+        ).toFixed(1)}%, window ${p.championshipWindowScore.toFixed(1)}, aging ${p.agingRiskScore.toFixed(
+          1
+        )}, picks ${p.futureAssetScore.toFixed(1)}`
+      )
+      .join('\n');
+
+    const prompt = `You are a dynasty fantasy ${sport} expert with 20+ years experience. Focus on long-term value, aging curves, roster construction, and future pick equity.
 
 Use ONLY the following provided data. Never hallucinate stats or players not in the data. If roster data is limited, base your analysis on scoring trends and record patterns instead.
 
 LEAGUE CONTEXT:
 - Name: ${league.name || 'Unknown'}
+- Sport: ${sport}
 - Format: ${league.isDynasty ? 'Dynasty' : 'Redraft'} | ${league.scoring?.toUpperCase() || 'Standard'} | ${league.leagueSize || '?'}-team
 - Season: ${league.season || 'Current'}
 
@@ -139,8 +160,11 @@ Team: ${t.teamName} (${t.ownerName})
   Current AI Power Score: ${t.aiPowerScore?.toFixed(0) || 'unrated'}
   Roster: ${t.roster}`).join('\n')}
 
-CACHED NFL PLAYER DATABASE (for age/position context):
+CACHED ${sport} PLAYER DATABASE (for age/position context):
 ${cachedPlayers.slice(0, 30).map((p: any) => `${p.name} (${p.position || '?'}, ${p.team || '?'}${p.age ? `, age ${p.age}` : ''}${p.status ? `, ${p.status}` : ''})`).join(', ')}
+
+CURRENT DYNASTY PROJECTION SIGNALS:
+${projectionSummary || 'No persisted dynasty projections were found for this league yet.'}
 
 ${targetTeam ? `FOCUS ANALYSIS ON: ${targetTeam.teamName} (${targetTeam.ownerName})` : 'Analyze the league as a whole from a dynasty perspective.'}
 
@@ -168,7 +192,7 @@ Only reference players, stats, and data that appear above. If roster data is una
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You are a dynasty fantasy football expert. Only use data provided. Output valid JSON.' },
+        { role: 'system', content: `You are a dynasty fantasy ${sport} expert. Only use data provided. Output valid JSON.` },
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
@@ -180,6 +204,7 @@ Only reference players, stats, and data that appear above. If roster data is una
     return NextResponse.json({
       success: true,
       leagueId,
+      sport,
       teamId: teamId || null,
       leagueName: league.name,
       isDynasty: league.isDynasty ?? false,

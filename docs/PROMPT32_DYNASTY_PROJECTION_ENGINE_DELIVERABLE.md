@@ -2,6 +2,11 @@
 
 Production implementation of the dynasty projection engine and mandatory UI/workflow audit for all dynasty-related interactions.
 
+Latest implementation addendum:
+
+- `docs/PROMPT32_IMPLEMENTATION_REPORT.md`
+- `docs/PROMPT32_CLICK_AUDIT_MATRIX.md`
+
 ---
 
 ## 1. Dynasty projection architecture

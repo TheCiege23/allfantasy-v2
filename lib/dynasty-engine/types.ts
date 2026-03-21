@@ -1,23 +1,20 @@
 /**
  * Dynasty Engine — shared types. Sport-aware across NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer.
  */
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  normalizeToSupportedSport,
+  type SupportedSport,
+} from '@/lib/sport-scope'
 
-export const DYNASTY_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAB',
-  'NCAAF',
-  'SOCCER',
-] as const
+export const DYNASTY_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
 
-export type DynastySport = (typeof DYNASTY_SPORTS)[number]
+export type DynastySport = SupportedSport
 
 export function normalizeSportForDynasty(sport: string): DynastySport {
   const u = sport?.toUpperCase?.() || DEFAULT_SPORT
-  if (DYNASTY_SPORTS.includes(u as DynastySport)) return u as DynastySport
+  if (DYNASTY_SPORTS.includes(u as DynastySport)) return normalizeToSupportedSport(u)
   const map: Record<string, DynastySport> = {
     NFL: 'NFL',
     NHL: 'NHL',
@@ -27,7 +24,7 @@ export function normalizeSportForDynasty(sport: string): DynastySport {
     NCAAF: 'NCAAF',
     SOCCER: 'SOCCER',
   }
-  return map[u] ?? (DEFAULT_SPORT as DynastySport)
+  return normalizeToSupportedSport(map[u] ?? u)
 }
 
 export interface DynastyProjectionOutput {

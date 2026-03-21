@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useMemo, useState, useEffect, useCallback } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
 import LeagueIntelligenceGraphPanel from "@/components/app/league-intelligence/LeagueIntelligenceGraphPanel"
 import { LeagueForecastSection } from "@/components/simulation/LeagueForecastSection"
+import { DynastyProjectionPanel } from "@/components/dynasty/DynastyProjectionPanel"
+import WarehouseHistoryPanel from "@/components/app/tabs/WarehouseHistoryPanel"
 import { useLegacyTab } from "@/hooks/useLegacyTab"
 import { postMarketRefresh } from "@/lib/api/legacy"
 import type {
@@ -48,6 +50,10 @@ const LEAGUE_TABS: LeagueTab[] = [
   "Settings",
   "Previous Leagues",
 ]
+
+function isLeagueTab(tab: string | null): tab is LeagueTab {
+  return tab != null && LEAGUE_TABS.includes(tab as LeagueTab)
+}
 
 type LeagueSummary = {
   id: string
@@ -110,6 +116,7 @@ function InlineNote({ text }: { text: string }) {
 
 export default function LeagueHomeShellPage() {
   const params = useParams<{ leagueId: string }>()
+  const searchParams = useSearchParams()
   const leagueId = params?.leagueId || "unknown"
   const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState<LeagueTab>("Overview")
@@ -129,16 +136,6 @@ export default function LeagueHomeShellPage() {
 
   const [waiverRefresh, setWaiverRefresh] = useState<LegacyApiResponse<MarketRefreshData> | null>(null)
   const [waiverLoading, setWaiverLoading] = useState<boolean>(false)
-
-  const [leagueHistorySummary, setLeagueHistorySummary] = useState<{
-    matchupCount: number
-    standingCount: number
-    rosterSnapshotCount: number
-    draftFactCount: number
-    transactionCount: number
-  } | null>(null)
-  const [leagueHistoryLoading, setLeagueHistoryLoading] = useState<boolean>(false)
-  const [leagueHistoryError, setLeagueHistoryError] = useState<string | null>(null)
 
   const isAuthenticated = status === "authenticated"
 
@@ -197,7 +194,14 @@ export default function LeagueHomeShellPage() {
   )
 
   const loadLeagueData = useCallback(async () => {
-    if (!isAuthenticated || !leagueId) return
+    if (!leagueId) {
+      setLoadingLeagueData(false)
+      return
+    }
+    if (!isAuthenticated) {
+      setLoadingLeagueData(false)
+      return
+    }
     setLoadingLeagueData(true)
     setDataError(null)
 
@@ -251,37 +255,11 @@ export default function LeagueHomeShellPage() {
   }, [loadLeagueData])
 
   useEffect(() => {
-    if (activeTab !== "Previous Leagues" || !leagueId) return
-    let mounted = true
-    setLeagueHistoryError(null)
-    setLeagueHistoryLoading(true)
-    fetch(`/api/warehouse/league-history?leagueId=${encodeURIComponent(leagueId)}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!mounted) return
-        if (data?.error) {
-          setLeagueHistoryError(data.error)
-          setLeagueHistorySummary(null)
-          return
-        }
-        setLeagueHistorySummary({
-          matchupCount: data.matchupCount ?? 0,
-          standingCount: data.standingCount ?? 0,
-          rosterSnapshotCount: data.rosterSnapshotCount ?? 0,
-          draftFactCount: data.draftFactCount ?? 0,
-          transactionCount: data.transactionCount ?? 0,
-        })
-      })
-      .catch((err) => {
-        if (!mounted) return
-        setLeagueHistoryError(err?.message ?? "Failed to load league history")
-        setLeagueHistorySummary(null)
-      })
-      .finally(() => {
-        if (mounted) setLeagueHistoryLoading(false)
-      })
-    return () => { mounted = false }
-  }, [activeTab, leagueId])
+    const tabParam = searchParams.get("tab")
+    if (isLeagueTab(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     let mounted = true
@@ -628,6 +606,15 @@ export default function LeagueHomeShellPage() {
                     )}
                   />
                 </Card>
+                <Card title="Dynasty projection engine">
+                  <DynastyProjectionPanel
+                    leagueId={leagueId}
+                    teamNames={Object.fromEntries(
+                      (standings ?? []).map((s) => [s.entryId, s.entryName])
+                    )}
+                    onBackToOverview={() => setActiveTab("Overview")}
+                  />
+                </Card>
               </div>
             )}
 
@@ -698,30 +685,10 @@ export default function LeagueHomeShellPage() {
 
             {activeTab === "Previous Leagues" && (
               <Card title="Previous Leagues">
-                {leagueHistoryLoading && (
-                  <p className="text-sm text-white/60">Loading historical data…</p>
-                )}
-                {leagueHistoryError && (
-                  <p className="text-sm text-red-400">{leagueHistoryError}</p>
-                )}
-                {!leagueHistoryLoading && !leagueHistoryError && leagueHistorySummary && (
-                  <div className="space-y-2 text-sm text-white/80">
-                    <p>Warehouse-backed history for this league:</p>
-                    <ul className="list-disc list-inside">
-                      <li>Matchups: {leagueHistorySummary.matchupCount}</li>
-                      <li>Standings snapshots: {leagueHistorySummary.standingCount}</li>
-                      <li>Roster snapshots: {leagueHistorySummary.rosterSnapshotCount}</li>
-                      <li>Draft picks: {leagueHistorySummary.draftFactCount}</li>
-                      <li>Transactions: {leagueHistorySummary.transactionCount}</li>
-                    </ul>
-                    {leagueHistorySummary.matchupCount === 0 && leagueHistorySummary.standingCount === 0 && (
-                      <InlineNote text="No historical snapshots yet. Run ingestion pipelines or backfill to populate the data warehouse." />
-                    )}
-                  </div>
-                )}
-                {!leagueHistoryLoading && !leagueHistoryError && !leagueHistorySummary && (
-                  <InlineNote text="Archived season view is powered by the fantasy data warehouse. Load this tab to fetch summary." />
-                )}
+                <WarehouseHistoryPanel
+                  leagueId={leagueId}
+                  onBackToOverview={() => setActiveTab("Overview")}
+                />
               </Card>
             )}
           </>

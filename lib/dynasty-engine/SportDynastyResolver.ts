@@ -48,5 +48,5 @@ export function getPeakAgeRange(
 /** Whether the sport/format is typically dynasty-oriented (long-term roster value). */
 export function isDynastyRelevant(sport: string): boolean {
   const s = normalizeSportForDynasty(sport)
-  return ['NFL', 'NBA', 'NHL', 'MLB'].includes(s)
+  return DYNASTY_SPORTS.includes(s)
 }

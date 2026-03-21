@@ -18,6 +18,7 @@ import {
   Radio,
   Gift,
   Share2,
+  BarChart3,
 } from 'lucide-react'
 import { groupLeaguesBySport } from '@/lib/dashboard'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
@@ -73,6 +74,12 @@ export default function FinalDashboardClient() {
     [buildLeagueContextHref, firstLeague?.id]
   )
   const aiSuggestionsHref = firstLeague?.id ? `/app/league/${firstLeague.id}?tab=Advisor` : buildLeagueContextHref('/app/coach')
+  const warehouseHistoryHref = firstLeague?.id
+    ? `/leagues/${firstLeague.id}?tab=${encodeURIComponent('Previous Leagues')}`
+    : '/leagues'
+  const dynastyOutlookHref = firstLeague?.id
+    ? `/leagues/${firstLeague.id}?tab=${encodeURIComponent('Standings/Playoffs')}`
+    : '/rankings'
   const chimmyHref = buildLeagueContextHref('/chimmy')
 
   if (status === 'loading') {
@@ -324,6 +331,61 @@ export default function FinalDashboardClient() {
             <p className="text-xs text-cyan-300/80">Start/sit, waivers, trade tips</p>
           </div>
           <ChevronRight className="h-4 w-4 text-cyan-400/70 shrink-0" />
+        </Link>
+      </section>
+
+      <section className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Meta analytics">
+        <Link
+          href="/app/meta-insights"
+          className="flex items-center gap-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 p-4 min-h-[64px] hover:bg-indigo-500/15 active:scale-[0.99] transition"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">Meta insights</p>
+            <p className="text-xs text-indigo-200/80">Draft, waiver, trade, roster, strategy trends</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-indigo-300/70 shrink-0" />
+        </Link>
+        <Link
+          href="/app/trend-feed"
+          className="flex items-center gap-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 p-4 min-h-[64px] hover:bg-fuchsia-500/15 active:scale-[0.99] transition"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-fuchsia-500/20 text-fuchsia-300">
+            <Zap className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">Trend feed</p>
+            <p className="text-xs text-fuchsia-200/80">Player momentum and AI trend explanations</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-fuchsia-300/70 shrink-0" />
+        </Link>
+        <Link
+          href={warehouseHistoryHref}
+          className="flex items-center gap-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4 min-h-[64px] hover:bg-emerald-500/15 active:scale-[0.99] transition"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">League history warehouse</p>
+            <p className="text-xs text-emerald-200/80">Historical facts, drill-downs, exports, AI context</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-emerald-300/70 shrink-0" />
+        </Link>
+        <Link
+          href={dynastyOutlookHref}
+          className="flex items-center gap-3 rounded-xl bg-violet-500/10 border border-violet-500/20 p-4 min-h-[64px] hover:bg-violet-500/15 active:scale-[0.99] transition"
+        >
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/20 text-violet-300">
+            <Crown className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white">Dynasty outlook cards</p>
+            <p className="text-xs text-violet-200/80">3y/5y projection cards, rebuild odds, future asset drill-down</p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-violet-300/70 shrink-0" />
         </Link>
       </section>
 

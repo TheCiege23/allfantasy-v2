@@ -24,6 +24,11 @@ export {
   type RosterFutureValueBreakdown,
   type DraftPickValueBreakdown,
 } from './DynastyValueModel'
+export {
+  valueFuturePicks as valueDynastyFuturePicks,
+  type FuturePickAsset as DynastyFuturePickAsset,
+  type DraftPickValueBreakdown as DynastyDraftPickValueBreakdown,
+} from './DraftPickValueModel'
 export { calculateRosterStrength } from './RosterStrengthCalculator'
 export {
   generateDynastyProjection,

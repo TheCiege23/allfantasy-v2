@@ -5,13 +5,18 @@ import Link from 'next/link'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import type { PlayerDynastyIntelligence } from '@/lib/dynasty-intelligence'
 
-const POSITIONS_NFL = ['QB', 'RB', 'WR', 'TE'] as const
-const POSITIONS_NBA = ['PG', 'SG', 'SF', 'PF', 'C'] as const
+const POSITIONS_BY_SPORT: Record<string, readonly string[]> = {
+  NFL: ['QB', 'RB', 'WR', 'TE'],
+  NHL: ['C', 'LW', 'RW', 'D', 'G'],
+  NBA: ['PG', 'SG', 'SF', 'PF', 'C'],
+  MLB: ['SP', 'RP', 'C', '1B', '2B', '3B', 'SS', 'OF'],
+  NCAAB: ['PG', 'SG', 'SF', 'PF', 'C'],
+  NCAAF: ['QB', 'RB', 'WR', 'TE'],
+  SOCCER: ['FWD', 'MID', 'DEF', 'GK'],
+}
 
 function getPositionsForSport(sport: string): readonly string[] {
-  if (sport === 'NFL') return POSITIONS_NFL
-  if (sport === 'NBA') return POSITIONS_NBA
-  return POSITIONS_NFL
+  return POSITIONS_BY_SPORT[sport] ?? POSITIONS_BY_SPORT.NFL
 }
 
 export default function DynastyInsightsPage() {
@@ -85,6 +90,7 @@ export default function DynastyInsightsPage() {
               setSport(e.target.value as typeof sport)
               setPosition(getPositionsForSport(e.target.value)[0] ?? 'WR')
             }}
+            aria-label="Dynasty insights sport filter"
             className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           >
             {SUPPORTED_SPORTS.map((s) => (
@@ -99,6 +105,7 @@ export default function DynastyInsightsPage() {
           <select
             value={position}
             onChange={(e) => setPosition(e.target.value)}
+            aria-label="Dynasty insights position filter"
             className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           >
             {positions.map((p) => (
@@ -116,6 +123,7 @@ export default function DynastyInsightsPage() {
             max={45}
             value={age}
             onChange={(e) => setAge(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+            aria-label="Dynasty insights player age"
             className="w-20 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           />
         </label>
@@ -128,6 +136,7 @@ export default function DynastyInsightsPage() {
             onChange={(e) =>
               setBaseValue(e.target.value === '' ? '' : parseFloat(e.target.value))
             }
+            aria-label="Dynasty insights base value"
             className="w-24 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           />
         </label>
@@ -138,6 +147,7 @@ export default function DynastyInsightsPage() {
             placeholder="e.g. sleeper id"
             value={playerId}
             onChange={(e) => setPlayerId(e.target.value)}
+            aria-label="Dynasty insights player id"
             className="w-32 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
           />
         </label>
@@ -145,6 +155,7 @@ export default function DynastyInsightsPage() {
           type="button"
           onClick={() => load()}
           disabled={loading}
+          aria-label="Refresh dynasty insights"
           className="rounded bg-slate-200 px-3 py-1.5 text-sm dark:bg-slate-700 disabled:opacity-50"
         >
           {loading ? 'Loading…' : 'Update'}
@@ -156,6 +167,7 @@ export default function DynastyInsightsPage() {
             load(true)
           }}
           disabled={loading || loadingAI}
+          aria-label="Get AI dynasty insights"
           className="rounded bg-violet-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
         >
           {loadingAI ? 'AI…' : 'Get AI insight'}
