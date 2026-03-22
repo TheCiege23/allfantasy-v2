@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server"
-import { getEntryById } from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
+import { getEntryByIdScoped } from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
 import { entryToNarrativeContext, buildWhyInductedPromptContext } from "@/lib/hall-of-fame-engine/AIHallOfFameNarrativeAdapter"
+import { getHallOfFameEntryWithLegacy } from "@/lib/prestige-governance/HallOfFameLegacyBridge"
 
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ leagueId: string; entryId: string }> }
 ) {
   try {
-    const { entryId } = await ctx.params
+    const { leagueId, entryId } = await ctx.params
+    if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
     if (!entryId) return NextResponse.json({ error: "Missing entryId" }, { status: 400 })
 
-    const entry = await getEntryById(entryId)
+    const entry = await getEntryByIdScoped({ entryId, leagueId })
     if (!entry) return NextResponse.json({ error: "Entry not found" }, { status: 404 })
+    const enriched = await getHallOfFameEntryWithLegacy({ entryId, leagueId }).catch(() => null)
 
     const narrativeContext = entryToNarrativeContext(entry)
     const whyInductedPrompt = buildWhyInductedPromptContext(narrativeContext)
@@ -30,6 +33,24 @@ export async function GET(
         inductedAt: entry.inductedAt.toISOString(),
         score: entry.score,
         metadata: entry.metadata,
+        legacy:
+          enriched?.legacy != null
+            ? {
+                id: enriched.legacy.id,
+                entityType: enriched.legacy.entityType,
+                entityId: enriched.legacy.entityId,
+                sport: enriched.legacy.sport,
+                leagueId: enriched.legacy.leagueId,
+                overallLegacyScore: enriched.legacy.overallLegacyScore,
+                championshipScore: enriched.legacy.championshipScore,
+                playoffScore: enriched.legacy.playoffScore,
+                consistencyScore: enriched.legacy.consistencyScore,
+                rivalryScore: enriched.legacy.rivalryScore,
+                awardsScore: enriched.legacy.awardsScore,
+                dynastyScore: enriched.legacy.dynastyScore,
+                updatedAt: enriched.legacy.updatedAt.toISOString(),
+              }
+            : null,
       },
       narrativeContext,
       whyInductedPrompt,

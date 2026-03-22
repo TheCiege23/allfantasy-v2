@@ -3,7 +3,12 @@
  * Used when showing "Why inducted?" and "View legacy score" for the same entity.
  */
 
-import { getEntryById, getMomentById } from '@/lib/hall-of-fame-engine/HallOfFameQueryService'
+import {
+  getEntryById,
+  getEntryByIdScoped,
+  getMomentById,
+  getMomentByIdScoped,
+} from '@/lib/hall-of-fame-engine/HallOfFameQueryService'
 import { getLegacyScoreByEntity } from '@/lib/legacy-score-engine/LegacyRankingService'
 import type { LegacyScoreRow } from '@/lib/legacy-score-engine/LegacyRankingService'
 
@@ -39,9 +44,14 @@ export interface HallOfFameMomentWithLegacy {
  * Enrich a Hall of Fame entry with legacy score when the entry is for a MANAGER or TEAM.
  */
 export async function getHallOfFameEntryWithLegacy(
-  entryId: string
+  input: { entryId: string; leagueId?: string | null }
 ): Promise<HallOfFameEntryWithLegacy | null> {
-  const entry = await getEntryById(entryId)
+  const entry = input.leagueId
+    ? await getEntryByIdScoped({
+        entryId: input.entryId,
+        leagueId: input.leagueId,
+      })
+    : await getEntryById(input.entryId)
   if (!entry) return null
 
   const legacy =
@@ -73,20 +83,25 @@ export async function getHallOfFameEntryWithLegacy(
  * Enrich a Hall of Fame moment with legacy scores for related managers.
  */
 export async function getHallOfFameMomentWithLegacy(
-  momentId: string
+  input: { momentId: string; leagueId?: string | null }
 ): Promise<HallOfFameMomentWithLegacy | null> {
-  const moment = await getMomentById(momentId)
+  const moment = input.leagueId
+    ? await getMomentByIdScoped({
+        momentId: input.momentId,
+        leagueId: input.leagueId,
+      })
+    : await getMomentById(input.momentId)
   if (!moment) return null
 
   const relatedLegacy = new Map<string, LegacyScoreRow>()
-  for (const managerId of moment.relatedManagerIds) {
-    const rec = await getLegacyScoreByEntity(
-      'MANAGER',
-      managerId,
-      moment.sport,
-      moment.leagueId
-    )
-    if (rec) relatedLegacy.set(managerId, rec)
+  const managerScores = await Promise.all(
+    moment.relatedManagerIds.map(async (managerId) => {
+      const rec = await getLegacyScoreByEntity('MANAGER', managerId, moment.sport, moment.leagueId)
+      return rec ? { managerId, rec } : null
+    })
+  )
+  for (const row of managerScores) {
+    if (row?.rec) relatedLegacy.set(row.managerId, row.rec)
   }
 
   return {

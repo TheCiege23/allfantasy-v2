@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { runLegacyScoreEngineForLeague } from "@/lib/legacy-score-engine/LegacyScoreEngine"
+import type { LegacyEntityType } from "@/lib/legacy-score-engine/types"
 
 export const dynamic = "force-dynamic"
 
@@ -8,21 +9,40 @@ export const dynamic = "force-dynamic"
  * Run legacy score engine for all managers in the league.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
 
-    const { processed, results } = await runLegacyScoreEngineForLeague(leagueId, {
-      replace: true,
-    })
+    const body = (await req.json().catch(() => ({}))) as Partial<{
+      sport: string
+      replace: boolean
+      entityTypes: string[]
+    }>
+    const requestedEntityTypes = Array.isArray(body.entityTypes)
+      ? body.entityTypes
+          .map((row) => String(row ?? "").trim().toUpperCase())
+          .filter((row): row is LegacyEntityType =>
+            row === "MANAGER" || row === "TEAM" || row === "FRANCHISE"
+          )
+      : []
+
+    const { processed, managerProcessed, teamProcessed, franchiseProcessed, results } =
+      await runLegacyScoreEngineForLeague(leagueId, {
+        sport: body.sport,
+        replace: body.replace !== false,
+        ...(requestedEntityTypes.length > 0 ? { entityTypes: requestedEntityTypes } : {}),
+      })
     return NextResponse.json({
       ok: true,
       leagueId,
       processed,
-      results: results.slice(0, 50),
+      managerProcessed,
+      teamProcessed,
+      franchiseProcessed,
+      results: results.slice(0, 80),
     })
   } catch (e) {
     console.error("[legacy-score/run POST]", e instanceof Error ? e.message : e)

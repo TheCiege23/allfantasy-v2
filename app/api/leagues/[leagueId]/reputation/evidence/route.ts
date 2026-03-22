@@ -20,10 +20,20 @@ export async function GET(
     if (!managerId) return NextResponse.json({ error: 'Missing managerId' }, { status: 400 })
 
     const sport = url.searchParams.get('sport') ?? undefined
+    const evidenceType = url.searchParams.get('evidenceType') ?? undefined
+    const seasonRaw = url.searchParams.get('season')
+    const seasonParsed = seasonRaw != null ? parseInt(seasonRaw, 10) : NaN
+    const season =
+      Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed) ? seasonParsed : undefined
     const limitParam = url.searchParams.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 100) : 50
 
-    const evidence = await listEvidenceForManager(leagueId, managerId, { sport, limit })
+    const evidence = await listEvidenceForManager(leagueId, managerId, {
+      sport,
+      season,
+      evidenceType,
+      limit,
+    })
     return NextResponse.json({ leagueId, managerId, evidence })
   } catch (e) {
     console.error('[reputation/evidence GET]', e)

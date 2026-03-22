@@ -6,6 +6,7 @@ interface LegacyScoreData {
   overallLegacyScore: number
   entityType: string
   entityId: string
+  sport?: string
 }
 
 /**
@@ -15,17 +16,20 @@ export function LegacyScoreBadge({
   leagueId,
   entityType = "MANAGER",
   entityId,
+  sport,
   showScore = true,
   className = "",
 }: {
   leagueId: string
   entityType?: string
   entityId: string
+  sport?: string
   showScore?: boolean
   className?: string
 }) {
   const [data, setData] = useState<LegacyScoreData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!leagueId || !entityId) {
@@ -33,16 +37,29 @@ export function LegacyScoreBadge({
       return
     }
     setLoading(true)
-    const url = `/api/leagues/${encodeURIComponent(leagueId)}/legacy-score?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`
+    setError(null)
+    const ep = new URLSearchParams({
+      entityType,
+      entityId,
+      ...(sport ? { sport } : {}),
+    })
+    const url = `/api/leagues/${encodeURIComponent(leagueId)}/legacy-score?${ep.toString()}`
     fetch(url, { cache: "no-store" })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const res = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(res?.error ?? "Failed to load legacy score")
+        return res
+      })
       .then((res) => {
         if (res?.record) setData(res.record)
         else setData(null)
       })
-      .catch(() => setData(null))
+      .catch((e: any) => {
+        setData(null)
+        setError(e?.message ?? "Failed to load legacy score")
+      })
       .finally(() => setLoading(false))
-  }, [leagueId, entityType, entityId])
+  }, [leagueId, entityType, entityId, sport])
 
   if (loading) {
     return (
@@ -52,7 +69,16 @@ export function LegacyScoreBadge({
       />
     )
   }
-  if (!data) return null
+  if (!data) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-white/45 ${className}`}
+        title={error ? `Legacy unavailable: ${error}` : "Legacy score not generated yet"}
+      >
+        No legacy
+      </span>
+    )
+  }
 
   const score = data.overallLegacyScore
   const tier =

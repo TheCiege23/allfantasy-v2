@@ -63,7 +63,11 @@ export async function buildGraphNodes(
 
   const [reputationRows, hallEntries] = await Promise.all([
     prisma.managerReputationRecord.findMany({
-      where: { leagueId },
+      where: {
+        leagueId,
+        ...(seasonNum != null ? { season: seasonNum } : {}),
+      },
+      orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
       select: {
         managerId: true,
         overallScore: true,
@@ -73,7 +77,7 @@ export async function buildGraphNodes(
       },
     }).catch(() => []),
     prisma.hallOfFameEntry.findMany({
-      where: { leagueId, entityType: { in: ["Manager", "manager"] } },
+      where: { leagueId, entityType: { in: ["MANAGER", "Manager", "manager"] } },
       select: { entityId: true, score: true, inductedAt: true },
       take: 500,
     }).catch(() => []),
@@ -91,6 +95,7 @@ export async function buildGraphNodes(
   for (const row of reputationRows) {
     const k = managerKey(row.managerId);
     if (!k) continue;
+    if (reputationByManager.has(k)) continue;
     reputationByManager.set(k, {
       overallScore: row.overallScore,
       tier: row.tier,

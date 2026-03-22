@@ -3146,6 +3146,7 @@ model ManagerReputationRecord {
   leagueId               String   @db.VarChar(64)
   managerId              String   @db.VarChar(128)
   sport                  String   @db.VarChar(16)
+  season                 Int      @default(0)
   overallScore           Float    @default(0)
   reliabilityScore       Float    @default(0)
   activityScore          Float    @default(0)
@@ -3158,8 +3159,8 @@ model ManagerReputationRecord {
   tier                   String   @db.VarChar(32)
   updatedAt              DateTime @updatedAt
 
-  @@unique([leagueId, managerId])
-  @@index([leagueId, sport])
+  @@unique([leagueId, managerId, sport, season], name: "manager_reputation_records_unique_scope")
+  @@index([leagueId, sport, season])
   @@index([managerId])
   @@index([tier])
   @@map("manager_reputation_records")
@@ -3171,15 +3172,31 @@ model ReputationEvidenceRecord {
   managerId       String   @db.VarChar(128)
   leagueId        String   @db.VarChar(64)
   sport           String   @db.VarChar(16)
+  season          Int      @default(0)
   evidenceType    String   @db.VarChar(64)
   value           Float    @default(0)
   sourceReference String?  @db.VarChar(256)
   createdAt       DateTime @default(now())
 
-  @@index([managerId, leagueId])
+  @@index([managerId, leagueId, season])
   @@index([leagueId, evidenceType])
-  @@index([sport, evidenceType])
+  @@index([sport, season, evidenceType])
   @@map("reputation_evidence_records")
+}
+
+/// Reputation System — per-league configurable weight and tier config by sport/season.
+model ReputationConfigRecord {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  sport          String   @db.VarChar(16)
+  season         Int      @default(0)
+  tierThresholds Json?
+  scoreWeights   Json?
+  updatedAt      DateTime @updatedAt
+
+  @@unique([leagueId, sport, season], name: "reputation_config_records_scope_unique")
+  @@index([leagueId, sport])
+  @@map("reputation_config_records")
 }
 
 /// GM Economy — franchise profile per manager (cross-league career progression).
@@ -3535,6 +3552,9 @@ model League {
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
+  aiCommissionerConfig     AiCommissionerConfig?
+  aiCommissionerAlerts     AiCommissionerAlert[]
+  aiCommissionerActionLogs AiCommissionerActionLog[]
   user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
   legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
   legacyLeagueId     String?               @unique
@@ -3761,6 +3781,67 @@ model LeagueChatMessage {
   @@index([leagueId, source])
   @@index([createdAt])
   @@map("league_chat_messages")
+}
+
+model AiCommissionerConfig {
+  configId                       String      @id @default(uuid())
+  leagueId                       String      @unique
+  sport                          LeagueSport @default(NFL)
+  remindersEnabled               Boolean     @default(true)
+  disputeAnalysisEnabled         Boolean     @default(true)
+  collusionMonitoringEnabled     Boolean     @default(true)
+  voteSuggestionEnabled          Boolean     @default(true)
+  inactivityMonitoringEnabled    Boolean     @default(true)
+  commissionerNotificationMode   String      @default("in_app") @db.VarChar(24)
+  createdAt                      DateTime    @default(now())
+  updatedAt                      DateTime    @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, sport])
+  @@map("ai_commissioner_configs")
+}
+
+model AiCommissionerAlert {
+  alertId           String      @id @default(uuid())
+  leagueId          String
+  sport             LeagueSport @default(NFL)
+  alertType         String      @db.VarChar(48)
+  severity          String      @default("medium") @db.VarChar(16)
+  headline          String      @db.VarChar(220)
+  summary           String      @db.Text
+  relatedManagerIds Json?       @default("[]")
+  relatedTradeId    String?     @db.VarChar(128)
+  relatedMatchupId  String?     @db.VarChar(128)
+  status            String      @default("open") @db.VarChar(24)
+  snoozedUntil      DateTime?
+  createdAt         DateTime    @default(now())
+  resolvedAt        DateTime?
+  updatedAt         DateTime    @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt(sort: Desc)])
+  @@index([leagueId, status, createdAt(sort: Desc)])
+  @@index([leagueId, alertType])
+  @@map("ai_commissioner_alerts")
+}
+
+model AiCommissionerActionLog {
+  actionId     String      @id @default(uuid())
+  leagueId     String
+  sport        LeagueSport @default(NFL)
+  actionType   String      @db.VarChar(48)
+  source       String      @db.VarChar(48)
+  summary      String      @db.Text
+  relatedAlertId String?   @db.VarChar(128)
+  createdAt    DateTime    @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt(sort: Desc)])
+  @@index([leagueId, actionType])
+  @@map("ai_commissioner_action_logs")
 }
 
 enum LeagueSport {

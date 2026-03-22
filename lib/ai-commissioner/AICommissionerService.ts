@@ -1,0 +1,400 @@
+import type {
+  AiCommissionerActionLog,
+  AiCommissionerAlert,
+  AiCommissionerConfig,
+  LeagueSport,
+} from '@prisma/client'
+import { prisma } from '@/lib/prisma'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
+import { createSystemMessage } from '@/lib/platform/chat-service'
+import { analyzeLeagueGovernance } from './LeagueGovernanceAnalyzer'
+import { generateCommissionerAlerts } from './CommissionerAlertGenerator'
+import {
+  normalizeSportForCommissioner,
+  toLeagueSport,
+} from './SportCommissionerResolver'
+import type {
+  AICommissionerActionLogView,
+  AICommissionerAlertStatus,
+  AICommissionerAlertView,
+  AICommissionerConfigView,
+  AICommissionerNotificationMode,
+  GovernanceAnalysis,
+} from './types'
+
+type AlertAction = 'approve' | 'dismiss' | 'snooze' | 'resolve' | 'reopen'
+
+function toIso(value: Date | null | undefined): string | null {
+  return value ? value.toISOString() : null
+}
+
+function asManagerIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.map((v) => String(v ?? '').trim()).filter(Boolean)
+}
+
+function normalizeNotificationMode(value: string | null | undefined): AICommissionerNotificationMode {
+  const next = String(value ?? '').trim().toLowerCase()
+  if (next === 'off' || next === 'chat' || next === 'both' || next === 'in_app') return next
+  return 'in_app'
+}
+
+export function toConfigView(config: AiCommissionerConfig): AICommissionerConfigView {
+  return {
+    configId: config.configId,
+    leagueId: config.leagueId,
+    sport: config.sport,
+    remindersEnabled: config.remindersEnabled,
+    disputeAnalysisEnabled: config.disputeAnalysisEnabled,
+    collusionMonitoringEnabled: config.collusionMonitoringEnabled,
+    voteSuggestionEnabled: config.voteSuggestionEnabled,
+    inactivityMonitoringEnabled: config.inactivityMonitoringEnabled,
+    commissionerNotificationMode: normalizeNotificationMode(config.commissionerNotificationMode),
+    updatedAt: config.updatedAt.toISOString(),
+  }
+}
+
+export function toAlertView(alert: AiCommissionerAlert): AICommissionerAlertView {
+  return {
+    alertId: alert.alertId,
+    leagueId: alert.leagueId,
+    sport: alert.sport,
+    alertType: alert.alertType as AICommissionerAlertView['alertType'],
+    severity: alert.severity as AICommissionerAlertView['severity'],
+    headline: alert.headline,
+    summary: alert.summary,
+    relatedManagerIds: asManagerIds(alert.relatedManagerIds),
+    relatedTradeId: alert.relatedTradeId ?? null,
+    relatedMatchupId: alert.relatedMatchupId ?? null,
+    status: alert.status as AICommissionerAlertView['status'],
+    snoozedUntil: toIso(alert.snoozedUntil),
+    createdAt: alert.createdAt.toISOString(),
+    resolvedAt: toIso(alert.resolvedAt),
+  }
+}
+
+export function toActionLogView(log: AiCommissionerActionLog): AICommissionerActionLogView {
+  return {
+    actionId: log.actionId,
+    leagueId: log.leagueId,
+    sport: log.sport,
+    actionType: log.actionType,
+    source: log.source,
+    summary: log.summary,
+    relatedAlertId: log.relatedAlertId ?? null,
+    createdAt: log.createdAt.toISOString(),
+  }
+}
+
+export async function ensureAICommissionerConfig(input: {
+  leagueId: string
+  sport?: string | null
+}): Promise<AiCommissionerConfig> {
+  const league = await prisma.league.findUnique({
+    where: { id: input.leagueId },
+    select: { id: true, sport: true },
+  })
+  if (!league) throw new Error('League not found')
+  const sport = toLeagueSport(input.sport ?? league.sport ?? null)
+
+  const config = await prisma.aiCommissionerConfig.upsert({
+    where: { leagueId: input.leagueId },
+    create: {
+      leagueId: input.leagueId,
+      sport,
+      remindersEnabled: true,
+      disputeAnalysisEnabled: true,
+      collusionMonitoringEnabled: true,
+      voteSuggestionEnabled: true,
+      inactivityMonitoringEnabled: true,
+      commissionerNotificationMode: 'in_app',
+    },
+    update: {
+      sport,
+    },
+  })
+  return config
+}
+
+export async function updateAICommissionerConfig(
+  leagueId: string,
+  patch: Partial<{
+    sport: string | null
+    remindersEnabled: boolean
+    disputeAnalysisEnabled: boolean
+    collusionMonitoringEnabled: boolean
+    voteSuggestionEnabled: boolean
+    inactivityMonitoringEnabled: boolean
+    commissionerNotificationMode: AICommissionerNotificationMode
+  }>
+): Promise<AiCommissionerConfig> {
+  const current = await ensureAICommissionerConfig({ leagueId, sport: patch.sport ?? null })
+  return prisma.aiCommissionerConfig.update({
+    where: { configId: current.configId },
+    data: {
+      ...(patch.sport ? { sport: toLeagueSport(patch.sport) } : {}),
+      ...(patch.remindersEnabled !== undefined ? { remindersEnabled: !!patch.remindersEnabled } : {}),
+      ...(patch.disputeAnalysisEnabled !== undefined
+        ? { disputeAnalysisEnabled: !!patch.disputeAnalysisEnabled }
+        : {}),
+      ...(patch.collusionMonitoringEnabled !== undefined
+        ? { collusionMonitoringEnabled: !!patch.collusionMonitoringEnabled }
+        : {}),
+      ...(patch.voteSuggestionEnabled !== undefined
+        ? { voteSuggestionEnabled: !!patch.voteSuggestionEnabled }
+        : {}),
+      ...(patch.inactivityMonitoringEnabled !== undefined
+        ? { inactivityMonitoringEnabled: !!patch.inactivityMonitoringEnabled }
+        : {}),
+      ...(patch.commissionerNotificationMode
+        ? { commissionerNotificationMode: normalizeNotificationMode(patch.commissionerNotificationMode) }
+        : {}),
+    },
+  })
+}
+
+export async function appendAICommissionerActionLog(input: {
+  leagueId: string
+  sport: LeagueSport
+  actionType: string
+  source: string
+  summary: string
+  relatedAlertId?: string | null
+}): Promise<void> {
+  await prisma.aiCommissionerActionLog.create({
+    data: {
+      leagueId: input.leagueId,
+      sport: input.sport,
+      actionType: input.actionType,
+      source: input.source,
+      summary: input.summary,
+      relatedAlertId: input.relatedAlertId ?? null,
+    },
+  })
+}
+
+function summarizeForChat(created: AICommissionerAlertView[]): string {
+  if (created.length === 0) return 'AI Commissioner cycle completed with no new alerts.'
+  const top = created[0]
+  return `AI Commissioner generated ${created.length} new alert(s). Top: [${top.severity}] ${top.headline}`
+}
+
+async function fanOutCommissionerNotices(input: {
+  leagueId: string
+  sport: LeagueSport
+  mode: AICommissionerNotificationMode
+  commissionerUserId: string
+  threadId: string | null
+  createdAlerts: AICommissionerAlertView[]
+}) {
+  if (input.createdAlerts.length === 0 || input.mode === 'off') return
+  const top = input.createdAlerts.slice(0, 3)
+  const title = `AI Commissioner: ${input.createdAlerts.length} new governance alert${
+    input.createdAlerts.length === 1 ? '' : 's'
+  }`
+  const body = top.map((alert) => `[${alert.severity}] ${alert.headline}`).join(' | ')
+  const href = `/app/league/${encodeURIComponent(input.leagueId)}?tab=Commissioner`
+
+  if (input.mode === 'in_app' || input.mode === 'both') {
+    await dispatchNotification({
+      userIds: [input.commissionerUserId],
+      category: 'commissioner_alerts',
+      productType: 'app',
+      type: 'ai_commissioner_alert',
+      title,
+      body,
+      actionHref: href,
+      actionLabel: 'Open commissioner',
+      severity: 'high',
+      meta: {
+        leagueId: input.leagueId,
+        sport: input.sport,
+        alertCount: input.createdAlerts.length,
+      },
+    })
+  }
+  if ((input.mode === 'chat' || input.mode === 'both') && input.threadId) {
+    await createSystemMessage(input.threadId, 'commissioner_notice', summarizeForChat(input.createdAlerts))
+  }
+}
+
+export async function runAICommissionerCycle(input: {
+  leagueId: string
+  sport?: string | null
+  season?: number | null
+  source?: string
+}): Promise<{
+  config: AICommissionerConfigView
+  analysis: GovernanceAnalysis
+  createdAlerts: AICommissionerAlertView[]
+  touchedAlerts: number
+}> {
+  const league = await prisma.league.findUnique({
+    where: { id: input.leagueId },
+    select: {
+      id: true,
+      userId: true,
+      sport: true,
+      season: true,
+      settings: true,
+    },
+  })
+  if (!league) throw new Error('League not found')
+
+  const config = await ensureAICommissionerConfig({
+    leagueId: input.leagueId,
+    sport: input.sport ?? league.sport,
+  })
+  const sport = normalizeSportForCommissioner(input.sport ?? config.sport)
+  const analysis = await analyzeLeagueGovernance({
+    leagueId: input.leagueId,
+    sport,
+    season: input.season ?? league.season ?? null,
+  })
+  const signals = generateCommissionerAlerts({ analysis, config })
+  const createdAlerts: AICommissionerAlertView[] = []
+  let touchedAlerts = 0
+
+  for (const signal of signals) {
+    const existing = await prisma.aiCommissionerAlert.findFirst({
+      where: {
+        leagueId: input.leagueId,
+        alertType: signal.alertType,
+        headline: signal.headline,
+        relatedTradeId: signal.relatedTradeId ?? null,
+        relatedMatchupId: signal.relatedMatchupId ?? null,
+        status: { in: ['open', 'snoozed'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    if (existing) {
+      await prisma.aiCommissionerAlert.update({
+        where: { alertId: existing.alertId },
+        data: {
+          sport: sport as LeagueSport,
+          severity: signal.severity,
+          summary: signal.summary,
+          relatedManagerIds: signal.relatedManagerIds ?? [],
+          status:
+            existing.status === 'snoozed' &&
+            existing.snoozedUntil &&
+            existing.snoozedUntil.getTime() > Date.now()
+              ? 'snoozed'
+              : 'open',
+        },
+      })
+      touchedAlerts += 1
+      continue
+    }
+
+    const created = await prisma.aiCommissionerAlert.create({
+      data: {
+        leagueId: input.leagueId,
+        sport: sport as LeagueSport,
+        alertType: signal.alertType,
+        severity: signal.severity,
+        headline: signal.headline,
+        summary: signal.summary,
+        relatedManagerIds: signal.relatedManagerIds ?? [],
+        relatedTradeId: signal.relatedTradeId ?? null,
+        relatedMatchupId: signal.relatedMatchupId ?? null,
+        status: 'open',
+      },
+    })
+    createdAlerts.push(toAlertView(created))
+    touchedAlerts += 1
+  }
+
+  const settings = (() => {
+    const value = league.settings
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+    return value as Record<string, unknown>
+  })()
+  const threadId =
+    typeof settings.leagueChatThreadId === 'string' ? settings.leagueChatThreadId : null
+  const mode = normalizeNotificationMode(config.commissionerNotificationMode)
+  await fanOutCommissionerNotices({
+    leagueId: input.leagueId,
+    sport: sport as LeagueSport,
+    mode,
+    commissionerUserId: league.userId,
+    threadId,
+    createdAlerts,
+  })
+
+  await appendAICommissionerActionLog({
+    leagueId: input.leagueId,
+    sport: sport as LeagueSport,
+    actionType: 'RUN_CYCLE',
+    source: input.source ?? 'system',
+    summary: `AI Commissioner cycle completed. Signals: ${signals.length}, new alerts: ${createdAlerts.length}.`,
+  })
+
+  return {
+    config: toConfigView(config),
+    analysis,
+    createdAlerts,
+    touchedAlerts,
+  }
+}
+
+export async function updateAICommissionerAlertStatus(input: {
+  leagueId: string
+  alertId: string
+  action: AlertAction
+  source?: string
+  snoozeHours?: number
+}): Promise<AICommissionerAlertView> {
+  const alert = await prisma.aiCommissionerAlert.findFirst({
+    where: { alertId: input.alertId, leagueId: input.leagueId },
+  })
+  if (!alert) throw new Error('Alert not found')
+
+  let status: AICommissionerAlertStatus = alert.status as AICommissionerAlertStatus
+  let resolvedAt = alert.resolvedAt
+  let snoozedUntil = alert.snoozedUntil
+
+  if (input.action === 'approve') {
+    status = 'approved'
+    resolvedAt = null
+    snoozedUntil = null
+  } else if (input.action === 'dismiss') {
+    status = 'dismissed'
+    resolvedAt = new Date()
+    snoozedUntil = null
+  } else if (input.action === 'resolve') {
+    status = 'resolved'
+    resolvedAt = new Date()
+    snoozedUntil = null
+  } else if (input.action === 'reopen') {
+    status = 'open'
+    resolvedAt = null
+    snoozedUntil = null
+  } else if (input.action === 'snooze') {
+    const snoozeHours = Math.max(1, Math.min(168, input.snoozeHours ?? 24))
+    status = 'snoozed'
+    resolvedAt = null
+    snoozedUntil = new Date(Date.now() + snoozeHours * 60 * 60 * 1000)
+  }
+
+  const updated = await prisma.aiCommissionerAlert.update({
+    where: { alertId: alert.alertId },
+    data: {
+      status,
+      resolvedAt,
+      snoozedUntil,
+    },
+  })
+
+  await appendAICommissionerActionLog({
+    leagueId: updated.leagueId,
+    sport: updated.sport,
+    actionType: `ALERT_${input.action.toUpperCase()}`,
+    source: input.source ?? 'commissioner_ui',
+    summary: `${input.action} applied to ${updated.alertType} (${updated.alertId}).`,
+    relatedAlertId: updated.alertId,
+  })
+
+  return toAlertView(updated)
+}

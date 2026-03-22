@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server"
-import { getMomentById } from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
+import { getMomentByIdScoped } from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
 import { momentToNarrativeContext, buildWhyInductedPromptContext } from "@/lib/hall-of-fame-engine/AIHallOfFameNarrativeAdapter"
+import { getHallOfFameMomentWithLegacy } from "@/lib/prestige-governance/HallOfFameLegacyBridge"
 
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ leagueId: string; momentId: string }> }
 ) {
   try {
-    const { momentId } = await ctx.params
+    const { leagueId, momentId } = await ctx.params
+    if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
     if (!momentId) return NextResponse.json({ error: "Missing momentId" }, { status: 400 })
 
-    const moment = await getMomentById(momentId)
+    const moment = await getMomentByIdScoped({ momentId, leagueId })
     if (!moment) return NextResponse.json({ error: "Moment not found" }, { status: 404 })
+    const enriched = await getHallOfFameMomentWithLegacy({ momentId, leagueId }).catch(() => null)
 
     const narrativeContext = momentToNarrativeContext(moment)
     const whyInductedPrompt = buildWhyInductedPromptContext(narrativeContext)
@@ -29,6 +32,28 @@ export async function GET(
         relatedMatchupId: moment.relatedMatchupId,
         significanceScore: moment.significanceScore,
         createdAt: moment.createdAt.toISOString(),
+        relatedLegacy: enriched
+          ? Object.fromEntries(
+              [...enriched.relatedLegacy.entries()].map(([managerId, row]) => [
+                managerId,
+                {
+                  id: row.id,
+                  entityType: row.entityType,
+                  entityId: row.entityId,
+                  sport: row.sport,
+                  leagueId: row.leagueId,
+                  overallLegacyScore: row.overallLegacyScore,
+                  championshipScore: row.championshipScore,
+                  playoffScore: row.playoffScore,
+                  consistencyScore: row.consistencyScore,
+                  rivalryScore: row.rivalryScore,
+                  awardsScore: row.awardsScore,
+                  dynastyScore: row.dynastyScore,
+                  updatedAt: row.updatedAt.toISOString(),
+                },
+              ])
+            )
+          : {},
       },
       narrativeContext,
       whyInductedPrompt,

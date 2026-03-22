@@ -4,7 +4,11 @@
  * Returns narrative for "Tell me why this matters" button.
  */
 import { NextResponse } from "next/server"
-import { getEntryById, getMomentById } from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
+import { openaiChatText } from "@/lib/openai-client"
+import {
+  getEntryByIdScoped,
+  getMomentByIdScoped,
+} from "@/lib/hall-of-fame-engine/HallOfFameQueryService"
 import {
   entryToNarrativeContext,
   momentToNarrativeContext,
@@ -32,13 +36,13 @@ export async function POST(
     }
 
     if (type === "entry") {
-      const entry = await getEntryById(id)
-      if (!entry || entry.leagueId !== leagueId) {
+      const entry = await getEntryByIdScoped({ entryId: id, leagueId })
+      if (!entry) {
         return NextResponse.json({ error: "Entry not found" }, { status: 404 })
       }
       const context = entryToNarrativeContext(entry)
       const prompt = buildWhyInductedPromptContext(context)
-      const narrative = [
+      const fallback = [
         context.title,
         context.summary || "",
         `Sport: ${context.sportLabel}. Category: ${context.category}.`,
@@ -46,6 +50,27 @@ export async function POST(
       ]
         .filter(Boolean)
         .join(" ")
+      const ai = await openaiChatText({
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a fantasy sports historian. In 3-5 concise sentences, explain why this Hall of Fame induction matters, referencing category, historical context, and evidence from the payload.",
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              leagueId,
+              type: "entry",
+              promptContext: prompt,
+              narrativeContext: context,
+            }),
+          },
+        ],
+        temperature: 0.35,
+        maxTokens: 260,
+      }).catch(() => null)
+      const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
       return NextResponse.json({
         type: "entry",
         id: entry.id,
@@ -55,16 +80,17 @@ export async function POST(
         category: entry.category,
         score: entry.score,
         whyInductedPrompt: prompt,
+        source: ai?.ok && ai.text?.trim() ? "ai" : "template",
       })
     }
 
-    const moment = await getMomentById(id)
-    if (!moment || moment.leagueId !== leagueId) {
+    const moment = await getMomentByIdScoped({ momentId: id, leagueId })
+    if (!moment) {
       return NextResponse.json({ error: "Moment not found" }, { status: 404 })
     }
     const context = momentToNarrativeContext(moment)
     const prompt = buildWhyInductedPromptContext(context)
-    const narrative = [
+    const fallback = [
       context.title,
       context.summary || "",
       `Sport: ${context.sportLabel}. Season: ${context.season}.`,
@@ -72,6 +98,27 @@ export async function POST(
     ]
       .filter(Boolean)
       .join(" ")
+    const ai = await openaiChatText({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a fantasy sports historian. In 3-5 concise sentences, explain why this Hall of Fame moment matters, highlighting significance, season context, and long-term impact.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            leagueId,
+            type: "moment",
+            promptContext: prompt,
+            narrativeContext: context,
+          }),
+        },
+      ],
+      temperature: 0.35,
+      maxTokens: 260,
+    }).catch(() => null)
+    const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
     return NextResponse.json({
       type: "moment",
       id: moment.id,
@@ -81,6 +128,7 @@ export async function POST(
       season: moment.season,
       significanceScore: moment.significanceScore,
       whyInductedPrompt: prompt,
+      source: ai?.ok && ai.text?.trim() ? "ai" : "template",
     })
   } catch (e) {
     console.error("[hall-of-fame/tell-story POST]", e instanceof Error ? e.message : e)

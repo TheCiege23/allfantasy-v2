@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
+import { openaiChatText } from "@/lib/openai-client"
 import { getLegacyScoreByEntity } from "@/lib/legacy-score-engine/LegacyRankingService"
 import {
   buildLegacyExplanationContext,
   buildLegacyExplanationNarrative,
 } from "@/lib/legacy-score-engine/AILegacyExplanationService"
+import { DEFAULT_SPORT, normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -22,7 +24,7 @@ export async function POST(
     const body = await req.json().catch(() => ({}))
     const entityType = body.entityType as string
     const entityId = body.entityId as string
-    const sport = (body.sport as string) ?? "NFL"
+    const sport = normalizeToSupportedSport((body.sport as string) ?? DEFAULT_SPORT)
 
     if (!entityType || !entityId) {
       return NextResponse.json(
@@ -49,14 +51,35 @@ export async function POST(
     }
 
     const context = buildLegacyExplanationContext(record)
-    const narrative = buildLegacyExplanationNarrative(context)
+    const fallback = buildLegacyExplanationNarrative(context)
+    const ai = await openaiChatText({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a fantasy competition historian. Explain this legacy score in 3-5 concise sentences. Mention strongest dimensions, one weaker dimension, and one practical way to improve long-term legacy.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            leagueId,
+            entityType,
+            entityId,
+            context,
+          }),
+        },
+      ],
+      temperature: 0.3,
+      maxTokens: 260,
+    }).catch(() => null)
+    const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
 
     return NextResponse.json({
       leagueId,
       entityType,
       entityId,
       narrative,
-      source: "legacy_score_engine",
+      source: ai?.ok && ai.text?.trim() ? "ai" : "legacy_score_engine",
       overallLegacyScore: record.overallLegacyScore,
       breakdown: context.breakdown,
     })

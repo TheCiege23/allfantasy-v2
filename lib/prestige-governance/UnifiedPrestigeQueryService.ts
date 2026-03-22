@@ -110,10 +110,10 @@ export async function getUnifiedTeamSummary(
 export async function getUnifiedManagerSummaries(
   input: UnifiedPrestigeQueryInput
 ): Promise<UnifiedManagerSummary[]> {
-  const { leagueId, sport, managerIds } = input
+  const { leagueId, sport, managerIds, entityIds } = input
   const sportNorm = sport ? normalizeSportForPrestige(sport) : undefined
 
-  let targetManagerIds = managerIds
+  let targetManagerIds = managerIds?.length ? managerIds : entityIds?.length ? entityIds : undefined
   if (!targetManagerIds?.length) {
     const [repList, legacyList] = await Promise.all([
       (await import('@/lib/reputation-engine/ManagerTrustQueryService')).listReputationsByLeague(
@@ -138,6 +138,24 @@ export async function getUnifiedManagerSummaries(
   const summaries = await Promise.all(
     targetManagerIds.slice(0, 100).map((managerId) =>
       getUnifiedManagerSummary(leagueId, managerId, sportNorm ?? DEFAULT_SPORT)
+    )
+  )
+  return summaries
+}
+
+/**
+ * Batch-fetch team/franchise unified summaries for leaderboard and admin surfaces.
+ */
+export async function getUnifiedTeamSummaries(input: UnifiedPrestigeQueryInput): Promise<UnifiedTeamSummary[]> {
+  const { leagueId, sport, entityIds, entityType } = input
+  const sportNorm = sport ? normalizeSportForPrestige(sport) : DEFAULT_SPORT
+  const targetEntityType = entityType === 'FRANCHISE' ? 'FRANCHISE' : 'TEAM'
+  const targetIds = (entityIds ?? []).filter(Boolean)
+  if (targetIds.length === 0) return []
+
+  const summaries = await Promise.all(
+    targetIds.slice(0, 100).map((entityId) =>
+      getUnifiedTeamSummary(leagueId, entityId, targetEntityType, sportNorm)
     )
   )
   return summaries

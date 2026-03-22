@@ -18,6 +18,15 @@ interface EntryDetail {
   inductedAt: string
   score: number
   metadata: unknown
+  legacy?: {
+    overallLegacyScore: number
+    championshipScore: number
+    playoffScore: number
+    consistencyScore: number
+    rivalryScore: number
+    awardsScore: number
+    dynastyScore: number
+  } | null
 }
 
 export default function HallOfFameEntryDetailPage() {
@@ -25,6 +34,7 @@ export default function HallOfFameEntryDetailPage() {
   const leagueId = params?.leagueId ?? ""
   const entryId = params?.entryId ?? ""
   const [entry, setEntry] = useState<EntryDetail | null>(null)
+  const [whyInductedPrompt, setWhyInductedPrompt] = useState<string | null>(null)
   const [narrative, setNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -38,12 +48,20 @@ export default function HallOfFameEntryDetailPage() {
       `/api/leagues/${encodeURIComponent(leagueId)}/hall-of-fame/entries/${encodeURIComponent(entryId)}`,
       { cache: "no-store" }
     )
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.entry) setEntry(data.entry)
-        else setError("Entry not found")
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error ?? "Entry not found")
+        return data
       })
-      .catch(() => setError("Failed to load"))
+      .then((data) => {
+        if (data?.entry) {
+          setEntry(data.entry)
+          setWhyInductedPrompt(data?.whyInductedPrompt ?? null)
+        } else {
+          setError("Entry not found")
+        }
+      })
+      .catch((e: any) => setError(e?.message ?? "Failed to load"))
       .finally(() => setLoading(false))
   }, [leagueId, entryId])
 
@@ -56,7 +74,11 @@ export default function HallOfFameEntryDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "entry", id: entryId }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error ?? "Could not load explanation.")
+        return data
+      })
       .then((data) => setNarrative(data?.narrative ?? "No explanation available."))
       .catch(() => setNarrative("Could not load explanation."))
       .finally(() => setNarrativeLoading(false))
@@ -74,10 +96,10 @@ export default function HallOfFameEntryDetailPage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/app/league/${leagueId}?tab=Hall of Fame`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to league
+          <ArrowLeft className="h-4 w-4" /> Back to Hall of Fame
         </Link>
         <p className="text-red-300">{error ?? "Entry not found"}</p>
       </div>
@@ -87,10 +109,10 @@ export default function HallOfFameEntryDetailPage() {
   return (
     <div className="space-y-4 p-4 max-w-2xl">
       <Link
-        href={`/app/league/${leagueId}`}
+        href={`/app/league/${leagueId}?tab=Hall of Fame`}
         className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
       >
-        <ArrowLeft className="h-4 w-4" /> Back to league
+        <ArrowLeft className="h-4 w-4" /> Back to Hall of Fame
       </Link>
 
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
@@ -101,6 +123,14 @@ export default function HallOfFameEntryDetailPage() {
         </div>
         {entry.summary && (
           <p className="text-sm text-zinc-300">{entry.summary}</p>
+        )}
+        {entry.legacy && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100">
+            <p className="font-semibold">Legacy context</p>
+            <p>
+              Overall {entry.legacy.overallLegacyScore.toFixed(1)} · Championship {entry.legacy.championshipScore.toFixed(1)} · Playoff {entry.legacy.playoffScore.toFixed(1)} · Consistency {entry.legacy.consistencyScore.toFixed(1)}
+            </p>
+          </div>
         )}
         <p className="text-xs text-zinc-500">
           Inducted: {new Date(entry.inductedAt).toLocaleDateString()}
@@ -117,12 +147,12 @@ export default function HallOfFameEntryDetailPage() {
             {narrativeLoading ? "Loading…" : "Tell me why this matters"}
           </button>
           {(entry.entityType === "MANAGER" || entry.entityType === "TEAM") && (
-            <a
-              href={`/app/league/${encodeURIComponent(leagueId)}/legacy/breakdown?entityType=${encodeURIComponent(entry.entityType)}&entityId=${encodeURIComponent(entry.entityId)}`}
+            <Link
+              href={`/app/league/${encodeURIComponent(leagueId)}/legacy/breakdown?entityType=${encodeURIComponent(entry.entityType)}&entityId=${encodeURIComponent(entry.entityId)}&sport=${encodeURIComponent(entry.sport)}`}
               className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-sm text-amber-200 hover:bg-amber-500/25"
             >
               View legacy score
-            </a>
+            </Link>
           )}
         </div>
 
@@ -130,6 +160,14 @@ export default function HallOfFameEntryDetailPage() {
           <div className="rounded-lg bg-zinc-900 p-3 text-sm text-zinc-300 border border-zinc-700">
             {narrative}
           </div>
+        )}
+        {whyInductedPrompt && (
+          <details className="rounded-lg border border-zinc-700 bg-zinc-900/50 p-3 text-xs text-zinc-300">
+            <summary className="cursor-pointer text-zinc-200">Induction evidence prompt context</summary>
+            <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] text-zinc-400">
+              {whyInductedPrompt}
+            </pre>
+          </details>
         )}
       </div>
     </div>

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
 import { ManagerStyleBadge } from '@/components/ManagerStyleBadge';
 import { ReputationBadge } from '@/components/ReputationBadge';
+import { LegacyScoreBadge } from '@/components/LegacyScoreBadge';
 
 export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
   const [matches, setMatches] = useState<any[]>([]);
@@ -83,10 +84,17 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
                   <ReputationBadge
                     leagueId={leagueId}
                     managerId={match.externalId ?? match.teamId}
+                    showTradeFairness
+                    className="shrink-0"
+                  />
+                  <LegacyScoreBadge
+                    leagueId={leagueId}
+                    entityType="MANAGER"
+                    entityId={match.externalId ?? match.teamId}
                     className="shrink-0"
                   />
                   <Link
-                    href={`/app/league/${encodeURIComponent(leagueId)}/legacy/breakdown?entityType=MANAGER&entityId=${encodeURIComponent(match.externalId ?? match.teamId)}`}
+                    href={`/app/league/${encodeURIComponent(leagueId)}/legacy/breakdown?entityType=MANAGER&entityId=${encodeURIComponent(match.externalId ?? match.teamId)}${match?.reputation?.sport ? `&sport=${encodeURIComponent(match.reputation.sport)}` : ''}`}
                     className="shrink-0 text-xs text-amber-400 hover:underline"
                   >
                     Legacy
@@ -98,6 +106,16 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
                     className="shrink-0 text-xs text-purple-300 hover:underline"
                   >
                     Style context
+                  </Link>
+                  <Link
+                    href={`/app/league/${encodeURIComponent(
+                      leagueId
+                    )}?tab=Settings&settingsTab=${encodeURIComponent(
+                      'Reputation'
+                    )}&reputationManagerId=${encodeURIComponent(match.externalId ?? match.teamId)}`}
+                    className="shrink-0 text-xs text-cyan-300 hover:underline"
+                  >
+                    Trust context
                   </Link>
                 </>
               )}
@@ -116,6 +134,17 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
                 ))}
               </div>
             </div>
+
+            {match.reputation && (
+              <div className="mb-4 rounded-md border border-cyan-900/40 bg-cyan-950/20 p-2 text-xs text-cyan-100">
+                <p>
+                  Trust: {match.reputation.tier} ({Math.round(match.reputation.overallScore)})
+                </p>
+                <p>
+                  Trade fairness: {Math.round(match.reputation.tradeFairnessScore)}
+                </p>
+              </div>
+            )}
 
             <div className="mb-4">
               <p className="text-sm text-gray-400 mb-2">You could offer:</p>

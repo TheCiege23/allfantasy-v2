@@ -30,6 +30,7 @@ export default function LegacyBreakdownPage() {
   const leagueId = params?.leagueId ?? ""
   const entityType = searchParams?.get("entityType") ?? "MANAGER"
   const entityId = searchParams?.get("entityId") ?? ""
+  const sport = searchParams?.get("sport") ?? undefined
   const [data, setData] = useState<BreakdownData | null>(null)
   const [narrative, setNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
@@ -43,16 +44,25 @@ export default function LegacyBreakdownPage() {
     }
     setLoading(true)
     setError(null)
-    const url = `/api/leagues/${encodeURIComponent(leagueId)}/legacy-score/breakdown?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`
+    const ep = new URLSearchParams({
+      entityType: String(entityType),
+      entityId: String(entityId),
+      ...(sport ? { sport: String(sport) } : {}),
+    })
+    const url = `/api/leagues/${encodeURIComponent(leagueId)}/legacy-score/breakdown?${ep.toString()}`
     fetch(url, { cache: "no-store" })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const res = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(res?.error ?? "Failed to load")
+        return res
+      })
       .then((res) => {
         if (res?.record) setData(res)
         else setError(res?.error ?? "Not found")
       })
-      .catch(() => setError("Failed to load"))
+      .catch((e: any) => setError(e?.message ?? "Failed to load"))
       .finally(() => setLoading(false))
-  }, [leagueId, entityType, entityId])
+  }, [leagueId, entityType, entityId, sport])
 
   const tellStory = () => {
     if (!leagueId || !entityId) return
@@ -61,9 +71,13 @@ export default function LegacyBreakdownPage() {
     fetch(`/api/leagues/${encodeURIComponent(leagueId)}/legacy-score/explain`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entityType, entityId }),
+      body: JSON.stringify({ entityType, entityId, ...(sport ? { sport } : {}) }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const res = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(res?.error ?? "Could not load explanation.")
+        return res
+      })
       .then((res) => setNarrative(res?.narrative ?? "No explanation available."))
       .catch(() => setNarrative("Could not load explanation."))
       .finally(() => setNarrativeLoading(false))
@@ -81,10 +95,10 @@ export default function LegacyBreakdownPage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/app/league/${leagueId}?tab=Legacy`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to league
+          <ArrowLeft className="h-4 w-4" /> Back to Legacy
         </Link>
         <p className="text-red-300">{error ?? "Breakdown not found"}</p>
       </div>
@@ -105,10 +119,10 @@ export default function LegacyBreakdownPage() {
     <div className="space-y-4 p-4 max-w-2xl">
       <div className="flex flex-wrap items-center gap-2">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/app/league/${leagueId}?tab=Legacy`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to league
+          <ArrowLeft className="h-4 w-4" /> Back to Legacy
         </Link>
         <Link
           href={`/app/league/${leagueId}?tab=Legacy`}
@@ -119,7 +133,7 @@ export default function LegacyBreakdownPage() {
         {record.entityType === "MANAGER" && (
           <>
             <Link
-              href={`/app/league/${leagueId}?tab=Settings`}
+              href={`/app/league/${leagueId}?tab=Settings&settingsTab=${encodeURIComponent("Reputation")}`}
               className="text-sm text-cyan-400 hover:underline"
             >
               Trust (Reputation)

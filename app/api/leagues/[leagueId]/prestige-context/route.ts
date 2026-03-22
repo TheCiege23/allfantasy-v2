@@ -10,8 +10,17 @@ import { authOptions } from '@/lib/auth'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { buildAIPrestigeContext } from '@/lib/prestige-governance/AIPrestigeContextResolver'
 import { buildCommissionerTrustContext } from '@/lib/prestige-governance/CommissionerTrustBridge'
+import { buildPrestigeGovernanceSnapshot } from '@/lib/prestige-governance/PrestigeGovernanceOrchestrator'
 
 export const dynamic = 'force-dynamic'
+
+function parseBoolean(value: string | null | undefined, fallback = false): boolean {
+  if (value == null) return fallback
+  const next = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(next)) return true
+  if (['0', 'false', 'no', 'off'].includes(next)) return false
+  return fallback
+}
 
 export async function GET(
   req: Request,
@@ -27,15 +36,39 @@ export async function GET(
 
     const url = new URL(req.url)
     const sport = url.searchParams.get('sport') ?? undefined
+    const includeSnapshot = parseBoolean(url.searchParams.get('includeSnapshot'), false)
+    const summaryLimit = Number.parseInt(url.searchParams.get('summaryLimit') ?? '12', 10)
 
-    const [aiContext, isComm] = await Promise.all([
-      buildAIPrestigeContext(leagueId, sport),
-      isCommissioner(leagueId, userId),
-    ])
+    const isComm = await isCommissioner(leagueId, userId)
 
     const commissionerContext = isComm
       ? await buildCommissionerTrustContext(leagueId, { sport })
       : null
+    const aiContext = await buildAIPrestigeContext(leagueId, sport, {
+      commissionerContext,
+    })
+
+    let snapshot:
+      | {
+          commissionerContext: unknown
+          sampleManagerSummaries: unknown[]
+          aiContext: unknown
+        }
+      | undefined
+    if (includeSnapshot) {
+      const built = await buildPrestigeGovernanceSnapshot(leagueId, {
+        sport,
+        limitSummaries:
+          Number.isFinite(summaryLimit) && !Number.isNaN(summaryLimit)
+            ? Math.max(1, Math.min(summaryLimit, 30))
+            : 12,
+      })
+      snapshot = {
+        commissionerContext: built.commissionerContext,
+        sampleManagerSummaries: built.sampleManagerSummaries,
+        aiContext: built.aiContext,
+      }
+    }
 
     return NextResponse.json({
       leagueId,
@@ -48,6 +81,7 @@ export async function GET(
         combinedHint: aiContext.combinedHint,
       },
       commissionerContext: commissionerContext ?? undefined,
+      snapshot,
     })
   } catch (e) {
     console.error('[prestige-context GET]', e)

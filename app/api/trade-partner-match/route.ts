@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client';
+import { listReputationsByLeague } from '@/lib/reputation-engine/ManagerTrustQueryService';
 
 export async function GET(req: Request) {
   const session = (await getServerSession(authOptions as any)) as {
@@ -43,6 +44,18 @@ export async function GET(req: Request) {
     }
 
     const teams: any[] = league.teams || [];
+    const sportFilter = String(league.sport ?? '').trim().toUpperCase();
+    const reputationRows = await listReputationsByLeague(league.id, {
+      ...(sportFilter ? { sport: sportFilter } : {}),
+      season:
+        typeof league.season === 'number' && Number.isFinite(league.season)
+          ? league.season
+          : undefined,
+      limit: 300,
+    }).catch(() => []);
+    const reputationByManager = new Map(
+      reputationRows.map((row) => [String(row.managerId ?? '').trim().toLowerCase(), row])
+    );
 
     const userTeam = teams.find(
       (t: any) =>
@@ -128,6 +141,11 @@ export async function GET(req: Request) {
         let theirOffer = theyHaveWhatWeNeed.length > 0
           ? `Their ${theyHaveWhatWeNeed.join(', ')} depth`
           : 'Depth pieces';
+        const rep =
+          reputationByManager.get(String(team.externalId ?? '').trim().toLowerCase()) ||
+          reputationByManager.get(String(team.id ?? '').trim().toLowerCase()) ||
+          reputationByManager.get(String(team.ownerName ?? '').trim().toLowerCase()) ||
+          null;
 
         return {
           teamId: team.id,
@@ -140,6 +158,13 @@ export async function GET(req: Request) {
           theirOffer,
           matchScore,
           rosterSummary: summarizeRoster(team.legacyRoster),
+          reputation: rep
+            ? {
+                tier: rep.tier,
+                overallScore: rep.overallScore,
+                tradeFairnessScore: rep.tradeFairnessScore,
+              }
+            : null,
         };
       })
       .filter((m) => m.matchScore > 40)
@@ -200,6 +225,7 @@ Return ONLY a JSON array of partner objects. No markdown, no commentary.`;
               theirOffer: p.theirOffer || det?.theirOffer || '',
               matchScore: typeof p.matchScore === 'number' ? p.matchScore : det?.matchScore || 50,
               tradeAngle: p.tradeAngle || '',
+              reputation: det?.reputation || null,
             };
           }).sort((a: any, b: any) => b.matchScore - a.matchScore);
         }

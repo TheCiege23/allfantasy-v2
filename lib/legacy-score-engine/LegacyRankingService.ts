@@ -22,6 +22,85 @@ export interface LegacyScoreRow {
   updatedAt: Date
 }
 
+function toRow(r: {
+  id: string
+  entityType: string
+  entityId: string
+  sport: string
+  leagueId: string | null
+  overallLegacyScore: any
+  championshipScore: any
+  playoffScore: any
+  consistencyScore: any
+  rivalryScore: any
+  awardsScore: any
+  dynastyScore: any
+  updatedAt: Date
+}): LegacyScoreRow {
+  return {
+    id: r.id,
+    entityType: r.entityType,
+    entityId: r.entityId,
+    sport: r.sport,
+    leagueId: r.leagueId,
+    overallLegacyScore: Number(r.overallLegacyScore),
+    championshipScore: Number(r.championshipScore),
+    playoffScore: Number(r.playoffScore),
+    consistencyScore: Number(r.consistencyScore),
+    rivalryScore: Number(r.rivalryScore),
+    awardsScore: Number(r.awardsScore),
+    dynastyScore: Number(r.dynastyScore),
+    updatedAt: r.updatedAt,
+  }
+}
+
+function asKey(value: string | null | undefined): string {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+async function resolveEntityAliases(input: {
+  leagueId: string | null
+  entityType: string
+  entityId: string
+}): Promise<string[]> {
+  const base = String(input.entityId ?? '').trim()
+  if (!base || !input.leagueId) return base ? [base] : []
+  const normalized = asKey(base)
+  const aliases = new Set<string>([base])
+
+  const league = await prisma.league
+    .findUnique({
+      where: { id: input.leagueId },
+      select: {
+        rosters: { select: { id: true, platformUserId: true } },
+        teams: { select: { id: true, externalId: true, ownerName: true, teamName: true } },
+      },
+    })
+    .catch(() => null)
+  if (!league) return [...aliases]
+
+  for (const roster of league.rosters) {
+    if (asKey(roster.id) === normalized || asKey(roster.platformUserId) === normalized) {
+      aliases.add(String(roster.id))
+      aliases.add(String(roster.platformUserId))
+    }
+  }
+  for (const team of league.teams) {
+    const matched =
+      asKey(team.id) === normalized ||
+      asKey(team.externalId) === normalized ||
+      asKey(team.ownerName) === normalized ||
+      asKey(team.teamName) === normalized
+    if (matched) {
+      if (team.id) aliases.add(String(team.id))
+      if (team.externalId) aliases.add(String(team.externalId))
+      if (team.ownerName) aliases.add(String(team.ownerName))
+      if (team.teamName) aliases.add(String(team.teamName))
+    }
+  }
+  return [...aliases].filter(Boolean)
+}
+
 export async function queryLegacyLeaderboard(
   filters: LegacyQueryFilters
 ): Promise<{ records: LegacyScoreRow[]; total: number }> {
@@ -44,21 +123,7 @@ export async function queryLegacyLeaderboard(
     prisma.legacyScoreRecord.count({ where }),
   ])
 
-  const rows: LegacyScoreRow[] = records.map((r) => ({
-    id: r.id,
-    entityType: r.entityType,
-    entityId: r.entityId,
-    sport: r.sport,
-    leagueId: r.leagueId,
-    overallLegacyScore: Number(r.overallLegacyScore),
-    championshipScore: Number(r.championshipScore),
-    playoffScore: Number(r.playoffScore),
-    consistencyScore: Number(r.consistencyScore),
-    rivalryScore: Number(r.rivalryScore),
-    awardsScore: Number(r.awardsScore),
-    dynastyScore: Number(r.dynastyScore),
-    updatedAt: r.updatedAt,
-  }))
+  const rows: LegacyScoreRow[] = records.map(toRow)
 
   return { records: rows, total }
 }
@@ -70,30 +135,23 @@ export async function getLegacyScoreByEntity(
   leagueId: string | null
 ): Promise<LegacyScoreRow | null> {
   const sportNorm = normalizeSportForLegacy(sport)
+  const aliases = await resolveEntityAliases({
+    leagueId,
+    entityType,
+    entityId,
+  })
+
   const r = await prisma.legacyScoreRecord.findFirst({
     where: {
       entityType,
-      entityId,
+      ...(aliases.length > 0 ? { entityId: { in: aliases } } : { entityId }),
       sport: sportNorm,
       leagueId: leagueId ?? null,
     },
+    orderBy: [{ updatedAt: 'desc' }],
   })
   if (!r) return null
-  return {
-    id: r.id,
-    entityType: r.entityType,
-    entityId: r.entityId,
-    sport: r.sport,
-    leagueId: r.leagueId,
-    overallLegacyScore: Number(r.overallLegacyScore),
-    championshipScore: Number(r.championshipScore),
-    playoffScore: Number(r.playoffScore),
-    consistencyScore: Number(r.consistencyScore),
-    rivalryScore: Number(r.rivalryScore),
-    awardsScore: Number(r.awardsScore),
-    dynastyScore: Number(r.dynastyScore),
-    updatedAt: r.updatedAt,
-  }
+  return toRow(r)
 }
 
 export async function getLegacyScoreById(recordId: string): Promise<LegacyScoreRow | null> {
@@ -101,19 +159,5 @@ export async function getLegacyScoreById(recordId: string): Promise<LegacyScoreR
     where: { id: recordId },
   })
   if (!r) return null
-  return {
-    id: r.id,
-    entityType: r.entityType,
-    entityId: r.entityId,
-    sport: r.sport,
-    leagueId: r.leagueId,
-    overallLegacyScore: Number(r.overallLegacyScore),
-    championshipScore: Number(r.championshipScore),
-    playoffScore: Number(r.playoffScore),
-    consistencyScore: Number(r.consistencyScore),
-    rivalryScore: Number(r.rivalryScore),
-    awardsScore: Number(r.awardsScore),
-    dynastyScore: Number(r.dynastyScore),
-    updatedAt: r.updatedAt,
-  }
+  return toRow(r)
 }

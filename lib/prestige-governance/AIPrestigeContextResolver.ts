@@ -7,17 +7,19 @@ import { buildCommissionerTrustContext } from './CommissionerTrustBridge'
 import { queryLegacyLeaderboard } from '@/lib/legacy-score-engine/LegacyRankingService'
 import { queryHallOfFameEntries, queryHallOfFameMoments } from '@/lib/hall-of-fame-engine/HallOfFameQueryService'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
-import type { AIPrestigeContextPayload } from './types'
+import type { AIPrestigeContextPayload, CommissionerTrustContext } from './types'
 import { normalizeSportForPrestige } from './SportPrestigeResolver'
 
 export async function buildAIPrestigeContext(
   leagueId: string,
-  sport?: string | null
+  sport?: string | null,
+  options?: { commissionerContext?: CommissionerTrustContext | null }
 ): Promise<AIPrestigeContextPayload> {
   const sportNorm = sport ? normalizeSportForPrestige(sport) : undefined
 
-  const [commissionerContext, legacyResult, hofEntriesResult, hofMomentsResult] = await Promise.all([
-    buildCommissionerTrustContext(leagueId, { sport: sportNorm }),
+  const [resolvedCommissionerContext, legacyResult, hofEntriesResult, hofMomentsResult] = await Promise.all([
+    options?.commissionerContext ??
+      buildCommissionerTrustContext(leagueId, { sport: sportNorm }),
     queryLegacyLeaderboard({
       leagueId,
       sport: sportNorm ?? undefined,
@@ -38,6 +40,7 @@ export async function buildAIPrestigeContext(
       offset: 0,
     }),
   ])
+  const commissionerContext = resolvedCommissionerContext
 
   const govParts: string[] = []
   if (commissionerContext.lowTrustManagerIds.length > 0) {
@@ -62,12 +65,12 @@ export async function buildAIPrestigeContext(
 
   const legacySummary =
     legacyResult.total > 0
-      ? `Legacy leaderboard has ${legacyResult.total} records. Top scores from championships, playoffs, consistency, rivalry, dynasty.`
+      ? `Legacy leaderboard has ${legacyResult.total} records. Top scores from championships, playoffs, consistency, rivalry, dynasty. Top manager: ${legacyResult.records[0]?.entityId ?? 'n/a'}.`
       : 'No legacy scores yet; run legacy engine from Legacy tab.'
 
   const hallOfFameSummary =
     commissionerContext.hallOfFameEntryCount > 0 || hofMomentsResult.total > 0
-      ? `Hall of Fame: ${commissionerContext.hallOfFameEntryCount} inductions, ${hofMomentsResult.total} moments.`
+      ? `Hall of Fame: ${commissionerContext.hallOfFameEntryCount} inductions, ${hofMomentsResult.total} moments. Top induction: ${hofEntriesResult.entries[0]?.title ?? 'n/a'}.`
       : 'No Hall of Fame inductions or moments yet; use Sync moments in Hall of Fame tab.'
 
   const combinedHint = [

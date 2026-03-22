@@ -35,6 +35,64 @@ export interface HallOfFameMomentRow {
   createdAt: Date
 }
 
+function toEntryRow(e: {
+  id: string
+  entityType: string
+  entityId: string
+  sport: string
+  leagueId: string | null
+  season: string | null
+  category: string
+  title: string
+  summary: string | null
+  inductedAt: Date
+  score: any
+  metadata: unknown
+}): HallOfFameEntryRow {
+  return {
+    id: e.id,
+    entityType: e.entityType,
+    entityId: e.entityId,
+    sport: e.sport,
+    leagueId: e.leagueId,
+    season: e.season,
+    category: e.category,
+    title: e.title,
+    summary: e.summary,
+    inductedAt: e.inductedAt,
+    score: Number(e.score),
+    metadata: e.metadata,
+  }
+}
+
+function toMomentRow(m: {
+  id: string
+  leagueId: string
+  sport: string
+  season: string
+  headline: string
+  summary: string | null
+  relatedManagerIds: string[]
+  relatedTeamIds: string[]
+  relatedMatchupId: string | null
+  significanceScore: any
+  createdAt: Date
+}): HallOfFameMomentRow {
+  return {
+    id: m.id,
+    leagueId: m.leagueId,
+    sport: m.sport,
+    season: m.season,
+    headline: m.headline,
+    summary: m.summary,
+    relatedManagerIds: m.relatedManagerIds ?? [],
+    relatedTeamIds: m.relatedTeamIds ?? [],
+    relatedMatchupId: m.relatedMatchupId,
+    significanceScore: Number(m.significanceScore),
+    createdAt: m.createdAt,
+  }
+}
+
 export async function queryHallOfFameEntries(
   filters: HallOfFameQueryFilters
 ): Promise<{ entries: HallOfFameEntryRow[]; total: number }> {
@@ -60,20 +118,7 @@ export async function queryHallOfFameEntries(
     prisma.hallOfFameEntry.count({ where }),
   ])
 
-  const rows: HallOfFameEntryRow[] = entries.map((e) => ({
-    id: e.id,
-    entityType: e.entityType,
-    entityId: e.entityId,
-    sport: e.sport,
-    leagueId: e.leagueId,
-    season: e.season,
-    category: e.category,
-    title: e.title,
-    summary: e.summary,
-    inductedAt: e.inductedAt,
-    score: Number(e.score),
-    metadata: e.metadata as unknown,
-  }))
+  const rows: HallOfFameEntryRow[] = entries.map(toEntryRow)
 
   return { entries: rows, total }
 }
@@ -100,19 +145,7 @@ export async function queryHallOfFameMoments(
     prisma.hallOfFameMoment.count({ where }),
   ])
 
-  const rows: HallOfFameMomentRow[] = moments.map((m) => ({
-    id: m.id,
-    leagueId: m.leagueId,
-    sport: m.sport,
-    season: m.season,
-    headline: m.headline,
-    summary: m.summary,
-    relatedManagerIds: m.relatedManagerIds ?? [],
-    relatedTeamIds: m.relatedTeamIds ?? [],
-    relatedMatchupId: m.relatedMatchupId,
-    significanceScore: Number(m.significanceScore),
-    createdAt: m.createdAt,
-  }))
+  const rows: HallOfFameMomentRow[] = moments.map(toMomentRow)
 
   return { moments: rows, total }
 }
@@ -120,36 +153,39 @@ export async function queryHallOfFameMoments(
 export async function getEntryById(entryId: string): Promise<HallOfFameEntryRow | null> {
   const e = await prisma.hallOfFameEntry.findUnique({ where: { id: entryId } })
   if (!e) return null
-  return {
-    id: e.id,
-    entityType: e.entityType,
-    entityId: e.entityId,
-    sport: e.sport,
-    leagueId: e.leagueId,
-    season: e.season,
-    category: e.category,
-    title: e.title,
-    summary: e.summary,
-    inductedAt: e.inductedAt,
-    score: Number(e.score),
-    metadata: e.metadata as unknown,
-  }
+  return toEntryRow(e)
+}
+
+export async function getEntryByIdScoped(input: {
+  entryId: string
+  leagueId?: string | null
+}): Promise<HallOfFameEntryRow | null> {
+  const e = await prisma.hallOfFameEntry.findFirst({
+    where: {
+      id: input.entryId,
+      ...(input.leagueId != null ? { leagueId: input.leagueId } : {}),
+    },
+  })
+  if (!e) return null
+  return toEntryRow(e)
 }
 
 export async function getMomentById(momentId: string): Promise<HallOfFameMomentRow | null> {
   const m = await prisma.hallOfFameMoment.findUnique({ where: { id: momentId } })
   if (!m) return null
-  return {
-    id: m.id,
-    leagueId: m.leagueId,
-    sport: m.sport,
-    season: m.season,
-    headline: m.headline,
-    summary: m.summary,
-    relatedManagerIds: m.relatedManagerIds ?? [],
-    relatedTeamIds: m.relatedTeamIds ?? [],
-    relatedMatchupId: m.relatedMatchupId,
-    significanceScore: Number(m.significanceScore),
-    createdAt: m.createdAt,
-  }
+  return toMomentRow(m)
+}
+
+export async function getMomentByIdScoped(input: {
+  momentId: string
+  leagueId?: string | null
+}): Promise<HallOfFameMomentRow | null> {
+  const m = await prisma.hallOfFameMoment.findFirst({
+    where: {
+      id: input.momentId,
+      ...(input.leagueId != null ? { leagueId: input.leagueId } : {}),
+    },
+  })
+  if (!m) return null
+  return toMomentRow(m)
 }

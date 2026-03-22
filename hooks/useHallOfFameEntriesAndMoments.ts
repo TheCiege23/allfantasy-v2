@@ -40,8 +40,10 @@ export function useHallOfFameEntriesAndMoments(args: {
   sport?: string | null
   season?: string | null
   category?: string | null
+  entityType?: string | null
+  limit?: number
 }) {
-  const { leagueId, sport, season, category } = args
+  const { leagueId, sport, season, category, entityType, limit = 40 } = args
   const [entries, setEntries] = useState<HallOfFameEntryRow[]>([])
   const [moments, setMoments] = useState<HallOfFameMomentRow[]>([])
   const [entriesTotal, setEntriesTotal] = useState(0)
@@ -58,12 +60,19 @@ export function useHallOfFameEntriesAndMoments(args: {
       if (sport) ep.set("sport", sport)
       if (season) ep.set("season", season)
       if (category) ep.set("category", category)
+      if (entityType) ep.set("entityType", entityType)
       const [er, mr] = await Promise.all([
         apiGet<EntriesResponse>(
-          `/api/leagues/${encodeURIComponent(leagueId)}/hall-of-fame/entries?${ep}&limit=30`
+          `/api/leagues/${encodeURIComponent(leagueId)}/hall-of-fame/entries?${ep}&limit=${Math.max(
+            10,
+            Math.min(150, limit)
+          )}`
         ),
         apiGet<MomentsResponse>(
-          `/api/leagues/${encodeURIComponent(leagueId)}/hall-of-fame/moments?${ep}&limit=30`
+          `/api/leagues/${encodeURIComponent(leagueId)}/hall-of-fame/moments?${ep}&limit=${Math.max(
+            10,
+            Math.min(150, limit)
+          )}`
         ),
       ])
       setEntries(er?.entries ?? [])
@@ -79,7 +88,7 @@ export function useHallOfFameEntriesAndMoments(args: {
     } finally {
       setLoading(false)
     }
-  }, [leagueId, sport, season, category])
+  }, [leagueId, sport, season, category, entityType, limit])
 
   useEffect(() => {
     refresh()

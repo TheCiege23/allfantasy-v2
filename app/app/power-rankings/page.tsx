@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Trophy, Award, Target } from 'lucide-react'
 import type { PlatformPowerRow } from '@/lib/platform-power-rankings'
 
@@ -69,6 +70,14 @@ export default function PowerRankingsPage() {
       <p className="mb-4 text-sm text-white/60">
         Cross-league ranking using legacy score, XP, championship history, and win percentage.
       </p>
+      <div className="mb-4">
+        <Link
+          href="/app/legacy-score"
+          className="text-xs text-amber-300 hover:underline"
+        >
+          Open full platform legacy leaderboard
+        </Link>
+      </div>
 
       {error && (
         <p className="mb-4 text-sm text-rose-400">{error}</p>

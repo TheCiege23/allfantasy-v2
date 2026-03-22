@@ -57,7 +57,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
         <h3 className="text-sm font-semibold text-white">Commissioner Controls</h3>
       </div>
       <p className="text-xs text-white/65">
-        Full control of league settings, announcements, and membership. Use the Commissioner tab for invite link, waiver run, and operations.
+        Full control of league settings, announcements, and membership. Use the Commissioner tab for invite link, waiver run, AI Commissioner alerts, and operations.
       </p>
 
       <div>
@@ -68,7 +68,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
           {settingsTabs.map(({ tab, label }) => (
             <Link
               key={tab}
-              href={`${baseUrl}?tab=Settings`}
+              href={`${baseUrl}?tab=Settings&settingsTab=${encodeURIComponent(tab)}`}
               className="inline-flex items-center rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
             >
               {label}
@@ -79,6 +79,12 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
             className="inline-flex items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20"
           >
             Commissioner tab
+          </Link>
+          <Link
+            href={`${baseUrl}?tab=Commissioner`}
+            className="inline-flex items-center rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/20"
+          >
+            AI Commissioner alerts
           </Link>
         </div>
       </div>

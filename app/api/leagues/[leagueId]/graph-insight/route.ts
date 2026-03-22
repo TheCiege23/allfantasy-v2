@@ -72,7 +72,7 @@ export async function POST(
         sport,
         limits: { rivalries: 15, clusters: 8, influence: 12, central: 20, transitions: 15, elimination: 15 },
       }),
-      buildAIPrestigeContext(leagueId, null).catch(() => null),
+      buildAIPrestigeContext(leagueId, sport).catch(() => null),
       buildAIRelationshipContext({
         leagueId,
         sport,

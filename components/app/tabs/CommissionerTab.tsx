@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import CommissionerBroadcastForm from '@/components/chat/CommissionerBroadcastForm'
 import { LeagueRecruitmentTools } from '@/components/app/recruitment'
+import AICommissionerPanel from '@/components/app/commissioner/AICommissionerPanel'
 
 type DraftSessionStatus = 'pre_draft' | 'in_progress' | 'paused' | 'completed'
 interface SlotOrderEntry { slot: number; rosterId: string; displayName: string }
@@ -51,19 +52,25 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const [overridePick, setOverridePick] = useState({ playerName: '', position: '', rosterId: '' })
   const [showOverrideForm, setShowOverrideForm] = useState(false)
   const [resetDraftConfirm, setResetDraftConfirm] = useState(false)
+  const [prestigeSnapshot, setPrestigeSnapshot] = useState<{
+    commissionerContext?: {
+      lowTrustManagerIds: string[]
+      highCommissionerTrustManagerIds: string[]
+      reputationCoverageCount: number
+      legacyCoverageCount: number
+      hallOfFameEntryCount: number
+    }
+    sampleManagerSummaries?: Array<{
+      managerId: string
+      reputation: { tier: string; overallScore: number } | null
+      legacy: { overallLegacyScore: number } | null
+      topHallOfFameTitle: string | null
+    }>
+  } | null>(null)
 
   const base = `/api/commissioner/leagues/${encodeURIComponent(leagueId)}`
   const draftControlsUrl = `/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`
   const leagueBase = `/app/league/${encodeURIComponent(leagueId)}`
-
-  const fetchSection = useCallback(
-    async (path: string) => {
-      const res = await fetch(`${base}${path}`, { cache: 'no-store' })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText)
-      return res.json()
-    },
-    [base]
-  )
 
   useEffect(() => {
     let active = true
@@ -92,6 +99,21 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           setDraftState({ session: data?.session ?? null, leagueId })
         }
         if (commSettingsRes.ok) setCommissionerSettings(await commSettingsRes.json())
+        void fetch(`/api/leagues/${encodeURIComponent(leagueId)}/prestige-governance?includeSnapshot=true&summaryLimit=8`, {
+          cache: 'no-store',
+        })
+          .then(async (prestigeRes) => {
+            if (!active) return
+            if (prestigeRes.ok) {
+              const data = await prestigeRes.json().catch(() => ({}))
+              setPrestigeSnapshot((data?.snapshot ?? data) ?? null)
+            } else {
+              setPrestigeSnapshot(null)
+            }
+          })
+          .catch(() => {
+            if (active) setPrestigeSnapshot(null)
+          })
       } catch (e: any) {
         if (active) setError(e?.message || 'Failed to load commissioner data')
       } finally {
@@ -283,7 +305,7 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings`}
+              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings&settingsTab=${encodeURIComponent('Reputation')}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25"
             >
               <Shield className="h-3.5 w-3.5" /> Trust scores (Reputation)
@@ -301,7 +323,29 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
               <Award className="h-3.5 w-3.5" /> Hall of Fame
             </Link>
           </div>
+          {prestigeSnapshot?.commissionerContext && (
+            <div className="mt-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+              <p>
+                Coverage: reputation {prestigeSnapshot.commissionerContext.reputationCoverageCount}, legacy {prestigeSnapshot.commissionerContext.legacyCoverageCount}, Hall of Fame {prestigeSnapshot.commissionerContext.hallOfFameEntryCount}.
+              </p>
+              <p>
+                Low trust managers: {prestigeSnapshot.commissionerContext.lowTrustManagerIds.length} · High commissioner trust: {prestigeSnapshot.commissionerContext.highCommissionerTrustManagerIds.length}
+              </p>
+              {Array.isArray(prestigeSnapshot.sampleManagerSummaries) &&
+                prestigeSnapshot.sampleManagerSummaries.length > 0 && (
+                  <div className="mt-2 space-y-1 text-cyan-50/95">
+                    {prestigeSnapshot.sampleManagerSummaries.slice(0, 4).map((row) => (
+                      <p key={row.managerId}>
+                        {row.managerId}: trust {row.reputation?.tier ?? 'n/a'} ({Math.round(row.reputation?.overallScore ?? 0)}) · legacy {Math.round(row.legacy?.overallLegacyScore ?? 0)}
+                      </p>
+                    ))}
+                  </div>
+                )}
+            </div>
+          )}
         </section>
+
+        <AICommissionerPanel leagueId={leagueId} />
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -310,19 +354,19 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           <p className="mt-1 text-xs text-white/60">Edit league name, scoring, draft, waiver, and other settings. Replace managers or assign AI to orphan teams.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              href={`${leagueBase}?tab=Settings`}
+              href={`${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('General')}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
             >
               <Settings2 className="h-3.5 w-3.5" /> Edit settings
             </Link>
             <Link
-              href={`${leagueBase}?tab=Settings`}
+              href={`${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Member Settings')}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
             >
               <Users className="h-3.5 w-3.5" /> Replace managers
             </Link>
             <Link
-              href={`${leagueBase}?tab=Settings`}
+              href={`${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Draft Settings')}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20"
             >
               <Bot className="h-3.5 w-3.5" /> Assign AI manager (Draft)

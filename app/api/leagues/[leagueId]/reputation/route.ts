@@ -19,17 +19,21 @@ export async function GET(
     const url = new URL(req.url)
     const managerId = url.searchParams.get('managerId') ?? undefined
     const sport = url.searchParams.get('sport') ?? undefined
+    const seasonRaw = url.searchParams.get('season')
+    const seasonParsed = seasonRaw != null ? parseInt(seasonRaw, 10) : NaN
+    const season =
+      Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed) ? seasonParsed : undefined
     const tier = url.searchParams.get('tier') ?? undefined
     const limitParam = url.searchParams.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 100) : 50
 
     if (managerId) {
       const { getReputationByLeagueAndManager } = await import('@/lib/reputation-engine/ManagerTrustQueryService')
-      const profile = await getReputationByLeagueAndManager(leagueId, managerId)
+      const profile = await getReputationByLeagueAndManager(leagueId, managerId, { sport, season })
       return NextResponse.json({ leagueId, reputation: profile ?? null })
     }
 
-    const list = await listReputationsByLeague(leagueId, { sport, tier, limit })
+    const list = await listReputationsByLeague(leagueId, { sport, season, tier, limit })
     return NextResponse.json({ leagueId, reputations: list })
   } catch (e) {
     console.error('[reputation GET]', e)

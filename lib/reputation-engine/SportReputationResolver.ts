@@ -4,14 +4,19 @@
  */
 
 import { REPUTATION_SPORTS } from './types'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import {
+  normalizeToSupportedSport,
+  type SupportedSport,
+  isSupportedSport,
+  DEFAULT_SPORT,
+} from '@/lib/sport-scope'
 
-export function normalizeSportForReputation(sport: string | null | undefined): string {
+export function normalizeSportForReputation(sport: string | null | undefined): SupportedSport {
   return normalizeToSupportedSport(sport)
 }
 
-export function getReputationSportLabel(sport: string): string {
-  const s = sport?.toUpperCase()
+export function getReputationSportLabel(sport: string | null | undefined): string {
+  const s = normalizeSportForReputation(sport ?? DEFAULT_SPORT)
   switch (s) {
     case 'NFL':
       return 'NFL'
@@ -28,10 +33,10 @@ export function getReputationSportLabel(sport: string): string {
     case 'SOCCER':
       return 'Soccer'
     default:
-      return sport ?? 'Unknown'
+      return s
   }
 }
 
-export function isSupportedReputationSport(s: string): boolean {
-  return (REPUTATION_SPORTS as readonly string[]).includes(s.toUpperCase())
+export function isSupportedReputationSport(s: string | null | undefined): boolean {
+  return isSupportedSport(s) && (REPUTATION_SPORTS as readonly string[]).includes(s.toUpperCase())
 }

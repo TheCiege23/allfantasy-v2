@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import GeneralSettingsPanel from '@/components/app/settings/GeneralSettingsPanel'
 import TeamSettingsPanel from '@/components/app/settings/TeamSettingsPanel'
 import RosterSettingsPanel from '@/components/app/settings/RosterSettingsPanel'
@@ -70,6 +71,7 @@ export default function LeagueSettingsTab({
   isIdp,
   isCommissioner,
 }: LeagueTabProps & { isDynasty?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
+  const searchParams = useSearchParams()
   const [active, setActive] = useState<SettingsSubtab>('General')
   const showDynastySettings = !!(isDynasty || isDevyDynasty || isMergedDevyC2C)
   const visibleSubtabs = SUBTABS.filter(
@@ -80,6 +82,15 @@ export default function LeagueSettingsTab({
       (tab !== 'Big Brother Settings' || isBigBrother) &&
       (tab !== 'IDP Settings' || isIdp)
   )
+
+  useEffect(() => {
+    const requested = String(searchParams?.get('settingsTab') ?? '').trim()
+    if (!requested) return
+    const requestedLower = requested.toLowerCase()
+    const resolved = visibleSubtabs.find((tab) => tab.toLowerCase() === requestedLower)
+    if (!resolved) return
+    setActive((prev) => (prev === resolved ? prev : resolved))
+  }, [searchParams, visibleSubtabs])
 
   return (
     <section className="space-y-4">

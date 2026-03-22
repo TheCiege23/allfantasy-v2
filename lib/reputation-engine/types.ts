@@ -70,10 +70,29 @@ export interface ReputationScores {
   responsivenessScore: number
 }
 
+export interface ReputationScoreWeights {
+  reliability: number
+  activity: number
+  tradeFairness: number
+  sportsmanship: number
+  commissionerTrust: number
+  toxicityRisk: number
+  participationQuality: number
+  responsiveness: number
+}
+
+export interface ReputationRuntimeConfig {
+  sport: ReputationSport
+  season: number
+  tierThresholds: Partial<Record<ReputationTier, { min: number; max?: number }>>
+  scoreWeights: Partial<ReputationScoreWeights>
+}
+
 export interface ReputationEngineInput {
   leagueId: string
   managerId: string
   sport: string
+  season?: number | null
   /** Optional: replace existing record. Default true. */
   replace?: boolean
 }
@@ -83,6 +102,7 @@ export interface ReputationEngineResult {
   managerId: string
   leagueId: string
   sport: string
+  season: number
   overallScore: number
   tier: ReputationTier
   dimensionScores: ReputationScores

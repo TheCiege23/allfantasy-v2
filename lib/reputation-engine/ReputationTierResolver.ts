@@ -7,6 +7,26 @@ import { REPUTATION_TIERS, DEFAULT_REPUTATION_TIER_THRESHOLDS } from './types'
 
 export type TierThresholdsConfig = Partial<Record<ReputationTier, { min: number; max?: number }>>
 
+export function normalizeTierThresholdConfig(
+  incoming?: TierThresholdsConfig | null
+): Record<ReputationTier, { min: number; max?: number }> {
+  const out: Record<ReputationTier, { min: number; max?: number }> = {
+    ...DEFAULT_REPUTATION_TIER_THRESHOLDS,
+  }
+  if (!incoming) return out
+  for (const tier of REPUTATION_TIERS) {
+    const candidate = incoming[tier]
+    if (!candidate || typeof candidate.min !== 'number' || !Number.isFinite(candidate.min)) continue
+    const min = Math.max(0, Math.min(100, candidate.min))
+    const max =
+      typeof candidate.max === 'number' && Number.isFinite(candidate.max)
+        ? Math.max(min, Math.min(100, candidate.max))
+        : undefined
+    out[tier] = { min, ...(max !== undefined ? { max } : {}) }
+  }
+  return out
+}
+
 /**
  * Resolve overall score (0–100) to a tier. Higher score = higher trust tier.
  */
@@ -14,7 +34,7 @@ export function resolveReputationTier(
   overallScore: number,
   thresholds: TierThresholdsConfig = {}
 ): ReputationTier {
-  const t = { ...DEFAULT_REPUTATION_TIER_THRESHOLDS, ...thresholds }
+  const t = normalizeTierThresholdConfig(thresholds)
   const clamped = Math.max(0, Math.min(100, overallScore))
   // Order: highest tier first (Legendary → Risky)
   for (const tier of REPUTATION_TIERS) {

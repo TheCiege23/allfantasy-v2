@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { ReactNode } from "react"
 import LeagueTabNav, { type LeagueShellTab } from "@/components/app/LeagueTabNav"
 
@@ -21,6 +21,7 @@ export default function LeagueShell({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<LeagueShellTab>(initialTab || "Overview")
 
   // Sync active tab when URL deep-link changes (e.g. user clicked Trust & legacy → Settings)
@@ -34,11 +35,11 @@ export default function LeagueShell({
     (tab: LeagueShellTab) => {
       setActiveTab(tab)
       const path = pathname ?? ""
-      const query = new URLSearchParams()
+      const query = new URLSearchParams(searchParams?.toString() ?? "")
       query.set("tab", tab)
       router.replace(`${path}?${query.toString()}`, { scroll: false })
     },
-    [pathname, router]
+    [pathname, router, searchParams]
   )
 
   return (

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { queryLegacyLeaderboard, getLegacyScoreByEntity } from "@/lib/legacy-score-engine/LegacyRankingService"
+import { DEFAULT_SPORT, normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -24,10 +25,11 @@ export async function GET(
     const offset = url.searchParams.get("offset")
 
     if (entityId && entityType) {
+      const sportResolved = sport ? normalizeToSupportedSport(sport) : DEFAULT_SPORT
       const record = await getLegacyScoreByEntity(
         entityType,
         entityId,
-        sport ?? "NFL",
+        sportResolved,
         leagueId
       )
       return NextResponse.json({ leagueId, record: record ?? null })
@@ -35,7 +37,7 @@ export async function GET(
 
     const { records, total } = await queryLegacyLeaderboard({
       leagueId,
-      sport: sport ?? null,
+      sport: sport ? normalizeToSupportedSport(sport) : null,
       entityType: entityType ?? null,
       limit: limit ? parseInt(limit, 10) : 50,
       offset: offset ? parseInt(offset, 10) : 0,

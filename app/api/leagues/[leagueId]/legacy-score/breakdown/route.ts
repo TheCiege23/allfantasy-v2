@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getLegacyScoreByEntity } from "@/lib/legacy-score-engine/LegacyRankingService"
 import { buildLegacyExplanationContext } from "@/lib/legacy-score-engine/AILegacyExplanationService"
+import { DEFAULT_SPORT, normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -20,7 +21,7 @@ export async function GET(
     const url = new URL(req.url)
     const entityType = url.searchParams.get("entityType")
     const entityId = url.searchParams.get("entityId")
-    const sport = url.searchParams.get("sport") ?? "NFL"
+    const sport = normalizeToSupportedSport(url.searchParams.get("sport") ?? DEFAULT_SPORT)
 
     if (!entityType || !entityId) {
       return NextResponse.json(

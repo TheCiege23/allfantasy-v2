@@ -1,138 +1,145 @@
-# Prompt 41 — Hall of Fame System + Full UI Click Audit (Deliverable)
+# Prompt 41 — Hall of Fame System + Full UI Click Audit
 
-## 1. Hall of Fame Architecture
+## 1) Hall of Fame Architecture
 
-- **Purpose:** Recognize legendary teams, iconic managers, historic moments, dynasty runs, championship runs, record-breaking seasons, memorable upsets, and all-time achievements. Structured, queryable, and displayable at league and platform level.
-- **Two layers:**
-  - **Legacy leaderboard (unchanged):** `HallOfFameRow` + `SeasonResult` drive the existing “all-time leaderboard” and season view. Rebuild computes dominance, championships, longevity, efficiency and stores per (leagueId, rosterId). Used by `HallOfFameSection` top block and `HallOfFameCard` / `SeasonLeaderboardCard`.
-  - **Structured HoF (new):** `HallOfFameEntry` (inductions by entity type and category) and `HallOfFameMoment` (historic moments with headline, summary, related managers/teams, significance score). Both are sport- and league-aware and support filters and AI narrative.
-- **Data flow:**
-  - **Entries:** Created via `HallOfFameService.createHallOfFameEntry` or `inductManagerFromLeagueHistory` (from HallOfFameRow + SeasonResult). `InductionScoreCalculator` computes 0–1 score from metrics (championships, dominance, longevity, significance, etc.) and category.
-  - **Moments:** Detected by `HistoricMomentDetector` (championship moments, record-season moments) or created via `HallOfFameService.createHallOfFameMoment`. Synced per league with `syncHistoricMomentsForLeague`.
-  - **Query:** `HallOfFameQueryService` — `queryHallOfFameEntries` (sport, leagueId, season, category, entityType, entityId, limit, offset) and `queryHallOfFameMoments` (leagueId, sport, season, limit, offset). Single-record: `getEntryById`, `getMomentById`.
-  - **Sport:** `SportHallOfFameResolver` normalizes sport and supports all seven (NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer). `lib/sport-scope` is the source of truth.
-  - **AI narrative:** `AIHallOfFameNarrativeAdapter` builds `HallOfFameNarrativeContext` and `buildWhyInductedPromptContext` for “Tell me why this matters” and “Why inducted?” drill-downs.
-- **Preserved:** League history, championships, standings history, existing HallOfFameRow leaderboard, awards systems, manager/team profile pages, dashboards, and legacy AI `hall_of_fame_moments` usage remain unchanged. New system is additive (new tables, engine, APIs, UI sections).
+- **Two-layer model preserved and extended**
+  - `HallOfFameRow` remains the legacy all-time/season leaderboard layer (`/api/leagues/[leagueId]/hall-of-fame` + existing ranking engine).
+  - `HallOfFameEntry` and `HallOfFameMoment` power the structured Hall of Fame layer (induction records, historical moments, explainability context).
+- **Core modules implemented and wired**
+  - `lib/hall-of-fame-engine/HallOfFameService.ts`
+  - `lib/hall-of-fame-engine/InductionScoreCalculator.ts`
+  - `lib/hall-of-fame-engine/HistoricMomentDetector.ts`
+  - `lib/hall-of-fame-engine/HallOfFameQueryService.ts`
+  - `lib/hall-of-fame-engine/SportHallOfFameResolver.ts`
+  - `lib/hall-of-fame-engine/AIHallOfFameNarrativeAdapter.ts`
+- **New orchestration path**
+  - `runHallOfFameEngineForLeague()` now creates and updates induction entries for managers, teams, championship runs, dynasty runs, record seasons, rivalry moments, upset moments, and comeback-style moments (heuristic), while also syncing moments.
+- **Sport scope compliance**
+  - All Hall of Fame logic resolves sport through `lib/sport-scope.ts` and supports: NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER.
+- **Preservation checks**
+  - League history, standings/championship records, legacy leaderboard, profile pages, dashboard/home integrations, existing tabs/cards, and existing AI entry points remain intact.
 
----
+## 2) Induction and Significance Logic
 
-## 2. Induction and Significance Logic
+- **InductionScoreCalculator**
+  - Uses normalized metrics (`championships`, `seasonsPlayed`, `dominance`, `longevity`, `significance`, `upsetMagnitude`, `dynastyLength`, `comebackMagnitude`, `rivalryIntensity`, `recordValue`) and category-specific weighting.
+- **Hall of Fame engine write behavior**
+  - Uses `createOrUpdateEntry` semantics keyed by scope (`leagueId`, `sport`, `season`, `category`, `entityType`, `entityId`, `title`) so reruns refresh stale summaries/scores instead of duplicating rows.
+- **Historic moments logic**
+  - Existing championship and record-season detection preserved.
+  - Additional induction entry heuristics added for:
+    - **Biggest upsets** (rank-gap + matchup margin proxy)
+    - **Historic comebacks** (tight high-scoring finish proxy)
+    - **Iconic rivalries** (rivalry score/tier data)
+- **AI explanation logic**
+  - `/api/leagues/[leagueId]/hall-of-fame/tell-story` now attempts `openaiChatText` with full narrative context and falls back deterministically if AI is unavailable.
 
-- **Entity types:** MANAGER, TEAM, MOMENT, DYNASTY_RUN, CHAMPIONSHIP_RUN, RECORD_SEASON.
-- **Categories:** all_time_great_managers, all_time_great_teams, greatest_moments, biggest_upsets, best_championship_runs, longest_dynasties, historic_comebacks, iconic_rivalries.
-- **InductionScoreCalculator:** Input metrics: championships, seasonsPlayed, dominance, longevity, significance, upsetMagnitude, dynastyLength, comebackMagnitude, rivalryIntensity, recordValue. Each normalized 0–1. Score per category uses weighted combinations (e.g. all_time_great_managers: 0.4×dominance + 0.35×championships + 0.15×longevity + 0.1×seasons; biggest_upsets: 0.6×upset + 0.25×significance + 0.15×dominance). Default fallback: 0.3×dominance + 0.3×championships + 0.2×longevity + 0.2×significance.
-- **HistoricMomentDetector:** Championship moments from `SeasonResult` (champion = true); record-season moments from top wins/pointsFor per season. Significance score 0–1 (e.g. championships 0.9; record seasons from dominance ratio). Sport cadence respected via `getDefaultSeasonsConsidered(sport)`.
-- **Explainable:** Weights and category formulas are in code; significance is derived from league/season data.
+## 3) Schema Additions
 
----
+- **Structured HoF models used**
+  - `HallOfFameEntry` (`hall_of_fame_entries`)
+  - `HallOfFameMoment` (`hall_of_fame_moments`)
+- **No destructive schema change in this prompt**
+  - Prompt 41 implementation consumed and expanded behavior on existing Hall of Fame models.
+  - Existing legacy `HallOfFameRow` schema remained unchanged.
 
-## 3. Schema Additions
+## 4) Timeline and Profile Integration Updates
 
-- **HallOfFameEntry** (`hall_of_fame_entries`): id (cuid), entityType (VarChar 32), entityId (VarChar 128), sport (VarChar 16), leagueId (VarChar 64, optional), season (VarChar 16, optional), category (VarChar 64), title (VarChar 256), summary (Text, optional), inductedAt (DateTime default now), score (Decimal 10,4), metadata (Json default {}). Indexes: (sport, category), (leagueId, entityType), (entityType, entityId), (inductedAt).
-- **HallOfFameMoment** (`hall_of_fame_moments`): id (cuid), leagueId (VarChar 64), sport (VarChar 16), season (VarChar 16), headline (VarChar 512), summary (Text, optional), relatedManagerIds (String[]), relatedTeamIds (String[]), relatedMatchupId (VarChar 64, optional), significanceScore (Decimal 10,4), createdAt (DateTime default now). Indexes: (leagueId, season), (sport, season), (createdAt).
+- **League-level Hall of Fame surfaces**
+  - `components/rankings/HallOfFameSection.tsx` expanded with:
+    - sport / category / entity type filters
+    - timeline sort control (significance vs recency)
+    - refresh, sync moments, rebuild, and full “Run HoF engine”
+    - stronger action/error messaging and loading states
+    - safer “Tell me why this matters” handling
+  - Empty-state handling added to:
+    - `components/HallOfFameCard.tsx`
+    - `components/rankings/SeasonLeaderboardCard.tsx`
+- **Detail/drill-down reliability**
+  - Entry detail: `app/app/league/[leagueId]/hall-of-fame/entries/[entryId]/page.tsx`
+  - Moment detail: `app/app/league/[leagueId]/hall-of-fame/moments/[momentId]/page.tsx`
+  - Back links now preserve Hall of Fame tab context (`?tab=Hall of Fame`).
+  - Detail pages now validate non-OK responses and show evidence prompt context.
+- **Platform-level Hall of Fame surface**
+  - Added `app/app/hall-of-fame/page.tsx` backed by:
+    - `components/hall-of-fame/PlatformHallOfFamePanel.tsx`
+    - `GET /api/hall-of-fame/entries`
+    - `GET /api/hall-of-fame/moments`
+- **New backend routes**
+  - `POST /api/leagues/[leagueId]/hall-of-fame/run`
+  - `GET /api/hall-of-fame/entries`
+  - `GET /api/hall-of-fame/moments`
+- **Detail route league-safety**
+  - Entry/moment detail APIs now enforce league scope through scoped query helpers.
 
-Migration: `20260317000000_add_hall_of_fame_entries_and_moments`. Apply with `npx prisma migrate deploy` (or `prisma migrate dev` in interactive env).
+## 5) Full UI Click Audit Findings
 
----
+Detailed matrix: `docs/PROMPT41_HALL_OF_FAME_CLICK_AUDIT_MATRIX.md`
 
-## 4. Timeline and Profile Integration Updates
+High-level findings:
+- **League Hall of Fame interactions:** all audited click paths now wired end to end (filters, refresh, rebuild, run engine, sync moments, drill-down, AI explain, back links).
+- **Platform Hall of Fame interactions:** platform filters + refresh + explain actions are now wired to platform query APIs and league narrative API where applicable.
+- **Fixed issues**
+  - detail APIs could resolve records outside requested league scope
+  - tell-story UI path silently swallowed API errors
+  - sync/run actions lacked explicit user-facing error/success feedback
+  - Hall of Fame back-links lost Hall of Fame tab context
+  - leaderboard cards silently disappeared when empty (no UX feedback)
+  - manager HoF ingestion mismatch in intelligence graph due entity type casing
 
-- **League Hall of Fame tab:** New “Hall of Fame” tab in app league shell (`LeagueTabNav` + `LEAGUE_SHELL_TABS`). Renders `HallOfFameTab` → `HallOfFameSection` (leaderboard + season selector + Rebuild; Inductions & Moments with sport/category filters, Refresh, Sync moments; entry and moment cards with “Why inducted?” and “Tell me why this matters”).
-- **Legacy dashboard (af-legacy):** Existing `HallOfFameSection` now includes the same Inductions & Moments block, filters, Sync moments, and entry/moment cards with drill-down and AI buttons.
-- **Detail pages:** `/app/league/[leagueId]/hall-of-fame/entries/[entryId]` and `/app/league/[leagueId]/hall-of-fame/moments/[momentId]` show single entry/moment with back link, summary, score, and “Tell me why this matters” (POST tell-story → narrative).
-- **APIs:** GET `/api/leagues/[leagueId]/hall-of-fame` (existing: leaderboard + season leaderboard). GET `/api/leagues/[leagueId]/hall-of-fame/entries` (filters: sport, season, category, entityType, entityId, limit, offset). GET `/api/leagues/[leagueId]/hall-of-fame/entries/[entryId]` (entry + narrativeContext + whyInductedPrompt). GET `/api/leagues/[leagueId]/hall-of-fame/moments` (filters: sport, season, limit, offset). GET `/api/leagues/[leagueId]/hall-of-fame/moments/[momentId]` (moment + narrativeContext + whyInductedPrompt). POST `/api/leagues/[leagueId]/hall-of-fame/sync-moments` (detect and create moments). POST `/api/leagues/[leagueId]/hall-of-fame/tell-story` (body: type 'entry'|'moment', id; returns narrative for AI explanation).
-- **Future:** Commissioner media tools, platform-level HoF views, manager/team profile HoF cards can consume the same engine and APIs.
+## 6) QA Findings
 
----
+- **Type safety:** `npm run -s typecheck` passes.
+- **Click audit automation:** `e2e/hall-of-fame-click-audit.spec.ts` passes (league + platform harness).
+- **Lint check:** targeted lint diagnostics for touched Hall of Fame files are clean.
+- **Behavioral verification**
+  - Entries and moments query correctly by sport/category/entity/season.
+  - Timeline sorting and filter combinations reload correctly.
+  - Explain buttons use current record data and show deterministic fallback if needed.
+  - Back links and drill-down links maintain correct navigation intent.
 
-## 5. Full UI Click Audit Findings
+## 7) Issues Fixed
 
-| Location | Element | Handler | State / API | Persisted Reload | Status |
-|----------|--------|---------|-------------|------------------|--------|
-| **League shell (app)** | Hall of Fame tab | `onChange('Hall of Fame')` | Renders `<HallOfFameTab leagueId={leagueId} />` | — | OK |
-| **HallOfFameTab** | — | — | Renders HallOfFameSection with DEFAULT_SEASONS | — | OK |
-| **HallOfFameSection** | Season select | `setSeason(e.target.value)` | useHallOfFame(leagueId, season) | Refetch on season change | OK |
-| **HallOfFameSection** | Rebuild button | `rebuild()` | POST `/api/leagues/[leagueId]/hall-of-fame`, then refresh() | useHallOfFame refetches | OK |
-| **HallOfFameSection** | Sport filter (Inductions & Moments) | `setSportFilter(e.target.value)` | useHallOfFameEntriesAndMoments(leagueId, sport, season, category) | refresh on filter change | OK |
-| **HallOfFameSection** | Category filter | `setCategoryFilter(e.target.value)` | Same hook | refresh on filter change | OK |
-| **HallOfFameSection** | Refresh button | `refreshEntriesMoments()` | GET entries + GET moments with current filters | Hook refresh() | OK |
-| **HallOfFameSection** | Sync moments button | `syncMoments()` | POST `/api/leagues/[leagueId]/hall-of-fame/sync-moments`, then refreshEntriesMoments() | OK | OK |
-| **HallOfFameEntryCard** | “Why inducted?” link | Navigate to `/app/league/[leagueId]/hall-of-fame/entries/[entryId]` | Detail page GET entry by id | Page fetch on mount | OK |
-| **HallOfFameEntryCard** | “Tell me why this matters” button | `onTellStory()` → tellStory('entry', e.id) | POST tell-story with type/id; setStoryNarrative | Toggle show/hide same card | OK |
-| **HallOfFameMomentCard** | “Why inducted?” link | Navigate to `/app/league/[leagueId]/hall-of-fame/moments/[momentId]` | Detail page GET moment by id | Page fetch on mount | OK |
-| **HallOfFameMomentCard** | “Tell me why this matters” button | `onTellStory()` → tellStory('moment', m.id) | POST tell-story with type/id; setStoryNarrative | Toggle show/hide same card | OK |
-| **Entry detail page** | Back to league | Link to `/app/league/[leagueId]` | — | — | OK |
-| **Entry detail page** | “Tell me why this matters” | tellStory() | POST tell-story with type 'entry', id | setNarrative from response | OK |
-| **Moment detail page** | Back to league | Link to `/app/league/[leagueId]` | — | — | OK |
-| **Moment detail page** | “Tell me why this matters” | tellStory() | POST tell-story with type 'moment', id | setNarrative from response | OK |
-| **GET /hall-of-fame** | useHallOfFame | refresh(), rebuild() | Returns rows + meta (or season rows when ?season=) | Yes | OK |
-| **GET /hall-of-fame/entries** | useHallOfFameEntriesAndMoments | refresh() | Query params sport, season, category, limit | Yes | OK |
-| **GET /hall-of-fame/moments** | useHallOfFameEntriesAndMoments | refresh() | Query params sport, season, limit | Yes | OK |
-| **GET /hall-of-fame/entries/[entryId]** | Entry detail page | Page load | Returns entry + narrativeContext + whyInductedPrompt | — | OK |
-| **GET /hall-of-fame/moments/[momentId]** | Moment detail page | Page load | Returns moment + narrativeContext + whyInductedPrompt | — | OK |
-| **POST /hall-of-fame/sync-moments** | Sync moments button | syncMoments() | Creates moments from league history; returns created count | refreshEntriesMoments() after | OK |
-| **POST /hall-of-fame/tell-story** | Tell me why this matters | tellStory() in section and detail pages | Body type, id; returns narrative (and headline, score, etc.) | — | OK |
-| **AdminOverview** | Rebuild Hall of Fame | executeAction('hallOfFame', …) | POST demo league hall-of-fame | — | Unchanged, OK |
+- Added scoped detail lookup support:
+  - `getEntryByIdScoped`
+  - `getMomentByIdScoped`
+- Enforced league scoping in:
+  - `app/api/leagues/[leagueId]/hall-of-fame/entries/[entryId]/route.ts`
+  - `app/api/leagues/[leagueId]/hall-of-fame/moments/[momentId]/route.ts`
+- Added AI+fallback narrative generation in:
+  - `app/api/leagues/[leagueId]/hall-of-fame/tell-story/route.ts`
+- Added complete Hall of Fame engine execution endpoint:
+  - `app/api/leagues/[leagueId]/hall-of-fame/run/route.ts`
+- Added platform query endpoints:
+  - `app/api/hall-of-fame/entries/route.ts`
+  - `app/api/hall-of-fame/moments/route.ts`
+- Added platform Hall of Fame page/panel:
+  - `app/app/hall-of-fame/page.tsx`
+  - `components/hall-of-fame/PlatformHallOfFamePanel.tsx`
+- Hardened UI/UX states and controls:
+  - `components/rankings/HallOfFameSection.tsx`
+  - `components/HallOfFameCard.tsx`
+  - `components/rankings/SeasonLeaderboardCard.tsx`
+- Fixed graph ingestion mismatch:
+  - `lib/league-intelligence-graph/GraphNodeBuilder.ts` now includes `MANAGER` entity type.
 
-**Notes:**
+## 8) Final QA Checklist
 
-- Loading/error: HallOfFameSection shows error for leaderboard and for entries/moments; loading disables Rebuild and shows “Loading inductions and moments…” when applicable.
-- “Why inducted?” uses app route so it works from both app league page and af-legacy (same origin). Back button returns to league home.
-- No dead buttons identified; all listed handlers exist and call the correct APIs. Filters and refresh correctly update state and refetch.
+- [x] League Hall of Fame tab loads leaderboard + induction/moment sections.
+- [x] Sport/category/entity/season filters trigger correct list updates.
+- [x] Timeline sort toggles recency/significance ordering behavior.
+- [x] Refresh button reloads entries/moments for current filter state.
+- [x] Rebuild triggers legacy Hall of Fame recomputation path.
+- [x] Sync moments triggers historic moment sync and refresh.
+- [x] Run HoF engine triggers full entry/moment induction pass.
+- [x] “Why inducted?” drill-down routes open and load valid detail data.
+- [x] Detail page “Tell me why this matters” uses live record context.
+- [x] Back links keep Hall of Fame tab context.
+- [x] Platform Hall of Fame page loads and filters cross-league entries/moments.
+- [x] Platform explain actions resolve narratives for league-linked records.
+- [x] Typecheck passes.
+- [x] Hall of Fame click-audit Playwright spec passes.
 
----
+## 9) Explanation of the Hall of Fame System
 
-## 6. QA Findings
-
-- **Entries:** Created via createHallOfFameEntry or inductManagerFromLeagueHistory. Query by leagueId, sport, season, category works; getEntryById returns entry + narrative context.
-- **Moments:** Created by syncHistoricMomentsForLeague (championships + record seasons) or createHallOfFameMoment. Query by leagueId, sport, season works; getMomentById returns moment + narrative context.
-- **Filters:** Sport and category (entries) and sport and season (moments) filter correctly; Refresh reloads with current filters.
-- **Timeline:** Moments listed by significanceScore desc, createdAt desc; entries by score desc, inductedAt desc.
-- **Induction explanation:** Entry and moment detail pages render; “Tell me why this matters” returns narrative built from title, summary, sport, category/season, score.
-- **AI explanation:** tell-story uses current Hall of Fame data (entry/moment from DB); narrative is consistent with stored summary and score.
-- **Sports:** All seven sports supported; sport normalized via SportHallOfFameResolver and sport-scope.
-- **Legacy leaderboard:** Unchanged; Rebuild still updates HallOfFameRow; HallOfFameCard and SeasonLeaderboardCard still show roster leaderboard and season view.
-
----
-
-## 7. Issues Fixed
-
-- **Schema:** Added HallOfFameEntry and HallOfFameMoment with indexes; migration file created (apply with migrate deploy).
-- **Engine:** Implemented HallOfFameService, InductionScoreCalculator, HistoricMomentDetector, HallOfFameQueryService, SportHallOfFameResolver, AIHallOfFameNarrativeAdapter; all export from `lib/hall-of-fame-engine`.
-- **APIs:** Added GET entries, GET moments, GET entry by id, GET moment by id, POST sync-moments, POST tell-story; existing GET/POST hall-of-fame unchanged.
-- **UI:** Hall of Fame tab added to league shell; HallOfFameTab uses HallOfFameSection; HallOfFameSection extended with Inductions & Moments block, sport/category filters, Refresh, Sync moments, entry/moment cards with “Why inducted?” (detail page) and “Tell me why this matters” (tell-story). Entry and moment detail pages added with back link and AI button.
-- **Hooks:** useHallOfFameEntriesAndMoments added; useHallOfFame unchanged.
-- **Navigation:** “Why inducted?” links to app detail pages so drill-down works from both app and af-legacy.
-
----
-
-## 8. Final QA Checklist
-
-- [ ] Open app league page → Hall of Fame tab; confirm leaderboard + season selector + Rebuild and Inductions & Moments block with filters.
-- [ ] Change sport/category filters and click Refresh; confirm entries/moments list updates.
-- [ ] Click “Sync moments”; confirm loading state and then list or “No inductions or moments yet” message; after sync, moments appear if league has season results.
-- [ ] Click “Why inducted?” on an entry; confirm entry detail page loads with title, summary, score, and “Tell me why this matters” button.
-- [ ] On entry detail page, click “Tell me why this matters”; confirm narrative appears below button.
-- [ ] Click “Why inducted?” on a moment; confirm moment detail page loads; click “Tell me why this matters” and confirm narrative.
-- [ ] In HallOfFameSection (same tab or af-legacy), click “Tell me why this matters” on an entry/moment card; confirm narrative expands below; click again to hide.
-- [ ] Verify GET /hall-of-fame/entries and GET /hall-of-fame/moments with leagueId (and optional sport, season, category) return entries/moments and total.
-- [ ] Verify POST /hall-of-fame/tell-story with type and id returns narrative.
-- [ ] Confirm Rebuild (leaderboard) still works and does not affect entries/moments tables.
-- [ ] Confirm no regression to Standings, League, Intelligence, or other league tabs.
-
----
-
-## 9. Explanation of the Hall of Fame System
-
-The Hall of Fame system has two layers:
-
-1. **Legacy leaderboard** (existing): `HallOfFameRow` stores per-league, per-roster all-time scores (championships, seasons played, dominance, efficiency, longevity). Rebuild reads `SeasonResult`, computes scores, and upserts rows. The UI shows an all-time leaderboard and a season-by-season leaderboard. This remains the primary “Hall of Fame” leaderboard in the first block of the section.
-
-2. **Structured inductions and moments** (new):  
-   - **Entries** (`HallOfFameEntry`): Inductions by entity type (MANAGER, TEAM, MOMENT, DYNASTY_RUN, CHAMPIONSHIP_RUN, RECORD_SEASON) and category (e.g. all_time_great_managers, greatest_moments, biggest_upsets). Each has title, summary, score (0–1), optional league/season, and metadata. Scores are computed by `InductionScoreCalculator` from metrics (championships, dominance, longevity, significance, etc.) with explainable weights per category.  
-   - **Moments** (`HallOfFameMoment`): Historic moments (e.g. championships, record seasons) with headline, summary, related managers/teams, significance score. `HistoricMomentDetector` finds championship and record-season moments from `SeasonResult`; “Sync moments” persists them.  
-   - **Query and narrative:** Entries and moments are queried by league, sport, season, and category. Single-record APIs return the record plus narrative context for “Why inducted?” and “Tell me why this matters.” The AI narrative adapter builds a short explanation from title, summary, sport, category/season, and score; the tell-story API returns this as narrative text for the UI.
-
-3. **Sport support:** All seven sports (NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer) are supported via `lib/sport-scope` and `SportHallOfFameResolver`. Induction and significance logic use the same formulas across sports; sport cadence (e.g. seasons considered) is configurable per sport.
-
-4. **UI:** League Hall of Fame is available as a tab in the app league shell and inside the legacy rankings panel. Users see the leaderboard and Rebuild, then Inductions & Moments with sport/category filters, Refresh, and Sync moments. Each entry and moment card has “Why inducted?” (detail page) and “Tell me why this matters” (inline or on detail page). Back and refresh flows are wired; loading and error states are shown. The system is ready for platform-level HoF views and commissioner media tools later.
+The Hall of Fame system now runs as a structured historical recognition layer on top of existing league history and legacy leaderboards. The system computes induction candidates and moments across supported sports, persists them in queryable models (`HallOfFameEntry`, `HallOfFameMoment`), and exposes them through league and platform APIs. The league UI surfaces provide full operational controls (refresh, sync, run engine), explainability entry points (“Why inducted?” and AI narrative buttons), and filterable/timeline views. The platform UI surfaces aggregate entries and moments across leagues for broader historical storytelling. Existing legacy workflows and pages are preserved, while Hall of Fame interactions are now audited and wired end to end.

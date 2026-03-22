@@ -24,9 +24,17 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}))
     const sport = body.sport ?? undefined
+    const seasonCandidate =
+      typeof body?.season === 'number'
+        ? body.season
+        : typeof body?.season === 'string'
+          ? parseInt(body.season, 10)
+          : NaN
+    const season =
+      Number.isFinite(seasonCandidate) && !Number.isNaN(seasonCandidate) ? seasonCandidate : undefined
     const replace = body.replace !== false
 
-    const result = await runReputationEngineForLeague(leagueId, { sport, replace })
+    const result = await runReputationEngineForLeague(leagueId, { sport, season, replace })
     return NextResponse.json({
       leagueId,
       processed: result.processed,
