@@ -11,6 +11,7 @@ export interface GraphInfluenceInput {
   leagueId: string;
   /** When null, include all seasons (dynasty history). */
   season?: number | null;
+  sport?: string | null;
   limits?: Partial<{
     rivalries: number;
     clusters: number;
@@ -31,6 +32,7 @@ export async function buildLeagueRelationshipProfile(
   return buildRelationshipSummary({
     leagueId: input.leagueId,
     season: input.season,
+    sport: input.sport ?? null,
     limitRivalries: input.limits?.rivalries ?? 20,
     limitClusters: input.limits?.clusters ?? 10,
     limitInfluence: input.limits?.influence ?? 15,

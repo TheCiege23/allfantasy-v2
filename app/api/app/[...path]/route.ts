@@ -82,7 +82,17 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   if (leagueId && section === 'players') {
     const q = req.nextUrl.searchParams.get('q')
     if (!q) return NextResponse.json([])
-    return proxyToExisting(req, { targetPath: '/api/players/search', query: { q } })
+    try {
+      const { prisma } = await import('@/lib/prisma')
+      const league = await (prisma as any).league.findUnique({
+        where: { id: leagueId },
+        select: { sport: true },
+      })
+      const sport = String(league?.sport ?? 'NFL').toUpperCase()
+      return proxyToExisting(req, { targetPath: '/api/players/search', query: { q, sport } })
+    } catch {
+      return proxyToExisting(req, { targetPath: '/api/players/search', query: { q } })
+    }
   }
 
   if (leagueId && section === 'waivers') {
@@ -170,7 +180,15 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'draft') {
-    return proxyToExisting(req, { targetPath: '/api/mock-draft/adp' })
+    const limit = req.nextUrl.searchParams.get('limit')
+    const poolType = req.nextUrl.searchParams.get('poolType')
+    return proxyToExisting(req, {
+      targetPath: `/api/leagues/${leagueId}/draft/pool`,
+      query: {
+        ...(limit ? { limit } : {}),
+        ...(poolType ? { poolType } : {}),
+      },
+    })
   }
 
   if (leagueId && section === 'standings') {

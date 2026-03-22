@@ -152,7 +152,7 @@ export async function attachPlayerMedia(player: {
 
   const media: PlayerMedia = {
     headshotUrl: dbImageUrl || buildHeadshotUrl(player.playerId),
-    teamLogoUrl: getTeamLogoUrl(effectiveTeam),
+    teamLogoUrl: getTeamLogoUrl(effectiveTeam, sport),
   }
 
   const result: ResolvedPlayerMedia = {
@@ -229,7 +229,7 @@ export async function attachPlayerMediaBatch(
 
     const media: PlayerMedia = {
       headshotUrl: dbImageUrl || buildHeadshotUrl(p.playerId),
-      teamLogoUrl: getTeamLogoUrl(effectiveTeam),
+      teamLogoUrl: getTeamLogoUrl(effectiveTeam, p.sport),
     }
 
     const result: ResolvedPlayerMedia = {
@@ -291,7 +291,7 @@ export async function attachPlayerMediaHistorical(
 
   const media: PlayerMedia = {
     headshotUrl: buildHeadshotUrl(player.playerId),
-    teamLogoUrl: getTeamLogoUrl(effectiveTeam),
+    teamLogoUrl: getTeamLogoUrl(effectiveTeam, sport),
   }
 
   return {

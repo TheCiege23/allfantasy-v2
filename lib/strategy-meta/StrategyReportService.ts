@@ -9,6 +9,8 @@ import type { StrategySport, LeagueFormat } from './types'
 import type { DraftPickFact } from './types'
 import { getPositionCountsFromRoster } from './RosterCompositionAnalyzer'
 import { normalizeToSupportedSport, DEFAULT_SPORT } from '@/lib/sport-scope'
+import { resolveSinceFromTimeframe } from '@/lib/global-meta-engine/timeframe'
+import { getStrategyLabelForSport } from './SportStrategyResolver'
 
 export interface StrategyMetaLeagueDiagnostics {
   leagueId: string
@@ -350,6 +352,7 @@ export async function generateStrategyMetaReports(opts: {
           leagueId: league.id,
           rosterId,
           season,
+          sport,
           strategyTypes: detected.map((d) => d.strategyType),
           leagueFormat: format,
           wins,
@@ -384,18 +387,21 @@ export async function generateStrategyMetaReports(opts: {
     }
   }
 
-  const bySegment = new Map<string, TeamStrategyOutcome[]>()
+  const bySegment = new Map<string, { sport: StrategySport; leagueFormat: string; outcomes: TeamStrategyOutcome[] }>()
   for (const o of outcomes) {
-    const key = `${o.leagueFormat}`
-    const list = bySegment.get(key) ?? []
-    list.push(o)
-    bySegment.set(key, list)
+    const sport = normalizeToSupportedSport(o.sport ?? opts.sport ?? DEFAULT_SPORT) as StrategySport
+    const key = `${sport}::${o.leagueFormat}`
+    const segment = bySegment.get(key) ?? { sport, leagueFormat: o.leagueFormat, outcomes: [] }
+    segment.outcomes.push(o)
+    bySegment.set(key, segment)
   }
 
-  const sport = opts.sport ?? DEFAULT_SPORT
   let reportCount = 0
-  for (const [leagueFormat, segmentOutcomes] of bySegment) {
-    const reports = computeStrategyMetaReport(segmentOutcomes, { sport, leagueFormat })
+  for (const segment of bySegment.values()) {
+    const reports = computeStrategyMetaReport(segment.outcomes, {
+      sport: segment.sport,
+      leagueFormat: segment.leagueFormat,
+    })
     for (const r of reports) {
       const previous = await prisma.strategyMetaReport.findUnique({
         where: {
@@ -430,7 +436,7 @@ export async function generateStrategyMetaReports(opts: {
             usageRate: r.usageRate,
             successRate: r.successRate,
             trendingDirection,
-            leagueFormat: r.leagueFormat,
+            leagueFormat: segment.leagueFormat,
             sampleSize: r.sampleSize,
           },
           update: {
@@ -467,16 +473,25 @@ export async function generateStrategyMetaReports(opts: {
 export async function getStrategyMetaReports(opts: {
   sport?: string
   leagueFormat?: string
-}): Promise<Array<{ strategyType: string; sport: string; usageRate: number; successRate: number; trendingDirection: string; leagueFormat: string; sampleSize: number }>> {
+  timeframe?: '24h' | '7d' | '30d'
+}): Promise<Array<{ strategyType: string; strategyLabel: string; sport: string; usageRate: number; successRate: number; trendingDirection: string; leagueFormat: string; sampleSize: number }>> {
+  const since = resolveSinceFromTimeframe(opts.timeframe)
+  const sportFilter = opts.sport ? normalizeToSupportedSport(opts.sport) : undefined
   const rows = await prisma.strategyMetaReport.findMany({
     where: {
-      ...(opts.sport && { sport: opts.sport }),
+      ...(sportFilter && { sport: sportFilter }),
       ...(opts.leagueFormat && { leagueFormat: opts.leagueFormat }),
+      ...(since ? { updatedAt: { gte: since } } : {}),
     },
     orderBy: [{ usageRate: 'desc' }, { successRate: 'desc' }],
   })
   return rows.map((r) => ({
     strategyType: r.strategyType,
+    strategyLabel:
+      getStrategyLabelForSport(
+        r.strategyType as Parameters<typeof getStrategyLabelForSport>[0],
+        normalizeToSupportedSport(r.sport)
+      ) || r.strategyType,
     sport: r.sport,
     usageRate: r.usageRate,
     successRate: r.successRate,

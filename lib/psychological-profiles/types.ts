@@ -2,6 +2,9 @@
  * Psychological Profiles Engine — types for profiles, labels, evidence, and sport.
  */
 
+import type { SupportedSport } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+
 export const PROFILE_LABELS = [
   'aggressive',
   'conservative',
@@ -49,16 +52,22 @@ export interface ProfileEvidencePayload {
   evidenceType: EvidenceType
   value: number
   sourceReference?: string | null
+  createdAt?: Date
 }
 
 export interface BehaviorSignals {
   tradeCount: number
   tradeFrequencyNorm: number
+  tradeTimingLateRate: number
   waiverClaimCount: number
   waiverFocusNorm: number
   lineupChangeRate: number
+  benchingPatternScore: number
   rookieAcquisitionRate: number
   vetAcquisitionRate: number
+  draftPickCount: number
+  draftEarlyRoundRate: number
+  positionPriorityConcentration: number
   picksTradedAway: number
   picksAcquired: number
   rebuildScore: number
@@ -67,5 +76,5 @@ export interface BehaviorSignals {
   riskNorm: number
 }
 
-export const PSYCH_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
-export type PsychSport = (typeof PSYCH_SPORTS)[number]
+export const PSYCH_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
+export type PsychSport = SupportedSport

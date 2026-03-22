@@ -7,6 +7,9 @@ import { getSpecialtySpecByVariant } from '@/lib/specialty-league/registry'
 import { recordTrendSignalsAndUpdate } from '@/lib/player-trend'
 import { resolveSportForTrend } from '@/lib/player-trend/SportTrendContextResolver'
 import { prisma } from '@/lib/prisma'
+import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
+import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
+import { validateRosterSectionsAgainstTemplate } from '@/lib/roster/LineupTemplateValidation'
 
 // Guillotine: chopped (eliminated) rosters cannot change lineup/roster.
 // Salary cap: when persisting roster changes for a salary_cap league, call
@@ -202,6 +205,24 @@ export async function POST(req: NextRequest) {
     }
   } else if (rosterState && typeof rosterState === 'object') {
     nextPlayerData = buildPersistedRosterData(rosterState, currentRoster.playerData)
+  }
+
+  try {
+    const formatType = getFormatTypeForVariant(
+      String(league.sport ?? 'NFL'),
+      (league.leagueVariant as string | null) ?? undefined
+    )
+    const template = await getRosterTemplateForLeague(
+      String(league.sport ?? 'NFL') as any,
+      formatType,
+      leagueId
+    )
+    const validationError = validateRosterSectionsAgainstTemplate(nextPlayerData, template)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+  } catch {
+    // Non-fatal: do not block roster save if template lookup fails.
   }
 
   await (prisma as any).roster.update({

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, BookOpen } from 'lucide-react'
 
 interface DramaEventDetail {
@@ -19,12 +19,15 @@ interface DramaEventDetail {
 }
 
 export default function DramaEventDetailPage() {
+  const router = useRouter()
   const params = useParams<{ leagueId: string; eventId: string }>()
   const leagueId = params?.leagueId ?? ''
   const eventId = params?.eventId ?? ''
   const [event, setEvent] = useState<DramaEventDetail | null>(null)
   const [narrative, setNarrative] = useState<string | null>(null)
   const [narrativeLoading, setNarrativeLoading] = useState(false)
+  const [rivalryResolving, setRivalryResolving] = useState(false)
+  const [rivalryError, setRivalryError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,6 +60,45 @@ export default function DramaEventDetailPage() {
       .finally(() => setNarrativeLoading(false))
   }
 
+  const openLinkedRivalry = async () => {
+    if (!event || event.relatedManagerIds.length < 2) {
+      setRivalryError('No linked rivalry managers on this storyline.')
+      return
+    }
+    setRivalryResolving(true)
+    setRivalryError(null)
+    try {
+      const [managerAId, managerBId] = event.relatedManagerIds
+      const params = new URLSearchParams({
+        managerAId,
+        managerBId,
+        limit: '1',
+      })
+      const res = await fetch(
+        `/api/leagues/${encodeURIComponent(leagueId)}/rivalries?${params.toString()}`,
+        { cache: 'no-store' }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? 'Failed to resolve rivalry')
+      const rivalryId = Array.isArray(data?.rivalries) && data.rivalries[0]?.id
+      if (!rivalryId) {
+        setRivalryError('No rivalry record found for this manager pair.')
+        return
+      }
+      const navParams = new URLSearchParams()
+      if (event?.dramaType) navParams.set('from', event.dramaType)
+      router.push(
+        `/app/league/${encodeURIComponent(leagueId)}/rivalries/${encodeURIComponent(rivalryId)}${
+          navParams.toString() ? `?${navParams.toString()}` : ''
+        }`
+      )
+    } catch (e) {
+      setRivalryError(e instanceof Error ? e.message : 'Could not open linked rivalry.')
+    } finally {
+      setRivalryResolving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
@@ -81,12 +123,27 @@ export default function DramaEventDetailPage() {
 
   return (
     <div className="space-y-4 p-4 max-w-2xl mx-auto">
-      <Link
-        href={`/app/league/${leagueId}`}
-        className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to league
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href={`/app/league/${leagueId}`}
+          className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to league
+        </Link>
+        <Link
+          href={`/app/league/${leagueId}/drama`}
+          className="inline-flex items-center gap-1 text-sm text-amber-200 hover:underline"
+        >
+          Open drama timeline
+        </Link>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          className="rounded border border-white/20 px-2 py-1 text-xs text-white/70 hover:bg-white/10"
+        >
+          Refresh page
+        </button>
+      </div>
 
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
@@ -107,6 +164,35 @@ export default function DramaEventDetailPage() {
             )}
           </div>
         )}
+        <div className="flex flex-wrap items-center gap-2">
+          {event.dramaType === 'RIVALRY_CLASH' && event.relatedManagerIds.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => void openLinkedRivalry()}
+              disabled={rivalryResolving}
+              className="rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-xs text-purple-200 hover:bg-purple-500/20 disabled:opacity-50"
+            >
+              {rivalryResolving ? 'Opening rivalry…' : 'Open linked rivalry'}
+            </button>
+          )}
+          {event.relatedMatchupId && (
+            <Link
+              href={`/app/league/${leagueId}?tab=Matchups`}
+              className="rounded border border-white/20 bg-white/5 px-2 py-1 text-xs text-white/75 hover:bg-white/10"
+            >
+              Open matchup context
+            </Link>
+          )}
+          {event.dramaType === 'TRADE_FALLOUT' && (
+            <Link
+              href={`/app/league/${leagueId}?tab=Trades`}
+              className="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/20"
+            >
+              Open trade fallout context
+            </Link>
+          )}
+        </div>
+        {rivalryError && <p className="text-xs text-red-300">{rivalryError}</p>}
         <button
           type="button"
           onClick={tellStory}

@@ -23,6 +23,7 @@ export type DraftHelperPanelProps = {
   sport: string
   round: number
   pick: number
+  leagueId?: string
   leagueName?: string
   rosterSlots?: string[]
   queueLength?: number
@@ -44,6 +45,7 @@ export function DraftHelperPanel({
   sport,
   round,
   pick,
+  leagueId,
   leagueName,
   rosterSlots,
   queueLength,
@@ -61,7 +63,11 @@ export function DraftHelperPanel({
     recommendedPosition: recommendation?.player.position,
     explanation,
   })
-  const chimmyUrl = getDraftAIChatUrl(chimmyPrompt)
+  const chimmyUrl = getDraftAIChatUrl(chimmyPrompt, {
+    leagueId,
+    insightType: 'draft',
+    sport,
+  })
 
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-black/25">

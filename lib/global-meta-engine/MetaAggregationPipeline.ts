@@ -3,25 +3,27 @@
  */
 import { getGlobalMetaSnapshots, getPlayerMetaTrendsForMeta, getPositionMetaTrends, getStrategyMetaForEngine } from './MetaQueryService'
 import { normalizeSportForMeta } from './SportMetaResolver'
-import type { WeeklyMetaReport, MetaType } from './types'
+import type { WeeklyMetaReport, MetaType, TimeframeId } from './types'
 import { META_TYPES } from './types'
 
 export interface WeeklyReportOptions {
   sport: string
   season: string
   weekOrPeriod?: number
+  timeframe?: TimeframeId
 }
 
 export async function buildWeeklyMetaReport(options: WeeklyReportOptions): Promise<WeeklyMetaReport> {
   const sport = normalizeSportForMeta(options.sport)
   const season = String(options.season)
   const weekOrPeriod = options.weekOrPeriod ?? 0
+  const timeframe = options.timeframe ?? '7d'
 
   const [playerTrending, positionTrends, strategySummary, snapshots] = await Promise.all([
-    getPlayerMetaTrendsForMeta({ sport, limit: 50 }),
-    getPositionMetaTrends(sport),
-    getStrategyMetaForEngine(sport),
-    getGlobalMetaSnapshots({ sport, season, weekOrPeriod, limit: 20 }),
+    getPlayerMetaTrendsForMeta({ sport, timeframe, limit: 50 }),
+    getPositionMetaTrends(sport, timeframe),
+    getStrategyMetaForEngine(sport, undefined, timeframe),
+    getGlobalMetaSnapshots({ sport, season, weekOrPeriod, timeframe, limit: 20 }),
   ])
 
   const metaTypeSummaries: Record<MetaType, Record<string, unknown>> = {} as Record<MetaType, Record<string, unknown>>
@@ -61,14 +63,28 @@ export async function buildWeeklyMetaReport(options: WeeklyReportOptions): Promi
 }
 
 export async function buildAIMetaSummary(sport?: string, metaType?: MetaType, timeframe?: string): Promise<{ summary: string; topTrends: string[]; sportContext: string }> {
+  const timeframeId: TimeframeId = timeframe === '24h' || timeframe === '30d' ? timeframe : '7d'
   const sportNorm = sport ? normalizeSportForMeta(sport) : undefined
-  const players = await getPlayerMetaTrendsForMeta({ sport: sportNorm, limit: 10 })
-  const strategies = await getStrategyMetaForEngine(sportNorm)
+  const [players, strategies, snapshots] = await Promise.all([
+    getPlayerMetaTrendsForMeta({ sport: sportNorm, timeframe: timeframeId, limit: 10 }),
+    getStrategyMetaForEngine(sportNorm, undefined, timeframeId),
+    getGlobalMetaSnapshots({
+      sport: sportNorm,
+      metaType,
+      timeframe: timeframeId,
+      limit: 5,
+    }),
+  ])
   const sportContext = sportNorm ? `Sport: ${sportNorm}` : 'All sports'
+  const snapshotHighlights = snapshots
+    .slice(0, 2)
+    .map((snapshot) => `${snapshot.metaType}: ${Object.keys((snapshot.data as Record<string, unknown>) ?? {}).length} metrics`)
   const topTrends = [
     ...players.slice(0, 5).map((p) => `${p.playerId} (${p.trendingDirection}, score ${Math.round(p.trendScore)})`),
     ...strategies.slice(0, 3).map((s) => `${s.strategyType}: ${Math.round(s.usageRate * 100)}% usage`),
+    ...snapshotHighlights,
   ]
-  const summary = `Meta summary for ${sportContext}. Top trending players and strategy usage. Timeframe: ${timeframe ?? 'latest'}.`
+  const summaryMetaType = metaType ? ` Focus: ${metaType}.` : ''
+  const summary = `Meta summary for ${sportContext}. Top trending players, strategy movement, and snapshot signals across ${timeframeId}.${summaryMetaType}`
   return { summary, topTrends, sportContext }
 }

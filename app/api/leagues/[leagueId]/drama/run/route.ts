@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runLeagueDramaEngine } from '@/lib/drama-engine/LeagueDramaEngine'
 import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,8 +24,17 @@ export async function POST(
     if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
     const body = await req.json().catch(() => ({}))
-    const sport = body.sport ?? league.sport ?? 'NFL'
-    const season = body.season ?? league.season ?? new Date().getFullYear()
+    const sport = normalizeToSupportedSport(body.sport ?? league.sport)
+    const seasonParsed =
+      typeof body.season === 'number'
+        ? body.season
+        : typeof body.season === 'string'
+          ? parseInt(body.season, 10)
+          : NaN
+    const season =
+      Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed)
+        ? seasonParsed
+        : league.season ?? new Date().getFullYear()
     const replace = body.replace === true
 
     const result = await runLeagueDramaEngine({

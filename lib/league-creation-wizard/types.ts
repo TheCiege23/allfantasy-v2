@@ -138,6 +138,7 @@ export interface LeagueCreationWizardState {
   waiverSettings: WizardWaiverSettings
   playoffSettings: WizardPlayoffSettings
   scheduleSettings: WizardScheduleSettings
+  tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
   privacySettings: WizardPrivacySettings

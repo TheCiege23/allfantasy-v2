@@ -2,6 +2,11 @@
 
 Production implementation of the probabilistic simulation system and mandatory UI/workflow audit for all simulation-related interactions.
 
+Latest implementation addendum:
+
+- `docs/PROMPT31_IMPLEMENTATION_REPORT.md`
+- `docs/PROMPT31_CLICK_AUDIT_MATRIX.md`
+
 ---
 
 ## 1. Simulation engine architecture

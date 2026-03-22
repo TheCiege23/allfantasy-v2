@@ -21,6 +21,13 @@ export function validateRoster(
   const template = getRosterTemplateDefinition(sport, formatType)
   const errors: string[] = []
   const slotCounts: Record<string, { assigned: number; max: number }> = {}
+  const knownSlots = new Set(template.slots.map((slot) => slot.slotName.toUpperCase()))
+
+  for (const assignment of assignments) {
+    if (!knownSlots.has(assignment.slotName.toUpperCase())) {
+      errors.push(`Unknown slot: ${assignment.slotName}`)
+    }
+  }
 
   for (const slot of template.slots) {
     const assigned = assignments.filter(

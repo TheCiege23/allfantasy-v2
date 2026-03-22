@@ -9,6 +9,7 @@ import { getTrendingByDirection } from './PlayerTrendAnalyzer'
 import type { TrendingPlayerRow } from './PlayerTrendAnalyzer'
 import type { TrendFeedType, TrendDeterministicSignals } from './types'
 import { prisma } from '@/lib/prisma'
+import type { TimeframeId } from '@/lib/global-meta-engine/types'
 
 export type { TrendFeedType, TrendDeterministicSignals }
 
@@ -26,6 +27,7 @@ export interface TrendFeedItem {
 
 export interface TrendFeedOptions {
   sport?: string
+  timeframe?: TimeframeId
   limitPerType?: number
   /** Max items total across all types (default 80) */
   limit?: number
@@ -132,12 +134,13 @@ export async function getTrendFeed(
 ): Promise<TrendFeedItem[]> {
   const {
     sport,
+    timeframe,
     limitPerType = 25,
     limit = 80,
   } = options
 
   const sportFilter = sport && (SUPPORTED_SPORTS as readonly string[]).includes(sport) ? sport : undefined
-  const opts = { sport: sportFilter, limit: limitPerType }
+  const opts = { sport: sportFilter, timeframe, limit: limitPerType }
 
   const [hotRows, risingRows, fallingRows, coldRows] = await Promise.all([
     getTrendingByDirection('Hot', opts),

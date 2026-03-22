@@ -1,10 +1,12 @@
 /**
  * Strategy Meta Analyzer — shared types.
- * Supports NFL, NBA, MLB, NHL, NCAAF, NCAAB.
+ * Supports NFL, NHL, NBA, MLB, NCAAF, NCAAB, SOCCER.
  */
 
-export const SUPPORTED_STRATEGY_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
-export type StrategySport = (typeof SUPPORTED_STRATEGY_SPORTS)[number]
+import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+
+export const SUPPORTED_STRATEGY_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
+export type StrategySport = SupportedSport
 
 /** Strategy types to detect (Chunk 2 will implement rules). */
 export const STRATEGY_TYPES = [
@@ -14,6 +16,9 @@ export const STRATEGY_TYPES = [
   'LateQB',
   'EliteTE',
   'BalancedBuild',
+  'StarsAndScrubsBuild',
+  'DepthHeavyBuild',
+  'GoaliePitcherHeavyBuild',
   'RookieHeavyBuild',
   'VeteranHeavyBuild',
   'StackingStrategies',

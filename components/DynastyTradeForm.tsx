@@ -1018,7 +1018,8 @@ export default function DynastyTradeForm() {
                     teamAAssets.map((a) => a.name).join(', '),
                     teamBAssets.map((a) => a.name).join(', '),
                     'dynasty'
-                  )
+                  ),
+                  { insightType: 'trade' }
                 )}
                 className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
               >

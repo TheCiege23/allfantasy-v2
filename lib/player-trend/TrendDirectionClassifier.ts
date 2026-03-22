@@ -8,6 +8,7 @@ import { MIN_EVENTS_FOR_DIRECTION } from './types'
 export interface DirectionInput {
   currentScore: number
   previousScore: number | null
+  baselineScore?: number | null
   eventCount: number
 }
 
@@ -21,10 +22,16 @@ const SCORE_COLD = 30
  * Classify trend direction from current vs previous score and activity.
  */
 export function classifyTrendDirection(input: DirectionInput): TrendDirection {
-  const { currentScore, previousScore, eventCount } = input
+  const { currentScore, previousScore, baselineScore = null, eventCount } = input
   if (eventCount < MIN_EVENTS_FOR_DIRECTION) return 'Stable'
 
-  const delta = previousScore != null ? currentScore - previousScore : 0
+  const referenceScore =
+    previousScore != null && Number.isFinite(previousScore)
+      ? previousScore
+      : baselineScore != null && Number.isFinite(baselineScore)
+        ? baselineScore
+        : currentScore
+  const delta = currentScore - referenceScore
 
   if (delta >= DELTA_RISING && currentScore >= SCORE_HOT) return 'Hot'
   if (delta >= DELTA_RISING) return 'Rising'

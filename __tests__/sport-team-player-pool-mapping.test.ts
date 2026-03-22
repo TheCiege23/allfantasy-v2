@@ -154,6 +154,70 @@ describe('Sport teams, logos, and player pool mapping', () => {
     expect(nflDl.map((p) => p.position)).toEqual(expect.arrayContaining(['DE', 'DT']))
   })
 
+  it('supports NFL Offense and IDP FLEX labels for server-side pool filters', async () => {
+    const { getPlayerPoolForSport } = await import('@/lib/sport-teams/SportPlayerPoolResolver')
+
+    sportsPlayerFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'nfl-qb-1',
+        sport: 'NFL',
+        teamId: 'BUF',
+        team: 'BUF',
+        name: 'Pocket Passer',
+        position: 'QB',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-qb-1',
+        age: 26,
+      },
+      {
+        id: 'nfl-rb-1',
+        sport: 'NFL',
+        teamId: 'BUF',
+        team: 'BUF',
+        name: 'Power Runner',
+        position: 'RB',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-rb-1',
+        age: 24,
+      },
+    ])
+
+    const nflOffense = await getPlayerPoolForSport('NFL', { position: 'Offense', limit: 10 })
+    expect(nflOffense.map((p) => p.position)).toEqual(expect.arrayContaining(['QB', 'RB']))
+
+    sportsPlayerFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'nfl-lb-1',
+        sport: 'NFL',
+        teamId: 'SEA',
+        team: 'SEA',
+        name: 'Run Stuffer',
+        position: 'LB',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-lb-1',
+        age: 28,
+      },
+      {
+        id: 'nfl-s-1',
+        sport: 'NFL',
+        teamId: 'SEA',
+        team: 'SEA',
+        name: 'Ball Hawk',
+        position: 'S',
+        status: 'ACTIVE',
+        sleeperId: null,
+        externalId: 'nfl-s-1',
+        age: 25,
+      },
+    ])
+
+    const nflIdpFlex = await getPlayerPoolForSport('NFL', { position: 'IDP FLEX', limit: 10 })
+    expect(nflIdpFlex.map((p) => p.position)).toEqual(expect.arrayContaining(['LB', 'S']))
+  })
+
   it('normalizes NFL defensive aliases in pool and slot eligibility (EDGE/OLB/FS/NT)', async () => {
     const { getPlayerPoolForSport } = await import('@/lib/sport-teams/SportPlayerPoolResolver')
     const { isPositionEligibleForSlot } = await import('@/lib/roster-defaults/PositionEligibilityResolver')

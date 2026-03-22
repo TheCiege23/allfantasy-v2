@@ -53,6 +53,7 @@ interface PlayerDetailModalProps {
   playerId?: string
   position?: string
   team?: string
+  sport?: string
 }
 
 interface GameLog {
@@ -77,7 +78,15 @@ interface GameLog {
   gp?: number
 }
 
-export default function PlayerDetailModal({ isOpen, onClose, playerName, playerId, position, team }: PlayerDetailModalProps) {
+export default function PlayerDetailModal({
+  isOpen,
+  onClose,
+  playerName,
+  playerId,
+  position,
+  team,
+  sport,
+}: PlayerDetailModalProps) {
   const [loading, setLoading] = useState(true)
   const [bio, setBio] = useState<any>(null)
   const [news, setNews] = useState<any[]>([])
@@ -352,7 +361,7 @@ export default function PlayerDetailModal({ isOpen, onClose, playerName, playerI
                 playerName={bio.name ?? playerName}
                 position={bio.position ?? position}
                 team={bio.team ?? team}
-                sport="NFL"
+                sport={sport}
                 eager={true}
               />
             </div>

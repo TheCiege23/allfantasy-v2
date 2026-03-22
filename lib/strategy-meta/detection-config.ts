@@ -45,8 +45,22 @@ const NCAAB_CONFIG: StrategyDetectionConfig = {
 
 /** NBA/MLB/NHL: use generic "early round" logic; no TE, RB/QB mapped to key positions. */
 function genericConfig(sport: StrategySport): StrategyDetectionConfig {
-  const rbPositions = sport === 'NBA' ? ['PG', 'SG'] : sport === 'NHL' ? ['C', 'LW', 'RW'] : sport === 'MLB' ? ['SP', 'RP'] : []
-  const qbPositions = sport === 'NBA' ? ['PG'] : []
+  const rbPositions =
+    sport === 'NBA'
+      ? ['SG', 'SF', 'PF']
+      : sport === 'NHL'
+        ? ['C', 'LW', 'RW']
+        : sport === 'MLB'
+          ? ['C', '1B', '2B', '3B', 'SS', 'OF']
+          : []
+  const qbPositions =
+    sport === 'NBA'
+      ? ['PG']
+      : sport === 'NHL'
+        ? ['G']
+        : sport === 'MLB'
+          ? ['P', 'SP', 'RP']
+          : []
   return {
     zeroRbRounds: 4,
     heroRbMaxRbInFirstTwo: 1,

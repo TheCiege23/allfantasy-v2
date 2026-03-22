@@ -2,7 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { useSearchParams } from 'next/navigation'
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  isSupportedSport,
+  normalizeToSupportedSport,
+} from '@/lib/sport-scope'
 
 export type TrendFeedType = 'hot_streak' | 'cold_streak' | 'breakout_candidate' | 'sell_high_candidate'
 
@@ -29,6 +35,14 @@ export interface TrendAIInsightDto {
   hypeDetection: string | null
   actionableExplanation: string | null
 }
+
+type TimeframeId = '24h' | '7d' | '30d'
+
+const TIMEFRAME_OPTIONS: ReadonlyArray<{ value: TimeframeId; label: string }> = [
+  { value: '24h', label: '24h' },
+  { value: '7d', label: '7d' },
+  { value: '30d', label: '30d' },
+]
 
 const TREND_LABELS: Record<TrendFeedType, string> = {
   hot_streak: 'Hot streak',
@@ -125,16 +139,29 @@ function TrendCard({ item }: { item: TrendFeedItemDto }) {
 }
 
 export default function TrendFeedPage() {
-  const [sport, setSport] = useState<string>(SUPPORTED_SPORTS[0])
+  const searchParams = useSearchParams()
+  const [sport, setSport] = useState<string>(DEFAULT_SPORT)
+  const [timeframe, setTimeframe] = useState<TimeframeId>('7d')
   const [items, setItems] = useState<TrendFeedItemDto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const qpSport = searchParams.get('sport')
+    const qpTimeframe = searchParams.get('timeframe')
+    if (qpSport && isSupportedSport(qpSport)) {
+      setSport(normalizeToSupportedSport(qpSport))
+    }
+    if (qpTimeframe === '24h' || qpTimeframe === '7d' || qpTimeframe === '30d') {
+      setTimeframe(qpTimeframe)
+    }
+  }, [searchParams])
 
   const loadFeed = useCallback(() => {
     setLoading(true)
     setError(null)
     fetch(
-      `/api/player-trend/feed?sport=${encodeURIComponent(sport)}&limit=60`
+      `/api/player-trend/feed?sport=${encodeURIComponent(sport)}&timeframe=${encodeURIComponent(timeframe)}&limit=60`
     )
       .then((r) => r.json())
       .then((data) => {
@@ -143,7 +170,7 @@ export default function TrendFeedPage() {
       })
       .catch(() => setError('Failed to load trend feed'))
       .finally(() => setLoading(false))
-  }, [sport])
+  }, [sport, timeframe])
 
   useEffect(() => {
     loadFeed()
@@ -176,6 +203,18 @@ export default function TrendFeedPage() {
           {SUPPORTED_SPORTS.map((s) => (
             <option key={s} value={s}>
               {s}
+            </option>
+          ))}
+        </select>
+        <select
+          value={timeframe}
+          onChange={(e) => setTimeframe(e.target.value as TimeframeId)}
+          className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+          aria-label="Timeframe"
+        >
+          {TIMEFRAME_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>

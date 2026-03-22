@@ -27,12 +27,16 @@ export async function resolveMetaUIData(opts: {
   timeframe?: string
 }): Promise<MetaUIDataPayload> {
   const sport = resolveSportForMetaUI(opts.sport)
+  const timeframe =
+    opts.timeframe === '24h' || opts.timeframe === '30d' || opts.timeframe === '7d'
+      ? opts.timeframe
+      : '7d'
   const [hottest, rising, fallers, strategy, warRoom] = await Promise.all([
-    resolvePlayerTrendPanel({ sport, list: 'hottest', limit: 8 }),
-    resolvePlayerTrendPanel({ sport, list: 'rising', limit: 6 }),
-    resolvePlayerTrendPanel({ sport, list: 'fallers', limit: 6 }),
-    resolveStrategyMetaPanel({ sport, leagueFormat: opts.leagueFormat }),
-    resolveWarRoomMetaWidget(sport, 5),
+    resolvePlayerTrendPanel({ sport, list: 'hottest', timeframe, limit: 8 }),
+    resolvePlayerTrendPanel({ sport, list: 'rising', timeframe, limit: 6 }),
+    resolvePlayerTrendPanel({ sport, list: 'fallers', timeframe, limit: 6 }),
+    resolveStrategyMetaPanel({ sport, leagueFormat: opts.leagueFormat, timeframe }),
+    resolveWarRoomMetaWidget(sport, 5, timeframe),
   ])
   return {
     sport,

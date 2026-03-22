@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher';
 import { getTradeBlockReason } from '@/lib/tournament-mode/safety';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import { recordTrendSignalsAndUpdate } from '@/lib/player-trend';
 
 const proposeSchema = z.object({
   leagueId: z.string(),
@@ -78,6 +80,35 @@ export async function POST(req: Request) {
         meta: { leagueId, shareId: share.id },
         severity: 'medium',
       }).catch((e) => console.error('[trade/propose] notify', e));
+    }
+
+    // Player Trend Detection: record trade interest signals for player assets in this proposal.
+    try {
+      const assetIds = [...adds, ...drops].filter((id) => typeof id === 'string' && id.trim().length > 0)
+      if (assetIds.length > 0) {
+        const league = await prisma.league.findUnique({
+          where: { id: leagueId },
+          select: { sport: true },
+        })
+        const sport = normalizeToSupportedSport(league?.sport)
+        const players = await prisma.player.findMany({
+          where: { id: { in: assetIds }, sport },
+          select: { id: true },
+        })
+        if (players.length > 0) {
+          void recordTrendSignalsAndUpdate(
+            players.map((p) => ({
+              playerId: p.id,
+              sport,
+              signalType: 'trade_request',
+              leagueId,
+              value: 1,
+            }))
+          ).catch(() => {})
+        }
+      }
+    } catch {
+      // non-fatal
     }
 
     return NextResponse.json({

@@ -4,6 +4,7 @@
 
 import { getSeasonForecast } from '@/lib/season-forecast/SeasonForecastEngine'
 import { getDynastyProjectionsForLeague } from '@/lib/dynasty-engine/DynastyQueryService'
+import { getLeagueSport } from './AISimulationQueryService'
 
 export async function getTeamOutlookSummary(
   leagueId: string,
@@ -11,9 +12,10 @@ export async function getTeamOutlookSummary(
   season: number,
   week: number
 ): Promise<{ playoffOdds?: number; championshipOdds?: number; dynasty3yr?: number; dynasty5yr?: number; rebuildProb?: number }> {
+  const sport = await getLeagueSport(leagueId).catch(() => null)
   const [forecast, dynastyList] = await Promise.all([
     getSeasonForecast(leagueId, season, week),
-    getDynastyProjectionsForLeague(leagueId),
+    getDynastyProjectionsForLeague(leagueId, sport ?? undefined),
   ])
   const teamForecast = forecast?.find((t) => t.teamId === teamId)
   const dynasty = dynastyList.find((d) => d.teamId === teamId)

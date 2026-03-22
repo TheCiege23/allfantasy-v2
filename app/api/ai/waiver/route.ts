@@ -15,8 +15,9 @@ import {
 import { runAiProtection } from '@/lib/ai-protection';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
-import { getMetaPromptBlob } from '@/lib/meta-insights';
+import { buildOpenAIMetaContext, resolveAIMetaContextWithWindow } from '@/lib/meta-insights';
 import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
+import { getInsightBundle } from '@/lib/ai-simulation-integration';
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -111,14 +112,26 @@ Consider this manager's style when making recommendations.
       userPrompt = legacySection + '\n' + userPrompt;
     }
 
-    const [learningContext, metaBlob] = await Promise.all([
+    const [learningContext, aiMetaContext, insightBundle] = await Promise.all([
       getComprehensiveLearningContext(),
-      getMetaPromptBlob(waiverRequest.league?.sport ?? 'NFL').catch(() => ''),
+      resolveAIMetaContextWithWindow(waiverRequest.league?.sport ?? 'NFL', '7d').catch(() => null),
+      waiverRequest.league?.league_id
+        ? getInsightBundle(waiverRequest.league.league_id, 'waiver', {
+            sport: waiverRequest.league?.sport,
+          }).catch(() => null)
+        : Promise.resolve(null),
     ]);
+    const openaiMetaContext = aiMetaContext ? buildOpenAIMetaContext(aiMetaContext) : ''
+    if (insightBundle?.contextText) {
+      userPrompt = `${userPrompt}\n\nSIMULATION/WAREHOUSE CONTEXT:\n${insightBundle.contextText}`
+    }
     const enhancedSystemPrompt = [
       WAIVER_AI_SYSTEM_PROMPT,
       learningContext ?? '',
-      metaBlob ? `\nPLATFORM META (use for waiver recommendations):\n${metaBlob}` : '',
+      openaiMetaContext ? `\nPLATFORM META (use for waiver recommendations):\n${openaiMetaContext}` : '',
+      insightBundle
+        ? `\nAI model responsibilities:\n- DeepSeek: ${insightBundle.modelResponsibilities.deepseek}\n- Grok: ${insightBundle.modelResponsibilities.grok}\n- OpenAI: ${insightBundle.modelResponsibilities.openai}`
+        : '',
     ].filter(Boolean).join('\n');
 
     const completion = await openai.chat.completions.create({
@@ -173,6 +186,12 @@ Consider this manager's style when making recommendations.
       success: true,
       data: responseData,
       validated: validatedResponse.success,
+      metaContext: aiMetaContext
+        ? {
+            sport: aiMetaContext.sport,
+            topTrends: aiMetaContext.topTrends?.slice(0, 3) ?? [],
+          }
+        : undefined,
       legacy_context: legacyContext ? { included: true, archetype: legacyContext.archetype } : { included: false },
     });
   } catch (error) {

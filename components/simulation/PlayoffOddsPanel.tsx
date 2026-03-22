@@ -5,6 +5,9 @@ import { TeamForecastCard, type TeamSeasonForecastDisplay } from './TeamForecast
 export type PlayoffOddsPanelProps = {
   teamForecasts: TeamSeasonForecastDisplay[]
   playoffSpots?: number
+  leagueId?: string
+  season?: number
+  week?: number
   /** Optional: teamId -> display name */
   teamNames?: Record<string, string>
   /** Optional: teamId -> current rank (1-based) */
@@ -16,6 +19,9 @@ export type PlayoffOddsPanelProps = {
 export function PlayoffOddsPanel({
   teamForecasts,
   playoffSpots = 6,
+  leagueId,
+  season,
+  week,
   teamNames = {},
   teamRanks = {},
   title = 'Playoff & title odds',
@@ -51,6 +57,9 @@ export function PlayoffOddsPanel({
             forecast={forecast}
             rank={teamRanks[forecast.teamId]}
             playoffSpots={playoffSpots}
+            leagueId={leagueId}
+            season={season}
+            week={week}
           />
         ))}
       </div>

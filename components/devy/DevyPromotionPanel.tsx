@@ -21,6 +21,11 @@ interface PromotionResponse {
   eligible: EligibleItem[]
   seasonYear: number
   config: { promotionTiming: string; maxYearlyDevyPromotions: number | null } | null
+  promotionWindow?: {
+    timing: string
+    timingLabel: string
+    deadlineIso: string | null
+  }
 }
 
 interface Props {
@@ -115,10 +120,23 @@ export function DevyPromotionPanel({ leagueId, rosterId, isCommissioner }: Props
     <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
       <h3 className="text-sm font-medium text-white">Offseason Promotion Center</h3>
       <p className="text-xs text-white/60">
-        {data.config?.promotionTiming === 'manager_choice_before_rookie_draft'
-          ? 'Choose promotions before the rookie draft deadline.'
-          : 'Promotion-eligible players (drafted to pro).'}
+        {data.promotionWindow?.timingLabel
+          ? data.promotionWindow.timingLabel
+          : data.config?.promotionTiming === 'manager_choice_before_rookie_draft'
+            ? 'Choose promotions before the rookie draft deadline.'
+            : 'Promotion-eligible players (drafted to pro).'}
       </p>
+      {data.promotionWindow?.deadlineIso && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          Promotion deadline: {new Date(data.promotionWindow.deadlineIso).toLocaleDateString()}.
+        </div>
+      )}
+      {(data.config?.promotionTiming === 'immediate_after_pro_draft' ||
+        data.config?.promotionTiming === 'rollover') && (
+        <div className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs text-sky-200">
+          Auto-promotion timing is enabled by league settings. Commissioner lifecycle sync applies queued transitions.
+        </div>
+      )}
       <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-200">
         If your roster is full, create space before promoting. Promoted players are excluded from the rookie draft pool.
       </div>

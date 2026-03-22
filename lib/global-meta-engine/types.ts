@@ -2,6 +2,8 @@
  * Global Meta Engine – types and meta type enum.
  * Tracks platform-wide trends across DraftMeta, WaiverMeta, TradeMeta, RosterMeta, StrategyMeta.
  */
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import type { SupportedSport } from '@/lib/sport-scope'
 
 export const META_TYPES = [
   'DraftMeta',
@@ -13,17 +15,10 @@ export const META_TYPES = [
 
 export type MetaType = (typeof META_TYPES)[number]
 
-export const GLOBAL_META_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAF',
-  'NCAAB',
-  'SOCCER',
-] as const
+export const GLOBAL_META_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
 
-export type GlobalMetaSport = (typeof GLOBAL_META_SPORTS)[number]
+export type GlobalMetaSport = SupportedSport
+export type TimeframeId = '24h' | '7d' | '30d'
 
 export interface GlobalMetaSnapshotPayload {
   sport: string
@@ -61,6 +56,7 @@ export interface StrategyMetaSnapshotRow {
   successRate: number
   trendingDirection: string
   createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface WeeklyMetaReport {
@@ -77,7 +73,7 @@ export interface WeeklyMetaReport {
 export interface AIMetaSummaryInput {
   sport?: string
   metaType?: MetaType
-  timeframe?: '24h' | '7d' | '30d'
+  timeframe?: TimeframeId
 }
 
 export interface AIMetaSummary {

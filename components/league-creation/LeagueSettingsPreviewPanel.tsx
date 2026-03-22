@@ -4,6 +4,7 @@
  * Shows a summary of roster, scoring, player pool, and league defaults for the selected preset.
  * Updates when sport or preset (variant) changes; helps users confirm settings before creation.
  */
+import { useMemo, useState } from 'react';
 import type { LeagueCreationPresetPayload } from '@/hooks/useSportPreset';
 
 export interface LeagueSettingsPreviewPanelProps {
@@ -14,6 +15,7 @@ export interface LeagueSettingsPreviewPanelProps {
   playoffTeamCountOverride?: number | null;
   regularSeasonLengthOverride?: number | null;
   matchupUnitOverride?: string | null;
+  tradeReviewModeOverride?: 'none' | 'commissioner' | 'league_vote' | 'instant' | null;
   className?: string;
 }
 
@@ -25,8 +27,10 @@ export function LeagueSettingsPreviewPanel({
   playoffTeamCountOverride,
   regularSeasonLengthOverride,
   matchupUnitOverride,
+  tradeReviewModeOverride,
   className = '',
 }: LeagueSettingsPreviewPanelProps) {
+  const [showDisabledScoringRules, setShowDisabledScoringRules] = useState(false);
   if (!preset) return null;
 
   const sportUpper = String(sport || '').toUpperCase();
@@ -46,9 +50,20 @@ export function LeagueSettingsPreviewPanel({
         ?.filter((s) => s.starterCount > 0)
         .map((s) => `${s.slotName}: ${s.starterCount}`)
         .join(', ') ?? '—';
+  const irSlots =
+    typeof preset.roster?.IR_slots === 'number'
+      ? preset.roster.IR_slots
+      : null;
 
   const scoringFormat = preset.scoring?.scoring_format ?? preset.scoringTemplate?.formatType ?? '—';
   const scoringName = preset.scoringTemplate?.name ?? scoringFormat;
+  const scoringRules = useMemo(
+    () =>
+      (preset.scoringTemplate?.rules ?? []).filter((rule) =>
+        showDisabledScoringRules ? true : rule.enabled !== false
+      ),
+    [preset.scoringTemplate?.rules, showDisabledScoringRules]
+  );
 
   const playerPoolType =
     isSoccer
@@ -105,9 +120,10 @@ export function LeagueSettingsPreviewPanel({
         : preset.waiver?.waiver_type ?? '—'
     }`,
     `Trade review: ${
-      typeof defaultLeagueSettings?.trade_review_mode === 'string'
+      tradeReviewModeOverride ??
+      (typeof defaultLeagueSettings?.trade_review_mode === 'string'
         ? defaultLeagueSettings.trade_review_mode
-        : 'commissioner'
+        : 'commissioner')
     }`,
   ].join(' · ');
 
@@ -133,6 +149,9 @@ export function LeagueSettingsPreviewPanel({
           <span className="text-white/60">Roster:</span> {rosterSlots || '—'}
           {preset.roster?.bench_slots != null && (
             <span className="text-white/60"> · Bench: {preset.roster.bench_slots}</span>
+          )}
+          {irSlots != null && (
+            <span className="text-white/60"> · IR: {irSlots}</span>
           )}
         </li>
         <li>
@@ -172,6 +191,60 @@ export function LeagueSettingsPreviewPanel({
           </li>
         )}
       </ul>
+      <div className="mt-3 rounded-lg border border-white/10 bg-black/25 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-medium text-white/85">Scoring categories preview</p>
+          <label className="inline-flex items-center gap-2 text-[11px] text-white/65">
+            <input
+              type="checkbox"
+              checked={showDisabledScoringRules}
+              onChange={(event) => setShowDisabledScoringRules(event.target.checked)}
+              data-testid="league-settings-preview-show-disabled-scoring-rules"
+              className="h-3.5 w-3.5 accent-cyan-500"
+            />
+            Show disabled
+          </label>
+        </div>
+        {scoringRules.length === 0 ? (
+          <p className="text-[11px] text-white/55">
+            No scoring categories in this preset preview.
+          </p>
+        ) : (
+          <div className="max-h-48 overflow-auto rounded border border-white/10">
+            <table className="min-w-full text-[11px]">
+              <thead className="bg-black/50 text-white/55">
+                <tr>
+                  <th className="px-2 py-1.5 text-left font-medium">Category</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Points</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Multiplier</th>
+                  <th className="px-2 py-1.5 text-right font-medium">Enabled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoringRules.map((rule) => (
+                  <tr
+                    key={rule.statKey}
+                    className="border-t border-white/10 text-white/80"
+                    data-testid={`league-settings-preview-rule-${rule.statKey}`}
+                  >
+                    <td className="px-2 py-1.5">
+                      <div className="font-medium">
+                        {rule.statKey.replace(/_/g, ' ')}
+                      </div>
+                      <div className="text-[10px] text-white/45">{rule.statKey}</div>
+                    </td>
+                    <td className="px-2 py-1.5 text-right">{rule.pointsValue}</td>
+                    <td className="px-2 py-1.5 text-right">{rule.multiplier}</td>
+                    <td className="px-2 py-1.5 text-right">
+                      {rule.enabled === false ? 'Off' : 'On'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
       <p className="mt-2 text-xs text-white/50">
         Roster and scoring above update when you change sport or preset. You can change league size and other options before creating.
       </p>

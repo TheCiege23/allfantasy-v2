@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
 import LeagueIntelligenceGraphPanel from "@/components/app/league-intelligence/LeagueIntelligenceGraphPanel"
+import { UnifiedRelationshipInsightsPanel } from "@/components/app/league-intelligence/UnifiedRelationshipInsightsPanel"
 import { LeagueForecastSection } from "@/components/simulation/LeagueForecastSection"
 import { DynastyProjectionPanel } from "@/components/dynasty/DynastyProjectionPanel"
 import WarehouseHistoryPanel from "@/components/app/tabs/WarehouseHistoryPanel"
@@ -620,6 +621,9 @@ export default function LeagueHomeShellPage() {
 
             {activeTab === "Intelligence" && (
               <Card title="League Intelligence Graph">
+                <div className="mb-4">
+                  <UnifiedRelationshipInsightsPanel leagueId={leagueId} />
+                </div>
                 <LeagueIntelligenceGraphPanel leagueId={leagueId} isDynasty={true} />
               </Card>
             )}

@@ -16,6 +16,7 @@ export function AIExplainTrendButton({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    setOpen(false)
     setSummary(null)
     setTopTrends([])
     setError(null)
@@ -32,7 +33,7 @@ export function AIExplainTrendButton({
     setError(null)
     try {
       const params = new URLSearchParams({ summary: "ai", sport, timeframe })
-      const res = await fetch(`/api/global-meta?${params}`)
+      const res = await fetch(`/api/global-meta?${params}`, { cache: "no-store" })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || "Failed to load")
       setSummary(json.data?.summary ?? "")

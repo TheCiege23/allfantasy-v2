@@ -7,6 +7,8 @@ import {
   simulatePlayoffs,
   type TeamProjection,
 } from '@/lib/monte-carlo'
+import { getDefaultScoreStdDev } from '@/lib/simulation-engine/SportSimulationResolver'
+import { normalizeSportForSimulation } from '@/lib/simulation-engine/types'
 import type {
   TeamProjectionInput,
   SeasonSimLabInput,
@@ -18,26 +20,27 @@ import type {
   DynastyTeamOutcome,
 } from './types'
 
-const DEFAULT_STD_DEV = 12
 const DEFAULT_ITERATIONS = 2000
 const MAX_ITERATIONS = 5000
 
-function toProjection(t: TeamProjectionInput, index?: number): TeamProjection {
+function toProjection(t: TeamProjectionInput, fallbackStdDev: number, index?: number): TeamProjection {
   return {
     mean: t.mean,
-    stdDev: t.stdDev ?? DEFAULT_STD_DEV,
+    stdDev: t.stdDev ?? fallbackStdDev,
     name: t.name,
     teamId: t.teamId ?? (index != null ? `team-${index}` : undefined),
   }
 }
 
 export function runSeasonSimulation(input: SeasonSimLabInput): SeasonSimLabResult {
+  const sport = normalizeSportForSimulation(input.sport ?? 'NFL')
+  const fallbackStdDev = getDefaultScoreStdDev(sport)
   const iterations = Math.min(
     Math.max(100, input.iterations ?? DEFAULT_ITERATIONS),
     MAX_ITERATIONS
   )
-  const team = toProjection(input.team)
-  const opponents = input.opponents.map((o, i) => toProjection(o, i))
+  const team = toProjection(input.team, fallbackStdDev)
+  const opponents = input.opponents.map((o, i) => toProjection(o, fallbackStdDev, i))
   const result = simulateSeason(
     team,
     opponents,
@@ -46,6 +49,7 @@ export function runSeasonSimulation(input: SeasonSimLabInput): SeasonSimLabResul
     iterations
   )
   return {
+    sport,
     expectedWins: result.expectedWins,
     playoffProbability: result.playoffProbability,
     byeWeekProbability: result.byeWeekProbability,
@@ -54,13 +58,16 @@ export function runSeasonSimulation(input: SeasonSimLabInput): SeasonSimLabResul
 }
 
 export function runPlayoffSimulation(input: PlayoffSimLabInput): PlayoffSimLabResult {
+  const sport = normalizeSportForSimulation(input.sport ?? 'NFL')
+  const fallbackStdDev = getDefaultScoreStdDev(sport)
   const iterations = Math.min(
     Math.max(100, input.iterations ?? DEFAULT_ITERATIONS),
     MAX_ITERATIONS
   )
-  const teams = input.teams.map((t, i) => toProjection(t, i))
+  const teams = input.teams.map((t, i) => toProjection(t, fallbackStdDev, i))
   if (teams.length < 2) {
     return {
+      sport,
       championshipProbability: input.targetTeamIndex === 0 ? 1 : 0,
       finalistProbability: input.targetTeamIndex === 0 ? 1 : 0,
       iterations,
@@ -68,6 +75,7 @@ export function runPlayoffSimulation(input: PlayoffSimLabInput): PlayoffSimLabRe
   }
   const result = simulatePlayoffs(teams, input.targetTeamIndex, iterations)
   return {
+    sport,
     championshipProbability: result.championshipProbability,
     finalistProbability: result.finalistProbability,
     iterations,
@@ -79,7 +87,8 @@ export function runPlayoffSimulation(input: PlayoffSimLabInput): PlayoffSimLabRe
  */
 function runOneBracket(
   projections: TeamProjection[],
-  order: number[]
+  order: number[],
+  fallbackStdDev: number
 ): number {
   let bracket: { p: TeamProjection; idx: number }[] = order.map((i) => ({
     p: projections[i],
@@ -94,8 +103,8 @@ function runOneBracket(
       }
       const a = bracket[i].p
       const b = bracket[i + 1].p
-      const scoreA = a.mean + (a.stdDev ?? DEFAULT_STD_DEV) * boxMuller()
-      const scoreB = b.mean + (b.stdDev ?? DEFAULT_STD_DEV) * boxMuller()
+      const scoreA = a.mean + (a.stdDev ?? fallbackStdDev) * boxMuller()
+      const scoreB = b.mean + (b.stdDev ?? fallbackStdDev) * boxMuller()
       next.push(scoreA >= scoreB ? bracket[i] : bracket[i + 1])
     }
     bracket = next
@@ -107,9 +116,11 @@ function runOneBracket(
  * Dynasty: run N seasons; each season one round-robin + one bracket; aggregate championships and wins.
  */
 export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabResult {
+  const sport = normalizeSportForSimulation(input.sport ?? 'NFL')
+  const fallbackStdDev = getDefaultScoreStdDev(sport)
   const numTeams = input.teams.length
   const seasons = Math.min(Math.max(1, input.seasons), 200)
-  const projections = input.teams.map((t, i) => toProjection(t, i))
+  const projections = input.teams.map((t, i) => toProjection(t, fallbackStdDev, i))
   const outcomes: DynastyTeamOutcome[] = input.teams.map((t, i) => ({
     teamIndex: i,
     name: t.name,
@@ -127,10 +138,10 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
       for (let j = i + 1; j < numTeams; j++) {
         const scoreI =
           projections[i].mean +
-          (projections[i].stdDev ?? DEFAULT_STD_DEV) * boxMuller()
+          (projections[i].stdDev ?? fallbackStdDev) * boxMuller()
         const scoreJ =
           projections[j].mean +
-          (projections[j].stdDev ?? DEFAULT_STD_DEV) * boxMuller()
+          (projections[j].stdDev ?? fallbackStdDev) * boxMuller()
         if (scoreI > scoreJ) wins[i]++
         else wins[j]++
       }
@@ -147,7 +158,7 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
       totalFinishSum[i] += sortedIndices.indexOf(i) + 1
     }
 
-    const championIdx = runOneBracket(projections, playoffIndices)
+    const championIdx = runOneBracket(projections, playoffIndices, fallbackStdDev)
     outcomes[championIdx].championships++
   }
 
@@ -162,6 +173,7 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
   )
 
   return {
+    sport,
     seasonsRun: seasons,
     outcomes,
     iterationsPerSeason: 1,

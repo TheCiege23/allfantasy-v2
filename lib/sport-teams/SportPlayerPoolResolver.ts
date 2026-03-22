@@ -22,6 +22,7 @@ const SPORT_STR: Record<LeagueSport, string> = {
 }
 
 const NFL_IDP_GROUP_MAP: Record<string, string[]> = {
+  OFFENSE: ['QB', 'RB', 'WR', 'TE', 'K', 'DST'],
   DL: ['DE', 'DT'],
   DB: ['CB', 'S'],
   IDP_FLEX: ['DE', 'DT', 'LB', 'CB', 'S'],
@@ -47,6 +48,12 @@ const NFL_IDP_QUERY_EXPANSION: Record<string, string[]> = {
 
 function normalizeNflIdpPosition(position: string): string {
   return NFL_IDP_POSITION_ALIASES[position] ?? position
+}
+
+function normalizeNflGroupFilter(position: string): string {
+  const compact = position.replace(/[\s-]+/g, '_').toUpperCase()
+  if (compact === 'IDPFLEX') return 'IDP_FLEX'
+  return compact
 }
 
 function expandNflIdpPositions(positions: string[]): string[] {
@@ -75,7 +82,10 @@ function normalizePositionFilter(sport: string, position?: string): string[] | n
   if (!raw) return null
   const upper = raw.toUpperCase()
   if (sport === 'SOCCER' && (upper === 'GK' || upper === 'GKP')) return ['GK', 'GKP']
-  if (sport === 'NFL' && NFL_IDP_GROUP_MAP[upper]) return NFL_IDP_GROUP_MAP[upper]
+  if (sport === 'NFL') {
+    const groupKey = normalizeNflGroupFilter(upper)
+    if (NFL_IDP_GROUP_MAP[groupKey]) return NFL_IDP_GROUP_MAP[groupKey]
+  }
   if (sport === 'NFL') return [normalizeNflIdpPosition(upper)]
   return [upper]
 }

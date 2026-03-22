@@ -4,6 +4,7 @@
 
 import { prisma } from '@/lib/prisma'
 import type { RivalryEventType } from './types'
+import { normalizeSportForRivalry } from './SportRivalryResolver'
 
 export interface RivalryTimelineItem {
   eventId: string
@@ -43,10 +44,11 @@ export async function buildTimelineForLeague(
   leagueId: string,
   options?: { sport?: string; season?: number; limit?: number }
 ): Promise<RivalryTimelineItem[]> {
+  const sportNorm = normalizeSportForRivalry(options?.sport)
   const where: { rivalry: { leagueId: string; sport?: string }; season?: number } = {
     rivalry: { leagueId },
   }
-  if (options?.sport) where.rivalry.sport = options.sport
+  if (sportNorm) where.rivalry.sport = sportNorm
   if (options?.season != null) where.season = options.season
 
   const events = await prisma.rivalryEvent.findMany({

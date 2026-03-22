@@ -3,6 +3,7 @@
  */
 
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { prisma } from '@/lib/prisma'
 import type {
   GlobalIntelligenceInput,
   GlobalIntelligenceResult,
@@ -26,9 +27,16 @@ export async function getGlobalIntelligence(
   input: GlobalIntelligenceInput
 ): Promise<GlobalIntelligenceResult> {
   const leagueId = input.leagueId
-  const sport = input.sport
+  const resolvedLeagueSport = input.sport
     ? normalizeToSupportedSport(input.sport)
-    : null
+    : await prisma.league
+        .findUnique({
+          where: { id: leagueId },
+          select: { sport: true },
+        })
+        .then((league) => (league?.sport ? normalizeToSupportedSport(league.sport) : null))
+        .catch(() => null)
+  const sport = resolvedLeagueSport
   const include = input.include?.length
     ? input.include
     : DEFAULT_MODULES

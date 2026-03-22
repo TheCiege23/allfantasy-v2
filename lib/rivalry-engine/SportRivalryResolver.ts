@@ -5,6 +5,7 @@
 
 import type { RivalrySport } from './types'
 import { RIVALRY_SPORTS } from './types'
+import { isSupportedSport } from '@/lib/sport-scope'
 
 const MAP: Record<string, RivalrySport> = {
   NFL: 'NFL',
@@ -21,7 +22,8 @@ const MAP: Record<string, RivalrySport> = {
 export function normalizeSportForRivalry(sport: string | null | undefined): RivalrySport | null {
   const u = (sport ?? '').toString().trim().toUpperCase()
   if (!u) return null
-  return MAP[u] ?? null
+  const canonical = MAP[u] ?? u
+  return isSupportedSport(canonical) ? canonical : null
 }
 
 export function getRivalrySportLabel(sport: string | null | undefined): string {

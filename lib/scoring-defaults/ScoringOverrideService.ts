@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import type { ScoringRuleDto } from '@/lib/multi-sport/ScoringTemplateResolver'
+import { normalizeScoringStatKey } from './ScoringKeyAliasResolver'
 
 export interface ScoringOverrideInput {
   statKey: string
@@ -82,7 +83,15 @@ export function mergeRulesWithOverrides(
   templateRules: ScoringRuleDto[],
   overrides: ScoringOverrideInput[]
 ): ScoringRuleDto[] {
-  const overrideMap = new Map(overrides.map((o) => [o.statKey, o]))
+  const templateRuleKeys = new Set(templateRules.map((r) => r.statKey))
+  const overrideMap = new Map<string, ScoringOverrideInput>()
+  for (const o of overrides) {
+    const canonical = normalizeScoringStatKey(o.statKey, {
+      templateRuleKeys,
+    })
+    if (!templateRuleKeys.has(canonical)) continue
+    overrideMap.set(canonical, o)
+  }
   return templateRules.map((r) => {
     const ov = overrideMap.get(r.statKey)
     if (ov) {

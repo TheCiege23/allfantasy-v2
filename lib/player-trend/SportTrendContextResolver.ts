@@ -1,21 +1,19 @@
 /**
  * SportTrendContextResolver – sport-aware trend weights and thresholds.
- * TrendScore is configurable and sport-aware where necessary (e.g. different weights per sport).
+ * Uses sport-scope as the single source of truth for supported sports.
  */
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  normalizeToSupportedSport,
+  type SupportedSport,
+} from '@/lib/sport-scope'
 import type { TrendSignals } from './types'
 import { DEFAULT_TREND_WEIGHTS } from './types'
 
-export const TREND_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAF',
-  'NCAAB',
-  'SOCCER',
-] as const
+export const TREND_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
 
-export type TrendSport = (typeof TREND_SPORTS)[number]
+export type TrendSport = SupportedSport
 
 export interface SportTrendWeights extends Record<keyof TrendSignals, number> {}
 
@@ -34,10 +32,8 @@ const SPORT_WEIGHT_OVERRIDES: Partial<Record<TrendSport, Partial<SportTrendWeigh
  * Resolve trend weights for a sport. Returns merged default + sport overrides (normalized so weights remain sensible).
  */
 export function getTrendWeightsForSport(sport: string | null | undefined): SportTrendWeights {
-  const normalized = (sport || 'NFL').toUpperCase().trim()
-  const overrides = TREND_SPORTS.includes(normalized as TrendSport)
-    ? SPORT_WEIGHT_OVERRIDES[normalized as TrendSport]
-    : undefined
+  const normalized = normalizeToSupportedSport(sport)
+  const overrides = SPORT_WEIGHT_OVERRIDES[normalized]
   return { ...DEFAULT_TREND_WEIGHTS, ...overrides } as SportTrendWeights
 }
 
@@ -45,6 +41,7 @@ export function getTrendWeightsForSport(sport: string | null | undefined): Sport
  * Whether trend calculations should be isolated to this sport (always true for per-sport views).
  */
 export function isSportIsolated(sport: string): boolean {
+  void sport
   return true
 }
 
@@ -52,6 +49,5 @@ export function isSportIsolated(sport: string): boolean {
  * Resolve sport from league/context for trend recording (ensures one of TREND_SPORTS).
  */
 export function resolveSportForTrend(sport: string | null | undefined): TrendSport {
-  const s = (sport || 'NFL').toUpperCase().trim()
-  return TREND_SPORTS.includes(s as TrendSport) ? (s as TrendSport) : 'NFL'
+  return normalizeToSupportedSport(sport) ?? DEFAULT_SPORT
 }

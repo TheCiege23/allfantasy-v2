@@ -18,6 +18,7 @@ export interface LeagueForGrouping {
   league_variant?: string | null
   platform?: string
   platformLeagueId?: string
+  avatarUrl?: string | null
   leagueSize?: number | null
   scoring?: string | null
   isDynasty?: boolean | null

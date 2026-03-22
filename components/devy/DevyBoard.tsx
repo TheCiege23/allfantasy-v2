@@ -15,6 +15,8 @@ interface DevyBoardFilters {
   availability: string
 }
 
+const RISK_BANDS = ['ALL', 'low', 'medium', 'high']
+
 const POSITIONS_NFL = ['ALL', 'QB', 'RB', 'WR', 'TE']
 const POSITIONS_NBA = ['ALL', 'G', 'F', 'C']
 const TRENDS = ['ALL', 'up', 'stable', 'down']
@@ -32,8 +34,17 @@ interface DevyBoardProps {
     projectedDraftRound?: number
     draftProjectionScore?: number
     trend?: string
+    riskBand?: 'low' | 'medium' | 'high'
     statusConfidence?: number
     rostered?: boolean
+    // NFL-specific
+    devyAdp?: number
+    recruitingStars?: number
+    // NBA-specific
+    ppg?: number
+    apg?: number
+    rpg?: number
+    efg?: number
   }>
 }
 
@@ -63,6 +74,9 @@ export function DevyBoard({ leagueId, sport, players }: DevyBoardProps) {
   if (filters.minConfidence !== '0') {
     const min = parseInt(filters.minConfidence, 10)
     list = list.filter((p) => (p.statusConfidence ?? 0) >= min)
+  }
+  if (filters.riskBand !== 'ALL') {
+    list = list.filter((p) => (p.riskBand ?? 'medium') === filters.riskBand)
   }
   if (filters.availability === 'rostered') list = list.filter((p) => p.rostered)
   if (filters.availability === 'available') list = list.filter((p) => !p.rostered)
@@ -110,6 +124,15 @@ export function DevyBoard({ leagueId, sport, players }: DevyBoardProps) {
           <option value="90">90%+</option>
         </select>
         <select
+          value={filters.riskBand}
+          onChange={(e) => setFilters((f) => ({ ...f, riskBand: e.target.value }))}
+          className="rounded border border-white/20 bg-white/5 px-2 py-1 text-sm text-white"
+        >
+          {RISK_BANDS.map((r) => (
+            <option key={r} value={r}>{r === 'ALL' ? 'Any risk' : r + ' risk'}</option>
+          ))}
+        </select>
+        <select
           value={filters.availability}
           onChange={(e) => setFilters((f) => ({ ...f, availability: e.target.value }))}
           className="rounded border border-white/20 bg-white/5 px-2 py-1 text-sm text-white"
@@ -119,25 +142,60 @@ export function DevyBoard({ leagueId, sport, players }: DevyBoardProps) {
           ))}
         </select>
       </div>
-      <ul className="space-y-2">
-        {list.slice(0, 50).map((p) => (
-          <li
-            key={p.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/5 px-3 py-2 text-sm"
-          >
-            <span className="font-medium text-white">{p.name}</span>
-            <span className="text-white/50">{p.position} · {p.school}</span>
-            <span className="text-white/50">Eligible {p.draftEligibleYear ?? '—'}</span>
-            {p.projectedDraftRound != null && (
-              <span className="text-white/70">Rd {p.projectedDraftRound}</span>
-            )}
-            {p.statusConfidence != null && (
-              <span className="text-white/50">{p.statusConfidence}%</span>
-            )}
-            {p.rostered && <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-200">Rostered</span>}
-          </li>
-        ))}
-      </ul>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead>
+            <tr className="border-b border-white/10 text-left text-xs text-white/50">
+              <th className="pb-2 pr-3 font-medium">Player</th>
+              <th className="pb-2 pr-3 font-medium">Pos</th>
+              <th className="pb-2 pr-3 font-medium">School</th>
+              <th className="pb-2 pr-3 font-medium">Eligible</th>
+              {sport === 'NFL' && <>
+                <th className="pb-2 pr-3 font-medium">Rd</th>
+                <th className="pb-2 pr-3 font-medium">ADP</th>
+                <th className="pb-2 pr-3 font-medium">Stars</th>
+              </>}
+              {sport === 'NBA' && <>
+                <th className="pb-2 pr-3 font-medium">PPG</th>
+                <th className="pb-2 pr-3 font-medium">APG</th>
+                <th className="pb-2 pr-3 font-medium">RPG</th>
+                <th className="pb-2 pr-3 font-medium">EFG%</th>
+                <th className="pb-2 pr-3 font-medium">Mk Rd</th>
+              </>}
+              <th className="pb-2 pr-3 font-medium">Conf</th>
+              <th className="pb-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.slice(0, 50).map((p) => (
+              <tr key={p.id} className="border-b border-white/5 hover:bg-white/5">
+                <td className="py-2 pr-3 font-medium text-white">{p.name}</td>
+                <td className="py-2 pr-3 text-white/70">{p.position}</td>
+                <td className="py-2 pr-3 text-white/50">{p.school}</td>
+                <td className="py-2 pr-3 text-white/50">{p.draftEligibleYear ?? '—'}</td>
+                {sport === 'NFL' && <>
+                  <td className="py-2 pr-3 text-white/70">{p.projectedDraftRound != null ? `Rd ${p.projectedDraftRound}` : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.devyAdp != null ? p.devyAdp.toFixed(1) : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.recruitingStars != null ? '★'.repeat(Math.min(p.recruitingStars, 5)) : '—'}</td>
+                </>}
+                {sport === 'NBA' && <>
+                  <td className="py-2 pr-3 text-white/70">{p.ppg != null ? p.ppg.toFixed(1) : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.apg != null ? p.apg.toFixed(1) : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.rpg != null ? p.rpg.toFixed(1) : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.efg != null ? (p.efg * 100).toFixed(1) + '%' : '—'}</td>
+                  <td className="py-2 pr-3 text-white/70">{p.projectedDraftRound != null ? `Rd ${p.projectedDraftRound}` : '—'}</td>
+                </>}
+                <td className="py-2 pr-3 text-white/50">{p.statusConfidence != null ? `${p.statusConfidence}%` : '—'}</td>
+                <td className="py-2">
+                  {p.rostered
+                    ? <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-200">Rostered</span>
+                    : <span className="rounded bg-green-500/15 px-1.5 py-0.5 text-xs text-green-300">Avail</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {list.length > 50 && <p className="text-xs text-white/50">Showing 50 of {list.length}</p>}
     </div>
   )

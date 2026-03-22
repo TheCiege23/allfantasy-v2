@@ -8,7 +8,7 @@ import { detectTradeClusters } from "./TradeClusterDetector";
 import { calculateCentrality } from "./CentralityCalculator";
 import { detectDynastyPowerShifts } from "./DynastyPowerShiftDetector";
 import { getRepeatedEliminationPatterns } from "./GraphQueryService";
-import { getEraDominance } from "./GraphQueryService";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 import type {
   LeagueRelationshipProfile,
   InfluenceLeader,
@@ -20,6 +20,7 @@ import type {
 export interface RelationshipSummaryInput {
   leagueId: string;
   season?: number | null;
+  sport?: string | null;
   limitRivalries?: number;
   limitClusters?: number;
   limitInfluence?: number;
@@ -39,6 +40,7 @@ export async function buildRelationshipSummary(
   const {
     leagueId,
     season = null,
+    sport = null,
     limitRivalries = 20,
     limitClusters = 10,
     limitInfluence = 15,
@@ -54,14 +56,14 @@ export async function buildRelationshipSummary(
     dynastyPowerTransitions,
     repeatedEliminationPatterns,
   ] = await Promise.all([
-    analyzeRivalryPaths({ leagueId, season, limit: limitRivalries, usePathDepth: true }),
-    detectTradeClusters({ leagueId, season, limit: limitClusters }),
-    calculateCentrality({ leagueId, season, limit: limitCentral }),
-    detectDynastyPowerShifts({ leagueId, season, limit: limitTransitions }),
-    getRepeatedEliminationPatterns({ leagueId, season, limit: limitElimination }),
+    analyzeRivalryPaths({ leagueId, season, sport, limit: limitRivalries, usePathDepth: true }),
+    detectTradeClusters({ leagueId, season, sport, limit: limitClusters }),
+    calculateCentrality({ leagueId, season, sport, limit: limitCentral }),
+    detectDynastyPowerShifts({ leagueId, season, sport, limit: limitTransitions }),
+    getRepeatedEliminationPatterns({ leagueId, season, sport, limit: limitElimination }),
   ]);
 
-  const influenceLeaders = await computeInfluenceLeaders(leagueId, season, limitInfluence);
+  const influenceLeaders = await computeInfluenceLeaders(leagueId, season, sport, limitInfluence);
 
   return {
     leagueId,
@@ -80,10 +82,17 @@ export async function buildRelationshipSummary(
 async function computeInfluenceLeaders(
   leagueId: string,
   season: number | null,
+  sport: string | null,
   limit: number
 ): Promise<InfluenceLeader[]> {
+  const normalizedSport = normalizeSportForGraph(sport);
   const managerNodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "Manager", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "Manager",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true },
   });
   const nodeIds = new Set(managerNodes.map((n) => n.nodeId));
@@ -95,6 +104,7 @@ async function computeInfluenceLeaders(
         { toNodeId: { in: [...nodeIds] } },
       ],
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
 

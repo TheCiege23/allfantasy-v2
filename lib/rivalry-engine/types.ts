@@ -2,6 +2,9 @@
  * Rivalry Engine — types for records, events, tiers, and scoring.
  */
 
+import type { SupportedSport } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+
 export const RIVALRY_TIERS = ['Emerging', 'Heated', 'Blood Feud', 'League Classic'] as const
 export type RivalryTier = (typeof RIVALRY_TIERS)[number]
 
@@ -58,5 +61,5 @@ export interface RivalryScoreInput {
   dramaEventCount: number
 }
 
-export const RIVALRY_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
-export type RivalrySport = (typeof RIVALRY_SPORTS)[number]
+export const RIVALRY_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
+export type RivalrySport = SupportedSport

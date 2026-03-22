@@ -10,6 +10,7 @@ export interface TeamProjectionInput {
 }
 
 export interface SeasonSimLabInput {
+  sport?: string
   team: TeamProjectionInput
   opponents: TeamProjectionInput[]
   playoffSpots: number
@@ -18,6 +19,7 @@ export interface SeasonSimLabInput {
 }
 
 export interface SeasonSimLabResult {
+  sport: string
   expectedWins: number
   playoffProbability: number
   byeWeekProbability: number
@@ -25,18 +27,21 @@ export interface SeasonSimLabResult {
 }
 
 export interface PlayoffSimLabInput {
+  sport?: string
   teams: TeamProjectionInput[]
   targetTeamIndex: number
   iterations?: number
 }
 
 export interface PlayoffSimLabResult {
+  sport: string
   championshipProbability: number
   finalistProbability: number
   iterations: number
 }
 
 export interface DynastySimLabInput {
+  sport?: string
   teams: TeamProjectionInput[]
   seasons: number
   playoffSpots: number
@@ -53,6 +58,7 @@ export interface DynastyTeamOutcome {
 }
 
 export interface DynastySimLabResult {
+  sport: string
   seasonsRun: number
   outcomes: DynastyTeamOutcome[]
   iterationsPerSeason: number

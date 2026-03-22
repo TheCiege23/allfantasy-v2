@@ -165,6 +165,17 @@ describe('Default Scoring Settings by Sport', () => {
     expect(byKey.get('receptions')?.pointsValue).toBe(0.5)
   })
 
+  it('maps legacy IDP override keys to canonical IDP stat keys', () => {
+    const idpBase = getDefaultScoringTemplate('NFL', 'IDP').rules
+    const merged = mergeRulesWithOverrides(idpBase, [
+      { statKey: 'solo_tackle', pointsValue: 1.75, enabled: true },
+      { statKey: 'assist_tackle', pointsValue: 0.9, enabled: true },
+    ])
+    const byKey = new Map(merged.map((r) => [r.statKey, r]))
+    expect(byKey.get('idp_solo_tackle')?.pointsValue).toBe(1.75)
+    expect(byKey.get('idp_assist_tackle')?.pointsValue).toBe(0.9)
+  })
+
   it('exports a registry version string', () => {
     expect(typeof SCORING_DEFAULTS_REGISTRY_VERSION).toBe('string')
     expect(SCORING_DEFAULTS_REGISTRY_VERSION.length).toBeGreaterThan(0)

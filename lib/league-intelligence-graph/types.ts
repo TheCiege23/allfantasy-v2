@@ -46,6 +46,29 @@ export const EDGE_TYPES = [
 
 export type GraphEdgeType = (typeof EDGE_TYPES)[number];
 
+export interface ManagerNode {
+  managerId: string;
+  displayName: string;
+  sport: string | null;
+  reputation?: Record<string, unknown> | null;
+  createdAt?: string;
+}
+
+export interface TeamNode {
+  teamId: string;
+  leagueId: string;
+  sport: string;
+  season: number | null;
+  createdAt?: string;
+}
+
+export interface LeagueNode {
+  leagueId: string;
+  sport: string;
+  season: number | null;
+  createdAt?: string;
+}
+
 export interface GraphNodePayload {
   nodeId: string;
   nodeType: GraphNodeType;

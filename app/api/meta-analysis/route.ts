@@ -4,19 +4,22 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { runMetaAnalysis, getMetaAnalysisSupportedSports } from '@/lib/strategy-meta-engine'
-import { isSupportedSport } from '@/lib/sport-scope'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = searchParams.get('sport')?.trim() ?? undefined
+    const sportParam = searchParams.get('sport')?.trim() ?? undefined
+    const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
     const leagueFormat = searchParams.get('leagueFormat')?.trim() ?? undefined
-    const windowDays =
-      searchParams.get('windowDays') != null
-        ? Math.min(90, Math.max(1, parseInt(searchParams.get('windowDays')!, 10) || 30))
-        : 30
+    const timeframe = normalizeTimeframe(searchParams.get('timeframe'))
+    const windowFromTimeframe = timeframe === '24h' ? 1 : timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : undefined
+    const windowDays = searchParams.get('windowDays') != null
+      ? Math.min(90, Math.max(1, parseInt(searchParams.get('windowDays')!, 10) || 30))
+      : (windowFromTimeframe ?? 30)
 
-    if (sport && !isSupportedSport(sport)) {
+    if (sportParam && !isSupportedSport(sportParam)) {
       return NextResponse.json(
         { error: 'Invalid sport', supported: getMetaAnalysisSupportedSports() },
         { status: 400 }

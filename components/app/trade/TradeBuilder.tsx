@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Scale, Users } from "lucide-react"
 import { useTradeBuilder } from "./useTradeBuilder"
+import { DEFAULT_SPORT, normalizeToSupportedSport } from "@/lib/sport-scope"
 
 type TradeBuilderProps = {
   leagueId?: string
@@ -23,6 +24,7 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
   const [managers, setManagers] = useState<Manager[]>([])
   const [loadingManagers, setLoadingManagers] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [leagueSport, setLeagueSport] = useState<string>(DEFAULT_SPORT)
 
   useEffect(() => {
     let cancelled = false
@@ -35,9 +37,21 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
       setLoadingManagers(true)
       setLoadError(null)
       try {
-        const managersRes = await fetch(`/api/legacy/trade/league-managers?league_id=${encodeURIComponent(leagueId)}&sport=nfl`, {
+        const leagueRes = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}`, {
           cache: "no-store",
         })
+        const leagueJson = await leagueRes.json().catch(() => ({}))
+        const normalizedSport = normalizeToSupportedSport(leagueJson?.sport)
+        const legacySport = normalizedSport === "NBA" ? "nba" : "nfl"
+        if (!cancelled) setLeagueSport(normalizedSport)
+
+        const managersRes = await fetch(
+          `/api/legacy/trade/league-managers?league_id=${encodeURIComponent(leagueId)}&sport=${encodeURIComponent(legacySport)}`,
+          {
+            cache: "no-store",
+          }
+        )
+        if (!cancelled) setLeagueSport(normalizedSport)
         const managersData = await managersRes.json().catch(() => null)
         if (!managersRes.ok || !Array.isArray(managersData?.managers)) {
           throw new Error(managersData?.error || "Unable to load league managers.")
@@ -124,7 +138,7 @@ export function TradeBuilder({ leagueId }: TradeBuilderProps) {
           <div className="leading-tight">
             <p className="text-sm font-semibold">Trade Center</p>
             <p className="text-[10px] text-white/65">
-              Build and submit trade offers from live league rosters.
+              Build and submit trade offers from live {leagueSport} league rosters.
             </p>
           </div>
         </div>

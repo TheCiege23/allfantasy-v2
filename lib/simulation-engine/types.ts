@@ -1,22 +1,20 @@
 /**
  * Simulation Engine — shared types. Sport-aware across NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer.
  */
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  normalizeToSupportedSport,
+  type SupportedSport,
+} from '@/lib/sport-scope'
 
-export const SIMULATION_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAB',
-  'NCAAF',
-  'SOCCER',
-] as const
+export const SIMULATION_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
 
-export type SimulationSport = (typeof SIMULATION_SPORTS)[number]
+export type SimulationSport = SupportedSport
 
 export function normalizeSportForSimulation(sport: string): SimulationSport {
-  const u = sport?.toUpperCase?.() || 'NFL'
-  if (SIMULATION_SPORTS.includes(u as SimulationSport)) return u as SimulationSport
+  const u = sport?.toUpperCase?.() || DEFAULT_SPORT
+  if (SIMULATION_SPORTS.includes(u as SimulationSport)) return normalizeToSupportedSport(u)
   const map: Record<string, SimulationSport> = {
     NFL: 'NFL',
     NHL: 'NHL',
@@ -26,7 +24,7 @@ export function normalizeSportForSimulation(sport: string): SimulationSport {
     NCAAF: 'NCAAF',
     SOCCER: 'SOCCER',
   }
-  return map[u] ?? 'NFL'
+  return normalizeToSupportedSport(map[u] ?? u)
 }
 
 export interface MatchupSimulationInput {

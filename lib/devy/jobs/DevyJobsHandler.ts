@@ -13,6 +13,10 @@ import {
 import { getDevyTeamOutlook } from '../rankings/DevyTeamOutlookService'
 import type { DevyJobPayload } from '@/lib/jobs/types'
 import { isC2CLeague } from '@/lib/merged-devy-c2c/C2CLeagueConfig'
+import {
+  syncDeclaredStatus,
+  runAutoPromotionByTiming,
+} from '../lifecycle/DevyLifecycleAutomation'
 import { getC2CHybridStandings } from '@/lib/merged-devy-c2c/standings/C2CStandingsService'
 
 export type DevyJobResult = {
@@ -41,9 +45,18 @@ export async function runNcaaPlayerSync(payload: DevyJobPayload): Promise<DevyJo
 export async function runDeclareStatusRefresh(payload: DevyJobPayload): Promise<DevyJobResult> {
   const processedAt = new Date().toISOString()
   try {
-    // TODO: update DevyPlayer.draftStatus, statusSource, statusConfidence from external source
-    console.log('[devy-jobs] declare_status_refresh placeholder')
-    return { ok: true, type: 'declare_status_refresh', processedAt, message: 'Placeholder' }
+    const leagueId = payload.leagueId
+    const seasonYear = payload.seasonYear ?? new Date().getFullYear()
+    if (!leagueId) {
+      return { ok: false, type: 'declare_status_refresh', processedAt, error: 'leagueId required' }
+    }
+    const result = await syncDeclaredStatus(leagueId, seasonYear)
+    return {
+      ok: true,
+      type: 'declare_status_refresh',
+      processedAt,
+      message: `Synced declare status. ${result.count} rights transitioned.${result.errors.length > 0 ? ` ${result.errors.length} errored.` : ''}`,
+    }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
     return { ok: false, type: 'declare_status_refresh', processedAt, error }
@@ -141,9 +154,14 @@ export async function runPromotionWindowSync(payload: DevyJobPayload): Promise<D
     if (!config) {
       return { ok: true, type: 'promotion_window_sync', processedAt, message: 'Not a devy league' }
     }
-    // TODO: compare config.promotionTiming + season calendar to open/close windows; enqueue notifications
-    console.log('[devy-jobs] promotion_window_sync', leagueId)
-    return { ok: true, type: 'promotion_window_sync', processedAt, message: 'OK' }
+      const seasonYear = payload.seasonYear ?? new Date().getFullYear()
+      const result = await runAutoPromotionByTiming(leagueId, seasonYear)
+      return {
+        ok: true,
+        type: 'promotion_window_sync',
+        processedAt,
+        message: `Auto-promotion sync: ${result.promoted} promoted.${result.errors.length > 0 ? ` ${result.errors.length} errored.` : ''}`,
+      }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
     return { ok: false, type: 'promotion_window_sync', processedAt, error }

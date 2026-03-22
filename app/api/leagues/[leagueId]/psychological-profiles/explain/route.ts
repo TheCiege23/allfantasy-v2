@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getProfileById } from '@/lib/psychological-profiles/ManagerBehaviorQueryService'
 import { prisma } from '@/lib/prisma'
+import { openaiChatText } from '@/lib/openai-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,7 @@ export async function POST(
       ? profile.profileLabels.join(', ')
       : 'No behavioral labels yet'
 
-    const narrative = [
+    const fallbackNarrative = [
       `Manager ${profile.managerId} has a ${profile.sportLabel} behavior profile.`,
       `Labels: ${labelsSummary}.`,
       `Scores — Aggression: ${profile.aggressionScore.toFixed(0)}, Activity: ${profile.activityScore.toFixed(0)}, Trade frequency: ${profile.tradeFrequencyScore.toFixed(0)}, Waiver focus: ${profile.waiverFocusScore.toFixed(0)}, Risk tolerance: ${profile.riskToleranceScore.toFixed(0)}.`,
@@ -45,16 +46,51 @@ export async function POST(
         : 'Evidence is being collected.',
     ].join(' ')
 
+    const evidencePreview = evidence.slice(0, 10).map((e) => ({
+      evidenceType: e.evidenceType,
+      value: e.value,
+      sourceReference: e.sourceReference,
+    }))
+    const aiNarrative = await openaiChatText({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a concise fantasy behavior analyst. Explain manager style using only provided evidence. Give 2-4 sentences with one actionable takeaway for opponents.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            leagueId,
+            profileId,
+            managerId: profile.managerId,
+            sport: profile.sportLabel,
+            labels: profile.profileLabels,
+            scores: {
+              aggression: profile.aggressionScore,
+              activity: profile.activityScore,
+              tradeFrequency: profile.tradeFrequencyScore,
+              waiverFocus: profile.waiverFocusScore,
+              riskTolerance: profile.riskToleranceScore,
+            },
+            evidencePreview,
+          }),
+        },
+      ],
+      temperature: 0.35,
+      maxTokens: 230,
+    }).catch(() => null)
+    const narrative =
+      aiNarrative?.ok && aiNarrative.text?.trim()
+        ? aiNarrative.text.trim()
+        : fallbackNarrative
+
     return NextResponse.json({
       profileId,
       leagueId,
       narrative,
       profileLabels: profile.profileLabels,
-      evidencePreview: evidence.slice(0, 5).map((e) => ({
-        evidenceType: e.evidenceType,
-        value: e.value,
-        sourceReference: e.sourceReference,
-      })),
+      evidencePreview: evidencePreview.slice(0, 5),
     })
   } catch (e) {
     console.error('[psychological-profiles/explain POST]', e)

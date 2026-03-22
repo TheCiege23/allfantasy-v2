@@ -5,16 +5,12 @@
  */
 import type { LeagueSport } from '@prisma/client'
 import { loadLeagueCreationDefaults } from '@/lib/sport-defaults/LeagueCreationDefaultsLoader'
-import { toSportType } from '@/lib/multi-sport/sport-types'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export type { LeagueCreationDefaultsPayload } from '@/lib/sport-defaults/LeagueCreationDefaultsLoader'
 
-const LEAGUE_SPORTS: LeagueSport[] = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER']
-
 function toLeagueSport(s: string): LeagueSport {
-  const t = toSportType(s)
-  if (LEAGUE_SPORTS.includes(t as LeagueSport)) return t as LeagueSport
-  return 'NFL'
+  return normalizeToSupportedSport(s)
 }
 
 /**

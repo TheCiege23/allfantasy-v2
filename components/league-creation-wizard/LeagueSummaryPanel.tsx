@@ -4,6 +4,10 @@ import { useSportRules } from '@/hooks/useSportRules'
 import { useSportPreset } from '@/hooks/useSportPreset'
 import { LEAGUE_TYPE_LABELS, DRAFT_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
 import {
+  getLeagueVariantLabel,
+  resolveCreationVariantOrDefault,
+} from '@/lib/league-creation/LeagueVariantResolver'
+import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_AUTOMATION_SETTINGS,
   DEFAULT_DRAFT_SETTINGS,
@@ -41,8 +45,13 @@ function SummarySection({ title, children }: { title: string; children: React.Re
  * team count, scoring rules, AI settings, and automation settings for final confirmation.
  */
 export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
-  const { rules } = useSportRules(state.sport, state.leagueVariant ?? undefined)
-  const { preset: creationPreset } = useSportPreset(state.sport as any, state.leagueVariant ?? state.scoringPreset ?? undefined)
+  const effectiveVariant = resolveCreationVariantOrDefault({
+    sport: state.sport,
+    leagueType: state.leagueType,
+    requestedVariant: state.leagueVariant ?? state.scoringPreset ?? null,
+  })
+  const { rules } = useSportRules(state.sport, effectiveVariant)
+  const { preset: creationPreset } = useSportPreset(state.sport as any, effectiveVariant)
   const draftSettings = state.draftSettings ?? DEFAULT_DRAFT_SETTINGS
   const waiverSettings = state.waiverSettings ?? DEFAULT_WAIVER_SETTINGS
   const playoffSettings = state.playoffSettings ?? DEFAULT_PLAYOFF_SETTINGS
@@ -50,7 +59,7 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
   const aiSettings = state.aiSettings ?? DEFAULT_AI_SETTINGS
   const automationSettings = state.automationSettings ?? DEFAULT_AUTOMATION_SETTINGS
   const privacySettings = state.privacySettings ?? DEFAULT_PRIVACY_SETTINGS
-  const variantText = String(state.leagueVariant ?? state.scoringPreset ?? '').toUpperCase()
+  const variantText = String(effectiveVariant ?? '').toUpperCase()
   const sportText = String(state.sport).toUpperCase()
   const isSoccer = sportText === 'SOCCER'
   const isNflIdp = sportText === 'NFL' && variantText.includes('IDP')
@@ -68,7 +77,7 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         .map((s) => (s.starterCount > 0 ? (s.starterCount > 1 ? `${s.slotName}×${s.starterCount}` : s.slotName) : s.slotName))
         .join(', ')
     : null
-  const scoringLabel = state.leagueVariant ?? state.scoringPreset ?? 'Default'
+  const scoringLabel = getLeagueVariantLabel(effectiveVariant)
   const presetContextLabel =
     isSoccer
       ? 'Soccer sport with the soccer-specific default preset'
@@ -102,7 +111,7 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
           : 'redraft'
     }`,
     `waiver_mode=${waiverSettings.waiverType}`,
-    `trade_review_mode=${String(defaultLeagueSettings?.trade_review_mode ?? 'commissioner')}`,
+    `trade_review_mode=${state.tradeReviewMode ?? String(defaultLeagueSettings?.trade_review_mode ?? 'commissioner')}`,
   ].join(' · ')
 
   return (

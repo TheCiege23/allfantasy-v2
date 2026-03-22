@@ -5,6 +5,7 @@ import { z } from 'zod';
 const querySchema = z.object({
   q: z.string().min(2),
   limit: z.coerce.number().default(10),
+  sport: z.string().trim().optional(),
 });
 
 export async function GET(req: Request) {
@@ -15,10 +16,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid query' }, { status: 400 });
   }
 
-  const { q, limit } = parsed.data;
+  const { q, limit, sport } = parsed.data;
+  const sportUpper = sport?.toUpperCase();
 
   const players = await (prisma as any).sportsPlayer.findMany({
     where: {
+      ...(sportUpper ? { sport: sportUpper } : {}),
       OR: [
         { name: { contains: q, mode: 'insensitive' } },
         { position: { contains: q, mode: 'insensitive' } },

@@ -2,6 +2,11 @@
 
 Production implementation of the centralized analytics data warehouse and mandatory UI/workflow audit for all warehouse-related interactions.
 
+Latest implementation addendum:
+
+- `docs/PROMPT30_IMPLEMENTATION_REPORT.md`
+- `docs/PROMPT30_CLICK_AUDIT_MATRIX.md`
+
 ---
 
 ## 1. Data warehouse architecture

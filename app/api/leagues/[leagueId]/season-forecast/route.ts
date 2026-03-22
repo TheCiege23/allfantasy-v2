@@ -4,6 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getSeasonForecast, runSeasonForecast } from '@/lib/season-forecast/SeasonForecastEngine'
+import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export async function GET(
   req: NextRequest,
@@ -26,7 +28,17 @@ export async function GET(
     if (!teamForecasts) {
       return NextResponse.json({ teamForecasts: null, generated: false })
     }
-    return NextResponse.json({ teamForecasts, generated: true })
+    const snapshot = await prisma.seasonForecastSnapshot.findUnique({
+      where: {
+        uniq_season_forecast_league_season_week: { leagueId, season, week },
+      },
+      select: { generatedAt: true },
+    })
+    return NextResponse.json({
+      teamForecasts,
+      generated: true,
+      generatedAt: snapshot?.generatedAt?.toISOString?.() ?? null,
+    })
   } catch (e) {
     console.error('[SeasonForecast GET]', e)
     return NextResponse.json({ error: 'Failed to load forecast' }, { status: 500 })
@@ -53,6 +65,12 @@ export async function POST(
   }
 
   try {
+    const league = await prisma.league.findFirst({
+      where: { OR: [{ id: leagueId }, { platformLeagueId: leagueId }] },
+      select: { sport: true },
+    })
+    const sport = normalizeToSupportedSport(league?.sport ?? 'NFL')
+
     const result = await runSeasonForecast({
       leagueId,
       season,
@@ -68,9 +86,33 @@ export async function POST(
         { status: 404 }
       )
     }
+
+    await prisma.seasonSimulationResult.deleteMany({
+      where: { leagueId, season, weekOrPeriod: week },
+    })
+    await prisma.seasonSimulationResult.createMany({
+      data: result.teamForecasts.map((t) => ({
+        sport,
+        leagueId,
+        teamId: t.teamId,
+        season,
+        weekOrPeriod: week,
+        playoffProbability: t.playoffProbability,
+        championshipProbability: t.championshipProbability,
+        expectedWins: t.expectedWins,
+        expectedRank: t.expectedFinalSeed,
+        simulationsRun: body.simulations ?? 2000,
+      })),
+    })
+
+    const snapshot = await prisma.seasonForecastSnapshot.findUnique({
+      where: { id: result.snapshotId },
+      select: { generatedAt: true },
+    })
     return NextResponse.json({
       snapshotId: result.snapshotId,
       teamForecasts: result.teamForecasts,
+      generatedAt: snapshot?.generatedAt?.toISOString?.() ?? new Date().toISOString(),
     })
   } catch (e) {
     console.error('[SeasonForecast POST]', e)

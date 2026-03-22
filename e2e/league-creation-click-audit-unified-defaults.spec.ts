@@ -7,6 +7,40 @@ type CreatePayload = {
   settings?: Record<string, unknown>
 }
 
+function buildScoringRules(sport: string, isNflIdp: boolean) {
+  if (isNflIdp) {
+    return [
+      { statKey: 'passing_td', pointsValue: 4, multiplier: 1, enabled: true },
+      { statKey: 'receptions', pointsValue: 1, multiplier: 1, enabled: true },
+      { statKey: 'idp_sack', pointsValue: 4, multiplier: 1, enabled: true },
+      { statKey: 'idp_solo_tackle', pointsValue: 1, multiplier: 1, enabled: true },
+      { statKey: 'idp_blocked_kick', pointsValue: 2, multiplier: 1, enabled: false },
+    ]
+  }
+  if (sport === 'NBA' || sport === 'NCAAB') {
+    return [
+      { statKey: 'points', pointsValue: 1, multiplier: 1, enabled: true },
+      { statKey: 'rebounds', pointsValue: 1.2, multiplier: 1, enabled: true },
+      { statKey: 'assists', pointsValue: 1.5, multiplier: 1, enabled: true },
+      { statKey: 'turnovers', pointsValue: -1, multiplier: 1, enabled: true },
+    ]
+  }
+  if (sport === 'SOCCER') {
+    return [
+      { statKey: 'goal', pointsValue: 6, multiplier: 1, enabled: true },
+      { statKey: 'assist', pointsValue: 3, multiplier: 1, enabled: true },
+      { statKey: 'clean_sheet', pointsValue: 4, multiplier: 1, enabled: true },
+      { statKey: 'yellow_card', pointsValue: -1, multiplier: 1, enabled: true },
+    ]
+  }
+  return [
+    { statKey: 'passing_yards', pointsValue: 0.04, multiplier: 1, enabled: true },
+    { statKey: 'passing_td', pointsValue: 4, multiplier: 1, enabled: true },
+    { statKey: 'interception', pointsValue: -2, multiplier: 1, enabled: true },
+    { statKey: 'rushing_td', pointsValue: 6, multiplier: 1, enabled: true },
+  ]
+}
+
 function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
   const sport = String(sportRaw || 'NFL').toUpperCase()
   const variant = (variantRaw ?? '').toUpperCase()
@@ -100,7 +134,7 @@ function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
       templateId: `scoring-${sport}-${variant || 'standard'}`,
       name: `${sport} Default Scoring`,
       formatType: isNflIdp ? 'IDP' : 'standard',
-      rules: [],
+      rules: buildScoringRules(sport, isNflIdp),
     },
     defaultLeagueSettings: {
       playoff_team_count: 6,
@@ -281,6 +315,8 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   await page.getByPlaceholder(/e\.g\. my league/i).fill('Unified Defaults Audit League')
   await page.getByRole('combobox', { name: /number of teams/i }).click()
   await page.getByRole('option', { name: /14 teams/i }).click()
+  await page.getByRole('combobox', { name: /trade review mode/i }).click()
+  await page.getByRole('option', { name: /league vote/i }).click()
   await page.getByRole('combobox', { name: /roster size/i }).click()
   await page.getByRole('option', { name: /22 players/i }).click()
   await page.getByRole('button', { name: /^next$/i }).click()
@@ -289,6 +325,10 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   await page.getByRole('combobox', { name: /nfl preset/i }).click()
   await page.getByRole('option', { name: /^IDP$/i }).click()
   await expect(page.getByText(/preset summary/i)).toBeVisible()
+  await expect(page.getByTestId('league-settings-preview-rule-idp_sack')).toBeVisible()
+  await expect(page.getByTestId('league-settings-preview-rule-idp_blocked_kick')).toHaveCount(0)
+  await page.getByTestId('league-settings-preview-show-disabled-scoring-rules').check()
+  await expect(page.getByTestId('league-settings-preview-rule-idp_blocked_kick')).toBeVisible()
   await page.getByRole('button', { name: /^next$/i }).click()
 
   // Draft settings.
@@ -360,6 +400,7 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   expect(createRequests.length).toBeGreaterThan(1)
   const latest = createRequests[createRequests.length - 1] ?? {}
   const settings = latest.settings ?? {}
+  expect((latest as any).leagueVariant).toBe('DYNASTY_IDP')
   expect(latest.rosterSize).toBe(22)
   expect(settings).toMatchObject({
     roster_size: 22,
@@ -370,6 +411,7 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
     faab_budget: 150,
     waiver_processing_time_utc: '09:30',
     waiver_continuous_waivers_behavior: true,
+    trade_review_mode: 'league_vote',
     playoff_team_count: 8,
     schedule_unit: 'round',
     regular_season_length: 20,

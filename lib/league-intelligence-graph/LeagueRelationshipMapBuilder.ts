@@ -12,6 +12,7 @@ import {
   getEraDominance,
   getPowerShiftOverTime,
 } from "./GraphQueryService";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface RelationshipMapInput extends GraphQueryInput {
   includeRivals?: boolean;
@@ -77,6 +78,7 @@ export async function buildRelationshipMap(
   const {
     leagueId,
     season = null,
+    sport = null,
     includeRivals = true,
     includeTradePartners = true,
     includeManagerScores = true,
@@ -85,11 +87,16 @@ export async function buildRelationshipMap(
     includePowerShift = true,
     limit = 50,
   } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
 
-  const queryInput: GraphQueryInput = { leagueId, season, limit };
+  const queryInput: GraphQueryInput = { leagueId, season, sport: normalizedSport, limit };
 
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, nodeType: true, entityId: true, metadata: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -102,6 +109,7 @@ export async function buildRelationshipMap(
           fromNodeId: { in: nodeIdList },
           toNodeId: { in: nodeIdList },
           ...(season != null ? { season } : {}),
+          ...(normalizedSport ? { sport: normalizedSport } : {}),
         },
         select: { edgeId: true, fromNodeId: true, toNodeId: true, edgeType: true, weight: true, metadata: true },
       }),
@@ -110,7 +118,7 @@ export async function buildRelationshipMap(
       includeManagerScores ? getManagerConnectionScores(queryInput) : Promise.resolve([]),
       includeDramaTeams ? getDramaCentralTeams(queryInput) : Promise.resolve([]),
       includeEraDominance ? getEraDominance(queryInput) : Promise.resolve([]),
-      includePowerShift ? getPowerShiftOverTime({ leagueId, limit }) : Promise.resolve([]),
+      includePowerShift ? getPowerShiftOverTime({ leagueId, sport: normalizedSport, limit }) : Promise.resolve([]),
     ]);
 
   return {

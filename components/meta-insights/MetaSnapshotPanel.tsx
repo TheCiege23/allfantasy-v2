@@ -14,10 +14,12 @@ const META_TAB_TO_TYPE: Record<MetaTabId, string> = {
 export function MetaSnapshotPanel({
   sport,
   metaTab,
+  timeframe,
   refreshKey,
 }: {
   sport: string
   metaTab: MetaTabId
+  timeframe: "24h" | "7d" | "30d"
   refreshKey: number
 }) {
   const [snapshots, setSnapshots] = useState<Array<{ data: Record<string, unknown> }>>([])
@@ -28,8 +30,8 @@ export function MetaSnapshotPanel({
   useEffect(() => {
     setLoading(true)
     setError(null)
-    const params = new URLSearchParams({ sport, metaType })
-    fetch(`/api/global-meta?${params}`)
+    const params = new URLSearchParams({ sport, metaType, timeframe })
+    fetch(`/api/global-meta?${params}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((res) => {
         if (res.error) setError(res.error)
@@ -37,7 +39,7 @@ export function MetaSnapshotPanel({
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [sport, metaType, refreshKey])
+  }, [sport, metaType, timeframe, refreshKey])
 
   if (loading) {
     return (

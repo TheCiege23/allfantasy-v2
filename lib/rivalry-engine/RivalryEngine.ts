@@ -38,6 +38,40 @@ function pairKey(managerAId: string, managerBId: string): string {
   return managerAId <= managerBId ? `${managerAId}|${managerBId}` : `${managerBId}|${managerAId}`
 }
 
+async function ensureRivalryEvent(
+  rivalryId: string,
+  event: {
+    eventType: RivalryEventType
+    season?: number | null
+    matchupId?: string | null
+    tradeId?: string | null
+    description?: string | null
+  }
+) {
+  const existing = await prisma.rivalryEvent.findFirst({
+    where: {
+      rivalryId,
+      eventType: event.eventType,
+      season: event.season ?? null,
+      matchupId: event.matchupId ?? null,
+      tradeId: event.tradeId ?? null,
+      description: event.description ?? null,
+    },
+    select: { id: true },
+  })
+  if (existing) return
+  await prisma.rivalryEvent.create({
+    data: {
+      rivalryId,
+      eventType: event.eventType,
+      season: event.season ?? null,
+      matchupId: event.matchupId ?? null,
+      tradeId: event.tradeId ?? null,
+      description: event.description ?? null,
+    },
+  })
+}
+
 /**
  * Run the rivalry engine for a league/sport/season(s): aggregate H2H, compute score, resolve tier,
  * upsert RivalryRecord, and create RivalryEvent entries for key events.
@@ -95,8 +129,7 @@ export async function runRivalryEngine(input: RivalryEngineInput): Promise<Rival
           managerAId: summary.managerAId,
           managerBId: summary.managerBId,
         },
-      },
-      include: { events: true },
+      }
     })
 
     let rivalryId: string
@@ -128,43 +161,85 @@ export async function runRivalryEngine(input: RivalryEngineInput): Promise<Rival
     }
     rivalryIds.push(rivalryId)
 
-    // Append timeline events only when we first create the rivalry (avoid duplicate events on re-runs).
-    if (!existing) {
-      const tradeCount = input.tradeCountByPair?.get(key) ?? 0
-      const events: { eventType: RivalryEventType; season: number | null; description: string }[] = []
-      if (summary.totalMatchups > 0) {
-        events.push({
-          eventType: 'h2h_matchup',
-          season: input.seasons[0] ?? null,
-          description: `${summary.totalMatchups} head-to-head matchups`,
-        })
-      }
-      if (summary.closeGameCount > 0) {
-        events.push({
-          eventType: 'close_game',
-          season: input.seasons[0] ?? null,
-          description: `${summary.closeGameCount} close games`,
-        })
-      }
-      if (summary.upsetWins > 0) {
-        events.push({
-          eventType: 'upset_win',
-          season: null,
-          description: `${summary.upsetWins} upset wins`,
-        })
-      }
-      if (tradeCount > 0) {
-        events.push({
-          eventType: 'trade',
-          season: null,
-          description: `${tradeCount} trades between pair`,
-        })
-      }
-      for (const e of events) {
-        await prisma.rivalryEvent.create({
-          data: { rivalryId, eventType: e.eventType, season: e.season, description: e.description },
-        })
-      }
+    // Timeline events are maintained on each run; duplicates are prevented by lookup.
+    const latestSeason = Math.max(...input.seasons)
+    const tradeCount = input.tradeCountByPair?.get(key) ?? 0
+    const playoffMeetings = input.playoffMeetingsByPair?.get(key) ?? 0
+    const eliminationEvents = input.eliminationEventsByPair?.get(key) ?? 0
+    const championshipMeetings = input.championshipMeetingsByPair?.get(key) ?? 0
+    const dramaEvents = input.dramaEventsByPair?.get(key) ?? 0
+    const contentionOverlap = input.contentionOverlapByPair?.get(key) ?? 0
+
+    if (summary.totalMatchups > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'h2h_matchup',
+        season: latestSeason,
+        description: `${summary.totalMatchups} total head-to-head matchups`,
+      })
+    }
+    if (summary.closeGameCount > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'close_game',
+        season: latestSeason,
+        description: `${summary.closeGameCount} close contests`,
+      })
+    }
+    if (summary.upsetWins > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'upset_win',
+        season: latestSeason,
+        description: `${summary.upsetWins} upset wins`,
+      })
+    }
+    if (playoffMeetings > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'playoff_matchup',
+        season: latestSeason,
+        description: `${playoffMeetings} playoff meetings`,
+      })
+    }
+    if (eliminationEvents > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'elimination',
+        season: latestSeason,
+        description: `${eliminationEvents} elimination events`,
+      })
+    }
+    if (championshipMeetings > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'championship_clash',
+        season: latestSeason,
+        description: `${championshipMeetings} championship clashes`,
+      })
+    }
+    if (tradeCount > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'trade',
+        season: latestSeason,
+        description: `${tradeCount} trade interactions`,
+      })
+    }
+    if (dramaEvents > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'drama',
+        season: latestSeason,
+        description: `${dramaEvents} drama event flags`,
+      })
+    }
+    if (Math.abs(summary.winsA - summary.winsB) >= 3) {
+      const streakSide = summary.winsA > summary.winsB ? summary.managerAId : summary.managerBId
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'streak',
+        season: latestSeason,
+        description: `${streakSide} holds an H2H win advantage (${summary.winsA}-${summary.winsB})`,
+      })
+    }
+    if (contentionOverlap > 0) {
+      await ensureRivalryEvent(rivalryId, {
+        eventType: 'drama',
+        season: latestSeason,
+        description: `Contention overlap score ${Math.round(contentionOverlap)}`,
+      })
     }
   }
 

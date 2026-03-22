@@ -4,7 +4,7 @@
 
 import { prisma } from '@/lib/prisma'
 import type { ProfileLabel } from './types'
-import { getPsychSportLabel } from './SportBehaviorResolver'
+import { getPsychSportLabel, normalizeSportForPsych } from './SportBehaviorResolver'
 
 export interface ManagerPsychProfileView {
   id: string
@@ -36,9 +36,27 @@ export async function getProfileByLeagueAndManager(
 
 export async function listProfilesByLeague(
   leagueId: string,
-  options?: { sport?: string; limit?: number }
+  options?: {
+    sport?: string
+    season?: number
+    limit?: number
+    managerAId?: string
+    managerBId?: string
+  }
 ): Promise<ManagerPsychProfileView[]> {
-  const where = { leagueId, ...(options?.sport ? { sport: options.sport } : {}) }
+  const sportNorm = normalizeSportForPsych(options?.sport)
+  const seasonStart = options?.season != null ? new Date(Date.UTC(options.season, 0, 1)) : null
+  const seasonEnd = options?.season != null ? new Date(Date.UTC(options.season + 1, 0, 1)) : null
+  const where = {
+    leagueId,
+    ...(sportNorm ? { sport: sportNorm } : {}),
+    ...(seasonStart && seasonEnd
+      ? { evidence: { some: { createdAt: { gte: seasonStart, lt: seasonEnd } } } }
+      : {}),
+    ...(options?.managerAId && options?.managerBId
+      ? { managerId: { in: [options.managerAId, options.managerBId] } }
+      : {}),
+  }
   const list = await prisma.managerPsychProfile.findMany({
     where,
     include: { _count: { select: { evidence: true } } },
@@ -55,6 +73,60 @@ export async function getProfileById(profileId: string): Promise<ManagerPsychPro
   })
   if (!p) return null
   return toView(p)
+}
+
+export async function compareManagerProfiles(
+  leagueId: string,
+  managerAId: string,
+  managerBId: string,
+  sport?: string
+): Promise<{
+  managerA: ManagerPsychProfileView | null
+  managerB: ManagerPsychProfileView | null
+}> {
+  const rows = await listProfilesByLeague(leagueId, {
+    sport,
+    managerAId,
+    managerBId,
+    limit: 2,
+  })
+  return {
+    managerA: rows.find((r) => r.managerId === managerAId) ?? null,
+    managerB: rows.find((r) => r.managerId === managerBId) ?? null,
+  }
+}
+
+export async function listProfileEvidence(
+  profileId: string,
+  options?: { limit?: number; season?: number }
+): Promise<
+  Array<{
+    id: string
+    evidenceType: string
+    value: number
+    sourceReference: string | null
+    createdAt: Date
+  }>
+> {
+  const seasonStart = options?.season != null ? new Date(Date.UTC(options.season, 0, 1)) : null
+  const seasonEnd = options?.season != null ? new Date(Date.UTC(options.season + 1, 0, 1)) : null
+  return prisma.profileEvidenceRecord.findMany({
+    where: {
+      profileId,
+      ...(seasonStart && seasonEnd
+        ? { createdAt: { gte: seasonStart, lt: seasonEnd } }
+        : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: options?.limit ?? 100,
+    select: {
+      id: true,
+      evidenceType: true,
+      value: true,
+      sourceReference: true,
+      createdAt: true,
+    },
+  })
 }
 
 function toView(p: {

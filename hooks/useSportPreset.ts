@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 
-const LEAGUE_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const;
-export type LeagueSportOption = (typeof LEAGUE_SPORTS)[number];
+const LEAGUE_SPORTS: readonly SupportedSport[] = SUPPORTED_SPORTS;
+export type LeagueSportOption = SupportedSport;
 
 export interface ScheduleTemplatePayload {
   templateId: string;
@@ -110,7 +111,12 @@ export interface LeagueCreationPresetPayload {
     formatType: string;
     slots: Array<{ slotName: string; allowedPositions: string[]; starterCount: number; benchCount: number; isFlexibleSlot: boolean; slotOrder: number }>;
   };
-  scoringTemplate: { templateId: string; name: string; formatType: string; rules: Array<{ statKey: string; pointsValue: number }> };
+  scoringTemplate: {
+    templateId: string;
+    name: string;
+    formatType: string;
+    rules: Array<{ statKey: string; pointsValue: number; multiplier: number; enabled: boolean }>;
+  };
   defaultLeagueSettings: Record<string, unknown>;
   scheduleTemplate?: ScheduleTemplatePayload;
   seasonCalendar?: SeasonCalendarPayload;

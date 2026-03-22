@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getDramaEventById } from '@/lib/drama-engine/DramaQueryService'
 import { buildDramaNarrative } from '@/lib/drama-engine/AIDramaNarrativeAdapter'
+import { buildAIRelationshipContext } from '@/lib/relationship-insights'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +27,29 @@ export async function POST(
       return NextResponse.json({ error: 'Drama event not found' }, { status: 404 })
     }
 
-    const { narrative, source } = buildDramaNarrative(event)
+    const relationshipContext = await buildAIRelationshipContext({
+      leagueId,
+      sport: event.sport,
+      season: event.season,
+      focusDramaEventId: event.id,
+      focusManagerId: event.relatedManagerIds[0] ?? undefined,
+    }).catch(() => null)
+
+    const storylinePreview =
+      relationshipContext?.payload &&
+      Array.isArray((relationshipContext.payload as { storylines?: unknown[] }).storylines)
+        ? (relationshipContext.payload as { storylines?: Array<{ headline?: string }> }).storylines?.[0]
+            ?.headline ?? null
+        : null
+
+    const enrichedSummary = [event.summary, storylinePreview ? `Linked relationship storyline: ${storylinePreview}` : null]
+      .filter(Boolean)
+      .join(' ')
+
+    const { narrative, source } = await buildDramaNarrative({
+      ...event,
+      summary: enrichedSummary || event.summary,
+    })
     return NextResponse.json({
       eventId,
       leagueId,
@@ -34,6 +57,7 @@ export async function POST(
       source,
       headline: event.headline,
       dramaType: event.dramaType,
+      relationshipContextUsed: Boolean(relationshipContext),
     })
   } catch (e) {
     console.error('[drama/tell-story POST]', e)

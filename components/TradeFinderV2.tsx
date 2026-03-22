@@ -1511,7 +1511,10 @@ export default function TradeFinderV2({
                 size="sm"
                 fullWidth
                 onClick={() => {
-                  const url = getTradeAnalyzerAIChatUrl(chatTradeContext)
+                  const url = getTradeAnalyzerAIChatUrl(chatTradeContext, {
+                    leagueId: selectedLeague || undefined,
+                    insightType: 'trade',
+                  })
                   window.location.href = url
                 }}
               >

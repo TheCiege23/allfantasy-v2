@@ -9,6 +9,9 @@ import type { TeamSeasonForecastDisplay } from './TeamForecastCard'
 export type LeagueForecastDashboardProps = {
   teamForecasts: TeamSeasonForecastDisplay[]
   playoffSpots?: number
+  leagueId?: string
+  season?: number
+  week?: number
   teamNames?: Record<string, string>
   teamRanks?: Record<string, number>
   /** Optional AI-generated summary (e.g. weekly playoff race summary) */
@@ -44,6 +47,9 @@ function formatFreshness(isoOrLabel: string): string {
 export function LeagueForecastDashboard({
   teamForecasts,
   playoffSpots = 6,
+  leagueId,
+  season,
+  week,
   teamNames = {},
   teamRanks = {},
   aiSummary,
@@ -82,6 +88,23 @@ export function LeagueForecastDashboard({
     return 'low'
   }, [volatile.length, teamForecasts.length])
 
+  const playoffChatHref = useMemo(() => {
+    try {
+      const url = new URL('/af-legacy?tab=chat', 'https://allfantasy.com')
+      url.searchParams.set(
+        'prompt',
+        "Explain my league's playoff odds, title race, and best next move."
+      )
+      url.searchParams.set('insightType', 'playoff')
+      if (leagueId) url.searchParams.set('leagueId', leagueId)
+      if (season != null) url.searchParams.set('season', String(season))
+      if (week != null) url.searchParams.set('week', String(week))
+      return `${url.pathname}${url.search}`
+    } catch {
+      return '/af-legacy?tab=chat'
+    }
+  }, [leagueId, season, week])
+
   return (
     <div className={`space-y-6 ${className}`}>
       <SimulationConfidenceIndicator
@@ -98,7 +121,7 @@ export function LeagueForecastDashboard({
           </h3>
           <p className="text-sm text-white/80 whitespace-pre-wrap">{aiSummary}</p>
           <Link
-            href="/af-legacy?tab=chat&prompt=Explain%20my%20league's%20playoff%20odds%20and%20what%20I%20should%20do%20next."
+            href={playoffChatHref}
             className="mt-2 inline-block text-[11px] text-cyan-400 hover:text-cyan-300"
           >
             Ask Chimmy about playoff odds →
@@ -155,6 +178,9 @@ export function LeagueForecastDashboard({
       <PlayoffOddsPanel
         teamForecasts={teamForecasts}
         playoffSpots={playoffSpots}
+        leagueId={leagueId}
+        season={season}
+        week={week}
         teamNames={teamNames}
         teamRanks={teamRanks}
         title="Playoff & championship odds"

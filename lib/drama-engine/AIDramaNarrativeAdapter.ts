@@ -4,6 +4,7 @@
  */
 
 import type { DramaEventView } from './DramaTimelineBuilder'
+import { openaiChatText } from '@/lib/openai-client'
 
 export interface DramaNarrativeResult {
   narrative: string
@@ -13,7 +14,7 @@ export interface DramaNarrativeResult {
 /**
  * Produce a short narrative for the drama event. Default: template-based; can be wired to AI later.
  */
-export function buildDramaNarrative(event: DramaEventView): DramaNarrativeResult {
+function buildTemplateNarrative(event: DramaEventView): DramaNarrativeResult {
   const parts: string[] = []
   parts.push(event.headline)
   if (event.summary) parts.push(event.summary)
@@ -25,4 +26,44 @@ export function buildDramaNarrative(event: DramaEventView): DramaNarrativeResult
     narrative: parts.join(' '),
     source: 'template',
   }
+}
+
+/**
+ * Produce a short narrative for the drama event.
+ * Uses AI when configured and falls back to deterministic template text.
+ */
+export async function buildDramaNarrative(event: DramaEventView): Promise<DramaNarrativeResult> {
+  const fallback = buildTemplateNarrative(event)
+  const ai = await openaiChatText({
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a fantasy league storyteller. Write a concise 3-5 sentence storyline in energetic but factual tone. End with one forward-looking hook.',
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          dramaType: event.dramaType,
+          headline: event.headline,
+          summary: event.summary,
+          sport: event.sport,
+          season: event.season,
+          relatedManagerIds: event.relatedManagerIds,
+          relatedTeamIds: event.relatedTeamIds,
+          relatedMatchupId: event.relatedMatchupId,
+          dramaScore: event.dramaScore,
+        }),
+      },
+    ],
+    temperature: 0.55,
+    maxTokens: 260,
+  }).catch(() => null)
+  if (ai?.ok && ai.text?.trim()) {
+    return {
+      narrative: ai.text.trim(),
+      source: 'ai',
+    }
+  }
+  return fallback
 }

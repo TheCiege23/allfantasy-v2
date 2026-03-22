@@ -7,6 +7,8 @@ import { computeAdaptiveRankings, type RankingView } from '@/lib/rankings-engine
 import { computeLeagueDemandIndex } from '@/lib/rankings-engine/league-demand-index'
 import { computeEnhancedRankings, type EnhancedView } from '@/lib/rankings-engine/enhanced-rankings'
 import type { LeagueRosterConfig } from '@/lib/vorp-engine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getStrategyMetaReports } from '@/lib/strategy-meta'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
@@ -81,6 +83,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/enhanced", to
     }
 
     const [league, rosters] = await Promise.all([leagueRes.json(), rostersRes.json()])
+    const normalizedSport = normalizeToSupportedSport(String(league?.sport || 'NFL'))
 
     const rosterPositions: string[] = league.roster_positions || []
     const isSF = rosterPositions.some((p: string) => p === 'SUPER_FLEX')
@@ -127,9 +130,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/enhanced", to
 
     const baseView: RankingView = view === 'this_year' ? 'win_now' : view === 'dynasty_horizon' ? 'rebuild' : 'league'
 
-    const [fcPlayers, ldi] = await Promise.all([
+    const [fcPlayers, ldi, strategyMetaContext] = await Promise.all([
       fetchFantasyCalcValues(fcSettings),
       computeLeagueDemandIndex(leagueId),
+      getStrategyMetaReports({ sport: normalizedSport, timeframe: '30d' }).then((rows) => rows.slice(0, 3)).catch(() => []),
     ])
 
     const adaptiveOutput = computeAdaptiveRankings(fcPlayers, userPlayerIds, config, ldi, baseView, 300)
@@ -154,6 +158,12 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/enhanced", to
           })),
           weakPositions: enhanced.positionalStrength.filter(ps => ps.strengthPct < 85).map(ps => ps.position),
           strongPositions: enhanced.positionalStrength.filter(ps => ps.strengthPct > 115).map(ps => ps.position),
+          strategyMetaContext: strategyMetaContext.map((row) => ({
+            strategyType: row.strategyLabel ?? row.strategyType,
+            usageRate: Math.round(row.usageRate * 100),
+            successRate: Math.round(row.successRate * 100),
+            trend: row.trendingDirection,
+          })),
         }
 
         const completion = await openai.chat.completions.create({
@@ -232,6 +242,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/enhanced", to
         isSF,
         isTEP,
         numTeams,
+        strategyMetaContext,
       },
     })
   } catch (error: any) {

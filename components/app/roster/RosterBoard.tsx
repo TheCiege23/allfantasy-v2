@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ChevronsDown, Users, Activity } from "lucide-react"
 import { useRosterManager, type RosterPlayer, type RosterSectionKey } from "./useRosterManager"
+import { teamLogoUrl } from "@/lib/media-url"
 
 type RosterBoardProps = {
   leagueId?: string
@@ -13,9 +14,26 @@ type DragState = {
   fromSlot: RosterSectionKey
 } | null
 
+const SECTION_DEFINITIONS: { key: RosterSectionKey; label: string }[] = [
+  { key: "starters", label: "Starters" },
+  { key: "bench", label: "Bench" },
+  { key: "ir", label: "IR" },
+  { key: "taxi", label: "Taxi" },
+  { key: "devy", label: "Devy" },
+]
+
+const EMPTY_ROSTER = {
+  starters: [],
+  bench: [],
+  ir: [],
+  taxi: [],
+  devy: [],
+} as const
+
 export default function RosterBoard({ leagueId }: RosterBoardProps) {
   const {
     roster,
+    leagueSport,
     saving,
     saveError,
     lastSavedAt,
@@ -26,6 +44,7 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
     swapPlayers,
     dropPlayer,
     addPlayerFromPool,
+    optimizeLineup,
   } = useRosterManager({
     leagueId,
   })
@@ -34,22 +53,7 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
   const [poolSearch, setPoolSearch] = useState("")
   const [poolSlot, setPoolSlot] = useState<RosterSectionKey>("bench")
   const [poolPlayerId, setPoolPlayerId] = useState("")
-
-  const sections: { key: RosterSectionKey; label: string }[] = [
-    { key: "starters", label: "Starters" },
-    { key: "bench", label: "Bench" },
-    { key: "ir", label: "IR" },
-    { key: "taxi", label: "Taxi" },
-    { key: "devy", label: "Devy" },
-  ]
-
-  if (!roster) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/70">
-        Loading roster...
-      </div>
-    )
-  }
+  const rosterState = roster ?? EMPTY_ROSTER
 
   const handleDropOnSection = (slot: RosterSectionKey) => {
     if (!drag) return
@@ -63,28 +67,6 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
     setDrag(null)
   }
 
-  const optimizeLineup = () => {
-    // Placeholder optimizer: move highest projection players into starters.
-    const all: RosterPlayer[] = [
-      ...roster.starters,
-      ...roster.bench,
-      ...roster.ir,
-      ...roster.taxi,
-      ...roster.devy,
-    ]
-
-    const sorted = [...all].sort((a, b) => b.projection - a.projection)
-    const startersTarget = 9 // simple default
-    const optimizedStarters = sorted.slice(0, startersTarget)
-    const remaining = sorted.slice(startersTarget)
-
-    optimizedStarters.forEach((p) => movePlayer(p.id, "starters"))
-    remaining.forEach((p) => {
-      if (p.status === "ir") movePlayer(p.id, "ir")
-      else movePlayer(p.id, "bench")
-    })
-  }
-
   const filteredPool = availablePlayers
     .filter((p) => {
       if (!poolSearch.trim()) return true
@@ -96,6 +78,36 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
       )
     })
     .slice(0, 100)
+
+  const visibleSections = useMemo(
+    () =>
+      SECTION_DEFINITIONS.filter((section) => {
+        const limit = Number(slotLimits[section.key] ?? 0)
+        return limit > 0 || rosterState[section.key].length > 0
+      }),
+    [slotLimits, rosterState]
+  )
+  const addTargetSections = useMemo(
+    () => visibleSections.filter((section) => Number(slotLimits[section.key] ?? 0) > 0),
+    [visibleSections, slotLimits]
+  )
+  const resolvedPoolSlot = addTargetSections.some((s) => s.key === poolSlot)
+    ? poolSlot
+    : (addTargetSections[0]?.key ?? "bench")
+
+  useEffect(() => {
+    if (poolSlot !== resolvedPoolSlot) {
+      setPoolSlot(resolvedPoolSlot)
+    }
+  }, [poolSlot, resolvedPoolSlot])
+
+  if (!roster) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-black/30 p-4 text-xs text-white/70">
+        Loading roster...
+      </div>
+    )
+  }
 
   return (
     <section className="space-y-3 text-xs">
@@ -151,15 +163,15 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
               />
               <select
                 aria-label="Choose roster section for add"
-                value={poolSlot}
+                value={resolvedPoolSlot}
                 onChange={(e) => setPoolSlot(e.target.value as RosterSectionKey)}
                 className="rounded-lg border border-white/15 bg-black/50 px-2 py-1.5 text-[11px] text-white"
               >
-                <option value="bench">Bench</option>
-                <option value="starters">Starters</option>
-                <option value="ir">IR</option>
-                <option value="taxi">Taxi</option>
-                <option value="devy">Devy</option>
+                {addTargetSections.map((section) => (
+                  <option key={section.key} value={section.key}>
+                    {section.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -182,7 +194,7 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
                 disabled={!poolPlayerId}
                 onClick={() => {
                   if (!poolPlayerId) return
-                  addPlayerFromPool(poolPlayerId, poolSlot)
+                  addPlayerFromPool(poolPlayerId, resolvedPoolSlot)
                   setPoolPlayerId("")
                 }}
                 className="rounded-lg border border-emerald-400/60 bg-emerald-500/20 px-3 py-1.5 text-[11px] text-emerald-200 disabled:opacity-50"
@@ -191,7 +203,7 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
               </button>
             </div>
           </div>
-          {sections
+          {visibleSections
             .filter((s) => s.key === "starters" || s.key === "bench")
             .map((section) => (
               <RosterSection
@@ -203,14 +215,18 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
                 setDrag={setDrag}
                 onDropSection={handleDropOnSection}
                 onDropPlayer={handleDropOnPlayer}
+                onMovePlayer={movePlayer}
                 onDrop={dropPlayer}
                 sectionLimit={slotLimits[section.key]}
                 onPlayerSelect={setSelectedPlayer}
+                leagueSport={leagueSport}
+                moveToBenchEnabled={Number(slotLimits.bench ?? 0) > 0}
+                moveToIrEnabled={Number(slotLimits.ir ?? 0) > 0}
               />
             ))}
         </div>
         <div className="space-y-2">
-          {sections
+          {visibleSections
             .filter((s) => s.key !== "starters" && s.key !== "bench")
             .map((section) => (
               <RosterSection
@@ -222,9 +238,13 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
                 setDrag={setDrag}
                 onDropSection={handleDropOnSection}
                 onDropPlayer={handleDropOnPlayer}
+                onMovePlayer={movePlayer}
                 onDrop={dropPlayer}
                 sectionLimit={slotLimits[section.key]}
                 onPlayerSelect={setSelectedPlayer}
+                leagueSport={leagueSport}
+                moveToBenchEnabled={Number(slotLimits.bench ?? 0) > 0}
+                moveToIrEnabled={Number(slotLimits.ir ?? 0) > 0}
               />
             ))}
         </div>
@@ -284,9 +304,13 @@ type RosterSectionProps = {
   setDrag: (s: DragState) => void
   onDropSection: (slot: RosterSectionKey) => void
   onDropPlayer: (id: string) => void
+  onMovePlayer: (id: string, toSlot: RosterSectionKey) => void
   onDrop: (id: string) => void
   sectionLimit?: number
   onPlayerSelect: (player: RosterPlayer) => void
+  leagueSport: string
+  moveToBenchEnabled: boolean
+  moveToIrEnabled: boolean
 }
 
 function RosterSection({
@@ -297,9 +321,13 @@ function RosterSection({
   setDrag,
   onDropSection,
   onDropPlayer,
+  onMovePlayer,
   onDrop,
   sectionLimit,
   onPlayerSelect,
+  leagueSport,
+  moveToBenchEnabled,
+  moveToIrEnabled,
 }: RosterSectionProps) {
   const isEmpty = players.length === 0
 
@@ -333,8 +361,12 @@ function RosterSection({
               isDragging={drag?.playerId === p.id}
               onDragStart={() => setDrag({ playerId: p.id, fromSlot: slot })}
               onDropOn={() => onDropPlayer(p.id)}
+              onMove={(toSlot) => onMovePlayer(p.id, toSlot)}
               onDropSelf={() => onDrop(p.id)}
               onSelect={() => onPlayerSelect(p)}
+              leagueSport={leagueSport}
+              moveToBenchEnabled={moveToBenchEnabled}
+              moveToIrEnabled={moveToIrEnabled}
             />
           ))
         )}
@@ -348,11 +380,26 @@ type PlayerCardProps = {
   isDragging: boolean
   onDragStart: () => void
   onDropOn: () => void
+  onMove: (toSlot: RosterSectionKey) => void
   onDropSelf: () => void
   onSelect: () => void
+  leagueSport: string
+  moveToBenchEnabled: boolean
+  moveToIrEnabled: boolean
 }
 
-function PlayerCard({ player, isDragging, onDragStart, onDropOn, onDropSelf, onSelect }: PlayerCardProps) {
+function PlayerCard({
+  player,
+  isDragging,
+  onDragStart,
+  onDropOn,
+  onMove,
+  onDropSelf,
+  onSelect,
+  leagueSport,
+  moveToBenchEnabled,
+  moveToIrEnabled,
+}: PlayerCardProps) {
   const statusColor =
     player.status === "healthy"
       ? "bg-emerald-400"
@@ -361,6 +408,7 @@ function PlayerCard({ player, isDragging, onDragStart, onDropOn, onDropSelf, onS
       : player.status === "out"
       ? "bg-red-500"
       : "bg-purple-400"
+  const logo = player.team ? teamLogoUrl(player.team, leagueSport) : ''
 
   return (
     <div
@@ -391,6 +439,15 @@ function PlayerCard({ player, isDragging, onDragStart, onDropOn, onDropSelf, onS
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1">
+            {logo ? (
+              <img
+                src={logo}
+                alt={`${player.team} logo`}
+                data-testid={`roster-player-team-logo-${player.id}`}
+                className="h-4 w-4 rounded object-contain"
+                loading="lazy"
+              />
+            ) : null}
             <p className="truncate text-[11px] font-semibold text-white">{player.name}</p>
             <span className="text-[10px] text-white/60">{player.team}</span>
           </div>
@@ -420,6 +477,32 @@ function PlayerCard({ player, isDragging, onDragStart, onDropOn, onDropSelf, onS
             {player.status === "healthy" ? "H" : player.status.toUpperCase()}
           </span>
         </span>
+        {moveToBenchEnabled && player.slot !== "bench" && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMove("bench")
+            }}
+            data-testid={`roster-move-bench-${player.id}`}
+            className="rounded border border-white/15 px-1 py-0.5 text-[9px] text-white/75 hover:bg-white/10"
+          >
+            Bench
+          </button>
+        )}
+        {moveToIrEnabled && player.slot !== "ir" && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMove("ir")
+            }}
+            data-testid={`roster-move-ir-${player.id}`}
+            className="rounded border border-white/15 px-1 py-0.5 text-[9px] text-white/75 hover:bg-white/10"
+          >
+            IR
+          </button>
+        )}
         <button
           type="button"
           onClick={(e) => {

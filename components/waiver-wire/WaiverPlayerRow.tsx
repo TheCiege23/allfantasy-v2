@@ -1,6 +1,7 @@
 "use client"
 
 import { Plus, TrendingUp } from "lucide-react"
+import { teamLogoUrl } from "@/lib/media-url"
 
 type Props = {
   player: {
@@ -9,15 +10,17 @@ type Props = {
     position: string | null
     team: string | null
   }
+  sport?: string | null
   onAddClick: () => void
   alreadyClaimed?: boolean
   trendScore?: number
 }
 
-export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed, trendScore }: Props) {
+export default function WaiverPlayerRow({ player, sport, onAddClick, alreadyClaimed, trendScore }: Props) {
   const pos = player.position || "—"
   const team = player.team || "FA"
   const trend = typeof trendScore === "number" ? trendScore : 0
+  const logo = player.team ? teamLogoUrl(player.team, sport ?? 'NFL') : ''
 
   return (
     <li className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm sm:px-4">
@@ -25,6 +28,15 @@ export default function WaiverPlayerRow({ player, onAddClick, alreadyClaimed, tr
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-cyan-500/15 text-xs font-semibold text-cyan-100">
           {pos}
         </div>
+        {logo ? (
+          <img
+            src={logo}
+            alt={`${team} logo`}
+            data-testid={`waiver-player-team-logo-${player.id}`}
+            className="h-7 w-7 rounded object-contain"
+            loading="lazy"
+          />
+        ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1 text-white">
             <span className="truncate font-medium">{player.name}</span>

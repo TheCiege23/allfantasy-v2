@@ -30,6 +30,7 @@ export interface PlayerTrendPanelPayload {
 export async function resolvePlayerTrendPanel(opts: {
   sport: string
   list: TrendListType
+  timeframe?: '24h' | '7d' | '30d'
   limit?: number
 }): Promise<PlayerTrendPanelPayload> {
   const sport = resolveSportForMetaUI(opts.sport)
@@ -40,7 +41,7 @@ export async function resolvePlayerTrendPanel(opts: {
       : opts.list === 'rising'
         ? getRisingPlayers
         : getFallers
-  const rows = await fetcher({ sport, limit })
+  const rows = await fetcher({ sport, limit, timeframe: opts.timeframe })
   return {
     list: opts.list,
     sport,

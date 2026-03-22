@@ -4,10 +4,12 @@
 
 import { prisma } from "@/lib/prisma";
 import type { TradeCluster, TradeClusterMember } from "./types";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface TradeClusterInput {
   leagueId: string;
   season?: number | null;
+  sport?: string | null;
   /** Min weight between two nodes to consider them in same cluster. */
   minPairWeight?: number;
   /** Max clusters to return. */
@@ -21,10 +23,16 @@ export interface TradeClusterInput {
 export async function detectTradeClusters(
   input: TradeClusterInput
 ): Promise<TradeCluster[]> {
-  const { leagueId, season = null, minPairWeight = 1, limit = 10 } = input;
+  const { leagueId, season = null, sport = null, minPairWeight = 1, limit = 10 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
 
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "TeamSeason", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "TeamSeason",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -36,6 +44,7 @@ export async function detectTradeClusters(
       fromNodeId: { in: [...nodeIds] },
       toNodeId: { in: [...nodeIds] },
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
 

@@ -30,6 +30,7 @@ interface DevySummary {
   draftPhase: string | null
   draftPhaseInfo: { phase: string; status: string; description: string } | null
   sessionId: string | null
+  promotionEligibleCount?: number
 }
 
 interface DevyHomeProps {
@@ -149,7 +150,7 @@ export function DevyHome({ leagueId, isCommissioner, rosterId }: DevyHomeProps) 
 
       <DevyLeagueHomeCards
         leagueId={leagueId}
-        promotionEligibleCount={0}
+        promotionEligibleCount={summary.promotionEligibleCount ?? 0}
       />
 
       <DevyPromotionPanel leagueId={leagueId} rosterId={rosterId} isCommissioner={isCommissioner} />

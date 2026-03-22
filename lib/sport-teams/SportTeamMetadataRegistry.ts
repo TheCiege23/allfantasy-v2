@@ -40,7 +40,7 @@ const NCAAF_ABBREV = [
 /** NCAA Basketball: D1 team abbreviations (subset for logo/display; expand via DB or ingestion). Unique abbrevs. */
 const NCAAB_ABBREV = [
   'ALA', 'ARK', 'AUB', 'FLA', 'UGA', 'UK', 'LSU', 'MSU', 'OLE', 'SC', 'TEN', 'TAMU', 'VAN', 'CLEM', 'DUKE', 'FSU', 'GT', 'LOU', 'MIA', 'UNC', 'NCST', 'PITT', 'SYR', 'UVA', 'VT', 'WAKE',
-  'ILL', 'IND', 'IOWA', 'MD', 'MICH', 'MINN', 'NEB', 'NW', 'OSU', 'PSU', 'PUR', 'RUT', 'WIS', 'BU', 'CIN', 'UCF', 'HOU', 'MEM', 'SMU', 'TULN', 'TLS', 'BAYLOR', 'ISU', 'KU', 'KSU', 'OKLA', 'OKST', 'TCU', 'TEX', 'TTU', 'WVU', 'ARIZ', 'ASU', 'CAL', 'COLO', 'ORE', 'STAN', 'UCLA', 'USC', 'UTAH', 'WASH', 'WSU', 'GONZ', 'SMC', 'BYU', 'SDSU', 'UNLV', 'NM', 'NEV', 'WYO', 'VCU', 'DAY', 'SLU', 'XAV', 'MARQ', 'CREI', 'BUT', 'NOVA', 'SHU', 'SJU', 'PC', 'UConn', 'GTOWN', 'DEP',
+  'ILL', 'IND', 'IOWA', 'MD', 'MICH', 'MINN', 'NEB', 'NW', 'OSU', 'PSU', 'PUR', 'RUT', 'WIS', 'BU', 'CIN', 'UCF', 'HOU', 'MEM', 'SMU', 'TULN', 'TLS', 'BAYLOR', 'ISU', 'KU', 'KSU', 'OKLA', 'OKST', 'TCU', 'TEX', 'TTU', 'WVU', 'ARIZ', 'ASU', 'CAL', 'COLO', 'ORE', 'STAN', 'UCLA', 'USC', 'UTAH', 'WASH', 'WSU', 'GONZ', 'SMC', 'BYU', 'SDSU', 'UNLV', 'NM', 'NEV', 'WYO', 'VCU', 'DAY', 'SLU', 'XAV', 'MARQ', 'CREI', 'BUT', 'NOVA', 'SHU', 'SJU', 'PC', 'UCONN', 'GTOWN', 'DEP',
 ]
 
 /** Soccer: MLS + select clubs (club/national scope). Player pool by sport_type = SOCCER; positions GKP/GK, DEF, MID, FWD. Logo path uses abbreviation; unknown clubs get ESPN-style URL fallback. */

@@ -6,6 +6,7 @@
 /** Single draft strategy with usage/success and trend (shift signal). */
 export interface DraftStrategyShift {
   strategyType: string
+  strategyLabel?: string
   sport: string
   leagueFormat: string
   usageRate: number

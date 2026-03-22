@@ -1174,6 +1174,7 @@ export function DraftRoomPageClient({
           sport={effectiveDraftSport}
           round={session?.currentPick?.round ?? 1}
           pick={session?.currentPick?.slot ?? 1}
+          leagueId={leagueId}
           leagueName={leagueName}
           rosterSlots={effectiveRosterSlots}
           queueLength={queueFiltered.length}

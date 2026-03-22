@@ -5,6 +5,7 @@
 import type { StrategySport, StrategyType } from './types'
 import { SUPPORTED_STRATEGY_SPORTS } from './types'
 import { getDetectionConfig } from './detection-config'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const STRATEGY_SPORTS: readonly StrategySport[] = [...SUPPORTED_STRATEGY_SPORTS]
 
@@ -16,6 +17,9 @@ const STRATEGY_LABELS: Record<StrategyType, string> = {
   LateQB: 'Late QB / Late premium position',
   EliteTE: 'Elite TE / Early specialist',
   BalancedBuild: 'Balanced build',
+  StarsAndScrubsBuild: 'Stars-and-scrubs build',
+  DepthHeavyBuild: 'Depth-heavy build',
+  GoaliePitcherHeavyBuild: 'Goalie/Pitcher-heavy build',
   RookieHeavyBuild: 'Rookie-heavy build',
   VeteranHeavyBuild: 'Veteran-heavy build',
   StackingStrategies: 'Stacking strategies',
@@ -39,6 +43,14 @@ const SPORT_STRATEGY_OVERRIDES: Partial<Record<StrategySport, Partial<Record<Str
   NHL: {
     ZeroRB: 'Zero forward',
     HeroRB: 'Hero forward',
+    GoaliePitcherHeavyBuild: 'Goalie-heavy build',
+  },
+  MLB: {
+    ZeroRB: 'Zero SP/P',
+    HeroRB: 'Hero ace',
+    EarlyQB: 'Early ace',
+    LateQB: 'Late ace',
+    GoaliePitcherHeavyBuild: 'Pitcher-heavy build',
   },
   NCAAB: {
     ZeroRB: 'Zero F/C',
@@ -54,7 +66,7 @@ const SPORT_STRATEGY_OVERRIDES: Partial<Record<StrategySport, Partial<Record<Str
 export function getStrategyLabelForSport(strategyType: StrategyType, sport: StrategySport): string {
   const overrides = SPORT_STRATEGY_OVERRIDES[sport]
   if (overrides && overrides[strategyType]) return overrides[strategyType]!
-  return STRATEGY_LABELS[strategyType]
+  return STRATEGY_LABELS[strategyType] ?? String(strategyType)
 }
 
 /**
@@ -68,6 +80,5 @@ export function getSportStrategyConfig(sport: StrategySport) {
  * Normalize sport for strategy meta (must be one of STRATEGY_SPORTS).
  */
 export function resolveSportForStrategy(sport: string | null | undefined): StrategySport {
-  const s = (sport || 'NFL').toUpperCase().trim()
-  return STRATEGY_SPORTS.includes(s as StrategySport) ? (s as StrategySport) : 'NFL'
+  return normalizeToSupportedSport(sport ?? DEFAULT_SPORT)
 }

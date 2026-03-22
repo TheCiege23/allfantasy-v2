@@ -49,5 +49,9 @@ export async function getLeagueRosterTemplate(
   leagueSport: LeagueSport,
   formatType?: string
 ): Promise<RosterTemplateDto> {
-  return getRosterTemplateForLeague(leagueSport, formatType)
+  const normalizedFormat =
+    leagueSport === 'NFL' && String(formatType ?? '').toUpperCase() === 'DYNASTY_IDP'
+      ? 'IDP'
+      : formatType
+  return getRosterTemplateForLeague(leagueSport, normalizedFormat)
 }

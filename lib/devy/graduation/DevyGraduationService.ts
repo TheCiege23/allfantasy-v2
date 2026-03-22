@@ -55,7 +55,7 @@ export async function markDevyPlayerGraduated(args: {
   playerId: string
   sport: string
   graduatedToPro: boolean
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; updated?: number }> {
   const { playerId, sport, graduatedToPro } = args
   const s = String(sport).toUpperCase()
   if (s === 'NFL') {
@@ -66,7 +66,11 @@ export async function markDevyPlayerGraduated(args: {
     return { ok: true }
   }
   if (s === 'NBA') {
-    return { ok: true }
+    const nbaResult = await prisma.devyPlayer.updateMany({
+      where: { id: playerId },
+      data: { devyEligible: false },
+    })
+    return { ok: true, updated: nbaResult.count }
   }
   return { ok: false, error: 'Sport does not have devy graduation' }
 }

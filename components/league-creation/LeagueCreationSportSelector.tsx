@@ -1,8 +1,9 @@
 'use client';
 
 import { Label } from '@/components/ui/label';
+import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 
-export type LeagueSportOption = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
+export type LeagueSportOption = SupportedSport;
 
 const SPORT_LABELS: Record<LeagueSportOption, string> = {
   NFL: 'NFL Football',
@@ -14,7 +15,7 @@ const SPORT_LABELS: Record<LeagueSportOption, string> = {
   SOCCER: 'Soccer',
 };
 
-const LEAGUE_SPORTS: LeagueSportOption[] = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'];
+const LEAGUE_SPORTS: LeagueSportOption[] = [...SUPPORTED_SPORTS];
 
 const SPORT_EMOJI: Record<LeagueSportOption, string> = {
   NFL: '🏈',

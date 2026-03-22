@@ -2,27 +2,25 @@
  * Fantasy Data Warehouse — shared types and sport constants.
  * Supports: NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer.
  */
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  isSupportedSport,
+  normalizeToSupportedSport,
+  type SupportedSport,
+} from '@/lib/sport-scope'
 
-export const WAREHOUSE_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAB',
-  'NCAAF',
-  'SOCCER',
-] as const
+export const WAREHOUSE_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
 
-export type WarehouseSport = (typeof WAREHOUSE_SPORTS)[number]
+export type WarehouseSport = SupportedSport
 
 export function isWarehouseSport(s: string): s is WarehouseSport {
-  return WAREHOUSE_SPORTS.includes(s as WarehouseSport)
+  return isSupportedSport(s)
 }
 
 export function normalizeSportForWarehouse(sport: string): WarehouseSport {
   const u = sport?.toUpperCase?.() || DEFAULT_SPORT
-  if (isWarehouseSport(u)) return u
+  if (isWarehouseSport(u)) return normalizeToSupportedSport(u)
   const map: Record<string, WarehouseSport> = {
     NFL: 'NFL',
     NHL: 'NHL',
@@ -34,7 +32,7 @@ export function normalizeSportForWarehouse(sport: string): WarehouseSport {
     NCAA_FOOTBALL: 'NCAAF',
     SOCCER: 'SOCCER',
   }
-  return map[u] ?? (DEFAULT_SPORT as WarehouseSport)
+  return normalizeToSupportedSport(map[u] ?? u)
 }
 
 export interface PlayerGameFactInput {

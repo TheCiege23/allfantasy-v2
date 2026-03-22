@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService';
+import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry';
 
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
@@ -30,11 +31,7 @@ export async function GET(req: NextRequest) {
 
   const leagueSport = (league.sport as string) || 'NFL';
   const leagueVariant = (league.leagueVariant as string | null) ?? null;
-  const variantUpper = String(leagueVariant ?? '').toUpperCase();
-  const formatType =
-    leagueSport === 'NFL' && (variantUpper === 'IDP' || variantUpper === 'DYNASTY_IDP')
-      ? 'IDP'
-      : undefined;
+  const formatType = getFormatTypeForVariant(leagueSport, leagueVariant ?? undefined);
 
   let slotLimits: Record<'starters' | 'bench' | 'ir' | 'taxi' | 'devy', number> | null = null;
   let starterAllowedPositions: string[] = [];

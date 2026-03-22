@@ -10,6 +10,7 @@ import {
   type ScoringRuleDto,
 } from '@/lib/multi-sport/ScoringTemplateResolver'
 import { getLeagueScoringOverrides } from './ScoringOverrideService'
+import { normalizeScoringStatKey } from './ScoringKeyAliasResolver'
 
 export interface LeagueScoringRuleConfig extends ScoringRuleDto {
   defaultPointsValue: number
@@ -50,7 +51,15 @@ export async function getLeagueScoringConfig(
   const templateRuleByKey = new Map(
     template.rules.map((rule) => [rule.statKey, rule])
   )
-  const overrideByKey = new Map(overrides.map((o) => [o.statKey, o]))
+  const overrideByKey = new Map<string, (typeof overrides)[number]>()
+  for (const o of overrides) {
+    const canonical = normalizeScoringStatKey(o.statKey, {
+      sportType: league.sport,
+      templateRuleKeys: templateRuleByKey.keys(),
+    })
+    if (!templateRuleByKey.has(canonical)) continue
+    overrideByKey.set(canonical, o)
+  }
 
   return {
     leagueId,

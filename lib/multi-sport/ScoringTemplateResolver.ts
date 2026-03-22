@@ -6,6 +6,7 @@
 import { prisma } from '@/lib/prisma'
 import { toSportType, type SportType } from './sport-types'
 import { getDefaultScoringTemplate } from '@/lib/scoring-defaults/ScoringDefaultsRegistry'
+import { normalizeScoringStatKey } from '@/lib/scoring-defaults/ScoringKeyAliasResolver'
 
 export interface ScoringRuleDto {
   statKey: string
@@ -69,7 +70,16 @@ export async function getLeagueScoringRules(
   const overrides = await prisma.leagueScoringOverride.findMany({
     where: { leagueId },
   })
-  const overrideMap = new Map(overrides.map((o) => [o.statKey, o]))
+  const templateRuleKeys = new Set(template.rules.map((r) => r.statKey))
+  const overrideMap = new Map<string, (typeof overrides)[number]>()
+  for (const o of overrides) {
+    const canonical = normalizeScoringStatKey(o.statKey, {
+      sportType: typeof sportType === 'string' ? sportType : String(sportType),
+      templateRuleKeys,
+    })
+    if (!templateRuleKeys.has(canonical)) continue
+    overrideMap.set(canonical, o)
+  }
   return template.rules.map((r) => {
     const ov = overrideMap.get(r.statKey)
     if (ov) {

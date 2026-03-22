@@ -20,4 +20,4 @@ export {
 export { getMatchupPredictionSummary, formatMatchupPredictionForAI } from './MatchupPredictionService'
 export { getDynastyAdviceSummaryForLeague, getDynastyAdviceForTeam } from './DynastyAdviceService'
 export { getTeamOutlookSummary } from './AITeamOutlookService'
-export { getInsightContext } from './AIInsightRouter'
+export { getInsightBundle, getInsightContext } from './AIInsightRouter'

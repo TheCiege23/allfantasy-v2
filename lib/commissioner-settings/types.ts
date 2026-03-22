@@ -36,6 +36,7 @@ export interface LeagueConfigurationView {
   name: string | null
   description: string | null
   sport: LeagueSport
+  leagueVariant: string | null
   season: number | null
   leagueSize: number | null
   rosterSize: number | null

@@ -4,10 +4,12 @@
 
 import { prisma } from "@/lib/prisma";
 import type { RivalryScore } from "./types";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface RivalryPathInput {
   leagueId: string;
   season?: number | null;
+  sport?: string | null;
   limit?: number;
   /** If true, boost intensity by multi-hop rivalry paths (e.g. A–B–C implies A–C tension). */
   usePathDepth?: boolean;
@@ -20,10 +22,15 @@ export interface RivalryPathInput {
 export async function analyzeRivalryPaths(
   input: RivalryPathInput
 ): Promise<RivalryScore[]> {
-  const { leagueId, season = null, limit = 20, usePathDepth = false } = input;
+  const { leagueId, season = null, sport = null, limit = 20, usePathDepth = false } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
 
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -33,6 +40,7 @@ export async function analyzeRivalryPaths(
       fromNodeId: { in: [...nodeIds] },
       toNodeId: { in: [...nodeIds] },
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
 

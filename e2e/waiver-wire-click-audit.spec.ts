@@ -9,6 +9,7 @@ test.describe('@waiver waiver wire click audit', () => {
 
     await page.getByTestId('waiver-search-input').fill('Alpha')
     await expect(page.getByText('Alpha Runner')).toBeVisible()
+    await expect(page.getByTestId('waiver-player-team-logo-player-1')).toBeVisible()
 
     await page.getByRole('button', { name: 'Trending' }).click()
     await expect(page.getByText('Alpha Runner')).toBeVisible()

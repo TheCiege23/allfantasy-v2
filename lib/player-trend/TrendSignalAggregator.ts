@@ -3,6 +3,7 @@
  * Rates are normalized by time window and platform activity level (optional).
  */
 import { prisma } from '@/lib/prisma'
+import { resolveSinceFromTimeframe } from '@/lib/global-meta-engine/timeframe'
 import { TREND_WINDOW_MS } from './types'
 import type { TrendSignals } from './types'
 import type { TrendSignalType } from './types'
@@ -73,4 +74,20 @@ export async function getPreviousTrendScore(
     select: { previousTrendScore: true },
   })
   return row?.previousTrendScore ?? null
+}
+
+/**
+ * Get same-sport baseline score from recent player trend rows.
+ * Used when a player has no prior trend snapshot yet.
+ */
+export async function getSportTrendBaselineScore(sport: string): Promise<number | null> {
+  const since = resolveSinceFromTimeframe('30d')
+  const aggregate = await prisma.playerMetaTrend.aggregate({
+    where: {
+      sport,
+      ...(since ? { updatedAt: { gte: since } } : {}),
+    },
+    _avg: { trendScore: true },
+  })
+  return aggregate._avg.trendScore ?? null
 }

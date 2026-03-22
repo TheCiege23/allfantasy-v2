@@ -4,12 +4,14 @@
  */
 import { prisma } from '@/lib/prisma'
 import { normalizeSportForMeta } from './SportMetaResolver'
-import type { MetaType } from './types'
+import type { MetaType, TimeframeId } from './types'
+import { resolveSeasonBounds, resolveSinceFromWeekOrTimeframe } from './timeframe'
 
 export interface TrendDetectionInput {
   sport?: string
   season?: string
   weekOrPeriod?: number
+  timeframe?: TimeframeId
 }
 
 /** Aggregate trend signals for a meta type (used by MetaSnapshotGenerator). */
@@ -18,7 +20,18 @@ export async function getTrendSignalsForMetaType(
   input: TrendDetectionInput
 ): Promise<Record<string, unknown>> {
   const sport = input.sport ? normalizeSportForMeta(input.sport) : undefined
-  const baseWhere: { sport?: string } = sport ? { sport } : {}
+  const since = resolveSinceFromWeekOrTimeframe({
+    weekOrPeriod: input.weekOrPeriod,
+    timeframe: input.timeframe,
+  })
+  const seasonBounds = resolveSeasonBounds(input.season)
+  const baseWhere: { sport?: string; timestamp?: { gte?: Date; lt?: Date } } = sport ? { sport } : {}
+  if (since || seasonBounds.start || seasonBounds.end) {
+    baseWhere.timestamp = {}
+    if (since) baseWhere.timestamp.gte = since
+    if (seasonBounds.start && !since) baseWhere.timestamp.gte = seasonBounds.start
+    if (seasonBounds.end) baseWhere.timestamp.lt = seasonBounds.end
+  }
 
   switch (metaType) {
     case 'WaiverMeta': {
@@ -33,29 +46,40 @@ export async function getTrendSignalsForMetaType(
         where: { ...baseWhere, signalType: { in: ['waiver_add', 'waiver_drop'] } },
         _count: true,
       })
-      return { totalEvents: events, byPlayerCount: byPlayer.length, byPlayer }
+      return { totalEvents: events, byPlayerCount: byPlayer.length, byPlayer, since: since?.toISOString() }
     }
     case 'DraftMeta': {
       const events = await prisma.trendSignalEvent.count({
         where: { ...baseWhere, signalType: 'draft_pick' },
       })
-      return { totalEvents: events }
+      return { totalEvents: events, since: since?.toISOString() }
     }
     case 'TradeMeta': {
       const events = await prisma.trendSignalEvent.count({
         where: { ...baseWhere, signalType: 'trade_request' },
       })
-      return { totalEvents: events }
+      return { totalEvents: events, since: since?.toISOString() }
     }
     case 'RosterMeta': {
       const events = await prisma.trendSignalEvent.count({
         where: { ...baseWhere, signalType: 'lineup_start' },
       })
-      return { totalEvents: events }
+      return { totalEvents: events, since: since?.toISOString() }
     }
     case 'StrategyMeta': {
+      const updatedAt =
+        seasonBounds.start || seasonBounds.end || since
+          ? {
+              ...(since ? { gte: since } : {}),
+              ...(!since && seasonBounds.start ? { gte: seasonBounds.start } : {}),
+              ...(seasonBounds.end ? { lt: seasonBounds.end } : {}),
+            }
+          : undefined
       const reports = await prisma.strategyMetaReport.findMany({
-        where: sport ? { sport } : undefined,
+        where: {
+          ...(sport ? { sport } : {}),
+          ...(updatedAt ? { updatedAt } : {}),
+        },
         take: 50,
       })
       return {
@@ -65,6 +89,7 @@ export async function getTrendSignalsForMetaType(
           successRate: r.successRate,
           trendingDirection: r.trendingDirection,
         })),
+        since: since?.toISOString(),
       }
     }
     default:

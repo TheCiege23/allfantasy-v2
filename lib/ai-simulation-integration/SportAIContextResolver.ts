@@ -2,13 +2,20 @@
  * SportAIContextResolver — sport-aware context for AI (scoring, roster structure, league format).
  */
 
-/** All seven platform sports (canonical codes). Use for sport-aware logic; do not hardcode a single sport. */
-export const AI_SPORT_CODES = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
+import {
+  DEFAULT_SPORT,
+  SUPPORTED_SPORTS,
+  normalizeToSupportedSport,
+  type SupportedSport,
+} from '@/lib/sport-scope'
 
-export function normalizeSportForAI(sport: string | null | undefined): string {
+/** All seven platform sports (canonical codes). */
+export const AI_SPORT_CODES: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
+
+export function normalizeSportForAI(sport: string | null | undefined): SupportedSport {
   const u = (sport ?? '').toString().trim().toUpperCase()
-  if (!u) return 'NFL'
-  const map: Record<string, string> = {
+  if (!u) return DEFAULT_SPORT
+  const map: Record<string, SupportedSport> = {
     NFL: 'NFL',
     NHL: 'NHL',
     NBA: 'NBA',
@@ -19,7 +26,7 @@ export function normalizeSportForAI(sport: string | null | undefined): string {
     'NCAA FOOTBALL': 'NCAAF',
     SOCCER: 'SOCCER',
   }
-  return map[u] ?? 'NFL'
+  return normalizeToSupportedSport(map[u] ?? u)
 }
 
 /**

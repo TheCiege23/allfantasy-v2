@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { Bot, AlertTriangle, Info } from 'lucide-react'
 import { useAIDraftAssistant, type FetchSuggestionParams } from '@/hooks/useAIDraftAssistant'
 
@@ -24,6 +25,7 @@ export function AIDraftAssistantPanel({
     compareOptions,
     positionalRunWarning,
     rosterWarning,
+    strategyMetaContext,
     loading,
     error,
     fetchSuggestion,
@@ -104,6 +106,27 @@ export function AIDraftAssistantPanel({
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {strategyMetaContext.length > 0 && (
+            <div className="mb-3 rounded-lg border border-purple-500/25 bg-purple-500/10 p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-purple-200/90">
+                Strategy meta context
+              </p>
+              <ul className="space-y-1 text-[11px] text-purple-100/85">
+                {strategyMetaContext.slice(0, 2).map((row) => (
+                  <li key={`${row.strategyType}-${row.trendingDirection}`}>
+                    {row.strategyLabel ?? row.strategyType}: {Math.round(row.usageRate * 100)}% usage, {Math.round(row.successRate * 100)}% success
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={`/app/strategy-meta?sport=${encodeURIComponent(params?.sport ?? 'NFL')}&timeframe=30d`}
+                className="mt-1 inline-block text-[10px] text-purple-200 hover:underline"
+              >
+                View strategy details
+              </Link>
             </div>
           )}
 

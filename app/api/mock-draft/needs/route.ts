@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getStrategyMetaReports } from '@/lib/strategy-meta'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
 
@@ -99,6 +101,11 @@ export async function POST(req: NextRequest) {
     const league = await prisma.league.findFirst({
       where: { id: leagueId, userId: session.user.id },
     })
+    const normalizedSport = normalizeToSupportedSport(String(league?.sport || 'NFL'))
+    const strategyMetaContext = await getStrategyMetaReports({
+      sport: normalizedSport,
+      timeframe: '30d',
+    }).then((rows) => rows.slice(0, 3)).catch(() => [])
 
     const picksThrough = draftResults.filter((p: any) => p.round <= round)
     const managers = Array.from(new Set(draftResults.map((p: any) => p.manager)))
@@ -127,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     const userManager = draftResults.find((p: any) => p.isUser)?.manager || 'User'
 
-    const systemPrompt = `You are an expert fantasy football draft analyst. Analyze each team's roster after a given round and identify their positional needs, strategic priorities, and likely draft targets for upcoming rounds.
+    const systemPrompt = `You are an expert fantasy ${normalizedSport.toLowerCase()} draft analyst. Analyze each team's roster after a given round and identify their positional needs, strategic priorities, and likely draft targets for upcoming rounds.
 
 Return valid JSON:
 {
@@ -143,6 +150,10 @@ Return valid JSON:
   ],
   "userAdvice": string
 }`
+
+    const strategyContextLine = strategyMetaContext.length > 0
+      ? `Platform strategy context (${normalizedSport}, 30d): ${strategyMetaContext.map((row) => `${row.strategyLabel ?? row.strategyType} ${Math.round(row.usageRate * 100)}% usage / ${Math.round(row.successRate * 100)}% success`).join('; ')}`
+      : `Platform strategy context (${normalizedSport}): unavailable`
 
     const userPrompt = `Analyze team needs after Round ${round} of ${totalRounds} in a ${leagueSize}-team ${leagueFormat} league.
 
@@ -160,6 +171,7 @@ ${remainingRounds} rounds remain. Consider:
 - Positional scarcity relative to draft position
 - Which teams are competitors for the same positions
 - Strategic advice for the user's team specifically
+- ${strategyContextLine}
 
 Return needs analysis for ALL ${managers.length} teams.`
 
@@ -219,6 +231,7 @@ Return needs analysis for ALL ${managers.length} teams.`
       round,
       teams: aiTeams,
       userAdvice: parsed.userAdvice || '',
+      strategyMetaContext,
     })
   } catch (err: any) {
     console.error('[mock-draft/needs] Error:', err)

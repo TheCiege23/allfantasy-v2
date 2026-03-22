@@ -4,7 +4,7 @@
 import { prisma } from '@/lib/prisma'
 import { calculateTrendScoreForSport, normalizeTrendScoreTo100 } from './TrendScoreCalculator'
 import { classifyTrendDirection } from './TrendDirectionClassifier'
-import { aggregateSignalsForPlayer, getPreviousTrendScore } from './TrendSignalAggregator'
+import { aggregateSignalsForPlayer, getPreviousTrendScore, getSportTrendBaselineScore } from './TrendSignalAggregator'
 import type { TrendDirection } from './types'
 
 export interface PlayerTrendUpdateResult {
@@ -22,9 +22,10 @@ export async function updatePlayerTrend(
   playerId: string,
   sport: string
 ): Promise<PlayerTrendUpdateResult> {
-  const [{ signals, eventCount }, previousScore] = await Promise.all([
+  const [{ signals, eventCount }, previousScore, baselineScore] = await Promise.all([
     aggregateSignalsForPlayer(playerId, sport),
     getPreviousTrendScore(playerId, sport),
+    getSportTrendBaselineScore(sport),
   ])
 
   const rawScore = calculateTrendScoreForSport(signals, sport)
@@ -32,6 +33,7 @@ export async function updatePlayerTrend(
   const direction = classifyTrendDirection({
     currentScore: score100,
     previousScore,
+    baselineScore,
     eventCount,
   })
 

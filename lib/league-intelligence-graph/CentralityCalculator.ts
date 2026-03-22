@@ -3,10 +3,12 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface CentralityInput {
   leagueId: string;
   season?: number | null;
+  sport?: string | null;
   limit?: number;
 }
 
@@ -28,10 +30,16 @@ export interface CentralityResult {
 export async function calculateCentrality(
   input: CentralityInput
 ): Promise<CentralityResult> {
-  const { leagueId, season = null, limit = 50 } = input;
+  const { leagueId, season = null, sport = null, limit = 50 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
 
   const managerNodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "Manager", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "Manager",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true },
   });
   const nodeIds = new Set(managerNodes.map((n) => n.nodeId));
@@ -43,6 +51,7 @@ export async function calculateCentrality(
         { toNodeId: { in: [...nodeIds] } },
       ],
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
 

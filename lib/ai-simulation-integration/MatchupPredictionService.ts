@@ -15,7 +15,7 @@ export async function getMatchupPredictionSummary(
   if (!results.length) return ''
   const lines = results.slice(0, 5).map((m) => {
     const pctA = Math.round((m.winProbabilityA ?? 0) * 100)
-    return `Matchup: ${pctA}% vs ${100 - pctA}% (expected score ${m.expectedScoreA?.toFixed(0)}–${m.expectedScoreB?.toFixed(0)})`
+    return `${sport} matchup: ${pctA}% vs ${100 - pctA}% (expected score ${m.expectedScoreA?.toFixed(0)}–${m.expectedScoreB?.toFixed(0)})`
   })
   return lines.join('; ')
 }

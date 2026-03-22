@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { buildTimelineForRivalry } from './RivalryTimelineBuilder'
 import type { RivalryTier } from './types'
 import { getRivalryTierBadgeColor } from './RivalryTierResolver'
-import { getRivalrySportLabel } from './SportRivalryResolver'
+import { getRivalrySportLabel, normalizeSportForRivalry } from './SportRivalryResolver'
 
 export interface RivalryRecordView {
   id: string
@@ -33,12 +33,27 @@ function canonicalOrder(id1: string, id2: string): [string, string] {
  */
 export async function listRivalries(
   leagueId: string,
-  options?: { sport?: string; managerId?: string; limit?: number }
+  options?: {
+    sport?: string
+    season?: number
+    managerId?: string
+    managerAId?: string
+    managerBId?: string
+    limit?: number
+  }
 ): Promise<RivalryRecordView[]> {
   const where: Prisma.RivalryRecordWhereInput = {
     leagueId,
   }
-  if (options?.sport) where.sport = options.sport
+  const sportNorm = normalizeSportForRivalry(options?.sport)
+  if (sportNorm) where.sport = sportNorm
+  if (options?.season != null) {
+    where.events = { some: { season: options.season } }
+  }
+  if (options?.managerAId && options?.managerBId) {
+    const [a, b] = canonicalOrder(options.managerAId, options.managerBId)
+    where.AND = [{ managerAId: a }, { managerBId: b }]
+  }
   if (options?.managerId) {
     const mid = options.managerId
     where.OR = [{ managerAId: mid }, { managerBId: mid }]

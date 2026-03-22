@@ -8,6 +8,8 @@ import type {
   ImportCoverageState,
   NormalizedImportResult,
 } from './types'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getPrimaryLogoUrlForTeam, getTeamByAbbreviation } from '@/lib/sport-teams/SportTeamMetadataRegistry'
 
 export interface ImportPreviewLeague {
   id: string
@@ -31,6 +33,11 @@ export interface ImportPreviewManager {
   ownerId: string
   username: string
   displayName: string
+  teamName: string
+  teamAbbreviation: string | null
+  teamLogo: string | null
+  managerAvatar: string | null
+  /** Backward-compatible avatar field; mirrors managerAvatar. */
   avatar: string | null
   wins: number
   losses: number
@@ -41,6 +48,44 @@ export interface ImportPreviewManager {
   players: string[]
   reserve: string[]
   taxi: string[]
+}
+
+function inferTeamAbbreviationForSport(sport: string, teamName: string): string | null {
+  const normalizedSport = normalizeToSupportedSport(sport)
+  const raw = teamName.trim()
+  if (!raw) return null
+
+  const candidates: string[] = []
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (compact.length >= 2 && compact.length <= 5) candidates.push(compact)
+  for (const token of raw.split(/\s+/)) {
+    const t = token.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (t.length >= 2 && t.length <= 5) candidates.push(t)
+  }
+
+  for (const candidate of candidates) {
+    if (getTeamByAbbreviation(normalizedSport, candidate)) return candidate
+  }
+  return null
+}
+
+function resolveImportTeamIdentity(
+  sport: string,
+  teamName: string,
+  providerLogo: string | null | undefined
+): { teamAbbreviation: string | null; teamLogo: string | null } {
+  const explicitLogo = providerLogo ?? null
+  if (explicitLogo) {
+    const inferredAbbr = inferTeamAbbreviationForSport(sport, teamName)
+    return { teamAbbreviation: inferredAbbr, teamLogo: explicitLogo }
+  }
+
+  const inferredAbbr = inferTeamAbbreviationForSport(sport, teamName)
+  if (!inferredAbbr) return { teamAbbreviation: null, teamLogo: null }
+  return {
+    teamAbbreviation: inferredAbbr,
+    teamLogo: getPrimaryLogoUrlForTeam(normalizeToSupportedSport(sport), inferredAbbr),
+  }
 }
 
 export interface ImportPreviewDataQuality {
@@ -209,22 +254,30 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
     },
   }
 
-  const managers: ImportPreviewManager[] = normalized.rosters.map((r) => ({
-    rosterId: r.source_team_id,
-    ownerId: r.source_manager_id,
-    username: r.owner_name,
-    displayName: r.owner_name,
-    avatar: r.avatar_url,
-    wins: r.wins,
-    losses: r.losses,
-    ties: r.ties,
-    pointsFor: r.points_for.toFixed(2),
-    rosterSize: r.player_ids?.length ?? 0,
-    starters: r.starter_ids ?? [],
-    players: r.player_ids ?? [],
-    reserve: r.reserve_ids ?? [],
-    taxi: r.taxi_ids ?? [],
-  }))
+  const managers: ImportPreviewManager[] = normalized.rosters.map((r) => {
+    const teamName = r.team_name?.trim() || r.owner_name
+    const identity = resolveImportTeamIdentity(normalized.league.sport, teamName, r.avatar_url)
+    return {
+      teamName,
+      teamAbbreviation: identity.teamAbbreviation,
+      teamLogo: identity.teamLogo,
+      rosterId: r.source_team_id,
+      ownerId: r.source_manager_id,
+      username: r.owner_name,
+      displayName: r.owner_name,
+      managerAvatar: r.avatar_url,
+      avatar: r.avatar_url,
+      wins: r.wins,
+      losses: r.losses,
+      ties: r.ties,
+      pointsFor: r.points_for.toFixed(2),
+      rosterSize: r.player_ids?.length ?? 0,
+      starters: r.starter_ids ?? [],
+      players: r.player_ids ?? [],
+      reserve: r.reserve_ids ?? [],
+      taxi: r.taxi_ids ?? [],
+    }
+  })
 
   return {
     dataQuality: buildDataQuality(normalized),

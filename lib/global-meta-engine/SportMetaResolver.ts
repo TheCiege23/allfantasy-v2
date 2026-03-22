@@ -4,18 +4,21 @@
  */
 import type { GlobalMetaSport } from './types'
 import { GLOBAL_META_SPORTS } from './types'
+import {
+  DEFAULT_SPORT,
+  isSupportedSport as isSupportedSportInScope,
+  normalizeToSupportedSport,
+} from '@/lib/sport-scope'
 
 export const SUPPORTED_META_SPORTS: GlobalMetaSport[] = [...GLOBAL_META_SPORTS]
 
 export function isSupportedSport(sport: string): sport is GlobalMetaSport {
-  return GLOBAL_META_SPORTS.includes(sport as GlobalMetaSport)
+  return isSupportedSportInScope(sport)
 }
 
 export function normalizeSportForMeta(sport: string | null | undefined): string {
-  if (!sport) return 'NFL'
-  const s = sport.toUpperCase().trim()
-  if (GLOBAL_META_SPORTS.includes(s as GlobalMetaSport)) return s
-  return 'NFL'
+  if (!sport) return DEFAULT_SPORT
+  return normalizeToSupportedSport(sport)
 }
 
 /** Sport grouping for cross-sport dashboards: pro football, pro basketball, etc. */

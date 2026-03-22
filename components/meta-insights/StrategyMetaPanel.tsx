@@ -5,6 +5,7 @@ import Link from "next/link"
 
 export interface StrategyMetaRow {
   strategyType: string
+  strategyLabel?: string
   sport: string
   usageRate: number
   successRate: number
@@ -16,10 +17,19 @@ export interface StrategyMetaRow {
 export default function StrategyMetaPanel(props: {
   sport?: string
   leagueFormat?: string
+  timeframe?: "24h" | "7d" | "30d"
   title?: string
   showSuccessGraph?: boolean
+  refreshKey?: number
 }) {
-  const { sport, leagueFormat, title = "Strategy meta", showSuccessGraph: initialShowSuccess = true } = props
+  const {
+    sport,
+    leagueFormat,
+    timeframe = "7d",
+    title = "Strategy meta",
+    showSuccessGraph: initialShowSuccess = true,
+    refreshKey = 0,
+  } = props
   const [data, setData] = useState<StrategyMetaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,10 +37,18 @@ export default function StrategyMetaPanel(props: {
   const [detailRow, setDetailRow] = useState<StrategyMetaRow | null>(null)
 
   useEffect(() => {
+    setShowSuccessRate(initialShowSuccess)
+  }, [initialShowSuccess])
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    setDetailRow(null)
     const params = new URLSearchParams()
     if (sport) params.set("sport", sport)
     if (leagueFormat) params.set("leagueFormat", leagueFormat)
-    fetch(`/api/strategy-meta?${params}`)
+    params.set("timeframe", timeframe)
+    fetch(`/api/strategy-meta?${params}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((res) => {
         if (res.error) setError(res.error)
@@ -38,7 +56,7 @@ export default function StrategyMetaPanel(props: {
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [sport, leagueFormat])
+  }, [sport, leagueFormat, timeframe, refreshKey])
 
   if (loading) {
     return (
@@ -85,7 +103,9 @@ export default function StrategyMetaPanel(props: {
           <tbody>
             {data.map((r) => (
               <tr key={`${r.strategyType}-${r.sport}-${r.leagueFormat}`} className="border-b border-slate-100 dark:border-slate-700">
-                <td className="py-1 pr-2 font-medium text-slate-700 dark:text-slate-300">{r.strategyType}</td>
+                <td className="py-1 pr-2 font-medium text-slate-700 dark:text-slate-300">
+                  {r.strategyLabel ?? r.strategyType}
+                </td>
                 <td className="py-1 pr-2 tabular-nums text-slate-600 dark:text-slate-400">
                   {Math.round(r.usageRate * 100)}%
                 </td>
@@ -106,7 +126,15 @@ export default function StrategyMetaPanel(props: {
                 <td className="py-1">
                   <button
                     type="button"
-                    onClick={() => setDetailRow(detailRow?.strategyType === r.strategyType ? null : r)}
+                    onClick={() =>
+                      setDetailRow(
+                        detailRow?.strategyType === r.strategyType &&
+                          detailRow?.sport === r.sport &&
+                          detailRow?.leagueFormat === r.leagueFormat
+                          ? null
+                          : r
+                      )
+                    }
                     className="text-violet-600 hover:underline dark:text-violet-400"
                     aria-label={`View strategy details for ${r.strategyType}`}
                   >
@@ -132,6 +160,9 @@ export default function StrategyMetaPanel(props: {
         <Link href="/mock-draft-simulator" className="text-violet-600 hover:underline dark:text-violet-400">
           Mock draft
         </Link>
+        <Link href="/rankings" className="text-violet-600 hover:underline dark:text-violet-400">
+          Rankings
+        </Link>
       </div>
       {detailRow && (
         <div
@@ -140,7 +171,9 @@ export default function StrategyMetaPanel(props: {
           aria-label="Strategy details"
         >
           <div className="flex justify-between">
-            <strong className="text-slate-700 dark:text-slate-300">{detailRow.strategyType}</strong>
+            <strong className="text-slate-700 dark:text-slate-300">
+              {detailRow.strategyLabel ?? detailRow.strategyType}
+            </strong>
             <button
               type="button"
               onClick={() => setDetailRow(null)}

@@ -8,7 +8,8 @@ import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
 import { deepseekChat } from '@/lib/deepseek-client'
 import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enrichment'
 import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
-import { getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
+import { getInsightBundle, getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
+import type { InsightType } from '@/lib/ai-simulation-integration'
 import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
 import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
@@ -95,6 +96,15 @@ const TOOL_LINKS: Record<ToolKey, string | null> = {
 
 const VALID_TOOL_KEYS = new Set<string>([
   'trade_analyzer', 'trade_finder', 'waiver_ai', 'rankings', 'mock_draft', 'none',
+])
+
+const VALID_INSIGHT_TYPES: Set<InsightType> = new Set([
+  'matchup',
+  'playoff',
+  'dynasty',
+  'trade',
+  'waiver',
+  'draft',
 ])
 
 const SPORTS_KEYWORDS = [
@@ -665,6 +675,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let strategyMode: StrategyMode | undefined
   let sleeperUsername: string | undefined
   let leagueId: string | undefined
+  let insightType: InsightType | undefined
+  let teamId: string | undefined
+  let contextSport: string | undefined
+  let contextSeason: number | undefined
+  let contextWeek: number | undefined
 
   try {
     const formData = await req.formData()
@@ -673,6 +688,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     targetUsername  = ((formData.get('targetUsername') as string) ?? '').trim()
     sleeperUsername = ((formData.get('sleeperUsername') as string) ?? '').trim() || undefined
     leagueId        = ((formData.get('leagueId') as string) ?? '').trim() || undefined
+    teamId          = ((formData.get('teamId') as string) ?? '').trim() || undefined
+    contextSport    = ((formData.get('sport') as string) ?? '').trim() || undefined
+
+    const rawInsightType = ((formData.get('insightType') as string) ?? '').trim().toLowerCase()
+    if (VALID_INSIGHT_TYPES.has(rawInsightType as InsightType)) {
+      insightType = rawInsightType as InsightType
+    }
+
+    const rawSeason = Number((formData.get('season') as string) ?? '')
+    if (Number.isFinite(rawSeason) && rawSeason > 0) contextSeason = Math.floor(rawSeason)
+
+    const rawWeek = Number((formData.get('week') as string) ?? '')
+    if (Number.isFinite(rawWeek) && rawWeek > 0) contextWeek = Math.floor(rawWeek)
 
     const rawStrategy = (formData.get('strategyMode') as string) ?? ''
     if (rawStrategy && rawStrategy in STRATEGY_MODE_CONTEXT) {
@@ -745,7 +773,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         }).catch(() => '')
       : Promise.resolve('')
 
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, survivorContextResult, dynastyContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult, salaryCapContextResult, zombieContextResult, leagueFormatContextResult] = await Promise.allSettled([
+  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, targetedInsightResult, survivorContextResult, dynastyContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult, salaryCapContextResult, zombieContextResult, leagueFormatContextResult] = await Promise.allSettled([
     getUserContext(userId ?? undefined),
     enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
       console.warn('[Chimmy] Enrichment failed:', err)
@@ -753,6 +781,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }),
     userId ? getAIMemorySummary(userId) : Promise.resolve(''),
     userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
+    leagueId && insightType
+      ? getInsightBundle(leagueId, insightType, {
+          teamId,
+          sport: contextSport,
+          season: contextSeason,
+          week: contextWeek,
+        })
+      : Promise.resolve(null),
     leagueId && userId ? buildSurvivorContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildDynastyContextForChimmy(leagueId, userId) : Promise.resolve(''),
     leagueId && userId ? buildDevyContextForChimmy(leagueId, userId) : Promise.resolve(''),
@@ -771,6 +807,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userContextStr = userContextStr ? `${userContextStr}\n\n${simWarehouseStr}` : simWarehouseStr
   }
   if (simWarehouseStr) dataSources.push('simulation_warehouse')
+  const targetedInsightBundle =
+    targetedInsightResult.status === 'fulfilled' ? targetedInsightResult.value : null
+  if (targetedInsightBundle?.contextText) {
+    const sourceLabels = targetedInsightBundle.sources.length
+      ? targetedInsightBundle.sources.join(', ')
+      : 'simulation/warehouse'
+    const targetedContextBlock = [
+      `TARGETED ${targetedInsightBundle.insightType.toUpperCase()} CONTEXT (${targetedInsightBundle.sport})`,
+      `Sources: ${sourceLabels}`,
+      targetedInsightBundle.contextText,
+      `Model responsibilities: DeepSeek (${targetedInsightBundle.modelResponsibilities.deepseek}); Grok (${targetedInsightBundle.modelResponsibilities.grok}); OpenAI (${targetedInsightBundle.modelResponsibilities.openai}).`,
+    ].join('\n')
+    userContextStr = userContextStr
+      ? `${userContextStr}\n\n${targetedContextBlock}`
+      : targetedContextBlock
+    dataSources.push('ai_insight_router')
+    for (const source of targetedInsightBundle.sources) {
+      dataSources.push(`ai_${source}`)
+    }
+  }
   const survivorContextStr = survivorContextResult.status === 'fulfilled' ? survivorContextResult.value : ''
   if (survivorContextStr && typeof survivorContextStr === 'string') {
     userContextStr = userContextStr ? `${userContextStr}\n\n${survivorContextStr}` : survivorContextStr
@@ -1022,6 +1078,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       dataSources: dataSources.length > 0 ? dataSources : undefined,
       enrichmentAudit: enrichment?.audit || undefined,
       triggers: triggers.length > 0 ? triggers : undefined,
+      insightContext: targetedInsightBundle
+        ? {
+            type: targetedInsightBundle.insightType,
+            sport: targetedInsightBundle.sport,
+            sources: targetedInsightBundle.sources,
+          }
+        : undefined,
       processingMs,
     },
   })

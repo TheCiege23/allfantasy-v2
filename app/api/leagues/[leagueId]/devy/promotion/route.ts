@@ -12,6 +12,7 @@ import { isDevyLeague, getDevyConfig } from '@/lib/devy'
 import { checkPromotionEligibility, executePromotion } from '@/lib/devy'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { DEVY_LIFECYCLE_STATE } from '@/lib/devy/types'
+import { getPromotionWindowStatus } from '@/lib/devy/lifecycle/DevyLifecycleAutomation'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,12 +73,18 @@ export async function GET(
     }
   })
 
+  const [config, promotionWindow] = await Promise.all([
+    getDevyConfig(leagueId).then((c) =>
+      c ? { promotionTiming: c.promotionTiming, maxYearlyDevyPromotions: c.maxYearlyDevyPromotions } : null
+    ),
+    getPromotionWindowStatus(leagueId),
+  ])
+
   return NextResponse.json({
     eligible: list,
     seasonYear,
-    config: await getDevyConfig(leagueId).then((c) =>
-      c ? { promotionTiming: c.promotionTiming, maxYearlyDevyPromotions: c.maxYearlyDevyPromotions } : null
-    ),
+    config,
+    promotionWindow,
   })
 }
 

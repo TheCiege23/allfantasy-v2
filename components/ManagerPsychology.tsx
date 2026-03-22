@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { ChevronDown, Brain, RefreshCw, HelpCircle } from 'lucide-react'
 
@@ -80,21 +81,35 @@ export default function ManagerPsychology({
   const [profile, setProfile] = useState<PsychProfile | null>(null)
   const [engineProfile, setEngineProfile] = useState<EngineProfile | null>(null)
   const [explainNarrative, setExplainNarrative] = useState<string | null>(null)
+  const [engineLoading, setEngineLoading] = useState(false)
+  const [engineError, setEngineError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const managerId = String(rosterId)
 
+  const loadEngineProfile = async () => {
+    if (!leagueId || !managerId) return
+    setEngineLoading(true)
+    setEngineError(null)
+    const url = `/api/leagues/${encodeURIComponent(leagueId)}/psychological-profiles?managerId=${encodeURIComponent(managerId)}`
+    try {
+      const res = await fetch(url, { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? 'Failed to load behavior profile')
+      if (data?.profile) setEngineProfile(data.profile)
+      else setEngineProfile(null)
+    } catch (e) {
+      setEngineProfile(null)
+      setEngineError(e instanceof Error ? e.message : 'Failed to load behavior profile')
+    } finally {
+      setEngineLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!isOpen || !leagueId || !managerId) return
-    const url = `/api/leagues/${encodeURIComponent(leagueId)}/psychological-profiles?managerId=${encodeURIComponent(managerId)}`
-    fetch(url, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.profile) setEngineProfile(data.profile)
-        else setEngineProfile(null)
-      })
-      .catch(() => setEngineProfile(null))
+    void loadEngineProfile()
   }, [isOpen, leagueId, managerId])
 
   const fetchProfile = async () => {
@@ -198,6 +213,24 @@ export default function ManagerPsychology({
                   </span>
                 ))}
               </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadEngineProfile()}
+                  disabled={engineLoading}
+                  className="text-[9px] text-white/50 hover:text-white/70 disabled:opacity-50"
+                >
+                  {engineLoading ? 'Refreshing...' : 'Refresh profile'}
+                </button>
+                {engineProfile.id && (
+                  <Link
+                    href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/${encodeURIComponent(engineProfile.id)}`}
+                    className="text-[9px] text-cyan-300 hover:text-cyan-200"
+                  >
+                    Profile details
+                  </Link>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={async () => {
@@ -225,6 +258,7 @@ export default function ManagerPsychology({
               {explainNarrative && (
                 <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
               )}
+              {engineError && <p className="mt-1.5 text-[10px] text-red-300">{engineError}</p>}
             </div>
           )}
 
@@ -290,6 +324,24 @@ export default function ManagerPsychology({
                       </span>
                     ))}
                   </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void loadEngineProfile()}
+                      disabled={engineLoading}
+                      className="text-[9px] text-white/50 hover:text-white/70 disabled:opacity-50"
+                    >
+                      {engineLoading ? 'Refreshing...' : 'Refresh profile'}
+                    </button>
+                    {engineProfile.id && (
+                      <Link
+                        href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/${encodeURIComponent(engineProfile.id)}`}
+                        className="text-[9px] text-cyan-300 hover:text-cyan-200"
+                      >
+                        Profile details
+                      </Link>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={async () => {
@@ -317,6 +369,7 @@ export default function ManagerPsychology({
                   {explainNarrative && (
                     <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
                   )}
+                  {engineError && <p className="mt-1.5 text-[10px] text-red-300">{engineError}</p>}
                 </div>
               )}
 

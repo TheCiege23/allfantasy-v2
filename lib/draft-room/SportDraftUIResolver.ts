@@ -21,29 +21,33 @@ export function getPositionFilterOptionsForSport(
   const normalized = normalizeToSupportedSport(sport)
   const format = String(formatType ?? '').toUpperCase()
   const isIdp = normalized === 'NFL' && (format === 'IDP' || format === 'DYNASTY_IDP')
-  if (isIdp) {
-    const options: PositionFilterOption[] = [
-      { value: 'All', label: 'All' },
-      { value: 'Offense', label: 'Offense' },
-      { value: 'DL', label: 'DL' },
-      { value: 'LB', label: 'LB' },
-      { value: 'DB', label: 'DB' },
-      { value: 'DE', label: 'DE' },
-      { value: 'DT', label: 'DT' },
-      { value: 'CB', label: 'CB' },
-      { value: 'S', label: 'S' },
-      { value: 'IDP_FLEX', label: 'IDP FLEX' },
-      { value: 'FLEX', label: 'FLEX' },
-    ]
-    return options
-  }
   const positions = getPositionsForSport(normalized, formatType)
   const options: PositionFilterOption[] = [{ value: 'All', label: 'All' }]
-  const added = new Set<string>()
+  const addOption = (value: string, label: string = value) => {
+    if (!options.some((opt) => opt.value === value)) options.push({ value, label })
+  }
+
+  if (isIdp) {
+    const upper = new Set(positions.map((p) => p.toUpperCase()))
+    const hasOffense = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'].some((p) => upper.has(p))
+    if (hasOffense) addOption('Offense', 'Offense')
+    if (upper.has('DE') || upper.has('DT')) addOption('DL', 'DL')
+    if (upper.has('LB')) addOption('LB', 'LB')
+    if (upper.has('CB') || upper.has('S')) addOption('DB', 'DB')
+    if (upper.has('DE') || upper.has('DT') || upper.has('LB') || upper.has('CB') || upper.has('S')) {
+      addOption('IDP_FLEX', 'IDP FLEX')
+    }
+    if (['RB', 'WR', 'TE'].some((p) => upper.has(p))) addOption('FLEX', 'FLEX')
+
+    for (const p of positions) addOption(p, p)
+    return options
+  }
+
+  const added = new Set<string>(['All'])
   for (const p of positions) {
     if (p && !added.has(p)) {
       added.add(p)
-      options.push({ value: p, label: p })
+      addOption(p, p)
     }
   }
   if (

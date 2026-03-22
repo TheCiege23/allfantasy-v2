@@ -54,11 +54,12 @@ export async function getRelationshipProfile(
  */
 export async function getRelationshipMap(
   leagueId: string,
-  options?: { season?: number | null; limit?: number }
+  options?: { season?: number | null; sport?: string | null; limit?: number }
 ): Promise<RelationshipMapOutput> {
   return buildLeagueRelationshipMap({
     leagueId,
     season: options?.season ?? null,
+    sport: options?.sport ?? null,
     limit: options?.limit ?? 100,
   });
 }
@@ -99,12 +100,27 @@ export async function queryRepeatedEliminations(input: GraphQueryInput) {
  */
 export async function getGraphSummaryForAI(
   leagueId: string,
-  options?: { season?: number | null; maxRivalries?: number; maxTradePairs?: number }
+  options?: { season?: number | null; sport?: string | null; maxRivalries?: number; maxTradePairs?: number }
 ): Promise<string> {
   const [rivals, tradePartners, eliminations] = await Promise.all([
-    getStrongestRivals({ leagueId, season: options?.season ?? null, limit: options?.maxRivalries ?? 10 }),
-    getTopTradePartners({ leagueId, season: options?.season ?? null, limit: options?.maxTradePairs ?? 10 }),
-    getRepeatedEliminationPatterns({ leagueId, season: options?.season ?? null, limit: 5 }),
+    getStrongestRivals({
+      leagueId,
+      season: options?.season ?? null,
+      sport: options?.sport ?? null,
+      limit: options?.maxRivalries ?? 10,
+    }),
+    getTopTradePartners({
+      leagueId,
+      season: options?.season ?? null,
+      sport: options?.sport ?? null,
+      limit: options?.maxTradePairs ?? 10,
+    }),
+    getRepeatedEliminationPatterns({
+      leagueId,
+      season: options?.season ?? null,
+      sport: options?.sport ?? null,
+      limit: 5,
+    }),
   ]);
   const lines: string[] = [];
   if (rivals.length) {

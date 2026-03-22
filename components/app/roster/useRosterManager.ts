@@ -66,6 +66,10 @@ export type RosterManagerOptions = {
   leagueId?: string
 }
 
+function isSectionEnabled(section: RosterSectionKey, limits: SlotLimits): boolean {
+  return Number(limits[section] ?? 0) > 0
+}
+
 function toPlayerId(raw: unknown): string | null {
   if (typeof raw === "string") return raw
   if (raw && typeof raw === "object") {
@@ -248,6 +252,7 @@ function serializeRosterState(state: RosterState, existingPlayerData: unknown): 
 export function useRosterManager(options: RosterManagerOptions = {}) {
   const [roster, setRoster] = useState<RosterState | null>(null)
   const [rosterId, setRosterId] = useState<string | null>(null)
+  const [leagueSport, setLeagueSport] = useState<string>('NFL')
   const [existingPlayerData, setExistingPlayerData] = useState<unknown>(null)
   const [slotLimits, setSlotLimits] = useState<SlotLimits>(DEFAULT_SLOT_LIMITS)
   const [starterAllowedPositions, setStarterAllowedPositions] = useState<string[]>(FALLBACK_STARTER_POSITIONS)
@@ -296,6 +301,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       setRoster(EMPTY_ROSTER)
       setExistingPlayerData(null)
       setRosterId(null)
+      setLeagueSport('NFL')
       setSlotLimits(DEFAULT_SLOT_LIMITS)
       setStarterAllowedPositions(FALLBACK_STARTER_POSITIONS)
       return
@@ -313,6 +319,11 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
         return
       }
       setRosterId(typeof data?.rosterId === "string" ? data.rosterId : null)
+      setLeagueSport(
+        typeof data?.sport === 'string' && data.sport.trim()
+          ? data.sport.toUpperCase()
+          : 'NFL'
+      )
       setExistingPlayerData(data?.roster ?? null)
       setRoster(buildRosterStateFromPlayerData(data?.roster))
       setSaveError(null)
@@ -367,7 +378,11 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       }
 
       if (moved) {
-        if (slotLimits[toSlot] > 0 && next[toSlot].length >= slotLimits[toSlot]) {
+        if (!isSectionEnabled(toSlot, slotLimits)) {
+          setSaveError(`${toSlot.toUpperCase()} is not enabled for this league.`)
+          return
+        }
+        if (next[toSlot].length >= slotLimits[toSlot]) {
           setSaveError(`${toSlot.toUpperCase()} is full.`)
           return
         }
@@ -407,6 +422,13 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       const a = next[aR.section][aR.index]
       const b = next[bR.section][bR.index]
       if (
+        aR.section !== bR.section &&
+        (!isSectionEnabled(aR.section, slotLimits) || !isSectionEnabled(bR.section, slotLimits))
+      ) {
+        setSaveError("Cannot move players into a disabled roster section.")
+        return
+      }
+      if (
         aR.section === "starters" &&
         !isStarterPositionEligible(b.position, starterAllowedPositions)
       ) {
@@ -427,7 +449,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       setRoster(next)
       void autoSave(next)
     },
-    [roster, starterAllowedPositions],
+    [roster, slotLimits, starterAllowedPositions],
   )
 
   const dropPlayer = useCallback(
@@ -458,7 +480,11 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       if (!roster) return
       const exists = SECTION_KEYS.some((key) => roster[key].some((p) => p.id === player.id))
       if (exists) return
-      if (slotLimits[toSlot] > 0 && roster[toSlot].length >= slotLimits[toSlot]) {
+      if (!isSectionEnabled(toSlot, slotLimits)) {
+        setSaveError(`${toSlot.toUpperCase()} is not enabled for this league.`)
+        return
+      }
+      if (roster[toSlot].length >= slotLimits[toSlot]) {
         setSaveError(`${toSlot.toUpperCase()} is full.`)
         return
       }
@@ -537,6 +563,73 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
     [roster, availablePlayers, addPlayer],
   )
 
+  const optimizeLineup = useCallback(() => {
+    if (!roster) return
+    const startersTarget = slotLimits.starters > 0 ? slotLimits.starters : 9
+    const allPlayers = dedupePlayers([
+      ...roster.starters,
+      ...roster.bench,
+      ...roster.ir,
+      ...roster.taxi,
+      ...roster.devy,
+    ]).sort((a, b) => b.projection - a.projection)
+
+    const next: RosterState = {
+      starters: [],
+      bench: [],
+      ir: [],
+      taxi: [],
+      devy: [],
+    }
+    const deferred: RosterPlayer[] = []
+
+    for (const player of allPlayers) {
+      if (
+        next.starters.length < startersTarget &&
+        isStarterPositionEligible(player.position, starterAllowedPositions)
+      ) {
+        next.starters.push({ ...player, slot: 'starters' })
+      } else {
+        deferred.push(player)
+      }
+    }
+
+    let overflowUnassigned = 0
+    for (const player of deferred) {
+      if (
+        (player.status === 'ir' || player.status === 'out') &&
+        slotLimits.ir > 0 &&
+        next.ir.length < slotLimits.ir
+      ) {
+        next.ir.push({ ...player, slot: 'ir' })
+        continue
+      }
+      if (slotLimits.bench > 0 && next.bench.length < slotLimits.bench) {
+        next.bench.push({ ...player, slot: 'bench' })
+        continue
+      }
+      if (slotLimits.taxi > 0 && next.taxi.length < slotLimits.taxi) {
+        next.taxi.push({ ...player, slot: 'taxi' })
+        continue
+      }
+      if (slotLimits.devy > 0 && next.devy.length < slotLimits.devy) {
+        next.devy.push({ ...player, slot: 'devy' })
+        continue
+      }
+      overflowUnassigned += 1
+    }
+
+    if (overflowUnassigned > 0) {
+      setSaveError(
+        `${overflowUnassigned} player(s) could not be assigned because all enabled sections are full.`
+      )
+    } else {
+      setSaveError(null)
+    }
+    setRoster(next)
+    void autoSave(next)
+  }, [roster, slotLimits, starterAllowedPositions, autoSave])
+
   const reload = useCallback(async () => {
     await Promise.all([loadRoster(), loadAvailablePlayers()])
   }, [loadRoster, loadAvailablePlayers])
@@ -544,6 +637,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
   return {
     roster,
     rosterId,
+    leagueSport,
     slotLimits,
     starterAllowedPositions,
     availablePlayers,
@@ -556,6 +650,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
     dropPlayer,
     addPlayer,
     addPlayerFromPool,
+    optimizeLineup,
     reload,
   }
 }

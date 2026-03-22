@@ -38,6 +38,7 @@ async function getDraftStrategyShifts(
   const rows = await getStrategyMetaReports({ sport, leagueFormat })
   return rows.map((r) => ({
     strategyType: r.strategyType,
+    strategyLabel: r.strategyLabel,
     sport: r.sport,
     leagueFormat: r.leagueFormat,
     usageRate: r.usageRate,

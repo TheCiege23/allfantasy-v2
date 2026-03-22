@@ -9,12 +9,45 @@ export type ScoringPresetSelectorProps = {
   sport: string
   value: string | null
   onChange: (value: string | null) => void
+  lockedVariantLabel?: string | null
 }
 
 /**
  * Scoring preset (e.g. Standard, PPR, IDP for NFL). Drives roster and scoring defaults.
  */
-export function ScoringPresetSelector({ sport, value, onChange }: ScoringPresetSelectorProps) {
+export function ScoringPresetSelector({
+  sport,
+  value,
+  onChange,
+  lockedVariantLabel = null,
+}: ScoringPresetSelectorProps) {
+  if (lockedVariantLabel) {
+    return (
+      <div className="space-y-5">
+        <StepHeader
+          title="Scoring rules"
+          description="This league type has a fixed variant, so scoring and roster defaults are locked to that setup."
+          help={
+            <>
+              Devy and C2C leagues use fixed startup defaults so league creation, previews, and saved settings remain in sync.
+            </>
+          }
+          helpTitle="Locked scoring preset"
+        />
+        <div className="space-y-1.5">
+          <Label className="text-white/90">Preset</Label>
+          <div
+            className="rounded-lg border border-purple-600/40 bg-gray-900 px-3 py-2 text-sm text-white"
+            data-testid="league-creation-preset-locked"
+          >
+            {lockedVariantLabel}
+          </div>
+          <p className="mt-1 text-xs text-white/50">Preset is controlled by your selected league type.</p>
+        </div>
+      </div>
+    )
+  }
+
   const variants = getVariantsForSport(sport)
   const safeValue = variants.some((v) => v.value === (value ?? '')) ? (value ?? variants[0]?.value) : (variants[0]?.value ?? 'STANDARD')
   return (

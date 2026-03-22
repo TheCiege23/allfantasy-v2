@@ -5,6 +5,7 @@ import Link from 'next/link'
 import WaiverSuggestionCard from '@/app/components/WaiverSuggestionCard'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 import type { WaiverResult } from '@/lib/types/WaiverResult'
+import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 interface Player {
   name: string
@@ -39,7 +40,7 @@ export default function WaiverAI() {
   const [leagueId, setLeagueId] = useState('my-league')
   const [teamId, setTeamId] = useState('my-team')
   const [format, setFormat] = useState<'redraft' | 'dynasty' | 'keeper'>('redraft')
-  const [sport, setSport] = useState('NFL')
+  const [sport, setSport] = useState(DEFAULT_SPORT)
   const [waiverType, setWaiverType] = useState<'FAAB' | 'ROLLING' | 'PRIORITY'>('FAAB')
   const [currentWeek, setCurrentWeek] = useState(8)
   const [totalFaab, setTotalFaab] = useState(100)
@@ -280,8 +281,17 @@ export default function WaiverAI() {
             <Link href="/" className="text-cyan-400 hover:text-cyan-300 inline-block">
               &larr; Back to Home
             </Link>
-            <Link href="/app/meta-insights" className="text-violet-400 hover:text-violet-300 inline-block text-sm">
+            <Link
+              href={`/app/trend-feed?sport=${encodeURIComponent(sport)}`}
+              className="text-violet-400 hover:text-violet-300 inline-block text-sm"
+            >
               Trending players
+            </Link>
+            <Link
+              href={`/app/meta-insights?sport=${encodeURIComponent(sport)}`}
+              className="text-indigo-400 hover:text-indigo-300 inline-block text-sm"
+            >
+              Meta insights
             </Link>
           </div>
           <CooldownPill />
@@ -314,10 +324,10 @@ export default function WaiverAI() {
                   <label className="block text-gray-400 text-sm mb-1">Sport</label>
                   <select
                     value={sport}
-                    onChange={(e) => setSport(e.target.value)}
+                    onChange={(e) => setSport(normalizeToSupportedSport(e.target.value))}
                     className="w-full px-3 py-2 bg-black/50 border border-cyan-500/30 rounded text-white"
                   >
-                    {['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER'].map((s) => (
+                    {SUPPORTED_SPORTS.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>

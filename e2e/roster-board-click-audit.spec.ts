@@ -128,6 +128,7 @@ test.describe('@roster roster board click audit', () => {
     await expect(page.getByText(/e2e roster harness/i)).toBeVisible()
     await expect(page.getByTestId('roster-player-card-p-qb')).toBeVisible()
     await expect(page.getByTestId('roster-player-card-p-wr')).toBeVisible()
+    await expect(page.getByTestId('roster-player-team-logo-p-qb')).toBeVisible()
 
     await page.getByTestId('roster-player-card-p-qb').click()
     const detailsDialog = page.getByRole('dialog', { name: /roster player details/i })
@@ -141,6 +142,17 @@ test.describe('@roster roster board click audit', () => {
     await page.getByLabel('Available player list').selectOption('p-lb')
     await page.getByTestId('roster-add-player-button').click()
     await expect(page.getByTestId('roster-player-card-p-lb')).toBeVisible()
+    await expect(page.getByTestId('roster-player-team-logo-p-lb')).toBeVisible()
+
+    await page.getByRole('button', { name: /optimize lineup/i }).click()
+    const startersSection = page.getByTestId('roster-section-starters')
+    await expect(startersSection.getByTestId('roster-player-card-p-qb')).toBeVisible()
+    await expect(startersSection.locator('[data-testid^="roster-player-card-"]')).toHaveCount(2)
+
+    await page.getByTestId('roster-move-ir-p-lb').click()
+    await expect(page.getByTestId('roster-section-ir').getByTestId('roster-player-card-p-lb')).toBeVisible()
+    await page.getByTestId('roster-move-bench-p-lb').click()
+    await expect(page.getByTestId('roster-section-bench').getByTestId('roster-player-card-p-lb')).toBeVisible()
 
     await page.getByLabel('Search available players').fill('reserve rb')
     await page.getByLabel('Choose roster section for add').selectOption('starters')

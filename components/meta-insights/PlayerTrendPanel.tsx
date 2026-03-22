@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { DEFAULT_SPORT } from "@/lib/sport-scope"
 
 export interface TrendingPlayer {
   playerId: string
@@ -28,11 +29,13 @@ const DIRECTION_COLORS: Record<string, string> = {
 export default function PlayerTrendPanel(props: {
   sport?: string
   list?: "hottest" | "rising" | "fallers"
+  timeframe?: "24h" | "7d" | "30d"
   limit?: number
   title?: string
   showAddDrop?: boolean
+  refreshKey?: number
 }) {
-  const { sport, list = "hottest", limit = 10, title, showAddDrop = false } = props
+  const { sport, timeframe = "7d", list = "hottest", limit = 10, title, showAddDrop = false, refreshKey = 0 } = props
   const [data, setData] = useState<TrendingPlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,17 +43,28 @@ export default function PlayerTrendPanel(props: {
   const [showAddDropToggle, setShowAddDropToggle] = useState(showAddDrop)
 
   useEffect(() => {
-    const params = new URLSearchParams({ list, limit: String(limit) })
+    setShowAddDropToggle(showAddDrop)
+  }, [showAddDrop])
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    setDetailPlayer(null)
+    const params = new URLSearchParams({ list, limit: String(limit), timeframe })
     if (sport) params.set("sport", sport)
-    fetch(`/api/player-trend?${params}`)
+    fetch(`/api/player-trend?${params}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((res) => {
-        if (res.error) setError(res.error)
-        else setData(res.data ?? [])
+        if (res.error) {
+          setError(res.error)
+          setData([])
+        } else {
+          setData(res.data ?? [])
+        }
       })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [sport, list, limit])
+  }, [sport, timeframe, list, limit, refreshKey])
 
   const label = title ?? (list === "hottest" ? "Hottest players" : list === "rising" ? "Fastest rising" : "Biggest fallers")
 
@@ -117,6 +131,13 @@ export default function PlayerTrendPanel(props: {
       </ul>
       {data.length === 0 && <p className="mt-2 text-xs text-slate-500">No trend data yet.</p>}
       <p className="mt-2 text-xs text-slate-500">
+        <Link
+          href={`/app/trend-feed?sport=${encodeURIComponent(sport ?? DEFAULT_SPORT)}&timeframe=${encodeURIComponent(timeframe)}`}
+          className="text-violet-600 hover:underline dark:text-violet-400"
+        >
+          Trend feed
+        </Link>
+        {" · "}
         <Link href="/app/meta-insights" className="text-violet-600 hover:underline dark:text-violet-400">
           Meta Insights
         </Link>

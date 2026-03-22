@@ -4,15 +4,19 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { buildLeagueRelationshipProfile } from "@/lib/league-intelligence-graph";
+import {
+  buildLeagueRelationshipProfile,
+  normalizeSportForGraph,
+} from "@/lib/league-intelligence-graph";
 import { buildAIPrestigeContext } from "@/lib/prestige-governance/AIPrestigeContextResolver";
 import { deepseekChat } from "@/lib/deepseek-client";
 import { openaiChatText } from "@/lib/openai-client";
 import { grokEnrich } from "@/lib/ai-external/grok";
+import { buildAIRelationshipContext } from "@/lib/relationship-insights";
 
 export const dynamic = "force-dynamic";
 
-type InsightType = "summary" | "rivalry" | "manager" | "timeline";
+type InsightType = "summary" | "rivalry" | "manager" | "timeline" | "unified";
 
 function profileToSummaryLines(profile: {
   strongestRivalries: unknown[];
@@ -53,20 +57,30 @@ export async function POST(
     if (!leagueId) {
       return NextResponse.json({ error: "Missing leagueId" }, { status: 400 });
     }
-    let body: { type?: InsightType; season?: number | null; focusEntityId?: string } = {};
+    let body: { type?: InsightType; season?: number | null; sport?: string | null; focusEntityId?: string } = {};
     try {
       body = await req.json().catch(() => ({}));
     } catch {}
     const type = body.type ?? "summary";
     const season = body.season ?? null;
+    const sport = normalizeSportForGraph(body.sport ?? null);
 
-    const [profile, prestigeContext] = await Promise.all([
+    const [profile, prestigeContext, unifiedContext] = await Promise.all([
       buildLeagueRelationshipProfile({
         leagueId,
         season,
+        sport,
         limits: { rivalries: 15, clusters: 8, influence: 12, central: 20, transitions: 15, elimination: 15 },
       }),
       buildAIPrestigeContext(leagueId, null).catch(() => null),
+      buildAIRelationshipContext({
+        leagueId,
+        sport,
+        season,
+        focusManagerId: type === "manager" ? body.focusEntityId : null,
+        focusRivalryId: type === "rivalry" ? body.focusEntityId : null,
+        focusDramaEventId: type === "timeline" ? body.focusEntityId : null,
+      }).catch(() => null),
     ]);
 
     const summaryForAI = profileToSummaryLines(profile);
@@ -75,6 +89,7 @@ export async function POST(
     const contextBlob = JSON.stringify({
       leagueId,
       season: profile.season,
+      sport,
       summary: summaryForAI,
       topRival: topRival
         ? { nodeA: topRival.nodeA, nodeB: topRival.nodeB, intensityScore: topRival.intensityScore }
@@ -85,15 +100,20 @@ export async function POST(
       transitionCount: profile.dynastyPowerTransitions.length,
       focusEntityId: body.focusEntityId ?? null,
       prestigeHint: prestigeContext?.combinedHint ?? null,
+      unifiedContext: unifiedContext?.payload ?? null,
     });
 
     let metricsInterpretation = "";
     let momentumStoryline = "";
     let readableSummary = "";
+    const focusNote =
+      type === "summary"
+        ? "Provide a league-wide overview."
+        : `Focus on ${type} with target: ${body.focusEntityId ?? "none"}.`;
 
     const [deepSeekResult, grokResult, openaiResult] = await Promise.all([
       deepseekChat({
-        prompt: `League graph metrics. ${summaryForAI}. In 1-2 sentences, interpret what these metrics say about this league's relationships and power structure. Be factual and concise.`,
+        prompt: `League graph metrics (${sport ?? "all sports"}). ${summaryForAI}. ${focusNote} In 1-2 sentences, interpret what these metrics say about this league's relationships and power structure. Be factual and concise.`,
         systemPrompt: "You are a fantasy sports graph analyst. Output only the interpretation, no preamble.",
         temperature: 0.3,
         maxTokens: 200,
@@ -115,7 +135,7 @@ export async function POST(
           },
           {
             role: "user",
-            content: `League Intelligence Graph data:\n${contextBlob}\n\nWrite a brief readable summary for the league owner.`,
+            content: `League Intelligence Graph data:\n${contextBlob}\n\n${focusNote}\nWrite a brief readable summary for the league owner.`,
           },
         ],
         temperature: 0.5,
@@ -135,6 +155,10 @@ export async function POST(
       momentumStoryline: momentumStoryline || null,
       readableSummary: readableSummary || null,
       generatedAt: new Date().toISOString(),
+      unifiedStorylineCount:
+        Array.isArray((unifiedContext?.payload as { storylines?: unknown[] } | undefined)?.storylines)
+          ? ((unifiedContext?.payload as { storylines?: unknown[] }).storylines?.length ?? 0)
+          : 0,
     });
   } catch (e) {
     console.error("[graph-insight POST]", e);

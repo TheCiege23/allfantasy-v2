@@ -8,7 +8,8 @@ import { TRADE_EVALUATOR_SYSTEM_PROMPT, TradeEvaluationResponseSchema } from '@/
 import { rateLimit } from '@/lib/rate-limit';
 import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learning';
 import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
-import { getMetaPromptBlob } from '@/lib/meta-insights';
+import { buildOpenAIMetaContext, resolveAIMetaContextWithWindow } from '@/lib/meta-insights';
+import { getInsightBundle } from '@/lib/ai-simulation-integration';
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -165,10 +166,19 @@ Legacy Context (from DB - do not call external APIs):
 `;
     }
 
-    const [learningContext, metaBlob] = await Promise.all([
+    const [learningContext, aiMetaContext, insightBundle] = await Promise.all([
       getComprehensiveLearningContext(),
-      getMetaPromptBlob(data.league?.sport ?? 'NFL').catch(() => ''),
+      resolveAIMetaContextWithWindow(data.league?.sport ?? 'NFL', '7d').catch(() => null),
+      data.league_id
+        ? getInsightBundle(data.league_id, 'trade', {
+            sport: data.league?.sport,
+          }).catch(() => null)
+        : Promise.resolve(null),
     ]);
+    const openaiMetaContext = aiMetaContext ? buildOpenAIMetaContext(aiMetaContext) : ''
+    const simWarehouseContext = insightBundle?.contextText
+      ? `\nSimulation/Warehouse/Meta Context:\n${insightBundle.contextText}\n`
+      : ''
 
     const userPrompt = `Evaluate this trade proposal using the rules in your system instructions.
 ${legacySection}
@@ -200,6 +210,7 @@ League-wide balance snapshot:
 - contenders_vs_rebuilders: ${data.league?.contender_notes || 'Not provided'}
 - positional_scarcity_notes: ${data.league?.scarcity_notes || 'Not provided'}
 - league_market_notes: ${data.league?.market_notes || 'Not provided'}
+${simWarehouseContext}
 
 Sender team:
 - team_id: ${data.sender.team_id || 'sender_1'}
@@ -228,7 +239,10 @@ Trade proposal:
     const enhancedSystemPrompt = [
       TRADE_EVALUATOR_SYSTEM_PROMPT,
       learningContext ?? '',
-      metaBlob ? `\nPLATFORM META (use for trade strategy context):\n${metaBlob}` : '',
+      openaiMetaContext ? `\nPLATFORM META (use for trade strategy context):\n${openaiMetaContext}` : '',
+      insightBundle
+        ? `\nAI model responsibilities:\n- DeepSeek: ${insightBundle.modelResponsibilities.deepseek}\n- Grok: ${insightBundle.modelResponsibilities.grok}\n- OpenAI: ${insightBundle.modelResponsibilities.openai}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -288,6 +302,12 @@ Trade proposal:
     return NextResponse.json({
       success: true,
       evaluation: validationResult.success ? validationResult.data : parsedContent,
+      metaContext: aiMetaContext
+        ? {
+            sport: aiMetaContext.sport,
+            topTrends: aiMetaContext.topTrends?.slice(0, 3) ?? [],
+          }
+        : undefined,
       legacy_context: legacyContext ? { included: true, archetype: legacyContext.archetype } : { included: false },
     });
   } catch (error) {

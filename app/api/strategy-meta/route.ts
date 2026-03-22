@@ -5,13 +5,23 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getStrategyMetaReports, generateStrategyMetaReports } from '@/lib/strategy-meta'
+import { isSupportedSport, normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = searchParams.get('sport') ?? undefined
+    const sportParam = searchParams.get('sport')
+    if (sportParam && !isSupportedSport(sportParam)) {
+      return NextResponse.json(
+        { error: 'Invalid sport', supported: SUPPORTED_SPORTS },
+        { status: 400 }
+      )
+    }
+    const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
     const leagueFormat = searchParams.get('leagueFormat') ?? undefined
-    const data = await getStrategyMetaReports({ sport, leagueFormat })
+    const timeframeFilter = normalizeTimeframe(searchParams.get('timeframe'))
+    const data = await getStrategyMetaReports({ sport, leagueFormat, timeframe: timeframeFilter })
     return NextResponse.json(
       { data },
       { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } }
@@ -25,7 +35,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
-    const sport = body.sport ?? undefined
+    if (body.sport && !isSupportedSport(body.sport)) {
+      return NextResponse.json(
+        { error: 'Invalid sport', supported: SUPPORTED_SPORTS },
+        { status: 400 }
+      )
+    }
+    const sport = body.sport ? normalizeToSupportedSport(body.sport) : undefined
     const leagueFormat = body.leagueFormat ?? undefined
     const leagueIds = Array.isArray(body.leagueIds) ? body.leagueIds : undefined
     const dryRun = Boolean(body.dryRun)

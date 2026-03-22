@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getLeagueScoringConfig } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 import { replaceLeagueScoringOverrides } from '@/lib/scoring-defaults/ScoringOverrideService'
+import { normalizeScoringStatKey } from '@/lib/scoring-defaults/ScoringKeyAliasResolver'
 
 type IncomingRule = {
   statKey?: unknown
@@ -92,12 +93,16 @@ export async function PUT(
   )
 
   for (const row of body.rules) {
-    const statKey =
+    const inputStatKey =
       typeof row.statKey === 'string' ? row.statKey.trim() : ''
-    if (!statKey) continue
+    if (!inputStatKey) continue
+    const statKey = normalizeScoringStatKey(inputStatKey, {
+      sportType: config.sport,
+      templateRuleKeys: templateRuleByKey.keys(),
+    })
     if (!templateRuleByKey.has(statKey)) {
       return NextResponse.json(
-        { error: `Unknown stat key: ${statKey}` },
+        { error: `Unknown stat key: ${inputStatKey}` },
         { status: 400 }
       )
     }

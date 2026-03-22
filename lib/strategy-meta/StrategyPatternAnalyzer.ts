@@ -3,23 +3,12 @@
  * Rules: ZeroRB, HeroRB, EarlyQB, LateQB, EliteTE, BalancedBuild, RookieHeavy, VeteranHeavy, Stacking.
  */
 import type {
-  StrategyType,
   StrategyDetectionInput,
   DetectedStrategy,
   DraftPickFact,
   LeagueFormat,
 } from './types'
 import { getDetectionConfig } from './detection-config'
-
-function picksByRound(picks: DraftPickFact[]): Map<number, DraftPickFact[]> {
-  const byRound = new Map<number, DraftPickFact[]>()
-  for (const p of picks) {
-    const list = byRound.get(p.round) ?? []
-    list.push(p)
-    byRound.set(p.round, list)
-  }
-  return byRound
-}
 
 function picksInFirstRounds(picks: DraftPickFact[], maxRound: number): DraftPickFact[] {
   return picks.filter((p) => p.round >= 1 && p.round <= maxRound)
@@ -30,6 +19,15 @@ function countByPosition(picks: DraftPickFact[], positions: string[]): number {
   return picks.filter((p) => p.position && set.has(p.position.toUpperCase())).length
 }
 
+function getPositionShares(positionCounts: Record<string, number>): Array<{ position: string; count: number; share: number }> {
+  const entries = Object.entries(positionCounts)
+  const total = entries.reduce((sum, [, count]) => sum + count, 0)
+  if (total <= 0) return []
+  return entries
+    .map(([position, count]) => ({ position, count, share: count / total }))
+    .sort((a, b) => b.share - a.share)
+}
+
 /**
  * Detect which strategy types apply to this team from draft + roster.
  * Returns multiple strategies when signals overlap (e.g. HeroRB + LateQB).
@@ -38,7 +36,6 @@ export function detectStrategies(input: StrategyDetectionInput): DetectedStrateg
   const results: DetectedStrategy[] = []
   const config = getDetectionConfig(input.sport)
   const picks = input.draftPicks
-  const byRound = picksByRound(picks)
 
   // ZeroRB: no RB in first X rounds
   const firstRounds = picksInFirstRounds(picks, config.zeroRbRounds)
@@ -51,14 +48,19 @@ export function detectStrategies(input: StrategyDetectionInput): DetectedStrateg
     })
   }
 
-  // HeroRB: exactly one RB in first 2 rounds
+  // HeroRB: one anchor at the key position group in first 2 rounds.
   const firstTwo = picksInFirstRounds(picks, 2)
   const rbInFirstTwo = countByPosition(firstTwo, config.rbPositions)
-  if (config.rbPositions.length > 0 && firstTwo.length >= 2 && rbInFirstTwo === 1) {
+  if (
+    config.rbPositions.length > 0 &&
+    firstTwo.length >= 2 &&
+    rbInFirstTwo >= 1 &&
+    rbInFirstTwo <= config.heroRbMaxRbInFirstTwo
+  ) {
     results.push({
       strategyType: 'HeroRB',
       confidence: 0.85,
-      signals: [`One ${config.rbPositions[0]} in first two rounds`],
+      signals: [`${rbInFirstTwo} ${config.rbPositions[0]} in first two rounds`],
     })
   }
 
@@ -95,6 +97,56 @@ export function detectStrategies(input: StrategyDetectionInput): DetectedStrateg
     }
   }
 
+  // StarsAndScrubsBuild: concentrated early-round position allocation.
+  const firstFour = picksInFirstRounds(picks, 4).filter((p) => Boolean(p.position))
+  if (firstFour.length >= 4) {
+    const earlyPositionCounts = firstFour.reduce<Record<string, number>>((acc, pick) => {
+      const position = String(pick.position).toUpperCase()
+      acc[position] = (acc[position] ?? 0) + 1
+      return acc
+    }, {})
+    const earlyDistinctPositions = Object.keys(earlyPositionCounts).length
+    const topEarlyCount = Math.max(...Object.values(earlyPositionCounts))
+    if (earlyDistinctPositions <= 2 && topEarlyCount >= 3) {
+      results.push({
+        strategyType: 'StarsAndScrubsBuild',
+        confidence: 0.77,
+        signals: ['Early rounds concentrated around a narrow positional core'],
+      })
+    }
+  }
+
+  // DepthHeavyBuild: repeated late-round investment into a single position.
+  const lateRounds = picks.filter((p) => p.round >= 8 && Boolean(p.position))
+  if (lateRounds.length >= 4) {
+    const lateCounts = lateRounds.reduce<Record<string, number>>((acc, pick) => {
+      const position = String(pick.position).toUpperCase()
+      acc[position] = (acc[position] ?? 0) + 1
+      return acc
+    }, {})
+    const [depthPosition, depthCount] = Object.entries(lateCounts).sort((a, b) => b[1] - a[1])[0] ?? []
+    if (depthPosition && depthCount >= 3) {
+      results.push({
+        strategyType: 'DepthHeavyBuild',
+        confidence: 0.72,
+        signals: [`Late-round depth accumulation at ${depthPosition}`],
+      })
+    }
+  }
+
+  // Goalie/Pitcher-heavy builds in sports where specialist anchors matter.
+  if (input.sport === 'NHL' || input.sport === 'MLB') {
+    const specialistPositions = input.sport === 'NHL' ? ['G'] : ['P', 'SP', 'RP']
+    const specialistInFirstFive = countByPosition(picksInFirstRounds(picks, 5), specialistPositions)
+    if (specialistInFirstFive >= 2) {
+      results.push({
+        strategyType: 'GoaliePitcherHeavyBuild',
+        confidence: 0.8,
+        signals: [`${specialistInFirstFive} ${input.sport === 'NHL' ? 'goalie' : 'pitcher'} picks in first 5 rounds`],
+      })
+    }
+  }
+
   // StackingStrategies: same-team stacks present
   if (input.stacks && input.stacks.length > 0) {
     results.push({
@@ -126,7 +178,21 @@ export function detectStrategies(input: StrategyDetectionInput): DetectedStrateg
     }
   }
 
-  // BalancedBuild: default when no strong signal, or when no other strategy detected
+  // BalancedBuild: roster composition is spread across multiple core positions.
+  const positionShares = getPositionShares(input.rosterPositions)
+  if (positionShares.length >= 3) {
+    const dominantShare = positionShares[0]?.share ?? 1
+    const corePositions = positionShares.filter((p) => p.share >= 0.16).length
+    if (dominantShare <= 0.4 && corePositions >= 3) {
+      results.push({
+        strategyType: 'BalancedBuild',
+        confidence: 0.66,
+        signals: ['Roster composition remains balanced across core positions'],
+      })
+    }
+  }
+
+  // Fallback: if no strong signal, default to BalancedBuild.
   if (results.length === 0) {
     results.push({
       strategyType: 'BalancedBuild',

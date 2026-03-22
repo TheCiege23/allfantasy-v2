@@ -5,6 +5,10 @@ import { ChevronRight } from "lucide-react"
 
 export type MatchupSummary = {
   id: string
+  teamAId?: string
+  teamBId?: string
+  weekOrRound?: number
+  sport?: string
   teamA: string
   teamB: string
   scoreA: number

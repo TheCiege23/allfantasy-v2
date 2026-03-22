@@ -2721,6 +2721,7 @@ function AFLegacyContent() {
     const tab = searchParams.get('tab')
     const tradeId = searchParams.get('trade')
     const sharedLeague = searchParams.get('league')
+    const deepLinkedLeagueId = searchParams.get('leagueId')
     
     if (tab === 'notifications') {
       setShowTradeNotifs(true)
@@ -2737,6 +2738,9 @@ function AFLegacyContent() {
       handleActiveTabChange(tab as Tab)
       if (tab === 'chat') {
         const promptParam = searchParams.get('prompt')
+        if (deepLinkedLeagueId) {
+          setChatLeagueId(deepLinkedLeagueId)
+        }
         if (promptParam) {
           try {
             setChatInput(decodeURIComponent(promptParam).slice(0, 500))
@@ -15467,6 +15471,13 @@ function AFLegacyContent() {
                   <ChimmyChatTab
                     promptParam={searchParams.get('prompt')}
                     leagueName={chatLeagueId ? leagues.find(l => l.league_id === chatLeagueId)?.name ?? null : null}
+                    leagueId={searchParams.get('leagueId') || chatLeagueId || null}
+                    sleeperUsername={username || null}
+                    insightType={(searchParams.get('insightType') as 'matchup' | 'playoff' | 'dynasty' | 'trade' | 'waiver' | 'draft' | null) ?? undefined}
+                    teamId={searchParams.get('teamId')}
+                    sport={searchParams.get('sport')}
+                    season={searchParams.get('season') ? Number(searchParams.get('season')) : null}
+                    week={searchParams.get('week') ? Number(searchParams.get('week')) : null}
                   />
                 )}
                 {false && (activeTab as string) === 'chat_legacy' && (

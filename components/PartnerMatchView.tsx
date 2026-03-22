@@ -91,6 +91,14 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
                   >
                     Legacy
                   </Link>
+                  <Link
+                    href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/compare?managerAId=${encodeURIComponent(
+                      match.externalId ?? match.teamId
+                    )}`}
+                    className="shrink-0 text-xs text-purple-300 hover:underline"
+                  >
+                    Style context
+                  </Link>
                 </>
               )}
             </div>

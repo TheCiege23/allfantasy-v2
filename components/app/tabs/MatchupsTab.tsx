@@ -8,12 +8,16 @@ import { MatchupCard, type MatchupSummary } from '@/components/app/matchups/Matc
 import { MatchupDetailView } from '@/components/app/matchups/MatchupDetailView'
 
 type MatchupsTabResponse = {
+  sport?: string
   label: 'week' | 'round'
   selectedWeekOrRound: number
   totalWeeksOrRounds: number
   availableWeeks: number[]
   matchups: Array<{
     id: string
+    teamAId?: string
+    teamBId?: string
+    weekOrRound?: number
     teamAName: string
     teamBName: string
     scoreA: number
@@ -46,6 +50,10 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
     () =>
       (data?.matchups ?? []).map((m) => ({
         id: m.id,
+        teamAId: m.teamAId,
+        teamBId: m.teamBId,
+        weekOrRound: m.weekOrRound,
+        sport: data?.sport,
         teamA: m.teamAName,
         teamB: m.teamBName,
         scoreA: m.scoreA,
@@ -154,7 +162,12 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
                 Clear selection
               </button>
             )}
-            <MatchupDetailView matchup={selected} />
+            <MatchupDetailView
+              leagueId={leagueId}
+              sport={data?.sport}
+              selectedWeekOrRound={data?.selectedWeekOrRound}
+              matchup={selected}
+            />
           </div>
         </div>
       </div>

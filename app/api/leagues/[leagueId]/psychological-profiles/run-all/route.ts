@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runPsychologicalProfileEngine } from '@/lib/psychological-profiles/PsychologicalProfileEngine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
  * Run the psychological profile engine for every team/manager in the league.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
@@ -22,16 +23,32 @@ export async function POST(
     })
     if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-    const sport = (league.sport ?? 'NFL').toString()
+    const body = await req.json().catch(() => ({}))
+    const sport = normalizeToSupportedSport(body?.sport ?? league.sport)
+    const seasonParsed =
+      typeof body?.season === 'number'
+        ? body.season
+        : typeof body?.season === 'string'
+          ? parseInt(body.season, 10)
+          : NaN
+    const season =
+      Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed)
+        ? seasonParsed
+        : league.season ?? new Date().getFullYear()
+    const managerIdsFilter = Array.isArray(body?.managerIds)
+      ? new Set(body.managerIds.map((m: unknown) => String(m)))
+      : null
     const results: { managerId: string; teamName?: string; ok: boolean; error?: string }[] = []
 
     for (const team of league.teams) {
       const managerId = team.externalId || team.id
+      if (managerIdsFilter && !managerIdsFilter.has(managerId)) continue
       try {
         await runPsychologicalProfileEngine({
           leagueId,
           managerId,
           sport,
+          season,
           sleeperUsername: team.ownerName,
           rosterId: undefined,
         })
@@ -49,6 +66,8 @@ export async function POST(
     const okCount = results.filter((r) => r.ok).length
     return NextResponse.json({
       leagueId,
+      sport,
+      season,
       total: results.length,
       success: okCount,
       failed: results.length - okCount,

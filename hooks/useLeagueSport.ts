@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 
-export type LeagueSportFrontend = 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
+export type LeagueSportFrontend = SupportedSport;
 
-const LEAGUE_SPORT_VALUES: LeagueSportFrontend[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'];
+const LEAGUE_SPORT_VALUES: readonly LeagueSportFrontend[] = SUPPORTED_SPORTS;
 
 function toLeagueSportFrontend(s: string | null | undefined): LeagueSportFrontend | null {
   if (s == null || s === '') return null;
@@ -37,7 +38,13 @@ export function useLeagueSport(leagueId: string | null): LeagueSportResult {
         return;
       }
       const data = await res.json();
-      const leagues = data?.leagues ?? data?.genericLeagues ?? Array.isArray(data) ? data : [];
+      const leagues = Array.isArray(data?.leagues)
+        ? data.leagues
+        : Array.isArray(data?.genericLeagues)
+          ? data.genericLeagues
+          : Array.isArray(data)
+            ? data
+            : [];
       const league = leagues.find((l: { id?: string }) => l.id === id);
       setSport(toLeagueSportFrontend(league?.sport));
     } catch {

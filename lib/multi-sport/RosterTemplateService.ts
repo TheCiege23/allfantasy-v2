@@ -330,6 +330,9 @@ function defaultSlotsForSport(sportType: SportType, formatType?: string): Roster
   const normalizedFormat = normalizeRosterFormatType(sportType, formatType ?? 'standard')
   if (sportType === 'NFL') {
     if (normalizedFormat === 'IDP' || normalizedFormat === 'idp') return defaultNflIdpSlots()
+    if (String(normalizedFormat).toLowerCase() === 'devy_dynasty') {
+      return buildDefaultSlotsFromRosterDefaults(sportType, 'devy_dynasty')
+    }
     return defaultNflSlots()
   }
   if (sportType === 'SOCCER') return defaultSoccerSlots()

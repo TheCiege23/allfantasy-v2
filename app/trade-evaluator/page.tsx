@@ -616,7 +616,11 @@ function TradeEvaluatorInner() {
                     sender.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
                     receiver.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
                     sport
-                  )
+                  ),
+                  {
+                    insightType: 'trade',
+                    sport,
+                  }
                 )}
                 className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
               >

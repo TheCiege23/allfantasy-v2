@@ -35,6 +35,20 @@ export interface ChimmyChatShellProps {
   clearUrlPromptAfterUse?: boolean
   /** Optional league context for chips */
   leagueName?: string | null
+  /** Optional league id for targeted context queries */
+  leagueId?: string | null
+  /** Optional sleeper username for enrichment */
+  sleeperUsername?: string | null
+  /** Optional insight type for targeted AI routing */
+  insightType?: 'matchup' | 'playoff' | 'dynasty' | 'trade' | 'waiver' | 'draft'
+  /** Optional team id for team-scoped insight routes */
+  teamId?: string | null
+  /** Optional sport context */
+  sport?: string | null
+  /** Optional season context */
+  season?: number | null
+  /** Optional week/period context */
+  week?: number | null
   /** Optional: on "Save conversation" (placeholder) */
   onSaveConversation?: () => void
   /** Optional: compact mode (e.g. drawer) */
@@ -59,6 +73,13 @@ export default function ChimmyChatShell({
   initialPrompt = '',
   clearUrlPromptAfterUse = true,
   leagueName,
+  leagueId,
+  sleeperUsername,
+  insightType,
+  teamId,
+  sport,
+  season,
+  week,
   onSaveConversation,
   compact = false,
   onClose,
@@ -179,6 +200,13 @@ export default function ChimmyChatShell({
       const formData = new FormData()
       formData.append('message', outgoingText)
       if (image) formData.append('image', image)
+      if (leagueId) formData.append('leagueId', leagueId)
+      if (sleeperUsername) formData.append('sleeperUsername', sleeperUsername)
+      if (insightType) formData.append('insightType', insightType)
+      if (teamId) formData.append('teamId', teamId)
+      if (sport) formData.append('sport', sport)
+      if (season != null) formData.append('season', String(season))
+      if (week != null) formData.append('week', String(week))
       formData.append(
         'messages',
         JSON.stringify(
@@ -215,7 +243,7 @@ export default function ChimmyChatShell({
       }
       speak(reply)
     },
-    [speak]
+    [insightType, leagueId, season, sleeperUsername, sport, speak, teamId, week]
   )
 
   const sendMessage = useCallback(async () => {

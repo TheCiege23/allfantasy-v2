@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { openaiChatText } from '@/lib/openai-client'
+import { getInsightBundle } from '@/lib/ai-simulation-integration'
 
 type TeamForecast = {
   teamId: string
@@ -40,12 +41,17 @@ export async function POST(
   const bubble = forecasts.filter(
     (t) => t.playoffProbability >= 20 && t.playoffProbability <= 80
   )
+  const insightBundle = await getInsightBundle(leagueId, 'playoff', {
+    season: body.season,
+    week: body.week,
+  }).catch(() => null)
 
   const summaryInput = `
 Season: ${body.season ?? 'current'}, Week: ${body.week ?? 'current'}
 Top contenders (championship %): ${top.map((t) => `${t.teamName ?? t.teamId}: ${t.championshipProbability.toFixed(1)}%`).join(', ')}
 Bubble teams (playoff prob 20–80%): ${bubble.map((t) => `${t.teamName ?? t.teamId}: ${t.playoffProbability.toFixed(0)}%`).join(', ') || 'None'}
 Playoff odds range: ${Math.min(...forecasts.map((t) => t.playoffProbability)).toFixed(0)}% – ${Math.max(...forecasts.map((t) => t.playoffProbability)).toFixed(0)}%
+${insightBundle?.contextText ? `\nSimulation/Warehouse context:\n${insightBundle.contextText}` : ''}
   `.trim()
 
   try {
@@ -54,7 +60,11 @@ Playoff odds range: ${Math.min(...forecasts.map((t) => t.playoffProbability)).to
         {
           role: 'system',
           content:
-            'You are a concise fantasy sports analyst. In 2–4 sentences, summarize the playoff race: who is in the driver\'s seat, who is on the bubble, and one notable takeaway. Use percentages only when they add clarity. Be neutral and factual.',
+            `You are a concise fantasy sports analyst. In 2-4 sentences, summarize the playoff race: who is in the driver's seat, who is on the bubble, and one notable takeaway. Use percentages only when they add clarity. Be neutral and factual.
+Model role context:
+- DeepSeek: ${insightBundle?.modelResponsibilities.deepseek ?? 'quant modeling'}
+- Grok: ${insightBundle?.modelResponsibilities.grok ?? 'trend framing'}
+- OpenAI: ${insightBundle?.modelResponsibilities.openai ?? 'user-facing explanation'}.`,
         },
         {
           role: 'user',

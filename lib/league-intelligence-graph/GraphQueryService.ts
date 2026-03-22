@@ -9,10 +9,12 @@ import type {
   ManagerConnectionScore,
   PowerShiftBucket,
 } from "./types";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface GraphQueryInput {
   leagueId: string;
   season?: number | null;
+  sport?: string | null;
   limit?: number;
 }
 
@@ -22,9 +24,14 @@ export interface GraphQueryInput {
 export async function getStrongestRivals(
   input: GraphQueryInput
 ): Promise<RivalPair[]> {
-  const { leagueId, season = null, limit = 20 } = input;
+  const { leagueId, season = null, sport = null, limit = 20 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -34,6 +41,7 @@ export async function getStrongestRivals(
       fromNodeId: { in: [...nodeIds] },
       toNodeId: { in: [...nodeIds] },
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
     orderBy: { weight: "desc" },
     take: limit,
@@ -52,9 +60,14 @@ export async function getStrongestRivals(
 export async function getTopTradePartners(
   input: GraphQueryInput
 ): Promise<TradePartnerPair[]> {
-  const { leagueId, season = null, limit = 20 } = input;
+  const { leagueId, season = null, sport = null, limit = 20 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -64,6 +77,7 @@ export async function getTopTradePartners(
       fromNodeId: { in: [...nodeIds] },
       toNodeId: { in: [...nodeIds] },
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
   const byPair = new Map<string, { count: number; weight: number }>();
@@ -96,9 +110,15 @@ export async function getTopTradePartners(
 export async function getManagerConnectionScores(
   input: GraphQueryInput
 ): Promise<ManagerConnectionScore[]> {
-  const { leagueId, season = null, limit = 50 } = input;
+  const { leagueId, season = null, sport = null, limit = 50 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const managerNodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "Manager", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "Manager",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true },
   });
   const nodeIds = new Set(managerNodes.map((n) => n.nodeId));
@@ -109,6 +129,7 @@ export async function getManagerConnectionScores(
         { toNodeId: { in: [...nodeIds] } },
       ],
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
   const degree = new Map<string, number>();
@@ -142,9 +163,15 @@ export async function getManagerConnectionScores(
 export async function getDramaCentralTeams(
   input: GraphQueryInput
 ): Promise<Array<{ nodeId: string; entityId: string; dramaScore: number; metadata?: Record<string, unknown> }>> {
-  const { leagueId, season = null, limit = 10 } = input;
+  const { leagueId, season = null, sport = null, limit = 10 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const teamNodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "TeamSeason", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "TeamSeason",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true, metadata: true },
   });
   const nodeIds = new Set(teamNodes.map((n) => n.nodeId));
@@ -157,6 +184,7 @@ export async function getDramaCentralTeams(
         { toNodeId: { in: [...nodeIds] } },
       ],
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
   const score = new Map<string, number>();
@@ -185,7 +213,8 @@ export async function getDramaCentralTeams(
 export async function getPowerShiftOverTime(
   input: Omit<GraphQueryInput, "season"> & { seasons?: number[] }
 ): Promise<PowerShiftBucket[]> {
-  const { leagueId, seasons, limit = 5 } = input;
+  const { leagueId, sport = null, seasons, limit = 5 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const snapshotSeasons = seasons ?? (
     await prisma.leagueGraphSnapshot.findMany({
       where: { leagueId },
@@ -197,7 +226,11 @@ export async function getPowerShiftOverTime(
   const buckets: PowerShiftBucket[] = [];
   for (const season of snapshotSeasons) {
     const leagueNodeIds = await prisma.graphNode.findMany({
-      where: { leagueId, season },
+      where: {
+        leagueId,
+        season,
+        ...(normalizedSport ? { sport: normalizedSport } : {}),
+      },
       select: { nodeId: true },
     });
     const inLeague = new Set(leagueNodeIds.map((n) => n.nodeId));
@@ -206,6 +239,7 @@ export async function getPowerShiftOverTime(
         edgeType: "WON_TITLE",
         season,
         fromNodeId: { in: [...inLeague] },
+        ...(normalizedSport ? { sport: normalizedSport } : {}),
       },
     });
     const topNodeIds = championEdges.map((e) => e.fromNodeId).slice(0, limit);
@@ -226,9 +260,15 @@ export async function getPowerShiftOverTime(
 export async function getEraDominance(
   input: GraphQueryInput
 ): Promise<Array<{ nodeId: string; entityId: string; seasons: number[]; titleCount: number }>> {
-  const { leagueId, season = null, limit = 10 } = input;
+  const { leagueId, season = null, sport = null, limit = 10 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const teamNodes = await prisma.graphNode.findMany({
-    where: { leagueId, nodeType: "TeamSeason", ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      nodeType: "TeamSeason",
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, entityId: true },
   });
   const nodeIds = new Set(teamNodes.map((n) => n.nodeId));
@@ -237,6 +277,7 @@ export async function getEraDominance(
       edgeType: "WON_TITLE",
       fromNodeId: { in: [...nodeIds] },
       season: { not: null },
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
   const byNode = new Map<string, { seasons: number[]; titleCount: number }>();
@@ -268,9 +309,14 @@ export async function getEraDominance(
 export async function getRepeatedEliminationPatterns(
   input: GraphQueryInput
 ): Promise<Array<{ eliminatorNodeId: string; eliminatedNodeId: string; count: number; seasons: number[] }>> {
-  const { leagueId, season = null, limit = 20 } = input;
+  const { leagueId, season = null, sport = null, limit = 20 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
   const nodes = await prisma.graphNode.findMany({
-    where: { leagueId, ...(season != null ? { season } : {}) },
+    where: {
+      leagueId,
+      ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true },
   });
   const nodeIds = new Set(nodes.map((n) => n.nodeId));
@@ -280,6 +326,7 @@ export async function getRepeatedEliminationPatterns(
       fromNodeId: { in: [...nodeIds] },
       toNodeId: { in: [...nodeIds] },
       ...(season != null ? { season } : {}),
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
     },
   });
   const byPair = new Map<string, { count: number; seasons: number[] }>();

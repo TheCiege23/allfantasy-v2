@@ -23,6 +23,14 @@ export interface AIAssistantState {
   positionalRunWarning: string | null
   /** Roster construction warning */
   rosterWarning: string | null
+  /** Platform strategy context for this sport/timeframe. */
+  strategyMetaContext: Array<{
+    strategyType: string
+    strategyLabel?: string
+    usageRate: number
+    successRate: number
+    trendingDirection: string
+  }>
   loading: boolean
   error: string | null
 }
@@ -33,6 +41,7 @@ const defaultState: AIAssistantState = {
   compareOptions: [],
   positionalRunWarning: null,
   rosterWarning: null,
+  strategyMetaContext: [],
   loading: false,
   error: null,
 }
@@ -169,6 +178,7 @@ export function useAIDraftAssistant() {
         type: suggestion.type,
       }))
       const rosterCounts = data.rosterCounts || {}
+      const strategyMetaContext = Array.isArray(data.strategyMetaContext) ? data.strategyMetaContext : []
       const positionalRunWarning = params.recentPicks
         ? detectPositionalRun(params.recentPicks)
         : null
@@ -180,6 +190,7 @@ export function useAIDraftAssistant() {
         compareOptions: suggestions,
         positionalRunWarning,
         rosterWarning,
+        strategyMetaContext,
         loading: false,
         error: null,
       })

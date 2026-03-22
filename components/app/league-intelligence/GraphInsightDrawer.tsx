@@ -14,11 +14,13 @@ export function GraphInsightDrawer({
   onClose,
   leagueId,
   season,
+  sport,
 }: {
   open: boolean;
   onClose: () => void;
   leagueId: string;
   season: number | null;
+  sport?: string | null;
 }) {
   const [insight, setInsight] = useState<InsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@ export function GraphInsightDrawer({
     fetch(`/api/leagues/${encodeURIComponent(leagueId)}/graph-insight`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "summary", season }),
+      body: JSON.stringify({ type: "summary", season, sport }),
     })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load insight");
@@ -42,7 +44,11 @@ export function GraphInsightDrawer({
         setInsight(null);
       })
       .finally(() => setLoading(false));
-  }, [leagueId, season]);
+  }, [leagueId, season, sport]);
+
+  useEffect(() => {
+    setInsight(null);
+  }, [leagueId, season, sport]);
 
   useEffect(() => {
     if (open && !insight && !loading) void fetchInsight();

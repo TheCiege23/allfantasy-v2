@@ -3,28 +3,26 @@
  * Ensures relationships are isolated by sport and league context across NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer.
  */
 
-export const GRAPH_SPORTS = [
-  'NFL',
-  'NHL',
-  'NBA',
-  'MLB',
-  'NCAAB',
-  'NCAAF',
-  'SOCCER',
-] as const;
+import {
+  SUPPORTED_SPORTS,
+  isSupportedSport,
+  type SupportedSport,
+} from "@/lib/sport-scope";
 
-export type GraphSport = (typeof GRAPH_SPORTS)[number];
+export const GRAPH_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS];
 
-const SPORT_MAP: Record<string, GraphSport> = {
-  NFL: 'NFL',
-  NHL: 'NHL',
-  NBA: 'NBA',
-  MLB: 'MLB',
-  NCAAB: 'NCAAB',
-  'NCAA BASKETBALL': 'NCAAB',
-  NCAAF: 'NCAAF',
-  'NCAA FOOTBALL': 'NCAAF',
-  SOCCER: 'SOCCER',
+export type GraphSport = SupportedSport;
+
+const SPORT_ALIAS_MAP: Record<string, SupportedSport> = {
+  NFL: "NFL",
+  NHL: "NHL",
+  NBA: "NBA",
+  MLB: "MLB",
+  NCAAB: "NCAAB",
+  "NCAA BASKETBALL": "NCAAB",
+  NCAAF: "NCAAF",
+  "NCAA FOOTBALL": "NCAAF",
+  SOCCER: "SOCCER",
 };
 
 /**
@@ -33,7 +31,8 @@ const SPORT_MAP: Record<string, GraphSport> = {
 export function normalizeSportForGraph(sport: string | null | undefined): GraphSport | null {
   const u = (sport ?? '').toString().trim().toUpperCase();
   if (!u) return null;
-  return SPORT_MAP[u] ?? null;
+  const canonical = SPORT_ALIAS_MAP[u] ?? u;
+  return isSupportedSport(canonical) ? canonical : null;
 }
 
 /**

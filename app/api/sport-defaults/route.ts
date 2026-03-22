@@ -10,14 +10,7 @@ import {
   SPORT_DEFAULTS_CORE_REGISTRY_VERSION,
   getSupportedSportDefaultsSports,
 } from '@/lib/sport-defaults/SportDefaultsRegistry'
-
-const LEAGUE_SPORT_VALUES = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'] as const
-
-function toLeagueSport(s: string): (typeof LEAGUE_SPORT_VALUES)[number] {
-  const u = (s || 'NFL').toUpperCase()
-  if (LEAGUE_SPORT_VALUES.includes(u as any)) return u as (typeof LEAGUE_SPORT_VALUES)[number]
-  return 'NFL'
-}
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +19,7 @@ export async function GET(request: NextRequest) {
     const variantParam = searchParams.get('variant') ?? searchParams.get('leagueVariant') ?? null
     const load = searchParams.get('load') ?? ''
 
-    const sport = toLeagueSport(sportParam)
+    const sport = normalizeToSupportedSport(sportParam)
 
     if (load === 'creation') {
       const payload = await loadSportPresetForCreation(sport, variantParam)

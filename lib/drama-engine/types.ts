@@ -2,6 +2,9 @@
  * League Drama Engine — types for events, timeline, and drama types.
  */
 
+import type { SupportedSport } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+
 export const DRAMA_TYPES = [
   'REVENGE_GAME',
   'MAJOR_UPSET',
@@ -29,5 +32,28 @@ export interface DramaEventPayload {
   dramaScore: number
 }
 
-export const DRAMA_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
-export type DramaSport = (typeof DRAMA_SPORTS)[number]
+export const DRAMA_SPORTS: readonly SupportedSport[] = [...SUPPORTED_SPORTS]
+export type DramaSport = SupportedSport
+
+export interface DramaDetectionSignal {
+  intensityFactor?: number
+  rivalryScore?: number
+  upsetMagnitude?: number
+  playoffSwing?: number
+  recencyWeight?: number
+  managerBehaviorHeat?: number
+  leagueGraphHeat?: number
+}
+
+export const DRAMA_TYPE_LABELS: Record<DramaType, string> = {
+  REVENGE_GAME: 'Revenge Game',
+  MAJOR_UPSET: 'Major Upset',
+  RIVALRY_CLASH: 'Rivalry Clash',
+  WIN_STREAK: 'Win Streak',
+  LOSING_STREAK: 'Losing Streak',
+  PLAYOFF_BUBBLE: 'Playoff Bubble',
+  TITLE_DEFENSE: 'Title Defense',
+  TRADE_FALLOUT: 'Trade Fallout',
+  REBUILD_PROGRESS: 'Rebuild Progress',
+  DYNASTY_SHIFT: 'Dynasty Shift',
+}

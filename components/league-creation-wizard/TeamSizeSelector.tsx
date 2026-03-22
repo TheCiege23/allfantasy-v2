@@ -12,9 +12,11 @@ export type TeamSizeSelectorProps = {
   name: string
   teamCount: number
   rosterSize: number | null
+  tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
   onNameChange: (name: string) => void
   onTeamCountChange: (n: number) => void
   onRosterSizeChange: (n: number | null) => void
+  onTradeReviewModeChange: (mode: 'none' | 'commissioner' | 'league_vote' | 'instant') => void
 }
 
 /**
@@ -24,9 +26,11 @@ export function TeamSizeSelector({
   name,
   teamCount,
   rosterSize,
+  tradeReviewMode,
   onNameChange,
   onTeamCountChange,
   onRosterSizeChange,
+  onTradeReviewModeChange,
 }: TeamSizeSelectorProps) {
   const safeTeamCount = teamCount >= 4 && teamCount <= 24 ? teamCount : 12
   return (
@@ -73,6 +77,24 @@ export function TeamSizeSelector({
             </SelectContent>
           </Select>
           <p className="mt-1 text-xs text-white/50">Standard leagues use 10 or 12 teams.</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-white/90">Trade review mode</Label>
+          <Select value={tradeReviewMode} onValueChange={(v) => onTradeReviewModeChange(v as TeamSizeSelectorProps['tradeReviewMode'])}>
+            <SelectTrigger
+              className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]"
+              aria-label="Trade review mode"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="commissioner">Commissioner review</SelectItem>
+              <SelectItem value="league_vote">League vote</SelectItem>
+              <SelectItem value="instant">Instant</SelectItem>
+              <SelectItem value="none">No review</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-white/50">This is your starting policy and can be changed later in settings.</p>
         </div>
         <div className="space-y-1.5">
           <Label className="text-white/90">Roster size (optional)</Label>

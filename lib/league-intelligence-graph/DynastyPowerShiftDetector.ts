@@ -4,11 +4,13 @@
 
 import { prisma } from "@/lib/prisma";
 import type { DynastyPowerTransition } from "./types";
+import { normalizeSportForGraph } from "./SportGraphResolver";
 
 export interface PowerShiftInput {
   leagueId: string;
   /** If null, use all seasons (dynasty history). */
   season?: number | null;
+  sport?: string | null;
   /** Seasons to consider (default: from LeagueGraphSnapshot or SeasonResult). */
   seasons?: number[];
   limit?: number;
@@ -21,7 +23,8 @@ export interface PowerShiftInput {
 export async function detectDynastyPowerShifts(
   input: PowerShiftInput
 ): Promise<DynastyPowerTransition[]> {
-  const { leagueId, season = null, limit = 20 } = input;
+  const { leagueId, season = null, sport = null, limit = 20 } = input;
+  const normalizedSport = normalizeSportForGraph(sport);
 
   let seasons = input.seasons;
   if (seasons == null) {
@@ -51,7 +54,11 @@ export async function detectDynastyPowerShifts(
   if (seasons.length < 2) return [];
 
   const allLeagueNodes = await prisma.graphNode.findMany({
-    where: { leagueId, season: { in: seasons } },
+    where: {
+      leagueId,
+      season: { in: seasons },
+      ...(normalizedSport ? { sport: normalizedSport } : {}),
+    },
     select: { nodeId: true, season: true },
   });
   const nodeIdsBySeason = new Map<number, string[]>();
@@ -72,6 +79,7 @@ export async function detectDynastyPowerShifts(
         edgeType: "WON_TITLE",
         season: fromSeason,
         fromNodeId: { in: fromIds },
+        ...(normalizedSport ? { sport: normalizedSport } : {}),
       },
       select: { fromNodeId: true },
     });
@@ -80,6 +88,7 @@ export async function detectDynastyPowerShifts(
         edgeType: "WON_TITLE",
         season: toSeason,
         fromNodeId: { in: toIds },
+        ...(normalizedSport ? { sport: normalizedSport } : {}),
       },
       select: { fromNodeId: true },
     });

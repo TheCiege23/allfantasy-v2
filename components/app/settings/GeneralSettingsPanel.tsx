@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2, Save, X } from 'lucide-react'
-import { getSportOptions } from '@/lib/commissioner-settings'
+import { getSportOptions } from '@/lib/commissioner-settings/SportLeagueSettingsResolver'
+import { getLeagueVariantLabel } from '@/lib/league-creation/LeagueVariantResolver'
 import { toast } from 'sonner'
 
 type Config = {
@@ -10,9 +11,11 @@ type Config = {
   name: string | null
   description: string | null
   sport: string
+  leagueVariant: string | null
   season: number | null
   leagueSize: number | null
   rosterSize: number | null
+  settings?: Record<string, unknown> | null
 }
 
 export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }) {
@@ -27,6 +30,15 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
   const [season, setSeason] = useState('')
 
   const sportOptions = getSportOptions()
+  const rawLeagueVariant = (() => {
+    if (!config) return null
+    if (typeof config.leagueVariant === 'string' && config.leagueVariant.trim().length > 0) {
+      return config.leagueVariant
+    }
+    const fromSettings = config.settings?.league_variant
+    return typeof fromSettings === 'string' && fromSettings.trim().length > 0 ? fromSettings : null
+  })()
+  const leagueVariantLabel = rawLeagueVariant ? getLeagueVariantLabel(rawLeagueVariant) : 'Standard'
 
   const load = useCallback(async () => {
     if (!leagueId) {
@@ -210,6 +222,15 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
                 placeholder="e.g. 2025"
               />
             </div>
+            <div>
+              <label className="block text-xs text-white/50 mb-1">League variant (read-only)</label>
+              <div className="w-full rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm text-white/85">
+                {leagueVariantLabel}
+              </div>
+              <p className="mt-1 text-xs text-white/50">
+                Variant/preset is set during league creation and drives sport-aware roster and scoring defaults.
+              </p>
+            </div>
           </>
         ) : (
           <>
@@ -224,6 +245,10 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
             <div>
               <dt className="text-xs text-white/50">Sport</dt>
               <dd className="text-sm text-white/90">{config?.sport ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-white/50">League variant</dt>
+              <dd className="text-sm text-white/90">{leagueVariantLabel}</dd>
             </div>
             <div>
               <dt className="text-xs text-white/50">Season</dt>

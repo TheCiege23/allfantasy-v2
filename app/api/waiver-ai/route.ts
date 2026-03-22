@@ -23,6 +23,13 @@ import {
   getMandatorySystemPromptSuffix,
   normalizeToContract,
 } from "@/lib/ai-context-envelope"
+import {
+  buildDeepSeekMetaContext,
+  buildGrokMetaContext,
+  buildOpenAIMetaContext,
+  resolveAIMetaContextWithWindow,
+  type AIMetaContextPayload,
+} from "@/lib/meta-insights"
 
 type AnyObj = Record<string, any>
 
@@ -303,7 +310,8 @@ async function runTripleAIWaiverAnalysis(
   candidateNames: string[],
   userPrompt: string,
   leagueMeta: ReturnType<typeof extractLeagueMeta>,
-  teamContextNotes: string[]
+  teamContextNotes: string[],
+  aiMetaContext: AIMetaContextPayload | null
 ): Promise<TripleAIWaiverResult> {
   const providers: TripleAIWaiverResult['providers'] = {
     deepseek: 'skipped',
@@ -316,6 +324,8 @@ async function runTripleAIWaiverAnalysis(
     : ''
 
   const sharedSportContext = buildWaiverRecommendationContext(leagueMeta)
+  const deepSeekMetaContext = aiMetaContext ? buildDeepSeekMetaContext(aiMetaContext) : ''
+  const grokMetaContext = aiMetaContext ? buildGrokMetaContext(aiMetaContext) : ''
   const sharedContext = `
 SPORT CONTEXT: ${sharedSportContext}
 SPORT LABEL: ${leagueMeta.sportDisplayLabel ?? leagueMeta.sport}
@@ -330,7 +340,9 @@ ${strategyContext}
 
   const [deepseekRaw, grokRaw] = await Promise.allSettled([
     deepseekQuantAnalysis(
-      `${DEEPSEEK_WAIVER_SYSTEM}\n\nAnalyze these waiver candidates:\n${sharedContext}`
+      `${DEEPSEEK_WAIVER_SYSTEM}\n\nAnalyze these waiver candidates:\n${sharedContext}${
+        deepSeekMetaContext ? `\n\nPLATFORM META FOR QUANT MODEL:\n${deepSeekMetaContext}` : ''
+      }`
     ).catch((e: any) => {
       console.warn('[waiver-ai] DeepSeek failed:', e?.message)
       return { json: null, raw: '', error: e?.message }
@@ -339,7 +351,12 @@ ${strategyContext}
     xaiChatJson({
       messages: [
         { role: 'system', content: GROK_WAIVER_SYSTEM },
-        { role: 'user', content: `Analyze real-time signals for these waiver candidates:\n${sharedContext}` },
+        {
+          role: 'user',
+          content: `Analyze real-time signals for these waiver candidates:\n${sharedContext}${
+            grokMetaContext ? `\n\nPLATFORM META NARRATIVE CONTEXT:\n${grokMetaContext}` : ''
+          }`,
+        },
       ],
       tools: [{ type: 'web_search', user_location_country: 'US' }],
       temperature: GROK_TEMP,
@@ -407,7 +424,8 @@ function buildEnrichedWaiverPrompt(
   basePrompt: string,
   quantResult: WaiverQuantResult | null,
   trendResult: WaiverTrendResult | null,
-  strategyMode?: StrategyMode
+  strategyMode?: StrategyMode,
+  openAIMetaContext?: string
 ): string {
   const sections: string[] = [basePrompt]
 
@@ -444,6 +462,10 @@ ${trendResult.rawInsight ? `Insight: ${trendResult.rawInsight}` : ''}`.trim())
     sections.push(
       `STRATEGY MODE: ${strategyMode.toUpperCase()} — ${STRATEGY_MODE_CONTEXT[strategyMode]}`
     )
+  }
+
+  if (openAIMetaContext) {
+    sections.push(`PLATFORM META CONTEXT (OpenAI):\n${openAIMetaContext}`)
   }
 
   return sections.join('\n\n---\n\n')
@@ -579,18 +601,21 @@ export const POST = withApiUsage({
     .slice(0, 20)
 
   try {
+    const aiMetaContext = await resolveAIMetaContextWithWindow(leagueMeta.sport, '7d').catch(() => null)
     const { quantResult, trendResult, providers } = await runTripleAIWaiverAnalysis(
       candidateNames,
       buildWaiverUserPrompt(body),
       leagueMeta,
-      teamContextNotes
+      teamContextNotes,
+      aiMetaContext
     )
 
     const enrichedPrompt = buildEnrichedWaiverPrompt(
       buildWaiverUserPrompt(body),
       quantResult,
       trendResult,
-      leagueMeta.strategyMode
+      leagueMeta.strategyMode,
+      aiMetaContext ? buildOpenAIMetaContext(aiMetaContext) : undefined
     )
     const sportContext = buildWaiverRecommendationContext(leagueMeta) || buildSportContextString(leagueMeta)
     const userMessage = `${sportContext}\n\n${enrichedPrompt}`
@@ -729,11 +754,18 @@ export const POST = withApiUsage({
       validated: true,
       providers,
       normalizedOutput,
+      metaContext: aiMetaContext
+        ? {
+            sport: aiMetaContext.sport,
+            topTrends: aiMetaContext.topTrends?.slice(0, 3) ?? [],
+          }
+        : undefined,
       rate_limit: { remaining, retryAfterSec },
       ...(process.env.NODE_ENV === 'development' && {
         _debug: {
           quantResult,
           trendResult,
+          aiMetaContext,
           processingMs: Date.now() - startMs,
         },
       }),

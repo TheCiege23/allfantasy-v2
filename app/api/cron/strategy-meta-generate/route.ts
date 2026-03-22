@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { generateStrategyMetaReports } from '@/lib/strategy-meta'
+import { isSupportedSport, normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,11 @@ export async function POST(req: NextRequest) {
   }
 
   const url = new URL(req.url)
-  const sport = url.searchParams.get('sport') ?? undefined
+  const sportParam = url.searchParams.get('sport') ?? undefined
+  if (sportParam && !isSupportedSport(sportParam)) {
+    return NextResponse.json({ error: 'Invalid sport', supported: SUPPORTED_SPORTS }, { status: 400 })
+  }
+  const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
   const leagueFormat = url.searchParams.get('leagueFormat') ?? undefined
   const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dryRun') === 'true'
   const includeDiagnostics =

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildRelationshipMap } from "@/lib/league-intelligence-graph";
+import {
+  buildLeagueGraph,
+  buildRelationshipMap,
+  normalizeSportForGraph,
+} from "@/lib/league-intelligence-graph";
+import { syncRivalryEdgesIntoGraph } from "@/lib/relationship-insights";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +24,52 @@ export async function GET(
     const url = new URL(_req.url);
     const seasonParam = url.searchParams.get("season");
     const season = seasonParam != null ? parseInt(seasonParam, 10) : null;
+    const sport = normalizeSportForGraph(url.searchParams.get("sport"));
+    const rebuild = url.searchParams.get("rebuild") === "1";
+    const syncRivalryEdges = url.searchParams.get("syncRivalryEdges") !== "0";
+    const seasonValue = Number.isNaN(season) ? null : season;
 
-    const map = await buildRelationshipMap({
+    const buildInput = {
       leagueId,
-      season: Number.isNaN(season) ? null : season,
+      season: seasonValue,
+      includeTrades: true,
+      includeRivalries: true,
+    } as const;
+
+    if (rebuild) {
+      await buildLeagueGraph(buildInput).catch(() => null);
+    }
+    if (syncRivalryEdges) {
+      await syncRivalryEdgesIntoGraph({
+        leagueId,
+        sport,
+        season: seasonValue,
+      }).catch(() => null);
+    }
+
+    let map = await buildRelationshipMap({
+      leagueId,
+      season: seasonValue,
+      sport,
       limit: 100,
     });
+
+    if (!rebuild && map.nodes.length === 0) {
+      await buildLeagueGraph(buildInput).catch(() => null);
+      if (syncRivalryEdges) {
+        await syncRivalryEdgesIntoGraph({
+          leagueId,
+          sport,
+          season: seasonValue,
+        }).catch(() => null);
+      }
+      map = await buildRelationshipMap({
+        leagueId,
+        season: seasonValue,
+        sport,
+        limit: 100,
+      });
+    }
     return NextResponse.json(map);
   } catch (e) {
     console.error("[relationship-map GET]", e);

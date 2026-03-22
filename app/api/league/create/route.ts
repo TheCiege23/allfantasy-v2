@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { requireVerifiedUser } from '@/lib/auth-guard';
 import { prisma } from '@/lib/prisma';
 import { buildLeagueInviteUrl } from '@/lib/viral-loop';
+import { resolveEffectiveLeagueVariant } from '@/lib/league-creation/LeagueVariantResolver';
 import { z } from 'zod';
 
 const createSchema = z.object({
@@ -210,11 +211,11 @@ export async function POST(req: Request) {
 
     const { getCreationPayloadAndSettings } = await import('@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator');
     const presetVariant =
-      String(leagueTypeWizard ?? leagueVariantInput ?? '').toLowerCase() === 'devy'
-        ? 'devy_dynasty'
-        : String(leagueTypeWizard ?? leagueVariantInput ?? '').toLowerCase() === 'c2c' || String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c'
-          ? 'merged_devy_c2c'
-          : (leagueVariantInput ?? undefined);
+      resolveEffectiveLeagueVariant({
+        sport,
+        leagueType: leagueTypeWizard ?? null,
+        requestedVariant: leagueVariantInput ?? null,
+      }).variant ?? undefined;
     const effectiveDynastyForCreation = isDevyRequested || isC2CRequested || (isDynasty === true);
     const {
       payload: creationPayload,

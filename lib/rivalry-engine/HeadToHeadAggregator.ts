@@ -27,7 +27,6 @@ export interface HeadToHeadSummary {
 }
 
 const CLOSE_GAME_MARGIN = 15
-const UPSET_MARGIN_POINTS = 20
 
 /**
  * Canonical pair key (lower id first) for consistent grouping.
@@ -49,6 +48,10 @@ export async function aggregateHeadToHeadForLeague(
     where: { leagueId, season },
     orderBy: [{ weekOrPeriod: 'asc' }],
   })
+  const seasonResults = await prisma.seasonResult.findMany({
+    where: { leagueId, season: String(season) },
+    select: { rosterId: true, wins: true },
+  })
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -60,6 +63,10 @@ export async function aggregateHeadToHeadForLeague(
   for (const t of league.teams) {
     teamByExternalId.set(t.externalId, t)
     teamByExternalId.set(t.id, t)
+  }
+  const seasonWinsByRosterId = new Map<string, number>()
+  for (const row of seasonResults) {
+    seasonWinsByRosterId.set(String(row.rosterId), row.wins ?? 0)
   }
 
   const byPair = new Map<
@@ -109,9 +116,12 @@ export async function aggregateHeadToHeadForLeague(
         const winnerIsA = m.winnerTeamId === m.teamAId
         if (winnerIsA) winsA++
         else winsB++
-        const higherScore = m.scoreA >= m.scoreB ? m.scoreA : m.scoreB
-        const lowerScore = m.scoreA >= m.scoreB ? m.scoreB : m.scoreA
-        if (higherScore - lowerScore <= UPSET_MARGIN_POINTS && margin > 0) upsetCount++
+        const winnerRoster = winnerIsA ? m.teamAId : m.teamBId
+        const loserRoster = winnerIsA ? m.teamBId : m.teamAId
+        const winnerSeasonWins = seasonWinsByRosterId.get(winnerRoster) ?? 0
+        const loserSeasonWins = seasonWinsByRosterId.get(loserRoster) ?? 0
+        // Upset: lower season-win roster beats higher season-win roster.
+        if (winnerSeasonWins < loserSeasonWins) upsetCount++
       }
     }
     summaries.push({

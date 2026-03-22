@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { runMatchupSimulation } from '@/lib/simulation-engine/MatchupSimulator'
 import { getDefaultScoreStdDev } from '@/lib/simulation-engine/SportSimulationResolver'
+import { percentiles } from '@/lib/simulation-engine/ScoreDistributionModel'
 
 export async function POST(req: NextRequest) {
   let body: {
@@ -46,21 +47,31 @@ export async function POST(req: NextRequest) {
       },
       { persist }
     )
+    const sortedA = [...(out.scoreDistributionA ?? [])].sort((a, b) => a - b)
+    const sortedB = [...(out.scoreDistributionB ?? [])].sort((a, b) => a - b)
+    const [a10, a90] = sortedA.length
+      ? percentiles(sortedA, [10, 90])
+      : [
+          Math.max(0, out.expectedScoreA - getDefaultScoreStdDev(sport)),
+          out.expectedScoreA + getDefaultScoreStdDev(sport),
+        ]
+    const [b10, b90] = sortedB.length
+      ? percentiles(sortedB, [10, 90])
+      : [
+          Math.max(0, out.expectedScoreB - getDefaultScoreStdDev(sport)),
+          out.expectedScoreB + getDefaultScoreStdDev(sport),
+        ]
     return NextResponse.json({
+      simulationId: out.simulationId ?? null,
+      createdAt: out.createdAt ?? null,
       winProbabilityA: out.winProbabilityA,
       winProbabilityB: out.winProbabilityB,
       marginMean: out.marginMean,
       marginStdDev: out.marginStdDev,
       projectedScoreA: out.expectedScoreA,
       projectedScoreB: out.expectedScoreB,
-      scoreRangeA: [
-        Math.max(0, out.expectedScoreA - getDefaultScoreStdDev(sport)),
-        out.expectedScoreA + getDefaultScoreStdDev(sport),
-      ] as [number, number],
-      scoreRangeB: [
-        Math.max(0, out.expectedScoreB - getDefaultScoreStdDev(sport)),
-        out.expectedScoreB + getDefaultScoreStdDev(sport),
-      ] as [number, number],
+      scoreRangeA: [Math.round(a10 * 10) / 10, Math.round(a90 * 10) / 10] as [number, number],
+      scoreRangeB: [Math.round(b10 * 10) / 10, Math.round(b90 * 10) / 10] as [number, number],
       upsetChance: out.upsetChance,
       volatilityTag: out.volatilityTag,
       iterations: out.iterations,

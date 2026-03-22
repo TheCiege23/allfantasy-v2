@@ -5,23 +5,28 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { GlobalMetaEngine } from '@/lib/global-meta-engine'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
+import type { MetaType } from '@/lib/global-meta-engine'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = searchParams.get('sport') ?? undefined
+    const sportParam = searchParams.get('sport')
+    const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
     const season = searchParams.get('season') ?? undefined
-    const week = searchParams.get('week')
-    const weekOrPeriod = week != null ? parseInt(week, 10) : undefined
+    const week = searchParams.get('week') ?? searchParams.get('weekOrPeriod')
+    const parsedWeek = week != null ? Number.parseInt(week, 10) : NaN
+    const weekOrPeriod = Number.isFinite(parsedWeek) ? parsedWeek : undefined
     const report = searchParams.get('report') // weekly
     const summary = searchParams.get('summary') // ai
-    const timeframe = searchParams.get('timeframe') ?? undefined
-    const metaType = searchParams.get('metaType') ?? undefined
+    const timeframe = normalizeTimeframe(searchParams.get('timeframe'))
+    const metaType = (searchParams.get('metaType') ?? undefined) as MetaType | undefined
 
     if (report === 'weekly') {
-      const s = sport ?? 'NFL'
+      const s = sport ?? DEFAULT_SPORT
       const se = season ?? String(new Date().getFullYear())
-      const data = await GlobalMetaEngine.getWeeklyReport(s, se, weekOrPeriod)
+      const data = await GlobalMetaEngine.getWeeklyReport(s, se, weekOrPeriod, timeframe ?? '7d')
       return NextResponse.json(
         { data },
         { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900' } }
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (summary === 'ai') {
-      const data = await GlobalMetaEngine.getAIMetaSummary(sport, metaType as any, timeframe)
+      const data = await GlobalMetaEngine.getAIMetaSummary(sport, metaType, timeframe)
       return NextResponse.json(
         { data },
         { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600' } }
@@ -40,7 +45,8 @@ export async function GET(request: NextRequest) {
       sport,
       season,
       weekOrPeriod,
-      metaType: metaType as any,
+      metaType,
+      timeframe,
       limit: 50,
     })
     return NextResponse.json(

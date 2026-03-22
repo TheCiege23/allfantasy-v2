@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { groupLeaguesBySport, type LeagueForGrouping } from "@/lib/dashboard"
 import { useLeagueList } from "@/hooks/useLeagueList"
+import { getLeagueVariantLabel } from "@/lib/league-creation/LeagueVariantResolver"
 
 interface DashboardProps {
   onboardingComplete?: boolean
@@ -129,6 +130,10 @@ function formatDateLabel(input: string | null | undefined): string {
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return "No timestamp"
   return date.toLocaleString()
+}
+
+function formatVariantLabel(league: { leagueVariant?: string | null; league_variant?: string | null }): string {
+  return getLeagueVariantLabel(league.leagueVariant ?? league.league_variant ?? null)
 }
 
 export default function DashboardContent({ user, profile, leagues, entries, userCareerTier }: DashboardProps) {
@@ -556,6 +561,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <div className="flex flex-wrap gap-2 text-xs text-slate-200">
               <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1">{(selectedConnectedLeague?.sport || "NFL").toUpperCase()}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{(selectedConnectedLeague?.platform || "bracket").toUpperCase()}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{formatVariantLabel(selectedConnectedLeague || {})}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{selectedConnectedLeague?.leagueSize || selectedLeague?.memberCount || 0}-team</span>
             </div>
           </div>
@@ -701,13 +707,30 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {group.leagues.map((league) => {
                 const leagueMeta = league as DashboardLeague
+                const variantLabel = formatVariantLabel(leagueMeta)
                 const href = `/app/league/${league.id}`
                 return (
                   <Link key={league.id} href={href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-2">
+                        {leagueMeta.avatarUrl ? (
+                          <img
+                            src={leagueMeta.avatarUrl}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover border border-white/15"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[10px] font-semibold text-cyan-200">
+                            {String(league.sport ?? league.sport_type ?? "NFL")
+                              .toUpperCase()
+                              .slice(0, 3)}
+                          </span>
+                        )}
+                        <div className="min-w-0">
                         <p className="truncate text-lg font-bold text-white">{league.name || "Unnamed League"}</p>
-                        <p className="mt-1 text-sm text-slate-300">{(league.platform || "custom").toUpperCase()} · {league.leagueSize || "?"}-team · {league.isDynasty ? "Dynasty" : "Redraft"}</p>
+                        <p className="mt-1 text-sm text-slate-300">{(league.platform || "custom").toUpperCase()} · {league.leagueSize || "?"}-team · {variantLabel} · {league.isDynasty ? "Dynasty" : "Redraft"}</p>
+                        </div>
                       </div>
                       {selectedLeague?.id === league.id ? <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-200">Current</span> : null}
                     </div>
@@ -1157,8 +1180,24 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               <div className="mt-4 space-y-2">
                 {visibleLeagues.length ? visibleLeagues.map((league) => (
                   <button key={league.id} type="button" onClick={() => setSelectedLeagueId(league.id)} className={`w-full rounded-2xl border px-3 py-3 text-left ${selectedLeague?.id === league.id ? "border-cyan-400/30 bg-cyan-400/10" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"}`}>
-                    <p className="truncate text-sm font-bold text-white">{league.name}</p>
-                    <p className="mt-1 text-xs text-slate-300">{league.memberCount} members · Tier {league.leagueTier}</p>
+                    <div className="flex items-center gap-2">
+                      {'avatarUrl' in league && (league as { avatarUrl?: string | null }).avatarUrl ? (
+                        <img
+                          src={(league as { avatarUrl?: string | null }).avatarUrl ?? ''}
+                          alt=""
+                          className="h-7 w-7 rounded-full object-cover border border-white/15"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[10px] font-semibold text-cyan-200">
+                          {String((league as any).sport ?? "NFL").toUpperCase().slice(0, 3)}
+                        </span>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-white">{league.name}</p>
+                        <p className="mt-1 text-xs text-slate-300">{league.memberCount} members · Tier {league.leagueTier}</p>
+                      </div>
+                    </div>
                   </button>
                 )) : <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-slate-300">No dashboard-visible leagues yet.</div>}
               </div>
@@ -1216,6 +1255,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                 <div className="mt-4 space-y-2 text-sm text-slate-300">
                   <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Platform</span><span className="font-semibold text-white">{(selectedConnectedLeague?.platform || "bracket").toUpperCase()}</span></div>
                   <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Sport</span><span className="font-semibold text-white">{(selectedConnectedLeague?.sport || "NFL").toUpperCase()}</span></div>
+                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Variant</span><span className="font-semibold text-white">{formatVariantLabel(selectedConnectedLeague || {})}</span></div>
                   <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Status</span><span className="font-semibold text-white">{selectedConnectedLeague?.syncStatus || selectedConnectedLeague?.status || "Ready"}</span></div>
                 </div>
                 {inviteLink ? <button type="button" onClick={handleCopyInvite} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"><Copy className="h-4 w-4" />{copyStatus === "copied" ? "Invite copied" : copyStatus === "failed" ? "Copy invite again" : "Copy invite link"}</button> : null}

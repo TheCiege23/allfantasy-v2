@@ -10,8 +10,12 @@ import Link from 'next/link'
 
 export type DevyDraftTab = 'startup' | 'rookie' | 'devy'
 
+type NflClassDepth = { qb: number; rb: number; wr: number; te: number }
+type NbaClassDepth = { g: number; f: number; c: number }
+
 interface DevyDraftCenterProps {
   leagueId: string
+  sport?: 'NFL' | 'NBA'
   startupRounds?: number
   rookieRounds: number
   devyRounds: number
@@ -21,11 +25,12 @@ interface DevyDraftCenterProps {
   devySlotsUsed: number
   devySlotCount: number
   bestBallEnabled: boolean
-  classDepthByYear?: Record<number, { qb: number; rb: number; wr: number; te: number }>
+  classDepthByYear?: Record<number, NflClassDepth | NbaClassDepth>
 }
 
 export function DevyDraftCenter({
   leagueId,
+  sport = 'NFL',
   startupRounds,
   rookieRounds,
   devyRounds,
@@ -71,8 +76,12 @@ export function DevyDraftCenter({
         <div className="rounded-lg bg-white/5 p-3">
           <p className="text-sm text-white/80">
             {tab === 'startup' && 'Startup vet draft: veterans only. No NCAA or rookies.'}
-            {tab === 'rookie' && 'Rookie draft: first-year pros. Devy-held promoted players are excluded.'}
-            {tab === 'devy' && 'Devy draft: NCAA-eligible prospects only.'}
+            {tab === 'rookie' && (sport === 'NBA'
+              ? 'Rookie draft: first-year NBA pros. Devy-held promoted players are excluded.'
+              : 'Rookie draft: first-year NFL pros. Devy-held promoted players are excluded.')}
+            {tab === 'devy' && (sport === 'NBA'
+              ? 'Devy draft: NCAA Basketball prospects only (G/F/C). Graduated and rostered excluded.'
+              : 'Devy draft: NCAA Football prospects only (QB/RB/WR/TE). Graduated and rostered excluded.')}
           </p>
           <p className="mt-1 text-xs text-white/50">
             {tabs.find((t) => t.id === tab)?.rounds} rounds · {tabs.find((t) => t.id === tab)?.type}
@@ -104,11 +113,12 @@ export function DevyDraftCenter({
               {years.map((y) => {
                 const d = classDepthByYear[y]
                 if (!d) return null
-                return (
-                  <li key={y}>
-                    {y}: QB {d.qb} · RB {d.rb} · WR {d.wr} · TE {d.te}
-                  </li>
-                )
+                if (sport === 'NBA') {
+                  const nb = d as NbaClassDepth
+                  return <li key={y}>{y}: G {nb.g ?? 0} · F {nb.f ?? 0} · C {nb.c ?? 0}</li>
+                }
+                const nf = d as NflClassDepth
+                return <li key={y}>{y}: QB {nf.qb} · RB {nf.rb} · WR {nf.wr} · TE {nf.te}</li>
               })}
             </ul>
           </div>

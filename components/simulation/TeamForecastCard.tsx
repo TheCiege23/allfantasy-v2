@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 export type TeamSeasonForecastDisplay = {
   teamId: string
   teamName?: string
@@ -18,6 +20,9 @@ type TeamForecastCardProps = {
   forecast: TeamSeasonForecastDisplay
   rank?: number
   playoffSpots?: number
+  leagueId?: string
+  season?: number
+  week?: number
   className?: string
 }
 
@@ -25,10 +30,28 @@ export function TeamForecastCard({
   forecast,
   rank,
   playoffSpots = 6,
+  leagueId,
+  season,
+  week,
   className = '',
 }: TeamForecastCardProps) {
   const inPlayoffZone = rank != null && playoffSpots > 0 && rank <= playoffSpots
   const name = forecast.teamName ?? `Team ${forecast.teamId}`
+  const explainPrompt = `Explain this playoff outlook: ${name} has ${forecast.playoffProbability.toFixed(1)}% playoff odds, ${forecast.championshipProbability.toFixed(1)}% championship odds, expected wins ${forecast.expectedWins.toFixed(1)}, and expected seed ${forecast.expectedFinalSeed.toFixed(1)}.`
+  const chatHref = (() => {
+    try {
+      const url = new URL('/af-legacy?tab=chat', 'https://allfantasy.com')
+      url.searchParams.set('prompt', explainPrompt)
+      url.searchParams.set('insightType', 'playoff')
+      url.searchParams.set('teamId', forecast.teamId)
+      if (leagueId) url.searchParams.set('leagueId', leagueId)
+      if (season != null) url.searchParams.set('season', String(season))
+      if (week != null) url.searchParams.set('week', String(week))
+      return `${url.pathname}${url.search}`
+    } catch {
+      return '/af-legacy?tab=chat'
+    }
+  })()
 
   return (
     <div
@@ -118,6 +141,15 @@ export function TeamForecastCard({
             {forecast.championshipProbability.toFixed(1)}%
           </span>
         </div>
+      </div>
+      <div className="pt-1">
+        <Link
+          href={chatHref}
+          className="text-[10px] text-cyan-300 hover:text-cyan-200 underline-offset-2 hover:underline"
+          aria-label={`Explain playoff odds for ${name}`}
+        >
+          Explain playoff odds
+        </Link>
       </div>
     </div>
   )

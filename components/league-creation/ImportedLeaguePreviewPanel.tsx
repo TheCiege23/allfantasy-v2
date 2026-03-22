@@ -48,9 +48,10 @@ export function ImportedLeaguePreviewPanel({
         ? 'text-amber-400'
         : 'text-amber-500';
   const sourceLabel = provider ? getImportProviderLabel(provider) : preview.source?.source_provider ?? 'Import';
+  const managersWithTeamLogos = managers.filter((m) => Boolean(m.teamLogo)).length;
 
   return (
-    <Card className="border-purple-500/30 bg-black/40 backdrop-blur-md">
+    <Card className="border-purple-500/30 bg-black/40 backdrop-blur-md" data-testid="import-preview-panel">
       <CardHeader>
         <div className="flex items-center gap-2">
           {league.avatar && (
@@ -161,22 +162,47 @@ export function ImportedLeaguePreviewPanel({
             <Users className="h-3.5 w-3.5" />
             Managers & teams ({managers.length})
           </p>
+          <p className="mb-2 text-[11px] text-white/50" data-testid="import-preview-team-logo-count">
+            Team logos available: {managersWithTeamLogos}/{managers.length}
+          </p>
           <div className="max-h-44 overflow-y-auto rounded border border-purple-600/30 bg-gray-900/50 p-2 space-y-1.5">
             {managers.slice(0, 24).map((m) => (
               <div
                 key={m.rosterId}
                 className="flex items-center gap-2 text-xs text-white/90"
+                data-testid={`import-preview-manager-row-${m.rosterId}`}
               >
-                {m.avatar ? (
+                {m.teamLogo ? (
                   <img
-                    src={m.avatar}
+                    src={m.teamLogo}
                     alt=""
                     className="h-6 w-6 rounded-full object-cover shrink-0"
+                    title={m.teamAbbreviation ?? m.teamName}
+                    data-testid={`import-preview-team-logo-${m.rosterId}`}
                   />
                 ) : (
                   <div className="h-6 w-6 rounded-full bg-white/10 shrink-0" />
                 )}
-                <span className="truncate">{m.displayName}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {m.teamName}
+                    {m.teamAbbreviation ? (
+                      <span className="ml-1 text-white/55">({m.teamAbbreviation})</span>
+                    ) : null}
+                  </span>
+                  <span className="block truncate text-[11px] text-white/55">
+                    Manager: {m.displayName}
+                  </span>
+                </div>
+                {m.managerAvatar && m.managerAvatar !== m.teamLogo ? (
+                  <img
+                    src={m.managerAvatar}
+                    alt=""
+                    className="h-5 w-5 rounded-full object-cover shrink-0 border border-white/20"
+                    title={m.displayName}
+                    data-testid={`import-preview-manager-avatar-${m.rosterId}`}
+                  />
+                ) : null}
                 <span className="text-white/50 shrink-0">
                   {m.wins}-{m.losses}
                   {m.ties ? `-${m.ties}` : ''} · {m.pointsFor} pts
@@ -205,6 +231,7 @@ export function ImportedLeaguePreviewPanel({
             disabled={createLoading}
             className="flex-1 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700"
             size="lg"
+            data-testid="import-preview-create-button"
           >
             {createLoading ? (
               <>
@@ -222,6 +249,7 @@ export function ImportedLeaguePreviewPanel({
               onClick={onBack}
               disabled={createLoading}
               className="border-purple-600/40 text-purple-300 shrink-0"
+              data-testid="import-preview-back-button"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Try different league ID

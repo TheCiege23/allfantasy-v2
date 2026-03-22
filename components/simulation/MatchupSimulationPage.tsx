@@ -37,6 +37,7 @@ export type MatchupResult = {
 export interface MatchupSimulationPageProps {
   teamAName?: string;
   teamBName?: string;
+  leagueId?: string;
   /** Initial lineup (projections). When these change, simulation re-runs. */
   initialTeamA?: { mean: number; stdDev?: number };
   initialTeamB?: { mean: number; stdDev?: number };
@@ -45,12 +46,14 @@ export interface MatchupSimulationPageProps {
 export function MatchupSimulationPage({
   teamAName: initialTeamAName = 'Team A',
   teamBName: initialTeamBName = 'Team B',
+  leagueId,
   initialTeamA,
   initialTeamB,
 }: MatchupSimulationPageProps) {
   const [sport, setSport] = useState(SUPPORTED_SPORTS[0]);
   const [teamAName, setTeamAName] = useState(initialTeamAName);
   const [teamBName, setTeamBName] = useState(initialTeamBName);
+  const [weekOrPeriod, setWeekOrPeriod] = useState(1);
   const [teamA, setTeamA] = useState({ mean: initialTeamA?.mean ?? 100, stdDev: initialTeamA?.stdDev ?? 15 });
   const [teamB, setTeamB] = useState({ mean: initialTeamB?.mean ?? 95, stdDev: initialTeamB?.stdDev ?? 15 });
   const [result, setResult] = useState<MatchupResult | null>(null);
@@ -67,6 +70,7 @@ export function MatchupSimulationPage({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sport,
+        weekOrPeriod,
         teamA: { mean: teamA.mean, stdDev: teamA.stdDev },
         teamB: { mean: teamB.mean, stdDev: teamB.stdDev },
         iterations: 1500,
@@ -95,7 +99,7 @@ export function MatchupSimulationPage({
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed'))
       .finally(() => setLoading(false));
-  }, [sport, teamA.mean, teamA.stdDev, teamB.mean, teamB.stdDev]);
+  }, [sport, teamA.mean, teamA.stdDev, teamB.mean, teamB.stdDev, weekOrPeriod]);
 
   // Lineup change updates simulation when user clicks Simulate or Rerun (same handler).
 
@@ -111,9 +115,20 @@ export function MatchupSimulationPage({
           upsetChance: result.upsetChance,
           volatilityTag: result.volatilityTag,
           sport,
-        })
+        }),
+        {
+          leagueId,
+          insightType: 'matchup',
+          sport,
+          week: weekOrPeriod,
+        }
       )
-    : getMatchupAIChatUrl();
+    : getMatchupAIChatUrl(undefined, {
+        leagueId,
+        insightType: 'matchup',
+        sport,
+        week: weekOrPeriod,
+      });
 
   const shareMatchupResult = useCallback(async () => {
     if (!result) return;
@@ -169,6 +184,16 @@ export function MatchupSimulationPage({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <label className="text-sm text-white/70">Week / period</label>
+            <input
+              type="number"
+              min={1}
+              value={weekOrPeriod}
+              onChange={(e) => setWeekOrPeriod(Math.max(1, Number(e.target.value) || 1))}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -226,7 +251,7 @@ export function MatchupSimulationPage({
               data-audit="simulate-button-works"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Simulate
+              Sim My Matchup
             </Button>
             <Button
               variant="outline"

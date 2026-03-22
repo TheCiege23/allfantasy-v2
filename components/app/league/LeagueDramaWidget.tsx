@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { Zap, RefreshCw, BookOpen, ExternalLink } from 'lucide-react'
+import { Zap, BookOpen, ExternalLink } from 'lucide-react'
+import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 interface DramaEventItem {
   id: string
@@ -13,7 +14,7 @@ interface DramaEventItem {
   createdAt: string
 }
 
-const DRAMA_SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAB', 'NCAAF', 'SOCCER'] as const
+const DRAMA_SPORTS = [...SUPPORTED_SPORTS]
 
 export function LeagueDramaWidget({
   leagueId,
@@ -25,8 +26,9 @@ export function LeagueDramaWidget({
   season?: number | null
 }) {
   const currentYear = new Date().getFullYear()
-  const [sport, setSport] = useState(sportProp ?? 'NFL')
+  const [sport, setSport] = useState<string>(normalizeToSupportedSport(sportProp ?? DEFAULT_SPORT))
   const [season, setSeason] = useState<number | null>(seasonProp ?? currentYear)
+  const [dramaTypeFilter, setDramaTypeFilter] = useState<string>('ALL')
   const [events, setEvents] = useState<DramaEventItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +43,7 @@ export function LeagueDramaWidget({
     const params = new URLSearchParams()
     if (sport) params.set('sport', sport)
     if (season != null) params.set('season', String(season))
+    if (dramaTypeFilter !== 'ALL') params.set('dramaType', dramaTypeFilter)
     fetch(`/api/leagues/${encodeURIComponent(leagueId)}/drama?${params}&limit=10`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => setEvents(Array.isArray(data.events) ? data.events : []))
@@ -49,10 +52,10 @@ export function LeagueDramaWidget({
         setEvents([])
       })
       .finally(() => setLoading(false))
-  }, [leagueId, sport, season])
+  }, [leagueId, sport, season, dramaTypeFilter])
 
   useEffect(() => {
-    setSport(sportProp ?? 'NFL')
+    setSport(normalizeToSupportedSport(sportProp ?? DEFAULT_SPORT))
     setSeason(seasonProp ?? currentYear)
   }, [sportProp, seasonProp, currentYear])
 
@@ -65,7 +68,11 @@ export function LeagueDramaWidget({
     fetch(`/api/leagues/${encodeURIComponent(leagueId)}/drama/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sport: sport ?? 'NFL', season: season ?? new Date().getFullYear(), replace: true }),
+      body: JSON.stringify({
+        sport: normalizeToSupportedSport(sport ?? DEFAULT_SPORT),
+        season: season ?? new Date().getFullYear(),
+        replace: true,
+      }),
     })
       .then((r) => r.json())
       .then(() => load())
@@ -119,6 +126,7 @@ export function LeagueDramaWidget({
             value={sport}
             onChange={(e) => setSport(e.target.value)}
             className="rounded border border-white/20 bg-black/40 px-1.5 py-0.5 text-[10px] text-white"
+            aria-label="Drama widget sport filter"
           >
             {DRAMA_SPORTS.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -128,11 +136,24 @@ export function LeagueDramaWidget({
             value={season ?? ''}
             onChange={(e) => setSeason(e.target.value ? parseInt(e.target.value, 10) : null)}
             className="rounded border border-white/20 bg-black/40 px-1.5 py-0.5 text-[10px] text-white"
+            aria-label="Drama widget season filter"
           >
             <option value="">All</option>
             {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
+          </select>
+          <select
+            value={dramaTypeFilter}
+            onChange={(e) => setDramaTypeFilter(e.target.value)}
+            className="rounded border border-white/20 bg-black/40 px-1.5 py-0.5 text-[10px] text-white"
+            aria-label="Drama widget type filter"
+          >
+            <option value="ALL">All types</option>
+            <option value="RIVALRY_CLASH">RIVALRY_CLASH</option>
+            <option value="MAJOR_UPSET">MAJOR_UPSET</option>
+            <option value="TRADE_FALLOUT">TRADE_FALLOUT</option>
+            <option value="PLAYOFF_BUBBLE">PLAYOFF_BUBBLE</option>
           </select>
           <button
             type="button"
@@ -150,6 +171,12 @@ export function LeagueDramaWidget({
           >
             Reload
           </button>
+          <Link
+            href={`/app/league/${encodeURIComponent(leagueId)}/drama`}
+            className="rounded border border-white/20 px-2 py-1 text-[10px] text-white/70 hover:bg-white/10"
+          >
+            Timeline
+          </Link>
         </div>
       </div>
       {error && <p className="text-xs text-red-300">{error}</p>}
@@ -186,6 +213,14 @@ export function LeagueDramaWidget({
                   <ExternalLink className="h-3 w-3" />
                   View
                 </Link>
+                {e.dramaType === 'TRADE_FALLOUT' && (
+                  <Link
+                    href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                    className="rounded border border-purple-500/25 px-1.5 py-0.5 text-[9px] text-purple-200 hover:bg-purple-500/10"
+                  >
+                    Trade context
+                  </Link>
+                )}
               </div>
             </div>
             {storyEventId === e.id && storyLoading === e.id && (

@@ -58,6 +58,7 @@ function SeasonSimPanel() {
   const [playoffSpots, setPlayoffSpots] = useState('4')
   const [iterations, setIterations] = useState('2000')
   const [result, setResult] = useState<{
+    sport: string
     expectedWins: number
     playoffProbability: number
     byeWeekProbability: number
@@ -83,8 +84,9 @@ function SeasonSimPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sport,
           team: { mean: parseFloat(teamMean) || 100, stdDev: parseFloat(teamStd) || 12 },
-          opponents: opponents.map((mean) => ({ mean, stdDev: 12 })),
+          opponents: opponents.map((mean) => ({ mean })),
           playoffSpots: parseInt(playoffSpots, 10) || 4,
           byeSpots: 0,
           iterations: parseInt(iterations, 10) || 2000,
@@ -112,6 +114,7 @@ function SeasonSimPanel() {
           <select
             value={sport}
             onChange={(e) => setSport(e.target.value)}
+            aria-label="Season simulation sport"
             className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
           >
             {getSportOptionsForSimulation().map((opt) => (
@@ -163,6 +166,7 @@ function SeasonSimPanel() {
             type="number"
             value={iterations}
             onChange={(e) => setIterations(e.target.value)}
+            aria-label="Season simulation iterations"
             className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
           />
         </div>
@@ -171,6 +175,7 @@ function SeasonSimPanel() {
         type="button"
         onClick={run}
         disabled={loading}
+        aria-label="Run season simulation"
         className="mt-4 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -179,6 +184,7 @@ function SeasonSimPanel() {
       {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       {result && (
         <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+          <p className="text-white/70">Sport: <strong>{result.sport}</strong></p>
           <p className="text-white">Expected wins: <strong>{result.expectedWins}</strong></p>
           <p className="text-white">Playoff probability: <strong>{(result.playoffProbability * 100).toFixed(1)}%</strong></p>
           <p className="text-white">Bye probability: <strong>{(result.byeWeekProbability * 100).toFixed(1)}%</strong></p>
@@ -190,10 +196,12 @@ function SeasonSimPanel() {
 }
 
 function PlayoffsSimPanel() {
+  const [sport, setSport] = useState('NFL')
   const [teamsText, setTeamsText] = useState('105, 102, 98, 95, 92, 90')
   const [targetIndex, setTargetIndex] = useState('0')
   const [iterations, setIterations] = useState('3000')
   const [result, setResult] = useState<{
+    sport: string
     championshipProbability: number
     finalistProbability: number
     iterations: number
@@ -218,6 +226,7 @@ function PlayoffsSimPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sport,
           teams: means.map((mean, i) => ({ mean, name: `Team ${i + 1}` })),
           targetTeamIndex: parseInt(targetIndex, 10) || 0,
           iterations: parseInt(iterations, 10) || 3000,
@@ -231,7 +240,7 @@ function PlayoffsSimPanel() {
     } finally {
       setLoading(false)
     }
-  }, [teamsText, targetIndex, iterations])
+  }, [sport, teamsText, targetIndex, iterations])
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -240,6 +249,19 @@ function PlayoffsSimPanel() {
         Bracket of teams (mean PPG). Target team index = which team (0-based) to get odds for.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-white/70">Sport</label>
+          <select
+            value={sport}
+            onChange={(e) => setSport(e.target.value)}
+            aria-label="Playoff simulation sport"
+            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+          >
+            {getSportOptionsForSimulation().map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-xs text-white/70">Team means, seed order (comma-separated)</label>
           <input
@@ -274,6 +296,7 @@ function PlayoffsSimPanel() {
         type="button"
         onClick={run}
         disabled={loading}
+        aria-label="Run playoff simulation"
         className="mt-4 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -282,6 +305,7 @@ function PlayoffsSimPanel() {
       {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       {result && (
         <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+          <p className="text-white/70">Sport: <strong>{result.sport}</strong></p>
           <p className="text-white">Championship probability: <strong>{(result.championshipProbability * 100).toFixed(1)}%</strong></p>
           <p className="text-white">Finalist probability: <strong>{(result.finalistProbability * 100).toFixed(1)}%</strong></p>
           <p className="text-xs text-white/50">({result.iterations} iterations)</p>
@@ -292,10 +316,12 @@ function PlayoffsSimPanel() {
 }
 
 function DynastySimPanel() {
+  const [sport, setSport] = useState('NFL')
   const [teamsText, setTeamsText] = useState('100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78')
   const [seasons, setSeasons] = useState('50')
   const [playoffSpots, setPlayoffSpots] = useState('6')
   const [result, setResult] = useState<{
+    sport: string
     seasonsRun: number
     outcomes: Array<{
       teamIndex: number
@@ -326,6 +352,7 @@ function DynastySimPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sport,
           teams: means.map((mean, i) => ({ mean, name: `Team ${i + 1}` })),
           seasons: parseInt(seasons, 10) || 50,
           playoffSpots: parseInt(playoffSpots, 10) || 6,
@@ -339,7 +366,7 @@ function DynastySimPanel() {
     } finally {
       setLoading(false)
     }
-  }, [teamsText, seasons, playoffSpots])
+  }, [sport, teamsText, seasons, playoffSpots])
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -348,6 +375,19 @@ function DynastySimPanel() {
         Run many seasons: round-robin + playoff bracket each season. See championships, wins, and average finish per team.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-white/70">Sport</label>
+          <select
+            value={sport}
+            onChange={(e) => setSport(e.target.value)}
+            aria-label="Dynasty simulation sport"
+            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+          >
+            {getSportOptionsForSimulation().map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="sm:col-span-2">
           <label className="mb-1 block text-xs text-white/70">Team means (comma-separated)</label>
           <input
@@ -384,6 +424,7 @@ function DynastySimPanel() {
         type="button"
         onClick={run}
         disabled={loading}
+        aria-label="Run dynasty simulation"
         className="mt-4 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -392,6 +433,7 @@ function DynastySimPanel() {
       {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
       {result && (
         <div className="mt-4 overflow-x-auto rounded-xl border border-white/10 bg-black/20">
+          <p className="p-2 text-xs text-white/60">Sport: {result.sport}</p>
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-white/10">

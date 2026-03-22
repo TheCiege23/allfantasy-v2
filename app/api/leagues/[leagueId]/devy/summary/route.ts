@@ -8,6 +8,8 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { isDevyLeague, getDevyConfig } from '@/lib/devy/DevyLeagueConfig'
 import { getCurrentDraftPhase } from '@/lib/devy/draft/DevyDraftOrchestration'
+import { prisma } from '@/lib/prisma'
+import { DEVY_LIFECYCLE_STATE } from '@/lib/devy/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,9 +30,12 @@ export async function GET(
   const isDevy = await isDevyLeague(leagueId)
   if (!isDevy) return NextResponse.json({ error: 'Not a devy dynasty league' }, { status: 404 })
 
-  const [config, draftPhase] = await Promise.all([
+  const [config, draftPhase, promotionEligibleCount] = await Promise.all([
     getDevyConfig(leagueId),
     getCurrentDraftPhase(leagueId),
+    prisma.devyRights.count({
+      where: { leagueId, state: DEVY_LIFECYCLE_STATE.PROMOTION_ELIGIBLE },
+    }),
   ])
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 404 })
@@ -53,5 +58,6 @@ export async function GET(
     draftPhase: draftPhase.phase,
     draftPhaseInfo: draftPhase.phaseInfo,
     sessionId: draftPhase.sessionId,
+    promotionEligibleCount,
   })
 }

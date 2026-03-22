@@ -6,9 +6,23 @@ import { toast } from 'sonner'
 export default function ChimmyChatTab({
   promptParam,
   leagueName,
+  leagueId,
+  sleeperUsername,
+  insightType,
+  teamId,
+  sport,
+  season,
+  week,
 }: {
   promptParam: string | null
   leagueName: string | null
+  leagueId?: string | null
+  sleeperUsername?: string | null
+  insightType?: 'matchup' | 'playoff' | 'dynasty' | 'trade' | 'waiver' | 'draft'
+  teamId?: string | null
+  sport?: string | null
+  season?: number | null
+  week?: number | null
 }) {
   const initialPrompt = (() => {
     if (!promptParam) return ''
@@ -24,6 +38,13 @@ export default function ChimmyChatTab({
       initialPrompt={initialPrompt}
       clearUrlPromptAfterUse={true}
       leagueName={leagueName}
+      leagueId={leagueId ?? null}
+      sleeperUsername={sleeperUsername ?? null}
+      insightType={insightType}
+      teamId={teamId ?? null}
+      sport={sport ?? null}
+      season={season ?? null}
+      week={week ?? null}
       onSaveConversation={() => toast.info('Save conversation coming soon')}
       onOpenCompare={() => toast.info('Provider comparison available from AI Hub.')}
     />

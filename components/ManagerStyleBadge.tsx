@@ -1,8 +1,11 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
 interface ProfileData {
+  id: string
+  managerId: string
   profileLabels: string[]
 }
 
@@ -47,13 +50,25 @@ export function ManagerStyleBadge({
   if (!profile?.profileLabels?.length) return null
 
   const labelText = profile.profileLabels.slice(0, 3).join(', ')
+  if (!profile.id) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded border border-purple-500/25 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-200 ${className}`}
+        title={`Manager style: ${labelText}`}
+      >
+        <span className="opacity-75">Style:</span>
+        {labelText}
+      </span>
+    )
+  }
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded border border-purple-500/25 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-200 ${className}`}
-      title={`Manager style: ${labelText}`}
+    <Link
+      href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/${encodeURIComponent(profile.id)}`}
+      className={`inline-flex items-center gap-1 rounded border border-purple-500/25 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-200 hover:bg-purple-500/20 ${className}`}
+      title={`Manager style: ${labelText}. Open full profile.`}
     >
       <span className="opacity-75">Style:</span>
       {labelText}
-    </span>
+    </Link>
   )
 }

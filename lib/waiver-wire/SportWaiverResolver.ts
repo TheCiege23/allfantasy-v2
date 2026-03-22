@@ -16,7 +16,7 @@ const POSITIONS_BY_SPORT: Record<string, string[]> = {
 }
 
 /** NFL IDP: offense + IDP position filters for waiver wire. */
-const NFL_IDP_WAIVER_POSITIONS = ["QB", "RB", "WR", "TE", "FLEX", "K", "Offense", "DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP FLEX"]
+const NFL_IDP_WAIVER_POSITIONS = ["QB", "RB", "WR", "TE", "FLEX", "K", "DST", "Offense", "DL", "LB", "DB", "DE", "DT", "CB", "S", "IDP FLEX"]
 
 const DEFAULT_POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST"]
 
@@ -38,10 +38,10 @@ export function waiverPositionMatches(playerPosition: string | null, positionFil
   const pos = (playerPosition ?? "").toUpperCase()
   const filter = positionFilter.toUpperCase()
   if ((filter === "GK" && pos === "GKP") || (filter === "GKP" && pos === "GK")) return true
-  if (positionFilter === "Offense") return ["QB", "RB", "WR", "TE", "K"].includes(pos)
-  if (positionFilter === "DL") return ["DE", "DT"].includes(pos)
-  if (positionFilter === "DB") return ["CB", "S", "SS", "FS"].includes(pos)
-  if (positionFilter === "IDP FLEX") return ["DE", "DT", "LB", "CB", "S", "SS", "FS"].includes(pos)
+  if (filter === "OFFENSE") return ["QB", "RB", "WR", "TE", "K", "DST"].includes(pos)
+  if (filter === "DL") return ["DE", "DT"].includes(pos)
+  if (filter === "DB") return ["CB", "S", "SS", "FS"].includes(pos)
+  if (filter === "IDP FLEX" || filter === "IDP_FLEX") return ["DE", "DT", "LB", "CB", "S", "SS", "FS"].includes(pos)
   return pos === filter
 }
 

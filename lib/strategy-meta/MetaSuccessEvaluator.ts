@@ -8,6 +8,7 @@ export interface TeamStrategyOutcome {
   leagueId: string
   rosterId: string
   season: number
+  sport?: string
   strategyTypes: StrategyType[]
   leagueFormat: LeagueFormat
   wins: number

@@ -15,6 +15,9 @@ export interface LabelThresholds {
   winNowMinContention: number
   rebuildMinScore: number
   chaosMinActivity: number
+  quietStrategistMaxActivity: number
+  valueFirstMinTradeTiming: number
+  riskAverseMaxRisk: number
 }
 
 const DEFAULT_THRESHOLDS: LabelThresholds = {
@@ -26,6 +29,9 @@ const DEFAULT_THRESHOLDS: LabelThresholds = {
   winNowMinContention: 50,
   rebuildMinScore: 50,
   chaosMinActivity: 60,
+  quietStrategistMaxActivity: 38,
+  valueFirstMinTradeTiming: 35,
+  riskAverseMaxRisk: 35,
 }
 
 /**
@@ -37,18 +43,38 @@ export function resolveProfileLabels(
 ): ProfileLabel[] {
   const t = { ...DEFAULT_THRESHOLDS, ...thresholds }
   const labels: ProfileLabel[] = []
+  const activity = (signals.tradeFrequencyNorm + signals.waiverFocusNorm + signals.lineupChangeRate) / 3
 
   if (signals.tradeCount >= t.tradeHeavyMinTrades) labels.push('trade-heavy')
   if (signals.waiverClaimCount >= t.waiverFocusedMinClaims) labels.push('waiver-focused')
-  if (signals.aggressionNorm >= t.aggressiveMinScore) labels.push('aggressive')
-  if (signals.tradeCount <= t.conservativeMaxTrade && signals.waiverFocusNorm < 30) labels.push('conservative')
-  if (signals.tradeCount <= 3 && signals.aggressionNorm < 40) labels.push('quiet strategist')
-  const activity = (signals.tradeFrequencyNorm + signals.waiverFocusNorm) / 2
-  if (activity >= t.chaosMinActivity && signals.riskNorm >= 60) labels.push('chaos agent')
-  if (signals.rebuildScore < 30 && signals.contentionScore >= 30) labels.push('value-first')
+  if (signals.aggressionNorm >= t.aggressiveMinScore || signals.tradeTimingLateRate >= 60) labels.push('aggressive')
+  if (
+    signals.tradeCount <= t.conservativeMaxTrade &&
+    signals.waiverFocusNorm < 30 &&
+    signals.riskNorm <= t.riskAverseMaxRisk
+  ) {
+    labels.push('conservative')
+  }
+  if (
+    signals.tradeCount <= 3 &&
+    signals.aggressionNorm < 40 &&
+    activity <= t.quietStrategistMaxActivity
+  ) {
+    labels.push('quiet strategist')
+  }
+  if (activity >= t.chaosMinActivity && signals.riskNorm >= 60 && signals.lineupChangeRate >= 45) {
+    labels.push('chaos agent')
+  }
+  if (
+    signals.rebuildScore < 30 &&
+    signals.contentionScore >= 30 &&
+    signals.tradeTimingLateRate >= t.valueFirstMinTradeTiming
+  ) {
+    labels.push('value-first')
+  }
   if (signals.rookieAcquisitionRate >= t.rookieHeavyMinRate) labels.push('rookie-heavy')
-  if (signals.contentionScore >= t.winNowMinContention) labels.push('win-now')
-  if (signals.rebuildScore >= t.rebuildMinScore) labels.push('patient rebuilder')
+  if (signals.contentionScore >= t.winNowMinContention && signals.tradeTimingLateRate >= 30) labels.push('win-now')
+  if (signals.rebuildScore >= t.rebuildMinScore && signals.rookieAcquisitionRate >= 40) labels.push('patient rebuilder')
 
   return [...new Set(labels)]
 }
@@ -65,7 +91,10 @@ export function resolveScores(signals: BehaviorSignalsOutput): {
 } {
   return {
     aggressionScore: Math.min(100, Math.round(signals.aggressionNorm)),
-    activityScore: Math.min(100, Math.round((signals.tradeFrequencyNorm + signals.waiverFocusNorm) / 2)),
+    activityScore: Math.min(
+      100,
+      Math.round((signals.tradeFrequencyNorm + signals.waiverFocusNorm + signals.lineupChangeRate) / 3)
+    ),
     tradeFrequencyScore: Math.min(100, Math.round(signals.tradeFrequencyNorm)),
     waiverFocusScore: Math.min(100, Math.round(signals.waiverFocusNorm)),
     riskToleranceScore: Math.min(100, Math.round(signals.riskNorm)),

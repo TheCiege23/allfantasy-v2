@@ -6,6 +6,7 @@ export type WizardStepNavProps = {
   onBack?: () => void
   onNext?: () => void
   nextLabel?: string
+  disableForward?: boolean
   /** When true, show only Create button (review step) */
   isReview?: boolean
   onCreate?: () => void
@@ -20,6 +21,7 @@ export const WizardStepNav = memo(function WizardStepNav({
   onBack,
   onNext,
   nextLabel = 'Next',
+  disableForward = false,
   isReview = false,
   onCreate,
   creating = false,
@@ -49,7 +51,7 @@ export const WizardStepNav = memo(function WizardStepNav({
           <button
             type="button"
             onClick={onCreate}
-            disabled={creating}
+            disabled={creating || disableForward}
             className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-500 min-h-[44px] touch-manipulation disabled:opacity-50 flex-1 max-w-[200px]"
             aria-busy={creating}
             aria-label={creating ? 'Creating league' : 'Create league'}
@@ -61,7 +63,8 @@ export const WizardStepNav = memo(function WizardStepNav({
             <button
               type="button"
               onClick={onNext}
-              className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 min-h-[44px] touch-manipulation flex-1 max-w-[140px]"
+              disabled={disableForward}
+              className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 min-h-[44px] touch-manipulation disabled:opacity-50 flex-1 max-w-[140px]"
               aria-label={nextLabel}
             >
               {nextLabel}

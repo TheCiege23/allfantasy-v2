@@ -1,6 +1,6 @@
 /**
  * Player Trend Detection Engine – platform-wide trend signals and scores.
- * Supports NFL, NBA, MLB, NHL, NCAAF, NCAAB.
+ * Supports NFL, NHL, NBA, MLB, NCAAF, NCAAB, SOCCER.
  */
 
 export * from './types'

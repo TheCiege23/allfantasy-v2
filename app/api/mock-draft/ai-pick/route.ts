@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { fetchNewsContext } from '@/lib/upstream-apis'
 import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getStrategyMetaReports } from '@/lib/strategy-meta'
+import { getInsightBundle } from '@/lib/ai-simulation-integration'
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -27,6 +29,14 @@ type ScoutPlayer = {
 type LeagueContextInput = {
   rosterPositions?: string[]
   scoringSettings?: Record<string, number>
+}
+
+type StrategyMetaContextRow = {
+  strategyType: string
+  strategyLabel?: string
+  usageRate: number
+  successRate: number
+  trendingDirection: string
 }
 
 const FLEX_SLOT_NAMES = new Set(['FLEX', 'SUPER_FLEX', 'SUPERFLEX', 'OP', 'UTIL', 'BENCH', 'BN', 'IR', 'TAXI'])
@@ -374,6 +384,7 @@ function buildPickReasoning(args: {
   overall: number
   isRookieDraft: boolean
   scoringProfile: { isSuperflex: boolean; isTEP: boolean }
+  strategyMetaContext?: StrategyMetaContextRow[]
 }): string {
   const c = args.chosen
   const normalizedPosition = normalizePositionForSport(c.player.position, args.sport)
@@ -387,6 +398,10 @@ function buildPickReasoning(args: {
   if (['NFL', 'NCAAF'].includes(normalizeToSupportedSport(args.sport)) && args.scoringProfile.isTEP && normalizedPosition === 'TE') tags.push('TE premium scoring boost')
   if (args.isRookieDraft && c.player.isRookie) tags.push('rookie-board priority')
   if (c.newsSignals.length > 0) tags.push(c.newsSignals[0])
+  if ((args.strategyMetaContext?.length ?? 0) > 0) {
+    const top = args.strategyMetaContext![0]
+    tags.push(`aligned with ${top.strategyLabel ?? top.strategyType} meta`)
+  }
 
   const summary = tags.length > 0 ? tags.slice(0, 3).join(', ') : 'fits the current board and roster context'
   return `${args.managerName} selects ${c.player.name}. This pick ${summary}.`
@@ -415,6 +430,7 @@ export async function POST(req: NextRequest) {
       isRookieDraft = false,
       mode = 'needs',
       leagueContext,
+      leagueId,
       nextManagers = [],
     } = body as {
       action?: 'pick' | 'dm-suggestion' | 'trade-proposal' | 'predict-next'
@@ -431,6 +447,7 @@ export async function POST(req: NextRequest) {
       isRookieDraft?: boolean
       mode?: Mode
       leagueContext?: LeagueContextInput
+      leagueId?: string
       nextManagers?: string[]
     }
 
@@ -449,12 +466,22 @@ export async function POST(req: NextRequest) {
     })
 
     const normalizedSport = normalizeToSupportedSport(sport)
+    const strategyMetaContextPromise = getStrategyMetaReports({
+      sport: normalizedSport,
+      timeframe: '30d',
+    }).catch(() => [] as StrategyMetaContextRow[])
+    const insightBundlePromise =
+      typeof leagueId === 'string' && leagueId.trim().length > 0
+        ? getInsightBundle(leagueId, 'draft', {
+            sport: normalizedSport,
+          }).catch(() => null)
+        : Promise.resolve(null)
 
     const topCandidateNames = safeAvailable.slice(0, 25).map((p) => p.name).filter(Boolean)
 
     const shouldUseNflNewsOverlay = normalizedSport === 'NFL'
 
-    const [newsContext, grokNews] = shouldUseNflNewsOverlay
+    const [newsContext, grokNews, strategyMetaRows, insightBundle] = shouldUseNflNewsOverlay
       ? await Promise.all([
           fetchNewsContext(
             { prisma, newsApiKey: process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY },
@@ -466,8 +493,23 @@ export async function POST(req: NextRequest) {
             },
           ).catch(() => null),
           fetchPlayerNewsFromGrok(topCandidateNames.slice(0, 15), 'nfl').catch(() => []),
+          strategyMetaContextPromise,
+          insightBundlePromise,
         ])
-      : [null, [] as Array<{ playerName: string; sentiment: string; news: string[]; buzz: string }>]
+      : [
+          null,
+          [] as Array<{ playerName: string; sentiment: string; news: string[]; buzz: string }>,
+          await strategyMetaContextPromise,
+          await insightBundlePromise,
+        ]
+
+    const strategyMetaContext = (strategyMetaRows ?? []).slice(0, 4).map((row) => ({
+      strategyType: row.strategyType,
+      strategyLabel: row.strategyLabel,
+      usageRate: row.usageRate,
+      successRate: row.successRate,
+      trendingDirection: row.trendingDirection,
+    }))
 
     const newsSignals = buildNewsSignalMap({
       available: safeAvailable,
@@ -497,6 +539,12 @@ export async function POST(req: NextRequest) {
           confidence: Math.max(0.45, Math.min(0.96, (scored.ranked[0]?.confidence || 72) / 100)),
           usedLiveNewsOverlay: shouldUseNflNewsOverlay,
           usedSimulation: action === 'predict-next',
+          strategyMetaSignals: strategyMetaContext.slice(0, 3).map((row) => ({
+            strategyType: row.strategyType,
+            usageRate: row.usageRate,
+            successRate: row.successRate,
+            trendingDirection: row.trendingDirection,
+          })),
           generatedAt: new Date().toISOString(),
           requestId: `req_${Date.now()}_mock_ai_pick`,
           aiStack: {
@@ -536,7 +584,9 @@ export async function POST(req: NextRequest) {
           overall: scored.overall,
           isRookieDraft,
           scoringProfile,
+          strategyMetaContext,
         }),
+        strategyMetaContext,
       })
     }
 
@@ -562,6 +612,7 @@ export async function POST(req: NextRequest) {
         context: {
           overall: scored.overall,
           scoringProfile,
+          strategyMetaContext,
           topNeeds: Object.entries(scored.needs)
             .sort(([, a], [, b]) => b - a)
             .slice(0, 3),
@@ -602,7 +653,10 @@ export async function POST(req: NextRequest) {
 League profile: ${normalizedSport} ${isDynasty ? 'Dynasty' : 'Redraft'}${isRookieDraft ? ', Rookie Draft' : ''}${scoringProfile.isSuperflex ? ', Superflex' : ''}${scoringProfile.isTEP ? ', TE Premium' : ''}.
 On clock: Round ${round}, Pick ${pick}, Overall ${scored.overall}.
 Top roster needs: ${topNeeds.map(([pos, score]) => `${pos} (${score})`).join(', ')}.
+Strategy meta context: ${strategyMetaContext.slice(0, 3).map((s) => `${s.strategyLabel ?? s.strategyType} (${Math.round(s.usageRate * 100)}% usage, ${Math.round(s.successRate * 100)}% success)`).join('; ') || 'none'}.
 Candidates: ${suggestions.map((s) => `${s.player} (${s.position}, ADP ${Number(s.adp || 999).toFixed(1)})`).join('; ')}.
+${insightBundle?.contextText ? `Simulation/Warehouse context: ${insightBundle.contextText}.` : ''}
+${insightBundle ? `Model roles: DeepSeek ${insightBundle.modelResponsibilities.deepseek}; Grok ${insightBundle.modelResponsibilities.grok}; OpenAI ${insightBundle.modelResponsibilities.openai}.` : ''}
 Return exactly 2 concise sentences with clear action and fallback.`
 
         const resp = await openai.chat.completions.create({
@@ -631,6 +685,13 @@ Return exactly 2 concise sentences with clear action and fallback.`
           player: item.player.name,
           probability: clamp(62 - idx * 13, 25, 85),
         })),
+        strategyMetaContext,
+        insightContext: insightBundle
+          ? {
+              sources: insightBundle.sources,
+              sport: insightBundle.sport,
+            }
+          : undefined,
         round,
         pick,
         overall: scored.overall,

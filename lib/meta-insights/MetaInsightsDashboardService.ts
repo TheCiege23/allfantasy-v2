@@ -4,7 +4,7 @@
  */
 
 import { resolveMetaUIData } from './MetaUIDataResolver'
-import { resolveAIMetaContext } from './AIMetaContextResolver'
+import { resolveAIMetaContextWithWindow } from './AIMetaContextResolver'
 import { resolveSportForMetaUI } from './SportMetaUIResolver'
 
 export interface DashboardLoadOptions {
@@ -29,7 +29,11 @@ export async function loadMetaInsightsDashboard(opts: DashboardLoadOptions) {
  * Load AI explain payload (summary + top trends) for the given sport/timeframe.
  */
 export async function loadAIMetaExplain(sport: string, timeframe?: string) {
-  const payload = await resolveAIMetaContext(resolveSportForMetaUI(sport))
+  const timeframeWindow =
+    timeframe === '24h' || timeframe === '30d' || timeframe === '7d'
+      ? timeframe
+      : '7d'
+  const payload = await resolveAIMetaContextWithWindow(resolveSportForMetaUI(sport), timeframeWindow)
   return {
     summary: payload.summary ?? 'Meta summary unavailable.',
     topTrends: payload.topTrends ?? [],

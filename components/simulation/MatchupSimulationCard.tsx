@@ -31,6 +31,11 @@ export type MatchupSimulationCardProps = {
   scoreB?: number
   /** Sport for API and AI context; defaults to NFL */
   sport?: string
+  leagueId?: string
+  weekOrPeriod?: number
+  teamAId?: string
+  teamBId?: string
+  persist?: boolean
   className?: string
 }
 
@@ -60,6 +65,11 @@ export function MatchupSimulationCard({
   scoreA,
   scoreB,
   sport = 'NFL',
+  leagueId,
+  weekOrPeriod,
+  teamAId,
+  teamBId,
+  persist = false,
   className = '',
 }: MatchupSimulationCardProps) {
   const [result, setResult] = useState<MatchupSimulationResult | null>(resultProp ?? null)
@@ -77,8 +87,11 @@ export function MatchupSimulationCard({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sport,
-        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev },
-        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev },
+        leagueId,
+        weekOrPeriod,
+        persist,
+        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev, teamId: teamAId },
+        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev, teamId: teamBId },
       }),
     })
       .then((res) => {
@@ -88,7 +101,18 @@ export function MatchupSimulationCard({
       .then((data) => { setResult(data); setError(null) })
       .catch((err) => { setError(err?.message ?? 'Simulation failed'); setResult(null) })
       .finally(() => setLoading(false))
-  }, [sport, teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
+  }, [
+    leagueId,
+    persist,
+    sport,
+    teamA?.mean,
+    teamA?.stdDev,
+    teamAId,
+    teamB?.mean,
+    teamB?.stdDev,
+    teamBId,
+    weekOrPeriod,
+  ])
 
   useEffect(() => {
     if (resultProp != null) {
@@ -109,8 +133,12 @@ export function MatchupSimulationCard({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev ?? 15 },
-        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev ?? 15 },
+        sport,
+        leagueId,
+        weekOrPeriod,
+        persist,
+        teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev, teamId: teamAId },
+        teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev, teamId: teamBId },
       }),
     })
       .then((res) => {
@@ -121,7 +149,19 @@ export function MatchupSimulationCard({
       .catch((err) => { if (!cancelled) setError(err?.message ?? 'Simulation failed'); if (!cancelled) setResult(null) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [resultProp, teamA?.mean, teamA?.stdDev, teamB?.mean, teamB?.stdDev])
+  }, [
+    leagueId,
+    persist,
+    resultProp,
+    sport,
+    teamA?.mean,
+    teamA?.stdDev,
+    teamAId,
+    teamB?.mean,
+    teamB?.stdDev,
+    teamBId,
+    weekOrPeriod,
+  ])
 
   const display = useMemo(() => {
     if (!result) return null
@@ -164,7 +204,7 @@ export function MatchupSimulationCard({
           disabled={loading}
           className="rounded border border-white/20 px-2 py-1 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50"
         >
-          Rerun simulation
+          Sim My Matchup
         </button>
       </div>
     )
@@ -191,7 +231,13 @@ export function MatchupSimulationCard({
       upsetChance: display.upsetChance,
       volatilityTag: display.vol,
       sport,
-    })
+    }),
+    {
+      leagueId,
+      insightType: 'matchup',
+      sport,
+      week: weekOrPeriod,
+    }
   )
 
   return (
@@ -217,7 +263,7 @@ export function MatchupSimulationCard({
             className="rounded border border-white/20 px-2 py-0.5 text-[10px] text-white/70 hover:bg-white/10 disabled:opacity-50"
             title="Rerun simulation"
           >
-            {loading ? 'Running…' : 'Rerun'}
+            {loading ? 'Running…' : result ? 'Rerun Simulation' : 'Sim My Matchup'}
           </button>
           <VolatilityTag tag={display.vol} />
         </div>

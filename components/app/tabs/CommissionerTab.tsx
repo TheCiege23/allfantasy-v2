@@ -19,6 +19,18 @@ interface DraftSessionState {
   leagueId: string
 }
 
+interface CommissionerInvalidRoster {
+  rosterId: string
+  platformUserId?: string | null
+  reason?: string
+}
+
+interface CommissionerLineupInfo {
+  lineupLockRule: unknown
+  invalidRosters: CommissionerInvalidRoster[]
+  message?: string
+}
+
 export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +38,9 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const [waiverSettings, setWaiverSettings] = useState<Record<string, unknown> | null>(null)
   const [invite, setInvite] = useState<{ inviteCode: string | null; inviteLink: string | null; joinUrl: string | null } | null>(null)
   const [managers, setManagers] = useState<{ teams: unknown[]; rosters: unknown[]; managers?: { rosterId: string; userId: string; displayName: string }[] } | null>(null)
-  const [lineupInfo, setLineupInfo] = useState<{ lineupLockRule: unknown; invalidRosters: unknown[] } | null>(null)
+  const [lineupInfo, setLineupInfo] = useState<CommissionerLineupInfo | null>(null)
+  const [lineupLockRuleDraft, setLineupLockRuleDraft] = useState('')
+  const [forceCorrectRosterId, setForceCorrectRosterId] = useState('')
   const [draftState, setDraftState] = useState<DraftSessionState | null>(null)
   const [commissionerSettings, setCommissionerSettings] = useState<{ settings?: { leagueChatThreadId?: string } } | null>(null)
   const [runningWaiver, setRunningWaiver] = useState(false)
@@ -89,6 +103,10 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
       active = false
     }
   }, [base, leagueId])
+
+  useEffect(() => {
+    setLineupLockRuleDraft(String(lineupInfo?.lineupLockRule ?? ''))
+  }, [lineupInfo?.lineupLockRule])
 
   const triggerWaiverRun = async () => {
     setRunningWaiver(true)
@@ -160,6 +178,56 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
     }
   }
 
+  const refreshLineupInfo = useCallback(async () => {
+    const res = await fetch(`${base}/lineup`, { cache: 'no-store' })
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to refresh lineup info')
+    const data = (await res.json()) as CommissionerLineupInfo
+    setLineupInfo(data)
+    setLineupLockRuleDraft(String(data?.lineupLockRule ?? ''))
+    return data
+  }, [base])
+
+  const saveLineupLockRule = async () => {
+    setSaving('lineup_lock_rule')
+    try {
+      const nextRule = lineupLockRuleDraft.trim()
+      const res = await fetch(`${base}/lineup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineupLockRule: nextRule || null }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Failed to update lineup lock rule')
+      await refreshLineupInfo()
+      toast.success('Lineup lock rule updated')
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to update lineup lock rule')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const runForceCorrectRoster = async (rosterId: string) => {
+    const id = rosterId.trim()
+    if (!id) return
+    setSaving(`lineup_force_${id}`)
+    try {
+      const res = await fetch(`${base}/lineup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceCorrectRosterId: id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Force-correct failed')
+      await refreshLineupInfo()
+      toast.success(data?.message || 'Roster corrected')
+    } catch (e: any) {
+      toast.error(e?.message || 'Force-correct failed')
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const runDraftControl = async (action: string, body?: Record<string, unknown>) => {
     setSaving(`draft_${action}`)
     try {
@@ -188,6 +256,7 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const session = draftState?.session ?? null
   const draftStatus = session?.status as DraftSessionStatus | undefined
   const slotOrder = (session?.slotOrder ?? []) as SlotOrderEntry[]
+  const invalidRosters = Array.isArray(lineupInfo?.invalidRosters) ? lineupInfo.invalidRosters : []
   const canPause = draftStatus === 'in_progress'
   const canResume = draftStatus === 'paused'
   const canDraftControls = draftStatus === 'in_progress' || draftStatus === 'paused'
@@ -403,8 +472,75 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
             <ListChecks className="h-4 w-4" /> Lineup / roster
           </h2>
-          <p className="mt-1 text-xs text-white/60">Lineup lock rule and invalid roster review. Force-correct not yet supported.</p>
+          <p className="mt-1 text-xs text-white/60">Review invalid rosters against active sport template, update lineup lock rule, and force-correct template violations.</p>
           {lineupInfo && <p className="mt-1 text-xs text-white/50">Lock rule: {String(lineupInfo.lineupLockRule ?? 'not set')}</p>}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Input
+              value={lineupLockRuleDraft}
+              onChange={(e) => setLineupLockRuleDraft(e.target.value)}
+              placeholder="Lineup lock rule (e.g. first_game)"
+              aria-label="Lineup lock rule"
+              data-testid="commissioner-lineup-lock-rule-input"
+              className="max-w-xs bg-gray-900 border-white/20 text-sm"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={saveLineupLockRule}
+              disabled={!!saving}
+              data-testid="commissioner-lineup-lock-rule-save"
+            >
+              Save lock rule
+            </Button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {invalidRosters.length > 0 ? (
+              invalidRosters.map((r) => (
+                <div
+                  key={r.rosterId}
+                  data-testid={`commissioner-lineup-invalid-roster-${r.rosterId}`}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+                >
+                  <p className="text-xs text-amber-100">
+                    <span className="font-medium">Roster {r.rosterId}:</span> {r.reason ?? 'Invalid against template'}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 border-amber-500/40 text-amber-100"
+                    onClick={() => runForceCorrectRoster(r.rosterId)}
+                    disabled={!!saving}
+                    data-testid={`commissioner-lineup-force-correct-${r.rosterId}`}
+                  >
+                    Force-correct roster
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-white/50" data-testid="commissioner-lineup-no-invalid-rosters">
+                {lineupInfo?.message ?? 'No invalid rosters detected.'}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={forceCorrectRosterId}
+                onChange={(e) => setForceCorrectRosterId(e.target.value)}
+                placeholder="Force-correct roster id"
+                aria-label="Force-correct roster id"
+                data-testid="commissioner-lineup-force-correct-input"
+                className="max-w-xs bg-gray-900 border-white/20 text-sm"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runForceCorrectRoster(forceCorrectRosterId)}
+                disabled={!!saving || !forceCorrectRosterId.trim()}
+                data-testid="commissioner-lineup-force-correct-submit"
+              >
+                Run force-correct
+              </Button>
+            </div>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">

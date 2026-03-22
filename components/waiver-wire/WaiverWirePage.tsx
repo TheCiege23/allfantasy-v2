@@ -22,6 +22,7 @@ import {
   waiverPositionMatches,
 } from "@/lib/waiver-wire/SportWaiverResolver"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
+import { DEFAULT_SPORT } from "@/lib/sport-scope"
 
 const WAIVER_TYPES = [
   { value: "faab", label: "FAAB" },
@@ -288,6 +289,12 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </button>
+          <Link
+            href={`/app/trend-feed?sport=${encodeURIComponent(settings?.sport ?? DEFAULT_SPORT)}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/40 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-500/20 sm:text-sm"
+          >
+            Trending players
+          </Link>
         </div>
       </div>
 
@@ -346,6 +353,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                   <WaiverPlayerRow
                     key={p.id}
                     player={p}
+                    sport={settings?.sport ?? null}
                     trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
                     onAddClick={() => {
                       if (alreadyClaimed) return
@@ -623,7 +631,14 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </p>
         <div className="mt-3 pt-3 border-t border-white/10">
           <Link
-            href={getWaiverAIChatUrl(buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined))}
+            href={getWaiverAIChatUrl(
+              buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined),
+              {
+                leagueId,
+                insightType: 'waiver',
+                sport: settings?.sport ?? DEFAULT_SPORT,
+              }
+            )}
             className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 transition-colors"
           >
             <MessageSquare className="h-3.5 w-3.5" />

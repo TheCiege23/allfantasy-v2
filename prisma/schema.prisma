@@ -5475,11 +5475,28 @@ model StrategyMetaReport {
   leagueFormat       String   @db.VarChar(32)
   sampleSize         Int      @default(0)
   createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([strategyType, sport, leagueFormat], name: "uniq_strategy_meta_report_type_sport_format")
   @@index([sport])
   @@index([leagueFormat])
+  @@index([updatedAt])
   @@map("strategy_meta_reports")
+}
+
+/// Strategy snapshot row normalized for global meta consumption.
+model StrategyMetaSnapshot {
+  id                String   @id @default(cuid())
+  strategyType      String   @db.VarChar(32)
+  sport             String   @db.VarChar(12)
+  usageRate         Float    @default(0)
+  successRate       Float    @default(0)
+  trendingDirection String   @db.VarChar(16)
+  createdAt         DateTime @default(now())
+
+  @@index([sport, createdAt])
+  @@index([strategyType, sport])
+  @@map("strategy_meta_snapshots")
 }
 
 /// Global Meta Engine: platform-wide snapshots by sport/season/week and meta type (DraftMeta, WaiverMeta, TradeMeta, RosterMeta, StrategyMeta)
@@ -5492,6 +5509,7 @@ model GlobalMetaSnapshot {
   data            Json
   createdAt       DateTime @default(now())
 
+  @@unique([sport, season, weekOrPeriod, metaType], name: "uniq_global_meta_snapshot_scope")
   @@index([sport, season, weekOrPeriod])
   @@index([metaType, sport])
   @@index([createdAt])

@@ -15,6 +15,7 @@ export interface PsychEngineInput {
   sport: string
   sleeperUsername?: string
   rosterId?: string
+  season?: number | null
 }
 
 export interface PsychEngineResult {
@@ -37,6 +38,7 @@ export async function runPsychologicalProfileEngine(
   const signals = await aggregateBehaviorSignals(input.leagueId, input.managerId, sportNorm ?? input.sport, {
     sleeperUsername: input.sleeperUsername,
     rosterId: input.rosterId,
+    season: input.season,
   })
 
   const labels = resolveProfileLabels(signals)
@@ -80,7 +82,7 @@ export async function runPsychologicalProfileEngine(
     profileId = created.id
   }
 
-  const evidencePayloads = buildEvidenceFromSignals(signals, profileId)
+  const evidencePayloads = buildEvidenceFromSignals(signals, profileId, input.season)
   for (const ev of evidencePayloads) {
     await prisma.profileEvidenceRecord.create({
       data: {
@@ -90,6 +92,7 @@ export async function runPsychologicalProfileEngine(
         evidenceType: ev.evidenceType,
         value: ev.value,
         sourceReference: ev.sourceReference ?? undefined,
+        ...(ev.createdAt ? { createdAt: ev.createdAt } : {}),
         profileId,
       },
     })

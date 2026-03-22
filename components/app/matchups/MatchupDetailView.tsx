@@ -1,13 +1,23 @@
 "use client"
 
+import Link from "next/link"
 import type { MatchupSummary } from "./MatchupCard"
 import { MatchupSimulationCard } from "@/components/simulation/MatchupSimulationCard"
+import { MatchupDramaWidget } from "@/components/app/matchups/MatchupDramaWidget"
 
 type MatchupDetailViewProps = {
+  leagueId: string
+  sport?: string
+  selectedWeekOrRound?: number
   matchup: MatchupSummary | null
 }
 
-export function MatchupDetailView({ matchup }: MatchupDetailViewProps) {
+export function MatchupDetailView({
+  leagueId,
+  sport,
+  selectedWeekOrRound,
+  matchup,
+}: MatchupDetailViewProps) {
   if (!matchup) {
     return (
       <section className="rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-white/60">
@@ -38,15 +48,39 @@ export function MatchupDetailView({ matchup }: MatchupDetailViewProps) {
           </p>
         </div>
       </header>
+      <div className="mt-2 flex justify-end">
+        <Link
+          href={`/app/league/${leagueId}?tab=Settings`}
+          data-testid="matchup-scoring-settings-link"
+          className="rounded border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
+        >
+          Review scoring settings
+        </Link>
+      </div>
 
       <div className="mt-3">
         <MatchupSimulationCard
           teamAName={matchup.teamA}
           teamBName={matchup.teamB}
+          sport={sport ?? matchup.sport ?? 'NFL'}
+          leagueId={leagueId}
+          weekOrPeriod={selectedWeekOrRound ?? matchup.weekOrRound ?? 1}
+          teamAId={matchup.teamAId}
+          teamBId={matchup.teamBId}
+          persist={Boolean(leagueId && matchup.teamAId && matchup.teamBId)}
           teamA={{ mean: Math.max(matchup.scoreA, matchup.projA), stdDev: 12 }}
           teamB={{ mean: Math.max(matchup.scoreB, matchup.projB), stdDev: 12 }}
           scoreA={matchup.scoreA}
           scoreB={matchup.scoreB}
+        />
+      </div>
+      <div className="mt-3">
+        <MatchupDramaWidget
+          leagueId={leagueId}
+          matchupId={matchup.id}
+          teamAId={matchup.teamAId}
+          teamBId={matchup.teamBId}
+          sport={sport ?? matchup.sport}
         />
       </div>
 
