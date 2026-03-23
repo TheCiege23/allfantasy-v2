@@ -12,9 +12,12 @@ export async function listMarketplaceItems(options?: {
   cosmeticCategory?: string | null
   limit?: number
 }): Promise<MarketplaceItemView[]> {
-  const where: { sportRestriction?: string | null; cosmeticCategory?: string } = {}
+  const where: {
+    OR?: Array<{ sportRestriction: string | null }>
+    cosmeticCategory?: string
+  } = {}
   if (options?.sport && isSupportedSport(options.sport)) {
-    where.sportRestriction = options.sport
+    where.OR = [{ sportRestriction: null }, { sportRestriction: options.sport }]
   }
   if (options?.cosmeticCategory) {
     where.cosmeticCategory = options.cosmeticCategory

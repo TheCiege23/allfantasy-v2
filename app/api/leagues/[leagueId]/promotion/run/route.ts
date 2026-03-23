@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { runPromotionRelegation } from '@/lib/promotion-relegation'
 
 export const dynamic = 'force-dynamic'
@@ -13,11 +16,22 @@ export async function POST(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+    try {
+      await assertCommissioner(leagueId, userId)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden: commissioner only' }, { status: 403 })
+    }
 
     const body = await req.json().catch(() => ({}))
-    const dryRun = !!body.dryRun
+    const dryRun = body.dryRun === true
 
     const result = await runPromotionRelegation({ leagueId, dryRun })
     return NextResponse.json(result)

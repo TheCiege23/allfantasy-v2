@@ -320,9 +320,11 @@ function DynastySimPanel() {
   const [teamsText, setTeamsText] = useState('100, 98, 96, 94, 92, 90, 88, 86, 84, 82, 80, 78')
   const [seasons, setSeasons] = useState('50')
   const [playoffSpots, setPlayoffSpots] = useState('6')
+  const [iterationsPerSeason, setIterationsPerSeason] = useState('5')
   const [result, setResult] = useState<{
     sport: string
     seasonsRun: number
+    iterationsPerSeason: number
     outcomes: Array<{
       teamIndex: number
       name?: string
@@ -356,6 +358,7 @@ function DynastySimPanel() {
           teams: means.map((mean, i) => ({ mean, name: `Team ${i + 1}` })),
           seasons: parseInt(seasons, 10) || 50,
           playoffSpots: parseInt(playoffSpots, 10) || 6,
+          iterationsPerSeason: parseInt(iterationsPerSeason, 10) || 5,
         }),
       })
       const data = await res.json()
@@ -366,7 +369,7 @@ function DynastySimPanel() {
     } finally {
       setLoading(false)
     }
-  }, [sport, teamsText, seasons, playoffSpots])
+  }, [sport, teamsText, seasons, playoffSpots, iterationsPerSeason])
 
   return (
     <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -419,6 +422,17 @@ function DynastySimPanel() {
             className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
           />
         </div>
+        <div>
+          <label className="mb-1 block text-xs text-white/70">Iterations per season</label>
+          <input
+            type="number"
+            value={iterationsPerSeason}
+            onChange={(e) => setIterationsPerSeason(e.target.value)}
+            min={1}
+            max={500}
+            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+          />
+        </div>
       </div>
       <button
         type="button"
@@ -451,12 +465,16 @@ function DynastySimPanel() {
                   <td className="p-2 text-amber-300">{o.championships}</td>
                   <td className="p-2 text-white/80">{o.totalWins.toFixed(1)}</td>
                   <td className="p-2 text-white/80">{o.avgFinish.toFixed(1)}</td>
-                  <td className="p-2 text-white/80">{((o.playoffAppearances / result.seasonsRun) * 100).toFixed(0)}%</td>
+                  <td className="p-2 text-white/80">
+                    {((o.playoffAppearances / (result.seasonsRun * result.iterationsPerSeason)) * 100).toFixed(0)}%
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="p-2 text-xs text-white/50">{result.seasonsRun} seasons</p>
+          <p className="p-2 text-xs text-white/50">
+            {result.seasonsRun} seasons x {result.iterationsPerSeason} iterations/season
+          </p>
         </div>
       )}
     </section>

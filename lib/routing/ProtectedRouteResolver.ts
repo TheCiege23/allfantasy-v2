@@ -2,6 +2,11 @@
  * ProtectedRouteResolver — which paths require auth or admin; login redirect URL for protected routes.
  */
 
+import {
+  resolveLoginHrefFromRequestedPath,
+  resolveSignupHrefFromRequestedPath,
+} from "@/lib/auth/AuthRedirectResolver"
+
 /** Path prefixes that require an authenticated session. */
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -50,7 +55,7 @@ export function getLoginRedirectUrl(requestedPath: string | null): string {
   const path = requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
     ? requestedPath
     : "/dashboard"
-  return `/login?callbackUrl=${encodeURIComponent(path)}`
+  return resolveLoginHrefFromRequestedPath(path)
 }
 
 /** Build signup redirect URL that preserves the requested path as next. */
@@ -58,5 +63,25 @@ export function getSignupRedirectUrl(requestedPath: string | null): string {
   const path = requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")
     ? requestedPath
     : "/dashboard"
-  return `/signup?next=${encodeURIComponent(path)}`
+  return resolveSignupHrefFromRequestedPath(path)
+}
+
+/**
+ * Resolve redirect target for protected routes.
+ * - unauthenticated -> login redirect with callback
+ * - authenticated non-admin on admin path -> dashboard
+ * - otherwise no redirect (null)
+ */
+export function resolveProtectedRouteRedirect(input: {
+  requestedPath: string | null
+  isAuthenticated: boolean
+  isAdmin: boolean
+}): string | null {
+  if (!input.isAuthenticated && isProtectedPath(input.requestedPath)) {
+    return getLoginRedirectUrl(input.requestedPath)
+  }
+  if (isAdminPath(input.requestedPath) && input.isAuthenticated && !input.isAdmin) {
+    return "/dashboard"
+  }
+  return null
 }

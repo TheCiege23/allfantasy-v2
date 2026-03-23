@@ -4,13 +4,44 @@ import { Suspense, useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { getRedirectAfterSignup, loginUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
-import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/legal-route-resolver"
+import { loginUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
+import {
+  sendSignupPhoneVerificationCode,
+  verifySignupPhoneCode,
+} from "@/lib/auth/PhoneVerificationService"
+import {
+  resolvePostSignupCallbackUrl,
+} from "@/lib/auth/SignupFlowController"
+import {
+  clearUnifiedAuthDestination,
+  rememberUnifiedAuthDestination,
+  resolveUnifiedAuthDestination,
+} from "@/lib/auth/UnifiedAuthOrchestrator"
+import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/LegalRouteResolver"
 import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezones"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
-import { getPasswordStrength } from "@/lib/signup/password-strength"
+import { getPasswordStrength } from "@/lib/signup/PasswordStrengthResolver"
+import {
+  formatSignupPhoneDisplay,
+  normalizePhoneForSubmit,
+  normalizeSignupPhoneDigits,
+} from "@/lib/signup/SignupFlowController"
+import {
+  checkUsernameAvailability,
+  suggestUsername,
+} from "@/lib/signup/UsernameAvailabilityService"
+import { validateAvatarUploadFile } from "@/lib/signup/AvatarPickerService"
+import { uploadProfileImage } from "@/lib/signup/ProfileImageUploadService"
+import {
+  LEGACY_IMPORT_PROVIDERS,
+  getLegacyImportProviderMessage,
+  type LegacyImportProvider,
+} from "@/lib/signup/LegacyImportOnboardingService"
+import { validateSignupAgreements } from "@/lib/signup/AgreementAcceptanceService"
+import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { useThemeMode } from "@/components/theme/ThemeProvider"
 import {
   ArrowLeft,
   Loader2,
@@ -37,11 +68,20 @@ interface SleeperResult {
 }
 
 function SignupContent() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const { mode } = useThemeMode()
   const searchParams = useSearchParams()
   const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
-  const redirectAfterSignup = getRedirectAfterSignup(nextParam)
+  const callbackParam = searchParams?.get("callbackUrl") ?? undefined
+  const returnToParam = searchParams?.get("returnTo") ?? undefined
+  const intentParam = searchParams?.get("intent") ?? undefined
+  const redirectAfterSignup = resolveUnifiedAuthDestination({
+    next: nextParam,
+    callbackUrl: callbackParam,
+    returnTo: returnToParam,
+    intent: intentParam,
+  })
   const refParam = searchParams?.get("ref")?.trim() || undefined
 
   const [username, setUsername] = useState("")
@@ -49,16 +89,27 @@ function SignupContent() {
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [timezone, setTimezone] = useState(DEFAULT_SIGNUP_TIMEZONE)
-  const [preferredLanguage, setPreferredLanguage] = useState("en")
+  const [preferredLanguage, setPreferredLanguage] = useState<"en" | "es">(
+    language === "es" ? "es" : "en"
+  )
+  const [preferredLanguageTouched, setPreferredLanguageTouched] = useState(false)
   const [avatarPreset, setAvatarPreset] = useState<string>("crest")
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarUploadFile, setAvatarUploadFile] = useState<File | null>(null)
   const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [phone, setPhone] = useState("")
+  const [phoneCodeSent, setPhoneCodeSent] = useState(false)
+  const [phoneCode, setPhoneCode] = useState("")
+  const [phoneCodeVerified, setPhoneCodeVerified] = useState(false)
+  const [phoneSendingCode, setPhoneSendingCode] = useState(false)
+  const [phoneVerifyingCode, setPhoneVerifyingCode] = useState(false)
+  const [phoneVerificationMessage, setPhoneVerificationMessage] = useState<string | null>(null)
   const [showDlModal, setShowDlModal] = useState(false)
   const [sleeperUsername, setSleeperUsername] = useState("")
   const [sleeperResult, setSleeperResult] = useState<SleeperResult | null>(null)
   const [sleeperLooking, setSleeperLooking] = useState(false)
+  const [legacyImportMessage, setLegacyImportMessage] = useState<string | null>(null)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "PHONE">("EMAIL")
   const [loading, setLoading] = useState(false)
@@ -72,26 +123,11 @@ function SignupContent() {
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [suggestingUsername, setSuggestingUsername] = useState(false)
 
-  function normalizePhoneForSubmit(raw: string): string {
-    const digits = raw.replace(/\D/g, "")
-    if (!digits) return ""
-    if (digits.length === 10) return `+1${digits}`
-    if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`
-    return `+${digits}`
-  }
-
-  function formatPhoneDisplay(raw: string): string {
-    const digits = raw.replace(/\D/g, "").slice(0, 11)
-    if (digits.length === 0) return ""
-    // Handle leading 1 (country code)
-    const local = digits.startsWith("1") && digits.length > 10 ? digits.slice(1) : digits.slice(0, 10)
-    const d = local.slice(0, 10)
-    if (d.length <= 3) return `(${d}`
-    if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`
-    return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`
-  }
-
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
+  const agreementGateOpen = useMemo(
+    () => isSignupAgreementGateOpen({ disclaimerAgreed, termsAgreed }),
+    [disclaimerAgreed, termsAgreed]
+  )
   const passwordsMatch = useMemo(() => {
     if (!confirmPassword.length) return false
     return password === confirmPassword
@@ -106,22 +142,30 @@ function SignupContent() {
       !!timezone,
       !!preferredLanguage,
       ageConfirmed,
+      verificationMethod === "PHONE" ? phoneCodeVerified : true,
       termsAgreed,
       disclaimerAgreed,
     ]
     return Math.round((fields.filter(Boolean).length / fields.length) * 100)
-  }, [username, usernameStatus, email, password, passwordStrength.valid, confirmPassword, timezone, preferredLanguage, ageConfirmed, termsAgreed, disclaimerAgreed])
+  }, [username, usernameStatus, email, password, passwordStrength.valid, confirmPassword, timezone, preferredLanguage, ageConfirmed, verificationMethod, phoneCodeVerified, termsAgreed, disclaimerAgreed])
 
   const lookupSleeper = useCallback(async () => {
     if (!sleeperUsername.trim() || sleeperLooking) return
     setSleeperLooking(true)
     setSleeperResult(null)
+    setLegacyImportMessage(null)
     try {
       const res = await fetch(`/api/auth/sleeper-lookup?username=${encodeURIComponent(sleeperUsername.trim())}`)
       const data = await res.json().catch(() => ({}))
       setSleeperResult(data)
+      if (data?.found) {
+        setLegacyImportMessage("Sleeper account linked. We’ll queue import after account creation.")
+      } else {
+        setLegacyImportMessage("Sleeper account not found. You can still create your account and import later.")
+      }
     } catch {
       setSleeperResult({ found: false })
+      setLegacyImportMessage("Could not look up Sleeper right now. You can import later from Settings.")
     } finally {
       setSleeperLooking(false)
     }
@@ -132,16 +176,117 @@ function SignupContent() {
     setSuggestingUsername(true)
     setUsernameSuggestion(null)
     try {
-      const res = await fetch(`/api/auth/suggest-username?base=${encodeURIComponent(base)}`)
-      const data = await res.json()
-      if (data?.suggestion) {
-        setUsername(data.suggestion)
-        setUsernameSuggestion(data.suggestion)
+      const suggestion = await suggestUsername(base)
+      if (suggestion) {
+        setUsername(suggestion)
+        setUsernameSuggestion(suggestion)
       }
     } finally {
       setSuggestingUsername(false)
     }
   }, [username])
+
+  async function handleSendPhoneCode() {
+    const normalizedPhone = normalizePhoneForSubmit(phone)
+    if (!normalizedPhone) {
+      setPhoneVerificationMessage("Enter your phone number first.")
+      return
+    }
+    setPhoneSendingCode(true)
+    setPhoneVerificationMessage(null)
+    try {
+      const res = await sendSignupPhoneVerificationCode(normalizedPhone)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data?.error === "RATE_LIMITED") {
+          setPhoneVerificationMessage("Please wait before requesting another code.")
+        } else {
+          setPhoneVerificationMessage(data?.message || "Could not send verification code.")
+        }
+        return
+      }
+      setPhoneCodeSent(true)
+      setPhoneCodeVerified(false)
+      setPhoneVerificationMessage("Verification code sent.")
+    } catch {
+      setPhoneVerificationMessage("Could not send verification code.")
+    } finally {
+      setPhoneSendingCode(false)
+    }
+  }
+
+  async function handleVerifyPhoneCode() {
+    const normalizedPhone = normalizePhoneForSubmit(phone)
+    if (!normalizedPhone) {
+      setPhoneVerificationMessage("Enter your phone number first.")
+      return
+    }
+    if (!phoneCode.trim()) {
+      setPhoneVerificationMessage("Enter the verification code.")
+      return
+    }
+    setPhoneVerifyingCode(true)
+    setPhoneVerificationMessage(null)
+    try {
+      const res = await verifySignupPhoneCode({
+        phone: normalizedPhone,
+        code: phoneCode.trim(),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (data?.error === "INVALID_CODE") {
+          setPhoneCodeVerified(false)
+          setPhoneVerificationMessage("Invalid code. Please try again.")
+        } else if (data?.error === "RATE_LIMITED") {
+          setPhoneCodeVerified(false)
+          setPhoneVerificationMessage("Too many attempts. Please wait.")
+        } else {
+          setPhoneCodeVerified(false)
+          setPhoneVerificationMessage(data?.message || "Verification failed.")
+        }
+        return
+      }
+      setPhoneCodeVerified(true)
+      setPhoneVerificationMessage("Phone verified.")
+    } catch {
+      setPhoneCodeVerified(false)
+      setPhoneVerificationMessage("Verification failed.")
+    } finally {
+      setPhoneVerifyingCode(false)
+    }
+  }
+
+  function handleLegacyImportProviderClick(provider: LegacyImportProvider) {
+    setLegacyImportMessage(getLegacyImportProviderMessage(provider))
+  }
+
+  async function runPostSignupProfileSetup() {
+    if (avatarUploadFile) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await uploadProfileImage(avatarUploadFile).catch(() => ({
+          ok: false as const,
+        }))
+        if (result.ok) break
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      }
+    }
+    if (sleeperResult?.found && sleeperResult.username) {
+      await fetch("/api/legacy/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sleeper_username: sleeperResult.username }),
+      }).catch(() => null)
+    }
+  }
+
+  useEffect(() => {
+    rememberUnifiedAuthDestination(redirectAfterSignup)
+  }, [redirectAfterSignup])
+
+  useEffect(() => {
+    if (preferredLanguageTouched) return
+    setPreferredLanguage(language === "es" ? "es" : "en")
+  }, [language, preferredLanguageTouched])
 
   // Debounced username availability + profanity check
   useEffect(() => {
@@ -168,8 +313,7 @@ function SignupContent() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/auth/check-username?username=${encodeURIComponent(normalized)}`)
-        const data = await res.json()
+        const data = await checkUsernameAvailability(normalized)
         if (cancelled) return
         if (!data.ok) {
           setUsernameStatus("unvalidated")
@@ -219,8 +363,25 @@ function SignupContent() {
     setLoading(true)
     setError("")
 
+    const agreementsValidation = validateSignupAgreements({
+      ageConfirmed,
+      disclaimerAgreed,
+      termsAgreed,
+    })
+    if (!agreementsValidation.ok) {
+      setError(agreementsValidation.error)
+      setLoading(false)
+      return
+    }
+
     if (password !== confirmPassword) {
       setError(t("signup.error.passwordMismatch"))
+      setLoading(false)
+      return
+    }
+
+    if (verificationMethod === "PHONE" && !phoneCodeVerified) {
+      setError("Verify your phone number before creating your account.")
       setLoading(false)
       return
     }
@@ -238,8 +399,11 @@ function SignupContent() {
           sleeperUsername: sleeperResult?.found ? sleeperResult.username : undefined,
           ageConfirmed,
           verificationMethod,
+          phoneVerificationCode:
+            verificationMethod === "PHONE" ? phoneCode.trim() : undefined,
           timezone,
           preferredLanguage,
+          themePreference: mode,
           avatarPreset,
           avatarDataUrl: avatarPreview || undefined,
           disclaimerAgreed,
@@ -266,20 +430,30 @@ function SignupContent() {
       }
 
       // Immediately continue to the authenticated homepage after signup.
+      const callbackTarget = resolvePostSignupCallbackUrl({
+        redirectAfterSignup,
+        verificationMethod:
+          typeof data?.verificationMethod === "string"
+            ? data.verificationMethod
+            : null,
+      })
       const signInResult = await signIn("credentials", {
         login: email.trim(),
         password,
         redirect: false,
-        callbackUrl: "/dashboard",
+        callbackUrl: callbackTarget,
       })
 
       if (!signInResult?.error) {
-        router.push(signInResult?.url || "/dashboard")
+        await runPostSignupProfileSetup()
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("af_lang", preferredLanguage === "es" ? "es" : "en")
+          window.localStorage.setItem("af_mode", mode)
+        }
+        clearUnifiedAuthDestination()
+        router.push(signInResult?.url || callbackTarget)
         return
       }
-
-      router.push("/dashboard")
-      return
 
       // Show success screen — user must verify email or phone before signing in
       if (typeof data.emailVerificationPrepared === "boolean") {
@@ -423,14 +597,21 @@ function SignupContent() {
           <p className="mt-0.5 text-[11px] text-white/45">{usernameMessage}</p>
         )}
         {usernameStatus === "taken" && (
-          <button
-            type="button"
-            onClick={applyUsernameSuggestion}
-            disabled={suggestingUsername}
-            className="mt-1.5 text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition"
-          >
-            {suggestingUsername ? "Finding suggestion…" : "Suggest a similar username"}
-          </button>
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={applyUsernameSuggestion}
+              disabled={suggestingUsername}
+              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition"
+            >
+              {suggestingUsername ? "Finding suggestion…" : "Suggest a similar username"}
+            </button>
+            {usernameSuggestion && (
+              <span className="text-[11px] text-emerald-300">
+                Try: {usernameSuggestion}
+              </span>
+            )}
+          </div>
         )}
           </div>
 
@@ -558,7 +739,10 @@ function SignupContent() {
               <label className="block text-xs text-white/60 mb-1">Language</label>
               <select
                 value={preferredLanguage}
-                onChange={(e) => setPreferredLanguage(e.target.value)}
+                onChange={(e) => {
+                  setPreferredLanguageTouched(true)
+                  setPreferredLanguage(e.target.value === "es" ? "es" : "en")
+                }}
                 className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition"
               >
                 <option value="en">English</option>
@@ -577,6 +761,8 @@ function SignupContent() {
                   onClick={() => {
                     setAvatarPreset(preset)
                     setAvatarPreview(null)
+                    setAvatarUploadFile(null)
+                    setAvatarFileError(null)
                   }}
                   className={`rounded-lg border px-2 py-2 transition ${
                     avatarPreset === preset && !avatarPreview
@@ -598,14 +784,15 @@ function SignupContent() {
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (!file) return
-                    if (file.size > 2 * 1024 * 1024) {
-                      setAvatarFileError("Max file size is 2MB.")
+                    const validationError = validateAvatarUploadFile(file)
+                    if (validationError) {
+                      setAvatarFileError(validationError)
                       return
                     }
                     const reader = new FileReader()
                     reader.onload = () => {
                       setAvatarPreview(reader.result as string)
-                      setAvatarPreset("custom")
+                      setAvatarUploadFile(file)
                       setAvatarFileError(null)
                     }
                     reader.readAsDataURL(file)
@@ -614,11 +801,23 @@ function SignupContent() {
                 <span>Upload image</span>
               </label>
               {avatarPreview && (
-                <img
-                  src={avatarPreview}
-                  alt="Avatar preview"
-                  className="h-10 w-10 rounded-full border border-white/20 object-cover"
-                />
+                <div className="flex items-center gap-2">
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar preview"
+                    className="h-10 w-10 rounded-full border border-white/20 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAvatarPreview(null)
+                      setAvatarUploadFile(null)
+                    }}
+                    className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white/60 hover:text-white/80"
+                  >
+                    Remove
+                  </button>
+                </div>
               )}
             </div>
             {avatarFileError && (
@@ -636,8 +835,12 @@ function SignupContent() {
             <input
               value={phone}
               onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "").slice(0, 11)
+                const digits = normalizeSignupPhoneDigits(e.target.value)
                 setPhone(digits)
+                setPhoneCodeSent(false)
+                setPhoneCode("")
+                setPhoneCodeVerified(false)
+                setPhoneVerificationMessage(null)
               }}
               type="tel"
               className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
@@ -646,7 +849,7 @@ function SignupContent() {
               inputMode="numeric"
             />
             {phone.length > 0 && (
-              <p className="mt-0.5 text-[11px] text-white/40">Formatted: {(() => { const d = phone.startsWith('1') && phone.length > 10 ? phone.slice(1) : phone.slice(0,10); if (d.length <= 3) return `(${d}`; if (d.length <= 6) return `(${d.slice(0,3)}) ${d.slice(3)}`; return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` })()}</p>
+              <p className="mt-0.5 text-[11px] text-white/40">Formatted: {formatSignupPhoneDisplay(phone)}</p>
             )}
           </div>
         </div>
@@ -666,6 +869,7 @@ function SignupContent() {
                 onChange={(e) => {
                   setSleeperUsername(e.target.value)
                   setSleeperResult(null)
+                  setLegacyImportMessage(null)
                 }}
                 className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 transition"
                 placeholder="Sleeper username"
@@ -680,18 +884,32 @@ function SignupContent() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {["Yahoo", "ESPN", "MFL", "Fleaflicker", "Fantrax"].map((name) => (
+              {LEGACY_IMPORT_PROVIDERS.filter((provider) => provider.id !== "sleeper").map((provider) => (
                 <button
-                  key={name}
+                  key={provider.id}
                   type="button"
-                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50 cursor-default"
-                  title="Coming soon"
+                  onClick={() => handleLegacyImportProviderClick(provider.id)}
+                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition"
                 >
-                  {name} (soon)
+                  {provider.label} {provider.status === "planned" ? "(soon)" : ""}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setLegacyImportMessage(
+                    "No problem. Skip import for now and start at level 1. You can import later from Settings."
+                  )
+                }
+                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition"
+              >
+                Skip import for now
+              </button>
             </div>
           </div>
+          {legacyImportMessage && (
+            <p className="text-[11px] text-white/45">{legacyImportMessage}</p>
+          )}
           {sleeperResult?.found && (
             <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
               {sleeperResult.avatar ? (
@@ -737,9 +955,50 @@ function SignupContent() {
           </div>
           <p className="text-xs text-white/40">
             {verificationMethod === "PHONE"
-              ? "We'll send a code to your phone number after you sign in."
+              ? "Verify your phone now with a one-time SMS code."
               : "We'll send a verification link to your email."}
           </p>
+          {verificationMethod === "PHONE" && (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendPhoneCode}
+                  disabled={phoneSendingCode || !phone.trim()}
+                  className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs hover:bg-white/15 disabled:opacity-50 transition"
+                >
+                  {phoneSendingCode ? "Sending..." : phoneCodeSent ? "Resend code" : "Send code"}
+                </button>
+                <input
+                  value={phoneCode}
+                  onChange={(e) => {
+                    setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                    setPhoneCodeVerified(false)
+                  }}
+                  placeholder="Enter code"
+                  inputMode="numeric"
+                  className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-xs text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 transition"
+                />
+                <button
+                  type="button"
+                  onClick={handleVerifyPhoneCode}
+                  disabled={phoneVerifyingCode || phoneCode.length < 4 || !phoneCodeSent}
+                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50 transition"
+                >
+                  {phoneVerifyingCode ? "Verifying..." : "Verify"}
+                </button>
+              </div>
+              {phoneVerificationMessage && (
+                <p
+                  className={`text-[11px] ${
+                    phoneCodeVerified ? "text-emerald-300" : "text-white/45"
+                  }`}
+                >
+                  {phoneVerificationMessage}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
@@ -889,9 +1148,8 @@ function SignupContent() {
             password !== confirmPassword ||
             !passwordStrength.valid ||
             !ageConfirmed ||
-            !termsAgreed ||
-            !disclaimerAgreed ||
-            (verificationMethod === "PHONE" && !phone.trim())
+            !agreementGateOpen ||
+            (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
           }
           className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >

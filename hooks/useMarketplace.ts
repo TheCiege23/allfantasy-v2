@@ -110,6 +110,7 @@ export function useInventory(includeHistory?: boolean) {
       if (!res.ok) {
         setError(data?.error ?? "Failed to load inventory")
         setInventory([])
+        setHistory([])
         return
       }
       setInventory(data?.inventory ?? [])
@@ -120,10 +121,13 @@ export function useInventory(includeHistory?: boolean) {
             createdAt: typeof h.createdAt === "string" ? h.createdAt : new Date(h.createdAt).toISOString(),
           }))
         )
+      } else {
+        setHistory([])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
       setInventory([])
+      setHistory([])
     } finally {
       setLoading(false)
     }
@@ -134,4 +138,47 @@ export function useInventory(includeHistory?: boolean) {
   }, [refresh])
 
   return { inventory, history, loading, error, refresh }
+}
+
+export interface ResolvedCosmeticRow {
+  category: string
+  itemId: string | null
+  itemName: string | null
+}
+
+export function useResolvedCosmetics(enabled: boolean) {
+  const [cosmetics, setCosmetics] = useState<ResolvedCosmeticRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = useCallback(async () => {
+    if (!enabled) {
+      setCosmetics([])
+      setError(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/marketplace/cosmetics", { cache: "no-store" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data?.error ?? "Failed to load cosmetics")
+        setCosmetics([])
+        return
+      }
+      setCosmetics(Array.isArray(data?.cosmetics) ? data.cosmetics : [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load cosmetics")
+      setCosmetics([])
+    } finally {
+      setLoading(false)
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
+
+  return { cosmetics, loading, error, refresh }
 }

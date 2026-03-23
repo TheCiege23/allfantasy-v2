@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -12,14 +15,47 @@ export async function POST(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+    try {
+      await assertCommissioner(leagueId, userId)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden: commissioner only' }, { status: 403 })
+    }
 
     const body = await req.json().catch(() => ({}))
-    const fromTierLevel = typeof body.fromTierLevel === 'number' ? body.fromTierLevel : 1
-    const toTierLevel = typeof body.toTierLevel === 'number' ? body.toTierLevel : 2
-    const promoteCount = Math.max(0, typeof body.promoteCount === 'number' ? body.promoteCount : 1)
-    const relegateCount = Math.max(0, typeof body.relegateCount === 'number' ? body.relegateCount : 1)
+    const fromTierLevel =
+      typeof body.fromTierLevel === 'number' && Number.isInteger(body.fromTierLevel)
+        ? body.fromTierLevel
+        : 1
+    const toTierLevel =
+      typeof body.toTierLevel === 'number' && Number.isInteger(body.toTierLevel)
+        ? body.toTierLevel
+        : 2
+    const promoteCount =
+      typeof body.promoteCount === 'number' && Number.isInteger(body.promoteCount)
+        ? body.promoteCount
+        : 1
+    const relegateCount =
+      typeof body.relegateCount === 'number' && Number.isInteger(body.relegateCount)
+        ? body.relegateCount
+        : 1
+    if (fromTierLevel < 1 || toTierLevel < 1) {
+      return NextResponse.json({ error: 'Tier levels must be positive integers' }, { status: 400 })
+    }
+    if (fromTierLevel >= toTierLevel) {
+      return NextResponse.json({ error: 'fromTierLevel must be higher tier than toTierLevel' }, { status: 400 })
+    }
+    if (promoteCount < 0 || relegateCount < 0) {
+      return NextResponse.json({ error: 'Counts must be non-negative integers' }, { status: 400 })
+    }
+    if (promoteCount === 0 && relegateCount === 0) {
+      return NextResponse.json({ error: 'At least one of promoteCount or relegateCount must be > 0' }, { status: 400 })
+    }
 
     const rule = await prisma.promotionRule.upsert({
       where: {

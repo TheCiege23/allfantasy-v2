@@ -25,14 +25,14 @@ const TAG_OPTIONS: ArticleGenerationType[] = [
   'championship_recap',
 ]
 
-export default function NewsTab({ leagueId }: LeagueTabProps) {
+export default function NewsTab({ leagueId, isCommissioner = false }: LeagueTabProps & { isCommissioner?: boolean }) {
   const [sportFilter, setSportFilter] = useState<string>('')
   const [tagFilter, setTagFilter] = useState<string>('')
   const [generateType, setGenerateType] = useState<ArticleGenerationType>('weekly_recap')
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
 
-  const { articles, loading, error, refresh } = useMediaArticles({
+  const { articles, loading, refreshing, loadingMore, error, nextCursor, refresh, loadMore } = useMediaArticles({
     leagueId,
     sport: sportFilter || null,
     tags: tagFilter ? [tagFilter] : undefined,
@@ -47,6 +47,7 @@ export default function NewsTab({ leagueId }: LeagueTabProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: generateType,
+          sport: sportFilter || undefined,
           skipStatsInsights: false,
         }),
       })
@@ -119,11 +120,14 @@ export default function NewsTab({ leagueId }: LeagueTabProps) {
         <button
           type="button"
           className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
-          disabled={generating}
+          disabled={generating || !isCommissioner}
           onClick={handleGenerate}
         >
           {generating ? 'Generating…' : 'Generate article'}
         </button>
+        {!isCommissioner && (
+          <span className="text-xs text-zinc-500">Commissioner only</span>
+        )}
         {generateError && (
           <span className="text-sm text-red-400">{generateError}</span>
         )}
@@ -133,65 +137,84 @@ export default function NewsTab({ leagueId }: LeagueTabProps) {
         <div className="rounded-xl bg-red-950/30 p-3 text-sm text-red-300">{error}</div>
       )}
 
-      {loading && (
+      {loading && articles.length === 0 && (
         <p className="text-sm text-zinc-400">Loading articles…</p>
       )}
+      {refreshing && (
+        <p className="text-sm text-zinc-500">Refreshing articles…</p>
+      )}
 
-      {!loading && articles.length === 0 && (
+      {articles.length === 0 && !loading && (
         <p className="text-sm text-zinc-500">
-          No articles yet. Use &quot;Generate article&quot; to create a weekly recap or power rankings.
+          {isCommissioner
+            ? 'No articles yet. Use "Generate article" to create a weekly recap or power rankings.'
+            : 'No articles yet. Ask your commissioner to generate league news.'}
         </p>
       )}
 
-      {!loading && articles.length > 0 && (
-        <ul className="space-y-3">
-          {articles.map((a) => (
-            <li
-              key={a.id}
-              className="rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
-            >
-              <Link
-                href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}`}
-                className="block"
+      {articles.length > 0 && (
+        <>
+          <ul className="space-y-3">
+            {articles.map((a) => (
+              <li
+                key={a.id}
+                className="rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
               >
-                <h3 className="font-medium text-white hover:underline">{a.headline}</h3>
-                <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{a.body.slice(0, 160)}…</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-zinc-500">
-                    {new Date(a.createdAt).toLocaleDateString()} · {a.sport}
-                  </span>
-                  {a.tags?.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
-                    >
-                      {ARTICLE_TYPE_LABELS[t as ArticleGenerationType] ?? t}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-              <div className="mt-2 flex gap-2">
-                <a
-                  href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-cyan-400 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open in new tab
-                </a>
-                <span className="text-xs text-zinc-500">·</span>
                 <Link
-                  href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}#ai-explanation`}
-                  className="text-xs text-amber-400 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
+                  href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}`}
+                  className="block"
                 >
-                  How was this written?
+                  <h3 className="font-medium text-white hover:underline">{a.headline}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{a.body.slice(0, 160)}…</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-zinc-500">
+                      {new Date(a.createdAt).toLocaleDateString()} · {a.sport}
+                    </span>
+                    {a.tags?.map((t) => (
+                      <span
+                        key={t}
+                        className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-zinc-400"
+                      >
+                        {ARTICLE_TYPE_LABELS[t as ArticleGenerationType] ?? t}
+                      </span>
+                    ))}
+                  </div>
                 </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div className="mt-2 flex gap-2">
+                  <a
+                    href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-cyan-400 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Open in new tab
+                  </a>
+                  <span className="text-xs text-zinc-500">·</span>
+                  <Link
+                    href={`/app/league/${encodeURIComponent(leagueId)}/news/${encodeURIComponent(a.id)}#ai-explanation`}
+                    className="text-xs text-amber-400 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    How was this written?
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {nextCursor && (
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 disabled:opacity-50"
+                onClick={() => loadMore()}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading more…' : 'Load more'}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -1,6 +1,7 @@
 import Link from "next/link"
-import LegalPageShell, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageShell"
-import { getSignupReturnUrl } from "@/lib/legal/legal-route-resolver"
+import LegalPageRenderer, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageRenderer"
+import { TERMS_PAGE_TITLE, TERMS_POLICY_CHECKLIST } from "@/lib/legal/TermsPageService"
+import { getSignupReturnUrl } from "@/lib/legal/LegalRouteResolver"
 
 interface TermsPageProps {
   searchParams?: Promise<{ from?: string; next?: string }> | { from?: string; next?: string }
@@ -18,8 +19,8 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
   const signupHref = getSignupReturnUrl(next)
 
   return (
-    <LegalPageShell
-      title="Terms of Service"
+    <LegalPageRenderer
+      title={TERMS_PAGE_TITLE}
       description={`Last updated: ${LEGAL_LAST_UPDATED}`}
       backHref={fromSignup ? signupHref : "/"}
       backLabel={fromSignup ? "Back to Sign Up" : "Back to Home"}
@@ -240,6 +241,17 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
           <p className="text-white/60">Email: legal@allfantasy.ai</p>
         </div>
       </section>
-    </LegalPageShell>
+
+      <section>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">Policy Coverage Checklist</h2>
+        <ul className="list-disc list-inside space-y-1 ml-4 text-white/70 text-sm">
+          {TERMS_POLICY_CHECKLIST.map((item) => (
+            <li key={item.heading}>
+              <strong className="text-white/85">{item.heading}:</strong> {item.body}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </LegalPageRenderer>
   )
 }

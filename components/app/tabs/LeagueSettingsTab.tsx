@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import GeneralSettingsPanel from '@/components/app/settings/GeneralSettingsPanel'
 import TeamSettingsPanel from '@/components/app/settings/TeamSettingsPanel'
 import RosterSettingsPanel from '@/components/app/settings/RosterSettingsPanel'
@@ -71,6 +71,8 @@ export default function LeagueSettingsTab({
   isIdp,
   isCommissioner,
 }: LeagueTabProps & { isDynasty?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
+  const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const [active, setActive] = useState<SettingsSubtab>('General')
   const showDynastySettings = !!(isDynasty || isDevyDynasty || isMergedDevyC2C)
@@ -83,14 +85,31 @@ export default function LeagueSettingsTab({
       (tab !== 'IDP Settings' || isIdp)
   )
 
+  const syncSettingsTabInUrl = useCallback(
+    (tab: SettingsSubtab) => {
+      const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
+      nextParams.set('tab', 'Settings')
+      nextParams.set('settingsTab', tab)
+      const nextQuery = nextParams.toString()
+      router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false })
+    },
+    [pathname, router, searchParams]
+  )
+
   useEffect(() => {
     const requested = String(searchParams?.get('settingsTab') ?? '').trim()
-    if (!requested) return
+    if (!requested) {
+      if (!visibleSubtabs.includes(active)) {
+        const fallback = visibleSubtabs[0]
+        if (fallback) setActive(fallback)
+      }
+      return
+    }
     const requestedLower = requested.toLowerCase()
     const resolved = visibleSubtabs.find((tab) => tab.toLowerCase() === requestedLower)
     if (!resolved) return
     setActive((prev) => (prev === resolved ? prev : resolved))
-  }, [searchParams, visibleSubtabs])
+  }, [active, searchParams, visibleSubtabs])
 
   return (
     <section className="space-y-4">
@@ -99,7 +118,10 @@ export default function LeagueSettingsTab({
           <button
             key={tab}
             type="button"
-            onClick={() => setActive(tab)}
+            onClick={() => {
+              setActive(tab)
+              syncSettingsTabInUrl(tab)
+            }}
             className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition ${active === tab ? 'bg-white text-black' : 'border border-white/10 bg-black/20 text-white/75 hover:bg-white/10'}`}
           >
             {tab}

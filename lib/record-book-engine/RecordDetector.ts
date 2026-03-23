@@ -1,11 +1,11 @@
 /**
- * RecordDetector — detect record candidates from SeasonResult, DraftGrade, WaiverClaim.
+ * RecordDetector — detect record candidates from season outcomes, draft grades, and trades.
  */
 
 import { prisma } from '@/lib/prisma'
 import { buildSeasonResultManagerMap } from '@/lib/season-results/SeasonResultRosterIdentity'
-import type { RecordCandidate, RecordType } from './types'
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import type { RecordCandidate } from './types'
+import { DEFAULT_SPORT, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 /**
  * Detect record candidates for a league+season. Returns one candidate per record type (best in that season).
@@ -16,9 +16,20 @@ export async function detectRecords(
   season: string,
   options?: { sport?: string | null }
 ): Promise<RecordCandidate[]> {
-  const sport = options?.sport ?? DEFAULT_SPORT
+  const requestedSport =
+    options?.sport && isSupportedSport(options.sport)
+      ? normalizeToSupportedSport(options.sport)
+      : null
+  const seasonYear = Number.parseInt(season, 10)
+  const seasonWindow =
+    Number.isFinite(seasonYear) && seasonYear >= 1970 && seasonYear <= 2200
+      ? {
+          gte: new Date(Date.UTC(seasonYear, 0, 1, 0, 0, 0, 0)),
+          lt: new Date(Date.UTC(seasonYear + 1, 0, 1, 0, 0, 0, 0)),
+        }
+      : null
 
-  const [league, rosters, seasonResults, draftGrades, waiverByRoster] = await Promise.all([
+  const [league, rosters, seasonResults, draftGrades, acceptedTrades] = await Promise.all([
     prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } }),
     prisma.roster.findMany({
       where: { leagueId },
@@ -34,14 +45,23 @@ export async function detectRecords(
           where: { leagueId, season },
           select: { rosterId: true, score: true },
         }),
-    prisma.waiverClaim.groupBy({
-      by: ['rosterId'],
-      where: { leagueId },
-      _count: { id: true },
-    }),
+    season === 'all'
+      ? []
+      : prisma.tradeOfferEvent.findMany({
+          where: {
+            leagueId,
+            verdict: { in: ['accepted', 'ACCEPTED', 'Accept', 'accept'] },
+            ...(seasonWindow
+              ? {
+                  OR: [{ season: seasonYear }, { createdAt: seasonWindow }],
+                }
+              : {}),
+          },
+          select: { senderUserId: true },
+        }),
   ])
 
-  const resolvedSport = (league?.sport ?? sport) as string
+  const resolvedSport = normalizeToSupportedSport(league?.sport ?? requestedSport ?? DEFAULT_SPORT)
   const rosterToManager = buildSeasonResultManagerMap(rosters)
 
   function holder(rosterId: string): string {
@@ -75,7 +95,7 @@ export async function detectRecords(
         holderId: bestHolder,
         value: bestCount,
         season: 'all',
-        context: `${bestCount} championships`,
+        context: `${bestCount} championships (${resolvedSport})`,
       })
     }
     return candidates
@@ -130,7 +150,7 @@ export async function detectRecords(
       holderId: bestWinsHolder,
       value: bestWins,
       season,
-      context: `${bestWins} wins`,
+      context: `${bestWins} wins (season proxy for streak)`,
     })
   }
   if (bestComebackHolder && bestComeback > -Infinity) {
@@ -139,30 +159,38 @@ export async function detectRecords(
       holderId: bestComebackHolder,
       value: Math.round(bestComeback * 100) / 100,
       season,
-      context: `+${bestComeback.toFixed(0)} point diff`,
+      context: `+${bestComeback.toFixed(0)} point differential`,
     })
   }
 
-  const waiverByHolder = new Map<string, number>()
+  const tradeCountByHolder = new Map<string, number>()
   for (const r of rosters) {
-    const count = waiverByRoster.find((w) => w.rosterId === r.id)?._count.id ?? 0
-    waiverByHolder.set(r.platformUserId, count)
-  }
-  let mostWaiverHolder = ''
-  let mostWaiver = -1
-  for (const [h, count] of waiverByHolder) {
-    if (count > mostWaiver) {
-      mostWaiver = count
-      mostWaiverHolder = h
+    const holderId = r.platformUserId ?? r.id
+    if (!tradeCountByHolder.has(holderId)) {
+      tradeCountByHolder.set(holderId, 0)
     }
   }
-  if (mostWaiverHolder && mostWaiver > 0) {
+  for (const trade of acceptedTrades) {
+    const holderId = trade.senderUserId
+    if (!holderId) continue
+    tradeCountByHolder.set(holderId, (tradeCountByHolder.get(holderId) ?? 0) + 1)
+  }
+
+  let mostTradesHolder = ''
+  let mostTrades = -1
+  for (const [h, count] of tradeCountByHolder) {
+    if (count > mostTrades) {
+      mostTrades = count
+      mostTradesHolder = h
+    }
+  }
+  if (mostTradesHolder && mostTrades > 0) {
     candidates.push({
       recordType: 'most_trades_season',
-      holderId: mostWaiverHolder,
-      value: mostWaiver,
+      holderId: mostTradesHolder,
+      value: mostTrades,
       season,
-      context: `${mostWaiver} waiver claims`,
+      context: `${mostTrades} accepted trades`,
     })
   }
 

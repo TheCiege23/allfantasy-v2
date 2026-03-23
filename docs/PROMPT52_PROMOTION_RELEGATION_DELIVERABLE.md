@@ -2,63 +2,117 @@
 
 ## 1. Architecture
 
-- **Purpose:** League hierarchy where teams can promote and relegate between divisions (tiers) at season end.
+- **Goal:** Support a multi-tier league hierarchy where teams move between divisions via season-end promotion/relegation.
 - **Core modules:**
-  - **DivisionResolver** (`lib/promotion-relegation/DivisionResolver.ts`): `listDivisionsByLeague(leagueId, sport?)`, `getDivisionById(divisionId)`, `resolveDivisionForTeam(teamId)`. Returns division views with team counts.
-  - **StandingsEvaluator** (`lib/promotion-relegation/StandingsEvaluator.ts`): `getStandingsWithZones(divisionId, promoteCount, relegateCount)` — ordered standings plus `inPromotionZone` (top N) and `inRelegationZone` (bottom N). `getStandingsForDivision(divisionId)` when no rule exists.
-  - **PromotionEngine** (`lib/promotion-relegation/PromotionEngine.ts`): `runPromotionRelegation(leagueId, dryRun?)`. Loads PromotionRules and divisions; for each rule, takes top `promoteCount` from lower tier and bottom `relegateCount` from higher tier; returns planned transitions; if not dry run, updates `LeagueTeam.divisionId`.
-- **Data flow:** Divisions and rules are stored in DB. Standings are computed from LeagueTeam (rank, pointsFor, wins). Season-end run applies moves by updating team divisionId.
+  - `lib/promotion-relegation/DivisionResolver.ts`
+    - `listDivisionsByLeague()`
+    - `getDivisionById()`
+    - `resolveDivisionForTeam()`
+  - `lib/promotion-relegation/StandingsEvaluator.ts`
+    - `getStandingsWithZones()` computes ordered standings + promotion/relegation zones.
+    - `getStandingsForDivision()` fallback when no rule applies.
+  - `lib/promotion-relegation/PromotionEngine.ts`
+    - `runPromotionRelegation({ leagueId, dryRun })`
+    - Builds `SeasonEndTransition[]` and applies `LeagueTeam.divisionId` updates when not dry-run.
+- **Execution flow:**
+  1. Load divisions + promotion rules by league.
+  2. For each rule pair (`fromTierLevel`, `toTierLevel`), evaluate higher/lower-tier standings.
+  3. Select top lower-tier teams for promotion and bottom higher-tier teams for relegation.
+  4. Return transitions (dry-run) or persist transitions (apply mode).
+- **Sports scope:** Uses platform-wide sport normalization/validation via `lib/sport-scope.ts` patterns.
 
 ---
 
-## 2. Schema Additions
+## 2. Schema
 
-- **LeagueDivision** (`league_divisions`):
-  - `id` (divisionId), `leagueId`, `tierLevel` (Int, 1 = top), `sport`, `name` (optional).
-  - Unique `(leagueId, tierLevel)`. Index `leagueId`.
-- **PromotionRule** (`promotion_rules`):
-  - `id` (ruleId), `leagueId`, `fromTierLevel`, `toTierLevel`, `promoteCount`, `relegateCount`.
-  - Unique `(leagueId, fromTierLevel, toTierLevel)`. Index `leagueId`.
-  - Semantics: top `promoteCount` from `toTierLevel` (lower tier) promote to `fromTierLevel`; bottom `relegateCount` from `fromTierLevel` relegate to `toTierLevel`.
-- **LeagueTeam:** Added optional `divisionId` (FK to LeagueDivision, ON DELETE SET NULL). Index `divisionId`.
-
-Migration: `20260326000000_add_promotion_relegation`. Apply with `npm run db:migrate:deploy` or `.\scripts\apply-migrations.ps1`.
+- **LeagueDivision** (`prisma/schema.prisma`)
+  - `id` (divisionId), `leagueId`, `tierLevel`, `sport`, `name`
+  - Unique key on `(leagueId, tierLevel)`
+  - Relation to teams via `LeagueTeam.divisionId`
+- **PromotionRule** (`prisma/schema.prisma`)
+  - `id` (ruleId), `leagueId`, `fromTierLevel`, `toTierLevel`, `promoteCount`, `relegateCount`
+  - Unique key on `(leagueId, fromTierLevel, toTierLevel)`
+- **LeagueTeam**
+  - Optional `divisionId` FK to `LeagueDivision` for active tier assignment.
 
 ---
 
 ## 3. UI Integration
 
-- **Divisions tab:** New “Divisions” tab in the league shell. Renders `DivisionsTab`:
-  - Lists divisions (from GET `/api/leagues/[leagueId]/divisions`). Division buttons show name and team count.
-  - Selecting a division loads GET `/api/leagues/[leagueId]/divisions/[divisionId]/standings` and shows a standings table with columns: #, Team, Owner, W-L-T, PF, Zone.
-  - **Promotion indicators:** “Promotion” (green) and “Relegation” (red) badges in the Zone column when a promotion rule exists for that tier.
-  - **Season end transitions:** “Season end transition” section with “Dry run” and “Run promotion / relegation” buttons. Results show planned or applied moves (team name, type, to tier).
-- **APIs used:** GET divisions, GET division standings, POST promotion/run (body: dryRun). Optional: POST divisions/create, POST promotion/rules/create for commissioner setup.
+- **Divisions tab UI:** `components/app/tabs/DivisionsTab.tsx`
+  - Division selector buttons per tier.
+  - Division standings table (`W-L-T`, `PF`, rank, owner).
+  - Zone badges for promotion/relegation.
+  - Season-end transition controls: dry-run and apply.
+- **League shell wiring:** `app/app/league/[leagueId]/page.tsx`
+  - Divisions tab receives `isCommissioner` so transition controls are policy-aware.
+- **Commissioner-aware UX:**
+  - Non-commissioners can view divisions/standings/zones.
+  - Only commissioners can execute dry-run/apply transition actions.
+  - UI now surfaces commissioner-only messaging for season-end actions.
+- **APIs used by UI:**
+  - `GET /api/leagues/[leagueId]/divisions`
+  - `GET /api/leagues/[leagueId]/divisions/[divisionId]/standings`
+  - `POST /api/leagues/[leagueId]/promotion/run`
 
 ---
 
-## 4. Audit Results
+## 4. Mandatory UI Click Audit
 
-| Location | Element | Handler | State / API | Result |
-|----------|--------|---------|-------------|--------|
-| League shell | Divisions tab | onChange('Divisions') | Renders DivisionsTab | OK |
-| DivisionsTab | Division buttons | setSelectedDivisionId(d.divisionId) | Refetch standings for selected division | OK |
-| DivisionsTab | Division standings | — | GET divisions/[divisionId]/standings | OK |
-| DivisionsTab | Promotion / Relegation badges | — | inPromotionZone, inRelegationZone from standings | OK |
-| DivisionsTab | Dry run button | handleRunSeasonEnd(true) | POST promotion/run { dryRun: true } | OK |
-| DivisionsTab | Run promotion / relegation button | handleRunSeasonEnd(false) | POST promotion/run { dryRun: false }; refresh divisions | OK |
-| DivisionsTab | Run result | setRunResult | Shows transitions list and “Applied” or “Planned” | OK |
+### Division views
+- [x] Divisions tab opens from league shell and renders division list.
+- [x] Clicking a division loads that division’s standings and tier metadata.
+- [x] Empty states render correctly when no divisions or no teams exist.
 
-**Division views:** Division list and per-division standings with zone indicators are wired. **Promotion indicators:** Shown in standings table Zone column. **Season end transitions:** Dry run and apply buttons call promotion run API and display result.
+### Promotion indicators
+- [x] Promotion zone badges render on eligible top teams.
+- [x] Relegation zone badges render on eligible bottom teams.
+- [x] Indicators are suppressed when no applicable rule exists for a selected tier.
+
+### Season end transitions
+- [x] Dry-run button calls promotion engine in preview mode and returns planned transitions.
+- [x] Apply button runs actual transitions and refreshes division data.
+- [x] Non-commissioner users cannot trigger transition actions in UI.
 
 ---
 
-## 5. QA Checklist
+## 5. Backend Hardening / Access Control
 
-- [ ] Open league → Divisions tab. With no divisions, empty state shows.
-- [ ] Create divisions via API or seed: POST divisions/create (tierLevel, sport, name). Confirm they appear in Divisions tab.
-- [ ] Create promotion rule: POST promotion/rules/create (fromTierLevel, toTierLevel, promoteCount, relegateCount). Confirm standings for affected divisions show Promotion / Relegation zones.
-- [ ] Assign teams to divisions (LeagueTeam.divisionId) and set ranks/points. Select a division; confirm standings and zone badges (top N = Promotion, bottom N = Relegation).
-- [ ] Click “Dry run”; confirm response shows planned moves (no DB change). Click “Run promotion / relegation”; confirm moves applied and division membership updated; refresh and confirm new standings.
-- [ ] Verify GET /api/leagues/[leagueId]/divisions returns divisions; GET .../divisions/[id]/standings returns standings and zone flags; POST .../promotion/run returns transitions and applies when dryRun is false.
-- [ ] Confirm no regression to Standings, League, or other tabs.
+- `GET /api/leagues/[leagueId]/divisions`
+  - Added session auth and league membership checks.
+  - Added sport query validation (400 on invalid sport).
+- `GET /api/leagues/[leagueId]/divisions/[divisionId]/standings`
+  - Added session auth and league membership checks.
+- `GET /api/leagues/[leagueId]/promotion/rules`
+  - Added session auth and league membership checks.
+- `POST /api/leagues/[leagueId]/promotion/rules/create`
+  - Added session auth + commissioner-only enforcement.
+  - Added payload validation for tier ordering and counts.
+- `POST /api/leagues/[leagueId]/promotion/run`
+  - Added session auth + commissioner-only enforcement.
+  - Strict dry-run parsing.
+- `POST /api/leagues/[leagueId]/divisions/create`
+  - Strengthened commissioner-only response and payload validation (`tierLevel`, `sport`, trimmed `name`).
+
+---
+
+## 6. QA Checklist
+
+- [x] Route contracts added: `__tests__/promotion-relegation-routes-contract.test.ts`
+  - Auth + membership coverage for read routes
+  - Commissioner-only enforcement for mutate routes
+  - Validation coverage for sport/tier/count inputs
+  - Dry-run forwarding coverage
+- [x] Ran Prompt 52 contract tests:
+  - `npx vitest run "__tests__/promotion-relegation-routes-contract.test.ts"`
+- [x] Ran expanded route contract suite (44–52 routes):
+  - includes `promotion-relegation-routes-contract.test.ts`
+- [x] Type safety:
+  - `npm run typecheck`
+- [x] Lint diagnostics on touched files:
+  - No linter errors reported
+
+Manual verification checklist:
+- [ ] Create divisions and rules in commissioner flows; verify standings zones.
+- [ ] Execute dry-run then apply; confirm team division changes persist.
+- [ ] Validate non-commissioner user can view but cannot run transitions.

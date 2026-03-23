@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import Image from 'next/image'
 import { headshotUrl, teamLogoUrl } from '@/lib/media-url'
+import PlayerCardAnalytics from '@/components/player-card/PlayerCardAnalytics'
 
 const POS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   QB: { bg: 'bg-red-500', text: 'text-white', border: 'border-red-500/40' },
@@ -73,9 +74,10 @@ interface PlayerData {
 interface PlayerProfileCardProps {
   player: PlayerData
   onClose: () => void
+  sport?: string | null
 }
 
-export default function PlayerProfileCard({ player, onClose }: PlayerProfileCardProps) {
+export default function PlayerProfileCard({ player, onClose, sport = 'NFL' }: PlayerProfileCardProps) {
   const [imgError, setImgError] = useState(false)
   const [logoError, setLogoError] = useState(false)
   const [activeSection, setActiveSection] = useState<'overview' | 'leagues'>('overview')
@@ -319,6 +321,15 @@ export default function PlayerProfileCard({ player, onClose }: PlayerProfileCard
                 </div>
               </div>
             )}
+
+            <PlayerCardAnalytics
+              playerId={player.playerId}
+              playerName={player.playerName}
+              position={player.position}
+              team={player.team}
+              sport={sport}
+              eager={false}
+            />
           </div>
         )}
 

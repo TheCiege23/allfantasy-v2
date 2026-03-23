@@ -14,14 +14,28 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
   const [purchaseLoading, setPurchaseLoading] = useState(false)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
   const [seedLoading, setSeedLoading] = useState(false)
+  const [seedStatus, setSeedStatus] = useState<string | null>(null)
+  const [seedStatusError, setSeedStatusError] = useState(false)
   const [activeSection, setActiveSection] = useState<"store" | "inventory">("store")
+  const [inventoryTab, setInventoryTab] = useState<"items" | "history">("items")
 
-  const { wallet, loading: walletLoading, refresh: refreshWallet } = useWallet()
+  const {
+    wallet,
+    loading: walletLoading,
+    error: walletError,
+    refresh: refreshWallet,
+  } = useWallet()
   const { items, loading: itemsLoading, error: itemsError, refresh: refreshItems } = useMarketplaceItems(
     sportFilter || null,
     categoryFilter || null
   )
-  const { inventory, loading: inventoryLoading, refresh: refreshInventory } = useInventory(true)
+  const {
+    inventory,
+    history,
+    loading: inventoryLoading,
+    error: inventoryError,
+    refresh: refreshInventory,
+  } = useInventory(true)
 
   const refreshAll = useCallback(() => {
     refreshWallet()
@@ -61,11 +75,32 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
     }
   }, [confirmPurchase, sportFilter, refreshAll])
 
-  const runSeed = useCallback(() => {
+  const runSeed = useCallback(async () => {
+    setSeedStatus(null)
+    setSeedStatusError(false)
     setSeedLoading(true)
-    fetch("/api/marketplace/seed", { method: "POST" })
-      .then(() => refreshItems())
-      .finally(() => setSeedLoading(false))
+    try {
+      const res = await fetch("/api/marketplace/seed", { method: "POST" })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSeedStatus(data?.error ?? "Seed failed")
+        setSeedStatusError(true)
+        return
+      }
+      setSeedStatus(
+        typeof data?.seeded === "number"
+          ? data.seeded > 0
+            ? `Seeded ${data.seeded} default items.`
+            : "Store already had items."
+          : "Store seed complete."
+      )
+      await refreshItems()
+    } catch {
+      setSeedStatus("Seed failed")
+      setSeedStatusError(true)
+    } finally {
+      setSeedLoading(false)
+    }
   }, [refreshItems])
 
   return (
@@ -88,11 +123,10 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
             </div>
             <button
               type="button"
-              className="rounded-xl bg-zinc-700 text-white px-3 py-2 text-sm disabled:opacity-60"
-              disabled={walletLoading || itemsLoading || inventoryLoading}
+              className="rounded-xl bg-zinc-700 text-white px-3 py-2 text-sm"
               onClick={refreshAll}
             >
-              <RefreshCw className={`h-4 w-4 inline ${itemsLoading ? "animate-spin" : ""}`} /> Refresh
+              <RefreshCw className={`h-4 w-4 inline ${walletLoading || itemsLoading || inventoryLoading ? "animate-spin" : ""}`} /> Refresh
             </button>
             <button
               type="button"
@@ -104,7 +138,28 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
             </button>
           </div>
         </div>
+        {wallet && (
+          <p className="mt-2 text-xs text-white/60">
+            Lifetime earned: {wallet.earnedLifetime} · Lifetime spent: {wallet.spentLifetime}
+          </p>
+        )}
       </div>
+      {seedStatus && (
+        <div
+          className={`rounded-xl border p-3 text-sm ${
+            seedStatusError
+              ? "border-red-500/30 bg-red-900/20 text-red-200"
+              : "border-emerald-500/30 bg-emerald-900/20 text-emerald-100"
+          }`}
+        >
+          {seedStatus}
+        </div>
+      )}
+      {(walletError || itemsError || inventoryError) && (
+        <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
+          {walletError ?? itemsError ?? inventoryError}
+        </div>
+      )}
 
       <div className="flex gap-2">
         <button
@@ -151,11 +206,6 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
               ))}
             </select>
           </div>
-          {itemsError && (
-            <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
-              {itemsError}
-            </div>
-          )}
           {itemsLoading && <div className="text-sm text-white/50">Loading store…</div>}
           {!itemsLoading && items.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -166,6 +216,9 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
                 >
                   <div className="font-medium text-white">{item.itemName}</div>
                   <div className="text-xs text-zinc-400">{item.cosmeticCategoryLabel}</div>
+                  {item.sportRestriction && (
+                    <div className="mt-1 text-[11px] text-cyan-300">Sport: {item.sportRestriction}</div>
+                  )}
                   {item.description && (
                     <p className="mt-1 text-xs text-zinc-500">{item.description}</p>
                   )}
@@ -194,11 +247,27 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
 
       {activeSection === "inventory" && (
         <>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs ${inventoryTab === "items" ? "bg-emerald-600 text-white" : "bg-zinc-800 text-white/70"}`}
+              onClick={() => setInventoryTab("items")}
+            >
+              Owned Items
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs ${inventoryTab === "history" ? "bg-emerald-600 text-white" : "bg-zinc-800 text-white/70"}`}
+              onClick={() => setInventoryTab("history")}
+            >
+              Purchase History
+            </button>
+          </div>
           <p className="text-xs text-white/50">
             Cosmetics apply to your profile and team display only. They never affect competitive balance.
           </p>
           {inventoryLoading && <div className="text-sm text-white/50">Loading inventory…</div>}
-          {!inventoryLoading && inventory.length > 0 && (
+          {!inventoryLoading && inventoryTab === "items" && inventory.length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold text-white/80">Your items</h3>
               <div className="space-y-1">
@@ -214,9 +283,32 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
               </div>
             </div>
           )}
-          {!inventoryLoading && inventory.length === 0 && (
+          {!inventoryLoading && inventoryTab === "items" && inventory.length === 0 && (
             <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
               No items in inventory. Buy cosmetics from the Store.
+            </div>
+          )}
+          {!inventoryLoading && inventoryTab === "history" && history.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-white/80">Recent purchases</h3>
+              <div className="space-y-1">
+                {history.map((row) => (
+                  <div
+                    key={row.purchaseId}
+                    className="flex flex-wrap items-center justify-between rounded-lg bg-zinc-900/50 px-3 py-2 text-sm"
+                  >
+                    <span className="text-white">{row.itemName}</span>
+                    <span className="text-zinc-400">
+                      {row.price} pts · {new Date(row.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {!inventoryLoading && inventoryTab === "history" && history.length === 0 && (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
+              No purchases yet.
             </div>
           )}
         </>

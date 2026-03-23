@@ -5,7 +5,7 @@
 import { prisma } from '@/lib/prisma'
 import { getMergedHistoricalSeasonResultsForLeague } from '@/lib/season-results/HistoricalSeasonResultService'
 import type { SeasonPerformanceInput } from './types'
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 /**
  * Analyze league+season: load rosters, season results, draft grades, waiver claims.
@@ -16,7 +16,18 @@ export async function analyzeSeasonPerformance(
   season: string,
   options?: { sport?: string | null }
 ): Promise<SeasonPerformanceInput> {
-  const sport = options?.sport ?? DEFAULT_SPORT
+  const requestedSport =
+    options?.sport && isSupportedSport(options.sport)
+      ? normalizeToSupportedSport(options.sport)
+      : null
+  const seasonYear = Number.parseInt(season, 10)
+  const seasonWindow =
+    Number.isFinite(seasonYear) && seasonYear >= 1970 && seasonYear <= 2200
+      ? {
+          gte: new Date(Date.UTC(seasonYear, 0, 1, 0, 0, 0, 0)),
+          lt: new Date(Date.UTC(seasonYear + 1, 0, 1, 0, 0, 0, 0)),
+        }
+      : null
 
   const [league, rosters, historicalSeasonResults, draftGrades, waiverClaimsByRoster] = await Promise.all([
     prisma.league.findUnique({
@@ -34,12 +45,17 @@ export async function analyzeSeasonPerformance(
     }),
     prisma.waiverClaim.groupBy({
       by: ['rosterId'],
-      where: { leagueId },
+      where: {
+        leagueId,
+        ...(seasonWindow ? { createdAt: seasonWindow } : {}),
+      },
       _count: { id: true },
     }),
   ])
 
-  const resolvedSport = (league?.sport ?? sport) as string
+  const resolvedSport = normalizeToSupportedSport(
+    league?.sport ?? requestedSport ?? DEFAULT_SPORT
+  )
   const seasonResults = historicalSeasonResults.filter((row) => row.season === season)
   const seasonResultsByManager = new Map(
     seasonResults.map((row) => [row.managerId, row] as const)
@@ -66,6 +82,7 @@ export async function analyzeSeasonPerformance(
 
   const draftScoreByManager = new Map<string, number>()
   const waiverCountByManager = new Map<string, number>()
+  const tradeCountByManager = new Map<string, number>()
   const waiverCountByRoster = new Map(waiverClaimsByRoster.map((w) => [w.rosterId, w._count.id]))
   for (const roster of rosters) {
     const managerId = roster.platformUserId ?? roster.id
@@ -80,6 +97,32 @@ export async function analyzeSeasonPerformance(
       managerId,
       (waiverCountByManager.get(managerId) ?? 0) + (waiverCountByRoster.get(roster.id) ?? 0)
     )
+    if (!tradeCountByManager.has(managerId)) {
+      tradeCountByManager.set(managerId, 0)
+    }
+  }
+
+  const managerIds = Array.from(
+    new Set([
+      ...seasonResults.map((row) => row.managerId),
+      ...rosters.map((roster) => roster.platformUserId ?? roster.id),
+    ])
+  )
+  if (managerIds.length > 0) {
+    const acceptedOffers = await prisma.tradeOfferEvent.findMany({
+      where: {
+        leagueId,
+        senderUserId: { in: managerIds },
+        ...(Number.isFinite(seasonYear) ? { season: seasonYear } : {}),
+        verdict: { in: ['accepted', 'ACCEPTED', 'Accept', 'accept'] },
+      },
+      select: { senderUserId: true },
+    })
+    for (const offer of acceptedOffers) {
+      const managerId = offer.senderUserId
+      if (!managerId) continue
+      tradeCountByManager.set(managerId, (tradeCountByManager.get(managerId) ?? 0) + 1)
+    }
   }
 
   const byManager: SeasonPerformanceInput['byManager'] = {}
@@ -166,7 +209,7 @@ export async function analyzeSeasonPerformance(
       bestFinish: seasonRow?.bestFinish ?? null,
       draftScore: draftScoreByManager.get(managerId) ?? 0,
       waiverClaimCount: waiverCountByManager.get(managerId) ?? 0,
-      tradeCount: 0,
+      tradeCount: tradeCountByManager.get(managerId) ?? 0,
       isRookie,
       seasonsInLeague: hist.seasons,
       championshipCount: hist.championships,
@@ -196,7 +239,7 @@ export async function analyzeSeasonPerformance(
       bestFinish: seasonRow.bestFinish,
       draftScore: draftScoreByManager.get(managerId) ?? 0,
       waiverClaimCount: waiverCountByManager.get(managerId) ?? 0,
-      tradeCount: 0,
+      tradeCount: tradeCountByManager.get(managerId) ?? 0,
       isRookie: hist.seasons === 1,
       seasonsInLeague: hist.seasons,
       championshipCount: hist.championships,

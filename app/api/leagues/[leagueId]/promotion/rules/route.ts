@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league-access'
 import { prisma } from '@/lib/prisma'
 import type { PromotionRuleView } from '@/lib/promotion-relegation/types'
 
@@ -12,8 +15,18 @@ export async function GET(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const rules = await prisma.promotionRule.findMany({
       where: { leagueId },

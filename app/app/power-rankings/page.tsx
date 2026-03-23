@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Trophy, Award, Target } from 'lucide-react'
 import type { PlatformPowerRow } from '@/lib/platform-power-rankings'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 export default function PowerRankingsPage() {
   const [rows, setRows] = useState<PlatformPowerRow[]>([])
@@ -50,13 +51,11 @@ export default function PowerRankingsPage() {
             onChange={(e) => setSport(e.target.value)}
           >
             <option value="">All</option>
-            <option value="NFL">NFL</option>
-            <option value="NBA">NBA</option>
-            <option value="NHL">NHL</option>
-            <option value="MLB">MLB</option>
-            <option value="NCAAF">NCAAF</option>
-            <option value="NCAAB">NCAAB</option>
-            <option value="SOCCER">Soccer</option>
+            {SUPPORTED_SPORTS.map((s) => (
+              <option key={s} value={s}>
+                {s === 'SOCCER' ? 'Soccer' : s}
+              </option>
+            ))}
           </select>
           <button
             type="button"

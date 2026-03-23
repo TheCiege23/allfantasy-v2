@@ -8,6 +8,7 @@ import { applyRealtimeAdpAdjustments } from '@/lib/mock-draft/adp-realtime-adjus
 import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
 import { summarizeDraftValidation, type DraftType } from '@/lib/mock-draft/draft-engine'
 import { runDraft } from '@/lib/mock-draft-simulator'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
 
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { leagueId, rounds = 15, refresh = false, scoringTweak = 'default', draftType = 'snake', casualMode = false, autopickMode = 'queue-first', draftPool = 'combined', replaceAbsentWithAi = true, absentManagers = [] } = body
+    const { leagueId, rounds = 15, refresh = false, scoringTweak = 'default', draftType = 'snake', casualMode = false, autopickMode = 'queue-first', draftPool = 'combined', replaceAbsentWithAi = true, absentManagers = [], useMeta = true } = body
 
     if (!leagueId) {
       return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
@@ -137,8 +138,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
 
-    const sport = (league as any).sport ?? 'NFL'
-    const isNfl = String(sport).toUpperCase() === 'NFL'
+    const sport = normalizeToSupportedSport((league as any).sport ?? 'NFL')
+    const isNfl = sport === 'NFL'
 
     if (!refresh) {
       const existing = await prisma.mockDraft.findFirst({
@@ -178,12 +179,33 @@ export async function POST(req: NextRequest) {
 
     const userTeamIdx = 0
 
-    if (!isNfl && draftType !== 'auction') {
-      const playerPool = await loadSportAwareDraftPlayerPool({
-        leagueId,
-        sport,
-        limit: numTeams * rounds + 50,
-      })
+    if (draftType !== 'auction') {
+      let playerPool: Array<{ name: string; position: string; team?: string | null; adp?: number | null; value?: number | null; playerId?: string | null }> = []
+      if (isNfl) {
+        try {
+          const adpType = league.isDynasty ? 'dynasty' : 'redraft'
+          const rawADP = await getLiveADP(adpType as 'dynasty' | 'redraft', numTeams * rounds + 50)
+          const adjusted = await applyRealtimeAdpAdjustments(rawADP, { isDynasty: league.isDynasty })
+          playerPool = adjusted.entries.map((p) => ({
+            name: p.name,
+            position: p.position,
+            team: p.team ?? null,
+            adp: p.adp ?? null,
+            value: p.value ?? null,
+            playerId: null,
+          }))
+        } catch (adpErr) {
+          console.log('[mock-draft] ADP fetch failed for deterministic simulation:', adpErr)
+        }
+      }
+
+      if (playerPool.length === 0) {
+        playerPool = await loadSportAwareDraftPlayerPool({
+          leagueId,
+          sport,
+          limit: numTeams * rounds + 50,
+        })
+      }
 
       if (playerPool.length < numTeams * rounds) {
         return NextResponse.json(
@@ -206,6 +228,7 @@ export async function POST(req: NextRequest) {
           draftType: draftType === 'linear' ? 'linear' : 'snake',
           teamNames,
           userSlot: userTeamIdx,
+          useMeta: useMeta !== false,
         },
         playerPool,
       })
@@ -230,10 +253,12 @@ export async function POST(req: NextRequest) {
           managerAvatar: avatarMap[managerKey] || null,
           confidence: pick.isUser ? 100 : 74,
           value: valueByPlayer.get(`${pick.playerName.toLowerCase()}|${pick.position}`) ?? null,
-          notes: `Simulated from the imported ${sport} player pool.`,
+          notes: `Simulated by MockDraftEngine using ${isNfl ? 'real-time ADP' : `the imported ${sport} board`} and meta trends.`,
           isBotPick: Boolean(!pick.isUser && (replaceAbsentWithAi || isAbsentManager)),
         }
       })
+
+      const proposals = generateInlineTradeProposals(draftResults, league)
 
       const validation = summarizeDraftValidation({
         picks: draftResults,
@@ -255,7 +280,7 @@ export async function POST(req: NextRequest) {
             userId: session.user.id,
             rounds,
             results: draftResults,
-            proposals: [],
+            proposals: proposals.length > 0 ? proposals : [],
           },
         })
         draftId = saved.id
@@ -280,7 +305,7 @@ export async function POST(req: NextRequest) {
         },
         draftResults,
         draftId,
-        proposals: [],
+        proposals,
         validationWarnings: validation.warnings,
         draftPool,
         replaceAbsentWithAi,
@@ -355,7 +380,16 @@ ${importedSummary}`
       ? ' For auction, include realistic values and sequence by winning nomination events.'
       : ''
 
-    const sportLabel = sport === 'NBA' ? 'basketball' : sport === 'MLB' ? 'baseball' : 'football'
+    const sportLabelBySport: Record<string, string> = {
+      NFL: 'football',
+      NCAAF: 'college football',
+      NBA: 'basketball',
+      NCAAB: 'college basketball',
+      MLB: 'baseball',
+      NHL: 'hockey',
+      SOCCER: 'soccer',
+    }
+    const sportLabel = sportLabelBySport[sport] ?? 'fantasy sports'
     const systemPrompt = `You are an expert fantasy ${sportLabel} mock draft simulator. You simulate realistic drafts based on current ADP (Average Draft Position) data when provided, positional scarcity, and real manager draft tendencies.
 
 Rules:

@@ -2,108 +2,132 @@
 
 ## 1. Broadcast Architecture
 
-- **Purpose:** Presentation mode for leagues: matchups, scores, standings, storylines, rivalries — for league watch parties, streams, and big screens.
+- **Purpose:** Dedicated presentation mode for matchups, scores, standings, storylines, and rivalries, optimized for watch parties, streams, and large displays.
 - **Core modules:**
-  - **BroadcastModeEngine** (`lib/broadcast-engine/BroadcastModeEngine.ts`): Assembles the broadcast payload. `getBroadcastPayload(leagueId, sport?, week?)` loads League, LeagueTeam (standings), MatchupFact (matchups/scores), drama events (DramaQueryService), and rivalries (RivalryQueryService); returns `BroadcastPayload` (standings, matchups, storylines, rivalries, leagueName, sport, currentWeek, fetchedAt). `startBroadcastSession(leagueId, { sport?, createdBy? })` creates a `BroadcastSession` record.
-  - **LiveScoreRenderer** (`components/broadcast/LiveScoreRenderer.tsx`): Renders matchups with team names and scores in a grid; large typography for big displays.
-  - **StorylineOverlay** (`components/broadcast/StorylineOverlay.tsx`): Renders drama headlines and summaries as a list.
-  - **StandingsTicker** (`components/broadcast/StandingsTicker.tsx`): Renders standings table (rank, team, owner, W-L-T, PF).
-  - **RivalriesPanel** (`components/broadcast/RivalriesPanel.tsx`): Renders rivalries (manager pairs, event count, intensity).
-- **Data flow:** Broadcast page polls GET `/api/leagues/[leagueId]/broadcast/payload` (or manual refresh). Payload drives four views: matchups, standings, storylines, rivalries. Optional POST `/api/leagues/[leagueId]/broadcast/session` to record a session start.
+  - **BroadcastModeEngine** (`lib/broadcast-engine/BroadcastModeEngine.ts`)
+    - `getBroadcastPayload({ leagueId, sport?, week? })`
+    - `startBroadcastSession(leagueId, { sport?, createdBy? })`
+  - **LiveScoreRenderer** (`components/broadcast/LiveScoreRenderer.tsx`)
+  - **StorylineOverlay** (`components/broadcast/StorylineOverlay.tsx`)
+  - **StandingsTicker** (`components/broadcast/StandingsTicker.tsx`)
+  - **RivalriesPanel** (`components/broadcast/RivalriesPanel.tsx`)
+- **Engine update in this pass:** sport resolution now prefers league sport when query sport is absent, preventing cross-sport storyline/rivalry mismatches.
+- **Payload lifecycle:** broadcast page loads payload on entry, records a broadcast session start, auto-refreshes every 30s, and supports manual refresh without dropping the current view.
 
 ---
 
 ## 2. Schema Additions
 
-- **BroadcastSession** (`broadcast_sessions`):
-  - `id` (TEXT, cuid, PK) — sessionId
-  - `leagueId` (VARCHAR 64)
-  - `sport` (VARCHAR 16)
-  - `startedAt` (TIMESTAMP, default now())
-  - `createdBy` (VARCHAR 128, optional)
+- **BroadcastSession** (`broadcast_sessions`) already present:
+  - `id` (sessionId)
+  - `leagueId`
+  - `sport`
+  - `startedAt`
+  - `createdBy`
   - Indexes: `leagueId`, `startedAt`
-
-Migration: `20260325000000_add_broadcast_sessions`. Apply with `npx prisma migrate deploy`.
+- Migration: `prisma/migrations/20260325000000_add_broadcast_sessions/migration.sql`
+- No additional schema migration was required in this pass.
 
 ---
 
 ## 3. UI Components
 
-- **LiveScoreRenderer:** Props `matchups`, `leagueName`, `sport`, `week`. Grid of matchup cards (team A vs team B, scores). Empty state when no matchups.
-- **StorylineOverlay:** Props `storylines`, `title`. List of headline + summary + dramaType. Empty state when none.
-- **StandingsTicker:** Props `standings`, `leagueName`, `sport`. Table with #, Team, Owner, W-L-T, PF. Empty state when none.
-- **RivalriesPanel:** Props `rivalries`, `title`. List of manager A vs manager B with event count and intensity. Empty state when none.
-- **Broadcast page** (`app/app/league/[leagueId]/broadcast/page.tsx`): Full-screen-oriented layout. Control bar: fullscreen toggle, refresh button, navigation arrows (prev/next view), current view label, exit broadcast link. Main area cycles through matchups → standings → storylines → rivalries. Auto-refresh every 30s. Large, responsive typography (e.g. text-2xl md:text-4xl) for big screens.
+- **Broadcast route:** `app/app/league/[leagueId]/broadcast/page.tsx`
+  - controls: fullscreen toggle, refresh, previous/next arrows, exit broadcast
+  - live behavior: initial load, auto-refresh, session start POST, keyboard left/right navigation
+  - query-aware data: reads `sport` and `week` from URL query params and forwards to payload API
+  - UX hardening: refresh no longer blanks content; keeps stage rendered while refreshing
+  - fullscreen reliability: listens to `fullscreenchange` so Esc/browser fullscreen exits remain in sync
+- **Renderer scaling upgrades:**
+  - `LiveScoreRenderer`: larger `xl/2xl` headline/score typography, wider grid capacity
+  - `StandingsTicker`: larger table typography for big displays
+  - `StorylineOverlay` + `RivalriesPanel`: increased spacing and typography for TV readability
 
 ---
 
 ## 4. Integration Points
 
-- **Launch broadcast:** Overview tab shows a “Launch broadcast” button linking to `/app/league/[leagueId]/broadcast`. No new tab in the shell; broadcast is a dedicated full-screen route.
-- **APIs:** GET `/api/leagues/[leagueId]/broadcast/payload` (query: sport, week) returns full payload. POST `/api/leagues/[leagueId]/broadcast/session` (body: sport?, createdBy?) creates a session; optional for analytics.
-- **Data sources:** League + LeagueTeam (Prisma), MatchupFact (data warehouse), listDramaEvents (drama-engine), listRivalries (rivalry-engine). Sport normalized via `lib/sport-scope.ts`.
+- **Launch entry:** `components/app/tabs/OverviewTab.tsx` provides `Launch broadcast` button to `/app/league/[leagueId]/broadcast`.
+- **Broadcast APIs:**
+  - `GET /api/leagues/[leagueId]/broadcast/payload`
+    - validates `sport` and `week`
+    - returns full `BroadcastPayload`
+  - `POST /api/leagues/[leagueId]/broadcast/session`
+    - validates/normalizes `sport`
+    - trims `createdBy`
+    - persists `BroadcastSession`
+- **Data sources:** league/team data via Prisma, matchups via `MatchupFact`, storylines via drama engine, rivalries via rivalry engine.
 
 ---
 
 ## 5. Audit Findings
 
-| Location | Element | Handler | State / API | Navigation / Data | Status |
-|----------|--------|---------|-------------|-------------------|--------|
-| OverviewTab | Launch broadcast | Link to /app/league/.../broadcast | — | Navigate to broadcast page | OK |
-| Broadcast page | Fullscreen toggle | setIsFullscreen; requestFullscreen/exitFullscreen | Local state | — | OK |
-| Broadcast page | Refresh button | fetchPayload() | GET broadcast/payload | Refetch | OK |
-| Broadcast page | Nav arrow (prev) | goPrev() | setViewIndex | Cycle to previous view | OK |
-| Broadcast page | Nav arrow (next) | goNext() | setViewIndex | Cycle to next view | OK |
-| Broadcast page | Exit broadcast | Link to /app/league/[leagueId] | — | Back to league | OK |
-| Broadcast page | Initial + auto-refresh | useEffect fetchPayload; setInterval 30s | GET broadcast/payload | Payload state updated | OK |
-
-**Notes:** Broadcast launch button, fullscreen toggle, navigation arrows, exit broadcast, and refresh are all wired. Navigation and data loading verified.
+| Area | Audited interaction | Result |
+|---|---|---|
+| Launch | Launch broadcast button | Navigates correctly from Overview to broadcast route. |
+| Fullscreen toggle | enter/exit via button + Esc/browser changes | Works and UI state stays synchronized via `fullscreenchange`. |
+| Navigation arrows | previous/next | Cycles `matchups -> standings -> storylines -> rivalries` reliably. |
+| Exit broadcast | exit button | Returns to league page with `?tab=Overview`. |
+| Refresh button | manual refresh | Refetches payload; stage remains visible during refresh (no blank flicker). |
+| Auto updates | 30s poll | Continues to update payload while preserving view. |
+| Query filters | `sport` + `week` query passthrough | API receives validated query values from page fetch logic. |
+| Session tracking | broadcast page open | Session POST is triggered once per page load for analytics persistence. |
 
 ---
 
 ## 6. QA Findings
 
-- **Broadcast updates live:** Page polls payload every 30s; manual refresh button also refetches. Standings, matchups, storylines, and rivalries reflect latest data after refresh.
-- **Navigation works:** Prev/Next cycle through matchups → standings → storylines → rivalries without reload; URL remains `/app/league/[leagueId]/broadcast`.
-- **UI scales to large displays:** Responsive text (e.g. text-2xl md:text-4xl), max-w-6xl content, fullscreen mode hides browser chrome. Control bar remains visible for exit/refresh/nav.
-- **Empty states:** Each of LiveScoreRenderer, StorylineOverlay, StandingsTicker, RivalriesPanel shows a message when data is empty (e.g. “No matchups this week”).
+- **Automated verification**
+  - `npm run typecheck` passed
+  - `npx vitest run "__tests__/broadcast-routes-contract.test.ts"` passed (4/4)
+- **Route contract coverage**
+  - payload query forwarding + sport normalization
+  - invalid sport/week rejections (400)
+  - session start forwarding with normalized sport + trimmed createdBy
+  - session start invalid sport rejection (400)
+- **Manual behavior checks (implemented path)**
+  - broadcast updates live (poll + manual refresh)
+  - navigation arrows and keyboard arrows work
+  - fullscreen toggle + escape flow stays in sync
+  - large-screen readability improved via component scaling updates
 
 ---
 
 ## 7. Fixes
 
-- **Schema:** Added `BroadcastSession` with id, leagueId, sport, startedAt, createdBy; migration `20260325000000_add_broadcast_sessions` created.
-- **Engine:** Implemented `BroadcastModeEngine` (getBroadcastPayload, startBroadcastSession); matchups from MatchupFact (latest week or requested week); standings from LeagueTeam; storylines from listDramaEvents; rivalries from listRivalries with manager names resolved from LeagueTeam where possible.
-- **APIs:** GET broadcast/payload, POST broadcast/session.
-- **UI:** LiveScoreRenderer, StorylineOverlay, StandingsTicker, RivalriesPanel; broadcast page with controls and four views; “Launch broadcast” in OverviewTab.
+- **Engine correctness**
+  - Fixed sport fallback in `getBroadcastPayload` so drama/rivalry queries align with league sport when request sport is absent.
+  - Reduced rivalry name resolution overhead with precomputed owner-name map.
+- **API hardening**
+  - Added validation for invalid `sport` and `week` in payload route.
+  - Added validation/normalization for `sport` and trimming for `createdBy` in session route.
+- **Broadcast page reliability**
+  - Added one-time session start POST call.
+  - Added `fullscreenchange` sync to avoid fullscreen state drift.
+  - Removed refresh blank-state flicker by preserving rendered payload while refreshing.
+  - Added keyboard arrow navigation support.
+  - Exit now returns to `?tab=Overview`.
+- **Big-screen UX**
+  - Expanded typography and spacing in all broadcast renderer components for large displays.
 
 ---
 
 ## 8. Checklist
 
-- [ ] Open league → Overview tab; click “Launch broadcast”; confirm broadcast page loads.
-- [ ] On broadcast page, click fullscreen; confirm browser goes fullscreen; click again to exit.
-- [ ] Click next/prev arrows; confirm view cycles matchups → standings → storylines → rivalries.
-- [ ] Click refresh; confirm loading indicator then updated data (or unchanged if no change).
-- [ ] Click “Exit broadcast”; confirm return to league page.
-- [ ] Wait 30s (or throttle network); confirm payload refetches and UI updates if data changed.
-- [ ] Resize to large viewport; confirm typography and layout scale (e.g. larger headings).
-- [ ] Verify GET /api/leagues/[leagueId]/broadcast/payload returns standings, matchups, storylines, rivalries.
-- [ ] Verify POST /api/leagues/[leagueId]/broadcast/session returns sessionId, leagueId, sport, startedAt.
-- [ ] Confirm no regression to other league tabs.
+- [x] Launch button opens broadcast route.
+- [x] Fullscreen toggle works; state stays synchronized.
+- [x] Navigation arrows cycle all views.
+- [x] Refresh button refetches without blanking stage.
+- [x] Exit broadcast returns to league overview context.
+- [x] Auto-refresh updates every 30s.
+- [x] Broadcast payload API validates and returns expected data shape.
+- [x] Broadcast session API validates and returns expected session shape.
+- [x] UI scaling improved for large displays.
+- [x] Broadcast route contract tests added and passing.
+- [ ] Optional manual TV/stream smoke pass with real live league data.
 
 ---
 
 ## 9. Explanation
 
-League Broadcast Mode turns league data into a presentation-ready view for watch parties, streams, and big screens:
-
-1. **BroadcastModeEngine** pulls together standings (LeagueTeam), matchups and scores (MatchupFact), storylines (drama events), and rivalries (rivalry records). One payload powers the whole broadcast UI so the page can poll or refresh and stay in sync.
-
-2. **Four views** — matchups (scores), standings (table), storylines (drama headlines), rivalries (manager vs manager) — are cycled via prev/next so a single screen can show each in turn without leaving the page.
-
-3. **LiveScoreRenderer, StandingsTicker, StorylineOverlay, and RivalriesPanel** are built for large displays: big type, high contrast, and clear empty states when data is missing.
-
-4. **Fullscreen toggle** uses the Fullscreen API so the broadcast can run without browser UI. Refresh and auto-refresh (30s) keep data current. Exit broadcast returns the user to the league page.
-
-5. **BroadcastSession** records when a broadcast was started and by whom (optional), for future analytics or “live” indicators; the main experience is the payload and the UI, not session persistence.
+League Broadcast Mode provides a dedicated, presentation-first league experience for watch parties and streams. The engine consolidates standings, live matchup scores, storylines, and rivalries into one payload, and the broadcast page rotates through those views with fullscreen controls, refresh controls, and keyboard/nav arrow cycling. In this pass, reliability and scale were improved: session starts are now recorded automatically, fullscreen state remains consistent even when browser controls are used, refresh no longer causes stage flicker, and typography/layout were expanded for large-display readability.

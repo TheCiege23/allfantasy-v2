@@ -5,6 +5,7 @@
 import { prisma } from '@/lib/prisma'
 import { getGMTierFromScore, getGMTierLabel, getGMTierBadgeColor } from './GMTierResolver'
 import type { ManagerFranchiseProfileView, GMProgressionEventView, GMProgressionEventFilters } from './types'
+import { normalizeSportForGMCareer } from './SportCareerResolver'
 
 export async function getFranchiseProfileByManager(
   managerId: string
@@ -40,14 +41,31 @@ export async function listFranchiseProfiles(options?: {
   const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200)
   const offset = Math.max(options?.offset ?? 0, 0)
   const orderBy = options?.orderBy ?? 'franchiseValue'
+  let managerIdFilter: string[] | null = null
+
+  if (options?.sport) {
+    const sport = normalizeSportForGMCareer(options.sport)
+    const rosterManagers = await prisma.roster.findMany({
+      where: { league: { sport } },
+      distinct: ['platformUserId'],
+      select: { platformUserId: true },
+    })
+    managerIdFilter = [...new Set(rosterManagers.map((row) => row.platformUserId).filter(Boolean))]
+    if (managerIdFilter.length === 0) {
+      return { profiles: [], total: 0 }
+    }
+  }
+
+  const where = managerIdFilter ? { managerId: { in: managerIdFilter } } : undefined
 
   const [profiles, total] = await Promise.all([
     prisma.managerFranchiseProfile.findMany({
+      where,
       orderBy: orderBy === 'gmPrestigeScore' ? { gmPrestigeScore: 'desc' } : { franchiseValue: 'desc' },
       take: limit,
       skip: offset,
     }),
-    prisma.managerFranchiseProfile.count(),
+    prisma.managerFranchiseProfile.count({ where }),
   ])
 
   const views: ManagerFranchiseProfileView[] = profiles.map((p) => {
@@ -77,7 +95,7 @@ export async function listProgressionEvents(
   const where: { managerId: string; sport?: string; eventType?: string } = {
     managerId: filters.managerId,
   }
-  if (filters.sport) where.sport = filters.sport
+  if (filters.sport) where.sport = normalizeSportForGMCareer(filters.sport)
   if (filters.eventType) where.eventType = filters.eventType
 
   const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200)

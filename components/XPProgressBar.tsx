@@ -6,13 +6,13 @@
 export function XPProgressBar({
   progressInTier = 0,
   totalXP,
-  xpToNextTier,
+  xpRemainingToNextTier,
   currentTier,
   className = "",
 }: {
   progressInTier?: number
   totalXP: number
-  xpToNextTier: number
+  xpRemainingToNextTier: number
   currentTier: string
   className?: string
 }) {
@@ -23,8 +23,8 @@ export function XPProgressBar({
     <div className={`space-y-1 ${className}`}>
       <div className="flex justify-between text-xs text-white/60">
         <span>{totalXP} XP</span>
-        {!isLegendary && xpToNextTier > 0 && (
-          <span>{xpToNextTier} to next tier</span>
+        {!isLegendary && xpRemainingToNextTier > 0 && (
+          <span>{xpRemainingToNextTier} to next tier</span>
         )}
         {isLegendary && <span>Max tier</span>}
       </div>

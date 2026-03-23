@@ -16,13 +16,27 @@ import {
 import { useSearchParams, useRouter } from "next/navigation"
 import AuthShell from "@/components/auth/AuthShell"
 import AuthHero from "@/components/auth/AuthHero"
+import AuthSocialBlock from "@/components/auth/SocialLoginButtonsBlock"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
+import { validateSignInInput } from "@/lib/auth/SignInFormController"
+import { resolveLoginErrorMessage } from "@/lib/auth/AuthErrorMessageResolver"
+import {
+  clearUnifiedAuthDestination,
+  rememberUnifiedAuthDestination,
+  resolveUnifiedAuthDestination,
+} from "@/lib/auth/UnifiedAuthOrchestrator"
 
 export default function LoginContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const callbackUrl = searchParams?.get("callbackUrl") || searchParams?.get("next") || "/dashboard"
+  const callbackUrl = resolveUnifiedAuthDestination({
+    callbackUrl: searchParams?.get("callbackUrl"),
+    next: searchParams?.get("next"),
+    returnTo: searchParams?.get("returnTo"),
+    intent: searchParams?.get("intent"),
+  })
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
   const destinationLabel = callbackUrl.startsWith("/brackets")
@@ -38,6 +52,8 @@ export default function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [sleeperUsername, setSleeperUsername] = useState("")
+  const [sleeperLoading, setSleeperLoading] = useState(false)
 
   const [adminPassword, setAdminPassword] = useState("")
   const [adminLoading, setAdminLoading] = useState(false)
@@ -45,6 +61,10 @@ export default function LoginContent() {
   const [adminRemaining, setAdminRemaining] = useState<number | null>(null)
 
   const [configError, setConfigError] = useState<string | null>(null)
+
+  useEffect(() => {
+    rememberUnifiedAuthDestination(callbackUrl)
+  }, [callbackUrl])
 
   useEffect(() => {
     fetch("/api/auth/config-check")
@@ -61,14 +81,9 @@ export default function LoginContent() {
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-
-    if (!login.trim()) {
-      setError(t("login.error.enterIdentifier"))
-      return
-    }
-
-    if (!password) {
-      setError(t("login.error.enterPassword"))
+    const validation = validateSignInInput({ login, password })
+    if (!validation.ok) {
+      setError(validation.error ?? t("common.error.tryAgain"))
       return
     }
 
@@ -83,16 +98,12 @@ export default function LoginContent() {
       })
 
       if (result?.error) {
-        if (result.error.includes("SLEEPER_ONLY_ACCOUNT")) {
-          setError(t("login.error.sleeperOnly"))
-        } else if (result.error.includes("PASSWORD_NOT_SET")) {
-          setError(t("login.error.passwordNotSet"))
-        } else {
-          setError(t("login.error.invalidCredentials"))
-        }
+        setError(resolveLoginErrorMessage(result.error))
       } else if (result?.url) {
+        clearUnifiedAuthDestination()
         router.push(result.url)
       } else {
+        clearUnifiedAuthDestination()
         router.push(callbackUrl)
       }
     } catch {
@@ -127,11 +138,43 @@ export default function LoginContent() {
         return
       }
 
+      clearUnifiedAuthDestination()
       window.location.href = data.next || "/admin"
     } catch (err: any) {
       setAdminError(err?.message || t("login.error.failed"))
     } finally {
       setAdminLoading(false)
+    }
+  }
+
+  async function handleSleeperLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const username = sleeperUsername.trim()
+    if (!username) {
+      setError("Enter your Sleeper username.")
+      return
+    }
+    setSleeperLoading(true)
+    try {
+      const result = await signIn("sleeper", {
+        sleeperUsername: username,
+        redirect: false,
+        callbackUrl,
+      })
+      if (result?.error) {
+        setError("We could not find that Sleeper account. Please check the username and try again.")
+      } else if (result?.url) {
+        clearUnifiedAuthDestination()
+        router.push(result.url)
+      } else {
+        clearUnifiedAuthDestination()
+        router.push(callbackUrl)
+      }
+    } catch {
+      setError(t("common.error.tryAgain"))
+    } finally {
+      setSleeperLoading(false)
     }
   }
 
@@ -319,6 +362,54 @@ export default function LoginContent() {
                 </button>
               </form>
             </div>
+
+            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-2xl backdrop-blur-md">
+              <form onSubmit={handleSleeperLogin} className="space-y-3">
+                <div>
+                  <label htmlFor="sleeper-username" className="block text-xs font-medium text-white/70">
+                    Sleeper username
+                  </label>
+                  <input
+                    id="sleeper-username"
+                    value={sleeperUsername}
+                    onChange={(e) => setSleeperUsername(e.target.value)}
+                    type="text"
+                    autoComplete="username"
+                    className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
+                    placeholder="@your_sleeper_name"
+                    disabled={sleeperLoading}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={sleeperLoading || !sleeperUsername.trim()}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/10 disabled:opacity-50"
+                >
+                  {sleeperLoading ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("common.signingIn")}
+                    </span>
+                  ) : (
+                    "Continue with Sleeper"
+                  )}
+                </button>
+              </form>
+            </div>
+
+            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
+              <AuthSocialBlock callbackUrl={callbackUrl} />
+            </div>
+
+            <p className="text-center text-sm text-white/50">
+              New to AllFantasy?{" "}
+              <Link
+                href={signupUrlWithIntent(callbackUrl)}
+                className="font-medium text-cyan-300 hover:text-cyan-200"
+              >
+                Create your account
+              </Link>
+            </p>
 
             <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
               <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white/80">

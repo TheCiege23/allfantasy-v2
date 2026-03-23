@@ -32,7 +32,7 @@ export default function LeagueNewsArticlePage() {
   const [article, setArticle] = useState<ArticleDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [shareDone, setShareDone] = useState(false)
+  const [shareState, setShareState] = useState<'idle' | 'shared' | 'copied' | 'error'>('idle')
 
   useEffect(() => {
     if (!leagueId || !articleId) return
@@ -42,14 +42,26 @@ export default function LeagueNewsArticlePage() {
       `/api/leagues/${encodeURIComponent(leagueId)}/media/${encodeURIComponent(articleId)}`,
       { cache: 'no-store' }
     )
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error ?? 'Failed to load article')
+        return data
+      })
       .then((data) => {
         if (data?.article) setArticle(data.article)
         else setError('Article not found')
       })
-      .catch(() => setError('Failed to load'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [leagueId, articleId])
+
+  useEffect(() => {
+    if (!article || typeof window === 'undefined') return
+    if (window.location.hash !== '#ai-explanation') return
+    window.requestAnimationFrame(() => {
+      document.getElementById('ai-explanation')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [article])
 
   const shareUrl =
     typeof window !== 'undefined'
@@ -57,7 +69,10 @@ export default function LeagueNewsArticlePage() {
       : ''
 
   const handleShare = async () => {
-    if (!shareUrl) return
+    if (!shareUrl) {
+      setShareState('error')
+      return
+    }
     try {
       if (navigator.share) {
         await navigator.share({
@@ -65,17 +80,17 @@ export default function LeagueNewsArticlePage() {
           url: shareUrl,
           text: article?.headline,
         })
-        setShareDone(true)
+        setShareState('shared')
       } else {
         await navigator.clipboard.writeText(shareUrl)
-        setShareDone(true)
+        setShareState('copied')
       }
     } catch {
       try {
         await navigator.clipboard.writeText(shareUrl)
-        setShareDone(true)
+        setShareState('copied')
       } catch {
-        // ignore
+        setShareState('error')
       }
     }
   }
@@ -117,7 +132,13 @@ export default function LeagueNewsArticlePage() {
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white hover:bg-white/10"
         >
           <Share2 className="h-4 w-4" />
-          {shareDone ? 'Copied!' : 'Share'}
+          {shareState === 'shared'
+            ? 'Shared!'
+            : shareState === 'copied'
+              ? 'Copied!'
+              : shareState === 'error'
+                ? 'Share unavailable'
+                : 'Share'}
         </button>
       </div>
 

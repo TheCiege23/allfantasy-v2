@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       )
     }
     const result = runPlayoffSimulation({
+      sport: body.sport,
       teams: body.teams,
       targetTeamIndex: target,
       iterations: body.iterations,

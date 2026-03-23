@@ -5,6 +5,10 @@ import Image from 'next/image'
 import { LogIn, UserPlus, Smartphone } from 'lucide-react'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import {
+  buildLoginHrefWithIntent,
+  buildSignupHrefWithIntent,
+} from '@/lib/auth/PostAuthIntentRouter'
 
 const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAA', 'Soccer']
 
@@ -26,6 +30,8 @@ export function HeroLogo() {
 
 export default function LandingHero() {
   const { t } = useLanguage()
+  const loginHref = buildLoginHrefWithIntent('/dashboard')
+  const signupHref = buildSignupHrefWithIntent('/dashboard')
 
   return (
     <section
@@ -69,17 +75,17 @@ export default function LandingHero() {
       <div className="flex flex-col items-center gap-4 w-full max-w-xs sm:max-w-none">
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:w-auto sm:justify-center sm:gap-4">
           <Link
-            href="/login"
+            href={loginHref}
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 px-8 py-4 text-base font-semibold text-black shadow-lg hover:from-cyan-400 hover:to-cyan-300 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.signIn'), cta_destination: '/login', cta_type: 'primary', source: 'hero' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.signIn'), cta_destination: loginHref, cta_type: 'primary', source: 'hero' })}
           >
             <LogIn className="h-5 w-5 shrink-0" aria-hidden />
             <span>{t('landing.cta.signIn')}</span>
           </Link>
           <Link
-            href="/signup"
+            href={signupHref}
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border-2 border-purple-500/50 bg-purple-600/10 px-8 py-4 text-base font-semibold text-purple-300 hover:bg-purple-600/20 hover:border-purple-400 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)] touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.createAccount'), cta_destination: '/signup', cta_type: 'secondary', source: 'hero' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.createAccount'), cta_destination: signupHref, cta_type: 'secondary', source: 'hero' })}
           >
             <UserPlus className="h-5 w-5 shrink-0" aria-hidden />
             <span>{t('landing.cta.createAccount')}</span>

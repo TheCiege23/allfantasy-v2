@@ -12,6 +12,9 @@ const WEIGHT_XP = 0.25
 const WEIGHT_CHAMPIONSHIPS = 0.25
 const WEIGHT_WIN_PCT = 0.20
 
+const DEFAULT_LIMIT = 50
+const MAX_LIMIT = 200
+
 /** Normalize legacy (0–100) to 0–1. */
 function normLegacy(v: number | null): number {
   if (v == null || Number.isNaN(v)) return 0
@@ -34,6 +37,43 @@ function normWinPct(v: number | null): number {
   return Math.max(0, Math.min(1, Number(v) / 100))
 }
 
+function normalizeLimit(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return DEFAULT_LIMIT
+  return Math.min(Math.max(Math.floor(n), 1), MAX_LIMIT)
+}
+
+function normalizeOffset(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.floor(n))
+}
+
+async function getDisplayNames(managerIds: string[]): Promise<Map<string, string | null>> {
+  if (managerIds.length === 0) return new Map()
+  const unique = [...new Set(managerIds)]
+  const [profiles, appUsers] = await Promise.all([
+    prisma.userProfile.findMany({
+      where: {
+        OR: [{ userId: { in: unique } }, { sleeperUserId: { in: unique } }],
+      },
+      select: { userId: true, sleeperUserId: true, displayName: true },
+    }),
+    prisma.appUser.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, displayName: true, username: true },
+    }),
+  ])
+  const map = new Map<string, string | null>()
+  for (const id of unique) {
+    const byProfile = profiles.find((p) => p.userId === id || p.sleeperUserId === id)
+    const byApp = appUsers.find((u) => u.id === id)
+    const name = byProfile?.displayName ?? (byApp ? byApp.displayName ?? byApp.username : null)
+    map.set(id, name ?? null)
+  }
+  return map
+}
+
 /**
  * Build cross-league power rankings: aggregate legacy (by entityId), XP, GM profile (championships, win%).
  */
@@ -41,8 +81,8 @@ export async function getPlatformPowerLeaderboard(
   options: PlatformPowerOptions = {}
 ): Promise<PlatformPowerLeaderboardResult> {
   const sport = options.sport ? normalizeToSupportedSport(options.sport) : null
-  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
-  const offset = Math.max(options.offset ?? 0, 0)
+  const limit = normalizeLimit(options.limit)
+  const offset = normalizeOffset(options.offset)
 
   const legacyWhere: Record<string, unknown> = { entityType: 'MANAGER' }
   if (sport) legacyWhere.sport = sport
@@ -126,6 +166,11 @@ export async function getPlatformPowerLeaderboard(
   rows.forEach((r, i) => {
     r.rank = i + 1
   })
+
+  const displayNames = await getDisplayNames(rows.map((r) => r.managerId))
+  for (const row of rows) {
+    row.displayName = displayNames.get(row.managerId) ?? null
+  }
 
   const total = rows.length
   const paged = rows.slice(offset, offset + limit)

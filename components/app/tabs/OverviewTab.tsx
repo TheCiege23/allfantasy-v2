@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Radio, BookOpen } from 'lucide-react'
 import TabDataState from '@/components/app/tabs/TabDataState'
@@ -19,6 +19,24 @@ import { MergedDevyC2CHome } from '@/components/merged-devy-c2c/MergedDevyC2CHom
 import { BigBrotherHome } from '@/components/big-brother/BigBrotherHome'
 import IDPHome from '@/components/idp/IDPHome'
 
+function VariantOverviewWrapper({ leagueId, children }: { leagueId: string; children: ReactNode }) {
+  return (
+    <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Link
+            href={`/app/league/${encodeURIComponent(leagueId)}/broadcast`}
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2.5 text-sm font-medium text-amber-300 hover:bg-amber-950/50"
+          >
+            <Radio className="h-4 w-4" /> Launch broadcast
+          </Link>
+        </div>
+        {children}
+      </div>
+    </TabDataState>
+  )
+}
+
 export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSurvivor, isZombie, isDevyDynasty, isMergedDevyC2C, isBigBrother, isIdp, isCommissioner }: LeagueTabProps & { isGuillotine?: boolean; isSalaryCap?: boolean; isSurvivor?: boolean; isZombie?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
   const [storyModalOpen, setStoryModalOpen] = useState(false)
   const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'overview')
@@ -30,65 +48,65 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
 
   if (isGuillotine) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <GuillotineHome leagueId={leagueId} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isSalaryCap) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <SalaryCapHome leagueId={leagueId} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isSurvivor) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <SurvivorHome leagueId={leagueId} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isZombie) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <ZombieHome leagueId={leagueId} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isDevyDynasty) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <DevyHome leagueId={leagueId} isCommissioner={isCommissioner} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isMergedDevyC2C) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <MergedDevyC2CHome leagueId={leagueId} isCommissioner={isCommissioner} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isBigBrother) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <BigBrotherHome leagueId={leagueId} isCommissioner={isCommissioner} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 
   if (isIdp) {
     return (
-      <TabDataState title="Overview" loading={false} error={null} onReload={() => {}}>
+      <VariantOverviewWrapper leagueId={leagueId}>
         <IDPHome leagueId={leagueId} />
-      </TabDataState>
+      </VariantOverviewWrapper>
     )
   }
 

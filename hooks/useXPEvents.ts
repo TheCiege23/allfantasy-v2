@@ -23,6 +23,7 @@ export function useXPEvents(
   const refresh = useCallback(async () => {
     if (!managerId) {
       setEvents([])
+      setError(null)
       return
     }
     setLoading(true)

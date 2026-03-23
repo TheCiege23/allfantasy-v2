@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { buildRecapContext } from './RecapGenerator'
 import { buildPowerRankingContext } from './PowerRankingGenerator'
 import { getStatisticalInsights, buildArticle } from './NarrativeBuilder'
@@ -34,14 +35,21 @@ export interface GenerateArticleResult {
  */
 export async function generateArticle(input: GenerateArticleInput): Promise<GenerateArticleResult> {
   const { leagueId, type, tradeSummary, skipStatsInsights } = input
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { name: true, sport: true, leagueSize: true },
+  })
+  const resolvedSport = normalizeToSupportedSport(input.sport ?? league?.sport)
+  const resolvedLeagueName = input.leagueName ?? league?.name ?? undefined
+
   let ctx: GenerationContext
 
   switch (type) {
     case 'weekly_recap':
       ctx = await buildRecapContext({
         leagueId,
-        sport: input.sport,
-        leagueName: input.leagueName,
+        sport: resolvedSport,
+        leagueName: resolvedLeagueName,
         season: input.season,
         week: input.week,
       })
@@ -49,16 +57,16 @@ export async function generateArticle(input: GenerateArticleInput): Promise<Gene
     case 'power_rankings':
       ctx = await buildPowerRankingContext({
         leagueId,
-        sport: input.sport,
-        leagueName: input.leagueName,
+        sport: resolvedSport,
+        leagueName: resolvedLeagueName,
         season: input.season,
       })
       break
     case 'trade_breakdown':
       ctx = await buildPowerRankingContext({
         leagueId,
-        sport: input.sport,
-        leagueName: input.leagueName,
+        sport: resolvedSport,
+        leagueName: resolvedLeagueName,
       })
       if (tradeSummary) ctx.tradeSummary = tradeSummary
       break
@@ -67,8 +75,8 @@ export async function generateArticle(input: GenerateArticleInput): Promise<Gene
     case 'championship_recap':
       ctx = await buildRecapContext({
         leagueId,
-        sport: input.sport,
-        leagueName: input.leagueName,
+        sport: resolvedSport,
+        leagueName: resolvedLeagueName,
         season: input.season,
         week: input.week,
       })
@@ -76,8 +84,8 @@ export async function generateArticle(input: GenerateArticleInput): Promise<Gene
     default:
       ctx = await buildRecapContext({
         leagueId,
-        sport: input.sport,
-        leagueName: input.leagueName,
+        sport: resolvedSport,
+        leagueName: resolvedLeagueName,
         season: input.season,
       })
   }
@@ -86,10 +94,6 @@ export async function generateArticle(input: GenerateArticleInput): Promise<Gene
   const statisticalInsights =
     skipStatsInsights === true ? '' : await getStatisticalInsights(ctx)
 
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    select: { name: true, sport: true, leagueSize: true },
-  })
   const leagueMeta = league
     ? {
         sport: league.sport,
@@ -133,44 +137,32 @@ export interface ListArticlesInput {
  */
 export async function listArticles(input: ListArticlesInput) {
   const { leagueId, sport, tags, limit = 20, cursor } = input
-  const where: { leagueId: string; sport?: string } = { leagueId }
+  const where: {
+    leagueId: string
+    sport?: string
+    OR?: Array<{ tags: { array_contains: string[] } }>
+  } = { leagueId }
   if (sport) where.sport = sport
-  if (tags?.length) {
-    // Filter: article tags array contains at least one of the requested tags
-    const articles = await prisma.mediaArticle.findMany({
-      where: { leagueId, ...(sport ? { sport } : {}) },
-      orderBy: { createdAt: 'desc' },
-      take: limit * 3,
-    })
-    const filtered = tags.length
-      ? articles.filter((a) => {
-          const t = (a.tags as string[]) ?? []
-          return tags.some((tag) => t.includes(tag))
-        })
-      : articles
-    const limited = filtered.slice(0, limit)
-    return {
-      articles: limited.map((a) => ({
-        id: a.id,
-        leagueId: a.leagueId,
-        sport: a.sport,
-        headline: a.headline,
-        body: a.body,
-        tags: (a.tags as string[]) ?? [],
-        createdAt: a.createdAt,
-      })),
-      nextCursor: limited.length === filtered.length ? undefined : limited[limited.length - 1]?.id,
-    }
+  const requestedTags = tags?.length ? tags.filter(Boolean) : []
+  const hasTagFilter = requestedTags.length > 0
+  if (hasTagFilter) {
+    where.OR = requestedTags.map((tag) => ({
+      tags: {
+        array_contains: [tag],
+      },
+    }))
   }
 
-  const articles = await prisma.mediaArticle.findMany({
+  const rows = await prisma.mediaArticle.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
   })
-  const hasMore = articles.length > limit
-  const list = hasMore ? articles.slice(0, limit) : articles
+
+  const hasMore = rows.length > limit
+  const list = hasMore ? rows.slice(0, limit) : rows
+
   return {
     articles: list.map((a) => ({
       id: a.id,

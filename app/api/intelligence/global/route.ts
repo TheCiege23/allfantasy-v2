@@ -10,12 +10,27 @@ import type { GlobalIntelligenceInput, IntelligenceModule } from '@/lib/global-i
 
 export const dynamic = 'force-dynamic'
 
+function parseOptionalPositiveInt(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const n = Math.trunc(raw)
+    return n > 0 ? n : undefined
+  }
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const n = Number.parseInt(raw, 10)
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }
+  return undefined
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     const userId = session?.user?.id ?? null
 
-    const body = (await req.json().catch(() => ({}))) as GlobalIntelligenceInput
+    const body = (await req.json().catch(() => ({}))) as GlobalIntelligenceInput & {
+      season?: unknown
+      week?: unknown
+    }
     const leagueId = body.leagueId
     if (!leagueId || typeof leagueId !== 'string') {
       return NextResponse.json(
@@ -35,6 +50,8 @@ export async function POST(req: NextRequest) {
       leagueId,
       userId,
       sport: body.sport ?? null,
+      season: parseOptionalPositiveInt(body.season),
+      week: parseOptionalPositiveInt(body.week),
       include: filteredInclude,
     })
 

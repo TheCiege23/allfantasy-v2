@@ -4,20 +4,25 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPlatformPowerLeaderboard } from '@/lib/platform-power-rankings'
+import { isSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const sport = url.searchParams.get('sport') ?? undefined
-    const limit = url.searchParams.get('limit')
-    const offset = url.searchParams.get('offset')
+    const sportRaw = url.searchParams.get('sport')?.trim()
+    const sport = sportRaw && sportRaw.length > 0 ? sportRaw : undefined
+    if (sport && !isSupportedSport(sport)) {
+      return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
+    }
+    const limitRaw = Number.parseInt(url.searchParams.get('limit') ?? '', 10)
+    const offsetRaw = Number.parseInt(url.searchParams.get('offset') ?? '', 10)
 
     const result = await getPlatformPowerLeaderboard({
       sport: sport || null,
-      limit: limit ? parseInt(limit, 10) : 50,
-      offset: offset ? parseInt(offset, 10) : 0,
+      limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
+      offset: Number.isFinite(offsetRaw) ? offsetRaw : undefined,
     })
 
     return NextResponse.json(result)

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { Sparkles, TrendingUp, Target, LineChart } from 'lucide-react'
 import type {
   PlayerCardAnalyticsPayload,
   PlayerCardMetaTrend,
   PlayerCardCareerProjection,
 } from '@/lib/player-card-analytics/types'
+import { usePlayerCardAnalytics } from '@/hooks/usePlayerCardAnalytics'
 
 export interface PlayerCardAnalyticsProps {
   playerId?: string | null
@@ -14,6 +14,7 @@ export interface PlayerCardAnalyticsProps {
   position?: string | null
   team?: string | null
   sport?: string | null
+  season?: string | null
   /** When true, fetch on mount; when false, only when expanded or explicitly requested */
   eager?: boolean
 }
@@ -24,50 +25,20 @@ export default function PlayerCardAnalytics({
   position,
   team,
   sport,
+  season,
   eager = true,
 }: PlayerCardAnalyticsProps) {
-  const [data, setData] = useState<PlayerCardAnalyticsPayload | null>(null)
-  const [loading, setLoading] = useState(eager)
-  const [error, setError] = useState<string | null>(null)
-  const [fetched, setFetched] = useState(false)
-
-  const fetchCard = () => {
-    if (!playerName?.trim()) return
-    setLoading(true)
-    setError(null)
-    fetch('/api/player-card-analytics', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        playerId,
-        playerName: playerName.trim(),
-        position,
-        team,
-        sport,
-      }),
-    })
-      .then((r) => r.json())
-      .then((payload) => {
-        if (payload?.error) {
-          setError(payload.error)
-          setData(null)
-        } else {
-          setData(payload)
-        }
-      })
-      .catch(() => {
-        setError('Failed to load analytics')
-        setData(null)
-      })
-      .finally(() => {
-        setLoading(false)
-        setFetched(true)
-      })
-  }
-
-  useEffect(() => {
-    if (eager && playerName?.trim() && !fetched) fetchCard()
-  }, [eager, playerName, fetched])
+  const { data, loading, error, hasFetched, refetch } = usePlayerCardAnalytics(
+    {
+      playerId,
+      playerName: playerName.trim(),
+      position,
+      team,
+      sport,
+      season,
+    },
+    { enabled: eager }
+  )
 
   if (!playerName?.trim()) return null
 
@@ -80,16 +51,16 @@ export default function PlayerCardAnalytics({
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-white">Player card analytics</h3>
-        {!eager && !fetched && (
+        {!eager && !hasFetched && (
           <button
             type="button"
-            onClick={fetchCard}
+            onClick={() => void refetch()}
             className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10"
           >
             Load
           </button>
         )}
-        {fetched && !showSection && !loading && !error && (
+        {hasFetched && !showSection && !loading && !error && (
           <span className="text-xs text-zinc-500">No data</span>
         )}
       </div>
@@ -168,6 +139,11 @@ function MatchupBlock({ pred }: { pred: PlayerCardAnalyticsPayload['matchupPredi
   if (!pred) return null
   return (
     <div className="text-xs text-zinc-300">
+      {pred.opponentTier && (
+        <p className="text-zinc-400">
+          Tier: <span className="font-medium text-zinc-200">{pred.opponentTier}</span>
+        </p>
+      )}
       {pred.outlook && <p>{pred.outlook}</p>}
       {(pred.expectedPoints != null || pred.expectedPointsPerGame != null) && (
         <p className="mt-1">

@@ -3,13 +3,15 @@
  * Does not run Hall of Fame induction (handled separately in Hall of Fame tab).
  */
 
-import { runGMEconomyForManager, runGMEconomyForAll } from '@/lib/gm-economy/GMEconomyEngine'
-import { runForManager, runForAllManagers } from '@/lib/xp-progression/XPProgressionEngine'
+import { runGMEconomyForManager } from '@/lib/gm-economy/GMEconomyEngine'
+import { runForManager } from '@/lib/xp-progression/XPProgressionEngine'
 import { runReputationEngineForLeague } from '@/lib/reputation-engine/ReputationEngine'
 import { runLegacyScoreEngineForLeague } from '@/lib/legacy-score-engine/LegacyScoreEngine'
 import { runAwardsEngine } from '@/lib/awards-engine/AwardsEngine'
 import { runRecordBookEngine } from '@/lib/record-book-engine/RecordBookEngine'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { resolveSportForCareer } from '@/lib/career-prestige/SportPrestigeResolver'
 
 export interface OrchestratorResult {
   leagueId?: string
@@ -29,9 +31,16 @@ export async function runAllForLeague(
   leagueId: string,
   options?: { sport?: string | null; seasons?: string[] }
 ): Promise<OrchestratorResult> {
-  const sport = options?.sport ?? undefined
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
+  const sport = resolveSportForCareer(options?.sport ?? league?.sport ?? DEFAULT_SPORT)
   const currentYear = new Date().getFullYear()
-  const seasons = options?.seasons ?? [String(currentYear), String(currentYear - 1)]
+  const seasonsRaw = options?.seasons ?? [String(currentYear), String(currentYear - 1)]
+  const seasons = Array.from(
+    new Set(seasonsRaw.map((season) => season?.trim()).filter((season): season is string => Boolean(season)))
+  )
 
   const rosters = await prisma.roster.findMany({
     where: { leagueId },
@@ -52,7 +61,7 @@ export async function runAllForLeague(
   }
 
   const repResult = await runReputationEngineForLeague(leagueId, { sport })
-  const legacyResult = await runLegacyScoreEngineForLeague(leagueId, { sport: sport ?? 'NFL' })
+  const legacyResult = await runLegacyScoreEngineForLeague(leagueId, { sport: sport ?? DEFAULT_SPORT })
   let awardsCreated = 0
   const seasonsProcessedAwards: string[] = []
   for (const season of seasons) {

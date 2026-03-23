@@ -21,6 +21,7 @@ export function useXPProfile(managerId: string | null) {
   const refresh = useCallback(async () => {
     if (!managerId) {
       setProfile(null)
+      setError(null)
       return
     }
     setLoading(true)

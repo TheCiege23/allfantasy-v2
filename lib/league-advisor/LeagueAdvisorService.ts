@@ -5,7 +5,7 @@
 import { prisma } from '@/lib/prisma'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
-import { openaiChatJson } from '@/lib/openai-client'
+import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import type { LeagueAdvisorAdvice, LeagueAdvisorContext } from './types'
 
 const ADVISOR_SYSTEM = `You are a personal fantasy league advisor. Given a user's league context (roster summary, injuries, FAAB, waiver priority), produce concise, actionable advice in four categories:
@@ -132,6 +132,204 @@ async function getInjurySummary(sport: string, rosterPlayerNames: string[]): Pro
   }
 }
 
+async function getRecentInjuries(
+  sport: string,
+  rosterPlayerNames: string[]
+): Promise<Array<{ playerName: string; team: string | null; status: string | null; type: string | null }>> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const normSport = normalizeToSupportedSport(sport)
+  try {
+    return await prisma.sportsInjury.findMany({
+      where: {
+        sport: normSport,
+        updatedAt: { gte: since },
+        ...(rosterPlayerNames.length > 0
+          ? {
+              OR: rosterPlayerNames.map((name) => ({
+                playerName: { contains: name, mode: 'insensitive' as const },
+              })),
+            }
+          : {}),
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 20,
+      select: { playerName: true, team: true, status: true, type: true },
+    })
+  } catch {
+    return []
+  }
+}
+
+async function getRosterTrendSummary(
+  sport: string,
+  playerIds: string[],
+  nameMap: Map<string, string>
+): Promise<{
+  summary: string
+  hot: string[]
+  cold: string[]
+  rising: string[]
+}> {
+  if (!playerIds.length) {
+    return { summary: 'No trend data for current roster.', hot: [], cold: [], rising: [] }
+  }
+  try {
+    const rows = await prisma.playerMetaTrend.findMany({
+      where: {
+        sport: normalizeToSupportedSport(sport),
+        playerId: { in: playerIds },
+      },
+      orderBy: { trendScore: 'desc' },
+      take: 50,
+      select: { playerId: true, trendScore: true, trendingDirection: true },
+    })
+    const hot = rows
+      .filter((r) => String(r.trendingDirection).toLowerCase() === 'hot')
+      .slice(0, 3)
+      .map((r) => nameMap.get(r.playerId) ?? r.playerId)
+    const rising = rows
+      .filter((r) => String(r.trendingDirection).toLowerCase() === 'rising')
+      .slice(0, 3)
+      .map((r) => nameMap.get(r.playerId) ?? r.playerId)
+    const cold = rows
+      .filter((r) => ['cold', 'falling', 'down'].includes(String(r.trendingDirection).toLowerCase()))
+      .slice(0, 3)
+      .map((r) => nameMap.get(r.playerId) ?? r.playerId)
+
+    const parts = [
+      hot.length ? `Hot: ${hot.join(', ')}` : '',
+      rising.length ? `Rising: ${rising.join(', ')}` : '',
+      cold.length ? `Cold/Falling: ${cold.join(', ')}` : '',
+    ].filter(Boolean)
+    return {
+      summary: parts.length ? parts.join('. ') + '.' : 'No trend data for current roster.',
+      hot,
+      cold,
+      rising,
+    }
+  } catch {
+    return { summary: 'Trend data unavailable.', hot: [], cold: [], rising: [] }
+  }
+}
+
+function priorityFromInjuryStatus(status?: string | null): 'high' | 'medium' | 'low' {
+  const s = String(status ?? '').toLowerCase()
+  if (['out', 'ir', 'pup', 'doubtful', 'suspended'].includes(s)) return 'high'
+  if (['questionable', 'day-to-day'].includes(s)) return 'medium'
+  return 'low'
+}
+
+function buildDeterministicFallbackAdvice(input: {
+  leagueId: string
+  sport: string
+  rosterSummary: string
+  faabRemaining?: number | null
+  waiverPriority?: number | null
+  injuries: Array<{ playerName: string; team: string | null; status: string | null; type: string | null }>
+  hot: string[]
+  cold: string[]
+  rising: string[]
+}): LeagueAdvisorAdvice {
+  const injuryItems = input.injuries.slice(0, 5).map((i) => {
+    const status = String(i.status ?? '').trim()
+    const isSevere = ['out', 'ir', 'pup', 'doubtful', 'suspended'].includes(status.toLowerCase())
+    return {
+      summary: isSevere
+        ? `${i.playerName} carries a significant availability risk this week.`
+        : `${i.playerName} is managing an injury tag and should be monitored before lock.`,
+      playerName: i.playerName,
+      status: i.status ?? undefined,
+      suggestedAction: isSevere ? 'Move to bench/IR and secure a replacement.' : 'Check final status before starting.',
+      priority: priorityFromInjuryStatus(i.status),
+    }
+  })
+
+  const lineup: LeagueAdvisorAdvice['lineup'] = []
+  if (injuryItems.length > 0) {
+    lineup.push({
+      summary: 'Lineup risk detected from current injuries; prioritize healthy starters with secure workloads.',
+      action: 'Bench risky injury tags unless late-week reports improve.',
+      priority: 'high',
+      playerNames: injuryItems.slice(0, 3).map((i) => i.playerName),
+    })
+  }
+  if (input.rising.length > 0) {
+    lineup.push({
+      summary: `${input.rising.join(', ')} have positive usage trends and are worth stronger start consideration.`,
+      action: 'Prefer rising players in flex/tiebreak start-sit spots.',
+      priority: 'medium',
+      playerNames: input.rising,
+    })
+  }
+
+  const trade: LeagueAdvisorAdvice['trade'] = []
+  if (input.hot.length > 0) {
+    trade.push({
+      summary: `${input.hot[0]} is trending hot; evaluate sell-high offers while market sentiment is elevated.`,
+      direction: 'sell',
+      targetPlayer: input.hot[0],
+      priority: 'medium',
+    })
+  }
+  if (input.cold.length > 0) {
+    trade.push({
+      summary: `${input.cold[0]} is trending down; hold unless your league still values prior production.`,
+      direction: 'hold',
+      targetPlayer: input.cold[0],
+      priority: 'medium',
+    })
+  }
+  if (input.rising.length > 1) {
+    trade.push({
+      summary: `${input.rising[0]} profiles as a buy-low/breakout acquisition if manager confidence remains muted.`,
+      direction: 'buy',
+      targetPlayer: input.rising[0],
+      priority: 'low',
+    })
+  }
+
+  const waiver: LeagueAdvisorAdvice['waiver'] = []
+  const faab = input.faabRemaining ?? null
+  if (injuryItems.length > 0) {
+    waiver.push({
+      summary: 'Use waivers to backfill injury risk this week, with focus on immediate-volume replacements.',
+      addTarget: input.rising[0],
+      dropCandidate: input.cold[0],
+      priority: 'high',
+    })
+  }
+  if (faab != null) {
+    waiver.push({
+      summary:
+        faab >= 60
+          ? `You have strong FAAB flexibility ($${faab}); you can be aggressive on impact adds.`
+          : faab <= 20
+            ? `FAAB is limited ($${faab}); prioritize low-cost contingency adds and churn depth spots.`
+            : `FAAB is moderate ($${faab}); target 1-2 priority adds without overbidding.`,
+      addTarget: input.rising[1] ?? input.rising[0],
+      dropCandidate: input.cold[1] ?? input.cold[0],
+      priority: faab <= 20 ? 'high' : 'medium',
+    })
+  } else if (input.waiverPriority != null) {
+    waiver.push({
+      summary: `Waiver priority is ${input.waiverPriority}; time claims around urgency and replacement-level depth.`,
+      addTarget: input.rising[0],
+      dropCandidate: input.cold[0],
+      priority: 'medium',
+    })
+  }
+
+  return {
+    lineup,
+    trade,
+    waiver,
+    injury: injuryItems,
+    generatedAt: new Date().toISOString(),
+    leagueId: input.leagueId,
+    sport: input.sport,
+  }
+}
+
 /** Build advisor context and call AI; return structured advice. */
 export async function getLeagueAdvisorAdvice(input: GetAdvisorInput): Promise<LeagueAdvisorAdvice | null> {
   const { leagueId, userId } = input
@@ -143,8 +341,17 @@ export async function getLeagueAdvisorAdvice(input: GetAdvisorInput): Promise<Le
   const playerIds = getRosterPlayerIds(roster.playerData)
   const nameMap = await resolveRosterPlayerNames(playerIds, sport)
   const rosterNames = [...nameMap.values()]
+  const [rosterTrends, injuries] = await Promise.all([
+    getRosterTrendSummary(sport, playerIds, nameMap),
+    getRecentInjuries(sport, rosterNames),
+  ])
   const rosterSummary = buildRosterSummary(playerIds, nameMap, roster.playerData)
-  const injurySummary = await getInjurySummary(sport, rosterNames)
+  const injurySummary =
+    injuries.length > 0
+      ? injuries
+          .map((i) => `${i.playerName} (${i.team ?? '?'}): ${i.status}${i.type ? ` — ${i.type}` : ''}`)
+          .join('. ')
+      : await getInjurySummary(sport, rosterNames)
 
   const waiverHint =
     roster.waiverPriority != null
@@ -162,6 +369,7 @@ export async function getLeagueAdvisorAdvice(input: GetAdvisorInput): Promise<Le
     faabRemaining: roster.faabRemaining,
     waiverPriority: roster.waiverPriority,
     injurySummary,
+    trendSummary: rosterTrends.summary,
     waiverHint: [waiverHint, faabHint].filter(Boolean).join(' ') || undefined,
     tradeHint,
   }
@@ -170,6 +378,7 @@ export async function getLeagueAdvisorAdvice(input: GetAdvisorInput): Promise<Le
 League: ${context.leagueName} (${context.sport})
 ${context.rosterSummary}
 ${context.injurySummary}
+${context.trendSummary ?? ''}
 ${context.waiverHint ?? ''}
 ${context.tradeHint ?? ''}
 `.trim()
@@ -184,14 +393,40 @@ ${context.tradeHint ?? ''}
   })
 
   if (!result.ok || !result.json) {
-    return null
+    return buildDeterministicFallbackAdvice({
+      leagueId,
+      sport,
+      rosterSummary,
+      faabRemaining: roster.faabRemaining,
+      waiverPriority: roster.waiverPriority,
+      injuries,
+      hot: rosterTrends.hot,
+      cold: rosterTrends.cold,
+      rising: rosterTrends.rising,
+    })
   }
 
-  const raw = result.json as Record<string, unknown>
+  const parsed = parseJsonContentFromChatCompletion(result.json)
+  const raw = (parsed ?? {}) as Record<string, unknown>
   const lineup = Array.isArray(raw.lineup) ? raw.lineup : []
   const trade = Array.isArray(raw.trade) ? raw.trade : []
   const waiver = Array.isArray(raw.waiver) ? raw.waiver : []
   const injury = Array.isArray(raw.injury) ? raw.injury : []
+
+  const hasAnyAdvice = lineup.length + trade.length + waiver.length + injury.length > 0
+  if (!hasAnyAdvice) {
+    return buildDeterministicFallbackAdvice({
+      leagueId,
+      sport,
+      rosterSummary,
+      faabRemaining: roster.faabRemaining,
+      waiverPriority: roster.waiverPriority,
+      injuries,
+      hot: rosterTrends.hot,
+      cold: rosterTrends.cold,
+      rising: rosterTrends.rising,
+    })
+  }
 
   return {
     lineup: lineup.map(normalizeLineupItem),

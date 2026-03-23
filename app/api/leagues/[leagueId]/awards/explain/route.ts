@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server"
-import { getAwardById, listAwards, buildAwardExplanation } from "@/lib/awards-engine/AwardQueryService"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { assertLeagueMember } from "@/lib/league-access"
+import {
+  getAwardByIdInLeague,
+  listAwards,
+  resolveAwardExplanation,
+} from "@/lib/awards-engine/AwardQueryService"
+import { AWARD_TYPES } from "@/lib/awards-engine/types"
 
 export const dynamic = "force-dynamic"
 
@@ -13,17 +21,36 @@ export async function POST(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
 
     const body = await req.json().catch(() => ({}))
     const awardId = body.awardId as string | undefined
     const season = body.season as string | undefined
-    const awardType = body.awardType as string | undefined
+    const awardTypeRaw = body.awardType as string | undefined
+    const awardType =
+      awardTypeRaw == null
+        ? undefined
+        : (AWARD_TYPES as readonly string[]).includes(awardTypeRaw)
+          ? awardTypeRaw
+          : null
+    if (awardTypeRaw != null && awardType === null) {
+      return NextResponse.json({ error: "Invalid awardType" }, { status: 400 })
+    }
 
     let record = null
     if (awardId) {
-      record = await getAwardById(awardId)
+      record = await getAwardByIdInLeague(leagueId, awardId)
     } else if (season && awardType) {
       const list = await listAwards({ leagueId, season, awardType, limit: 1 })
       record = list[0] ?? null
@@ -36,7 +63,7 @@ export async function POST(
       })
     }
 
-    const narrative = buildAwardExplanation(record)
+    const narrative = await resolveAwardExplanation(record)
     return NextResponse.json({
       leagueId,
       awardId: record.awardId,

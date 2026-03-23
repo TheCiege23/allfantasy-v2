@@ -2,20 +2,40 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import type { LeagueTabProps } from "@/components/app/tabs/types"
 import { Building2, RefreshCw, ExternalLink } from "lucide-react"
 
 export default function GMEconomyPanel({ leagueId }: LeagueTabProps) {
+  const { data: session } = useSession()
+  const managerId = (session?.user as { id?: string } | undefined)?.id
   const [runLoading, setRunLoading] = useState(false)
+  const [runStatus, setRunStatus] = useState<string | null>(null)
 
   const runEngine = () => {
     setRunLoading(true)
+    setRunStatus(null)
     fetch("/api/gm-economy/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ managerId }),
     })
-      .then(() => {})
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Run failed")
+        }
+        return data
+      })
+      .then((data) => {
+        const processed = Number(data?.processed ?? 0)
+        const created = Number(data?.created ?? 0)
+        const updated = Number(data?.updated ?? 0)
+        setRunStatus(`GM economy run complete: ${processed} processed (${created} created, ${updated} updated).`)
+      })
+      .catch((e) => {
+        setRunStatus(e instanceof Error ? e.message : "Run failed. Please try again from Career tab.")
+      })
       .finally(() => setRunLoading(false))
   }
 
@@ -47,6 +67,9 @@ export default function GMEconomyPanel({ leagueId }: LeagueTabProps) {
           {runLoading ? "Running…" : "Run GM economy"}
         </button>
       </div>
+      {runStatus && (
+        <p className="mt-3 text-xs text-cyan-200">{runStatus}</p>
+      )}
     </section>
   )
 }

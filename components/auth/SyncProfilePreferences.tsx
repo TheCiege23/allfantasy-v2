@@ -4,11 +4,15 @@ import { useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
-import { parseProfileForSync } from "@/lib/preferences/UniversalPreferenceSyncService"
-import { setStoredLanguage } from "@/lib/preferences/LanguagePreferenceService"
-import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
-import { resolveTheme } from "@/lib/preferences/ThemeResolver"
-import { resolveLanguage } from "@/lib/preferences/LocalizedRouteShellResolver"
+import {
+  getStoredLanguage,
+  setStoredLanguage,
+} from "@/lib/preferences/LanguagePreferenceService"
+import {
+  getStoredTheme,
+  setStoredTheme,
+} from "@/lib/preferences/ThemePreferenceService"
+import { resolveSharedSessionBootstrap } from "@/lib/auth/SharedSessionBootstrapService"
 
 /**
  * When the user is authenticated, sync profile preferences (language, theme, timezone) from server to client.
@@ -16,33 +20,55 @@ import { resolveLanguage } from "@/lib/preferences/LocalizedRouteShellResolver"
  */
 export default function SyncProfilePreferences() {
   const { data: session, status } = useSession()
-  const { setLanguage } = useLanguage()
-  const { setMode } = useThemeMode()
-  const syncedRef = useRef(false)
+  const { language, setLanguage } = useLanguage()
+  const { mode, setMode } = useThemeMode()
+  const syncedSessionKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      syncedRef.current = false
+      syncedSessionKeyRef.current = null
       return
     }
-    if (status !== "authenticated" || !session?.user || syncedRef.current) return
-    syncedRef.current = true
+    if (status !== "authenticated" || !session?.user) return
+
+    const sessionKey =
+      (typeof (session.user as { id?: string }).id === "string" &&
+        (session.user as { id?: string }).id) ||
+      (typeof session.user.email === "string" && session.user.email) ||
+      "authenticated"
+
+    if (syncedSessionKeyRef.current === sessionKey) return
+    syncedSessionKeyRef.current = sessionKey
 
     fetch("/api/user/profile", { cache: "no-store" })
       .then((r) => r.json())
       .then((data: Record<string, unknown>) => {
-        const { preferredLanguage, themePreference } = parseProfileForSync(data)
+        const bootstrap = resolveSharedSessionBootstrap({
+          profile: data,
+          storedLanguagePreference: getStoredLanguage(),
+          storedThemePreference: getStoredTheme(),
+        })
 
-        const lang = resolveLanguage(preferredLanguage)
-        setLanguage(lang)
-        setStoredLanguage(lang)
+        if (language !== bootstrap.language) {
+          setLanguage(bootstrap.language)
+        }
+        setStoredLanguage(bootstrap.language)
 
-        const theme = resolveTheme(themePreference)
-        setMode(theme)
-        setStoredTheme(theme)
+        if (mode !== bootstrap.theme) {
+          setMode(bootstrap.theme)
+        }
+        setStoredTheme(bootstrap.theme)
+
+        if (Object.keys(bootstrap.patchPayload).length > 0) {
+          fetch("/api/user/profile", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(bootstrap.patchPayload),
+          }).catch(() => {})
+        }
       })
       .catch(() => {})
-  }, [status, session?.user, setLanguage, setMode])
+  }, [status, session?.user, language, mode, setLanguage, setMode])
 
   return null
 }

@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
         ? Math.min(Math.max(1, body.playoffSpots), body.teams.length)
         : Math.max(1, Math.floor(body.teams.length / 2))
     const result = runDynastySimulation({
+      sport: body.sport,
       teams: body.teams,
       seasons: body.seasons ?? 50,
       playoffSpots,

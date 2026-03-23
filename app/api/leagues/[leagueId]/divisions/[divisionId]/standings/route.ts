@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league-access'
 import { getStandingsWithZones, getStandingsForDivision } from '@/lib/promotion-relegation'
 import { prisma } from '@/lib/prisma'
 
@@ -13,9 +16,19 @@ export async function GET(
   ctx: { params: Promise<{ leagueId: string; divisionId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { leagueId, divisionId } = await ctx.params
     if (!leagueId || !divisionId) {
       return NextResponse.json({ error: 'Missing leagueId or divisionId' }, { status: 400 })
+    }
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const division = await prisma.leagueDivision.findFirst({

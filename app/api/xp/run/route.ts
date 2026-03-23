@@ -1,12 +1,13 @@
 /**
  * POST /api/xp/run
- * Body: { managerId?: string, sport?: string }. If managerId: run for one manager; else run for all.
+ * Body: { managerId?: string, sport?: string }. Runs XP for the current user's manager.
  */
 
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { runForManager, runForAllManagers } from '@/lib/xp-progression/XPProgressionEngine'
+import { runForManager } from '@/lib/xp-progression/XPProgressionEngine'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,21 +19,25 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}))
-    const managerId = body.managerId as string | undefined
-    const sport = (body.sport as string) ?? undefined
+    const managerIdRaw = typeof body.managerId === 'string' ? body.managerId.trim() : ''
+    const managerId = managerIdRaw || session.user.id
+    const rawSport = body.sport as string | undefined
+    const sport =
+      rawSport && isSupportedSport(rawSport)
+        ? normalizeToSupportedSport(rawSport)
+        : undefined
 
-    if (managerId) {
-      const result = await runForManager(managerId, { sport })
-      return NextResponse.json({
-        processed: 1,
-        results: [result],
-      })
+    if (managerId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden: can only run XP for your own managerId' },
+        { status: 403 }
+      )
     }
 
-    const results = await runForAllManagers({ sport })
+    const result = await runForManager(managerId, { sport })
     return NextResponse.json({
-      processed: results.length,
-      results,
+      processed: 1,
+      results: [result],
     })
   } catch (e) {
     console.error('[xp/run POST]', e)

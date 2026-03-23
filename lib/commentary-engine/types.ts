@@ -8,6 +8,13 @@ export type CommentaryEventType =
   | 'waiver_reaction'
   | 'playoff_drama'
 
+export const COMMENTARY_EVENT_TYPES: CommentaryEventType[] = [
+  'matchup_commentary',
+  'trade_reaction',
+  'waiver_reaction',
+  'playoff_drama',
+]
+
 export interface CommentaryContextBase {
   leagueId: string
   sport: string
@@ -16,6 +23,7 @@ export interface CommentaryContextBase {
 
 export interface MatchupCommentaryContext extends CommentaryContextBase {
   eventType: 'matchup_commentary'
+  matchupId?: string
   teamAName: string
   teamBName: string
   scoreA: number

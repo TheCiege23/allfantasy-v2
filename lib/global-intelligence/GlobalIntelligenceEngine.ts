@@ -23,20 +23,45 @@ const DEFAULT_MODULES: IntelligenceModule[] = [
   'draft',
 ]
 
+type LeagueContext = {
+  sport: string | null
+  season: number | null
+}
+
+function toPositiveInt(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  const n = Math.trunc(value)
+  return n > 0 ? n : undefined
+}
+
+async function resolveLeagueContext(leagueId: string): Promise<LeagueContext> {
+  try {
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { sport: true, season: true },
+    })
+    return {
+      sport: league?.sport ? normalizeToSupportedSport(league.sport) : null,
+      season: typeof league?.season === 'number' ? league.season : null,
+    }
+  } catch {
+    return { sport: null, season: null }
+  }
+}
+
 export async function getGlobalIntelligence(
   input: GlobalIntelligenceInput
 ): Promise<GlobalIntelligenceResult> {
   const leagueId = input.leagueId
-  const resolvedLeagueSport = input.sport
+  const leagueContext = await resolveLeagueContext(leagueId)
+  const sport = input.sport
     ? normalizeToSupportedSport(input.sport)
-    : await prisma.league
-        .findUnique({
-          where: { id: leagueId },
-          select: { sport: true },
-        })
-        .then((league) => (league?.sport ? normalizeToSupportedSport(league.sport) : null))
-        .catch(() => null)
-  const sport = resolvedLeagueSport
+    : leagueContext.sport
+  const season =
+    toPositiveInt(input.season) ??
+    toPositiveInt(leagueContext.season) ??
+    new Date().getFullYear()
+  const week = toPositiveInt(input.week) ?? 1
   const include = input.include?.length
     ? input.include
     : DEFAULT_MODULES
@@ -79,8 +104,8 @@ export async function getGlobalIntelligence(
             '@/lib/ai-simulation-integration/AISimulationQueryService'
           )
           const ctx = await getSimulationAndWarehouseContextForLeague(leagueId, {
-            season: new Date().getFullYear(),
-            week: 1,
+            season,
+            week,
           })
           if (!ctx)
             return {
@@ -175,6 +200,8 @@ export async function getGlobalIntelligence(
           )
           const context = await getInsightContext(leagueId, 'draft', {
             sport: sport ?? undefined,
+            season,
+            week,
           })
           return { context: context || null } as DraftIntelligence
         } catch (e) {

@@ -12667,6 +12667,7 @@ function AFLegacyContent() {
                       <div className="mb-6">
                         <PlayerProfileCard
                           player={selectedPlayerCard}
+                          sport={selectedPlayerCard?.sport ?? 'NFL'}
                           onClose={() => setSelectedPlayerCard(null)}
                         />
                       </div>

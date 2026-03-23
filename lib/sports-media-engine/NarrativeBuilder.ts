@@ -6,6 +6,7 @@
 
 import { deepseekChat } from '@/lib/deepseek-client'
 import { openaiChatText } from '@/lib/openai-client'
+import { parseTextFromXaiChatCompletion, xaiChatJson } from '@/lib/xai-client'
 import { buildSportContextString } from '@/lib/ai/AISportContextResolver'
 import type { GenerationContext, GeneratedArticle, ArticleGenerationType } from './types'
 
@@ -65,6 +66,20 @@ function formatContextForPrompt(ctx: GenerationContext): string {
   return parts.join('\n')
 }
 
+function buildFallbackArticle(
+  title: string,
+  leagueName: string | undefined,
+  type: ArticleGenerationType,
+  reason?: string
+): GeneratedArticle {
+  const detail = reason?.trim() ? ` (${reason.trim()})` : ''
+  return {
+    headline: `${title} — ${leagueName ?? 'League'}`,
+    body: `Article generation is temporarily unavailable.${detail}`,
+    tags: [type],
+  }
+}
+
 /**
  * Optionally get statistical insights from DeepSeek (stats-focused model).
  * Returns a short bullet list or empty string if unavailable.
@@ -86,8 +101,39 @@ export async function getStatisticalInsights(ctx: GenerationContext): Promise<st
 }
 
 /**
+ * Optional Grok pass for narrative tone hints. Non-fatal when unavailable.
+ */
+export async function getNarrativeToneHints(
+  type: ArticleGenerationType,
+  ctx: GenerationContext
+): Promise<string> {
+  try {
+    const result = await xaiChatJson({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a sports narrative editor. Return 3 concise bullet points describing tone and storytelling style. No stats, no preamble.',
+        },
+        {
+          role: 'user',
+          content: `Article type: ${type}\n\nLeague context:\n${formatContextForPrompt(ctx)}`,
+        },
+      ],
+      temperature: 0.35,
+      maxTokens: 180,
+    })
+    if (!result.ok) return ''
+    const text = parseTextFromXaiChatCompletion(result.json)
+    return text?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Generate headline + body using OpenAI (human-readable article).
- * Optionally inject stats from DeepSeek and narrative tone (Grok not implemented; prompt encodes engaging tone).
+ * Optionally inject stats from DeepSeek and narrative tone hints from Grok.
  */
 export async function buildArticle(
   type: ArticleGenerationType,
@@ -104,24 +150,36 @@ export async function buildArticle(
   if (options?.statisticalInsights) {
     userContent += `\n\nStatistical insights (use these in the article):\n${options.statisticalInsights}`
   }
+  const toneHints = await getNarrativeToneHints(type, ctx)
+  if (toneHints) {
+    userContent += `\n\nNarrative tone guidance (from Grok):\n${toneHints}`
+  }
 
   const systemContent = `${config.system} ${sportContext} Write in a clear, engaging tone suitable for league members.`
 
-  const response = await openaiChatText({
-    messages: [
-      { role: 'system', content: systemContent },
-      { role: 'user', content: userContent },
-    ],
-    temperature: 0.7,
-    maxTokens: 1200,
-  })
+  let response:
+    | { ok: true; text: string; model: string; baseUrl: string }
+    | { ok: false; status: number; details: string; model: string; baseUrl: string }
+  try {
+    response = await openaiChatText({
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.7,
+      maxTokens: 1200,
+    })
+  } catch (e) {
+    return buildFallbackArticle(
+      config.title,
+      ctx.leagueName,
+      type,
+      e instanceof Error ? e.message : String(e)
+    )
+  }
 
   if (!response.ok) {
-    return {
-      headline: `${config.title} — ${ctx.leagueName ?? 'League'}`,
-      body: `Article generation is temporarily unavailable. (${response.details})`,
-      tags: [type],
-    }
+    return buildFallbackArticle(config.title, ctx.leagueName, type, response.details)
   }
 
   const text = response.text.trim()

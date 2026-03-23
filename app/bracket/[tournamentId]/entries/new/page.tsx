@@ -10,17 +10,21 @@ export default async function NewEntryPage({
 }: {
   params: { tournamentId: string }
 }) {
+  const tournamentId = params.tournamentId
+  const returnTo = `/bracket/${encodeURIComponent(tournamentId)}/entries/new`
   const { userId, emailVerified, profile } = await getSessionAndProfile()
 
-  if (!userId) redirect("/login")
-
-  if (!profile?.ageConfirmedAt) redirect("/verify?error=AGE_REQUIRED")
-
-  if (!emailVerified && !profile?.phoneVerifiedAt) {
-    redirect("/verify?error=VERIFICATION_REQUIRED")
+  if (!userId) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(returnTo)}`)
   }
 
-  const tournamentId = params.tournamentId
+  if (!profile?.ageConfirmedAt) {
+    redirect(`/verify?error=AGE_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
+  }
+
+  if (!emailVerified && !profile?.phoneVerifiedAt) {
+    redirect(`/verify?error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
+  }
 
   const leagues = await (prisma as any).bracketLeague.findMany({
     where: {

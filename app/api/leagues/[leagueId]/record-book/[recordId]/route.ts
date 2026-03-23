@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { getRecordById } from "@/lib/record-book-engine/RecordQueryService"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { assertLeagueMember } from "@/lib/league-access"
+import { getRecordByIdInLeague } from "@/lib/record-book-engine/RecordQueryService"
 
 export const dynamic = "force-dynamic"
 
@@ -11,10 +14,21 @@ export async function GET(
   ctx: { params: Promise<{ leagueId: string; recordId: string }> }
 ) {
   try {
-    const { recordId } = await ctx.params
-    if (!recordId) return NextResponse.json({ error: "Missing recordId" }, { status: 400 })
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    const record = await getRecordById(recordId)
+    const { leagueId, recordId } = await ctx.params
+    if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
+    if (!recordId) return NextResponse.json({ error: "Missing recordId" }, { status: 400 })
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const record = await getRecordByIdInLeague(leagueId, recordId)
     if (!record) return NextResponse.json({ error: "Record not found" }, { status: 404 })
     return NextResponse.json(record)
   } catch (e) {

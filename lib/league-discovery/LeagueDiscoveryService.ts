@@ -3,6 +3,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
+import { openaiChatJson, parseJsonContentFromChatCompletion } from "@/lib/openai-client"
 import {
   buildDiscoveryWhere,
   resolveFilters,
@@ -13,6 +14,21 @@ import {
   extractLeagueCareerTier,
   isLeagueVisibleForCareerTier,
 } from "@/lib/ranking/tier-visibility"
+import {
+  DEFAULT_SPORT,
+  normalizeToSupportedSport,
+  isSupportedSport,
+} from "@/lib/sport-scope"
+import type {
+  LeagueCard,
+  CandidateLeague,
+  UserDiscoveryPreferences,
+  SuggestLeaguesResult,
+  LeagueMatchSuggestion,
+  SkillLevel,
+  ActivityPreference,
+  CompetitionBalancePreference,
+} from "./types"
 
 export interface DiscoverLeaguesInput {
   query?: string | null
@@ -26,25 +42,6 @@ export interface DiscoverLeaguesInput {
   viewerTier?: number
 }
 
-export interface LeagueCard {
-  id: string
-  name: string
-  joinCode: string
-  sport: string
-  season: number
-  tournamentName: string
-  tournamentId: string
-  scoringMode: string
-  isPaidLeague: boolean
-  isPrivate: boolean
-  memberCount: number
-  entryCount: number
-  maxManagers: number
-  ownerName: string
-  ownerAvatar: string | null
-  joinUrl: string
-}
-
 export interface DiscoverLeaguesResult {
   leagues: LeagueCard[]
   total: number
@@ -53,41 +50,228 @@ export interface DiscoverLeaguesResult {
   totalPages: number
 }
 
-/** Candidate league shape for AI suggestion (preferences + list). */
-export interface CandidateLeague {
-  id: string
-  name: string
-  joinCode?: string
-  memberCount?: number
-  entryCount?: number
-  maxManagers?: number
-  scoringMode?: string
-  tournamentName?: string
-  sport?: string
-  activityLevel?: string
-  competitionSpread?: string
+const SKILL_BY_TEAMS: Record<SkillLevel, number> = {
+  beginner: 10,
+  intermediate: 12,
+  advanced: 14,
+  expert: 16,
 }
 
-/** User preferences for league suggestion. */
-export type UserDiscoveryPreferences = Record<string, unknown>
-
-export interface SuggestLeaguesResult {
-  suggested: CandidateLeague[]
+function normalizeSkillLevel(value: unknown): SkillLevel {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'beginner' || v === 'intermediate' || v === 'advanced' || v === 'expert') return v
+  return 'intermediate'
 }
 
-/** Suggest leagues from a candidate list using preferences (e.g. sport, activity). */
-export function suggestLeagues(input: {
+function normalizeActivityPreference(value: unknown): ActivityPreference {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'quiet' || v === 'moderate' || v === 'active') return v
+  return 'moderate'
+}
+
+function normalizeCompetitionBalance(value: unknown): CompetitionBalancePreference {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'casual' || v === 'balanced' || v === 'competitive') return v
+  return 'balanced'
+}
+
+function normalizeSportsPreferences(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : []
+  const out = list
+    .map((s) => String(s ?? '').trim())
+    .filter((s): s is string => isSupportedSport(s))
+    .map((s) => normalizeToSupportedSport(s))
+  return out.length > 0 ? [...new Set(out)] : [DEFAULT_SPORT]
+}
+
+function normalizeCandidateSport(sport: unknown): string {
+  const raw = typeof sport === 'string' ? sport : null
+  return normalizeToSupportedSport(raw)
+}
+
+function normalizeActivityLevel(value: unknown): ActivityPreference {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'quiet' || v === 'moderate' || v === 'active') return v
+  return 'moderate'
+}
+
+function normalizeCompetitionSpread(value: unknown): CompetitionBalancePreference {
+  const v = String(value ?? '').trim().toLowerCase()
+  if (v === 'casual' || v === 'balanced' || v === 'competitive') return v
+  return 'balanced'
+}
+
+function getLeagueSize(candidate: CandidateLeague): number {
+  const explicit = Number(candidate.leagueSize ?? 0)
+  if (Number.isFinite(explicit) && explicit > 0) return explicit
+  const maxManagers = Number(candidate.maxManagers ?? 0)
+  if (Number.isFinite(maxManagers) && maxManagers > 0) return maxManagers
+  const entry = Number(candidate.entryCount ?? 0)
+  if (Number.isFinite(entry) && entry > 0) return entry
+  const member = Number(candidate.memberCount ?? 0)
+  if (Number.isFinite(member) && member > 0) return member
+  return 12
+}
+
+function scoreSportMatch(candidateSport: string, preferredSports: string[]) {
+  const matched = preferredSports.includes(candidateSport)
+  return {
+    score: matched ? 100 : 28,
+    reason: matched
+      ? `Matches your preferred sport (${candidateSport}).`
+      : `Outside your primary sports set (${preferredSports.join(', ')}).`,
+  }
+}
+
+function scoreSkillFit(candidate: CandidateLeague, skillLevel: SkillLevel) {
+  const target = SKILL_BY_TEAMS[skillLevel]
+  const leagueSize = getLeagueSize(candidate)
+  const diff = Math.abs(leagueSize - target)
+  const sizeScore = Math.max(0, 100 - diff * 12)
+  const paidPenalty = candidate.isPaidLeague && skillLevel === 'beginner' ? 16 : 0
+  const dynastyPenalty = candidate.isDynasty && skillLevel === 'beginner' ? 12 : 0
+  const adjusted = Math.max(0, Math.round(sizeScore - paidPenalty - dynastyPenalty))
+  const reason = `League size ${leagueSize} aligns with ${skillLevel} target (~${target} teams).`
+  return { score: adjusted, reason }
+}
+
+function scoreActivityFit(candidate: CandidateLeague, preferredActivity: ActivityPreference) {
+  const activity = normalizeActivityLevel(candidate.activityLevel)
+  const order: ActivityPreference[] = ['quiet', 'moderate', 'active']
+  const diff = Math.abs(order.indexOf(activity) - order.indexOf(preferredActivity))
+  const score = diff === 0 ? 100 : diff === 1 ? 68 : 38
+  return {
+    score,
+    reason: `Activity profile looks ${activity}, matching your ${preferredActivity} preference.`,
+  }
+}
+
+function scoreCompetitionFit(candidate: CandidateLeague, desiredBalance: CompetitionBalancePreference) {
+  const spread = normalizeCompetitionSpread(candidate.competitionSpread)
+  const order: CompetitionBalancePreference[] = ['casual', 'balanced', 'competitive']
+  const diff = Math.abs(order.indexOf(spread) - order.indexOf(desiredBalance))
+  const score = diff === 0 ? 100 : diff === 1 ? 64 : 34
+  return {
+    score,
+    reason: `Competition level appears ${spread}, relative to your ${desiredBalance} target.`,
+  }
+}
+
+type CandidateScoreRow = {
+  candidate: CandidateLeague
+  matchScore: number
+  reasons: string[]
+}
+
+function buildDeterministicSummary(row: CandidateScoreRow): string {
+  return `Strong fit across sport, skill, and league environment (${row.matchScore}% match).`
+}
+
+async function buildAiNarratives(rows: CandidateScoreRow[]): Promise<Map<string, { summary: string; reasons: string[] }>> {
+  if (rows.length === 0) return new Map()
+  const trimmed = rows.slice(0, 10)
+  const promptRows = trimmed.map((r) => ({
+    id: r.candidate.id,
+    name: r.candidate.name,
+    sport: normalizeCandidateSport(r.candidate.sport),
+    matchScore: r.matchScore,
+    deterministicReasons: r.reasons,
+  }))
+
+  let res:
+    | { ok: true; json: any; model: string; baseUrl: string }
+    | { ok: false; status: number; details: string; model: string; baseUrl: string }
+  try {
+    res = await openaiChatJson({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a fantasy sports matchmaking assistant. Return JSON only with { suggestions: [{ id, summary, reasons }] }. Provide 1 concise summary sentence and 1-3 short reasons grounded in given deterministic reasons. Never invent IDs.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({ suggestions: promptRows }),
+        },
+      ],
+      temperature: 0.35,
+      maxTokens: 900,
+    })
+  } catch {
+    return new Map()
+  }
+
+  const out = new Map<string, { summary: string; reasons: string[] }>()
+  if (!res.ok || !res.json) return out
+  const parsed = parseJsonContentFromChatCompletion(res.json) as
+    | { suggestions?: Array<{ id?: string; summary?: string; reasons?: string[] }> }
+    | null
+  const list = Array.isArray(parsed?.suggestions) ? parsed!.suggestions! : []
+  for (const item of list) {
+    const id = String(item?.id ?? '').trim()
+    if (!id) continue
+    const summary = String(item?.summary ?? '').trim()
+    const reasons = Array.isArray(item?.reasons)
+      ? item!.reasons!.map((r) => String(r).trim()).filter(Boolean).slice(0, 3)
+      : []
+    if (!summary && reasons.length === 0) continue
+    out.set(id, {
+      summary: summary || 'Good overall league fit for your profile.',
+      reasons,
+    })
+  }
+  return out
+}
+
+/** Suggest leagues from candidate set using skill/sport/activity/competition match. */
+export async function suggestLeagues(input: {
   preferences: UserDiscoveryPreferences
   candidates: CandidateLeague[]
-}): SuggestLeaguesResult {
-  const { candidates } = input
-  const sport = typeof input.preferences.sport === 'string' ? input.preferences.sport.trim().toUpperCase() : null
-  let list = candidates
-  if (sport) {
-    list = candidates.filter((c) => !c.sport || c.sport.toUpperCase() === sport)
+}): Promise<SuggestLeaguesResult> {
+  const skillLevel = normalizeSkillLevel(input.preferences.skillLevel)
+  const preferredActivity = normalizeActivityPreference(input.preferences.preferredActivity)
+  const competitionBalance = normalizeCompetitionBalance(input.preferences.competitionBalance)
+  const sportsPreferences = normalizeSportsPreferences(input.preferences.sportsPreferences)
+
+  const rows: CandidateScoreRow[] = input.candidates.map((candidate) => {
+    const normalizedSport = normalizeCandidateSport(candidate.sport)
+    const sport = scoreSportMatch(normalizedSport, sportsPreferences)
+    const skill = scoreSkillFit(candidate, skillLevel)
+    const activity = scoreActivityFit(candidate, preferredActivity)
+    const competition = scoreCompetitionFit(candidate, competitionBalance)
+    const weighted =
+      sport.score * 0.35 +
+      skill.score * 0.25 +
+      activity.score * 0.2 +
+      competition.score * 0.2
+    return {
+      candidate: {
+        ...candidate,
+        sport: normalizedSport,
+      },
+      matchScore: Math.round(Math.max(0, Math.min(100, weighted))),
+      reasons: [sport.reason, skill.reason, activity.reason, competition.reason],
+    }
+  })
+
+  rows.sort((a, b) => b.matchScore - a.matchScore)
+  const topRows = rows.slice(0, 20)
+  const aiNarratives = await buildAiNarratives(topRows)
+
+  const suggestions: LeagueMatchSuggestion[] = topRows.map((row) => {
+    const ai = aiNarratives.get(row.candidate.id)
+    return {
+      ...row.candidate,
+      matchScore: row.matchScore,
+      summary: ai?.summary ?? buildDeterministicSummary(row),
+      reasons: (ai?.reasons?.length ? ai.reasons : row.reasons).slice(0, 3),
+    }
+  })
+
+  return {
+    suggestions,
+    generatedAt: new Date().toISOString(),
   }
-  if (list.length === 0 && candidates.length > 0) list = candidates
-  return { suggested: list }
 }
 
 export async function discoverLeagues(input: DiscoverLeaguesInput): Promise<DiscoverLeaguesResult> {

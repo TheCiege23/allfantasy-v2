@@ -13,6 +13,10 @@ import CreatePoolTab from "@/components/bracket/CreatePoolTab"
 import JoinPoolTab from "@/components/bracket/JoinPoolTab"
 import StandingsTab from "@/components/bracket/StandingsTab"
 import BracketHistoryTab from "@/components/bracket/BracketHistoryTab"
+import {
+  buildLoginHrefWithIntent,
+  buildSignupHrefWithIntent,
+} from "@/lib/auth/PostAuthIntentRouter"
 
 export const dynamic = "force-dynamic"
 
@@ -63,6 +67,9 @@ export default async function BracketsHomePage() {
         take: 20,
       })
     : []
+
+  const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
+  const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
@@ -116,14 +123,14 @@ export default async function BracketsHomePage() {
               </p>
               <div className="flex gap-3 justify-center">
                 <Link
-                  href="/signup?callbackUrl=/brackets"
+                  href={bracketSignupHref}
                   className="px-7 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
                   style={{ background: '#3b82f6', boxShadow: '0 4px 14px rgba(59,130,246,0.3)' }}
                 >
                   Sign Up Free
                 </Link>
                 <Link
-                  href="/login?callbackUrl=/brackets"
+                  href={bracketLoginHref}
                   className="px-7 py-2.5 rounded-xl text-sm font-semibold border transition-all"
                   style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
                 >

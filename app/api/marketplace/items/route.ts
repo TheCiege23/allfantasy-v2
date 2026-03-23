@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { listMarketplaceItems, listMarketplaceItemsForSport } from "@/lib/league-economy/MarketplaceService"
-import { normalizeToSupportedSport } from "@/lib/sport-scope"
+import { isSupportedSport, normalizeToSupportedSport } from "@/lib/sport-scope"
+import { COSMETIC_CATEGORIES } from "@/lib/league-economy/types"
 
 export const dynamic = "force-dynamic"
 
@@ -12,8 +13,22 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
     const sportParam = url.searchParams.get("sport")
-    const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
+    const sport =
+      sportParam == null
+        ? undefined
+        : isSupportedSport(sportParam)
+          ? normalizeToSupportedSport(sportParam)
+          : null
+    if (sport === null) {
+      return NextResponse.json({ error: "Invalid sport" }, { status: 400 })
+    }
     const cosmeticCategory = url.searchParams.get("cosmeticCategory") ?? undefined
+    if (
+      cosmeticCategory &&
+      !(COSMETIC_CATEGORIES as readonly string[]).includes(cosmeticCategory)
+    ) {
+      return NextResponse.json({ error: "Invalid cosmeticCategory" }, { status: 400 })
+    }
     const limitParam = url.searchParams.get("limit")
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 100
 

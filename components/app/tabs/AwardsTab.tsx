@@ -8,33 +8,51 @@ import type { AwardRow } from "@/hooks/useAwards"
 import type { LeagueTabProps } from "@/components/app/tabs/types"
 import { Trophy, RefreshCw, Sparkles } from "lucide-react"
 
-export default function AwardsTab({ leagueId }: LeagueTabProps) {
+export default function AwardsTab({ leagueId, isCommissioner = false }: LeagueTabProps & { isCommissioner?: boolean }) {
   const [seasonFilter, setSeasonFilter] = useState<string>("")
   const [runLoading, setRunLoading] = useState(false)
+  const [runStatus, setRunStatus] = useState<string | null>(null)
+  const [runStatusError, setRunStatusError] = useState(false)
   const [runSeason, setRunSeason] = useState<string>(new Date().getFullYear().toString())
   const [explainAwardId, setExplainAwardId] = useState<string | null>(null)
   const [explainNarrative, setExplainNarrative] = useState<string | null>(null)
   const [explainLoading, setExplainLoading] = useState<string | null>(null)
+  const [explainError, setExplainError] = useState<string | null>(null)
 
-  const { seasons, refresh: refreshSeasons } = useAwardSeasons(leagueId)
+  const { seasons, error: seasonsError, refresh: refreshSeasons } = useAwardSeasons(leagueId)
   const { awards, loading, error, refresh } = useAwards({
     leagueId,
     season: seasonFilter || undefined,
   })
 
-  const runEngine = useCallback(() => {
+  const runEngine = useCallback(async () => {
+    setRunStatus(null)
+    setRunStatusError(false)
     setRunLoading(true)
-    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/awards/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ season: runSeason }),
-    })
-      .then((r) => r.json())
-      .then(() => {
-        refresh()
-        refreshSeasons()
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/awards/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ season: runSeason }),
       })
-      .finally(() => setRunLoading(false))
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRunStatus(data?.error ?? "Failed to generate awards.")
+        setRunStatusError(true)
+        return
+      }
+      setRunStatus(
+        typeof data?.awardsCreated === "number"
+          ? `Generated ${data.awardsCreated} awards for ${runSeason}.`
+          : `Generated awards for ${runSeason}.`
+      )
+      await Promise.all([refresh(), refreshSeasons()])
+    } catch {
+      setRunStatus("Failed to generate awards.")
+      setRunStatusError(true)
+    } finally {
+      setRunLoading(false)
+    }
   }, [leagueId, runSeason, refresh, refreshSeasons])
 
   const explain = useCallback(
@@ -43,23 +61,31 @@ export default function AwardsTab({ leagueId }: LeagueTabProps) {
         setExplainAwardId(null)
         setExplainNarrative(null)
         setExplainLoading(null)
+        setExplainError(null)
         return
       }
       setExplainAwardId(awardId)
       setExplainNarrative(null)
+      setExplainError(null)
       setExplainLoading(awardId)
       fetch(`/api/leagues/${encodeURIComponent(leagueId)}/awards/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ awardId }),
       })
-        .then((r) => r.json())
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}))
+          if (!r.ok) {
+            throw new Error(data?.error ?? "Failed to explain award")
+          }
+          return data
+        })
         .then((data) => {
           setExplainNarrative(data?.narrative ?? "No explanation available.")
           setExplainLoading(null)
         })
-        .catch(() => {
-          setExplainNarrative("Could not load explanation.")
+        .catch((e) => {
+          setExplainError(e instanceof Error ? e.message : "Could not load explanation.")
           setExplainLoading(null)
         })
     },
@@ -111,19 +137,44 @@ export default function AwardsTab({ leagueId }: LeagueTabProps) {
               <button
                 type="button"
                 className="rounded-xl bg-amber-600 text-white px-3 py-2 text-sm disabled:opacity-60"
-                disabled={runLoading}
+                disabled={runLoading || !isCommissioner}
                 onClick={runEngine}
               >
                 {runLoading ? "Running…" : "Generate awards"}
               </button>
             </div>
+            {!isCommissioner && (
+              <span className="text-xs text-zinc-500">Commissioner only</span>
+            )}
           </div>
         </div>
       </div>
 
+      {runStatus && (
+        <div
+          className={`rounded-xl border p-3 text-sm ${
+            runStatusError
+              ? "border-red-500/30 bg-red-900/20 text-red-200"
+              : "border-cyan-500/30 bg-cyan-900/20 text-cyan-100"
+          }`}
+        >
+          {runStatus}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
           {error}
+        </div>
+      )}
+      {seasonsError && (
+        <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
+          {seasonsError}
+        </div>
+      )}
+      {explainError && (
+        <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
+          {explainError}
         </div>
       )}
 
@@ -150,7 +201,9 @@ export default function AwardsTab({ leagueId }: LeagueTabProps) {
 
       {!loading && awards.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
-          No awards yet. Enter a season year and click &quot;Generate awards&quot; to compute GM of the Year, Best Draft, Waiver Wizard, and other awards from season data.
+          {isCommissioner
+            ? 'No awards yet. Enter a season year and click "Generate awards" to compute GM of the Year, Best Draft, Waiver Wizard, and other awards from season data.'
+            : 'No awards yet. Ask your commissioner to generate awards for a season.'}
         </div>
       )}
     </div>

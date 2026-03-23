@@ -19,6 +19,7 @@ import {
 } from "lucide-react"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { useXPProfile } from "@/hooks/useXPProfile"
+import { useResolvedCosmetics } from "@/hooks/useMarketplace"
 import { XPTierBadge } from "@/components/XPTierBadge"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
 import { getPreferredSportsOptions } from "@/lib/user-settings"
@@ -31,6 +32,14 @@ import type { PublicProfileDto } from "@/lib/user-settings"
 const SPORT_LABELS: Record<string, string> = {
   NFL: "NFL", NHL: "NHL", NBA: "NBA", MLB: "MLB",
   NCAAF: "NCAA Football", NCAAB: "NCAA Basketball", SOCCER: "Soccer",
+}
+
+function formatCosmeticCategory(category: string): string {
+  return category
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 export default function ProfilePageClient({
@@ -47,7 +56,14 @@ export default function ProfilePageClient({
   const isOwnProfile =
     isOwnProfileProp ||
     (Boolean(publicUsername) && Boolean(profile?.username === publicUsername))
-  const { profile: xpProfile, loading: xpLoading } = useXPProfile(isOwnProfile ? userId : null)
+  const { profile: xpProfile, loading: xpLoading, error: xpError } = useXPProfile(
+    isOwnProfile ? userId : null
+  )
+  const {
+    cosmetics,
+    loading: cosmeticsLoading,
+    error: cosmeticsError,
+  } = useResolvedCosmetics(isOwnProfile && Boolean(userId))
 
   const [publicProfile, setPublicProfile] = useState<PublicProfileDto | null>(null)
   const [publicLoading, setPublicLoading] = useState(!!publicUsername)
@@ -139,6 +155,11 @@ export default function ProfilePageClient({
                   {xpLoading && (
                     <span className="inline-block h-5 w-10 animate-pulse rounded bg-white/10" />
                   )}
+                  {xpError && (
+                    <span className="text-[11px]" style={{ color: "var(--accent-red-strong)" }}>
+                      XP unavailable
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -189,6 +210,36 @@ export default function ProfilePageClient({
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {isOwnProfile && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>Cosmetic loadout</p>
+            {cosmeticsLoading ? (
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Loading cosmetics…</p>
+            ) : cosmetics.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {cosmetics.map((c) => (
+                  <span
+                    key={`${c.category}-${c.itemId ?? "none"}`}
+                    className="rounded-lg border px-3 py-1 text-xs font-medium"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                  >
+                    {formatCosmeticCategory(c.category)}: {c.itemName ?? "None"}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                No cosmetics equipped yet. Visit the league Store tab to buy cosmetic items.
+              </p>
+            )}
+            {cosmeticsError && (
+              <p className="mt-1 text-xs" style={{ color: "var(--accent-red-strong)" }}>
+                {cosmeticsError}
+              </p>
+            )}
           </div>
         )}
       </div>

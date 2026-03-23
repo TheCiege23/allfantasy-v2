@@ -27,6 +27,8 @@ export interface MockDraftConfig {
   userPicks?: DraftPlayer[]
   isSuperflex?: boolean
   isTEP?: boolean
+  /** Enable/disable meta trend boost for AI picks (default true). */
+  useMeta?: boolean
 }
 
 export interface DraftPickResult {

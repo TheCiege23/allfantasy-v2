@@ -35,12 +35,18 @@ export default function AwardDetailPage() {
       `/api/leagues/${encodeURIComponent(leagueId)}/awards/${encodeURIComponent(awardId)}`,
       { cache: "no-store" }
     )
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Failed to load award")
+        }
+        return data
+      })
       .then((data) => {
         if (data?.awardId) setAward(data)
         else setError("Award not found")
       })
-      .catch(() => setError("Failed to load"))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load award"))
       .finally(() => setLoading(false))
   }, [leagueId, awardId])
 
@@ -53,11 +59,19 @@ export default function AwardDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ awardId }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Failed to explain award")
+        }
+        return data
+      })
       .then((data) => {
         setNarrative(data?.narrative ?? "No explanation available.")
       })
-      .catch(() => setNarrative("Could not load explanation."))
+      .catch((e) =>
+        setNarrative(e instanceof Error ? e.message : "Could not load explanation.")
+      )
       .finally(() => setNarrativeLoading(false))
   }
 

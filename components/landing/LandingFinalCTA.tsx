@@ -4,9 +4,15 @@ import Link from 'next/link'
 import { LogIn, UserPlus, Smartphone } from 'lucide-react'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import {
+  buildLoginHrefWithIntent,
+  buildSignupHrefWithIntent,
+} from '@/lib/auth/PostAuthIntentRouter'
 
 export default function LandingFinalCTA() {
   const { t } = useLanguage()
+  const loginHref = buildLoginHrefWithIntent('/dashboard')
+  const signupHref = buildSignupHrefWithIntent('/dashboard')
 
   return (
     <section className="border-t px-4 py-16 sm:px-6 sm:py-20" style={{ borderColor: 'var(--border)' }}>
@@ -19,17 +25,17 @@ export default function LandingFinalCTA() {
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center sm:gap-4">
           <Link
-            href="/signup"
+            href={signupHref}
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-8 py-4 text-base font-semibold text-white shadow-lg hover:from-cyan-400 hover:to-purple-500 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.createAccount'), cta_destination: '/signup', cta_type: 'primary', source: 'final_cta' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.createAccount'), cta_destination: signupHref, cta_type: 'primary', source: 'final_cta' })}
           >
             <UserPlus className="h-5 w-5 shrink-0" />
             <span>{t('landing.cta.createAccount')}</span>
           </Link>
           <Link
-            href="/login"
+            href={loginHref}
             className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl border-2 border-white/20 bg-white/5 px-8 py-4 text-base font-semibold text-white/80 hover:bg-white/10 hover:border-white/30 active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 touch-manipulation"
-            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.signIn'), cta_destination: '/login', cta_type: 'secondary', source: 'final_cta' })}
+            onClick={() => trackLandingCtaClick({ cta_label: t('landing.cta.signIn'), cta_destination: loginHref, cta_type: 'secondary', source: 'final_cta' })}
           >
             <LogIn className="h-5 w-5 shrink-0" />
             <span>{t('landing.cta.signIn')}</span>

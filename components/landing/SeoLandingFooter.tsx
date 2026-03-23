@@ -61,6 +61,18 @@ export default function SeoLandingFooter() {
           <Link href={signupUrlWithIntent('/dashboard')} className="hover:underline" style={{ color: 'var(--muted)' }}>
             {t('common.signUp')}
           </Link>
+          <span style={{ color: 'var(--border)' }}>·</span>
+          <Link href="/disclaimer" className="hover:underline" style={{ color: 'var(--muted)' }}>
+            Disclaimer
+          </Link>
+          <span style={{ color: 'var(--border)' }}>·</span>
+          <Link href="/privacy" className="hover:underline" style={{ color: 'var(--muted)' }}>
+            Privacy
+          </Link>
+          <span style={{ color: 'var(--border)' }}>·</span>
+          <Link href="/terms" className="hover:underline" style={{ color: 'var(--muted)' }}>
+            Terms
+          </Link>
         </div>
       </div>
     </footer>

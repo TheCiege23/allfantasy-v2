@@ -18,7 +18,7 @@ export const XP_EVENT_TYPES = [
 export type XPEventType = (typeof XP_EVENT_TYPES)[number]
 
 /** XP values per event type (prompt examples + extensions). */
-export const XP_VALUES: Record<string, number> = {
+export const XP_VALUES: Record<XPEventType, number> = {
   win_matchup: 10,
   make_playoffs: 50,
   championship: 200,
@@ -72,7 +72,7 @@ export interface ManagerXPProfileView {
 export interface XPEventView {
   eventId: string
   managerId: string
-  eventType: string
+  eventType: XPEventType
   xpValue: number
   sport: string
   createdAt: Date

@@ -36,6 +36,7 @@ export async function runDraft(input: RunDraftInput): Promise<RunDraftResult> {
     userSlot = null,
     userPicks = [],
     isSuperflex = false,
+    useMeta = true,
   } = config
 
   const totalPicks = numTeams * rounds
@@ -84,7 +85,7 @@ export async function runDraft(input: RunDraftInput): Promise<RunDraftResult> {
         numTeams,
         draftType,
         isSuperflex,
-        useMeta: true,
+        useMeta,
       })
       if (player) removePlayer(player.name, player.position)
     }

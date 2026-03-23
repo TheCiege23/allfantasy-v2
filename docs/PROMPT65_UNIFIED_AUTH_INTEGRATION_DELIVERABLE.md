@@ -1,3 +1,125 @@
+# Prompt 65 — Unified Auth Integration + Routing + Preference Sync + UI Click Audit
+
+## 1) Unified auth integration architecture
+
+- Added `lib/auth/UnifiedAuthOrchestrator.ts` as the top-level auth routing orchestrator.
+- Added `lib/auth/PostAuthIntentRouter.ts` to centralize:
+  - post-auth destination resolution from `callbackUrl`, `next`, `returnTo`, `intent`
+  - remembered intent restore (`af_auth_intent`)
+  - canonical login/signup URL builders with intent
+- Added `lib/auth/AuthRedirectResolver.ts` to provide a stable redirect API used by controllers and protected-route helpers.
+- Updated auth controllers to use shared redirect logic:
+  - `lib/auth/LoginFlowController.ts`
+  - `lib/auth/SignupFlowController.ts`
+  - `lib/auth/AuthSessionRouter.ts`
+
+## 2) Routing and redirect logic
+
+- Updated `lib/routing/PostAuthIntentRouter.ts` to delegate destination and URL build behavior to the new auth router.
+- Updated `lib/routing/ProtectedRouteResolver.ts`:
+  - login/signup redirect URL builders now use `AuthRedirectResolver`
+  - added `resolveProtectedRouteRedirect()` for reusable guard decisions
+- Updated `lib/routing/index.ts` export surface to include `resolveProtectedRouteRedirect`.
+- Updated `app/admin/page.tsx` unauth redirect to use unified redirect helper.
+- Updated landing/product CTA links to preserve intent consistently:
+  - `components/landing/LandingHero.tsx`
+  - `components/landing/LandingFinalCTA.tsx`
+  - `app/page.tsx`
+  - `app/app/page.tsx`
+  - `app/brackets/page.tsx`
+- Updated login/signup to remember intent in `af_auth_intent` and clear it after successful auth:
+  - `app/login/LoginContent.tsx`
+  - `app/signup/page.tsx`
+
+## 3) Theme/language/timezone sync updates
+
+- Added `lib/preferences/ThemePreferenceSyncService.ts`
+- Added `lib/preferences/LanguagePreferenceSyncService.ts`
+- Added `lib/preferences/TimezonePreferenceSyncService.ts`
+- Added `lib/auth/SharedSessionBootstrapService.ts` to compose these sync resolvers into one bootstrapping result and optional patch payload.
+- Updated `components/auth/SyncProfilePreferences.tsx` to:
+  - bootstrap language/theme/timezone from profile + local/browser preferences
+  - avoid clobbering stored language/theme when server profile values are missing
+  - PATCH missing profile preferences back to `/api/user/profile`
+- Updated signup to persist selected theme at registration:
+  - `app/signup/page.tsx` sends `themePreference`
+  - `app/api/auth/register/route.ts` stores `themePreference`
+- Updated shared profile bootstrap defaults for social sign-ins:
+  - `lib/auth/SharedAccountBootstrapService.ts` now sets `themePreference` default
+- Updated preference exports:
+  - `lib/preferences/index.ts`
+
+## 4) Protected route updates
+
+- Added `lib/auth/ProtectedRouteResolver.ts` as auth-layer re-export bridge for protected route contracts.
+- Protected redirect builders now route through shared auth redirect resolver.
+- Admin redirect path handling now consistently preserves destination intent via callbackUrl-safe helper.
+
+## 5) Full UI click audit findings
+
+Audited and verified click paths and handlers for:
+
+- Landing sign in/sign up CTAs (`LandingHero`, `LandingFinalCTA`, `app/page` footer)
+- Auth page cross-links (`login` -> `signup`, `signup` -> `login`)
+- Product-entry auth CTAs (`/app`, `/brackets`)
+- Social auth buttons (Google, Apple, planned providers fallback route)
+- Forgot-password return links
+- Legal agreement links from signup (disclaimer/terms/privacy new tab paths)
+- Admin sign-in route path preservation
+
+Key findings and fixes:
+
+1. **Google OAuth redirect mismatch**  
+   - Found: Google social OAuth always redirected to `/dashboard`.  
+   - Fixed in `components/auth/SocialLoginButtons.tsx` to honor intent/callback path.
+
+2. **Preference clobbering after auth**  
+   - Found: profile sync could overwrite local language/theme with defaults when profile fields were null.  
+   - Fixed in `components/auth/SyncProfilePreferences.tsx` using new sync services and bootstrap patch flow.
+
+3. **Auth intent restoration gap**  
+   - Found: direct auth entry without query params could lose previous product intent.  
+   - Fixed with remembered intent support (`af_auth_intent`) in orchestrator and auth pages.
+
+## 6) QA findings
+
+- Typecheck passed.
+- Unit tests passed for auth flow controllers and new integration services.
+- E2E auth-routing suite passed (15 tests).
+- During E2E, unrelated runtime warnings/errors appeared (Sentry dynamic import warning and transient DB max-client errors in logs), but test assertions completed and suite passed.
+
+## 7) Issues fixed
+
+- Social OAuth callback destination mismatch
+- Missing persistent intent restoration on auth entry
+- Theme/language overwrite risk when profile preference fields are absent
+- Signup theme preference not persisted to profile
+- Inconsistent unauth admin redirect builder usage
+
+## 8) Final QA checklist
+
+- [x] Sign up once grants unified account access
+- [x] Sign in once routes to requested product intent
+- [x] Landing/app/bracket entry intents preserved through auth
+- [x] Google/Apple social auth respects callback intent path
+- [x] Theme persists through signup/auth bootstrap
+- [x] Language persists through signup/auth bootstrap
+- [x] Timezone backfills safely when profile is missing timezone
+- [x] Protected-route redirect helper unified
+- [x] Admin path redirect wiring preserved
+- [x] Clickable auth/onboarding/legal links validated for live handlers
+
+## 9) Unified auth layer explanation
+
+The new auth layer composes routing intent, remembered context, and profile preference sync into a single deterministic pipeline:
+
+1. Resolve destination safely from request params and remembered context.
+2. Persist intent while user moves between login/signup/onboarding/legal steps.
+3. Clear intent on successful auth completion.
+4. Bootstrap language/theme/timezone from profile + local/browser fallback.
+5. Patch missing profile preferences to make future sessions deterministic across products.
+
+This keeps Sports App, Bracket Challenge, and Legacy routing consistent while preserving premium UX continuity across auth transitions and mobile-friendly web entry points.
 # Prompt 65 — Unified Auth Integration + Routing + Theme/Language Sync + Full UI Click Audit
 
 ## 1. Unified Auth Integration Architecture

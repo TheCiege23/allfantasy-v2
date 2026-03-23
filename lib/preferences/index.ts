@@ -16,3 +16,19 @@ export {
   parseProfileForSync,
   type SyncResult,
 } from "./UniversalPreferenceSyncService"
+export {
+  resolveLanguagePreferenceSync,
+  type LanguagePreferenceSyncResult,
+  type LanguagePreferenceSyncInput,
+} from "./LanguagePreferenceSyncService"
+export {
+  resolveThemePreferenceSync,
+  type ThemePreferenceSyncResult,
+  type ThemePreferenceSyncInput,
+} from "./ThemePreferenceSyncService"
+export {
+  detectBrowserTimezone,
+  resolveTimezonePreferenceSync,
+  type TimezonePreferenceSyncInput,
+  type TimezonePreferenceSyncResult,
+} from "./TimezonePreferenceSyncService"

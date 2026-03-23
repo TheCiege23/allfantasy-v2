@@ -449,6 +449,12 @@ export default function FinalDashboardClient() {
         <Link href="/app/share-achievements" className="hover:text-white/60">
           Share
         </Link>
+        <Link href="/app/power-rankings" className="hover:text-white/60">
+          Power rankings
+        </Link>
+        <Link href="/app/simulation-lab" className="hover:text-white/60">
+          Simulation lab
+        </Link>
         <Link href="/app/discover" className="hover:text-white/60">
           Discover leagues
         </Link>

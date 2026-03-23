@@ -5,10 +5,32 @@
 import { prisma } from '@/lib/prisma'
 import { RECORD_LABELS } from './types'
 import type { RecordType, RecordBookEntryView } from './types'
+import { detectRecords } from './RecordDetector'
 
 export async function getRecordById(recordId: string): Promise<RecordBookEntryView | null> {
   const r = await prisma.recordBookEntry.findUnique({
     where: { id: recordId },
+  })
+  if (!r) return null
+  return {
+    recordId: r.id,
+    sport: r.sport,
+    leagueId: r.leagueId,
+    recordType: r.recordType,
+    recordLabel: RECORD_LABELS[r.recordType as RecordType] ?? r.recordType,
+    holderId: r.holderId,
+    value: Number(r.value),
+    season: r.season,
+    createdAt: r.createdAt,
+  }
+}
+
+export async function getRecordByIdInLeague(
+  leagueId: string,
+  recordId: string
+): Promise<RecordBookEntryView | null> {
+  const r = await prisma.recordBookEntry.findFirst({
+    where: { id: recordId, leagueId },
   })
   if (!r) return null
   return {
@@ -68,6 +90,25 @@ export async function getSeasonsWithRecords(leagueId: string): Promise<string[]>
   return rows.map((r) => r.season)
 }
 
-export function buildRecordExplanation(entry: RecordBookEntryView): string {
-  return `${entry.recordLabel} (${entry.season}): ${entry.holderId} holds the record with value ${entry.value}.`
+export function buildRecordExplanation(entry: RecordBookEntryView, context?: string | null): string {
+  const parts: string[] = []
+  parts.push(
+    `${entry.recordLabel} (${entry.season}): ${entry.holderId} holds the record with value ${entry.value}.`
+  )
+  if (context && context.trim()) {
+    parts.push(`Context: ${context.trim()}.`)
+  }
+  return parts.join(' ')
+}
+
+export async function resolveRecordExplanation(entry: RecordBookEntryView): Promise<string> {
+  try {
+    const candidates = await detectRecords(entry.leagueId, entry.season, { sport: entry.sport })
+    const candidate = candidates.find(
+      (row) => row.recordType === entry.recordType && row.holderId === entry.holderId
+    )
+    return buildRecordExplanation(entry, candidate?.context ?? null)
+  } catch {
+    return buildRecordExplanation(entry, null)
+  }
 }

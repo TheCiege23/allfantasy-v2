@@ -8,6 +8,8 @@ import { recordTrendSignalsAndUpdate } from "@/lib/player-trend"
 import { getLeagueMemberAppUserIds } from "@/lib/draft-notifications/DraftNotificationService"
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher"
 import { handleInvalidationTrigger } from "@/lib/trade-engine/caching"
+import { onWaiverReaction } from "@/lib/commentary-engine"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import type { ProcessedClaimResult } from "./types"
 
 /** Called after processWaiverClaimsForLeague; posts to activity feed and league chat when configured. */
@@ -85,6 +87,52 @@ export async function onWaiverRunComplete(
     }
     if (events.length > 0) {
       recordTrendSignalsAndUpdate(events).catch(() => {})
+    }
+
+    // Emit a small number of waiver reaction commentary entries.
+    const successful = results.filter((r) => r.success).slice(0, 3)
+    if (successful.length > 0) {
+      const rosterRows = await (prisma as any).roster.findMany({
+        where: { id: { in: successful.map((r) => r.rosterId) } },
+        select: { id: true, platformUserId: true },
+      })
+      const teamRows = await (prisma as any).leagueTeam.findMany({
+        where: {
+          leagueId,
+          externalId: { in: rosterRows.map((r: { platformUserId: string }) => r.platformUserId) },
+        },
+        select: { externalId: true, ownerName: true, teamName: true },
+      })
+      const platformIdByRosterId = new Map(
+        rosterRows.map((row: { id: string; platformUserId: string }) => [row.id, row.platformUserId])
+      )
+      const managerByPlatformUser = new Map(
+        teamRows.map((row: { externalId: string; ownerName: string; teamName: string }) => [
+          row.externalId,
+          row.ownerName || row.teamName || row.externalId,
+        ])
+      )
+      const commentarySport = normalizeToSupportedSport(sport)
+      for (const claim of successful) {
+        const platformUserId = platformIdByRosterId.get(claim.rosterId)
+        const managerNameRaw = platformUserId
+          ? managerByPlatformUser.get(platformUserId) ?? platformUserId
+          : claim.rosterId
+        const managerName = String(managerNameRaw || claim.rosterId || "Manager").trim() || "Manager"
+        const playerName = String(claim.addPlayerId || "").trim() || "Waiver add"
+        void onWaiverReaction(
+          {
+            eventType: "waiver_reaction",
+            leagueId,
+            sport: commentarySport,
+            managerName,
+            playerName,
+            action: "claim",
+            faabSpent: claim.faabSpent ?? undefined,
+          },
+          { skipStats: true, persist: true }
+        ).catch(() => {})
+      }
     }
   } catch {
     // non-fatal

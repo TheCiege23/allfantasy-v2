@@ -4,7 +4,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { detectRecords } from './RecordDetector'
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export interface RecordBookEngineResult {
   leagueId: string
@@ -22,7 +22,14 @@ export async function runRecordBookEngine(
   seasons: string[],
   options?: { sport?: string | null }
 ): Promise<RecordBookEngineResult> {
-  const sport = options?.sport ?? DEFAULT_SPORT
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
+  const sport =
+    options?.sport && isSupportedSport(options.sport)
+      ? normalizeToSupportedSport(options.sport)
+      : normalizeToSupportedSport(league?.sport ?? DEFAULT_SPORT)
   let created = 0
   let updated = 0
 
@@ -30,18 +37,20 @@ export async function runRecordBookEngine(
 
   for (const season of allSeasons) {
     const candidates = await detectRecords(leagueId, season, { sport })
+    const existingRows = await prisma.recordBookEntry.findMany({
+      where: {
+        leagueId,
+        season,
+        recordType: { in: candidates.map((c) => c.recordType) },
+      },
+      select: {
+        recordType: true,
+        season: true,
+      },
+    })
+    const existingKeys = new Set(existingRows.map((row) => `${row.recordType}::${row.season}`))
 
     for (const c of candidates) {
-      const existing = await prisma.recordBookEntry.findUnique({
-        where: {
-          uniq_record_book_league_type_season: {
-            leagueId,
-            recordType: c.recordType,
-            season: c.season,
-          },
-        },
-      })
-
       const value = c.value
       const data = {
         sport,
@@ -51,17 +60,25 @@ export async function runRecordBookEngine(
         value,
         season: c.season,
       }
+      const key = `${c.recordType}::${c.season}`
 
-      if (existing) {
-        await prisma.recordBookEntry.update({
-          where: { id: existing.id },
-          data: { holderId: data.holderId, value: data.value },
-        })
-        updated += 1
-      } else {
-        await prisma.recordBookEntry.create({ data })
-        created += 1
-      }
+      await prisma.recordBookEntry.upsert({
+        where: {
+          uniq_record_book_league_type_season: {
+            leagueId,
+            recordType: c.recordType,
+            season: c.season,
+          },
+        },
+        create: data,
+        update: {
+          sport: data.sport,
+          holderId: data.holderId,
+          value: data.value,
+        },
+      })
+      if (existingKeys.has(key)) updated += 1
+      else created += 1
     }
   }
 

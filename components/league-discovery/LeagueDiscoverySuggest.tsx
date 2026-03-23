@@ -5,8 +5,9 @@ import { Sparkles, Loader2, Target, Zap } from 'lucide-react'
 import type {
   UserDiscoveryPreferences,
   CandidateLeague,
+  LeagueMatchSuggestion,
 } from '@/lib/league-discovery'
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 const SKILL_OPTIONS: { value: string; label: string }[] = [
   { value: 'beginner', label: 'Beginner' },
@@ -45,7 +46,8 @@ export default function LeagueDiscoverySuggest() {
     preferredActivity: 'moderate',
     competitionBalance: 'balanced',
   })
-  const [suggestions, setSuggestions] = useState<CandidateLeague[]>([])
+  const [suggestions, setSuggestions] = useState<LeagueMatchSuggestion[]>([])
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [discoveredLeagues, setDiscoveredLeagues] = useState<CandidateLeague[]>([])
@@ -67,7 +69,7 @@ export default function LeagueDiscoverySuggest() {
         const candidates: CandidateLeague[] = data.discovered.map((l: any) => ({
           id: l.league_id || l.sleeperLeagueId || String(l.id ?? ''),
           name: l.name || 'Unnamed',
-          sport: 'NFL',
+          sport: normalizeToSupportedSport('NFL'),
           leagueSize: l.total_rosters ?? l.totalTeams,
           isDynasty: l.settings != null ? l.settings.type === 2 : l.isDynasty,
           activityLevel: 'moderate',
@@ -110,12 +112,15 @@ export default function LeagueDiscoverySuggest() {
       if (!res.ok) {
         setError(data.error || 'Suggestions failed')
         setSuggestions([])
+        setGeneratedAt(null)
       } else {
         setSuggestions(data.suggestions || [])
+        setGeneratedAt(typeof data.generatedAt === 'string' ? data.generatedAt : null)
       }
     } catch {
       setError('Request failed')
       setSuggestions([])
+      setGeneratedAt(null)
     } finally {
       setLoading(false)
     }
@@ -266,7 +271,12 @@ export default function LeagueDiscoverySuggest() {
 
       {suggestions.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-white">Suggested for you</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-white">Suggested for you</h3>
+            {generatedAt && (
+              <p className="text-xs text-white/50">Generated {new Date(generatedAt).toLocaleString()}</p>
+            )}
+          </div>
           <ul className="space-y-3">
             {suggestions.map((s) => (
               <li
@@ -281,7 +291,21 @@ export default function LeagueDiscoverySuggest() {
                       {s.tournamentName && ` · ${s.tournamentName}`}
                     </p>
                   </div>
+                  <div className="inline-flex items-center rounded-full border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1 text-xs font-semibold text-cyan-200">
+                    {s.matchScore}% match
+                  </div>
                 </div>
+                <p className="mt-2 text-sm text-white/80">{s.summary}</p>
+                {Array.isArray(s.reasons) && s.reasons.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-white/65">
+                    {s.reasons.map((reason, idx) => (
+                      <li key={`${s.id}-reason-${idx}`} className="flex items-start gap-1.5">
+                        <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" />
+                        <span>{reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {s.joinCode && (
                   <p className="mt-2 text-xs text-white/50">Join code: {s.joinCode}</p>
                 )}

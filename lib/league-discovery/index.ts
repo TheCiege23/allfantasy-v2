@@ -25,8 +25,15 @@ export {
   suggestLeagues,
   type DiscoverLeaguesInput,
   type DiscoverLeaguesResult,
-  type LeagueCard,
-  type CandidateLeague,
-  type UserDiscoveryPreferences,
-  type SuggestLeaguesResult,
 } from "./LeagueDiscoveryService"
+
+export type {
+  LeagueCard,
+  CandidateLeague,
+  UserDiscoveryPreferences,
+  SuggestLeaguesResult,
+  LeagueMatchSuggestion,
+  SkillLevel,
+  ActivityPreference,
+  CompetitionBalancePreference,
+} from "./types"

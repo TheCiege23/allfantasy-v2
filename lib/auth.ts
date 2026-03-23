@@ -1,9 +1,11 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
+import AppleProvider from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { resolveLoginToUser } from "@/lib/auth/login-identifier-resolver";
+import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
+import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
 
 function getAuthSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET?.trim();
@@ -81,7 +83,7 @@ const providers: NextAuthOptions["providers"] = [
         const login = rawLogin.trim();
         const password = rawPassword;
 
-        const user = await resolveLoginToUser(login);
+        const user = await resolveUnifiedAuthIdentity(login);
 
         if (!user) {
           return null;
@@ -187,12 +189,23 @@ const providers: NextAuthOptions["providers"] = [
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const appleClientId = process.env.APPLE_CLIENT_ID;
+const appleClientSecret = process.env.APPLE_CLIENT_SECRET;
 
 if (googleClientId && googleClientSecret) {
   providers.push(
     GoogleProvider({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
+    })
+  );
+}
+
+if (appleClientId && appleClientSecret) {
+  providers.push(
+    AppleProvider({
+      clientId: appleClientId,
+      clientSecret: appleClientSecret,
     })
   );
 }
@@ -239,10 +252,9 @@ export const authOptions: NextAuthOptions = {
       if (!user?.id) return;
 
       try {
-        await prisma.userProfile.upsert({
-          where: { userId: user.id },
-          update: {},
-          create: { userId: user.id },
+        await ensureSharedAccountProfile({
+          userId: user.id,
+          displayName: user.name ?? null,
         });
       } catch (error) {
         console.error("[auth] signIn event error:", error);

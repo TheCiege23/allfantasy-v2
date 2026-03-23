@@ -19,6 +19,15 @@ export function getXPToNextTier(totalXP: number): number {
   return XP_TO_NEXT_TIER[tier]
 }
 
+/** Remaining XP needed to reach next tier. Legendary = 0. */
+export function getXPRemainingToNextTier(totalXP: number): number {
+  const tier = getTierFromXP(totalXP)
+  const span = XP_TO_NEXT_TIER[tier]
+  if (span === 0) return 0
+  const threshold = XP_TIER_THRESHOLDS[tier]
+  return Math.max(0, threshold + span - Math.max(0, totalXP))
+}
+
 /** Progress 0–100 within current tier (for progress bar). Legendary = 100. */
 export function getProgressInTier(totalXP: number): number {
   const tier = getTierFromXP(totalXP)

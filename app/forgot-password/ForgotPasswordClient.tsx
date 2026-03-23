@@ -4,9 +4,22 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, Mail, Loader2, CheckCircle2, Phone, Eye, EyeOff, TriangleAlert } from 'lucide-react'
+import {
+  isValidPhoneE164,
+  normalizePhoneE164,
+} from '@/lib/auth/ForgotPasswordFlowController'
+import { resolvePasswordResetErrorMessage } from '@/lib/auth/AuthErrorMessageResolver'
+import {
+  requestPasswordResetByEmail,
+  requestPasswordResetBySms,
+} from '@/lib/auth/PasswordRecoveryService'
+import {
+  resetPasswordWithCode,
+  verifyResetCode,
+} from '@/lib/auth/ResetCodeVerificationService'
 
 type Method = 'email' | 'sms'
-type Step = 'choose' | 'request' | 'sent' | 'sms_enter_code' | 'success'
+type Step = 'choose' | 'request' | 'enter_code' | 'success'
 
 export default function ForgotPasswordClient() {
   const searchParams = useSearchParams()
@@ -26,26 +39,29 @@ export default function ForgotPasswordClient() {
   const [loading, setLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  function normalizePhone(p: string) {
-    const s = p.trim().replace(/[\s()-]/g, '')
-    return s.startsWith('+') ? s : '+1' + s
-  }
+  const [codeVerified, setCodeVerified] = useState(false)
+  const [verifyingCode, setVerifyingCode] = useState(false)
 
   async function handleRequestEmail(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!email.trim()) return
+    const emailValue = email.trim().toLowerCase()
+    if (!emailValue) return
     setLoading(true)
+    setCodeVerified(false)
     try {
-      await fetch('/api/auth/password/reset/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'email', email: email.trim(), returnTo: safeReturnTo }),
+      const res = await requestPasswordResetByEmail({
+        email: emailValue,
+        returnTo: safeReturnTo,
       })
-      setStep('sent')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data?.message || 'Could not send code. Try again.')
+      } else {
+        setStep('enter_code')
+      }
     } catch {
-      setStep('sent')
+      setError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -54,23 +70,23 @@ export default function ForgotPasswordClient() {
   async function handleRequestSms(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    const normalized = normalizePhone(phone)
-    if (!/^\+\d{10,15}$/.test(normalized)) {
+    const normalized = normalizePhoneE164(phone)
+    if (!isValidPhoneE164(normalized)) {
       setError('Enter a valid phone number with country code (e.g. +1 555 123 4567).')
       return
     }
     setLoading(true)
+    setCodeVerified(false)
     try {
-      const res = await fetch('/api/auth/password/reset/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'sms', phone: normalized, returnTo: safeReturnTo }),
+      const res = await requestPasswordResetBySms({
+        phone: normalized,
+        returnTo: safeReturnTo,
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setError(data.message || 'Could not send code. Try email reset or try again later.')
       } else {
-        setStep('sms_enter_code')
+        setStep('enter_code')
       }
     } catch {
       setError('Something went wrong. Please try again.')
@@ -81,15 +97,25 @@ export default function ForgotPasswordClient() {
 
   async function handleResendCode() {
     setError(null)
-    const normalized = normalizePhone(phone)
-    if (!/^\+\d{10,15}$/.test(normalized)) return
+    setCodeVerified(false)
+    const payload =
+      method === 'email'
+        ? { type: 'email', email: email.trim().toLowerCase(), returnTo: safeReturnTo }
+        : { type: 'sms', phone: normalizePhoneE164(phone), returnTo: safeReturnTo }
+    if (method === 'email' && !email.trim()) return
+    if (method === 'sms' && !isValidPhoneE164(String(payload.phone ?? ''))) return
     setResendLoading(true)
     try {
-      const res = await fetch('/api/auth/password/reset/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'sms', phone: normalized, returnTo: safeReturnTo }),
-      })
+      const res =
+        method === 'email'
+          ? await requestPasswordResetByEmail({
+              email: String(payload.email ?? ''),
+              returnTo: safeReturnTo,
+            })
+          : await requestPasswordResetBySms({
+              phone: String(payload.phone ?? ''),
+              returnTo: safeReturnTo,
+            })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.message || 'Could not resend code. Try again in a minute.')
@@ -103,9 +129,13 @@ export default function ForgotPasswordClient() {
     }
   }
 
-  async function handleConfirmSms(e: React.FormEvent) {
+  async function handleConfirmCode(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!codeVerified) {
+      setError('Verify your code before saving a new password.')
+      return
+    }
     if (newPassword.length < 8) {
       setError('Password must be at least 8 characters.')
       return
@@ -118,23 +148,16 @@ export default function ForgotPasswordClient() {
       setError('Password must include at least one letter and one number.')
       return
     }
-    const normalized = normalizePhone(phone)
+    const payload =
+      method === 'email'
+        ? { email: email.trim().toLowerCase(), code: code.trim(), newPassword }
+        : { phone: normalizePhoneE164(phone), code: code.trim(), newPassword }
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/password/reset/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: normalized, code: code.trim(), newPassword }),
-      })
+      const res = await resetPasswordWithCode(payload)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const errMap: Record<string, string> = {
-          INVALID_OR_USED_TOKEN: 'Invalid or expired code. Request a new one.',
-          EXPIRED_TOKEN: 'Code expired. Request a new one.',
-          WEAK_PASSWORD: 'Password must be at least 8 characters with a letter and number.',
-          RESET_FAILED: 'Something went wrong. Please try again.',
-        }
-        setError(errMap[data.error] || data.error || 'Something went wrong.')
+        setError(resolvePasswordResetErrorMessage(data?.error))
       } else {
         setStep('success')
         setTimeout(() => {
@@ -145,6 +168,35 @@ export default function ForgotPasswordClient() {
       setError('Something went wrong. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleVerifyCode() {
+    setError(null)
+    if (code.trim().length !== 6) {
+      setError('Enter your 6-digit code.')
+      return
+    }
+    const payload =
+      method === 'email'
+        ? { email: email.trim().toLowerCase(), code: code.trim() }
+        : { phone: normalizePhoneE164(phone), code: code.trim() }
+
+    setVerifyingCode(true)
+    try {
+      const res = await verifyResetCode(payload)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setCodeVerified(false)
+        setError(resolvePasswordResetErrorMessage(data?.error))
+      } else {
+        setCodeVerified(true)
+      }
+    } catch {
+      setCodeVerified(false)
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setVerifyingCode(false)
     }
   }
 
@@ -164,16 +216,16 @@ export default function ForgotPasswordClient() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => { setMethod('email'); setStep('request'); setError(null); }}
+              onClick={() => { setMethod('email'); setStep('request'); setError(null); setCodeVerified(false); }}
               className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 hover:bg-white/10 transition"
             >
               <Mail className="h-8 w-8 text-cyan-400" />
               <span className="text-sm font-medium">Email</span>
-              <span className="text-xs text-white/50">Reset link to your email</span>
+              <span className="text-xs text-white/50">Code to your email</span>
             </button>
             <button
               type="button"
-              onClick={() => { setMethod('sms'); setStep('request'); setError(null); }}
+              onClick={() => { setMethod('sms'); setStep('request'); setError(null); setCodeVerified(false); }}
               className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col items-center gap-2 hover:bg-white/10 transition"
             >
               <Phone className="h-8 w-8 text-emerald-400" />
@@ -181,6 +233,15 @@ export default function ForgotPasswordClient() {
               <span className="text-xs text-white/50">Code to your phone</span>
             </button>
           </div>
+          <p className="text-center text-xs text-white/45">
+            Need an account?{" "}
+            <Link
+              href={`/signup?next=${encodeURIComponent(safeReturnTo)}`}
+              className="text-cyan-300 hover:text-cyan-200"
+            >
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     )
@@ -196,7 +257,7 @@ export default function ForgotPasswordClient() {
         <div className="w-full max-w-md space-y-4">
           <div className="text-center mb-2">
             <h1 className="text-xl font-semibold">Reset via email</h1>
-            <p className="mt-1 text-sm text-white/50">Enter your email and we&apos;ll send a reset link.</p>
+            <p className="mt-1 text-sm text-white/50">Enter your email and we&apos;ll send a 6-digit reset code.</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
             <form onSubmit={handleRequestEmail} className="space-y-3">
@@ -221,12 +282,12 @@ export default function ForgotPasswordClient() {
                 disabled={loading || !email.trim()}
                 className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
               >
-                {loading ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Sending...</span> : 'Send reset link'}
+                {loading ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Sending...</span> : 'Send code'}
               </button>
             </form>
           </div>
           <p className="text-center">
-            <button type="button" onClick={() => { setStep('choose'); setMethod(null); }} className="text-xs text-white/50 hover:text-white/80">
+            <button type="button" onClick={() => { setStep('choose'); setMethod(null); setCodeVerified(false); }} className="text-xs text-white/50 hover:text-white/80">
               Use SMS instead
             </button>
           </p>
@@ -281,7 +342,7 @@ export default function ForgotPasswordClient() {
             </form>
           </div>
           <p className="text-center">
-            <button type="button" onClick={() => { setStep('choose'); setMethod(null); setError(null); }} className="text-xs text-white/50 hover:text-white/80">
+            <button type="button" onClick={() => { setStep('choose'); setMethod(null); setError(null); setCodeVerified(false); }} className="text-xs text-white/50 hover:text-white/80">
               Use email instead
             </button>
           </p>
@@ -290,7 +351,7 @@ export default function ForgotPasswordClient() {
     )
   }
 
-  if (step === 'sms_enter_code') {
+  if (step === 'enter_code') {
     return (
       <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
         <Link href={loginHref} className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition">
@@ -300,7 +361,11 @@ export default function ForgotPasswordClient() {
         <div className="w-full max-w-md space-y-4">
           <div className="text-center mb-2">
             <h1 className="text-xl font-semibold">Enter code and new password</h1>
-            <p className="mt-1 text-sm text-white/50">We sent a code to {phone || 'your phone'}. Enter it below with your new password.</p>
+            <p className="mt-1 text-sm text-white/50">
+              {method === 'email'
+                ? `We sent a code to ${email || 'your email'}.`
+                : `We sent a code to ${phone || 'your phone'}.`} Enter it below with your new password.
+            </p>
           </div>
           {error && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
@@ -309,7 +374,7 @@ export default function ForgotPasswordClient() {
             </div>
           )}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
-            <form onSubmit={handleConfirmSms} className="space-y-3">
+            <form onSubmit={handleConfirmCode} className="space-y-3">
               <div>
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-white/60">6-digit code</label>
@@ -324,7 +389,10 @@ export default function ForgotPasswordClient() {
                 </div>
                 <input
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => {
+                    setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    setCodeVerified(false)
+                  }}
                   type="text"
                   inputMode="numeric"
                   autoComplete="one-time-code"
@@ -333,6 +401,19 @@ export default function ForgotPasswordClient() {
                   disabled={loading}
                   autoFocus
                 />
+                <div className="mt-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={verifyingCode || loading || code.length !== 6}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50 transition"
+                  >
+                    {verifyingCode ? 'Verifying...' : 'Verify code'}
+                  </button>
+                  {codeVerified && (
+                    <span className="text-xs text-emerald-300">Code verified</span>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-xs text-white/60">New password</label>
@@ -367,10 +448,10 @@ export default function ForgotPasswordClient() {
               </div>
               <button
                 type="submit"
-                disabled={loading || code.length !== 6 || !newPassword || newPassword !== confirmPassword}
+                disabled={loading || !codeVerified || !newPassword || newPassword !== confirmPassword}
                 className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
               >
-                {loading ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Resetting...</span> : 'Reset password'}
+                {loading ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Saving...</span> : 'Save new password'}
               </button>
             </form>
           </div>
@@ -386,25 +467,6 @@ export default function ForgotPasswordClient() {
           <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
           <h1 className="text-xl font-semibold">Password reset</h1>
           <p className="text-sm text-white/60">Your password has been updated. Redirecting to sign in...</p>
-          <Link href={loginHref} className="inline-block rounded-xl bg-white/10 border border-white/10 px-6 py-2.5 text-sm font-medium hover:bg-white/15 transition">
-            Back to Sign In
-          </Link>
-        </div>
-      </div>
-    )
-  }
-
-  if (step === 'sent' && method === 'email') {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl text-center space-y-4">
-          <div className="mx-auto w-fit">
-            <CheckCircle2 className="h-8 w-8 text-emerald-400" />
-          </div>
-          <h1 className="text-xl font-semibold">Check your email</h1>
-          <p className="text-sm text-white/60">
-            If an account exists for <span className="text-white/80 font-medium">{email}</span>, we sent a password reset link. The link expires in 30 minutes.
-          </p>
           <Link href={loginHref} className="inline-block rounded-xl bg-white/10 border border-white/10 px-6 py-2.5 text-sm font-medium hover:bg-white/15 transition">
             Back to Sign In
           </Link>

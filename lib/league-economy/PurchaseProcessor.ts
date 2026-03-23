@@ -3,9 +3,10 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { getOrCreateWallet, debitBalance } from './WalletService'
+import { getOrCreateWallet, syncWalletEarnings } from './WalletService'
 import { getMarketplaceItem } from './MarketplaceService'
-import { isSupportedSport } from '@/lib/sport-scope'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { COSMETIC_CATEGORIES, ITEM_TYPES } from './types'
 
 export interface PurchaseResult {
   success: boolean
@@ -24,30 +25,70 @@ export async function processPurchase(
 ): Promise<PurchaseResult> {
   const item = await getMarketplaceItem(itemId)
   if (!item) return { success: false, error: 'Item not found' }
-
-  if (options?.sport && item.sportRestriction != null && item.sportRestriction !== options.sport) {
-    return { success: false, error: 'Item not available for this sport' }
+  const isCosmeticType = (ITEM_TYPES as readonly string[]).includes(item.itemType)
+  const isCosmeticCategory = (COSMETIC_CATEGORIES as readonly string[]).includes(item.cosmeticCategory)
+  if (!isCosmeticType || !isCosmeticCategory) {
+    return { success: false, error: 'Only cosmetic items can be purchased' }
+  }
+  if (item.price < 0) {
+    return { success: false, error: 'Invalid item price' }
   }
 
-  const wallet = await getOrCreateWallet(managerId)
-  if (wallet.currencyBalance < item.price) {
-    return { success: false, error: 'Insufficient balance' }
+  const normalizedSport =
+    options?.sport == null
+      ? null
+      : isSupportedSport(options.sport)
+        ? normalizeToSupportedSport(options.sport)
+        : null
+
+  if (item.sportRestriction != null) {
+    if (normalizedSport == null) {
+      return { success: false, error: 'Select a supported sport for this item' }
+    }
+    if (item.sportRestriction !== normalizedSport) {
+      return { success: false, error: 'Item not available for this sport' }
+    }
   }
 
-  const newBalance = await debitBalance(managerId, item.price)
-  if (newBalance === null) return { success: false, error: 'Insufficient balance' }
+  await syncWalletEarnings(managerId)
+  await getOrCreateWallet(managerId)
 
-  const purchase = await prisma.purchaseRecord.create({
-    data: {
-      managerId,
-      itemId: item.itemId,
-      price: item.price,
-    },
+  const txResult = await prisma.$transaction(async (tx) => {
+    if (item.price > 0) {
+      const debited = await tx.managerWallet.updateMany({
+        where: {
+          managerId,
+          currencyBalance: { gte: item.price },
+        },
+        data: {
+          currencyBalance: { decrement: item.price },
+          spentLifetime: { increment: item.price },
+        },
+      })
+      if (debited.count === 0) return null
+    }
+
+    const purchase = await tx.purchaseRecord.create({
+      data: {
+        managerId,
+        itemId: item.itemId,
+        price: item.price,
+      },
+    })
+    const wallet = await tx.managerWallet.findUnique({
+      where: { managerId },
+      select: { currencyBalance: true },
+    })
+    return {
+      purchaseId: purchase.id,
+      newBalance: wallet?.currencyBalance ?? 0,
+    }
   })
+  if (!txResult) return { success: false, error: 'Insufficient balance' }
 
   return {
     success: true,
-    purchaseId: purchase.id,
-    newBalance,
+    purchaseId: txResult.purchaseId,
+    newBalance: txResult.newBalance,
   }
 }

@@ -5,7 +5,7 @@ import type { LeagueTabProps } from '@/components/app/tabs/types'
 import type { DivisionView } from '@/lib/promotion-relegation/types'
 import type { TeamStandingInDivision } from '@/lib/promotion-relegation/types'
 
-export default function DivisionsTab({ leagueId }: LeagueTabProps) {
+export default function DivisionsTab({ leagueId, isCommissioner = false }: LeagueTabProps) {
   const [divisions, setDivisions] = useState<DivisionView[]>([])
   const [selectedDivisionId, setSelectedDivisionId] = useState<string | null>(null)
   const [standings, setStandings] = useState<TeamStandingInDivision[]>([])
@@ -16,6 +16,7 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
   const [error, setError] = useState<string | null>(null)
   const [runResult, setRunResult] = useState<{ transitions: Array<{ teamName: string; type: string; toTierLevel: number }>; applied?: boolean } | null>(null)
   const [running, setRunning] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const fetchDivisions = useCallback(async () => {
     if (!leagueId) return
@@ -47,23 +48,36 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
       return
     }
     setStandingsLoading(true)
+    setError(null)
     fetch(
       `/api/leagues/${encodeURIComponent(leagueId)}/divisions/${encodeURIComponent(selectedDivisionId)}/standings`,
       { cache: 'no-store' }
     )
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data?.error ?? 'Failed to load division standings')
+        return data
+      })
       .then((data) => {
         setStandings(data.standings ?? [])
         setDivisionName(data.divisionName ?? null)
         setTierLevel(data.tierLevel ?? null)
       })
-      .catch(() => setStandings([]))
+      .catch((e) => {
+        setStandings([])
+        setError(e instanceof Error ? e.message : 'Failed to load division standings')
+      })
       .finally(() => setStandingsLoading(false))
   }, [leagueId, selectedDivisionId])
 
   const handleRunSeasonEnd = async (dryRun: boolean) => {
+    if (!isCommissioner) {
+      setRunError('Commissioner only')
+      return
+    }
     setRunning(true)
     setRunResult(null)
+    setRunError(null)
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/promotion/run`, {
         method: 'POST',
@@ -82,6 +96,7 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
       })
       if (data.applied) fetchDivisions()
     } catch (e) {
+      setRunError(e instanceof Error ? e.message : 'Run failed')
       setRunResult({
         transitions: [],
         applied: false,
@@ -94,6 +109,9 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
   return (
     <div className="space-y-4 p-4">
       <h2 className="text-lg font-semibold text-white">Divisions & Promotion / Relegation</h2>
+      {!isCommissioner && (
+        <p className="text-xs text-zinc-500">Season-end transition controls are commissioner only.</p>
+      )}
 
       {error && (
         <div className="rounded-xl bg-red-950/30 p-3 text-sm text-red-300">{error}</div>
@@ -188,7 +206,7 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
               <button
                 type="button"
                 onClick={() => handleRunSeasonEnd(true)}
-                disabled={running}
+                disabled={running || !isCommissioner}
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 disabled:opacity-50"
               >
                 {running ? 'Running…' : 'Dry run'}
@@ -196,12 +214,15 @@ export default function DivisionsTab({ leagueId }: LeagueTabProps) {
               <button
                 type="button"
                 onClick={() => handleRunSeasonEnd(false)}
-                disabled={running}
+                disabled={running || !isCommissioner}
                 className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
               >
                 Run promotion / relegation
               </button>
             </div>
+            {runError && (
+              <p className="mt-2 text-xs text-red-300">{runError}</p>
+            )}
             {runResult && (
               <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
                 {runResult.applied ? (

@@ -14,7 +14,7 @@ The global layer accepts `leagueId`, optional `userId`, optional `sport`, and op
 
 ## Data flow
 
-1. **Input**: `GlobalIntelligenceInput` — leagueId, userId? (from session when available), sport?, include? (default: all).
+1. **Input**: `GlobalIntelligenceInput` — leagueId, userId? (from session when available), sport?, season?, week?, include? (default: all).
 2. **Orchestration**: `getGlobalIntelligence()` runs Meta, Simulation, Advisor (if userId), Media, and Draft in parallel. Each module is wrapped in try/catch; failures produce a section with `error` and null/empty content.
 3. **Output**: `GlobalIntelligenceResult` — leagueId, sport, meta, simulation, advisor, media, draft, generatedAt. Each section has a consistent shape (summary/list/context + optional error).
 
@@ -22,7 +22,7 @@ The global layer accepts `leagueId`, optional `userId`, optional `sport`, and op
 
 - **POST** `/api/intelligence/global`
   - Auth: session optional; when present, `userId` is used for Advisor.
-  - Body: `{ leagueId: string, sport?: string | null, include?: ('meta'|'simulation'|'advisor'|'media'|'draft')[] }`.
+  - Body: `{ leagueId: string, sport?: string | null, season?: number, week?: number, include?: ('meta'|'simulation'|'advisor'|'media'|'draft')[] }`.
   - Returns: `GlobalIntelligenceResult` (meta, simulation, advisor, media, draft each nullable with optional error).
 
 ## UI
@@ -49,3 +49,9 @@ The global layer accepts `leagueId`, optional `userId`, optional `sport`, and op
 - **Draft**: `lib/ai-simulation-integration/AIInsightRouter` — `getInsightContext(leagueId, 'draft')`.
 
 Sport is normalized with `normalizeToSupportedSport` from `lib/sport-scope` where applicable.
+
+## Validation and test coverage
+
+- Added route contract tests: `__tests__/intelligence-global-route-contract.test.ts`.
+- Added service orchestration tests: `__tests__/global-intelligence-engine.test.ts`.
+- Simulation and draft sections now use `season` and `week` context (input override or league fallback) to avoid fixed-year/fixed-week drift.

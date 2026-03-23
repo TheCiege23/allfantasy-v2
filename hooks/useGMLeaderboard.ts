@@ -20,8 +20,9 @@ export interface ManagerFranchiseProfileRow {
 export function useGMLeaderboard(args: {
   orderBy?: "franchiseValue" | "gmPrestigeScore"
   limit?: number
+  sport?: string | null
 }) {
-  const { orderBy = "franchiseValue", limit = 50 } = args
+  const { orderBy = "franchiseValue", limit = 50, sport = null } = args
   const [profiles, setProfiles] = useState<ManagerFranchiseProfileRow[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -34,6 +35,7 @@ export function useGMLeaderboard(args: {
       const params = new URLSearchParams()
       params.set("orderBy", orderBy)
       params.set("limit", String(limit))
+      if (sport) params.set("sport", sport)
       const res = await fetch(`/api/gm-economy/leaderboard?${params}`, {
         cache: "no-store",
       })
@@ -53,7 +55,7 @@ export function useGMLeaderboard(args: {
     } finally {
       setLoading(false)
     }
-  }, [orderBy, limit])
+  }, [orderBy, limit, sport])
 
   useEffect(() => {
     refresh()

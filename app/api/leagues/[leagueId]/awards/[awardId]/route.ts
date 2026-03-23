@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { getAwardById } from "@/lib/awards-engine/AwardQueryService"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { assertLeagueMember } from "@/lib/league-access"
+import { getAwardByIdInLeague } from "@/lib/awards-engine/AwardQueryService"
 
 export const dynamic = "force-dynamic"
 
@@ -12,10 +15,21 @@ export async function GET(
   ctx: { params: Promise<{ leagueId: string; awardId: string }> }
 ) {
   try {
-    const { awardId } = await ctx.params
-    if (!awardId) return NextResponse.json({ error: "Missing awardId" }, { status: 400 })
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    const award = await getAwardById(awardId)
+    const { leagueId, awardId } = await ctx.params
+    if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
+    if (!awardId) return NextResponse.json({ error: "Missing awardId" }, { status: 400 })
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const award = await getAwardByIdInLeague(leagueId, awardId)
     if (!award) return NextResponse.json({ error: "Award not found" }, { status: 404 })
     return NextResponse.json(award)
   } catch (e) {

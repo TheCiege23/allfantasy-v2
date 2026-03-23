@@ -7,12 +7,12 @@ import { getOrCreateProfileView } from '@/lib/xp-progression/ManagerXPQueryServi
 import { getReputationByLeagueAndManager } from '@/lib/reputation-engine/ManagerTrustQueryService'
 import { getLegacyScoreByEntity } from '@/lib/legacy-score-engine/LegacyRankingService'
 import { queryHallOfFameEntries } from '@/lib/hall-of-fame-engine/HallOfFameQueryService'
-import { listAwards } from '@/lib/awards-engine/AwardQueryService'
-import { getRecordLeaderboard } from '@/lib/record-book-engine/RecordLeaderboardService'
 import { listFranchiseProfiles } from '@/lib/gm-economy/GMProfileQueryService'
 import { getLeaderboard as getXPLeaderboard } from '@/lib/xp-progression/ManagerXPQueryService'
 import { prisma } from '@/lib/prisma'
 import { resolveSportForCareer } from './SportPrestigeResolver'
+import { AWARD_LABELS } from '@/lib/awards-engine/types'
+import { RECORD_LABELS } from '@/lib/record-book-engine/types'
 import type {
   UnifiedCareerProfile,
   LeaguePrestigeSummary,
@@ -34,7 +34,7 @@ export async function getUnifiedCareerProfile(
   const leagueId = options?.leagueId ?? null
   const sport = resolveSportForCareer(options?.sport ?? DEFAULT_SPORT)
 
-  const [gmProfile, xpProfile, reputation, legacy, hofResult, awardsByLeague, recordsByLeague] =
+  const [gmProfile, xpProfile, reputation, legacy, hofResult, awardsWon, recordsHeld, awardTimeline, recordTimeline] =
     await Promise.all([
       getFranchiseProfileByManager(managerId),
       getOrCreateProfileView(managerId),
@@ -54,8 +54,24 @@ export async function getUnifiedCareerProfile(
             offset: 0,
           })
         : Promise.resolve({ entries: [], total: 0 }),
-      leagueId ? listAwards({ leagueId, limit: 200 }) : Promise.resolve([]),
-      leagueId ? getRecordLeaderboard({ leagueId, limit: 200 }) : Promise.resolve([]),
+      leagueId ? prisma.awardRecord.count({ where: { leagueId, managerId } }) : Promise.resolve(0),
+      leagueId ? prisma.recordBookEntry.count({ where: { leagueId, holderId: managerId } }) : Promise.resolve(0),
+      leagueId
+        ? prisma.awardRecord.findMany({
+            where: { leagueId, managerId },
+            orderBy: [{ season: 'desc' }, { createdAt: 'desc' }],
+            select: { season: true, awardType: true },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      leagueId
+        ? prisma.recordBookEntry.findMany({
+            where: { leagueId, holderId: managerId },
+            orderBy: [{ season: 'desc' }, { value: 'desc' }],
+            select: { season: true, recordType: true },
+            take: 5,
+          })
+        : Promise.resolve([]),
     ])
 
   const gmEconomy: CareerGMEconomySnapshot | null = gmProfile
@@ -95,30 +111,15 @@ export async function getUnifiedCareerProfile(
       }
     : null
 
-  const awardsWon = leagueId
-    ? (awardsByLeague as { managerId: string }[]).filter((a) => a.managerId === managerId).length
-    : 0
-  const recordsHeld = leagueId
-    ? (recordsByLeague as { holderId: string }[]).filter((r) => r.holderId === managerId).length
-    : 0
-
   const timelineHints: string[] = []
-  if (awardsWon && Array.isArray(awardsByLeague)) {
-    const myAwards = (awardsByLeague as { awardLabel?: string; season?: string; managerId: string }[]).filter(
-      (a) => a.managerId === managerId
-    )
-    myAwards.slice(0, 5).forEach((a) => {
-      if (a.awardLabel && a.season) timelineHints.push(`${a.season} ${a.awardLabel}`)
-    })
-  }
-  if (recordsHeld && Array.isArray(recordsByLeague)) {
-    const myRecords = (recordsByLeague as { recordLabel?: string; season?: string; holderId: string }[]).filter(
-      (r) => r.holderId === managerId
-    )
-    myRecords.slice(0, 5).forEach((r) => {
-      if (r.recordLabel && r.season) timelineHints.push(`${r.season} ${r.recordLabel}`)
-    })
-  }
+  awardTimeline.forEach((award) => {
+    const label = AWARD_LABELS[award.awardType as keyof typeof AWARD_LABELS] ?? award.awardType
+    timelineHints.push(`${award.season} ${label}`)
+  })
+  recordTimeline.forEach((record) => {
+    const label = RECORD_LABELS[record.recordType as keyof typeof RECORD_LABELS] ?? record.recordType
+    timelineHints.push(`${record.season} ${label}`)
+  })
 
   return {
     managerId,
@@ -149,14 +150,24 @@ export async function getLeaguePrestigeSummary(
     prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } }),
     prisma.roster.findMany({ where: { leagueId }, select: { platformUserId: true } }),
   ])
-  const managerIds = rosters.map((r) => r.platformUserId)
+  const managerIds = rosters
+    .map((r) => r.platformUserId)
+    .filter((value): value is string => Boolean(value))
 
-  const [gmCount, xpCount, repCount, legacyCount, hofCount, awardsCount, recordCount] =
+  const [gmCount, xpCount, repDistinctRows, legacyDistinctRows, hofCount, awardsCount, recordCount] =
     await Promise.all([
       managerIds.length ? prisma.managerFranchiseProfile.count({ where: { managerId: { in: managerIds } } }) : 0,
       managerIds.length ? prisma.managerXPProfile.count({ where: { managerId: { in: managerIds } } }) : 0,
-      prisma.managerReputationRecord.count({ where: { leagueId } }),
-      prisma.legacyScoreRecord.count({ where: { leagueId, entityType: 'MANAGER' } }),
+      prisma.managerReputationRecord.findMany({
+        where: { leagueId },
+        select: { managerId: true },
+        distinct: ['managerId'],
+      }),
+      prisma.legacyScoreRecord.findMany({
+        where: { leagueId, entityType: 'MANAGER' },
+        select: { entityId: true },
+        distinct: ['entityId'],
+      }),
       prisma.hallOfFameEntry.count({ where: { leagueId } }),
       prisma.awardRecord.count({ where: { leagueId } }),
       prisma.recordBookEntry.count({ where: { leagueId } }),
@@ -187,8 +198,8 @@ export async function getLeaguePrestigeSummary(
     managerCount: managerIds.length,
     gmEconomyCoverage: gmCount,
     xpCoverage: xpCount,
-    reputationCoverage: repCount,
-    legacyCoverage: legacyCount,
+    reputationCoverage: repDistinctRows.length,
+    legacyCoverage: legacyDistinctRows.length,
     hallOfFameEntryCount: hofCount,
     awardsCount,
     recordBookCount: recordCount,
@@ -207,33 +218,100 @@ export async function getCareerLeaderboard(options?: {
 }): Promise<CareerLeaderboardRow[]> {
   const limit = Math.min(options?.limit ?? 50, 100)
   const leagueId = options?.leagueId ?? undefined
+  const sport = options?.sport ? resolveSportForCareer(options.sport) : undefined
 
-  const [gmProfiles, xpLeaderboard, awardsList, recordsList] = await Promise.all([
-    listFranchiseProfiles({ limit: 200, orderBy: 'franchiseValue' }),
-    getXPLeaderboard({ limit: 200 }),
-    leagueId ? listAwards({ leagueId, limit: 500 }) : Promise.resolve([]),
-    leagueId ? getRecordLeaderboard({ leagueId, limit: 500 }) : Promise.resolve([]),
+  const [leagueManagerIds, gmProfiles, xpLeaderboard, awardRows, recordRows] = await Promise.all([
+    leagueId
+      ? prisma.roster.findMany({
+          where: { leagueId },
+          select: { platformUserId: true },
+        })
+      : Promise.resolve([]),
+    listFranchiseProfiles({ limit: 500, orderBy: 'franchiseValue', sport }),
+    getXPLeaderboard({ limit: 500, sport }),
+    leagueId
+      ? prisma.awardRecord.findMany({
+          where: { leagueId },
+          select: { managerId: true },
+        })
+      : Promise.resolve([]),
+    leagueId
+      ? prisma.recordBookEntry.findMany({
+          where: { leagueId },
+          select: { holderId: true },
+        })
+      : Promise.resolve([]),
   ])
 
   const managerIds = new Set<string>()
-  gmProfiles.profiles.forEach((p) => managerIds.add(p.managerId))
-  xpLeaderboard.forEach((r) => managerIds.add(r.managerId))
+  if (leagueId) {
+    leagueManagerIds
+      .map((row) => row.platformUserId)
+      .filter((value): value is string => Boolean(value))
+      .forEach((managerId) => managerIds.add(managerId))
+  } else {
+    gmProfiles.profiles.forEach((p) => managerIds.add(p.managerId))
+    xpLeaderboard.forEach((r) => managerIds.add(r.managerId))
+  }
 
   const awardsByManager = new Map<string, number>()
-  if (Array.isArray(awardsList)) {
-    (awardsList as { managerId: string }[]).forEach((a) => {
-      awardsByManager.set(a.managerId, (awardsByManager.get(a.managerId) ?? 0) + 1)
-    })
-  }
+  awardRows.forEach((row) => {
+    awardsByManager.set(row.managerId, (awardsByManager.get(row.managerId) ?? 0) + 1)
+  })
   const recordsByManager = new Map<string, number>()
-  if (Array.isArray(recordsList)) {
-    (recordsList as { holderId: string }[]).forEach((r) => {
-      recordsByManager.set(r.holderId, (recordsByManager.get(r.holderId) ?? 0) + 1)
-    })
-  }
+  recordRows.forEach((row) => {
+    recordsByManager.set(row.holderId, (recordsByManager.get(row.holderId) ?? 0) + 1)
+  })
 
   const gmByManager = new Map(gmProfiles.profiles.map((p) => [p.managerId, p]))
   const xpByManager = new Map(xpLeaderboard.map((r) => [r.managerId, { totalXP: r.totalXP }]))
+  const managerIdList = Array.from(managerIds)
+  const [legacyRows, reputationRows, hofCounts] = leagueId
+    ? await Promise.all([
+        prisma.legacyScoreRecord.findMany({
+          where: {
+            leagueId,
+            entityType: 'MANAGER',
+            entityId: { in: managerIdList },
+            ...(sport ? { sport } : {}),
+          },
+          select: { entityId: true, overallLegacyScore: true },
+        }),
+        prisma.managerReputationRecord.findMany({
+          where: {
+            leagueId,
+            managerId: { in: managerIdList },
+            ...(sport ? { sport } : {}),
+          },
+          orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
+          select: { managerId: true, tier: true },
+        }),
+        prisma.hallOfFameEntry.groupBy({
+          by: ['entityId'],
+          where: {
+            leagueId,
+            entityType: 'MANAGER',
+            entityId: { in: managerIdList },
+            ...(sport ? { sport } : {}),
+          },
+          _count: { _all: true },
+        }),
+      ])
+    : await Promise.all([Promise.resolve([]), Promise.resolve([]), Promise.resolve([])])
+  const legacyByManager = new Map<string, number>()
+  legacyRows.forEach((row) => {
+    legacyByManager.set(row.entityId, Number(row.overallLegacyScore))
+  })
+  const reputationByManager = new Map<string, string>()
+  reputationRows.forEach((row) => {
+    if (!reputationByManager.has(row.managerId)) {
+      reputationByManager.set(row.managerId, row.tier)
+    }
+  })
+  const hofByManager = new Map<string, number>()
+  hofCounts.forEach((row) => {
+    hofByManager.set(row.entityId, row._count._all)
+  })
 
   const rows: CareerLeaderboardRow[] = []
   for (const managerId of managerIds) {
@@ -241,13 +319,36 @@ export async function getCareerLeaderboard(options?: {
     const xp = xpByManager.get(managerId)
     const franchiseValue = gm?.franchiseValue ?? 0
     const totalXP = xp?.totalXP ?? 0
-    const legacyScore = null
-    const reputationTier = null
+    const legacyScore = leagueId ? (legacyByManager.get(managerId) ?? null) : null
+    const reputationTier = leagueId ? (reputationByManager.get(managerId) ?? null) : null
     const championshipCount = gm?.championshipCount ?? 0
     const awardsCount = leagueId ? (awardsByManager.get(managerId) ?? 0) : 0
     const recordsCount = leagueId ? (recordsByManager.get(managerId) ?? 0) : 0
+    const hofCount = leagueId ? (hofByManager.get(managerId) ?? 0) : 0
+    const reputationTierBoost =
+      reputationTier == null
+        ? 0
+        : reputationTier === 'LEGENDARY'
+          ? 9
+          : reputationTier === 'ELITE'
+            ? 7
+            : reputationTier === 'TRUSTED'
+              ? 5
+              : reputationTier === 'NEUTRAL'
+                ? 2
+                : 0
+    const legacyBoost = legacyScore == null ? 0 : Math.min(20, legacyScore / 5)
     const prestigeScore =
-      Math.min(100, (franchiseValue / 1000) * 0.3 + (totalXP / 50) * 0.3 + championshipCount * 5 + (awardsCount + recordsCount) * 2)
+      Math.min(
+        100,
+        (franchiseValue / 1000) * 0.25 +
+          (totalXP / 50) * 0.25 +
+          championshipCount * 4 +
+          (awardsCount + recordsCount) * 2 +
+          legacyBoost +
+          reputationTierBoost +
+          hofCount * 1.5
+      )
     rows.push({
       managerId,
       rank: 0,

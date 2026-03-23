@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import LeagueShell from '@/components/app/LeagueShell'
 import LiveScoringWidget from '@/components/live/LiveScoringWidget'
 import LeagueTabNav, { type LeagueShellTab, LEAGUE_SHELL_TABS } from '@/components/app/LeagueTabNav'
@@ -46,12 +46,15 @@ const VALID_TABS = new Set<LeagueShellTab>([
 ])
 
 export default function AppLeaguePage() {
+  const router = useRouter()
+  const pathname = usePathname()
   const params = useParams<{ leagueId: string }>()
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId || ''
   const tabParam = searchParams?.get('tab')
+  const isValidInitialTab = tabParam ? VALID_TABS.has(tabParam as LeagueShellTab) : true
   const initialTab: LeagueShellTab | undefined =
-    tabParam && VALID_TABS.has(tabParam as LeagueShellTab) ? (tabParam as LeagueShellTab) : undefined
+    tabParam && isValidInitialTab ? (tabParam as LeagueShellTab) : undefined
 
   const [leagueName, setLeagueName] = useState<string>('League')
   const [isCommissioner, setIsCommissioner] = useState<boolean>(false)
@@ -71,6 +74,14 @@ export default function AppLeaguePage() {
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
   const leagueMedia = useMemo(() => getLeagueTypeMedia(leagueModeKey), [leagueModeKey])
+
+  useEffect(() => {
+    if (!tabParam || isValidInitialTab) return
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
+    nextParams.set('tab', 'Overview')
+    const nextQuery = nextParams.toString()
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false })
+  }, [isValidInitialTab, pathname, router, searchParams, tabParam])
 
   useEffect(() => {
     let active = true
@@ -154,15 +165,15 @@ export default function AppLeaguePage() {
       if (tab === 'Draft') return <DraftTab leagueId={leagueId} />
       if (tab === 'Standings / Playoffs') return <StandingsTab leagueId={leagueId} />
       if (tab === 'Rankings') return <PowerRankingsTab leagueId={leagueId} />
-      if (tab === 'Divisions') return <DivisionsTab leagueId={leagueId} />
+      if (tab === 'Divisions') return <DivisionsTab leagueId={leagueId} isCommissioner={isCommissioner} />
       if (tab === 'League') return <LeagueInfoTab leagueId={leagueId} />
-      if (tab === 'News') return <NewsTab leagueId={leagueId} />
+      if (tab === 'News') return <NewsTab leagueId={leagueId} isCommissioner={isCommissioner} />
       if (tab === 'Hall of Fame') return <HallOfFameTab leagueId={leagueId} />
       if (tab === 'Legacy') return <LegacyTab leagueId={leagueId} />
       if (tab === 'Advisor') return <AdvisorTab leagueId={leagueId} />
-      if (tab === 'Career') return <CareerTab leagueId={leagueId} />
-      if (tab === 'Awards') return <AwardsTab leagueId={leagueId} />
-      if (tab === 'Record Books') return <RecordBooksTab leagueId={leagueId} />
+      if (tab === 'Career') return <CareerTab leagueId={leagueId} isCommissioner={isCommissioner} />
+      if (tab === 'Awards') return <AwardsTab leagueId={leagueId} isCommissioner={isCommissioner} />
+      if (tab === 'Record Books') return <RecordBooksTab leagueId={leagueId} isCommissioner={isCommissioner} />
       if (tab === 'Store') return <StoreTab leagueId={leagueId} />
       if (tab === 'Intelligence') return <IntelligenceTab leagueId={leagueId} />
       if (tab === 'Chat') return <LeagueChatTab leagueId={leagueId} />

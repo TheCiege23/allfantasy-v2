@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { processPurchase } from "@/lib/league-economy/PurchaseProcessor"
+import { isSupportedSport, normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -17,11 +18,20 @@ export async function POST(req: Request) {
     const managerId = session.user.id
 
     const body = await req.json().catch(() => ({}))
-    const itemId = body.itemId as string
-    const sport = body.sport as string | undefined
+    const itemId = typeof body.itemId === "string" ? body.itemId.trim() : ""
+    const sportRaw = body.sport as string | undefined
+    const sport =
+      sportRaw == null
+        ? undefined
+        : isSupportedSport(sportRaw)
+          ? normalizeToSupportedSport(sportRaw)
+          : null
 
     if (!itemId) {
       return NextResponse.json({ error: "Missing itemId" }, { status: 400 })
+    }
+    if (sport === null) {
+      return NextResponse.json({ error: "Invalid sport" }, { status: 400 })
     }
 
     const result = await processPurchase(managerId, itemId, { sport })

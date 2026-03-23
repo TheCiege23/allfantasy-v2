@@ -22,6 +22,7 @@ import type {
 
 const DEFAULT_ITERATIONS = 2000
 const MAX_ITERATIONS = 5000
+const MAX_DYNASTY_ITERATIONS_PER_SEASON = 500
 
 function toProjection(t: TeamProjectionInput, fallbackStdDev: number, index?: number): TeamProjection {
   return {
@@ -120,6 +121,11 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
   const fallbackStdDev = getDefaultScoreStdDev(sport)
   const numTeams = input.teams.length
   const seasons = Math.min(Math.max(1, input.seasons), 200)
+  const playoffSpots = Math.min(Math.max(1, input.playoffSpots), numTeams)
+  const iterationsPerSeason = Math.min(
+    Math.max(1, input.iterationsPerSeason ?? 1),
+    MAX_DYNASTY_ITERATIONS_PER_SEASON
+  )
   const projections = input.teams.map((t, i) => toProjection(t, fallbackStdDev, i))
   const outcomes: DynastyTeamOutcome[] = input.teams.map((t, i) => ({
     teamIndex: i,
@@ -131,40 +137,43 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
   }))
 
   const totalFinishSum = new Array(numTeams).fill(0)
+  const totalRuns = seasons * iterationsPerSeason
 
   for (let s = 0; s < seasons; s++) {
-    const wins = new Array(numTeams).fill(0)
-    for (let i = 0; i < numTeams; i++) {
-      for (let j = i + 1; j < numTeams; j++) {
-        const scoreI =
-          projections[i].mean +
-          (projections[i].stdDev ?? fallbackStdDev) * boxMuller()
-        const scoreJ =
-          projections[j].mean +
-          (projections[j].stdDev ?? fallbackStdDev) * boxMuller()
-        if (scoreI > scoreJ) wins[i]++
-        else wins[j]++
+    for (let iter = 0; iter < iterationsPerSeason; iter++) {
+      const wins = new Array(numTeams).fill(0)
+      for (let i = 0; i < numTeams; i++) {
+        for (let j = i + 1; j < numTeams; j++) {
+          const scoreI =
+            projections[i].mean +
+            (projections[i].stdDev ?? fallbackStdDev) * boxMuller()
+          const scoreJ =
+            projections[j].mean +
+            (projections[j].stdDev ?? fallbackStdDev) * boxMuller()
+          if (scoreI > scoreJ) wins[i]++
+          else wins[j]++
+        }
       }
-    }
-    const sortedIndices = [...Array(numTeams).keys()].sort(
-      (a, b) => wins[b] - wins[a]
-    )
-    const playoffIndices = sortedIndices.slice(0, input.playoffSpots)
-    playoffIndices.forEach((idx) => {
-      outcomes[idx].playoffAppearances++
-    })
-    for (let i = 0; i < numTeams; i++) {
-      outcomes[i].totalWins += wins[i]
-      totalFinishSum[i] += sortedIndices.indexOf(i) + 1
-    }
+      const sortedIndices = [...Array(numTeams).keys()].sort(
+        (a, b) => wins[b] - wins[a]
+      )
+      const playoffIndices = sortedIndices.slice(0, playoffSpots)
+      playoffIndices.forEach((idx) => {
+        outcomes[idx].playoffAppearances++
+      })
+      for (let i = 0; i < numTeams; i++) {
+        outcomes[i].totalWins += wins[i]
+        totalFinishSum[i] += sortedIndices.indexOf(i) + 1
+      }
 
-    const championIdx = runOneBracket(projections, playoffIndices, fallbackStdDev)
-    outcomes[championIdx].championships++
+      const championIdx = runOneBracket(projections, playoffIndices, fallbackStdDev)
+      outcomes[championIdx].championships++
+    }
   }
 
   for (let i = 0; i < numTeams; i++) {
-    outcomes[i].avgFinish = Math.round((totalFinishSum[i] / seasons) * 10) / 10
-    outcomes[i].totalWins = Math.round((outcomes[i].totalWins / seasons) * 10) / 10
+    outcomes[i].avgFinish = Math.round((totalFinishSum[i] / totalRuns) * 10) / 10
+    outcomes[i].totalWins = Math.round((outcomes[i].totalWins / totalRuns) * 10) / 10
   }
 
   outcomes.sort(
@@ -176,7 +185,7 @@ export function runDynastySimulation(input: DynastySimLabInput): DynastySimLabRe
     sport,
     seasonsRun: seasons,
     outcomes,
-    iterationsPerSeason: 1,
+    iterationsPerSeason,
   }
 }
 

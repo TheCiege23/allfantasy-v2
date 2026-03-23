@@ -25,9 +25,13 @@ export async function generateCommentary(
 
   const sport = normalizeToSupportedSport(context.sport)
   const leagueId = context.leagueId
+  const normalizedContext = { ...context, sport } as CommentaryContext
 
-  const statisticalContext = skipStats ? '' : await getStatisticalContext(context)
-  const { headline, body } = await generateCommentaryText(context, statisticalContext || undefined)
+  const statisticalContext = skipStats ? '' : await getStatisticalContext(normalizedContext)
+  const { headline, body } = await generateCommentaryText(
+    normalizedContext,
+    statisticalContext || undefined
+  )
 
   if (persist) {
     try {
@@ -35,10 +39,10 @@ export async function generateCommentary(
         data: {
           leagueId,
           sport,
-          eventType: context.eventType,
+          eventType: normalizedContext.eventType,
           headline,
           body,
-          contextSnap: context as unknown as object,
+          contextSnap: normalizedContext as unknown as object,
         },
       })
     } catch (e) {
@@ -66,7 +70,7 @@ export async function listCommentary(options: ListCommentaryOptions) {
 
   const entries = await prisma.commentaryEntry.findMany({
     where,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit + 1,
     ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
   })

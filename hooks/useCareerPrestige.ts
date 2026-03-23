@@ -34,7 +34,11 @@ export interface UnifiedCareerProfileRow {
   timelineHints: string[]
 }
 
-export function useCareerPrestigeProfile(managerId: string | null, leagueId: string | null) {
+export function useCareerPrestigeProfile(
+  managerId: string | null,
+  leagueId: string | null,
+  sport?: string | null
+) {
   const [profile, setProfile] = useState<UnifiedCareerProfileRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +46,7 @@ export function useCareerPrestigeProfile(managerId: string | null, leagueId: str
   const refresh = useCallback(async () => {
     if (!managerId) {
       setProfile(null)
+      setError(null)
       return
     }
     setLoading(true)
@@ -49,6 +54,7 @@ export function useCareerPrestigeProfile(managerId: string | null, leagueId: str
     try {
       const params = new URLSearchParams({ managerId })
       if (leagueId) params.set("leagueId", leagueId)
+      if (sport) params.set("sport", sport)
       const res = await fetch(`/api/career-prestige/profile?${params}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -63,7 +69,7 @@ export function useCareerPrestigeProfile(managerId: string | null, leagueId: str
     } finally {
       setLoading(false)
     }
-  }, [managerId, leagueId])
+  }, [leagueId, managerId, sport])
 
   useEffect(() => {
     refresh()
@@ -87,7 +93,7 @@ export interface LeaguePrestigeRow {
   topXP: number | null
 }
 
-export function useLeaguePrestige(leagueId: string | null) {
+export function useLeaguePrestige(leagueId: string | null, sport?: string | null) {
   const [summary, setSummary] = useState<LeaguePrestigeRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,15 +101,15 @@ export function useLeaguePrestige(leagueId: string | null) {
   const refresh = useCallback(async () => {
     if (!leagueId) {
       setSummary(null)
+      setError(null)
       return
     }
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(
-        `/api/career-prestige/league?leagueId=${encodeURIComponent(leagueId)}`,
-        { cache: "no-store" }
-      )
+      const params = new URLSearchParams({ leagueId })
+      if (sport) params.set("sport", sport)
+      const res = await fetch(`/api/career-prestige/league?${params.toString()}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data?.error ?? "Failed to load league prestige")
@@ -117,7 +123,7 @@ export function useLeaguePrestige(leagueId: string | null) {
     } finally {
       setLoading(false)
     }
-  }, [leagueId])
+  }, [leagueId, sport])
 
   useEffect(() => {
     refresh()
@@ -139,7 +145,7 @@ export interface CareerLeaderboardRow {
   prestigeScore: number
 }
 
-export function useCareerLeaderboard(leagueId: string | null) {
+export function useCareerLeaderboard(leagueId: string | null, sport?: string | null) {
   const [leaderboard, setLeaderboard] = useState<CareerLeaderboardRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -150,6 +156,7 @@ export function useCareerLeaderboard(leagueId: string | null) {
     try {
       const params = new URLSearchParams()
       if (leagueId) params.set("leagueId", leagueId)
+      if (sport) params.set("sport", sport)
       params.set("limit", "25")
       const res = await fetch(`/api/career-prestige/leaderboard?${params}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
@@ -165,7 +172,7 @@ export function useCareerLeaderboard(leagueId: string | null) {
     } finally {
       setLoading(false)
     }
-  }, [leagueId])
+  }, [leagueId, sport])
 
   useEffect(() => {
     refresh()

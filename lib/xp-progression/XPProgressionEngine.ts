@@ -4,8 +4,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { aggregateXPForManager } from './XPEventAggregator'
-import { getTierFromXP, getXPToNextTier } from './TierResolver'
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { getTierFromXP, getXPRemainingToNextTier } from './TierResolver'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { XP_EVENT_TYPES } from './types'
 
 export interface RunResult {
   managerId: string
@@ -23,27 +24,44 @@ export async function runForManager(
   managerId: string,
   options?: { sport?: string | null; clearEventsFirst?: boolean }
 ): Promise<RunResult> {
-  const sport = options?.sport ?? DEFAULT_SPORT
+  const sport =
+    options?.sport && isSupportedSport(options.sport)
+      ? normalizeToSupportedSport(options.sport)
+      : undefined
   const clearEventsFirst = options?.clearEventsFirst !== false
 
   if (clearEventsFirst) {
-    await prisma.xPEvent.deleteMany({ where: { managerId } })
+    await prisma.xPEvent.deleteMany({
+      where: {
+        managerId,
+        ...(sport ? { sport } : {}),
+        eventType: { in: [...XP_EVENT_TYPES] },
+      },
+    })
   }
 
-  const aggregated = await aggregateXPForManager(managerId, { sport, writeEvents: true })
-  const currentTier = getTierFromXP(aggregated.totalXP)
-  const xpToNextTier = getXPToNextTier(aggregated.totalXP)
+  const aggregated = await aggregateXPForManager(managerId, {
+    sport: sport ?? null,
+    writeEvents: true,
+  })
+  const summed = await prisma.xPEvent.aggregate({
+    where: { managerId },
+    _sum: { xpValue: true },
+  })
+  const totalXP = Number(summed._sum.xpValue ?? 0)
+  const currentTier = getTierFromXP(totalXP)
+  const xpToNextTier = getXPRemainingToNextTier(totalXP)
 
   await prisma.managerXPProfile.upsert({
     where: { managerId },
     create: {
       managerId,
-      totalXP: aggregated.totalXP,
+      totalXP,
       currentTier,
       xpToNextTier,
     },
     update: {
-      totalXP: aggregated.totalXP,
+      totalXP,
       currentTier,
       xpToNextTier,
     },
@@ -51,7 +69,7 @@ export async function runForManager(
 
   return {
     managerId,
-    totalXP: aggregated.totalXP,
+    totalXP,
     currentTier,
     eventsCreated: aggregated.eventsCreated,
     profileUpserted: true,
@@ -72,7 +90,10 @@ export async function runForAllManagers(options?: {
   const managerIds = distinctManagers.map((r) => r.platformUserId).filter(Boolean)
   const results: RunResult[] = []
   for (const managerId of managerIds) {
-    const r = await runForManager(managerId, options)
+    const r = await runForManager(managerId, {
+      sport: options?.sport ?? null,
+      clearEventsFirst: options?.clearEventsFirst,
+    })
     results.push(r)
   }
   return results

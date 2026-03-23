@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     const userPicks = Array.isArray(body.userPicks) ? body.userPicks : []
     const isSuperflex = !!body.isSuperflex
     const isTEP = !!body.isTEP
+    const useMeta = body.useMeta !== false
 
     let teamNames: string[] = []
     if (leagueId) {
@@ -102,13 +103,15 @@ export async function POST(req: Request) {
       userPicks,
       isSuperflex,
       isTEP,
+      useMeta,
     }
 
     const result = await runDraft({ config, playerPool })
+    let draftId: string | null = null
 
     if (leagueId) {
       try {
-        await prisma.mockDraft.create({
+        const saved = await prisma.mockDraft.create({
           data: {
             leagueId,
             userId: session.user.id,
@@ -120,17 +123,23 @@ export async function POST(req: Request) {
               numTeams,
               aiEnabled: true,
               simulatorV2: true,
+              metaEnabled: useMeta,
             },
           },
         })
+        draftId = saved.id
       } catch (e) {
         console.warn('[mock-draft simulate-v2] Save failed:', e)
       }
     }
 
     return NextResponse.json({
+      draftResults: result.picks,
       picks: result.picks,
+      draftId,
+      proposals: [],
       config: { sport, numTeams, rounds, draftType, teamNames },
+      sport,
     })
   } catch (e) {
     console.error('[mock-draft simulate-v2]', e)

@@ -31,12 +31,23 @@ Advanced player cards with **AI insights**, **meta trends**, **matchup predictio
 
 - **POST /api/player-card-analytics**  
   Body: `playerId?`, `playerName`, `position?`, `team?`, `sport?`, `season?`.  
+  Validation: requires `playerName`, validates `sport` against supported sports, validates `season` as 4-digit year.  
   Returns full payload for use by the card UI.
+
+### Client Hook
+
+- **`usePlayerCardAnalytics`** (`hooks/usePlayerCardAnalytics.ts`) — shared player-card fetcher with:
+  - request dedupe key (`playerId|name|sport|position|team|season`)
+  - short-lived in-memory cache (default 2 minutes)
+  - abort handling for rapid modal/card switches
+  - explicit `refetch()` for lazy cards
 
 ### UI
 
 - **PlayerCardAnalytics** (`components/player-card/PlayerCardAnalytics.tsx`) — Sections: AI insights, Meta trends, Matchup outlook, Career projection. Fetches via POST when mounted (eager) or on “Load”. Can be embedded anywhere.
 - **PlayerDetailModal** — Integrates `PlayerCardAnalytics` below news and above game logs so opening a player shows the advanced card.
+- **PlayerProfileCard** — Integrates lazy `PlayerCardAnalytics` in the overview tab to extend advanced cards in profile search flows.
+- **RosterBoard player detail modal** — Integrates lazy `PlayerCardAnalytics` so roster-side player cards also include AI/meta/matchup/career sections.
 
 ---
 

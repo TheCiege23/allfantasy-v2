@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ChevronsDown, Users, Activity } from "lucide-react"
 import { useRosterManager, type RosterPlayer, type RosterSectionKey } from "./useRosterManager"
 import { teamLogoUrl } from "@/lib/media-url"
+import PlayerCardAnalytics from "@/components/player-card/PlayerCardAnalytics"
 
 type RosterBoardProps = {
   leagueId?: string
@@ -289,6 +290,16 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
                 <dd className="text-white/90">{selectedPlayer.opponent}</dd>
               </div>
             </dl>
+            <div className="mt-3">
+              <PlayerCardAnalytics
+                playerId={selectedPlayer.id}
+                playerName={selectedPlayer.name}
+                position={selectedPlayer.position}
+                team={selectedPlayer.team}
+                sport={leagueSport}
+                eager={false}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -3,7 +3,6 @@
  */
 
 import { getProfileByManagerId, getEventsByManagerId } from './ManagerXPQueryService'
-import { XP_VALUES } from './types'
 
 const EVENT_LABELS: Record<string, string> = {
   win_matchup: 'Matchup wins',

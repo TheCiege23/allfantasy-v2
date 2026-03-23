@@ -51,6 +51,7 @@ export interface LeagueAdvisorContext {
   faabRemaining?: number | null
   waiverPriority?: number | null
   injurySummary: string
+  trendSummary?: string
   waiverHint?: string
   tradeHint?: string
 }

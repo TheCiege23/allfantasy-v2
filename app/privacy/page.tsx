@@ -1,5 +1,5 @@
-import LegalPageShell, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageShell"
-import { getSignupReturnUrl } from "@/lib/legal/legal-route-resolver"
+import LegalPageRenderer, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageRenderer"
+import { getSignupReturnUrl } from "@/lib/legal/LegalRouteResolver"
 
 interface PrivacyPageProps {
   searchParams?: Promise<{ from?: string; next?: string }> | { from?: string; next?: string }
@@ -17,7 +17,7 @@ export default async function PrivacyPage({ searchParams }: PrivacyPageProps) {
   const signupHref = getSignupReturnUrl(next)
 
   return (
-    <LegalPageShell
+    <LegalPageRenderer
       title="Privacy Policy"
       description={`Last updated: ${LEGAL_LAST_UPDATED}`}
       backHref={fromSignup ? signupHref : "/"}
@@ -123,6 +123,6 @@ export default async function PrivacyPage({ searchParams }: PrivacyPageProps) {
           California residents have additional rights under the CCPA (e.g., right to know, delete, opt-out of sale). We do not sell personal information.
         </p>
       </section>
-    </LegalPageShell>
+    </LegalPageRenderer>
   )
 }

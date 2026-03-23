@@ -9,8 +9,8 @@ export interface XPLeaderboardRow {
   rank: number
 }
 
-export function useXPLeaderboard(args: { tier?: string; limit?: number } = {}) {
-  const { tier, limit = 50 } = args
+export function useXPLeaderboard(args: { tier?: string; sport?: string; limit?: number } = {}) {
+  const { tier, sport, limit = 50 } = args
   const [leaderboard, setLeaderboard] = useState<XPLeaderboardRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,6 +21,7 @@ export function useXPLeaderboard(args: { tier?: string; limit?: number } = {}) {
     try {
       const params = new URLSearchParams()
       if (tier) params.set("tier", tier)
+      if (sport) params.set("sport", sport)
       params.set("limit", String(limit))
       const res = await fetch(`/api/xp/leaderboard?${params}`, { cache: "no-store" })
       const data = await res.json().catch(() => ({}))
@@ -36,7 +37,7 @@ export function useXPLeaderboard(args: { tier?: string; limit?: number } = {}) {
     } finally {
       setLoading(false)
     }
-  }, [tier, limit])
+  }, [tier, sport, limit])
 
   useEffect(() => {
     refresh()

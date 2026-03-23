@@ -17,6 +17,7 @@ The advisor uses the current user’s roster and league context (from the app’
 - **Roster** — `Roster` (playerData, faabRemaining, waiverPriority) for that league and user
 - **Player names** — NFL: Sleeper `/players/nfl`; other sports: `PlayerIdentityMap` by sleeperId when available
 - **Injuries** — `SportsInjury` filtered by league sport and roster player names (last 7 days)
+- **Roster trend context** — `PlayerMetaTrend` for roster player IDs (hot/rising/cold summaries used for trade/waiver prioritization)
 
 Sport is normalized via `lib/sport-scope.ts` (`normalizeToSupportedSport`, `SUPPORTED_SPORTS`) so the advisor is multi-sport aware (NFL, NHL, NBA, MLB, NCAAF, NCAAB, SOCCER).
 
@@ -26,6 +27,16 @@ Sport is normalized via `lib/sport-scope.ts` (`normalizeToSupportedSport`, `SUPP
   - Auth: session required
   - Returns: `LeagueAdvisorAdvice` (lineup, trade, waiver, injury arrays, generatedAt, leagueId, sport)
   - 404 if league/roster not found or user does not own the league
+
+## Reliability hardening
+
+- Correctly parses OpenAI JSON payload using `parseJsonContentFromChatCompletion`.
+- Adds deterministic fallback advice when AI fails or returns empty arrays:
+  - Injury alerts from recent `SportsInjury` rows
+  - Lineup risk + start/sit guidance from injury + trend context
+  - Trade suggestions from hot/cold/rising roster trends
+  - Waiver urgency using injury pressure + FAAB/priority posture
+- Preserves multi-sport handling with `normalizeToSupportedSport`.
 
 ## UI
 
@@ -47,6 +58,7 @@ Sport is normalized via `lib/sport-scope.ts` (`normalizeToSupportedSport`, `SUPP
 | API        | `app/api/leagues/[leagueId]/advisor/route.ts` |
 | Tab UI     | `components/app/tabs/AdvisorTab.tsx` |
 | Nav + Page | `components/app/LeagueTabNav.tsx`, `app/app/league/[leagueId]/page.tsx` |
+| Tests      | `__tests__/advisor-routes-contract.test.ts`, `__tests__/league-advisor-service.test.ts` |
 
 ## Sport scope
 

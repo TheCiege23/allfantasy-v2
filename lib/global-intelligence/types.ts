@@ -8,6 +8,8 @@ export interface GlobalIntelligenceInput {
   leagueId: string
   userId?: string | null
   sport?: string | null
+  season?: number
+  week?: number
   /** Which modules to include; default all. */
   include?: IntelligenceModule[]
 }

@@ -27,13 +27,13 @@ export async function getBroadcastPayload(
   options: BroadcastPayloadOptions
 ): Promise<BroadcastPayload> {
   const { leagueId, sport: sportInput, week: requestedWeek } = options
-  const sport = normalizeToSupportedSport(sportInput)
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { name: true, sport: true, season: true },
+  })
+  const sport = normalizeToSupportedSport(sportInput ?? league?.sport)
 
-  const [league, teams, matchupFacts, dramaEvents, rivalries] = await Promise.all([
-    prisma.league.findUnique({
-      where: { id: leagueId },
-      select: { name: true, sport: true, season: true },
-    }),
+  const [teams, matchupFacts, dramaEvents, rivalries] = await Promise.all([
     prisma.leagueTeam.findMany({
       where: { leagueId },
       orderBy: [{ currentRank: 'asc' }, { pointsFor: 'desc' }, { wins: 'desc' }],
@@ -45,6 +45,11 @@ export async function getBroadcastPayload(
 
   const teamById = new Map(teams.map((t) => [t.id, t]))
   const teamByExternalId = new Map(teams.map((t) => [t.externalId, t]))
+  const ownerNameByManagerId = new Map<string, string>()
+  teams.forEach((team) => {
+    ownerNameByManagerId.set(team.id, team.ownerName)
+    if (team.externalId) ownerNameByManagerId.set(team.externalId, team.ownerName)
+  })
 
   const standings: BroadcastStandingRow[] = teams.map((t, i) => ({
     teamId: t.id,
@@ -85,8 +90,8 @@ export async function getBroadcastPayload(
   }))
 
   const rivalriesWithNames: BroadcastRivalryRow[] = rivalries.map((r) => {
-    const nameA = teamByExternalId.get(r.managerAId)?.ownerName ?? teams.find((t) => t.externalId === r.managerAId || t.id === r.managerAId)?.ownerName ?? r.managerAId
-    const nameB = teamByExternalId.get(r.managerBId)?.ownerName ?? teams.find((t) => t.externalId === r.managerBId || t.id === r.managerBId)?.ownerName ?? r.managerBId
+    const nameA = ownerNameByManagerId.get(r.managerAId) ?? r.managerAId
+    const nameB = ownerNameByManagerId.get(r.managerBId) ?? r.managerBId
     return {
       id: r.id,
       managerAId: r.managerAId,

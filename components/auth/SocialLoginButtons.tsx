@@ -1,93 +1,185 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import { signIn } from "next-auth/react"
-
-const enableGoogle = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === "true"
-const enableApple = process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true"
+import {
+  type SocialProvider,
+  isSocialProviderEnabled,
+} from "@/lib/auth/SocialProviderResolver"
+import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: string }) {
-  const [providerMessage, setProviderMessage] = useState<string | null>(null)
+  const router = useRouter()
+  const [loadingProvider, setLoadingProvider] = useState<SocialProvider | null>(null)
 
-  function handleProviderClick(provider: "google" | "apple" | "facebook" | "instagram" | "x" | "tiktok") {
-    if (provider === "google" && enableGoogle) {
-      signIn("google", { callbackUrl })
-      return
+  const getOAuthRedirectTo = (requestedPath: string) => {
+    const safePath =
+      requestedPath.startsWith("/") && !requestedPath.startsWith("//")
+        ? requestedPath
+        : "/dashboard"
+    const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+    if (configuredBaseUrl) {
+      return `${configuredBaseUrl.replace(/\/$/, "")}${safePath}`
     }
-    if (provider === "apple" && enableApple) {
-      signIn("apple", { callbackUrl })
-      return
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}${safePath}`
     }
-    const messages: Record<string, string> = {
-      google: "Google sign-in is not configured for this environment. It will appear here when enabled.",
-      apple: "Apple sign-in is not configured for this environment. It will appear here when enabled.",
-      facebook: "Facebook sign-in is planned. Follow updates for when it’s available.",
-      instagram: "Instagram sign-in is planned. Follow updates for when it’s available.",
-      x: "X (Twitter) sign-in is planned. Follow updates for when it’s available.",
-      tiktok: "TikTok sign-in is planned. Follow updates for when it’s available.",
+    return undefined
+  }
+
+  useEffect(() => {
+    const syncProfile = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      await supabase.from("profiles").upsert({
+        id: user.id,
+        email: user.email,
+        avatar_url:
+          typeof user.user_metadata?.avatar_url === "string"
+            ? user.user_metadata.avatar_url
+            : null,
+      })
     }
-    setProviderMessage(messages[provider] ?? "This sign-in option is coming soon.")
+
+    void syncProfile()
+  }, [])
+
+  const signInWithGoogleOAuth = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: getOAuthRedirectTo(callbackUrl),
+      },
+    })
+  }
+
+  const signInWithAppleOAuth = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: {
+        redirectTo: getOAuthRedirectTo(callbackUrl),
+      },
+    })
+  }
+
+  const signInWithGoogle = () => {
+    void handleProviderClick("google")
+  }
+
+  const signInWithApple = () => {
+    void handleProviderClick("apple")
+  }
+
+  async function handleProviderClick(provider: SocialProvider) {
+    if (loadingProvider) return
+    setLoadingProvider(provider)
+    const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
+    const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
+
+    try {
+      if (provider === "google" && isSupabaseConfigured) {
+        await signInWithGoogleOAuth()
+        return
+      }
+
+      if (provider === "apple" && isSupabaseConfigured) {
+        await signInWithAppleOAuth()
+        return
+      }
+
+      if (
+        (provider === "google" && googleEnabled) ||
+        (provider === "apple" && appleEnabled) ||
+        isSocialProviderEnabled(provider)
+      ) {
+        await signIn(provider, { callbackUrl })
+        return
+      }
+
+      router.push(
+        buildProviderPendingHref({
+          provider,
+          callbackUrl,
+        })
+      )
+    } finally {
+      setLoadingProvider(null)
+    }
   }
 
   return (
     <div className="space-y-2">
-      {providerMessage && (
-        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
-          {providerMessage}
-        </div>
-      )}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div>
         <button
           type="button"
-          onClick={() => handleProviderClick("google")}
-          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-            enableGoogle
-              ? "border-white/15 bg-white/[0.03] text-white/80 hover:bg-white/10"
-              : "border-white/10 bg-black/20 text-white/50 hover:text-white/70 hover:bg-white/5"
-          }`}
+          onClick={signInWithGoogle}
+          disabled={loadingProvider !== null}
+          className={`w-full bg-white text-black py-2 rounded-lg mb-3 ${loadingProvider !== null ? "opacity-70" : ""}`}
         >
-          {enableGoogle ? "Continue with Google" : "Google (connect coming soon)"}
+          Continue with Google
         </button>
         <button
           type="button"
-          onClick={() => handleProviderClick("apple")}
-          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-            enableApple
-              ? "border-white/15 bg-white/[0.03] text-white/80 hover:bg-white/10"
-              : "border-white/10 bg-black/20 text-white/50 hover:text-white/70 hover:bg-white/5"
-          }`}
+          onClick={signInWithApple}
+          disabled={loadingProvider !== null}
+          className={`w-full bg-black text-white py-2 rounded-lg ${loadingProvider !== null ? "opacity-70" : ""}`}
         >
-          {enableApple ? "Continue with Apple" : "Apple (connect coming soon)"}
+          Continue with Apple
         </button>
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px] text-white/45">
         <button
           type="button"
-          onClick={() => handleProviderClick("facebook")}
-          className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition"
+          onClick={() => {
+            void handleProviderClick("facebook")
+          }}
+          disabled={loadingProvider !== null}
+          className={`rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition ${
+            loadingProvider !== null ? "opacity-70" : ""
+          }`}
         >
-          Facebook (planned)
+          {loadingProvider === "facebook" ? "Opening..." : "Facebook (planned)"}
         </button>
         <button
           type="button"
-          onClick={() => handleProviderClick("instagram")}
-          className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition"
+          onClick={() => {
+            void handleProviderClick("instagram")
+          }}
+          disabled={loadingProvider !== null}
+          className={`rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition ${
+            loadingProvider !== null ? "opacity-70" : ""
+          }`}
         >
-          Instagram (planned)
+          {loadingProvider === "instagram" ? "Opening..." : "Instagram (planned)"}
         </button>
         <button
           type="button"
-          onClick={() => handleProviderClick("x")}
-          className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition"
+          onClick={() => {
+            void handleProviderClick("x")
+          }}
+          disabled={loadingProvider !== null}
+          className={`rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition ${
+            loadingProvider !== null ? "opacity-70" : ""
+          }`}
         >
-          X / Twitter (planned)
+          {loadingProvider === "x" ? "Opening..." : "X / Twitter (planned)"}
         </button>
         <button
           type="button"
-          onClick={() => handleProviderClick("tiktok")}
-          className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition sm:col-span-3"
+          onClick={() => {
+            void handleProviderClick("tiktok")
+          }}
+          disabled={loadingProvider !== null}
+          className={`rounded-xl border border-white/10 bg-black/10 px-3 py-2 hover:bg-white/5 hover:text-white/60 transition sm:col-span-3 ${
+            loadingProvider !== null ? "opacity-70" : ""
+          }`}
         >
-          TikTok (planned)
+          {loadingProvider === "tiktok" ? "Opening..." : "TikTok (planned)"}
         </button>
       </div>
     </div>

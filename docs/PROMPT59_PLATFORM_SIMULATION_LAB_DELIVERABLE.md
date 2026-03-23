@@ -20,15 +20,15 @@ No league or auth required: inputs are team projections (mean PPG, optional stdD
 
 - **POST** `/api/simulation-lab/season`  
   Body: `SeasonSimLabInput` (team, opponents, playoffSpots, byeSpots?, iterations?).  
-  Returns: `SeasonSimLabResult` (expectedWins, playoffProbability, byeWeekProbability, iterations).
+  Returns: `SeasonSimLabResult` (sport, expectedWins, playoffProbability, byeWeekProbability, iterations).
 
 - **POST** `/api/simulation-lab/playoffs`  
   Body: `PlayoffSimLabInput` (teams[], targetTeamIndex, iterations?).  
-  Returns: `PlayoffSimLabResult` (championshipProbability, finalistProbability, iterations).
+  Returns: `PlayoffSimLabResult` (sport, championshipProbability, finalistProbability, iterations).
 
 - **POST** `/api/simulation-lab/dynasty`  
   Body: `DynastySimLabInput` (teams[], seasons, playoffSpots, iterationsPerSeason?).  
-  Returns: `DynastySimLabResult` (seasonsRun, outcomes[], iterationsPerSeason). Each outcome: teamIndex, name?, championships, totalWins, avgFinish, playoffAppearances.
+  Returns: `DynastySimLabResult` (sport, seasonsRun, outcomes[], iterationsPerSeason). Each outcome: teamIndex, name?, championships, totalWins, avgFinish, playoffAppearances.
 
 ## UI
 
@@ -37,6 +37,7 @@ No league or auth required: inputs are team projections (mean PPG, optional stdD
   - **Season**: inputs for your team mean/stdDev, opponent means (comma-separated), playoff spots, iterations; Run → expected wins, playoff %, bye %.
   - **Playoffs**: team means (seed order), target team index, iterations; Run → championship %, finalist %.
   - **Dynasty**: team means, number of seasons, playoff spots; Run → table of team, championships, avg wins, avg finish, playoff %.
+  - Includes **iterations per season** to run multiple Monte Carlo passes for each season.
 - **App home** (`/app`): “Simulation Lab” link to `/app/simulation-lab`.
 
 ## Files
@@ -53,3 +54,9 @@ No league or auth required: inputs are team projections (mean PPG, optional stdD
 ## Dependencies
 
 - `lib/monte-carlo`: `simulateSeason`, `simulatePlayoffs`, `TeamProjection`.
+
+## Validation and reliability notes
+
+- All three routes now forward `sport` into `SimulationLabService` so simulation variance defaults are sport-aware.
+- Dynasty simulation supports `iterationsPerSeason` (clamped to a safe cap) and aggregates outcomes across `seasons x iterationsPerSeason` runs.
+- Added route contract tests and service tests for Prompt 59 in `__tests__/simulation-lab-routes-contract.test.ts` and `__tests__/simulation-lab-service.test.ts`.

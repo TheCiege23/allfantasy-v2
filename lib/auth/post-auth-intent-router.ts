@@ -2,7 +2,7 @@
  * Post-auth intent routing: suggested destinations per entry point.
  * Use with safeRedirectPath so URL is always safe.
  */
-import { safeRedirectPath } from "./auth-intent-resolver"
+import { resolvePostAuthIntentDestination } from "./PostAuthIntentRouter"
 
 /** Default destination when user comes from main landing (no product chosen). */
 export const DEFAULT_LANDING_AFTER_AUTH = "/dashboard"
@@ -24,10 +24,7 @@ export const ADMIN_AFTER_AUTH = "/admin"
  * Returns a safe path (no open redirect).
  */
 export function resolvePostAuthDestination(intentPath: string | null | undefined): string {
-  const path = safeRedirectPath(intentPath)
-  if (path.startsWith("/admin")) return ADMIN_AFTER_AUTH
-  if (path.startsWith("/app") || path.startsWith("/leagues")) return path
-  if (path.startsWith("/brackets") || path.startsWith("/bracket")) return path
-  if (path.startsWith("/af-legacy") || path.startsWith("/legacy")) return path
-  return path
+  return resolvePostAuthIntentDestination({
+    callbackUrl: intentPath,
+  })
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import {
   Maximize2,
   Minimize2,
@@ -23,66 +23,143 @@ type ViewKey = (typeof VIEWS)[number]
 
 export default function LeagueBroadcastPage() {
   const params = useParams<{ leagueId: string }>()
+  const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ''
+  const requestedSport =
+    (searchParams.get('sport') ?? '').trim() || undefined
+  const requestedWeek = useMemo(() => {
+    const raw = (searchParams.get('week') ?? '').trim()
+    if (!raw) return undefined
+    const parsed = Number(raw)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+  }, [searchParams])
 
   const [payload, setPayload] = useState<BroadcastPayload | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isCommissioner, setIsCommissioner] = useState(false)
   const [viewIndex, setViewIndex] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const sessionStartedRef = useRef(false)
 
   const view = VIEWS[viewIndex]
 
-  const fetchPayload = useCallback(async () => {
+  const fetchPayload = useCallback(async (options?: { initial?: boolean }) => {
     if (!leagueId) return
-    setLoading(true)
-    setError(null)
+    const isInitial = options?.initial === true
+    if (isInitial) setLoading(true)
+    else setRefreshing(true)
+
     try {
+      const params = new URLSearchParams()
+      if (requestedSport) params.set('sport', requestedSport)
+      if (requestedWeek != null) params.set('week', String(requestedWeek))
+      const query = params.toString()
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/broadcast/payload`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/broadcast/payload${query ? `?${query}` : ''}`,
         { cache: 'no-store' }
       )
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? 'Failed to load')
       setPayload(data)
+      setError(null)
       setLastRefresh(new Date())
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
-      setPayload(null)
     } finally {
-      setLoading(false)
+      if (isInitial) setLoading(false)
+      else setRefreshing(false)
     }
-  }, [leagueId])
+  }, [leagueId, requestedSport, requestedWeek])
 
   useEffect(() => {
-    fetchPayload()
+    void fetchPayload({ initial: true })
   }, [fetchPayload])
 
   useEffect(() => {
-    const interval = setInterval(fetchPayload, 30_000)
+    const interval = setInterval(() => {
+      void fetchPayload()
+    }, 30_000)
     return () => clearInterval(interval)
   }, [fetchPayload])
 
   useEffect(() => {
-    if (!isFullscreen) return
-    const doc = document.documentElement
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!leagueId || sessionStartedRef.current) return
+    if (!isCommissioner) return
+    sessionStartedRef.current = true
+    void fetch(`/api/leagues/${encodeURIComponent(leagueId)}/broadcast/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sport: requestedSport }),
+    }).catch(() => {
+      // Session analytics should not block broadcast mode.
+    })
+  }, [isCommissioner, leagueId, requestedSport])
+
+  useEffect(() => {
+    let active = true
+    async function checkCommissioner() {
+      if (!leagueId) return
+      try {
+        const res = await fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/check`, {
+          cache: 'no-store',
+        })
+        const data = await res.json().catch(() => ({}))
+        if (active) setIsCommissioner(!!data?.isCommissioner)
+      } catch {
+        if (active) setIsCommissioner(false)
+      }
+    }
+    void checkCommissioner()
+    return () => {
+      active = false
+    }
+  }, [leagueId])
+
+  const goPrev = useCallback(() => {
+    setViewIndex((i) => (i === 0 ? VIEWS.length - 1 : i - 1))
+  }, [])
+  const goNext = useCallback(() => {
+    setViewIndex((i) => (i === VIEWS.length - 1 ? 0 : i + 1))
+  }, [])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goPrev()
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        goNext()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [goNext, goPrev])
+
+  const toggleFullscreen = async () => {
     try {
-      doc.requestFullscreen?.()
+      if (document.fullscreenElement) {
+        await document.exitFullscreen?.()
+      } else {
+        await document.documentElement.requestFullscreen?.()
+      }
     } catch {
       // ignore
     }
-    return () => {
-      try {
-        if (document.fullscreenElement) document.exitFullscreen?.()
-      } catch {
-        // ignore
-      }
-    }
-  }, [isFullscreen])
-
-  const goPrev = () => setViewIndex((i) => (i === 0 ? VIEWS.length - 1 : i - 1))
-  const goNext = () => setViewIndex((i) => (i === VIEWS.length - 1 ? 0 : i + 1))
+  }
 
   if (!leagueId) {
     return (
@@ -103,7 +180,7 @@ export default function LeagueBroadcastPage() {
           </span>
           <button
             type="button"
-            onClick={() => setIsFullscreen((f) => !f)}
+            onClick={() => void toggleFullscreen()}
             className="rounded-lg border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10"
             aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
@@ -111,12 +188,12 @@ export default function LeagueBroadcastPage() {
           </button>
           <button
             type="button"
-            onClick={fetchPayload}
-            disabled={loading}
+            onClick={() => void fetchPayload()}
+            disabled={loading || refreshing}
             className="rounded-lg border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10 disabled:opacity-50"
             aria-label="Refresh"
           >
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-5 w-5 ${loading || refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -139,7 +216,7 @@ export default function LeagueBroadcastPage() {
           </button>
         </div>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}`}
+          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Overview`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-300 hover:bg-red-950/50"
         >
           <LogOut className="h-4 w-4" /> Exit broadcast
@@ -147,11 +224,11 @@ export default function LeagueBroadcastPage() {
       </div>
 
       {/* Main content — padded for control bar */}
-      <main className="pt-16 pb-8 px-4 md:px-8 lg:px-12">
+      <main className="pb-8 pt-16 2xl:px-16">
         {error && (
           <div className="rounded-xl bg-red-950/40 border border-red-500/30 p-4 text-red-300">
             {error}
-            <button type="button" onClick={fetchPayload} className="ml-2 underline">Retry</button>
+            <button type="button" onClick={() => void fetchPayload()} className="ml-2 underline">Retry</button>
           </div>
         )}
 
@@ -161,8 +238,8 @@ export default function LeagueBroadcastPage() {
           </div>
         )}
 
-        {payload && !loading && (
-          <div className="mx-auto max-w-6xl">
+        {payload && (
+          <div className="mx-auto w-full max-w-[1800px] px-4 md:px-8 lg:px-12">
             {view === 'matchups' && (
               <LiveScoreRenderer
                 matchups={payload.matchups}
@@ -187,6 +264,14 @@ export default function LeagueBroadcastPage() {
           </div>
         )}
 
+        {payload && refreshing && (
+          <p className="mt-3 text-center text-sm text-zinc-500">Refreshing broadcast data…</p>
+        )}
+        {payload && !isCommissioner && (
+          <p className="mt-2 text-center text-xs text-zinc-600">
+            Broadcast session start is commissioner-only. Viewing is still available.
+          </p>
+        )}
         {payload && (
           <p className="mt-4 text-center text-xs text-zinc-600">
             Last updated {lastRefresh?.toLocaleTimeString() ?? '—'} · Auto-refresh every 30s

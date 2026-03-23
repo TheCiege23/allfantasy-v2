@@ -22,12 +22,16 @@ export function useMediaArticles(options: UseMediaArticlesOptions) {
   const { leagueId, sport, tags } = options
   const [articles, setArticles] = useState<MediaArticleRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined)
 
-  const fetchList = useCallback(async (cursor?: string) => {
+  const fetchList = useCallback(async (cursor?: string, append?: boolean, backgroundRefresh?: boolean) => {
     if (!leagueId) return
-    setLoading(true)
+    if (append) setLoadingMore(true)
+    else if (backgroundRefresh) setRefreshing(true)
+    else setLoading(true)
     setError(null)
     try {
       const params = new URLSearchParams()
@@ -41,13 +45,16 @@ export function useMediaArticles(options: UseMediaArticlesOptions) {
       )
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? 'Failed to load articles')
-      setArticles(data.articles ?? [])
+      const incoming = (data.articles ?? []) as MediaArticleRow[]
+      setArticles((prev) => (append ? [...prev, ...incoming] : incoming))
       setNextCursor(data.nextCursor)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')
-      setArticles([])
+      if (!append && !backgroundRefresh) setArticles([])
     } finally {
-      setLoading(false)
+      if (append) setLoadingMore(false)
+      else if (backgroundRefresh) setRefreshing(false)
+      else setLoading(false)
     }
   }, [leagueId, sport, tags?.join(',')])
 
@@ -55,5 +62,14 @@ export function useMediaArticles(options: UseMediaArticlesOptions) {
     fetchList()
   }, [fetchList])
 
-  return { articles, loading, error, nextCursor, refresh: () => fetchList() }
+  return {
+    articles,
+    loading,
+    refreshing,
+    loadingMore,
+    error,
+    nextCursor,
+    refresh: () => fetchList(undefined, false, articles.length > 0),
+    loadMore: () => (nextCursor ? fetchList(nextCursor, true) : Promise.resolve()),
+  }
 }

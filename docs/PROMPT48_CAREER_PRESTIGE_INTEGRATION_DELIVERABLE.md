@@ -2,107 +2,122 @@
 
 ## 1. Integration Architecture
 
-- **Purpose:** Unify GM Economy, Career XP, Reputation, Hall of Fame, Legacy Score, Awards Engine, and Record Books into a single **Career Prestige** layer that powers manager profiles, league prestige, dynasty recognition, historical storytelling, and AI narrative explanations.
-- **Components:**
-  - **UnifiedCareerQueryService:** Aggregates from all seven systems. `getUnifiedCareerProfile(managerId, { leagueId?, sport? })` returns a single profile with snapshots: GM Economy (franchise value, tier, championships, win%), XP (totalXP, tier, progress), Reputation (per league), Legacy (per league), Hall of Fame count/title, awards won count, records held count, and timeline hints (from awards + records). `getLeaguePrestigeSummary(leagueId, sport?)` returns league-level counts (manager count, GM/XP/Reputation/Legacy coverage, HoF/awards/record counts, top legacy score, top XP). `getCareerLeaderboard({ leagueId?, sport?, limit? })` returns managers ranked by a combined prestige score (franchise value, XP, championships, awards, records).
-  - **SportPrestigeResolver:** Re-exports `normalizeSportForPrestige`, `getPrestigeSportLabel`, and adds `resolveSportForCareer(sport)` so the career layer uses one sport normalization (aligned with prestige-governance and sport-scope).
-  - **CareerPrestigeOrchestrator:** `runAllForLeague(leagueId, { sport?, seasons? })` runs GM Economy (per roster), XP (per roster), Reputation engine for league, Legacy engine for league, Awards engine for given seasons, Record Book engine for given seasons. `runAllForManager(managerId, { sport? })` runs GM Economy and XP for that manager. Does not run Hall of Fame induction (handled in Hall of Fame tab).
-  - **AICareerContextService:** `buildCareerContextForManager(managerId, { leagueId?, sport? })` returns `AICareerContextPayload` (narrativeHint, gmTier, xpTier, reputationTier, legacyScore, hofCount, awardsCount, recordsCount) for AI explain. `buildCareerContextForLeague(leagueId, sport?)` returns league narrative hint and `LeaguePrestigeSummary` for league dashboards.
-- **Data flow:** UI and APIs call UnifiedCareerQueryService and AICareerContextService; filters (leagueId, sport) propagate to underlying engines. Orchestrator is optional (run all engines from one action); existing per-system run endpoints remain.
+- The unified layer now consolidates GM Economy, XP, Reputation, Legacy, Hall of Fame, Awards, and Record Books into one career domain with shared sport normalization.
+- Core modules:
+  - `CareerPrestigeOrchestrator` for write orchestration.
+  - `UnifiedCareerQueryService` for profile, league summary, and leaderboard reads.
+  - `SportPrestigeResolver` for sport resolution (`resolveSportForCareer`).
+  - `AICareerContextService` for combined narrative payloads.
+- Entry points:
+  - APIs: `/api/career-prestige/profile`, `/league`, `/leaderboard`, `/run`, `/explain`
+  - UI: `CareerTab` + `useCareerPrestige*` hooks.
+- Data split:
+  - **Profile view**: manager-centric combined snapshot + timeline hints.
+  - **League view**: coverage counts + top legacy/XP.
+  - **Leaderboard view**: unified prestige score with league-aware scoping.
 
 ---
 
 ## 2. Backend Orchestration Updates
 
-- **CareerPrestigeOrchestrator** implemented in `lib/career-prestige/CareerPrestigeOrchestrator.ts`:
-  - `runAllForLeague`: Fetches rosters for league; runs GM Economy and XP for each manager (up to 100); calls `runReputationEngineForLeague`, `runLegacyScoreEngineForLeague`, `runAwardsEngine` per season, `runRecordBookEngine` for seasons + "all". Returns counts (gmProcessed, xpProcessed, reputation processed, legacy processed, awards created, record book entries created/updated).
-  - `runAllForManager`: Runs `runGMEconomyForManager` and `runForManager` (XP); returns same shape with managerId.
-- **UnifiedCareerQueryService** uses existing query services; no changes to GM Economy, XP, Reputation, Legacy, Hall of Fame, Awards, or Record Books engines themselves. List/get signatures preserved; only new aggregator and leaderboard logic added.
+- `CareerPrestigeOrchestrator` updates:
+  - normalized run sport using league sport fallback (`resolveSportForCareer`).
+  - normalized/trimmed seasons before run.
+  - preserved multi-engine run order (GM, XP, Reputation, Legacy, Awards, Record Book).
+- `UnifiedCareerQueryService` updates:
+  - profile awards/records counts now use direct DB counts (no truncated list-based counting).
+  - timeline hints now use manager-scoped award/record queries for consistency.
+  - league reputation/legacy coverage now counts distinct managers instead of raw row count.
+  - leaderboard now honors `leagueId` and `sport` filters, scopes to league roster when league context is provided, and includes legacy/reputation/HoF contributions in prestige scoring.
+- Route hardening:
+  - sport validation/normalization added to profile/league/leaderboard/explain/run APIs.
+  - manager run in `/api/career-prestige/run` now enforces own-manager execution (`403` otherwise).
 
 ---
 
 ## 3. UI Integration Points
 
-- **Career tab (league context):** New “Career Prestige” block at the top of the Career tab when viewing a league:
-  - **League prestige card:** Shows manager count and coverage (GM, XP, Reputation, Legacy, HoF, Awards, Records) from `getLeaguePrestigeSummary`. Data from `useLeaguePrestige(leagueId)`.
-  - **Your prestige card:** When session has managerId, shows unified profile: GM tier badge, XP tier badge, Reputation tier, Legacy score, HoF count, Awards/Records counts; timeline hints (first 3); “Explain my career” button → POST `/api/career-prestige/explain` with managerId + leagueId → narrative shown inline. Data from `useCareerPrestigeProfile(managerId, leagueId)`.
-  - **Prestige leaderboard:** Top 10 by combined prestige score (franchise value, XP, champs, awards, records). Data from `useCareerLeaderboard(leagueId)`.
-  - **Actions:** “Refresh” (refetches profile, league summary, leaderboard); “Run all engines” (POST `/api/career-prestige/run` with leagueId, then refreshes all career data).
-- **APIs:** GET `/api/career-prestige/profile?managerId=&leagueId=&sport=`, GET `/api/career-prestige/leaderboard?leagueId=&sport=&limit=`, GET `/api/career-prestige/league?leagueId=&sport=`, POST `/api/career-prestige/explain` (body managerId or leagueId, sport?), POST `/api/career-prestige/run` (body leagueId or managerId, sport?, seasons?).
-- **Hooks:** `useCareerPrestigeProfile(managerId, leagueId)`, `useLeaguePrestige(leagueId)`, `useCareerLeaderboard(leagueId)` in `hooks/useCareerPrestige.ts`.
+- `CareerTab` now includes career-sport filter for the prestige block, propagating to profile/league/leaderboard hooks and explain/run actions.
+- Added league explain action (`Explain league`) alongside manager explain panel.
+- Added robust status/error surfaces for:
+  - career run
+  - career explain
+  - prestige data hooks
+- `useCareerPrestige.ts` now supports optional sport in:
+  - `useCareerPrestigeProfile(managerId, leagueId, sport?)`
+  - `useLeaguePrestige(leagueId, sport?)`
+  - `useCareerLeaderboard(leagueId, sport?)`
+- Prestige leaderboard now has loading/empty states and richer row metadata (legacy/reputation when available).
 
 ---
 
 ## 4. AI Integration
 
-- **AICareerContextService** builds a single narrative hint string from all systems: GM Economy (tier, value, championships, win%), XP (total, tier, progress), Reputation (tier, score), Legacy (overall, championship score), HoF count, awards count, records count, and timeline hints. This is returned as `narrativeHint` in the explain API response and used for “Explain my career” and league explain.
-- **Explain API:** POST `/api/career-prestige/explain` with `managerId` returns `buildCareerContextForManager` result (narrative + context); with `leagueId` only returns `buildCareerContextForLeague` (narrative + summary). AI explanation panels in the Career tab display this narrative; no separate LLM call in this layer (narrative is server-built from combined data).
+- `AICareerContextService` remains the unified narrative builder for manager and league contexts.
+- Explain route now validates sport and consistently returns combined cross-system narrative context.
+- Career UI now exposes both explain paths:
+  - manager narrative panel (`Explain my career`)
+  - league narrative panel (`Explain league`)
 
 ---
 
 ## 5. UI Audit Findings
 
-| Location | Element | Handler | State / API | Status |
-|----------|--------|---------|-------------|--------|
-| **Career tab** | Career Prestige block | — | useCareerPrestigeProfile, useLeaguePrestige, useCareerLeaderboard | OK |
-| **Career tab** | Refresh (prestige) | onClick refreshCareerProfile + refreshLeaguePrestige + refreshCareerLeaderboard | GET profile, league, leaderboard | OK |
-| **Career tab** | Run all engines | runPrestigeEngines() | POST career-prestige/run (leagueId), then refresh all | OK |
-| **Career tab** | League prestige card | — | useLeaguePrestige(leagueId) | OK |
-| **Career tab** | Your prestige card | — | useCareerPrestigeProfile(managerId, leagueId) | OK |
-| **Career tab** | Explain my career | explainCareer() | POST career-prestige/explain (managerId, leagueId); setCareerExplainNarrative | OK |
-| **Career tab** | Prestige leaderboard | — | useCareerLeaderboard(leagueId) | OK |
-| **GET /career-prestige/profile** | Unified profile | useCareerPrestigeProfile | managerId, leagueId?, sport? | OK |
-| **GET /career-prestige/league** | League summary | useLeaguePrestige | leagueId, sport? | OK |
-| **GET /career-prestige/leaderboard** | Leaderboard | useCareerLeaderboard | leagueId?, limit? | OK |
-| **POST /career-prestige/explain** | AI narrative | explainCareer() | managerId or leagueId; returns narrative | OK |
-| **POST /career-prestige/run** | Run all | runPrestigeEngines() | leagueId or managerId; auth required | OK |
-
-Filters: leagueId propagates from league page to Career tab; profile and leaderboard use it. Sport can be added to API params and hooks if needed. All click paths function end-to-end.
+- **Career dashboard interactions:** refresh/run/explain actions all have explicit success/failure handling.
+- **Manager leaderboard:** now reflects league-scoped manager set in league context (instead of global-only union).
+- **Prestige cards:** profile/league cards remain consistent with hook filtering and now report hook failures.
+- **Unified timeline + AI panels:** manager and league narratives render with validated inputs; no silent API failure paths.
+- **Filter propagation:** `leagueId` and `sport` now propagate through hooks and all relevant career-prestige APIs.
 
 ---
 
 ## 6. QA Findings
 
-- **Cross-system integration:** Unified profile and league summary aggregate from GM Economy, XP, Reputation, Legacy, Hall of Fame, Awards, Record Books; data appears in one card and leaderboard.
-- **Filters:** leagueId is passed to profile (for reputation/legacy/awards/records in that league), league summary, and leaderboard; refresh updates all.
-- **Profile consistency:** Same managerId + leagueId always returns same unified shape; underlying systems unchanged.
-- **AI explanations:** Explain uses combined data (narrativeHint from AICareerContextService); “Explain my career” shows it in the Career tab.
-- **Click paths:** Refresh, Run all engines, Explain my career are wired; no dead buttons.
+- `npm run typecheck` passes.
+- Added route contract coverage:
+  - `__tests__/career-prestige-routes-contract.test.ts`
+- Executed:
+  - `npx vitest run __tests__/career-prestige-routes-contract.test.ts` (4/4 passing)
+- Verified contract cases:
+  - sport normalization forwarding
+  - filter forwarding for profile/league/leaderboard
+  - explain dispatch manager vs league
+  - run auth + manager ownership guard + seasons normalization
 
 ---
 
 ## 7. Issues Fixed
 
-- **Orchestrator:** Corrected `runReputationForLeague` → `runReputationEngineForLeague`; `runRecordBookEngine` returns a single result object, not array; record book result uses `entriesCreated`/`entriesUpdated`.
-- **UnifiedCareerQueryService:** League prestige summary uses a single rosters fetch then managerIds for GM/XP coverage counts; top legacy and top XP queried for league’s managers.
-- **Career tab:** Uses `leagueId` (no longer `_leagueId`) so prestige section receives league context; added Career Prestige block with league summary, your prestige card, timeline, explain button, and prestige leaderboard.
+- Career leaderboard no longer ignores sport and league context.
+- League coverage stats now represent distinct-manager coverage for reputation/legacy.
+- Profile awards/records counts and timeline are manager-accurate in large leagues (no list truncation drift).
+- Career-prestige run and explain routes now validate sport and enforce manager ownership for manager runs.
+- Career tab no longer silently fails in prestige flows; added status/error feedback and league explain panel.
 
 ---
 
 ## 8. Final QA Checklist
 
-- [ ] Open league → Career tab; confirm “Career Prestige” block with League prestige, Your prestige (if logged in), Prestige leaderboard (if data exists).
-- [ ] Click “Refresh”; confirm profile, league summary, and leaderboard refetch.
-- [ ] Click “Run all engines” (with leagueId); confirm loading then data updates across GM, XP, and other sections.
-- [ ] Click “Explain my career”; confirm narrative appears and references GM, XP, Reputation, Legacy, HoF, Awards, Records.
-- [ ] Verify filters: league context (leagueId) is used for profile reputation/legacy/awards/records and for leaderboard.
-- [ ] POST /career-prestige/run without auth returns 401.
-- [ ] GET /career-prestige/profile?managerId= returns unified profile; with leagueId= includes league-scoped reputation/legacy/awards/records.
+- [x] Unified profile integrates GM Economy, XP, Reputation, Legacy, HoF, Awards, and Record Books.
+- [x] League summary and leaderboard integrate and refresh from unified career APIs.
+- [x] `leagueId` and `sport` filters propagate across profile/league/leaderboard/explain/run.
+- [x] Explain API returns combined manager and league narratives.
+- [x] Run API enforces auth and manager ownership.
+- [x] Core click paths (refresh, run all, explain manager/league) are wired with UI-visible outcomes.
+- [ ] Optional manual browser pass for multi-sport league switching and visual polish.
 
 ---
 
 ## 9. Explanation of the Career Prestige Layer
 
-The **Career Prestige** layer is a single integration that ties together seven systems: **GM Economy** (franchise value, prestige score, tiers), **Career XP** (XP and tiers), **Reputation** (trust scores per league), **Hall of Fame** (inductions and moments), **Legacy Score** (long-term greatness per league), **Awards Engine** (season awards), and **Record Books** (historical records). It does not replace those systems; it aggregates their data so that:
+The Career Prestige layer is the shared integration plane across seven systems. It unifies each manager’s long-term competitive footprint (GM economy + XP), trust and governance quality (reputation), historical greatness (legacy + Hall of Fame), and seasonal achievement artifacts (awards + record books) into one queryable profile and leaderboard experience.
 
-1. **Manager profiles** — One API call returns a unified profile: GM tier and value, XP tier and progress, reputation and legacy for a given league, HoF count, how many awards and records the manager holds, and a short timeline (e.g. “2023 GM of the Year”, “2022 Highest Score”).
+In practical terms:
 
-2. **League prestige** — One call returns how many managers are in the league and how many have GM, XP, Reputation, and Legacy data, plus HoF, Awards, and Record Book counts and top legacy/XP.
+1. **Unified profile** gives one manager-centric response for cards, badges, and timeline hints.
+2. **League summary** shows league-wide adoption/coverage and top markers.
+3. **Unified leaderboard** ranks managers with a combined prestige score using cross-system inputs and league/sport context.
+4. **Orchestrator run** keeps all dependent systems synchronized from one action.
+5. **AI career context** exposes combined narrative hints for historical storytelling in manager and league panels.
 
-3. **Manager leaderboards** — A combined “prestige” score (from value, XP, championships, awards, records) ranks managers for a unified leaderboard.
-
-4. **Orchestration** — “Run all engines” for a league runs GM Economy, XP, Reputation, Legacy, Awards, and Record Books for that league (and optionally seasons) so data stays current.
-
-5. **AI narrative** — The explain API builds one narrative hint from all systems (tiers, scores, counts, timeline). The Career tab’s “Explain my career” button shows this so AI-style explanations use combined career data.
-
-All of this is exposed in the **Career tab** via the “Career Prestige” block: league summary, your prestige cards and timeline, explain button, and prestige leaderboard, with filters (leagueId) propagating correctly and all click paths working end-to-end.
+This provides a single, consistent foundation for manager profiles, dynasty recognition, historical storytelling, and explainable prestige UX across the app.

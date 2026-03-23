@@ -7,6 +7,10 @@ import Image from 'next/image'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import LandingHero from '@/components/landing/LandingHero'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import {
+  buildLoginHrefWithIntent,
+  buildSignupHrefWithIntent,
+} from '@/lib/auth/PostAuthIntentRouter'
 
 /** Below-the-fold: minimal features, AI value, final CTA. PROMPT 282 — minimal landing. */
 const LandingFeaturesMinimal = dynamic(
@@ -32,6 +36,8 @@ function SectionSkeleton() {
 
 function LandingContent() {
   const { t } = useLanguage()
+  const defaultLoginHref = buildLoginHrefWithIntent('/dashboard')
+  const defaultSignupHref = buildSignupHrefWithIntent('/dashboard')
 
   const jsonLd = useMemo(
     () => ({
@@ -84,10 +90,10 @@ function LandingContent() {
             <span style={{ color: 'var(--muted)' }}>© {new Date().getFullYear()} AllFantasy · {t('landing.footer.tagline')}</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/signup" className="hover:underline">
+            <Link href={defaultSignupHref} className="hover:underline">
               {t('common.signUp')}
             </Link>
-            <Link href="/login" className="hover:underline">
+            <Link href={defaultLoginHref} className="hover:underline">
               {t('common.signIn')}
             </Link>
             <Link href="/privacy" className="hover:underline">
@@ -95,6 +101,9 @@ function LandingContent() {
             </Link>
             <Link href="/terms" className="hover:underline">
               {t('landing.footer.terms')}
+            </Link>
+            <Link href="/disclaimer" className="hover:underline">
+              Disclaimer
             </Link>
           </div>
         </div>

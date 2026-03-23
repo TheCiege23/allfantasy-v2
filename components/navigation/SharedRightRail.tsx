@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRightRailData } from '@/hooks/useRightRailData'
-import { getPrimaryChimmyEntry, AI_HUB_HREF } from '@/lib/ai-product-layer'
+import { getPrimaryChimmyEntry, getChimmyChatHrefWithPrompt, AI_HUB_HREF } from '@/lib/ai-product-layer'
 
 export default function SharedRightRail() {
   const { data, loading, error } = useRightRailData()
@@ -37,7 +37,14 @@ export default function SharedRightRail() {
         {data.aiQuickActions.length > 0 ? (
           <ul className="mt-2 space-y-2">
             {data.aiQuickActions.slice(0, 3).map((q) => (
-              <li key={q} className="text-xs mode-muted">{q}</li>
+              <li key={q}>
+                <Link
+                  href={getChimmyChatHrefWithPrompt(q)}
+                  className="text-xs mode-muted transition hover:text-white"
+                >
+                  {q}
+                </Link>
+              </li>
             ))}
           </ul>
         ) : (

@@ -27,6 +27,10 @@ The engine scores candidate leagues heuristically, then uses OpenAI to generate 
   - Body: `{ preferences: UserDiscoveryPreferences, candidates?: CandidateLeague[], tournamentId?: string }`.
   - If `tournamentId` is set, candidates are loaded from public bracket pools and `candidates` is ignored. Otherwise `candidates` must be provided.
   - Returns: `{ suggestions: LeagueMatchSuggestion[], generatedAt: string }`.
+  - `LeagueMatchSuggestion` includes:
+    - `matchScore` (0–100)
+    - `summary` (short AI match rationale)
+    - `reasons` (1–3 supporting bullets)
 
 ## UI
 
@@ -49,3 +53,9 @@ The engine scores candidate leagues heuristically, then uses OpenAI to generate 
 
 - Sports options in the UI use `SUPPORTED_SPORTS` from `lib/sport-scope.ts`.
 - League sport is normalized with `normalizeToSupportedSport` when scoring; sport match uses the same set (NFL, NHL, NBA, MLB, NCAAF, NCAAB, SOCCER).
+
+## Reliability notes
+
+- Deterministic weighted scoring always runs first (sport, skill fit, activity fit, competition fit).
+- OpenAI narrative generation augments top suggestions and falls back to deterministic summary/reasons when unavailable.
+- Route normalizes candidate sport/activity/competition signals before scoring.

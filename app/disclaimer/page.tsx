@@ -1,6 +1,7 @@
 import Link from "next/link"
-import LegalPageShell, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageShell"
-import { getSignupReturnUrl } from "@/lib/legal/legal-route-resolver"
+import LegalPageRenderer, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageRenderer"
+import { DISCLAIMER_PAGE_TITLE, DISCLAIMER_PAGE_SECTIONS } from "@/lib/legal/DisclaimerPageService"
+import { getSignupReturnUrl } from "@/lib/legal/LegalRouteResolver"
 
 interface DisclaimerPageProps {
   searchParams?: Promise<{ from?: string; next?: string }> | { from?: string; next?: string }
@@ -18,8 +19,8 @@ export default async function DisclaimerPage({ searchParams }: DisclaimerPagePro
   const signupHref = getSignupReturnUrl(next)
 
   return (
-    <LegalPageShell
-      title="Disclaimer"
+    <LegalPageRenderer
+      title={DISCLAIMER_PAGE_TITLE}
       description={`Last updated: ${LEGAL_LAST_UPDATED}`}
       backHref={fromSignup ? signupHref : "/"}
       backLabel={fromSignup ? "Back to Sign Up" : "Back to Home"}
@@ -75,12 +76,23 @@ export default async function DisclaimerPage({ searchParams }: DisclaimerPagePro
       </section>
 
       <section>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">Quick Policy Checklist</h2>
+        <ul className="list-disc list-inside space-y-1 ml-4">
+          {DISCLAIMER_PAGE_SECTIONS.map((section) => (
+            <li key={section.heading}>
+              <strong>{section.heading}:</strong> {section.body}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
         <p className="text-white/60 text-sm">
           By using AllFantasy, you acknowledge that you have read and understood this Disclaimer. For our
           full rules and policies, see our <Link href="/terms" className="text-cyan-400 hover:text-cyan-300">Terms of Service</Link> and{" "}
           <Link href="/privacy" className="text-cyan-400 hover:text-cyan-300">Privacy Policy</Link>.
         </p>
       </section>
-    </LegalPageShell>
+    </LegalPageRenderer>
   )
 }

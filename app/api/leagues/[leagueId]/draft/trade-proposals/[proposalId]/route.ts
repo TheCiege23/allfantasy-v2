@@ -9,6 +9,8 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { appendDraftPickTrades } from '@/lib/live-draft-engine/DraftPickTradeService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { onTradeReaction } from '@/lib/commentary-engine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -74,6 +76,15 @@ export async function POST(
       where: { id: proposalId },
       data: { status: 'accepted', respondedAt: new Date(), responsePayload: { accepted: true }, updatedAt: new Date() },
     })
+    void emitAcceptedTradeCommentary({
+      leagueId,
+      proposerName: proposal.proposerName,
+      receiverName: proposal.receiverName,
+      giveRound: proposal.giveRound,
+      receiveRound: proposal.receiveRound,
+      previousGive,
+      previousReceive,
+    })
     const updated = await buildSessionSnapshot(leagueId)
     return NextResponse.json({ ok: true, action: 'accepted', session: updated })
   }
@@ -97,4 +108,41 @@ export async function POST(
   }
 
   return NextResponse.json({ error: 'Invalid action; use accept, reject, or counter' }, { status: 400 })
+}
+
+async function emitAcceptedTradeCommentary(input: {
+  leagueId: string
+  proposerName?: string | null
+  receiverName?: string | null
+  giveRound: number
+  receiveRound: number
+  previousGive: string
+  previousReceive: string
+}) {
+  try {
+    const league = await (prisma as any).league.findUnique({
+      where: { id: input.leagueId },
+      select: { name: true, sport: true },
+    })
+    const sport = normalizeToSupportedSport(league?.sport)
+    const managerA = input.proposerName?.trim() || input.previousGive || 'Manager A'
+    const managerB = input.receiverName?.trim() || input.previousReceive || 'Manager B'
+    const summary = `${managerA} and ${managerB} swapped draft capital: round ${input.giveRound} for round ${input.receiveRound}.`
+
+    await onTradeReaction(
+      {
+        eventType: 'trade_reaction',
+        leagueId: input.leagueId,
+        sport,
+        leagueName: league?.name ?? undefined,
+        managerA,
+        managerB,
+        summary,
+        tradeType: 'draft_pick_swap',
+      },
+      { skipStats: true, persist: true }
+    )
+  } catch {
+    // non-fatal
+  }
 }

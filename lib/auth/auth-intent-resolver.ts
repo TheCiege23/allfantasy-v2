@@ -8,10 +8,15 @@ const DEFAULT_AFTER_SIGNUP = "/dashboard"
 
 /** Safe path: must start with / and not be a full URL (open redirect). */
 export function safeRedirectPath(path: string | null | undefined): string {
-  if (path == null || typeof path !== "string") return DEFAULT_AFTER_LOGIN
+  if (!isSafeInternalPath(path)) return DEFAULT_AFTER_LOGIN
   const trimmed = path.trim()
-  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return DEFAULT_AFTER_LOGIN
   return trimmed
+}
+
+function isSafeInternalPath(path: string | null | undefined): path is string {
+  if (path == null || typeof path !== "string") return false
+  const trimmed = path.trim()
+  return trimmed.startsWith("/") && !trimmed.startsWith("//")
 }
 
 /** Resolve redirect after successful login. Prefer callbackUrl, then next. */
@@ -19,12 +24,15 @@ export function getRedirectAfterLogin(
   callbackUrl: string | null | undefined,
   next: string | null | undefined
 ): string {
-  return safeRedirectPath(callbackUrl || next || DEFAULT_AFTER_LOGIN)
+  if (isSafeInternalPath(callbackUrl)) return callbackUrl.trim()
+  if (isSafeInternalPath(next)) return next.trim()
+  return DEFAULT_AFTER_LOGIN
 }
 
 /** Resolve redirect after successful signup (before or after verification). */
 export function getRedirectAfterSignup(next: string | null | undefined): string {
-  return safeRedirectPath(next || DEFAULT_AFTER_SIGNUP)
+  if (isSafeInternalPath(next)) return next.trim()
+  return DEFAULT_AFTER_SIGNUP
 }
 
 /** Build login URL with intent preserved for after signup. */

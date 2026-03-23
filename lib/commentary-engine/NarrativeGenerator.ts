@@ -5,6 +5,7 @@
 
 import { deepseekChat } from '@/lib/deepseek-client'
 import { openaiChatText } from '@/lib/openai-client'
+import { parseTextFromXaiChatCompletion, xaiChatJson } from '@/lib/xai-client'
 import { buildSportContextString } from '@/lib/ai/AISportContextResolver'
 import type { CommentaryContext, GeneratedCommentary } from './types'
 
@@ -61,6 +62,34 @@ export async function getStatisticalContext(ctx: CommentaryContext): Promise<str
 }
 
 /**
+ * Get short tone guidance from Grok (voice, pacing, dramatic framing).
+ */
+export async function getToneGuidance(ctx: CommentaryContext): Promise<string> {
+  const blob = contextToBlob(ctx)
+  try {
+    const response = await xaiChatJson({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a fantasy sports color commentator. Return 2-3 short bullet points describing tone and style only. No stats. No preamble.',
+        },
+        {
+          role: 'user',
+          content: `Event type: ${ctx.eventType}\n\nContext:\n${blob}`,
+        },
+      ],
+      temperature: 0.5,
+      maxTokens: 160,
+    })
+    if (!response.ok) return ''
+    return parseTextFromXaiChatCompletion(response.json)?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Generate commentary headline + body using OpenAI (Grok-like tone in system prompt).
  */
 export async function generateCommentaryText(
@@ -89,27 +118,35 @@ export async function generateCommentaryText(
   if (statisticalContext) {
     userContent += `\n\nStatistical context (weave in if relevant):\n${statisticalContext}`
   }
+  const toneGuidance = await getToneGuidance(ctx)
+  if (toneGuidance) {
+    userContent += `\n\nTone guidance (from Grok):\n${toneGuidance}`
+  }
 
   const systemContent = `You are a fantasy sports commentator with personality and wit (Grok-style tone). ${sportContext} Keep headline under 80 chars. Output format: first line = headline, then a blank line, then body (1-2 sentences). No markdown.`
 
-  const response = await openaiChatText({
-    messages: [
-      { role: 'system', content: systemContent },
-      { role: 'user', content: userContent },
-    ],
-    temperature: 0.75,
-    maxTokens: 350,
-  })
+  let response:
+    | { ok: true; text: string; model: string; baseUrl: string }
+    | { ok: false; status: number; details: string; model: string; baseUrl: string }
+  try {
+    response = await openaiChatText({
+      messages: [
+        { role: 'system', content: systemContent },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.75,
+      maxTokens: 350,
+    })
+  } catch {
+    return {
+      headline: buildFallbackHeadline(ctx),
+      body: 'Commentary is temporarily unavailable.',
+    }
+  }
 
   if (!response.ok) {
-    const fallbackHeadline =
-      ctx.eventType === 'matchup_commentary' && 'teamAName' in ctx
-        ? `${ctx.teamAName} vs ${ctx.teamBName}: ${ctx.scoreA}-${ctx.scoreB}`
-        : ctx.eventType === 'trade_reaction' && 'managerA' in ctx
-          ? `Trade: ${ctx.managerA} & ${ctx.managerB}`
-          : 'League update'
     return {
-      headline: fallbackHeadline,
+      headline: buildFallbackHeadline(ctx),
       body: 'Commentary is temporarily unavailable.',
     }
   }
@@ -120,4 +157,20 @@ export async function generateCommentaryText(
   const body = parts.slice(1).join('\n\n').trim() || text
 
   return { headline, body }
+}
+
+function buildFallbackHeadline(ctx: CommentaryContext): string {
+  if (ctx.eventType === 'matchup_commentary') {
+    return `${ctx.teamAName} vs ${ctx.teamBName}: ${ctx.scoreA}-${ctx.scoreB}`
+  }
+  if (ctx.eventType === 'trade_reaction') {
+    return `Trade: ${ctx.managerA} & ${ctx.managerB}`
+  }
+  if (ctx.eventType === 'waiver_reaction') {
+    return `${ctx.managerName} ${ctx.action} ${ctx.playerName}`
+  }
+  if (ctx.eventType === 'playoff_drama') {
+    return ctx.headline.trim() || 'Playoff drama update'
+  }
+  return 'League update'
 }

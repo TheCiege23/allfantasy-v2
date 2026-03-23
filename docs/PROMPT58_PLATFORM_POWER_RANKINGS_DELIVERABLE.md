@@ -32,6 +32,7 @@ Power score = weighted sum; ranking is descending by power score.
 
 - **GET** `/api/platform/power-rankings`
   - Query: `sport` (optional), `limit` (default 50, max 200), `offset` (default 0).
+  - Validation: rejects unsupported `sport` values with 400.
   - Returns: `{ rows: PlatformPowerRow[], total: number, generatedAt: string }`.
   - Each row: `managerId`, `rank`, `powerScore`, `legacyScore`, `totalXP`, `championshipCount`, `winPercentage`, `totalLeaguesPlayed`, optional `displayName`.
 
@@ -41,7 +42,7 @@ Power score = weighted sum; ranking is descending by power score.
   - Fetches `/api/platform/power-rankings` with optional sport filter and limit 100.
   - Table: Rank, Manager, Power, Legacy, XP, Championships, Win %, Leagues.
   - Refresh and sport dropdown.
-- **App home** (`/app`): “Power Rankings” link to `/app/power-rankings`.
+- **App home dashboard** (`FinalDashboardClient`): “Power rankings” link to `/app/power-rankings`.
 
 ## Files
 
@@ -52,7 +53,8 @@ Power score = weighted sum; ranking is descending by power score.
 | Index  | `lib/platform-power-rankings/index.ts` |
 | API    | `app/api/platform/power-rankings/route.ts` |
 | Page   | `app/app/power-rankings/page.tsx` |
-| Home   | `app/app/home/page.tsx` (link) |
+| Home   | `components/dashboard/FinalDashboardClient.tsx` (link) |
+| Tests  | `__tests__/platform-power-rankings-route-contract.test.ts`, `__tests__/platform-power-rankings-service.test.ts` |
 
 ## Sport scope
 

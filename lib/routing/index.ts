@@ -25,6 +25,7 @@ export {
   isAdminPath,
   getLoginRedirectUrl,
   getSignupRedirectUrl,
+  resolveProtectedRouteRedirect,
 } from "./ProtectedRouteResolver"
 export {
   getUnauthorizedFallback,

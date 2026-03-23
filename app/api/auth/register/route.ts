@@ -4,11 +4,19 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
-import { containsProfanity } from "@/lib/profanity"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { attributeSignup, grantRewardForSignup } from "@/lib/referral"
 import { recordAttribution } from "@/lib/viral-loop"
 import { validateLeagueJoin } from "@/lib/league-privacy"
+import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard"
+import { resolvePreferredLanguage } from "@/lib/signup/LanguagePreferenceResolver"
+import {
+  isAllowedSignupTimezone,
+  resolveSignupTimezone,
+} from "@/lib/signup/TimezoneSelectorService"
+import { resolveAvatarPreset } from "@/lib/signup/AvatarPickerService"
+import { validateAgreementAcceptance } from "@/lib/legal/AgreementAcceptanceService"
+import { resolveTheme } from "@/lib/theme/constants"
 
 export const runtime = "nodejs"
 
@@ -21,8 +29,10 @@ function normalizeEmail(e: string) {
 }
 
 function normalizePhone(p?: string | null) {
-  const s = (p ?? "").trim()
-  return s.length ? s : null
+  const s = (p ?? "").trim().replace(/[\s()-]/g, "")
+  if (!s.length) return null
+  if (s.startsWith("+")) return s
+  return `+1${s}`
 }
 
 function getUniqueConstraintTarget(err: Prisma.PrismaClientKnownRequestError): string {
@@ -78,7 +88,9 @@ export async function POST(req: Request) {
       verificationMethod,
       timezone,
       preferredLanguage,
+      themePreference,
       avatarPreset,
+      phoneVerificationCode,
       disclaimerAgreed,
       termsAgreed,
       referralCode: referralCodeFromBody,
@@ -105,7 +117,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 })
     }
 
-    if (containsProfanity(username)) {
+    if (hasProfanityInUsername(username)) {
       return NextResponse.json(
         { error: "Please choose a different username." },
         { status: 400 },
@@ -120,17 +132,55 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "You must confirm you are 18 or older." }, { status: 400 })
     }
 
-    if (!termsAgreed) {
-      return NextResponse.json({ error: "You must agree to the Terms and Conditions." }, { status: 400 })
-    }
-
-    if (!disclaimerAgreed) {
-      return NextResponse.json({ error: "You must agree to the fantasy sports disclaimer (no gambling/DFS)." }, { status: 400 })
+    const agreementsValidation = validateAgreementAcceptance({
+      termsAgreed: Boolean(termsAgreed),
+      disclaimerAgreed: Boolean(disclaimerAgreed),
+    })
+    if (!agreementsValidation.ok) {
+      return NextResponse.json({ error: agreementsValidation.error }, { status: 400 })
     }
 
     const method = verificationMethod === "PHONE" ? "PHONE" : "EMAIL"
-    if (method === "PHONE" && !normalizePhone(phone)) {
+    const normalizedPhone = normalizePhone(phone)
+    if (method === "PHONE" && !normalizedPhone) {
       return NextResponse.json({ error: "Phone is required for phone verification." }, { status: 400 })
+    }
+    if (method === "PHONE" && normalizedPhone && !/^\+\d{10,15}$/.test(normalizedPhone)) {
+      return NextResponse.json({ error: "Please enter a valid phone number with country code." }, { status: 400 })
+    }
+
+    if (typeof timezone !== "undefined" && timezone !== null && !isAllowedSignupTimezone(timezone)) {
+      return NextResponse.json({ error: "Please choose a valid US/Canada/Mexico timezone." }, { status: 400 })
+    }
+    const resolvedTimezone = resolveSignupTimezone(timezone)
+    const resolvedLanguage = resolvePreferredLanguage(preferredLanguage)
+    const resolvedThemePreference =
+      typeof themePreference === "string" ? resolveTheme(themePreference) : null
+    const resolvedAvatarPreset = resolveAvatarPreset(avatarPreset)
+
+    if (method === "PHONE" && !isE2ERequest) {
+      const code = String(phoneVerificationCode ?? "").trim()
+      if (!code) {
+        return NextResponse.json({ error: "Phone verification code is required." }, { status: 400 })
+      }
+      try {
+        const { getTwilioClient } = await import("@/lib/twilio-client")
+        const client = await getTwilioClient()
+        const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID
+        if (!verifySid) {
+          return NextResponse.json({ error: "PHONE_VERIFY_NOT_CONFIGURED" }, { status: 500 })
+        }
+        const check = await client.verify.v2.services(verifySid).verificationChecks.create({
+          to: normalizedPhone!,
+          code,
+        })
+        if (check.status !== "approved") {
+          return NextResponse.json({ error: "Invalid phone verification code." }, { status: 400 })
+        }
+      } catch (phoneVerifyError) {
+        console.error("[register] phone verification check failed:", phoneVerifyError)
+        return NextResponse.json({ error: "Phone verification failed." }, { status: 400 })
+      }
     }
 
     const existing = await prisma.appUser.findFirst({
@@ -191,15 +241,16 @@ export async function POST(req: Request) {
         data: {
           userId: created.id,
           displayName: displayName?.trim() || username,
-          phone: normalizePhone(phone),
+          phone: normalizedPhone,
           ageConfirmedAt: now,
           verificationMethod: method,
+          phoneVerifiedAt: method === "PHONE" ? now : null,
           ...sleeperData,
           profileComplete: false,
-          timezone: typeof timezone === "string" ? timezone : null,
-          preferredLanguage:
-            typeof preferredLanguage === "string" ? preferredLanguage : null,
-          avatarPreset: typeof avatarPreset === "string" ? avatarPreset : null,
+          timezone: resolvedTimezone,
+          preferredLanguage: resolvedLanguage,
+          themePreference: resolvedThemePreference,
+          avatarPreset: resolvedAvatarPreset,
         },
       })
 

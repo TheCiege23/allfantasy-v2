@@ -27,25 +27,24 @@ export async function runAwardsEngine(
 
   const input = await analyzeSeasonPerformance(leagueId, season, { sport })
   const winners = calculateAwardWinners(input)
+  const awardTypes = winners.map((winner) => winner.awardType)
 
-  await prisma.awardRecord.deleteMany({
-    where: { leagueId, season },
-  })
-
-  const awardTypes: string[] = []
-  for (const w of winners) {
-    await prisma.awardRecord.create({
-      data: {
+  await prisma.$transaction(async (tx) => {
+    await tx.awardRecord.deleteMany({
+      where: { leagueId, season },
+    })
+    if (winners.length === 0) return
+    await tx.awardRecord.createMany({
+      data: winners.map((winner) => ({
         leagueId,
         sport: input.sport,
         season,
-        awardType: w.awardType,
-        managerId: w.managerId,
-        score: w.score,
-      },
+        awardType: winner.awardType,
+        managerId: winner.managerId,
+        score: winner.score,
+      })),
     })
-    awardTypes.push(w.awardType)
-  }
+  })
 
   return {
     leagueId,

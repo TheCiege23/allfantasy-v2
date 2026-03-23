@@ -11,6 +11,8 @@ import { scheduleRedraftForRound, applyFaabResetForRound, applyBenchSpotsForRoun
 import { buildTournamentAIContext } from '@/lib/tournament-mode/ai/TournamentAIContext'
 import { generateTournamentAI } from '@/lib/tournament-mode/ai/TournamentAIService'
 import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
+import { onPlayoffDrama } from '@/lib/commentary-engine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export async function POST(
   _req: Request,
@@ -25,7 +27,7 @@ export async function POST(
   const { tournamentId } = await params
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { creatorId: true, settings: true },
+    select: { creatorId: true, settings: true, name: true, sport: true },
   })
   if (!tournament || tournament.creatorId !== userId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -66,6 +68,14 @@ export async function POST(
         pinned: true,
       },
     })
+    void emitTournamentPlayoffDramaCommentary({
+      tournamentName: tournament.name,
+      fallbackSport: tournament.sport,
+      newLeagueIds: result.newLeagueIds,
+      advanced: result.advanced,
+      eliminated: result.eliminated,
+      bubbleAdvanced: result.bubbleAdvanced,
+    })
 
     return NextResponse.json({
       ok: true,
@@ -82,5 +92,39 @@ export async function POST(
       { error: err instanceof Error ? err.message : 'Failed to run advancement' },
       { status: 500 }
     )
+  }
+}
+
+async function emitTournamentPlayoffDramaCommentary(input: {
+  tournamentName: string
+  fallbackSport: string
+  newLeagueIds: string[]
+  advanced: number
+  eliminated: number
+  bubbleAdvanced: number
+}) {
+  try {
+    if (!input.newLeagueIds.length) return
+    const leagues = await prisma.league.findMany({
+      where: { id: { in: input.newLeagueIds.slice(0, 3) } },
+      select: { id: true, name: true, sport: true },
+    })
+    const summary = `${input.advanced} teams advanced (${input.bubbleAdvanced} via bubble) and ${input.eliminated} were eliminated as the elimination phase began.`
+    for (const league of leagues) {
+      await onPlayoffDrama(
+        {
+          eventType: 'playoff_drama',
+          leagueId: league.id,
+          sport: normalizeToSupportedSport(league.sport ?? input.fallbackSport),
+          leagueName: league.name ?? undefined,
+          headline: `${input.tournamentName}: elimination round begins`,
+          summary,
+          dramaType: 'elimination',
+        },
+        { skipStats: true, persist: true }
+      )
+    }
+  } catch {
+    // non-fatal
   }
 }

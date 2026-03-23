@@ -35,12 +35,18 @@ export default function RecordBookDetailPage() {
       `/api/leagues/${encodeURIComponent(leagueId)}/record-book/${encodeURIComponent(recordId)}`,
       { cache: "no-store" }
     )
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Failed to load record")
+        }
+        return data
+      })
       .then((data) => {
         if (data?.recordId) setRecord(data)
         else setError("Record not found")
       })
-      .catch(() => setError("Failed to load"))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load record"))
       .finally(() => setLoading(false))
   }, [leagueId, recordId])
 
@@ -53,9 +59,17 @@ export default function RecordBookDetailPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recordId }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error ?? "Failed to explain record")
+        }
+        return data
+      })
       .then((data) => setNarrative(data?.narrative ?? "No explanation available."))
-      .catch(() => setNarrative("Could not load explanation."))
+      .catch((e) =>
+        setNarrative(e instanceof Error ? e.message : "Could not load explanation.")
+      )
       .finally(() => setNarrativeLoading(false))
   }
 

@@ -8,38 +8,60 @@ import type { RecordBookRow } from "@/hooks/useRecordBook"
 import type { LeagueTabProps } from "@/components/app/tabs/types"
 import { BookOpen, RefreshCw, Sparkles } from "lucide-react"
 import { RECORD_TYPES, RECORD_LABELS } from "@/lib/record-book-engine/types"
+import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 
-export default function RecordBooksTab({ leagueId }: LeagueTabProps) {
+export default function RecordBooksTab({ leagueId, isCommissioner = false }: LeagueTabProps & { isCommissioner?: boolean }) {
   const [recordTypeFilter, setRecordTypeFilter] = useState<string>("")
   const [seasonFilter, setSeasonFilter] = useState<string>("")
+  const [sportFilter, setSportFilter] = useState<string>("")
   const [runSeasons, setRunSeasons] = useState<string>(new Date().getFullYear().toString())
   const [runLoading, setRunLoading] = useState(false)
+  const [runStatus, setRunStatus] = useState<string | null>(null)
+  const [runStatusError, setRunStatusError] = useState(false)
   const [explainRecordId, setExplainRecordId] = useState<string | null>(null)
   const [explainNarrative, setExplainNarrative] = useState<string | null>(null)
   const [explainLoading, setExplainLoading] = useState<string | null>(null)
+  const [explainError, setExplainError] = useState<string | null>(null)
 
-  const { seasons, refresh: refreshSeasons } = useRecordBookSeasons(leagueId)
+  const { seasons, error: seasonsError, refresh: refreshSeasons } = useRecordBookSeasons(leagueId)
   const { records, loading, error, refresh } = useRecordBook({
     leagueId,
     recordType: recordTypeFilter || undefined,
     season: seasonFilter || undefined,
+    sport: sportFilter || undefined,
   })
 
-  const runEngine = useCallback(() => {
+  const runEngine = useCallback(async () => {
+    setRunStatus(null)
+    setRunStatusError(false)
     setRunLoading(true)
     const seasonsList = runSeasons.split(",").map((s) => s.trim()).filter(Boolean)
     const toRun = seasonsList.length > 0 ? seasonsList : [runSeasons]
-    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/record-book/run`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seasons: toRun }),
-    })
-      .then(() => {
-        refresh()
-        refreshSeasons()
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/record-book/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seasons: toRun, sport: sportFilter || undefined }),
       })
-      .finally(() => setRunLoading(false))
-  }, [leagueId, runSeasons, refresh, refreshSeasons])
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRunStatus(data?.error ?? "Failed to build record book entries.")
+        setRunStatusError(true)
+        return
+      }
+      setRunStatus(
+        typeof data?.entriesCreated === "number" && typeof data?.entriesUpdated === "number"
+          ? `Record book run complete: ${data.entriesCreated} created, ${data.entriesUpdated} updated.`
+          : "Record book run complete."
+      )
+      await Promise.all([refresh(), refreshSeasons()])
+    } catch {
+      setRunStatus("Failed to build record book entries.")
+      setRunStatusError(true)
+    } finally {
+      setRunLoading(false)
+    }
+  }, [leagueId, runSeasons, sportFilter, refresh, refreshSeasons])
 
   const explain = useCallback(
     (recordId: string) => {
@@ -47,23 +69,31 @@ export default function RecordBooksTab({ leagueId }: LeagueTabProps) {
         setExplainRecordId(null)
         setExplainNarrative(null)
         setExplainLoading(null)
+        setExplainError(null)
         return
       }
       setExplainRecordId(recordId)
       setExplainNarrative(null)
+      setExplainError(null)
       setExplainLoading(recordId)
       fetch(`/api/leagues/${encodeURIComponent(leagueId)}/record-book/explain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recordId }),
       })
-        .then((r) => r.json())
+        .then(async (r) => {
+          const data = await r.json().catch(() => ({}))
+          if (!r.ok) {
+            throw new Error(data?.error ?? "Failed to explain record")
+          }
+          return data
+        })
         .then((data) => {
           setExplainNarrative(data?.narrative ?? "No explanation available.")
           setExplainLoading(null)
         })
-        .catch(() => {
-          setExplainNarrative("Could not load explanation.")
+        .catch((e) => {
+          setExplainError(e instanceof Error ? e.message : "Could not load explanation.")
           setExplainLoading(null)
         })
     },
@@ -98,6 +128,18 @@ export default function RecordBooksTab({ leagueId }: LeagueTabProps) {
             </select>
             <select
               className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm"
+              value={sportFilter}
+              onChange={(e) => setSportFilter(e.target.value)}
+            >
+              <option value="">All sports</option>
+              {SUPPORTED_SPORTS.map((sport) => (
+                <option key={sport} value={sport}>
+                  {sport}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-sm"
               value={seasonFilter}
               onChange={(e) => setSeasonFilter(e.target.value)}
             >
@@ -127,19 +169,44 @@ export default function RecordBooksTab({ leagueId }: LeagueTabProps) {
               <button
                 type="button"
                 className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-sm disabled:opacity-60"
-                disabled={runLoading}
+                disabled={runLoading || !isCommissioner}
                 onClick={runEngine}
               >
                 {runLoading ? "Running…" : "Build records"}
               </button>
             </div>
+            {!isCommissioner && (
+              <span className="text-xs text-zinc-500">Commissioner only</span>
+            )}
           </div>
         </div>
       </div>
 
+      {runStatus && (
+        <div
+          className={`rounded-xl border p-3 text-sm ${
+            runStatusError
+              ? "border-red-500/30 bg-red-900/20 text-red-200"
+              : "border-emerald-500/30 bg-emerald-900/20 text-emerald-100"
+          }`}
+        >
+          {runStatus}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
           {error}
+        </div>
+      )}
+      {seasonsError && (
+        <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
+          {seasonsError}
+        </div>
+      )}
+      {explainError && (
+        <div className="rounded-xl bg-red-900/20 border border-red-500/30 p-3 text-sm text-red-200">
+          {explainError}
         </div>
       )}
 
@@ -166,7 +233,9 @@ export default function RecordBooksTab({ leagueId }: LeagueTabProps) {
 
       {!loading && records.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
-          No records yet. Enter a season (or comma-separated years) and click &quot;Build records&quot; to detect highest score, longest win streak, biggest comeback, best draft, and most championships.
+          {isCommissioner
+            ? 'No records yet. Enter a season (or comma-separated years) and click "Build records" to detect highest score, longest win streak, biggest comeback, best draft, and most championships.'
+            : 'No records yet. Ask your commissioner to build record books for this league.'}
         </div>
       )}
     </div>

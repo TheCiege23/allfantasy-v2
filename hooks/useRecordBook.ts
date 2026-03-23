@@ -19,8 +19,9 @@ export function useRecordBook(args: {
   leagueId: string
   recordType?: string | null
   season?: string | null
+  sport?: string | null
 }) {
-  const { leagueId, recordType, season } = args
+  const { leagueId, recordType, season, sport } = args
   const [records, setRecords] = useState<RecordBookRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +34,7 @@ export function useRecordBook(args: {
       const params = new URLSearchParams()
       if (recordType) params.set("recordType", recordType)
       if (season) params.set("season", season)
+      if (sport) params.set("sport", sport)
       const res = await fetch(
         `/api/leagues/${encodeURIComponent(leagueId)}/record-book?${params}`,
         { cache: "no-store" }
@@ -54,7 +56,7 @@ export function useRecordBook(args: {
     } finally {
       setLoading(false)
     }
-  }, [leagueId, recordType, season])
+  }, [leagueId, recordType, season, sport])
 
   useEffect(() => {
     refresh()

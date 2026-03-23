@@ -50,8 +50,7 @@ function gmOfTheYear(
     const wins = m.wins
     const total = m.wins + m.losses
     const winPct = total > 0 ? wins / total : 0
-    const playoffBonus = m.champion ? 35 : m.bestFinish === 2 ? 22 : m.madePlayoffs ? 12 : 0
-    const score = winPct * 45 + playoffBonus + Math.min(20, (m.pointsFor || 0) / 100)
+    const score = winPct * 50 + (m.champion ? 40 : 0) + Math.min(10, (m.pointsFor || 0) / 100)
     if (score > bestScore) {
       bestScore = score
       best = [managerId, m]
@@ -144,9 +143,7 @@ function bestComeback(managers: ManagerEntry[]): { managerId: string; score: num
 }
 
 function biggestUpset(managers: ManagerEntry[]): { managerId: string; score: number; reason?: string } | null {
-  const withRecord = managers.filter(
-    ([, m]) => m.wins + m.losses > 0 && (m.champion || (m.bestFinish ?? 999) <= 2)
-  )
+  const withRecord = managers.filter(([, m]) => m.wins + m.losses > 0 && m.champion)
   if (withRecord.length === 0) return null
   let best: ManagerEntry | null = null
   let bestScore = -1
@@ -199,7 +196,7 @@ function dynastyBuilder(managers: ManagerEntry[]): { managerId: string; score: n
   let bestScore = -1
   for (const entry of multi) {
     const [, m] = entry
-    const score = m.seasonsInLeague * 18 + m.championshipCount * 50 + m.playoffAppearanceCount * 10
+    const score = m.seasonsInLeague * 20 + m.championshipCount * 50
     if (score > bestScore) {
       bestScore = score
       best = entry
@@ -210,6 +207,6 @@ function dynastyBuilder(managers: ManagerEntry[]): { managerId: string; score: n
   return {
     managerId: best[0],
     score: bestScore,
-    reason: `${m.seasonsInLeague} seasons, ${m.championshipCount} titles, ${m.playoffAppearanceCount} playoff runs`,
+    reason: `${m.seasonsInLeague} seasons, ${m.championshipCount} titles`,
   }
 }

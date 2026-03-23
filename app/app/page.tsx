@@ -20,11 +20,18 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import {
+  buildLoginHrefWithIntent,
+  buildSignupHrefWithIntent,
+} from '@/lib/auth/PostAuthIntentRouter'
 
 function AppLandingInner() {
   const { status } = useSession()
   const isAuthed = status === 'authenticated'
   const { t } = useLanguage()
+  const appIntentPath = '/app/home'
+  const appLoginHref = buildLoginHrefWithIntent(appIntentPath)
+  const appSignupHref = buildSignupHrefWithIntent(appIntentPath)
 
   return (
     <main
@@ -50,7 +57,7 @@ function AppLandingInner() {
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Link
-              href={isAuthed ? '/app/home' : '/signup?next=/app/home'}
+              href={isAuthed ? '/app/home' : appSignupHref}
               className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-black shadow-sm hover:bg-emerald-400 sm:text-sm"
             >
               <UserPlus className="h-3.5 w-3.5" />
@@ -59,7 +66,7 @@ function AppLandingInner() {
               </span>
             </Link>
             <Link
-              href={isAuthed ? '/app/home' : '/login?next=/app/home'}
+              href={isAuthed ? '/app/home' : appLoginHref}
               className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-medium text-white/80 hover:bg-white/10 sm:text-sm"
             >
               <LogIn className="h-3.5 w-3.5" />
@@ -342,7 +349,7 @@ function AppLandingInner() {
           </div>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <Link
-              href={isAuthed ? '/app/home' : '/signup?next=/app/home'}
+              href={isAuthed ? '/app/home' : appSignupHref}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-xs font-semibold text-black shadow-sm hover:bg-gray-100 sm:text-sm"
             >
               <UserPlus className="h-4 w-4" />
