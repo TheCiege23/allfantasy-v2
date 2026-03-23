@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI, getSportOptions, getFairnessScore as getFairnessScoreUtil, getFairnessColorClass, getWinnerLabel as getWinnerLabelUtil } from '@/lib/trade-analyzer'
 import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface PlayerInput {
   name: string
@@ -94,6 +95,7 @@ const SPORT_OPTIONS = getSportOptions()
 type SetTeamFn = (t: TeamInput) => void
 
 function TradeEvaluatorInner() {
+  const { formatInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
 
   const [sender, setSender] = useState<TeamInput>(() => {
@@ -545,7 +547,7 @@ function TradeEvaluatorInner() {
                 </div>
                 {asOfDate && (
                   <p className="text-xs text-cyan-400/80 mt-1.5">
-                    Using historical market values from {new Date(asOfDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    Using historical market values from {formatInTimezone(asOfDate, { month: 'long', day: 'numeric', year: 'numeric' })}
                   </p>
                 )}
               </div>

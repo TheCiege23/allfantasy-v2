@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Copy, Trash2 } from 'lucide-react'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface InviteRow {
   id: string
@@ -21,6 +22,7 @@ export interface InviteManagementPanelProps {
 }
 
 export function InviteManagementPanel({ type }: InviteManagementPanelProps) {
+  const { formatDateInTimezone } = useUserTimezone()
   const [links, setLinks] = useState<InviteRow[]>([])
   const [loading, setLoading] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -93,7 +95,7 @@ export function InviteManagementPanel({ type }: InviteManagementPanelProps) {
                 <td className="p-3">{row.status}</td>
                 <td className="p-3">{row.useCount}{row.maxUses > 0 ? ` / ${row.maxUses}` : ''}</td>
                 <td className="p-3 text-xs" style={{ color: 'var(--muted)' }}>
-                  {new Date(row.createdAt).toLocaleDateString()}
+                  {formatDateInTimezone(row.createdAt)}
                 </td>
                 <td className="p-3 text-right">
                   <button

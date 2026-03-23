@@ -7,6 +7,7 @@ import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher
 import { getTradeBlockReason } from '@/lib/tournament-mode/safety';
 import { normalizeToSupportedSport } from '@/lib/sport-scope';
 import { recordTrendSignalsAndUpdate } from '@/lib/player-trend';
+import { validateAiActionExecution } from '@/lib/ai/action-validation';
 
 const proposeSchema = z.object({
   leagueId: z.string(),
@@ -38,6 +39,15 @@ export async function POST(req: Request) {
   }
 
   const { leagueId, offerFrom, offerTo, drops, adds } = parsed.data;
+
+  const aiValidation = validateAiActionExecution({
+    body,
+    action: 'save_counteroffer',
+    leagueId,
+  });
+  if (!aiValidation.ok) {
+    return NextResponse.json({ error: aiValidation.error }, { status: aiValidation.status });
+  }
 
   const tradeBlockReason = await getTradeBlockReason(leagueId);
   if (tradeBlockReason) {

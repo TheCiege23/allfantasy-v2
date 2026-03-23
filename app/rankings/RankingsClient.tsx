@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { LineChart, Line } from "recharts";
 import { toast } from "sonner";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 interface PerformancePoint {
   week: number;
@@ -65,6 +66,7 @@ interface RankingsClientProps {
 }
 
 export default function RankingsClient({ leagues, isSignedIn }: RankingsClientProps) {
+  const { formatDateInTimezone } = useUserTimezone();
   const hasRealData = leagues.length > 0;
   const allLeagues = leagues;
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -288,7 +290,7 @@ export default function RankingsClient({ leagues, isSignedIn }: RankingsClientPr
               </CardTitle>
               <CardDescription>
                 Sorted by AI-adjusted power score (current performance + rest-of-season projection)
-                {" • "}Last updated {new Date().toLocaleDateString()}
+                {" • "}Last updated {formatDateInTimezone(new Date())}
               </CardDescription>
             </CardHeader>
             <CardContent>

@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import { Activity, Radio, AlertTriangle, Clock, Trophy, TrendingUp, Zap, ChevronDown, ChevronUp, Shield } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Game = {
   id: string
@@ -59,11 +60,13 @@ function teamAbbrev(name: string) {
   return words.map((w) => w[0]).join("").toUpperCase().slice(0, 4)
 }
 
-function formatGameTime(dateStr: string | null) {
+function formatGameTime(
+  dateStr: string | null,
+  formatTime: (date: Date | string | number) => string
+) {
   if (!dateStr) return "TBD"
   try {
-    const d = new Date(dateStr)
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase()
+    return formatTime(dateStr).toLowerCase()
   } catch {
     return "TBD"
   }
@@ -81,6 +84,7 @@ const ROUND_LABELS = [
 export function LiveModeView({ games, standings, currentUserId, playByPlaySupported = false, scoringMode }: Props) {
   const [filter, setFilter] = useState<"all" | "live" | "final" | "upcoming">("all")
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
+  const { formatTimeInTimezone } = useUserTimezone()
 
   const liveGames = useMemo(() => games.filter(g => g.status === "in_progress"), [games])
   const finalGames = useMemo(() => games.filter(g => g.status === "final"), [games])
@@ -139,7 +143,7 @@ export function LiveModeView({ games, standings, currentUserId, playByPlaySuppor
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <AnimatePresence mode="popLayout">
           {filtered.map((g) => (
-            <LiveGameTile key={g.id} game={g} />
+            <LiveGameTile key={g.id} game={g} formatTimeInTimezone={formatTimeInTimezone} />
           ))}
         </AnimatePresence>
       </div>
@@ -298,7 +302,13 @@ export function LiveModeView({ games, standings, currentUserId, playByPlaySuppor
   )
 }
 
-function LiveGameTile({ game }: { game: Game }) {
+function LiveGameTile({
+  game,
+  formatTimeInTimezone,
+}: {
+  game: Game
+  formatTimeInTimezone: (date: Date | string | number) => string
+}) {
   const isLive = game.status === "in_progress"
   const isFinal = game.status === "final"
 
@@ -369,7 +379,7 @@ function LiveGameTile({ game }: { game: Game }) {
               <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#ef4444' }} />
               LIVE
             </span>
-          ) : isFinal ? "FINAL" : formatGameTime(game.startTime)}
+          ) : isFinal ? "FINAL" : formatGameTime(game.startTime, formatTimeInTimezone)}
         </span>
       </div>
     </motion.div>

@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
+import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 
 const BASE = "https://allfantasy.ai"
 
@@ -21,6 +23,7 @@ export const metadata: Metadata = {
 }
 
 export default async function BlogIndexPage() {
+  const { timezone, language } = await resolveServerRenderPreferences()
   const articles = await prisma.blogArticle.findMany({
     where: { publishStatus: "published" },
     orderBy: { publishedAt: "desc" },
@@ -52,7 +55,14 @@ export default async function BlogIndexPage() {
                   <h2 className="mt-1 text-lg font-semibold">{a.title}</h2>
                   {a.excerpt && <p className="mt-1 text-sm text-gray-400 line-clamp-2">{a.excerpt}</p>}
                   <time className="mt-2 block text-xs text-gray-500">
-                    {a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : ""}
+                    {a.publishedAt
+                      ? formatInTimezone(
+                          a.publishedAt,
+                          timezone,
+                          { dateStyle: "short" },
+                          language
+                        )
+                      : ""}
                   </time>
                 </Link>
               </li>

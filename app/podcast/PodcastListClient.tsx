@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Plus, Loader2 } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Episode = {
   id: string
@@ -11,6 +12,7 @@ type Episode = {
 }
 
 export default function PodcastListClient() {
+  const { formatDateInTimezone } = useUserTimezone()
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -112,7 +114,7 @@ export default function PodcastListClient() {
             >
               <p className="font-medium text-white">{ep.title}</p>
               <p className="text-xs text-white/50 mt-0.5">
-                {new Date(ep.createdAt).toLocaleDateString()}
+                {formatDateInTimezone(ep.createdAt)}
               </p>
             </Link>
           </li>

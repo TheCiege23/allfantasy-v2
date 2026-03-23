@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import MiniPlayerImg from '@/components/MiniPlayerImg'
 import type { MarketAlert, MarketAlertResponse, MarketSignal } from '@/lib/types/market-alerts'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const SIGNAL_CONFIG: Record<MarketSignal, { label: string; color: string; bg: string; border: string; icon: string }> = {
   STRONG_BUY: { label: 'Strong Buy', color: 'text-emerald-300', bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', icon: '▲▲' },
@@ -141,6 +142,7 @@ function SummaryStat({ label, value, color }: { label: string; value: number; co
 }
 
 export default function MarketTimingAlerts() {
+  const { formatTimeInTimezone } = useUserTimezone()
   const [data, setData] = useState<MarketAlertResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -296,7 +298,7 @@ export default function MarketTimingAlerts() {
 
       {!loading && data && (
         <p className="text-[10px] text-white/20 text-center pt-2">
-          Market data refreshed {new Date(data.generatedAt).toLocaleTimeString()} · Powered by FantasyCalc + AI
+          Market data refreshed {formatTimeInTimezone(data.generatedAt)} · Powered by FantasyCalc + AI
         </p>
       )}
     </div>

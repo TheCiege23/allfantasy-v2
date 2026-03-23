@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { X, ChevronRight, Zap, Shield, TrendingUp } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Node = {
   id: string
@@ -62,6 +63,7 @@ export function MatchupCardOverlay({
   tournamentId,
   leagueId,
 }: Props) {
+  const { formatInTimezone } = useUserTimezone()
   const [aiData, setAiData] = useState<any>(null)
   const [loadingAi, setLoadingAi] = useState(false)
   const [popularity, setPopularity] = useState<
@@ -380,7 +382,7 @@ export function MatchupCardOverlay({
               )}
               {aiData.lastUpdated && (
                 <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.15)" }}>
-                  Updated: {new Date(aiData.lastUpdated).toLocaleString()}
+                  Updated: {formatInTimezone(aiData.lastUpdated)}
                 </div>
               )}
             </div>

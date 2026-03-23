@@ -24,6 +24,7 @@ import {
   Archive,
   ExternalLink,
 } from "lucide-react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type Feedback = {
   id: string;
@@ -92,19 +93,6 @@ const PRIORITY_LABELS: Record<string, string> = {
   p3: "P3 - Low",
 };
 
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 function downloadCsv(filename: string, rows: Feedback[]) {
   const headers = ["id", "feedbackType", "tool", "aiSeverity", "aiCategory", "feedbackText", "status", "priority", "email", "createdAt"];
   const escape = (v: any) => {
@@ -132,6 +120,20 @@ function downloadCsv(filename: string, rows: Feedback[]) {
 }
 
 export default function AdminFeedback() {
+  const { formatInTimezone } = useUserTimezone();
+  const fmtDate = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

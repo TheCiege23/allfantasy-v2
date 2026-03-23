@@ -7,6 +7,7 @@ import { ManagerRelationshipCard } from "./ManagerRelationshipCard";
 import { GraphInsightDrawer } from "./GraphInsightDrawer";
 import { RivalryEngineList } from "./RivalryEngineList";
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 export type GraphPanelView = "summary" | "graph" | "timeline" | "managers" | "rivalries";
 
@@ -33,6 +34,7 @@ export default function LeagueIntelligenceGraphPanel({
   leagueId: string;
   isDynasty?: boolean;
 }) {
+  const { formatDateInTimezone } = useUserTimezone();
   const [view, setView] = useState<GraphPanelView>("summary");
   const [season, setSeason] = useState<number | null>(null);
   const [profile, setProfile] = useState<RelationshipProfile | null>(null);
@@ -283,7 +285,7 @@ export default function LeagueIntelligenceGraphPanel({
                       <li key={i} className="text-xs text-white/70">
                         <span className="text-white/40">{e.eventType}</span>
                         {e.description ? ` — ${e.description}` : ""}
-                        <span className="ml-1 text-white/30">{e.createdAt ? new Date(e.createdAt).toLocaleDateString() : ""}</span>
+                        <span className="ml-1 text-white/30">{e.createdAt ? formatDateInTimezone(e.createdAt) : ""}</span>
                       </li>
                     ))}
                   </ul>

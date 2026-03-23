@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
 import type { ProfileUpdatePayload } from "./types"
 
 /**
@@ -9,9 +10,6 @@ export async function updateUserProfile(
   userId: string,
   payload: ProfileUpdatePayload
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!payload.displayName && payload.displayName !== null && payload.displayName !== undefined) {
-    // allow clearing displayName
-  }
   const updateProfile: Record<string, unknown> = {}
   if (payload.displayName !== undefined) updateProfile.displayName = payload.displayName?.trim() || null
   if (payload.preferredLanguage !== undefined) updateProfile.preferredLanguage = payload.preferredLanguage || null
@@ -19,10 +17,20 @@ export async function updateUserProfile(
   if (payload.themePreference !== undefined) updateProfile.themePreference = payload.themePreference || null
   if (payload.avatarPreset !== undefined) updateProfile.avatarPreset = payload.avatarPreset || null
   if (payload.bio !== undefined) updateProfile.bio = payload.bio?.trim() || null
-  if (payload.preferredSports !== undefined)
-    updateProfile.preferredSports = Array.isArray(payload.preferredSports) && payload.preferredSports.length > 0
-      ? payload.preferredSports
-      : null
+  if (payload.preferredSports !== undefined) {
+    const normalizedSports =
+      Array.isArray(payload.preferredSports) && payload.preferredSports.length > 0
+        ? SUPPORTED_SPORTS.filter((sport) =>
+            payload.preferredSports?.some(
+              (candidate) =>
+                isSupportedSport(String(candidate).toUpperCase()) &&
+                String(candidate).toUpperCase() === sport
+            )
+          )
+        : []
+    updateProfile.preferredSports =
+      normalizedSports.length > 0 ? normalizedSports : null
+  }
   if (payload.notificationPreferences !== undefined)
     updateProfile.notificationPreferences = payload.notificationPreferences ?? null
   if (payload.onboardingStep !== undefined) updateProfile.onboardingStep = payload.onboardingStep ?? null
@@ -40,8 +48,8 @@ export async function updateUserProfile(
     })
 
     const appUserUpdate: Record<string, unknown> = {}
-    if (payload.displayName !== undefined && payload.displayName?.trim()) {
-      appUserUpdate.displayName = payload.displayName.trim()
+    if (payload.displayName !== undefined) {
+      appUserUpdate.displayName = payload.displayName?.trim() || null
     }
     if (payload.avatarUrl !== undefined) {
       appUserUpdate.avatarUrl = payload.avatarUrl || null

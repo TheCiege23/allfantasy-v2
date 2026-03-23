@@ -49,7 +49,13 @@ describe("Signup onboarding services", () => {
         size: 3 * 1024 * 1024,
         type: "image/png",
       } as File)
-    ).toContain("2MB")
+    ).toBeNull()
+    expect(
+      validateAvatarUploadFile({
+        size: 3 * 1024 * 1024 + 1,
+        type: "image/png",
+      } as File)
+    ).toContain("3MB")
   })
 
   it("validates mandatory agreement acceptance", () => {

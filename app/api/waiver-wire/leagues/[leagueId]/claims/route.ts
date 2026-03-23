@@ -8,6 +8,7 @@ import {
   getPendingClaims,
   getProcessedClaimsAndTransactions,
 } from "@/lib/waiver-wire"
+import { validateAiActionExecution } from '@/lib/ai/action-validation'
 
 export async function GET(
   req: NextRequest,
@@ -51,6 +52,16 @@ export async function POST(
   if (!roster) return NextResponse.json({ error: "Roster not found" }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
+
+  const aiValidation = validateAiActionExecution({
+    body,
+    action: 'add_waiver_claim',
+    leagueId,
+  })
+  if (!aiValidation.ok) {
+    return NextResponse.json({ error: aiValidation.error }, { status: aiValidation.status })
+  }
+
   const addPlayerId = body.addPlayerId ?? body.add_player_id
   if (!addPlayerId) return NextResponse.json({ error: "addPlayerId required" }, { status: 400 })
 

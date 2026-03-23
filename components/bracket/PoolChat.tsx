@@ -6,6 +6,8 @@ import {
   Smile, BarChart3, Reply, ChevronDown,
   Search, Loader2
 } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 
 type ChatMember = {
   id: string
@@ -37,7 +39,13 @@ type ChatMessage = {
   replyTo: ReplyData | null
   reactions: ReactionData[]
   createdAt: string
-  user: { id: string; displayName: string | null; email: string; avatarUrl?: string | null }
+  user: {
+    id: string
+    displayName: string | null
+    email: string
+    avatarUrl?: string | null
+    profile?: { avatarPreset?: string | null } | null
+  }
 }
 
 const QUICK_REACTIONS = ['🔥', '💀', '😂', '🏀', '👀', '💪', '❤️', '👏']
@@ -77,7 +85,10 @@ function getUserInitials(user: { displayName: string | null; email: string }): s
   return name.slice(0, 2).toUpperCase()
 }
 
-function formatChatTime(iso: string): string {
+function formatChatTime(
+  iso: string,
+  formatDateInTimezone: (date: Date | string | number) => string
+): string {
   const d = new Date(iso)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
@@ -85,12 +96,19 @@ function formatChatTime(iso: string): string {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
   if (diff < 172800000) return "yesterday"
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return formatDateInTimezone(iso)
 }
 
-function formatFullTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+function formatFullTime(
+  iso: string,
+  formatInTimezone: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
+): string {
+  return formatInTimezone(iso, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })
 }
 
 function groupReactions(reactions: ReactionData[]): Map<string, { count: number; users: string[]; userIds: string[] }> {
@@ -116,6 +134,7 @@ export function PoolChat({
   currentUserId: string
   members: ChatMember[]
 }) {
+  const { formatDateInTimezone, formatInTimezone } = useUserTimezone()
   const [latestMessage, setLatestMessage] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [input, setInput] = useState("")
@@ -412,11 +431,14 @@ export function PoolChat({
             <div key={m.id} className={`group ${showHeader ? "mt-3" : "mt-0.5"}`}>
               <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                 {!isMe && showHeader ? (
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 mt-0.5"
-                    style={{ background: `${userColor}20`, color: userColor }}
-                  >
-                    {getUserInitials(m.user)}
+                  <div className="w-8 h-8 flex-shrink-0 mt-0.5">
+                    <IdentityImageRenderer
+                      avatarUrl={m.user.avatarUrl ?? null}
+                      avatarPreset={m.user.profile?.avatarPreset ?? null}
+                      displayName={m.user.displayName}
+                      username={m.user.email?.split("@")[0] ?? null}
+                      size="sm"
+                    />
                   </div>
                 ) : !isMe ? (
                   <div className="w-7 flex-shrink-0" />
@@ -429,7 +451,7 @@ export function PoolChat({
                         {isMe ? "You" : getUserName(m.user)}
                       </span>
                       <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.2)" }}>
-                        {formatChatTime(m.createdAt)}
+                        {formatChatTime(m.createdAt, formatDateInTimezone)}
                       </span>
                     </div>
                   )}
@@ -556,7 +578,7 @@ export function PoolChat({
 
                   {!showHeader && (
                     <span className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" style={{ color: "rgba(255,255,255,0.15)" }}>
-                      {formatFullTime(m.createdAt)}
+                      {formatFullTime(m.createdAt, formatInTimezone)}
                     </span>
                   )}
                 </div>

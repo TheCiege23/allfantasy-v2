@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Users, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 export default function SyncedRosters() {
+  const { formatDateInTimezone } = useUserTimezone();
   const [leagues, setLeagues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedLeague, setExpandedLeague] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function SyncedRosters() {
                   {league.scoring?.toUpperCase() || 'STD'}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
-                  Last synced: {league.lastSyncedAt ? new Date(league.lastSyncedAt).toLocaleDateString() : 'Never'}
+                  Last synced: {league.lastSyncedAt ? formatDateInTimezone(league.lastSyncedAt) : 'Never'}
                 </div>
               </div>
 

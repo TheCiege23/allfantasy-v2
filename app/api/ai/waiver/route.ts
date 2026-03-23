@@ -1,6 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -18,11 +17,9 @@ import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learn
 import { buildOpenAIMetaContext, resolveAIMetaContextWithWindow } from '@/lib/meta-insights';
 import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
 import { getInsightBundle } from '@/lib/ai-simulation-integration';
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+import { assertLeagueMember } from '@/lib/league-access';
+import { getOpenAIConfig, openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client';
+import { logAiOutput } from '@/lib/ai/output-logger';
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string().optional(),
@@ -64,12 +61,14 @@ async function getLegacyContext(sleeperUsername: string) {
 
 export const POST = withApiUsage({ endpoint: "/api/ai/waiver", tool: "AiWaiver" })(async (request: NextRequest) => {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const limitRes = await runAiProtection(request, {
       action: 'waiver',
-      getUserId: async () => {
-        const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-        return session?.user?.id ?? null
-      },
+      getUserId: async () => session.user?.id ?? null,
     })
     if (limitRes) return limitRes
 
@@ -84,6 +83,12 @@ export const POST = withApiUsage({ endpoint: "/api/ai/waiver", tool: "AiWaiver" 
     }
 
     const waiverRequest = parseResult.data;
+
+    try {
+      await assertLeagueMember(waiverRequest.league.league_id, session.user.id)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const waiverUsername = waiverRequest.context_scope?.sleeper_username
     if (waiverUsername) {
@@ -134,29 +139,47 @@ Consider this manager's style when making recommendations.
         : '',
     ].filter(Boolean).join('\n');
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await openaiChatJson({
       messages: [
         { role: 'system', content: enhancedSystemPrompt },
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 2000,
-      response_format: { type: 'json_object' },
-    });
+      maxTokens: 2000,
+    })
 
-    const responseText = completion.choices[0]?.message?.content;
-    
-    if (!responseText) {
+    if (!completion.ok) {
       return NextResponse.json(
-        { error: 'No response from AI' },
+        { error: 'Failed to analyze waivers', details: completion.details },
+        { status: completion.status || 502 }
+      )
+    }
+
+    const aiResponse = parseJsonContentFromChatCompletion(completion.json)
+    if (!aiResponse) {
+      return NextResponse.json(
+        { error: 'AI returned invalid JSON' },
         { status: 500 }
       );
     }
-
-    const aiResponse = JSON.parse(responseText);
     const validatedResponse = WaiverResponseSchema.safeParse(aiResponse);
     const responseData = validatedResponse.success ? validatedResponse.data : aiResponse
+
+    const { model } = getOpenAIConfig()
+    await logAiOutput({
+      provider: 'openai',
+      role: 'narrative',
+      taskType: 'waiver_suggestions',
+      targetType: 'user',
+      targetId: waiverRequest.context_scope?.sleeper_username || session.user.id,
+      model: completion.json?.model || model,
+      contentJson: responseData,
+      meta: {
+        leagueId: waiverRequest.league.league_id,
+        validated: validatedResponse.success,
+        hasLegacyContext: !!legacyContext,
+      },
+    })
 
     try {
       const topAdds = Array.isArray(responseData?.top_adds) ? responseData.top_adds : []

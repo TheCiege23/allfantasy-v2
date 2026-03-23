@@ -6,6 +6,7 @@ import { Clock, Plus, Share2, Repeat, History } from 'lucide-react'
 import MockDraftSimulatorWrapper from '@/components/mock-draft/MockDraftSimulatorWrapper'
 import { MockDraftRecap } from '@/components/mock-draft'
 import type { MockDraftConfig } from '@/lib/mock-draft/types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type LeagueOption = {
   id: string
@@ -32,6 +33,7 @@ export interface MockDraftLobbyPageProps {
 }
 
 export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLobbyPageProps) {
+  const { formatDateInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
   const urlDraftId = searchParams.get('draftId')
   const [selectedDraftId, setSelectedDraftId] = useState<string | 'new'>('new')
@@ -173,7 +175,7 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
                         </span>
                       </div>
                       <p className="mt-0.5 text-[10px] text-white/55">
-                        {metadata.numTeams || 12}-team - {draft.rounds} rounds - {new Date(draft.createdAt).toLocaleDateString()}
+                        {metadata.numTeams || 12}-team - {draft.rounds} rounds - {formatDateInTimezone(draft.createdAt)}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-white/60">
                         {draft.shareId && (

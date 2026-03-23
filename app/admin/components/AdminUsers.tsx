@@ -14,6 +14,7 @@ import {
   Mail,
   Shield,
 } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 interface AppUser {
   id: string
@@ -27,22 +28,22 @@ interface AppUser {
   createdAt: string
 }
 
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "UTC",
-    })
-  } catch {
-    return iso
-  }
-}
-
 export default function AdminUsers() {
+  const { formatInTimezone } = useUserTimezone()
+  const fmtDate = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    } catch {
+      return iso
+    }
+  }
+
   const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

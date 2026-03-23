@@ -6,6 +6,7 @@
 
 import { useState } from 'react'
 import type { BigBrotherSummary } from './types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 export interface BigBrotherVotingBallotProps {
   leagueId: string
@@ -14,6 +15,7 @@ export interface BigBrotherVotingBallotProps {
 }
 
 export function BigBrotherVotingBallot({ leagueId, summary, onVoted }: BigBrotherVotingBallotProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [targetId, setTargetId] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -88,7 +90,7 @@ export function BigBrotherVotingBallot({ leagueId, summary, onVoted }: BigBrothe
       <h3 className="text-sm font-medium text-white/90">Eviction vote</h3>
       <p className="mt-1 text-xs text-white/50">Vote for who you want to evict. Last vote before the deadline counts. Votes are private.</p>
       {ballot.voteDeadlineAt && (
-        <p className="mt-1 text-xs text-white/50">Deadline: {new Date(ballot.voteDeadlineAt).toLocaleString()}</p>
+        <p className="mt-1 text-xs text-white/50">Deadline: {formatInTimezone(ballot.voteDeadlineAt)}</p>
       )}
 
       <div className="mt-4 space-y-2">

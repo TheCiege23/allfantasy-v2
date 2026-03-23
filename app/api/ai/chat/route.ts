@@ -11,6 +11,9 @@ import { logUserEventByUsername } from '@/lib/user-events'
 import { logAiOutput } from '@/lib/ai/output-logger'
 import { buildSportContextString, resolveSportForAI } from '@/lib/ai/AISportContextResolver'
 import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league-access'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -247,6 +250,11 @@ Reference their history and patterns when giving recommendations.`
 
 export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(async (request: NextRequest) => {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const parseResult = ChatRequestSchema.safeParse(body)
     if (!parseResult.success) {
@@ -259,9 +267,26 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     const { context_scope, message, conversation_history } = parseResult.data
     const sleeperUsername = context_scope.sleeper_username?.trim()?.toLowerCase()
     const resolvedSport = resolveSportForAI(body as Record<string, unknown>)
+    const leagueId =
+      (typeof (body as Record<string, unknown>).league_id === 'string'
+        ? ((body as Record<string, unknown>).league_id as string)
+        : null) ??
+      (typeof (body as Record<string, unknown>).league === 'object' &&
+      (body as Record<string, unknown>).league !== null &&
+      typeof ((body as Record<string, unknown>).league as Record<string, unknown>).id === 'string'
+        ? (((body as Record<string, unknown>).league as Record<string, unknown>).id as string)
+        : null)
 
     if (!sleeperUsername) {
       return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
+    }
+
+    if (leagueId) {
+      try {
+        await assertLeagueMember(leagueId, session.user.id)
+      } catch {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const rl = checkAiRateLimit(request, 'chat', { sleeperUsername, includeIpInKey: true })

@@ -1,0 +1,165 @@
+{
+  "timestamp": "2026-03-23T04:27:45.886Z",
+  "baseUrl": "http://127.0.0.1:3000",
+  "accountUsed": {
+    "email": "qa_1774239716871@example.com",
+    "username": "qa_profile_1774239716871",
+    "generated": true,
+    "authenticated": true
+  },
+  "results": [
+    {
+      "interaction": "Authentication",
+      "expected": "User is authenticated for profile click audit",
+      "actual": "Authenticated using generated account qa_1774239716871@example.com",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\01-authentication.png"
+    },
+    {
+      "interaction": "Dashboard to Profile entry point",
+      "expected": "A visible profile entry routes to /profile",
+      "actual": "Profile link present and routed to /profile",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\02-dashboard-to-profile-entry-point.png"
+    },
+    {
+      "interaction": "Profile load identity",
+      "expected": "Identity card and profile header load",
+      "actual": "Profile page loaded",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\03-profile-load-identity.png"
+    },
+    {
+      "interaction": "Edit profile open",
+      "expected": "Edit button reveals editable profile form",
+      "actual": "Edit form opened",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\04-edit-profile-open.png"
+    },
+    {
+      "interaction": "Display/Bio/Sports save",
+      "expected": "Profile edits persist after save and reload",
+      "actual": "Display name and bio persisted after save and reload",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\05-display-bio-sports-save.png"
+    },
+    {
+      "interaction": "Avatar preset selection save",
+      "expected": "Preset selection is clickable and save succeeds",
+      "actual": "Avatar preset click and save completed",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\06-avatar-preset-selection-save.png"
+    },
+    {
+      "interaction": "Upload image button filechooser",
+      "expected": "Upload image click opens file chooser event",
+      "actual": "Upload button wired to file chooser",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\07-upload-image-button-filechooser.png"
+    },
+    {
+      "interaction": "Cancel edit restores persisted state",
+      "expected": "Cancel discards unsaved draft changes",
+      "actual": "Cancel restored persisted display name",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\08-cancel-edit-restores-persisted-state.png"
+    },
+    {
+      "interaction": "Quick link: Sports App",
+      "expected": "Sports App quick link routes into app shell",
+      "actual": "Navigated to http://127.0.0.1:3000/app/home",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\09-quick-link-sports-app.png"
+    },
+    {
+      "interaction": "Quick link: Profile & settings",
+      "expected": "Profile & settings quick link opens /settings",
+      "actual": "Navigated to http://127.0.0.1:3000/settings",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\10-quick-link-profile-settings.png"
+    },
+    {
+      "interaction": "Settings tab preferences deep link",
+      "expected": "Language/timezone/theme quick link opens settings preferences tab",
+      "actual": "Opened preferences tab route",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\11-settings-tab-preferences-deep-link.png"
+    },
+    {
+      "interaction": "Quick link: View public profile",
+      "expected": "Own public profile quick link routes to /profile/{username}",
+      "actual": "Navigated to http://127.0.0.1:3000/profile/qa_profile_1774239716871",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\12-quick-link-view-public-profile.png"
+    },
+    {
+      "interaction": "Back link from profile page",
+      "expected": "Back control returns to dashboard",
+      "actual": "Back link routed to dashboard",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\13-back-link-from-profile-page.png"
+    },
+    {
+      "interaction": "Public profile (own username)",
+      "expected": "Own public route still renders profile page successfully",
+      "actual": "Own /profile/[username] route loaded",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\14-public-profile-own-username.png"
+    },
+    {
+      "interaction": "Public profile not-found handling",
+      "expected": "Unknown username shows not-found state",
+      "actual": "locator.waitFor: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByText(/profile not found/i) to be visible\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\15-public-profile-not-found-handling-failure.png"
+    },
+    {
+      "interaction": "HomeTopNav profile link",
+      "expected": "Authenticated home top-nav profile link navigates to /profile",
+      "actual": "Top-nav profile link works",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\16-hometopnav-profile-link.png"
+    },
+    {
+      "interaction": "Settings modal open + tab switches",
+      "expected": "Settings icon opens modal and tabs are interactive",
+      "actual": "Modal and tab interactions work",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\17-settings-modal-open-tab-switches.png"
+    },
+    {
+      "interaction": "Settings modal deep link closes modal",
+      "expected": "Clicking modal deep link navigates and closes overlay",
+      "actual": "Modal closed on route navigation",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\18-settings-modal-deep-link-closes-modal.png"
+    },
+    {
+      "interaction": "User menu dropdown links (if visible)",
+      "expected": "User menu opens and profile/settings links navigate correctly",
+      "actual": "locator.waitFor: Timeout 10000ms exceeded.\nCall log:\n  - waiting for locator('[role=\"menu\"]:visible').first() to be visible\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\19-user-menu-dropdown-links-if-visible-failure.png"
+    },
+    {
+      "interaction": "Mobile bottom tab: Profile",
+      "expected": "Profile bottom tab works on mobile viewport",
+      "actual": "page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://127.0.0.1:3000/dashboard\", waiting until \"domcontentloaded\"\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774239716871\\20-mobile-bottom-tab-profile-failure.png"
+    },
+    {
+      "interaction": "Mobile sports tab active state",
+      "expected": "Sports tab is active on sports routes",
+      "actual": "page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://127.0.0.1:3000/dashboard\", waiting until \"domcontentloaded\"\n",
+      "status": "FAIL",
+      "screenshot": ""
+    }
+  ],
+  "summary": {
+    "pass": 17,
+    "fail": 4,
+    "blocked": 0,
+    "total": 21
+  }
+}

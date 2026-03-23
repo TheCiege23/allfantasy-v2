@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { X, ChevronDown, ChevronUp } from 'lucide-react'
 import { headshotUrl as buildHeadshot, teamLogoUrl as buildTeamLogo } from '@/lib/media-url'
 import PlayerCardAnalytics from '@/components/player-card/PlayerCardAnalytics'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const DEPTH_CHART_POSITION_MAP: Record<string, string> = {
   'RWR': 'WR',
@@ -87,6 +88,7 @@ export default function PlayerDetailModal({
   team,
   sport,
 }: PlayerDetailModalProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [loading, setLoading] = useState(true)
   const [bio, setBio] = useState<any>(null)
   const [news, setNews] = useState<any[]>([])
@@ -328,7 +330,7 @@ export default function PlayerDetailModal({
                         <h4 className="text-sm font-semibold text-white/90 leading-snug">{article.title}</h4>
                         {article.publishedAt && (
                           <span className="text-[10px] text-white/40 whitespace-nowrap flex-shrink-0">
-                            {new Date(article.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {formatInTimezone(article.publishedAt, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         )}
                       </div>

@@ -1,18 +1,13 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import {
   Settings,
-  Pencil,
-  X,
-  Check,
   Zap,
   Award,
   ChevronRight,
-  Upload,
-  Trash2,
   MessageCircle,
   Trophy,
   BarChart3,
@@ -21,18 +16,10 @@ import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { useXPProfile } from "@/hooks/useXPProfile"
 import { useResolvedCosmetics } from "@/hooks/useMarketplace"
 import { XPTierBadge } from "@/components/XPTierBadge"
-import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
-import { getPreferredSportsOptions } from "@/lib/user-settings"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
-import { ProfileImagePreviewController } from "@/components/identity/ProfileImagePreviewController"
-import { uploadProfileImage, setProfileAvatarUrl, AVATAR_PRESET_EMOJI } from "@/lib/avatar"
-import type { UserProfileForSettings } from "@/lib/user-settings"
-import type { PublicProfileDto } from "@/lib/user-settings"
-
-const SPORT_LABELS: Record<string, string> = {
-  NFL: "NFL", NHL: "NHL", NBA: "NBA", MLB: "MLB",
-  NCAAF: "NCAA Football", NCAAB: "NCAA Basketball", SOCCER: "Soccer",
-}
+import type { PublicProfileDto, UserProfileForSettings } from "@/lib/user-settings/types"
+import { resolveProfilePresentation } from "@/lib/user-settings/ProfilePresentationResolver"
+import EditableProfileFormController from "./EditableProfileFormController"
 
 function formatCosmeticCategory(category: string): string {
   return category
@@ -40,6 +27,15 @@ function formatCosmeticCategory(category: string): string {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ")
+}
+
+interface ProfileHighlightsDto {
+  gmPrestigeScore: number | null
+  gmTierLabel: string | null
+  reputationTier: string | null
+  reputationScore: number | null
+  legacyScore: number | null
+  contextLeagueName: string | null
 }
 
 export default function ProfilePageClient({
@@ -67,18 +63,26 @@ export default function ProfilePageClient({
 
   const [publicProfile, setPublicProfile] = useState<PublicProfileDto | null>(null)
   const [publicLoading, setPublicLoading] = useState(!!publicUsername)
+  const [highlights, setHighlights] = useState<ProfileHighlightsDto | null>(null)
+  const [highlightsLoading, setHighlightsLoading] = useState(false)
 
   const loadPublic = useCallback(async () => {
     if (!publicUsername?.trim()) return
     setPublicLoading(true)
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000)
     try {
-      const res = await fetch(`/api/profile/public?username=${encodeURIComponent(publicUsername)}`, { cache: "no-store" })
+      const res = await fetch(`/api/profile/public?username=${encodeURIComponent(publicUsername)}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
       const data = await res.json()
       if (res.ok) setPublicProfile(data)
       else setPublicProfile(null)
     } catch {
       setPublicProfile(null)
     } finally {
+      window.clearTimeout(timeoutId)
       setPublicLoading(false)
     }
   }, [publicUsername])
@@ -87,14 +91,37 @@ export default function ProfilePageClient({
     loadPublic()
   }, [loadPublic])
 
+  const loadHighlights = useCallback(async () => {
+    if (!isOwnProfile || !userId) {
+      setHighlights(null)
+      setHighlightsLoading(false)
+      return
+    }
+    setHighlightsLoading(true)
+    try {
+      const res = await fetch("/api/profile/highlights", { cache: "no-store" })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data) setHighlights(data as ProfileHighlightsDto)
+      else setHighlights(null)
+    } catch {
+      setHighlights(null)
+    } finally {
+      setHighlightsLoading(false)
+    }
+  }, [isOwnProfile, userId])
+
+  useEffect(() => {
+    loadHighlights()
+  }, [loadHighlights])
+
   const displayProfile: UserProfileForSettings | PublicProfileDto | null = isOwnProfile ? profile : publicProfile
-  const displayName = displayProfile?.displayName ?? (displayProfile as PublicProfileDto)?.username ?? publicUsername ?? "—"
-  const username = (displayProfile as UserProfileForSettings)?.username ?? (displayProfile as PublicProfileDto)?.username ?? publicUsername ?? "—"
+  const presentation = resolveProfilePresentation(displayProfile)
+  const displayName = presentation?.displayName ?? publicUsername ?? "—"
+  const username = presentation?.username ?? publicUsername ?? "—"
   const profileImageUrl = (displayProfile as { profileImageUrl?: string | null })?.profileImageUrl ?? null
-  const bio = displayProfile?.bio ?? null
-  const preferredSports = displayProfile?.preferredSports ?? null
+  const bio = presentation?.bio ?? null
+  const preferredSportsLabels = presentation?.preferredSportsLabels ?? []
   const avatarPreset = displayProfile?.avatarPreset ?? null
-  const initial = (displayName || username || "?").charAt(0).toUpperCase()
 
   if (!isOwnProfile && publicUsername) {
     if (publicLoading) {
@@ -196,20 +223,59 @@ export default function ProfilePageClient({
           </div>
         )}
 
-        {preferredSports && preferredSports.length > 0 && (
+        {preferredSportsLabels.length > 0 && (
           <div className="mt-4">
             <p className="mb-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>Preferred sports</p>
             <div className="flex flex-wrap gap-2">
-              {preferredSports.map((s) => (
+              {preferredSportsLabels.map((sportLabel) => (
                 <span
-                  key={s}
+                  key={sportLabel}
                   className="rounded-lg border px-3 py-1 text-xs font-medium"
                   style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                 >
-                  {SPORT_LABELS[s] ?? s}
+                  {sportLabel}
                 </span>
               ))}
             </div>
+          </div>
+        )}
+
+        {isOwnProfile && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium" style={{ color: "var(--muted2)" }}>Career highlights</p>
+            {highlightsLoading ? (
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Loading highlights…</p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>GM prestige</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    {highlights?.gmPrestigeScore != null ? highlights.gmPrestigeScore.toFixed(1) : "—"}
+                  </p>
+                  {highlights?.gmTierLabel && (
+                    <p className="text-[11px]" style={{ color: "var(--muted)" }}>{highlights.gmTierLabel}</p>
+                  )}
+                </div>
+                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>Reputation</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    {highlights?.reputationTier ?? "No data"}
+                  </p>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    {highlights?.reputationScore != null ? `Score ${highlights.reputationScore.toFixed(1)}` : "Needs league history"}
+                  </p>
+                </div>
+                <div className="rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>Legacy score</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                    {highlights?.legacyScore != null ? highlights.legacyScore.toFixed(1) : "No data"}
+                  </p>
+                  <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+                    {highlights?.contextLeagueName ? `Context: ${highlights.contextLeagueName}` : "No league context yet"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -291,9 +357,31 @@ export default function ProfilePageClient({
               </span>
               <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
             </Link>
+            <Link
+              href="/settings?tab=preferences"
+              className="flex items-center justify-between rounded-xl border p-4 transition"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+                <Settings className="h-4 w-4" style={{ color: "var(--muted)" }} />
+                Language, timezone, theme
+              </span>
+              <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
+            </Link>
+            <Link
+              href={`/profile/${encodeURIComponent(username)}`}
+              className="flex items-center justify-between rounded-xl border p-4 transition"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+                <Award className="h-4 w-4" style={{ color: "var(--muted)" }} />
+                View public profile
+              </span>
+              <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
+            </Link>
           </div>
           <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>
-            Reputation and Legacy score are shown per league in the Sports App. Open a league to see your standing.
+            Reputation and legacy highlights use your most recent league context when available.
           </p>
         </div>
       )}
@@ -310,271 +398,6 @@ export default function ProfilePageClient({
             Message
           </Link>
         </div>
-      )}
-    </div>
-  )
-}
-
-function EditableProfileFormController({
-  profile,
-  saving,
-  error,
-  onSave,
-  onCancel,
-  onRefetch,
-}: {
-  profile: UserProfileForSettings
-  saving: boolean
-  error: string | null
-  onSave: (p: import("@/lib/user-settings").ProfileUpdatePayload) => Promise<boolean>
-  onCancel: () => void
-  onRefetch: () => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [displayName, setDisplayName] = useState(profile.displayName ?? "")
-  const [avatarPreset, setAvatarPreset] = useState<string | null>(profile.avatarPreset ?? null)
-  const [bio, setBio] = useState(profile.bio ?? "")
-  const [preferredSports, setPreferredSports] = useState<string[]>(profile.preferredSports ?? [])
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setDisplayName(profile.displayName ?? "")
-    setAvatarPreset(profile.avatarPreset ?? null)
-    setBio(profile.bio ?? "")
-    setPreferredSports(profile.preferredSports ?? [])
-  }, [profile.displayName, profile.avatarPreset, profile.bio, profile.preferredSports])
-
-  const toggleSport = (code: string) => {
-    setPreferredSports((prev) =>
-      prev.includes(code) ? prev.filter((s) => s !== code) : [...prev, code]
-    )
-  }
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setUploadError(null)
-    const ok = await onSave({
-      displayName: displayName.trim() || null,
-      avatarPreset: (avatarPreset as AvatarPresetId) || null,
-      avatarUrl: avatarPreset ? null : undefined,
-      bio: bio.trim() || null,
-      preferredSports: preferredSports.length > 0 ? preferredSports : null,
-    })
-    if (ok) {
-      setEditing(false)
-      onRefetch()
-    }
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ""
-    if (!file) return
-    setPreviewObjectUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return URL.createObjectURL(file)
-    })
-    setUploadError(null)
-    setUploading(true)
-    const result = await uploadProfileImage(file)
-    setUploading(false)
-    setPreviewObjectUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
-    if (result.ok) onRefetch()
-    else setUploadError(result.error ?? "Upload failed")
-  }
-
-  const handleRemoveImage = async () => {
-    setUploadError(null)
-    const result = await setProfileAvatarUrl(null)
-    if (result.ok) onRefetch()
-    else setUploadError(result.error ?? "Failed to remove image")
-  }
-
-  const handleCancel = () => {
-    setPreviewObjectUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
-    setDisplayName(profile.displayName ?? "")
-    setAvatarPreset(profile.avatarPreset ?? null)
-    setBio(profile.bio ?? "")
-    setPreferredSports(profile.preferredSports ?? [])
-    setEditing(false)
-    onCancel()
-  }
-
-  const options = getPreferredSportsOptions()
-
-  return (
-    <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Edit profile</h2>
-        {!editing ? (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium"
-            style={{ borderColor: "var(--border)", color: "var(--text)" }}
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </button>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            >
-              <X className="h-4 w-4" />
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form="profile-edit-form"
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-              style={{
-                background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
-                color: "var(--on-accent-bg)",
-              }}
-            >
-              <Check className="h-4 w-4" />
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}>
-          {error}
-        </div>
-      )}
-
-      {editing && (
-        <form id="profile-edit-form" onSubmit={handleSave} className="space-y-6">
-          <div>
-            <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Profile image</label>
-            <div className="flex flex-wrap items-center gap-4">
-              <ProfileImagePreviewController
-                previewObjectUrl={previewObjectUrl}
-                profileImageUrl={profile.profileImageUrl}
-                avatarPreset={avatarPreset}
-                displayName={profile.displayName}
-                username={profile.username}
-                size="lg"
-              />
-              <div className="flex flex-wrap gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <button
-                  type="button"
-                  disabled={uploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium"
-                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
-                >
-                  <Upload className="h-4 w-4" />
-                  {uploading ? "Uploading…" : "Upload image"}
-                </button>
-                {profile.profileImageUrl && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium"
-                    style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Remove image
-                  </button>
-                )}
-              </div>
-            </div>
-            {uploadError && (
-              <p className="mt-1.5 text-sm" style={{ color: "var(--accent-red-strong)" }}>{uploadError}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Avatar (20 options)</label>
-            <div className="flex flex-wrap gap-2">
-              {AVATAR_PRESETS.map((id) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setAvatarPreset(id)}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border text-lg"
-                  style={{
-                    borderColor: avatarPreset === id ? "var(--accent-cyan)" : "var(--border)",
-                    background: avatarPreset === id ? "color-mix(in srgb, var(--accent-cyan) 18%, transparent)" : "var(--panel2)",
-                  }}
-                  title={AVATAR_PRESET_LABELS[id]}
-                >
-                  {AVATAR_PRESET_EMOJI[id]}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>Choose one or upload your own image above.</p>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Display name</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full max-w-md rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-              placeholder="Your display name"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Short bio</label>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={3}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none resize-none"
-              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-              placeholder="A few words about you…"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Preferred sports</label>
-            <div className="flex flex-wrap gap-2">
-              {options.map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => toggleSport(value)}
-                  className="rounded-lg border px-3 py-1.5 text-xs font-medium"
-                  style={{
-                    borderColor: preferredSports.includes(value) ? "var(--accent-cyan)" : "var(--border)",
-                    background: preferredSports.includes(value) ? "color-mix(in srgb, var(--accent-cyan) 18%, transparent)" : "var(--panel2)",
-                    color: "var(--text)",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </form>
       )}
     </div>
   )

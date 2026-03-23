@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport } from "@/lib/sport-scope"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type WarehouseView =
   | "summary"
@@ -59,6 +60,7 @@ export default function WarehouseHistoryPanel({
   leagueId: string
   onBackToOverview?: () => void
 }) {
+  const { formatInTimezone } = useUserTimezone()
   const [view, setView] = useState<WarehouseView>("summary")
   const [sport, setSport] = useState<string>(DEFAULT_SPORT)
   const [season, setSeason] = useState<string>("")
@@ -296,7 +298,7 @@ export default function WarehouseHistoryPanel({
             <li>Player game facts: {summary.playerGameFactCount}</li>
             <li>Team game facts: {summary.teamGameFactCount}</li>
           </ul>
-          {lastUpdated && <p className="mt-2 text-[11px] text-white/50">Last refresh: {new Date(lastUpdated).toLocaleString()}</p>}
+          {lastUpdated && <p className="mt-2 text-[11px] text-white/50">Last refresh: {formatInTimezone(lastUpdated)}</p>}
         </div>
       )}
 

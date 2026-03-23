@@ -117,10 +117,10 @@ export default function SettingsModal({ open, onClose, username }: SettingsModal
               />
             )}
             {activeTab === "account" && <AccountSettings profile={profile} onClose={onClose} />}
-            {activeTab === "friends" && <FriendsSettings />}
-            {activeTab === "privacy" && <PrivacySettings />}
-            {activeTab === "notifications" && <NotificationSettings />}
-            {activeTab === "ai" && <AiSettings />}
+            {activeTab === "friends" && <FriendsSettings onClose={onClose} />}
+            {activeTab === "privacy" && <PrivacySettings onClose={onClose} />}
+            {activeTab === "notifications" && <NotificationSettings onClose={onClose} />}
+            {activeTab === "ai" && <AiSettings onClose={onClose} />}
             {activeTab === "blocked" && <BlockedUsersSettings />}
           </section>
         </div>
@@ -290,31 +290,28 @@ function AccountSettings({
   )
 }
 
-function FriendsSettings() {
+function FriendsSettings({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
         Friends
       </h3>
       <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-        Manage how friends can find you on AllFantasy. Future updates will let you connect contacts and
-        control visibility across leagues, brackets, and the Sports App.
+        Manage discoverability and social visibility from the full settings experience.
       </p>
-      <div className="space-y-2 text-[11px]">
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Allow friend requests</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Show my profile in friend search</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-      </div>
+      <Link
+        href="/settings?tab=profile"
+        onClick={onClose}
+        className="inline-flex rounded-xl border px-3 py-2 text-[11px] font-medium"
+        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+      >
+        Open full profile & social settings
+      </Link>
     </div>
   )
 }
 
-function PrivacySettings() {
+function PrivacySettings({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
@@ -323,21 +320,19 @@ function PrivacySettings() {
       <p className="text-[11px]" style={{ color: "var(--muted)" }}>
         Control how your activity and profile appear across AllFantasy products.
       </p>
-      <div className="space-y-2 text-[11px]">
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Show brackets to friends by default</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Share fantasy resume in league lobbies</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-      </div>
+      <Link
+        href="/settings?tab=legal"
+        onClick={onClose}
+        className="inline-flex rounded-xl border px-3 py-2 text-[11px] font-medium"
+        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+      >
+        Open legal & privacy controls
+      </Link>
     </div>
   )
 }
 
-function NotificationSettings() {
+function NotificationSettings({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
@@ -346,25 +341,29 @@ function NotificationSettings() {
       <p className="text-[11px]" style={{ color: "var(--muted)" }}>
         Choose which AllFantasy events can notify you. These settings will apply to both Bracket and the Sports App.
       </p>
-      <div className="space-y-2 text-[11px]">
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Bracket upset alerts</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Trade recommendations</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Waiver AI suggestions</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/settings?tab=notifications"
+          onClick={onClose}
+          className="inline-flex rounded-xl border px-3 py-2 text-[11px] font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Open notifications settings
+        </Link>
+        <Link
+          href="/alerts/settings"
+          onClick={onClose}
+          className="inline-flex rounded-xl border px-3 py-2 text-[11px] font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Sports alert preferences
+        </Link>
       </div>
     </div>
   )
 }
 
-function AiSettings() {
+function AiSettings({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
@@ -373,16 +372,14 @@ function AiSettings() {
       <p className="text-[11px]" style={{ color: "var(--muted)" }}>
         Control how AllFantasy&apos;s AI assistant behaves and which providers it can use to personalize your advice.
       </p>
-      <div className="space-y-2 text-[11px]">
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Use connected fantasy leagues for suggestions</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-        <label className="flex items-center justify-between rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <span>Show higher‑risk bracket paths</span>
-          <input type="checkbox" className="h-3.5 w-3.5 rounded border-white/30 bg-black/30" />
-        </label>
-      </div>
+      <Link
+        href="/settings?tab=connected"
+        onClick={onClose}
+        className="inline-flex rounded-xl border px-3 py-2 text-[11px] font-medium"
+        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+      >
+        Manage connected providers
+      </Link>
     </div>
   )
 }

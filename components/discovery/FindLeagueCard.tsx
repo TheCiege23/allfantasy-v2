@@ -4,16 +4,19 @@ import Link from "next/link"
 import { Calendar, User, Sparkles, Zap } from "lucide-react"
 import { trackDiscoveryJoinClick } from "@/lib/discovery-analytics/client"
 import type { DiscoveryCard } from "@/lib/public-discovery/types"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 export interface FindLeagueCardProps {
   league: DiscoveryCard
 }
 
-function formatDraftDate(iso: string | null): string {
+function formatDraftDate(
+  iso: string | null,
+  formatDateInTimezone: (date: Date | string | number) => string
+): string {
   if (!iso) return "—"
   try {
-    const d = new Date(iso)
-    return d.toLocaleDateString(undefined, { dateStyle: "medium" })
+    return formatDateInTimezone(iso)
   } catch {
     return "—"
   }
@@ -29,6 +32,7 @@ function isNew(createdAt: string): boolean {
 }
 
 export function FindLeagueCard({ league }: FindLeagueCardProps) {
+  const { formatDateInTimezone } = useUserTimezone()
   const isFull = league.maxMembers > 0 && league.memberCount >= league.maxMembers
   const fillingFast =
     !isFull && league.maxMembers > 0 && league.fillPct >= 50
@@ -127,7 +131,7 @@ export function FindLeagueCard({ league }: FindLeagueCardProps) {
           </span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5 shrink-0" />
-            {formatDraftDate(league.draftDate)}
+            {formatDraftDate(league.draftDate, formatDateInTimezone)}
           </span>
           {league.commissionerName && (
             <span className="flex items-center gap-1">

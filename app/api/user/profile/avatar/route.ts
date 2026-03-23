@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { writeFile, mkdir } from "fs/promises"
-import path from "path"
-import { randomUUID } from "crypto"
-
-const MAX_SIZE = 3 * 1024 * 1024 // 3MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+import {
+  isAllowedProfileImageType,
+  MAX_PROFILE_IMAGE_BYTES,
+  persistProfileImageBytes,
+} from "@/lib/avatar/ProfileImageUploadStorageService"
 
 /**
  * POST /api/user/profile/avatar
@@ -24,24 +23,19 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file") as File | null
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 })
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    if (!isAllowedProfileImageType(file.type)) {
       return NextResponse.json({ error: "Only JPEG, PNG, GIF, WebP allowed" }, { status: 400 })
     }
-    if (file.size > MAX_SIZE) {
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
       return NextResponse.json({ error: "File too large (max 3MB)" }, { status: 400 })
     }
 
-    const ext = file.name.split(".").pop()?.toLowerCase() || "png"
-    const safeExt = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext) ? ext : "png"
-    const filename = `${randomUUID()}.${safeExt}`
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "avatars")
-    await mkdir(uploadDir, { recursive: true })
-    const filepath = path.join(uploadDir, filename)
-
     const bytes = new Uint8Array(await file.arrayBuffer())
-    await writeFile(filepath, bytes)
-
-    const url = `/uploads/avatars/${filename}`
+    const { url } = await persistProfileImageBytes({
+      bytes,
+      mimeType: file.type,
+      originalFilename: file.name,
+    })
     await prisma.appUser.update({
       where: { id: userId },
       data: { avatarUrl: url },

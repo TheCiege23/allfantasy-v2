@@ -1,6 +1,7 @@
 "use client"
 
 import { useSettingsProfile } from "./useSettingsProfile"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import {
   formatInTimezone,
   formatTimeInTimezone,
@@ -13,15 +14,16 @@ import {
  */
 export function useUserTimezone() {
   const { profile } = useSettingsProfile()
+  const { language } = useLanguage()
   const timezone = profile?.timezone ?? null
 
   return {
     timezone,
     formatInTimezone: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) =>
-      formatInTimezone(date, timezone, options),
+      formatInTimezone(date, timezone, options, language),
     formatTimeInTimezone: (date: Date | string | number) =>
-      formatTimeInTimezone(date, timezone),
+      formatTimeInTimezone(date, timezone, language),
     formatDateInTimezone: (date: Date | string | number) =>
-      formatDateInTimezone(date, timezone),
+      formatDateInTimezone(date, timezone, language),
   }
 }

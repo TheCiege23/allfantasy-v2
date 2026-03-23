@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
 type AlertStatus = 'open' | 'approved' | 'dismissed' | 'resolved' | 'snoozed'
@@ -75,6 +76,7 @@ function severityClass(severity: AlertSeverity): string {
 }
 
 export default function AICommissionerPanel({ leagueId }: { leagueId: string }) {
+  const { formatInTimezone } = useUserTimezone()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [sport, setSport] = useState<SupportedSport>(normalizeToSupportedSport(DEFAULT_SPORT))
@@ -485,10 +487,10 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
                 <p className="text-sm font-semibold">{alert.headline}</p>
                 <p className="mt-1 text-xs opacity-90">{alert.summary}</p>
                 <p className="mt-1 text-[11px] opacity-80">
-                  {alert.alertType} • status {alert.status} • {new Date(alert.createdAt).toLocaleString()}
+                  {alert.alertType} • status {alert.status} • {formatInTimezone(alert.createdAt)}
                 </p>
                 {alert.snoozedUntil ? (
-                  <p className="text-[11px] opacity-80">Snoozed until {new Date(alert.snoozedUntil).toLocaleString()}</p>
+                  <p className="text-[11px] opacity-80">Snoozed until {formatInTimezone(alert.snoozedUntil)}</p>
                 ) : null}
                 {alert.relatedManagerIds.length > 0 ? (
                   <div className="mt-1 space-y-1 text-[11px] opacity-90">
@@ -610,7 +612,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
             {payload.actionLogs.length > 0 ? (
               payload.actionLogs.slice(0, 8).map((log) => (
                 <p key={log.actionId} className="text-[11px] text-white/70">
-                  {new Date(log.createdAt).toLocaleString()} • {log.actionType} • {log.summary}
+                  {formatInTimezone(log.createdAt)} • {log.actionType} • {log.summary}
                 </p>
               ))
             ) : (

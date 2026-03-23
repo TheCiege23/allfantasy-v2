@@ -4,14 +4,22 @@
  * Formatting uses TimezoneFormattingResolver with the user's IANA timezone.
  */
 
+import {
+  DEFAULT_SIGNUP_TIMEZONE,
+  SIGNUP_TIMEZONES,
+} from "@/lib/signup/timezones"
+
 export type TimezoneIana = string
 
-export const DEFAULT_TIMEZONE = "America/New_York"
+export const DEFAULT_TIMEZONE = DEFAULT_SIGNUP_TIMEZONE
+
+const ALLOWED_TIMEZONES = new Set(
+  SIGNUP_TIMEZONES.map((timezone) => timezone.value)
+)
 
 /**
- * Validates that a string is a known IANA-like timezone (basic check).
+ * Validates against the allowed U.S./Canada/Mexico IANA timezone list.
  */
 export function isValidTimezone(value: string | null | undefined): value is string {
-  if (value == null || typeof value !== "string") return false
-  return value.length > 0 && value.length < 64
+  return typeof value === "string" && ALLOWED_TIMEZONES.has(value)
 }

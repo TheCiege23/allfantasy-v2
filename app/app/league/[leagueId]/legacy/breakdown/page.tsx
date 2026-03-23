@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
 import { ArrowLeft, BookOpen } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 interface BreakdownData {
   record: {
@@ -25,6 +26,7 @@ interface BreakdownData {
 }
 
 export default function LegacyBreakdownPage() {
+  const { formatDateInTimezone } = useUserTimezone()
   const params = useParams<{ leagueId: string }>()
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ""
@@ -153,7 +155,7 @@ export default function LegacyBreakdownPage() {
           Legacy score breakdown — {record.entityType} {record.entityId}
         </h1>
         <p className="text-xs text-zinc-400">
-          {record.sport} · Updated {new Date(record.updatedAt).toLocaleDateString()}
+          {record.sport} · Updated {formatDateInTimezone(record.updatedAt)}
         </p>
         <div className="text-2xl font-bold text-amber-400">
           Overall: {record.overallLegacyScore.toFixed(0)}

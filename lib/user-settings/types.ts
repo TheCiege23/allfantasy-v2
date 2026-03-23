@@ -8,6 +8,61 @@ export type PreferredLanguage = "en" | "es"
 
 /** Supported sport code (aligns with LeagueSport). */
 export type PreferredSportCode = string
+export type SignInProviderId =
+  | "google"
+  | "apple"
+  | "facebook"
+  | "instagram"
+  | "x"
+  | "tiktok"
+
+export type LegacyImportProviderId =
+  | "sleeper"
+  | "yahoo"
+  | "espn"
+  | "mfl"
+  | "fleaflicker"
+  | "fantrax"
+
+export interface ProviderConnectionStatus {
+  id: SignInProviderId
+  name: string
+  configured: boolean
+  linked: boolean
+}
+
+export interface LegacyImportConnectionStatus {
+  id: LegacyImportProviderId
+  linked: boolean
+  available: boolean
+  importStatus: string | null
+  lastJobAt?: string
+  error?: string
+}
+
+export interface LegalAcceptanceState {
+  ageVerified: boolean
+  termsAccepted: boolean
+  disclaimerAccepted: boolean
+  acceptedAt: string | null
+}
+
+export interface SecurityPreferencesState {
+  emailVerified: boolean
+  phoneVerified: boolean
+  hasPassword: boolean
+  recoveryMethods: ("email" | "phone")[]
+}
+
+export interface UserSettingsRecord {
+  userId: string
+  notificationSettings: Record<string, unknown> | null
+  providerConnections: ProviderConnectionStatus[]
+  importConnections: LegacyImportConnectionStatus[]
+  legalAcceptanceState: LegalAcceptanceState
+  securityPreferences: SecurityPreferencesState
+  updatedAt: Date
+}
 
 export interface UserProfileForSettings {
   userId: string
@@ -22,6 +77,8 @@ export interface UserProfileForSettings {
   phone: string | null
   phoneVerifiedAt: Date | null
   emailVerifiedAt: Date | null
+  ageConfirmedAt: Date | null
+  verificationMethod: "EMAIL" | "PHONE" | null
   hasPassword: boolean
   profileComplete: boolean
   sleeperUsername: string | null
@@ -32,7 +89,21 @@ export interface UserProfileForSettings {
   notificationPreferences: Record<string, unknown> | null
   onboardingStep: string | null
   onboardingCompletedAt: Date | null
+  settings: UserSettingsRecord | null
   updatedAt: Date
+}
+
+/**
+ * Public-facing profile DTO (no email, phone, or internal ids).
+ * Used for /profile/[username] and shareable profile views.
+ */
+export interface PublicProfileDto {
+  username: string
+  displayName: string | null
+  profileImageUrl: string | null
+  avatarPreset: string | null
+  bio: string | null
+  preferredSports: string[] | null
 }
 
 export interface ProfileUpdatePayload {
@@ -47,4 +118,18 @@ export interface ProfileUpdatePayload {
   notificationPreferences?: Record<string, unknown> | null
   onboardingStep?: string | null
   onboardingCompletedAt?: Date | null
+}
+
+export interface UserSettingsUpdatePayload {
+  notificationSettings?: Record<string, unknown> | null
+}
+
+export interface SettingsSnapshot {
+  profile: UserProfileForSettings
+  settings: UserSettingsRecord
+}
+
+export interface SettingsSavePayload {
+  profile?: ProfileUpdatePayload
+  settings?: UserSettingsUpdatePayload
 }

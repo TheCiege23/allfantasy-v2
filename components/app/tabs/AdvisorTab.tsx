@@ -11,6 +11,7 @@ import type {
   AdvisorWaiverItem,
   AdvisorInjuryItem,
 } from '@/lib/league-advisor'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 function PriorityBadge({ priority }: { priority: string }) {
   const style =
@@ -120,6 +121,7 @@ function InjuryBlock({ items }: { items: AdvisorInjuryItem[] }) {
 }
 
 export default function AdvisorTab({ leagueId }: LeagueTabProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<LeagueAdvisorAdvice | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -152,7 +154,7 @@ export default function AdvisorTab({ leagueId }: LeagueTabProps) {
           </div>
           {data?.generatedAt && (
             <p className="text-xs text-white/60">
-              Generated {new Date(data.generatedAt).toLocaleString()} · {data.sport}
+              Generated {formatInTimezone(data.generatedAt)} · {data.sport}
             </p>
           )}
         </div>

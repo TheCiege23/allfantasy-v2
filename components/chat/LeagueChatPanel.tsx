@@ -27,6 +27,7 @@ import { useMediaUpload } from "@/hooks/useMediaUpload"
 import PinnedSection from "@/components/chat/PinnedSection"
 import ChatStatsBotMessage, { placeholderStatsBotUpdate } from "@/components/chat/ChatStatsBotMessage"
 import CommissionerBroadcastForm from "@/components/chat/CommissionerBroadcastForm"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 import {
   parseMentions,
   getLeagueChatSendPayload,
@@ -775,6 +776,7 @@ function LeagueMessageRow({
   onReaction?: (emoji: string) => void
   showPin: boolean
 }) {
+  const { formatInTimezone } = useUserTimezone()
   const [pickerOpen, setPickerOpen] = useState(false)
   const reactions = (msg.metadata as any)?.reactions as { emoji: string; count: number; userIds?: string[] }[] | undefined
   const lastSeen = (msg.metadata as any)?.lastSeenAt as string | undefined
@@ -824,11 +826,11 @@ function LeagueMessageRow({
               {isSystemNotice ? systemLabel : msg.senderName}
             </span>
             <span className="text-[10px]" style={{ color: "var(--muted2)" }}>
-              {new Date(msg.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              {formatInTimezone(msg.createdAt, { hour: "numeric", minute: "2-digit" })}
             </span>
             {lastSeen && !isSystemNotice && (
               <span className="text-[9px]" style={{ color: "var(--muted)" }}>
-                Last seen {new Date(lastSeen).toLocaleTimeString()}
+                Last seen {formatInTimezone(lastSeen, { hour: "numeric", minute: "2-digit" })}
               </span>
             )}
           </div>

@@ -23,6 +23,7 @@ import {
 } from "@/lib/waiver-wire/SportWaiverResolver"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 const WAIVER_TYPES = [
   { value: "faab", label: "FAAB" },
@@ -68,6 +69,7 @@ type Transaction = {
 }
 
 export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
+  const { formatInTimezone } = useUserTimezone()
   const [settings, setSettings] = useState<WaiverSettings | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [claims, setClaims] = useState<Claim[]>([])
@@ -385,7 +387,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                   <span>Add {t.addPlayerId}</span>
                   {t.faabSpent != null && <span className="text-cyan-300">${t.faabSpent}</span>}
                   <span className="ml-auto text-xs text-white/50">
-                    {new Date(t.processedAt).toLocaleString()}
+                    {formatInTimezone(t.processedAt)}
                   </span>
                 </li>
               ))
@@ -411,7 +413,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                   </span>
                   <span>Drop {t.dropPlayerId}</span>
                   <span className="ml-auto text-xs text-white/50">
-                    {new Date(t.processedAt).toLocaleString()}
+                    {formatInTimezone(t.processedAt)}
                   </span>
                 </li>
               ))
@@ -552,7 +554,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                     </span>
                     {t.faabSpent != null && <span className="text-cyan-300">${t.faabSpent}</span>}
                     <span className="ml-auto text-xs text-white/50">
-                      {new Date(t.processedAt).toLocaleString()}
+                      {formatInTimezone(t.processedAt)}
                     </span>
                   </li>
                 ))}

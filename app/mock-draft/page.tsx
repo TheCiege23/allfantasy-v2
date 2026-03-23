@@ -14,7 +14,7 @@ export const metadata = {
 
 export default async function MockDraftPage() {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) redirect('/login')
+  if (!session?.user?.id) redirect('/login?callbackUrl=/mock-draft')
 
   const [leagues, savedDrafts] = await Promise.all([
     prisma.league.findMany({

@@ -1,11 +1,16 @@
 import { prisma } from "@/lib/prisma"
-import type { UserProfileForSettings } from "./types"
+import { getUserSettingsRecord } from "./UserSettingsService"
+import { resolveSharedProfileBootstrap } from "./SharedProfileBootstrapService"
+import { updateUserProfile } from "./UserProfileService"
+import type { SettingsSnapshot, UserProfileForSettings } from "./types"
 
 /**
  * Fetches the full profile and account data needed for the settings UI.
  * Used by Settings page and SettingsModal.
  */
-export async function getSettingsProfile(userId: string): Promise<UserProfileForSettings | null> {
+async function queryBaseProfile(
+  userId: string
+): Promise<Omit<UserProfileForSettings, "settings"> | null> {
   const user = await prisma.appUser.findUnique({
     where: { id: userId },
     select: {
@@ -25,6 +30,8 @@ export async function getSettingsProfile(userId: string): Promise<UserProfileFor
           phone: true,
           phoneVerifiedAt: true,
           emailVerifiedAt: true,
+          ageConfirmedAt: true,
+          verificationMethod: true,
           profileComplete: true,
           sleeperUsername: true,
           sleeperLinkedAt: true,
@@ -60,6 +67,11 @@ export async function getSettingsProfile(userId: string): Promise<UserProfileFor
     phone: profile?.phone ?? null,
     phoneVerifiedAt: profile?.phoneVerifiedAt ?? null,
     emailVerifiedAt: profile?.emailVerifiedAt ?? null,
+    ageConfirmedAt: profile?.ageConfirmedAt ?? null,
+    verificationMethod:
+      profile?.verificationMethod === "PHONE" || profile?.verificationMethod === "EMAIL"
+        ? profile.verificationMethod
+        : null,
     hasPassword: !!(user as any).passwordHash,
     profileComplete: profile?.profileComplete ?? false,
     sleeperUsername: profile?.sleeperUsername ?? null,
@@ -75,4 +87,46 @@ export async function getSettingsProfile(userId: string): Promise<UserProfileFor
     onboardingCompletedAt: profile?.onboardingCompletedAt ?? null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
+}
+
+export async function getSettingsSnapshot(
+  userId: string
+): Promise<SettingsSnapshot | null> {
+  const baseProfile = await queryBaseProfile(userId)
+  if (!baseProfile) return null
+
+  const bootstrapped = resolveSharedProfileBootstrap({
+    profile: baseProfile,
+  })
+
+  if (Object.keys(bootstrapped.patchPayload).length > 0) {
+    await updateUserProfile(userId, bootstrapped.patchPayload)
+  }
+
+  const profileWithSettingsPlaceholder: UserProfileForSettings = {
+    ...bootstrapped.profile,
+    settings: null,
+  }
+
+  const settings = await getUserSettingsRecord(
+    userId,
+    profileWithSettingsPlaceholder
+  )
+
+  const profile: UserProfileForSettings = {
+    ...profileWithSettingsPlaceholder,
+    settings,
+  }
+
+  return {
+    profile,
+    settings,
+  }
+}
+
+export async function getSettingsProfile(
+  userId: string
+): Promise<UserProfileForSettings | null> {
+  const snapshot = await getSettingsSnapshot(userId)
+  return snapshot?.profile ?? null
 }

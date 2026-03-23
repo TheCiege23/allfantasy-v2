@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Copy, ChevronLeft, RefreshCw, MessageSquare, Sparkles, Lock, Palette, Scale, FileText, ChevronDown } from 'lucide-react'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface LeagueRow {
   tournamentLeagueId: string
@@ -34,6 +35,7 @@ const AI_TYPES = [
 ] as const
 
 export function TournamentControlDashboard({ tournamentId }: { tournamentId: string }) {
+  const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<ControlData | null>(null)
   const [loading, setLoading] = useState(true)
   const [regenerating, setRegenerating] = useState<string | null>(null)
@@ -413,7 +415,7 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
               {auditLogs.map((log) => (
                 <li key={log.id} className="flex flex-wrap gap-2 rounded border border-white/5 px-2 py-1.5 text-white/80">
                   <span className="font-medium">{log.action}</span>
-                  <span className="text-white/50">{new Date(log.createdAt).toLocaleString()}</span>
+                  <span className="text-white/50">{formatInTimezone(log.createdAt)}</span>
                   {log.actorId && <span className="text-white/40">by {log.actorId.slice(0, 8)}…</span>}
                 </li>
               ))}

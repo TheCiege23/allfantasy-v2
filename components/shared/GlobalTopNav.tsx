@@ -86,12 +86,7 @@ export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLab
                     <Shield className="h-4 w-4" />
                   </Link>
                 )}
-                <div className="hidden lg:block">
-                  <UserMenuDropdown userLabel={userLabel} />
-                </div>
-                <div className="lg:hidden">
-                  <UserMenuDropdown userLabel={userLabel} compact />
-                </div>
+                <UserMenuDropdown userLabel={userLabel} />
               </>
             ) : (
               <>

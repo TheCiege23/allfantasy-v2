@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import type { PlatformNotification } from "@/types/platform-shared"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type GroupKey = "today" | "yesterday" | "earlier"
 
@@ -55,18 +56,23 @@ function getIcon(type: string) {
   return TYPE_ICONS[type] ?? Bell
 }
 
-function formatTime(iso: string): string {
+function formatTime(
+  iso: string,
+  formatTimeInTimezone: (date: Date | string | number) => string,
+  formatDateInTimezone: (date: Date | string | number) => string
+): string {
   const d = new Date(iso)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
   if (diff < 60000) return "Just now"
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  if (diff < 86400000) return formatTimeInTimezone(iso)
   if (diff < 172800000) return "Yesterday"
-  return d.toLocaleDateString()
+  return formatDateInTimezone(iso)
 }
 
 export default function NotificationsPage() {
+  const { formatTimeInTimezone, formatDateInTimezone } = useUserTimezone()
   const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(100)
   const groups = groupNotifications(notifications)
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -159,7 +165,7 @@ export default function NotificationsPage() {
                               </p>
                             )}
                             <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>
-                              {formatTime(n.createdAt)}
+                              {formatTime(n.createdAt, formatTimeInTimezone, formatDateInTimezone)}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-3">
                               {!n.read && (

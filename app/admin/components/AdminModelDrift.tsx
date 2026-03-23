@@ -20,6 +20,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { cx } from '@/components/ui/legacy-ui'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type Status = 'good' | 'watch' | 'critical'
 
@@ -592,6 +593,7 @@ function CapRateChart({ data }: { data: CapRatePoint[] }) {
 }
 
 function DrilldownModal({ offer, onClose }: { offer: DrilldownOffer; onClose: () => void }) {
+  const { formatInTimezone } = useUserTimezone()
   const drivers = (offer.driversJson || []) as Array<{ id: string; direction: string; strength: string; value: number }>
   const features = (offer.featuresJson || {}) as Record<string, unknown>
 
@@ -625,7 +627,7 @@ function DrilldownModal({ offer, onClose }: { offer: DrilldownOffer; onClose: ()
             </div>
             <div className="bg-black/30 rounded-lg p-3 border border-white/5 col-span-2">
               <div className="text-white/40 text-xs">Created</div>
-              <div className="mt-1">{new Date(offer.createdAt).toLocaleString()}</div>
+              <div className="mt-1">{formatInTimezone(offer.createdAt)}</div>
             </div>
           </div>
           {drivers.length > 0 && (
@@ -665,6 +667,7 @@ function DrilldownModal({ offer, onClose }: { offer: DrilldownOffer; onClose: ()
 }
 
 export default function AdminModelDrift() {
+  const { formatDateInTimezone } = useUserTimezone()
   const [days, setDays] = useState(14)
   const [mode, setMode] = useState('')
   const [segment, setSegment] = useState('GLOBAL')
@@ -1169,7 +1172,7 @@ export default function AdminModelDrift() {
                         const capKeys = Object.keys(feats).filter((k) => k.startsWith('cap') || k.includes('Cap'))
                         return (
                           <tr key={o.id} className="border-b border-white/5 hover:bg-white/[0.03]">
-                            <td className="py-2 px-2 text-white/60">{new Date(o.createdAt).toLocaleDateString()}</td>
+                            <td className="py-2 px-2 text-white/60">{formatDateInTimezone(o.createdAt)}</td>
                             <td className="py-2 px-2 text-white/70">{o.mode}</td>
                             <td className="py-2 px-2 text-right font-mono text-white/80">{(o.acceptProb * 100).toFixed(1)}%</td>
                             <td className="py-2 px-2">

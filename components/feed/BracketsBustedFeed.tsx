@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 export type FeedScope = "global" | "league"
 
@@ -47,6 +48,7 @@ export function BracketsBustedFeed({
   leagueId?: string
   tournamentId: string
 }) {
+  const { formatInTimezone } = useUserTimezone()
   const [events, setEvents] = useState<BustedFeedEvent[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -145,7 +147,7 @@ export function BracketsBustedFeed({
                       {e.message}
                     </div>
                     <div className="text-[10px] mt-1.5" style={{ color: "rgba(255,255,255,0.25)" }}>
-                      {new Date(e.createdAt).toLocaleString()}
+                      {formatInTimezone(e.createdAt)}
                     </div>
                   </div>
                 </div>

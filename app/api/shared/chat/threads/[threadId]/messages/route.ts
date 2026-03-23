@@ -15,7 +15,15 @@ import { getBlockedUserIds } from '@/lib/moderation'
 import { filterMessagesByBlocked } from '@/lib/moderation'
 
 const bracketMessageInclude = {
-  user: { select: { id: true, displayName: true, email: true, avatarUrl: true } },
+  user: {
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatarUrl: true,
+      profile: { select: { avatarPreset: true } },
+    },
+  },
 }
 
 function normalizeLeagueChatSource(value: unknown): string | null | undefined {

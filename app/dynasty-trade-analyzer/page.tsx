@@ -15,7 +15,7 @@ export default async function DynastyTradeAnalyzerPage() {
   } | null;
 
   if (!session?.user?.id) {
-    redirect('/login');
+    redirect('/login?callbackUrl=/dynasty-trade-analyzer');
   }
 
   return (

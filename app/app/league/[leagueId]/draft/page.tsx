@@ -48,7 +48,9 @@ export default async function LeagueDraftPage({
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
 
-  if (!userId) redirect('/login')
+  if (!userId) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/app/league/${leagueId}/draft`)}`)
+  }
 
   const [{ prisma }, { isCommissioner }] = await Promise.all([
     import('@/lib/prisma'),

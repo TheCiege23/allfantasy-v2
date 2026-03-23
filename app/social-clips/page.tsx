@@ -13,6 +13,7 @@ import {
   type ClipInputType,
   type ClipOutputType,
 } from '@/lib/ai-social-clip-engine/types';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 const ASSET_TYPE_LABELS: Record<SocialAssetType, string> = {
   weekly_league_winners: 'Weekly League Winners',
@@ -55,6 +56,7 @@ interface AssetRow {
 }
 
 export default function SocialClipsPage() {
+  const { formatDateInTimezone } = useUserTimezone();
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -324,7 +326,7 @@ export default function SocialClipsPage() {
                     {(a.assetType?.startsWith('ai_clip_')
                       ? AI_INPUT_LABELS[a.assetType.replace(/^ai_clip_/, '') as ClipInputType]
                       : ASSET_TYPE_LABELS[a.assetType as SocialAssetType]) ?? a.assetType} · {a.sport} ·{' '}
-                    {new Date(a.createdAt).toLocaleDateString()}
+                    {formatDateInTimezone(a.createdAt)}
                     {a.approvedForPublish && ' · Approved'}
                   </span>
                 </Link>

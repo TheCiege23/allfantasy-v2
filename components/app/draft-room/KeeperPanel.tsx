@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Shield, Trash2, Plus } from 'lucide-react'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 export type KeeperPanelProps = {
   leagueId: string
@@ -29,6 +30,7 @@ export function KeeperPanel({
   rounds,
   onSessionUpdate,
 }: KeeperPanelProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<KeeperApiState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -188,7 +190,7 @@ export function KeeperPanel({
         <>
           <p className="mb-2 text-white/60">
             Max {maxKeepers} keeper{maxKeepers !== 1 ? 's' : ''} per team.
-            {data.config?.deadline ? ` Deadline: ${new Date(data.config.deadline).toLocaleString()}` : ''}
+            {data.config?.deadline ? ` Deadline: ${formatInTimezone(data.config.deadline)}` : ''}
           </p>
           {error && <p className="mb-2 text-red-400 text-xs">{error}</p>}
 

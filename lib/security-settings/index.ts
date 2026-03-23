@@ -1,4 +1,8 @@
-export { getContactSummary } from "./ContactSettingsService"
+export {
+  getContactSummary,
+  updateContactEmail,
+  type UpdateContactEmailResult,
+} from "./ContactSettingsService"
 export {
   startPhoneVerification,
   checkPhoneCode,

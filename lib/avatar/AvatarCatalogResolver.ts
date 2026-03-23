@@ -5,7 +5,7 @@ import type { AvatarPresetId } from "@/lib/signup/avatar-presets"
  * playful display in picker and identity. Sports-app appropriate and distinct.
  */
 export const AVATAR_PRESET_EMOJI: Record<AvatarPresetId, string> = {
-  crest: "🛡️",
+  crest: "🎖️",
   bolt: "⚡",
   crown: "👑",
   trophy: "🏆",
@@ -15,7 +15,7 @@ export const AVATAR_PRESET_EMOJI: Record<AvatarPresetId, string> = {
   diamond: "💎",
   medal: "🏅",
   target: "🎯",
-  zap: "⚡",
+  zap: "💥",
   comet: "☄️",
   moon: "🌙",
   sun: "☀️",
@@ -24,7 +24,7 @@ export const AVATAR_PRESET_EMOJI: Record<AvatarPresetId, string> = {
   baseball: "⚾",
   hockey: "🏒",
   soccer: "⚽",
-  champion: "🏆",
+  champion: "🥇",
 }
 
 export function getAvatarPresetEmoji(presetId: string | null | undefined): string | null {

@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
 import type { Metadata } from 'next'
+import { formatInTimezone } from '@/lib/preferences/TimezoneFormattingResolver'
+import { resolveServerRenderPreferences } from '@/lib/preferences/ServerRenderPreferenceResolver'
 
 const POSITION_COLORS: Record<string, string> = {
   QB: 'text-red-400 bg-red-500/15 border-red-500/30',
@@ -43,6 +45,7 @@ export async function generateMetadata({ params }: { params: { shareId: string }
 }
 
 export default async function SharedDraftPage({ params }: { params: { shareId: string } }) {
+  const { timezone, language } = await resolveServerRenderPreferences()
   const draft = await prisma.mockDraft.findUnique({
     where: { shareId: params.shareId },
     include: {
@@ -71,7 +74,7 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
             {draft.league?.name ?? 'Mock Draft'}
           </h1>
           <p className="text-gray-500 mt-2 text-sm">
-            by {draft.user?.displayName || 'Anonymous'} &middot; {draft.league?.leagueSize ?? 12}-team {draft.league?.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league?.scoring || 'PPR'} &middot; {new Date(draft.createdAt).toLocaleDateString()}
+            by {draft.user?.displayName || 'Anonymous'} &middot; {draft.league?.leagueSize ?? 12}-team {draft.league?.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league?.scoring || 'PPR'} &middot; {formatInTimezone(draft.createdAt, timezone, { dateStyle: 'short' }, language)}
           </p>
         </div>
 

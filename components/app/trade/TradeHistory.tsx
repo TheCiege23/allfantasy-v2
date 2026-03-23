@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type TradeHistoryEntry = {
   id: string
@@ -70,6 +71,7 @@ function HistoryColumn({
   items: TradeHistoryEntry[]
   tone: "accepted" | "rejected" | "pending"
 }) {
+  const { formatInTimezone } = useUserTimezone()
   const toneClass =
     tone === "accepted"
       ? "border-emerald-400/40 text-emerald-200"
@@ -89,7 +91,7 @@ function HistoryColumn({
               key={i.id}
               className="rounded-lg border border-white/12 bg-black/50 px-2 py-1.5"
             >
-              <p className={`mb-0.5 font-medium ${toneClass}`}>{new Date(i.createdAt).toLocaleString()}</p>
+              <p className={`mb-0.5 font-medium ${toneClass}`}>{formatInTimezone(i.createdAt)}</p>
               <p className="text-white/80">{i.summary}</p>
             </li>
           ))}

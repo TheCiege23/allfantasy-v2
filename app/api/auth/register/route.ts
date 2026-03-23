@@ -17,6 +17,10 @@ import {
 import { resolveAvatarPreset } from "@/lib/signup/AvatarPickerService"
 import { validateAgreementAcceptance } from "@/lib/legal/AgreementAcceptanceService"
 import { resolveTheme } from "@/lib/theme/constants"
+import {
+  parseAvatarDataUrl,
+  persistProfileImageBytes,
+} from "@/lib/avatar/ProfileImageUploadStorageService"
 
 export const runtime = "nodejs"
 
@@ -90,6 +94,7 @@ export async function POST(req: Request) {
       preferredLanguage,
       themePreference,
       avatarPreset,
+      avatarDataUrl,
       phoneVerificationCode,
       disclaimerAgreed,
       termsAgreed,
@@ -156,7 +161,14 @@ export async function POST(req: Request) {
     const resolvedLanguage = resolvePreferredLanguage(preferredLanguage)
     const resolvedThemePreference =
       typeof themePreference === "string" ? resolveTheme(themePreference) : null
-    const resolvedAvatarPreset = resolveAvatarPreset(avatarPreset)
+    const resolvedAvatarPreset = avatarPreset === null ? null : resolveAvatarPreset(avatarPreset)
+    const parsedAvatarUpload =
+      typeof avatarDataUrl === "string" && avatarDataUrl.trim().length > 0
+        ? parseAvatarDataUrl(avatarDataUrl)
+        : null
+    if (typeof avatarDataUrl === "string" && avatarDataUrl.trim().length > 0 && !parsedAvatarUpload) {
+      return NextResponse.json({ error: "Invalid profile image. Use JPEG, PNG, GIF, or WebP under 3MB." }, { status: 400 })
+    }
 
     if (method === "PHONE" && !isE2ERequest) {
       const code = String(phoneVerificationCode ?? "").trim()
@@ -308,6 +320,22 @@ export async function POST(req: Request) {
         }
       } catch (growthErr) {
         console.warn("[register] Growth attribution failed (non-blocking):", growthErr)
+      }
+    }
+
+    if (parsedAvatarUpload) {
+      try {
+        const { url } = await persistProfileImageBytes({
+          bytes: parsedAvatarUpload.bytes,
+          mimeType: parsedAvatarUpload.mimeType,
+          originalFilename: `signup-avatar.${parsedAvatarUpload.extension}`,
+        })
+        await prisma.appUser.update({
+          where: { id: user.id },
+          data: { avatarUrl: url },
+        })
+      } catch (avatarErr) {
+        console.warn("[register] avatar upload persistence failed (non-blocking):", avatarErr)
       }
     }
 

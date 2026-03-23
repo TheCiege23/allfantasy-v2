@@ -4,7 +4,15 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 const messageInclude = {
-  user: { select: { id: true, displayName: true, email: true, avatarUrl: true } },
+  user: {
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatarUrl: true,
+      profile: { select: { avatarPreset: true } },
+    },
+  },
   replyTo: {
     select: {
       id: true,

@@ -54,6 +54,7 @@ import {
 } from "@/lib/social-chat"
 import PinnedSection from "@/components/chat/PinnedSection"
 import MessageActionsMenu from "@/components/chat/MessageActionsMenu"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import {
   BLOCKED_LIST_API,
   BLOCK_API,
@@ -66,6 +67,7 @@ import {
   getReportUserPayload,
   REPORT_REASONS,
 } from "@/lib/moderation"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 const TABS = [
   { id: "dm" as const, label: "Private DMs" },
@@ -74,6 +76,7 @@ const TABS = [
 ]
 
 export default function MessagesContent() {
+  const { formatInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
   const threadIdFromUrl = searchParams.get("thread")
   const startUsernameFromUrl = searchParams.get("start")
@@ -667,55 +670,67 @@ export default function MessagesContent() {
                               color: "var(--text)",
                             }}
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-xs">{m.senderName}</span>
-                              <span className="text-[10px] mode-muted">
-                                {new Date(m.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                              </span>
-                              <div className="ml-auto">
-                                <MessageActionsMenu
-                                  messageId={m.id}
+                            <div className="flex items-start gap-2">
+                              <IdentityImageRenderer
+                                avatarUrl={m.senderAvatarUrl ?? null}
+                                avatarPreset={m.senderAvatarPreset ?? null}
+                                displayName={m.senderName}
+                                username={null}
+                                size="sm"
+                                className="mt-0.5 shrink-0"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-xs">{m.senderName}</span>
+                                  <span className="text-[10px] mode-muted">
+                                    {formatInTimezone(m.createdAt, { hour: "numeric", minute: "2-digit" })}
+                                  </span>
+                                  <div className="ml-auto">
+                                    <MessageActionsMenu
+                                      messageId={m.id}
+                                      threadId={selectedThreadId!}
+                                      senderUserId={m.senderUserId}
+                                      senderName={m.senderName}
+                                      isBlocked={m.senderUserId ? blockedUsers.some((b) => b.userId === m.senderUserId) : false}
+                                      onReportMessage={() => setReportMessageOpen({ messageId: m.id, threadId: selectedThreadId! })}
+                                      onReportUser={() => m.senderUserId && setReportUserOpen({ userId: m.senderUserId, username: m.senderName })}
+                                      onBlockUser={() => m.senderUserId && setBlockConfirmOpen({ userId: m.senderUserId, username: m.senderName })}
+                                      onUnblockUser={async () => {
+                                        if (!m.senderUserId) return
+                                        try {
+                                          await fetch(UNBLOCK_API, {
+                                            method: "POST",
+                                            headers: { "content-type": "application/json" },
+                                            body: JSON.stringify(getUnblockPayload(m.senderUserId)),
+                                          })
+                                          loadBlockedList()
+                                          loadMessages(selectedThreadId!)
+                                          loadThreads()
+                                        } catch {
+                                          // ignore
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <MessageInteractionRenderer
+                                  message={m}
                                   threadId={selectedThreadId!}
-                                  senderUserId={m.senderUserId}
-                                  senderName={m.senderName}
-                                  isBlocked={m.senderUserId ? blockedUsers.some((b) => b.userId === m.senderUserId) : false}
-                                  onReportMessage={() => setReportMessageOpen({ messageId: m.id, threadId: selectedThreadId! })}
-                                  onReportUser={() => m.senderUserId && setReportUserOpen({ userId: m.senderUserId, username: m.senderName })}
-                                  onBlockUser={() => m.senderUserId && setBlockConfirmOpen({ userId: m.senderUserId, username: m.senderName })}
-                                  onUnblockUser={async () => {
-                                    if (!m.senderUserId) return
-                                    try {
-                                      await fetch(UNBLOCK_API, {
-                                        method: "POST",
-                                        headers: { "content-type": "application/json" },
-                                        body: JSON.stringify(getUnblockPayload(m.senderUserId)),
-                                      })
-                                      loadBlockedList()
-                                      loadMessages(selectedThreadId!)
-                                      loadThreads()
-                                    } catch {
-                                      // ignore
-                                    }
+                                  currentUserId={currentUserId}
+                                  pinnedReferencedIds={new Set(pinned.map(getReferencedMessageIdFromPin).filter(Boolean) as string[])}
+                                  onReactionUpdate={() => loadMessages(selectedThreadId!)}
+                                  onPinUpdate={() => { loadPinned(selectedThreadId!); loadMessages(selectedThreadId!) }}
+                                  onVote={() => loadMessages(selectedThreadId!)}
+                                  onPollClose={() => loadMessages(selectedThreadId!)}
+                                  onImageClick={(url) => setMediaViewerUrl(url)}
+                                  getMessageSnippet={(msgId) => {
+                                    const msg = messages.find((x) => x.id === msgId)
+                                    const b = msg?.body ?? ""
+                                    return b.slice(0, 80) + (b.length > 80 ? "…" : "")
                                   }}
                                 />
                               </div>
                             </div>
-                            <MessageInteractionRenderer
-                              message={m}
-                              threadId={selectedThreadId!}
-                              currentUserId={currentUserId}
-                              pinnedReferencedIds={new Set(pinned.map(getReferencedMessageIdFromPin).filter(Boolean) as string[])}
-                              onReactionUpdate={() => loadMessages(selectedThreadId!)}
-                              onPinUpdate={() => { loadPinned(selectedThreadId!); loadMessages(selectedThreadId!) }}
-                              onVote={() => loadMessages(selectedThreadId!)}
-                              onPollClose={() => loadMessages(selectedThreadId!)}
-                              onImageClick={(url) => setMediaViewerUrl(url)}
-                              getMessageSnippet={(msgId) => {
-                                const msg = messages.find((x) => x.id === msgId)
-                                const b = msg?.body ?? ""
-                                return b.slice(0, 80) + (b.length > 80 ? "…" : "")
-                              }}
-                            />
                           </div>
                         ))
                     )}

@@ -13,6 +13,7 @@ import { BigBrotherCeremonyCenter } from './BigBrotherCeremonyCenter'
 import { BigBrotherVotingBallot } from './BigBrotherVotingBallot'
 import { BigBrotherJuryCenter } from './BigBrotherJuryCenter'
 import { BigBrotherCommissionerPanel } from './BigBrotherCommissionerPanel'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const VIEW_LABELS: Record<BigBrotherView, string> = {
   house: 'House',
@@ -28,6 +29,7 @@ export interface BigBrotherHomeProps {
 }
 
 export function BigBrotherHome({ leagueId, isCommissioner }: BigBrotherHomeProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [summary, setSummary] = useState<BigBrotherSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -202,7 +204,7 @@ export function BigBrotherHome({ leagueId, isCommissioner }: BigBrotherHomeProps
           {summary.ballot && !summary.ballot.closed && summary.ballot.voteDeadlineAt && (
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <h3 className="text-xs font-medium uppercase text-white/50">Vote deadline</h3>
-              <p className="mt-1 text-sm text-white/80">{new Date(summary.ballot.voteDeadlineAt).toLocaleString()}</p>
+              <p className="mt-1 text-sm text-white/80">{formatInTimezone(summary.ballot.voteDeadlineAt)}</p>
             </div>
           )}
 

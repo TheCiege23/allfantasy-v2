@@ -6,6 +6,7 @@ import { ArrowLeft, ImagePlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CLIP_TYPES, type ClipType } from '@/lib/social-clips/types';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 const CLIP_TYPE_LABELS: Record<ClipType, string> = {
   weekly_league_winners: 'Weekly League Winners',
@@ -22,6 +23,7 @@ interface ClipRow {
 }
 
 export default function ClipsPage() {
+  const { formatDateInTimezone } = useUserTimezone();
   const [clips, setClips] = useState<ClipRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -131,7 +133,7 @@ export default function ClipsPage() {
                   <span className="font-medium">{c.title}</span>
                   <span className="ml-2 text-xs text-zinc-500">
                     {CLIP_TYPE_LABELS[c.clipType as ClipType] ?? c.clipType} ·{' '}
-                    {new Date(c.createdAt).toLocaleDateString()}
+                    {formatDateInTimezone(c.createdAt)}
                   </span>
                 </Link>
               </li>

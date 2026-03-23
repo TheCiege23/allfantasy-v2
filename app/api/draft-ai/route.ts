@@ -10,6 +10,8 @@ import { runDraftAIAssist } from '@/lib/draft-ai-engine'
 import { resolveSportForAI } from '@/lib/ai/AISportContextResolver'
 import { buildDraftRecommendationContext } from '@/lib/ai/SportAwareRecommendationService'
 import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
+import { assertLeagueMember } from '@/lib/league-access'
+import { logAiOutput } from '@/lib/ai/output-logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +42,14 @@ export async function POST(req: NextRequest) {
   const byeByKey = body.byeByKey && typeof body.byeByKey === 'object' ? body.byeByKey : undefined
   const explanation = Boolean(body.explanation)
   const leagueId = body.leagueId ?? undefined
+
+  if (typeof leagueId === 'string' && leagueId.trim().length > 0) {
+    try {
+      await assertLeagueMember(leagueId, session.user.id)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
 
   const normalized = available.slice(0, 200).map((p: Record<string, unknown>) => ({
     name: String(p.name ?? p.playerName ?? ''),
@@ -88,6 +98,28 @@ export async function POST(req: NextRequest) {
       leagueName: typeof body.leagueName === 'string' ? body.leagueName : undefined,
     }),
     leagueId,
+  })
+
+  await logAiOutput({
+    provider: 'openai',
+    role: 'narrative',
+    taskType: 'draft_helper',
+    targetType: 'user',
+    targetId: session.user.id,
+    contentJson: {
+      recommendation: result.recommendation.recommendation,
+      alternatives: result.recommendation.alternatives,
+      explanation: result.explanation ?? result.recommendation.explanation,
+    },
+    meta: {
+      leagueId: typeof leagueId === 'string' ? leagueId : null,
+      sport,
+      isDynasty,
+      isSF,
+      idp: isIdp,
+      mode,
+      totalTeams,
+    },
   })
 
   return NextResponse.json({

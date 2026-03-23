@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { ArrowLeft, BookOpen } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 interface EntryDetail {
   id: string
@@ -30,6 +31,7 @@ interface EntryDetail {
 }
 
 export default function HallOfFameEntryDetailPage() {
+  const { formatDateInTimezone } = useUserTimezone()
   const params = useParams<{ leagueId: string; entryId: string }>()
   const leagueId = params?.leagueId ?? ""
   const entryId = params?.entryId ?? ""
@@ -133,7 +135,7 @@ export default function HallOfFameEntryDetailPage() {
           </div>
         )}
         <p className="text-xs text-zinc-500">
-          Inducted: {new Date(entry.inductedAt).toLocaleDateString()}
+          Inducted: {formatDateInTimezone(entry.inductedAt)}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">

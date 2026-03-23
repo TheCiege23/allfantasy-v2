@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { ScrollText, RefreshCw, Loader2, AlertTriangle } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type AuditEntry = {
   id: string
@@ -14,6 +15,7 @@ type AuditEntry = {
 }
 
 export default function AdminAuditPanel() {
+  const { formatInTimezone } = useUserTimezone()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,13 +41,12 @@ export default function AdminAuditPanel() {
 
   const fmtDate = (iso: string) => {
     try {
-      return new Date(iso).toLocaleString("en-US", {
+      return formatInTimezone(iso, {
         month: "short",
         day: "numeric",
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        timeZone: "UTC",
       })
     } catch {
       return iso

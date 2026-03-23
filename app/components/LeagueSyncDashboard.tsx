@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, RefreshCw, AlertCircle, CheckCircle, Loader2, X, Shield, ExternalLink, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { groupLeaguesBySport } from '@/lib/dashboard/DashboardSportGroupingService';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface League {
   id: string;
@@ -32,6 +33,7 @@ function DashboardSportGroups({
   syncingId: string | null;
   reSync: (league: League) => void;
 }) {
+  const { formatInTimezone } = useUserTimezone();
   const groups = useMemo(() => groupLeaguesBySport(leagues), [leagues]);
   return (
     <div className="space-y-8">
@@ -76,7 +78,7 @@ function DashboardSportGroups({
                 </div>
                 <div className="text-xs text-slate-500 mb-4">
                   Last synced:{' '}
-                  {lg.lastSyncedAt ? new Date(lg.lastSyncedAt).toLocaleString() : 'Never'}
+                  {lg.lastSyncedAt ? formatInTimezone(lg.lastSyncedAt) : 'Never'}
                 </div>
                 <button
                   onClick={() => reSync(lg as League)}

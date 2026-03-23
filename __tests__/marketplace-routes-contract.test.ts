@@ -150,7 +150,8 @@ describe('Marketplace route contracts', () => {
     expect(cosmeticsRes.status).toBe(200)
     expect(resolveAllCosmeticsForManagerMock).toHaveBeenCalledWith('mgr-1')
 
-    const seedRes = await seedRoute.POST()
+    const seedReq = new Request('http://localhost/api/marketplace/seed', { method: 'POST' })
+    const seedRes = await seedRoute.POST(seedReq)
     expect(seedRes.status).toBe(200)
     await expect(seedRes.json()).resolves.toEqual({ seeded: 8 })
   })

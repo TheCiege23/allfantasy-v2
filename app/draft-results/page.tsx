@@ -17,7 +17,7 @@ export default async function DraftResultsPage({
 }) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
-  if (!userId) redirect('/login')
+  if (!userId) redirect('/login?callbackUrl=/draft-results')
 
   const { leagueId } = await searchParams
   if (leagueId) {

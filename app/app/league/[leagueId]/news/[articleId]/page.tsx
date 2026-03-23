@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Share2 } from 'lucide-react'
 import type { ArticleGenerationType } from '@/lib/sports-media-engine/types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const ARTICLE_TYPE_LABELS: Record<string, string> = {
   weekly_recap: 'Weekly recap',
@@ -26,6 +27,7 @@ interface ArticleDetail {
 }
 
 export default function LeagueNewsArticlePage() {
+  const { formatDateInTimezone } = useUserTimezone()
   const params = useParams<{ leagueId: string; articleId: string }>()
   const leagueId = params?.leagueId ?? ''
   const articleId = params?.articleId ?? ''
@@ -146,7 +148,7 @@ export default function LeagueNewsArticlePage() {
         <header>
           <h1 className="text-2xl font-bold text-white md:text-3xl">{article.headline}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-            <span>{new Date(article.createdAt).toLocaleDateString()}</span>
+            <span>{formatDateInTimezone(article.createdAt)}</span>
             <span>·</span>
             <span>{article.sport}</span>
             {article.tags?.length > 0 && (

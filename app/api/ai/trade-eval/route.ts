@@ -1,6 +1,5 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { logUserEventByUsername } from '@/lib/user-events';
@@ -10,11 +9,11 @@ import { getComprehensiveLearningContext } from '@/lib/comprehensive-trade-learn
 import { recordTrendSignalsByPlayerNames } from '@/lib/player-trend';
 import { buildOpenAIMetaContext, resolveAIMetaContextWithWindow } from '@/lib/meta-insights';
 import { getInsightBundle } from '@/lib/ai-simulation-integration';
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { assertLeagueMember } from '@/lib/league-access';
+import { getOpenAIConfig, openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client';
+import { logAiOutput } from '@/lib/ai/output-logger';
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string().optional(),
@@ -128,6 +127,11 @@ async function getLegacyContext(sleeperUsername: string) {
 
 export const POST = withApiUsage({ endpoint: "/api/ai/trade-eval", tool: "AiTradeEval" })(async (request: NextRequest) => {
   try {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     const rateLimitResult = rateLimit(ip, 10, 60000);
 
@@ -140,6 +144,14 @@ export const POST = withApiUsage({ endpoint: "/api/ai/trade-eval", tool: "AiTrad
 
     const body = await request.json();
     const data = TradeRequestSchema.parse(body);
+
+    if (data.league_id) {
+      try {
+        await assertLeagueMember(data.league_id, session.user.id);
+      } catch {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
 
     const startUsername = data.context_scope?.sleeper_username
     if (startUsername) {
@@ -247,30 +259,45 @@ Trade proposal:
       .filter(Boolean)
       .join('\n');
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const completion = await openaiChatJson({
       messages: [
         { role: 'system', content: enhancedSystemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      response_format: { type: 'json_object' },
-      max_tokens: 4000,
+      temperature: 0.3,
+      maxTokens: 4000,
     });
 
-    const content = response.choices[0]?.message?.content;
-    
-    if (!content) {
+    if (!completion.ok) {
+      return NextResponse.json(
+        { error: 'Failed to evaluate trade', details: completion.details },
+        { status: completion.status || 502 }
+      );
+    }
+
+    const parsedContent = parseJsonContentFromChatCompletion(completion.json);
+    if (!parsedContent) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 502 });
     }
 
-    let parsedContent;
-    try {
-      parsedContent = JSON.parse(content);
-    } catch {
-      return NextResponse.json({ error: 'AI returned invalid JSON' }, { status: 502 });
-    }
-
     const validationResult = TradeEvaluationResponseSchema.safeParse(parsedContent);
+    const evaluation = validationResult.success ? validationResult.data : parsedContent;
+
+    const { model } = getOpenAIConfig();
+    await logAiOutput({
+      provider: 'openai',
+      role: 'narrative',
+      taskType: 'trade_eval',
+      targetType: 'user',
+      targetId: data.context_scope?.sleeper_username || session.user.id,
+      model: completion.json?.model || model,
+      contentJson: evaluation,
+      meta: {
+        leagueId: data.league_id ?? null,
+        validated: validationResult.success,
+        hasLegacyContext: !!legacyContext,
+      },
+    });
 
     try {
       const extractName = (p: string | { name?: string }) =>
@@ -301,7 +328,7 @@ Trade proposal:
     
     return NextResponse.json({
       success: true,
-      evaluation: validationResult.success ? validationResult.data : parsedContent,
+      evaluation,
       metaContext: aiMetaContext
         ? {
             sport: aiMetaContext.sport,

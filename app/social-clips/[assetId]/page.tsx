@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { SUPPORTED_PLATFORMS } from '@/lib/social-clips-grok/types';
 import { toast } from 'sonner';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface AssetMeta {
   shortCaption?: string;
@@ -57,6 +58,7 @@ interface LogEntry {
 }
 
 export default function SocialClipDetailPage() {
+  const { formatInTimezone } = useUserTimezone();
   const params = useParams<{ assetId: string }>();
   const assetId = params?.assetId ?? '';
   const [asset, setAsset] = useState<Asset | null>(null);
@@ -271,7 +273,7 @@ export default function SocialClipDetailPage() {
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
         <h1 className="text-lg font-semibold text-white">{asset.title}</h1>
         <p className="text-xs text-zinc-500 mt-1">
-          {asset.sport} · {asset.assetType} · {new Date(asset.createdAt).toLocaleString()}
+          {asset.sport} · {asset.assetType} · {formatInTimezone(asset.createdAt)}
         </p>
       </div>
 
@@ -470,7 +472,7 @@ export default function SocialClipDetailPage() {
                 <span className={`text-xs ${log.status === 'success' ? 'text-emerald-400' : log.status === 'failed' || log.status === 'provider_unavailable' ? 'text-amber-400' : 'text-zinc-500'}`}>
                   {log.status}
                 </span>
-                <span className="text-xs text-zinc-500">{new Date(log.createdAt).toLocaleString()}</span>
+                <span className="text-xs text-zinc-500">{formatInTimezone(log.createdAt)}</span>
                 {(log.status === 'failed' || log.status === 'provider_unavailable') && (
                   <Button
                     size="sm"

@@ -3,6 +3,8 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { buildBlogSEO } from "@/lib/automated-blog"
+import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
+import { resolveServerRenderPreferences } from "@/lib/preferences/ServerRenderPreferenceResolver"
 
 const BASE = "https://allfantasy.ai"
 
@@ -44,6 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BlogArticlePage({ params, searchParams }: Props) {
+  const { timezone, language } = await resolveServerRenderPreferences()
   const { slug } = await params
   const sp = await searchParams
   const isPreview = sp?.preview === "1"
@@ -76,7 +79,7 @@ export default async function BlogArticlePage({ params, searchParams }: Props) {
           <h1 className="mt-1 text-3xl font-bold tracking-tight">{article.title}</h1>
           {article.publishedAt && (
             <time className="mt-2 block text-sm text-gray-500">
-              {new Date(article.publishedAt).toLocaleDateString()}
+              {formatInTimezone(article.publishedAt, timezone, { dateStyle: "short" }, language)}
             </time>
           )}
         </header>

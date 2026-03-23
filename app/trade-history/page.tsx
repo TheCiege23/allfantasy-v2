@@ -9,7 +9,7 @@ export default async function TradeHistoryPage() {
     user?: { id?: string };
   } | null;
 
-  if (!session?.user?.id) redirect('/login');
+  if (!session?.user?.id) redirect('/login?callbackUrl=/trade-history');
 
   const trades = await (prisma as any).tradeShare.findMany({
     where: { userId: session.user.id },

@@ -10,7 +10,13 @@ interface BracketMessageRow {
   message: string
   type?: string
   createdAt: Date | string
-  user?: { id: string; displayName?: string | null; email?: string | null }
+  user?: {
+    id: string
+    displayName?: string | null
+    email?: string | null
+    avatarUrl?: string | null
+    profile?: { avatarPreset?: string | null } | null
+  }
 }
 
 export function bracketMessagesToPlatform(
@@ -22,6 +28,8 @@ export function bracketMessagesToPlatform(
     threadId,
     senderUserId: m.user?.id ?? null,
     senderName: m.user?.displayName || m.user?.email || "User",
+    senderAvatarUrl: m.user?.avatarUrl ?? null,
+    senderAvatarPreset: m.user?.profile?.avatarPreset ?? null,
     messageType: m.type || "text",
     body: m.message || "",
     createdAt: typeof m.createdAt === "string" ? m.createdAt : new Date(m.createdAt).toISOString(),

@@ -15,7 +15,7 @@ export default async function LegacyImportPage() {
   } | null;
 
   if (!session?.user?.id) {
-    redirect('/login');
+    redirect('/login?callbackUrl=/legacy-import');
   }
 
   return (

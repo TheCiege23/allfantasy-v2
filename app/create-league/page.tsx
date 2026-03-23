@@ -16,7 +16,7 @@ export default async function CreateLeaguePage(props: { searchParams?: Promise<{
     process.env.NODE_ENV !== 'production' &&
     resolved?.e2eAuth === '1'
   const userId = session?.user?.id ?? (allowE2EBypass ? 'e2e-user' : undefined)
-  if (!userId) redirect('/login')
+  if (!userId) redirect('/login?callbackUrl=/create-league')
   const initialTemplateId = resolved?.template
 
   return (

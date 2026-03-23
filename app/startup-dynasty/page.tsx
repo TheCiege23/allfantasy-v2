@@ -15,7 +15,7 @@ export default async function StartupDynastyPage() {
   } | null;
 
   if (!session?.user?.id) {
-    redirect('/login');
+    redirect('/login?callbackUrl=/startup-dynasty');
   }
 
   return (

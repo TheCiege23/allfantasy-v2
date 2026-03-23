@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { RefreshCw, Download, Search, ChevronDown, ChevronUp, ClipboardList, BarChart3, Filter, Calendar } from "lucide-react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 interface QuestionnaireResponse {
   id: string;
@@ -29,18 +30,6 @@ const QUESTION_LABELS: Record<string, string> = {
 };
 
 const QUESTION_KEYS = Object.keys(QUESTION_LABELS) as (keyof typeof QUESTION_LABELS)[];
-
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
 
 function downloadCsv(filename: string, rows: QuestionnaireResponse[]) {
   const headers = [
@@ -131,6 +120,19 @@ const GRADIENT_COLORS = [
 ];
 
 export default function AdminQuestionnaire() {
+  const { formatInTimezone } = useUserTimezone();
+  const fmtDate = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
   const [responses, setResponses] = useState<QuestionnaireResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

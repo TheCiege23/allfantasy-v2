@@ -200,7 +200,16 @@ export async function getPlatformThreadMessages(
     const rows = await (prisma as any).platformChatMessage.findMany({
       where: { threadId },
       include: {
-        sender: { select: { id: true, displayName: true, username: true, email: true } },
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            profile: { select: { avatarPreset: true } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       take,
@@ -212,6 +221,8 @@ export async function getPlatformThreadMessages(
       threadId,
       senderUserId: msg.senderUserId || null,
       senderName: msg.sender?.displayName || msg.sender?.username || msg.sender?.email || 'User',
+      senderAvatarUrl: msg.sender?.avatarUrl ?? null,
+      senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
       messageType: msg.messageType || 'text',
       body: msg.body || '',
       createdAt: toIso(msg.createdAt),
@@ -273,7 +284,16 @@ export async function createPlatformThreadMessage(
           metadata: metadata ?? undefined,
         },
         include: {
-          sender: { select: { id: true, displayName: true, username: true, email: true } },
+          sender: {
+            select: {
+              id: true,
+              displayName: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+              profile: { select: { avatarPreset: true } },
+            },
+          },
         },
       })
 
@@ -295,6 +315,8 @@ export async function createPlatformThreadMessage(
       threadId,
       senderUserId: created.senderUserId || null,
       senderName: created.sender?.displayName || created.sender?.username || created.sender?.email || 'User',
+      senderAvatarUrl: created.sender?.avatarUrl ?? null,
+      senderAvatarPreset: created.sender?.profile?.avatarPreset ?? null,
       messageType: created.messageType || 'text',
       body: created.body || '',
       createdAt: toIso(created.createdAt),

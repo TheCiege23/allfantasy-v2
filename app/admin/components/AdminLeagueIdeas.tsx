@@ -14,6 +14,7 @@ import {
   MessageCircle,
   ExternalLink,
 } from "lucide-react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type LeagueSubmission = {
   id: string;
@@ -56,20 +57,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   rejected: { bg: "bg-red-500/20", text: "text-red-300", border: "border-red-500/30" },
   needs_clarification: { bg: "bg-purple-500/20", text: "text-purple-300", border: "border-purple-500/30" },
 };
-
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
 
 function downloadCsv(filename: string, rows: LeagueSubmission[]) {
   const headers = [
@@ -118,6 +105,21 @@ function downloadCsv(filename: string, rows: LeagueSubmission[]) {
 }
 
 export default function AdminLeagueIdeas() {
+  const { formatInTimezone } = useUserTimezone();
+  const fmtDate = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
   const [submissions, setSubmissions] = useState<LeagueSubmission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

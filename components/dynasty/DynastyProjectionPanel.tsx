@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type DynastyProjection = {
   projectionId: string
@@ -58,6 +59,7 @@ export function DynastyProjectionPanel({
   onBackToOverview,
   className = '',
 }: DynastyProjectionPanelProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [sport, setSport] = useState<string>(String(initialSport || 'NFL').toUpperCase())
   const [horizon, setHorizon] = useState<'3y' | '5y'>('3y')
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
@@ -280,7 +282,7 @@ export function DynastyProjectionPanel({
 
       {generatedAt ? (
         <p className="mb-3 text-[11px] text-white/45">
-          Updated {new Date(generatedAt).toLocaleString()}
+          Updated {formatInTimezone(generatedAt)}
         </p>
       ) : null}
 

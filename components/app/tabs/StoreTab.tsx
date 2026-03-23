@@ -6,8 +6,10 @@ import type { LeagueTabProps } from "@/components/app/tabs/types"
 import { ShoppingBag, Coins, Package, RefreshCw } from "lucide-react"
 import { COSMETIC_CATEGORIES, COSMETIC_CATEGORY_LABELS } from "@/lib/league-economy/types"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
+  const { formatDateInTimezone } = useUserTimezone()
   const [sportFilter, setSportFilter] = useState<string>("")
   const [categoryFilter, setCategoryFilter] = useState<string>("")
   const [confirmPurchase, setConfirmPurchase] = useState<{ itemId: string; itemName: string; price: number } | null>(null)
@@ -299,7 +301,7 @@ export default function StoreTab({ leagueId: _leagueId }: LeagueTabProps) {
                   >
                     <span className="text-white">{row.itemName}</span>
                     <span className="text-zinc-400">
-                      {row.price} pts · {new Date(row.createdAt).toLocaleDateString()}
+                      {row.price} pts · {formatDateInTimezone(row.createdAt)}
                     </span>
                   </div>
                 ))}

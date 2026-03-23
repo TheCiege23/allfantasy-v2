@@ -14,6 +14,7 @@ import { RefreshCw, Building2, Zap, Crown, Sparkles } from "lucide-react"
 import { XPTierBadge } from "@/components/XPTierBadge"
 import { XPProgressBar } from "@/components/XPProgressBar"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 const GM_EVENT_LABELS: Record<string, string> = {
   league_joined: "League joined",
@@ -27,6 +28,7 @@ const GM_EVENT_LABELS: Record<string, string> = {
 }
 
 export default function CareerTab({ leagueId, isCommissioner = false }: LeagueTabProps & { isCommissioner?: boolean }) {
+  const { formatDateInTimezone } = useUserTimezone()
   const { data: session } = useSession()
   const managerId = (session?.user as { id?: string })?.id ?? null
 
@@ -718,7 +720,7 @@ export default function CareerTab({ leagueId, isCommissioner = false }: LeagueTa
                       {event.eventType} · +{event.xpValue} XP · {event.sport}
                     </span>
                     <span className="text-zinc-500">
-                      {event.createdAt ? new Date(event.createdAt).toLocaleDateString() : "—"}
+                      {event.createdAt ? formatDateInTimezone(event.createdAt) : "—"}
                     </span>
                   </div>
                 ))}
@@ -932,7 +934,7 @@ export default function CareerTab({ leagueId, isCommissioner = false }: LeagueTa
                   <span className="text-cyan-300">+{Number(event.valueChange).toFixed(2)}</span>
                 </div>
                 <span className="text-zinc-500">
-                  {new Date(event.createdAt).toLocaleDateString()}
+                  {formatDateInTimezone(event.createdAt)}
                 </span>
               </div>
             ))}

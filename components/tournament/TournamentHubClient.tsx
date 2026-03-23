@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Trophy, BarChart3, MessageSquare, ChevronRight, Users, GitBranch, Download, Sparkles } from 'lucide-react'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface Conference {
   id: string
@@ -83,6 +84,7 @@ interface Announcement {
 }
 
 export function TournamentHubClient({ tournamentId }: { tournamentId: string }) {
+  const { formatInTimezone } = useUserTimezone()
   const [tab, setTab] = useState<'overview' | 'standings' | 'bracket' | 'announcements' | 'ai'>('overview')
   const [tournament, setTournament] = useState<TournamentData | null>(null)
   const [standings, setStandings] = useState<StandingsRow[]>([])
@@ -410,7 +412,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
             >
               {a.title && <h4 className="mb-1 font-medium text-white">{a.title}</h4>}
               <p className="text-sm text-white/80 whitespace-pre-wrap">{a.body}</p>
-              <p className="mt-2 text-xs text-white/50">{new Date(a.createdAt).toLocaleString()}</p>
+              <p className="mt-2 text-xs text-white/50">{formatInTimezone(a.createdAt)}</p>
             </div>
           ))}
           {announcements.length === 0 && (

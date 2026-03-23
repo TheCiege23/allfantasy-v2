@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getSettingsProfile, updateUserProfile } from "@/lib/user-settings"
+import {
+  getSettingsProfile,
+  getSettingsSnapshot,
+  saveSettingsOrchestrated,
+} from "@/lib/user-settings"
 import type { PreferredLanguage, ThemePreference } from "@/lib/user-settings"
 
 export const dynamic = "force-dynamic"
@@ -21,8 +25,9 @@ export async function GET() {
     )
   }
 
-  const profile = await getSettingsProfile(session.user.id)
-  if (!profile) {
+  const snapshot = await getSettingsSnapshot(session.user.id)
+  const profile = snapshot?.profile ?? null
+  if (!snapshot || !profile) {
     return NextResponse.json({
       preferredLanguage: null,
       timezone: null,
@@ -32,6 +37,7 @@ export async function GET() {
 
   return NextResponse.json({
     ...profile,
+    settings: snapshot.settings,
     preferredLanguage: profile.preferredLanguage,
     timezone: profile.timezone,
     themePreference: profile.themePreference,
@@ -62,6 +68,7 @@ export async function PATCH(req: Request) {
     bio,
     preferredSports,
     notificationPreferences,
+    settings,
   } = body as {
     displayName?: string | null
     preferredLanguage?: string | null
@@ -72,28 +79,49 @@ export async function PATCH(req: Request) {
     bio?: string | null
     preferredSports?: string[] | null
     notificationPreferences?: Record<string, unknown> | null
+    settings?: {
+      notificationSettings?: Record<string, unknown> | null
+    }
   }
 
-  const payload: Parameters<typeof updateUserProfile>[1] = {}
-  if (displayName !== undefined) payload.displayName = displayName ?? null
+  const profilePayload: Parameters<
+    typeof saveSettingsOrchestrated
+  >[0]["payload"]["profile"] = {}
   if (preferredLanguage !== undefined)
-    payload.preferredLanguage = (preferredLanguage === "es" ? "es" : preferredLanguage === "en" ? "en" : null) as PreferredLanguage | null
-  if (timezone !== undefined) payload.timezone = timezone ?? null
+    profilePayload.preferredLanguage = (preferredLanguage === "es" ? "es" : preferredLanguage === "en" ? "en" : null) as PreferredLanguage | null
+  if (timezone !== undefined) profilePayload.timezone = timezone ?? null
   if (themePreference !== undefined)
-    payload.themePreference = (themePreference === "dark" || themePreference === "light" || themePreference === "legacy"
+    profilePayload.themePreference = (themePreference === "dark" || themePreference === "light" || themePreference === "legacy"
       ? themePreference
       : null) as ThemePreference | null
-  if (avatarPreset !== undefined) payload.avatarPreset = avatarPreset ?? null
-  if (avatarUrl !== undefined) payload.avatarUrl = avatarUrl ?? null
-  if (bio !== undefined) payload.bio = bio ?? null
+  if (displayName !== undefined) profilePayload.displayName = displayName ?? null
+  if (avatarPreset !== undefined) profilePayload.avatarPreset = avatarPreset ?? null
+  if (avatarUrl !== undefined) profilePayload.avatarUrl = avatarUrl ?? null
+  if (bio !== undefined) profilePayload.bio = bio ?? null
   if (preferredSports !== undefined)
-    payload.preferredSports = Array.isArray(preferredSports) ? preferredSports : null
+    profilePayload.preferredSports = Array.isArray(preferredSports) ? preferredSports : null
   if (notificationPreferences !== undefined)
-    payload.notificationPreferences = notificationPreferences && typeof notificationPreferences === "object"
+    profilePayload.notificationPreferences = notificationPreferences && typeof notificationPreferences === "object"
       ? notificationPreferences
       : null
 
-  const result = await updateUserProfile(session.user.id, payload)
+  const snapshot = await getSettingsProfile(session.user.id)
+  const result = await saveSettingsOrchestrated({
+    userId: session.user.id,
+    existingPreferenceFallback: {
+      preferredLanguage: snapshot?.preferredLanguage ?? null,
+      themePreference: snapshot?.themePreference ?? null,
+      timezone: snapshot?.timezone ?? null,
+    },
+    payload: {
+      profile:
+        Object.keys(profilePayload ?? {}).length > 0 ? profilePayload : undefined,
+      settings:
+        settings?.notificationSettings !== undefined
+          ? { notificationSettings: settings.notificationSettings ?? null }
+          : undefined,
+    },
+  })
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error ?? "Failed to update profile" },

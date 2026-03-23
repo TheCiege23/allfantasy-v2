@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Plus, Loader2, Video, RefreshCw } from "lucide-react"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import { MEDIA_TYPES } from "@/lib/fantasy-media/types"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Episode = {
   id: string
@@ -32,6 +33,7 @@ const MEDIA_TYPE_LABELS: Record<string, string> = {
 }
 
 export default function FantasyMediaListClient() {
+  const { formatInTimezone } = useUserTimezone()
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -271,7 +273,7 @@ export default function FantasyMediaListClient() {
                   {ep.sport} · {MEDIA_TYPE_LABELS[ep.mediaType] ?? ep.mediaType} · {ep.status}
                 </p>
                 <p className="text-xs text-white/40 mt-0.5">
-                  {new Date(ep.createdAt).toLocaleString()}
+                  {formatInTimezone(ep.createdAt)}
                 </p>
               </Link>
             </li>

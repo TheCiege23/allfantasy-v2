@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, Crown, AlertTriangle, CheckCircle } from 'lucide-react';
+import { formatInTimezone } from '@/lib/preferences/TimezoneFormattingResolver';
+import { resolveServerRenderPreferences } from '@/lib/preferences/ServerRenderPreferenceResolver';
 
 interface TradeAsset {
   id: string;
@@ -25,6 +27,7 @@ interface TradeAnalysis {
 }
 
 export default async function TradeSharePage({ params }: { params: { id: string } }) {
+  const { timezone, language } = await resolveServerRenderPreferences();
   const share = await (prisma as any).tradeShare.findUnique({
     where: { id: params.id },
   });
@@ -47,7 +50,7 @@ export default async function TradeSharePage({ params }: { params: { id: string 
             AllFantasy Trade Analysis
           </h1>
           <p className="text-gray-400 text-sm">
-            {analysis.leagueContext || 'Dynasty Trade'} &middot; {new Date(share.createdAt).toLocaleDateString()}
+            {analysis.leagueContext || 'Dynasty Trade'} &middot; {formatInTimezone(share.createdAt, timezone, { dateStyle: 'short' }, language)}
           </p>
         </div>
 

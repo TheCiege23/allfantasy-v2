@@ -15,7 +15,7 @@ export default async function ImportPage() {
     user?: { id?: string };
   } | null;
 
-  if (!session?.user?.id) redirect("/login");
+  if (!session?.user?.id) redirect("/login?callbackUrl=/import");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] to-[#0f0f1a] py-20">

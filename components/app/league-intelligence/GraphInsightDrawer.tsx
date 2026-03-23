@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type InsightResponse = {
   metricsInterpretation: string | null;
@@ -22,6 +23,7 @@ export function GraphInsightDrawer({
   season: number | null;
   sport?: string | null;
 }) {
+  const { formatInTimezone } = useUserTimezone();
   const [insight, setInsight] = useState<InsightResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +108,7 @@ export function GraphInsightDrawer({
                 <p className="text-sm text-white/50">No AI insight available. Check API keys (OpenAI, DeepSeek, Grok).</p>
               )}
               {insight.generatedAt && (
-                <p className="text-xs text-white/40">Generated {new Date(insight.generatedAt).toLocaleString()}</p>
+                <p className="text-xs text-white/40">Generated {formatInTimezone(insight.generatedAt)}</p>
               )}
             </>
           )}

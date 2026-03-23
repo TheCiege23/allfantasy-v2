@@ -1,7 +1,26 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import type { UserProfileForSettings, ProfileUpdatePayload } from "@/lib/user-settings"
+import type { UserProfileForSettings, ProfileUpdatePayload } from "@/lib/user-settings/types"
+
+const REQUEST_TIMEOUT_MS = 12_000
+
+async function fetchJsonWithTimeout(
+  input: string,
+  init?: RequestInit
+): Promise<{ ok: boolean; data: any }> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal })
+    const data = await response.json().catch(() => ({}))
+    return { ok: response.ok, data }
+  } catch {
+    return { ok: false, data: {} }
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
 
 export function useSettingsProfile() {
   const [profile, setProfile] = useState<UserProfileForSettings | null>(null)
@@ -13,20 +32,29 @@ export function useSettingsProfile() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/user/profile", { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) {
-        setProfile(null)
+      const settingsResult = await fetchJsonWithTimeout("/api/user/settings", {
+        cache: "no-store",
+      })
+      if (settingsResult.ok && settingsResult.data?.profile?.userId) {
+        setProfile(settingsResult.data.profile as UserProfileForSettings)
         return
       }
-      if (data.userId) {
-        setProfile(data as UserProfileForSettings)
+
+      const profileResult = await fetchJsonWithTimeout("/api/user/profile", {
+        cache: "no-store",
+      })
+      if (!profileResult.ok) {
+        setProfile(null)
+        if (!settingsResult.ok) {
+          setError("Failed to load profile")
+        }
+        return
+      }
+      if (profileResult.data.userId) {
+        setProfile(profileResult.data as UserProfileForSettings)
       } else {
         setProfile(null)
       }
-    } catch (e) {
-      setError("Failed to load profile")
-      setProfile(null)
     } finally {
       setLoading(false)
     }
@@ -41,10 +69,15 @@ export function useSettingsProfile() {
       setSaving(true)
       setError(null)
       try {
+        const controller = new AbortController()
+        const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
         const res = await fetch("/api/user/profile", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: controller.signal,
+        }).finally(() => {
+          window.clearTimeout(timeoutId)
         })
         const data = await res.json()
         if (!res.ok) {
@@ -53,7 +86,7 @@ export function useSettingsProfile() {
         }
         await fetchProfile()
         return true
-      } catch (e) {
+      } catch {
         setError("Failed to save")
         return false
       } finally {

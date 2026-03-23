@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import type { GlobalIntelligenceResult } from '@/lib/global-intelligence'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface GlobalIntelligencePanelProps {
   leagueId: string
@@ -25,6 +26,7 @@ export default function GlobalIntelligencePanel({
   sport,
   include,
 }: GlobalIntelligencePanelProps) {
+  const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<GlobalIntelligenceResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -211,7 +213,7 @@ export default function GlobalIntelligencePanel({
         </Section>
       )}
 
-      <p className="text-right text-xs text-white/40">Generated {data.generatedAt ? new Date(data.generatedAt).toLocaleString() : ''}</p>
+      <p className="text-right text-xs text-white/40">Generated {data.generatedAt ? formatInTimezone(data.generatedAt) : ''}</p>
     </div>
   )
 }

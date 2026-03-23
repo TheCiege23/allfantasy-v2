@@ -20,6 +20,7 @@ import { TeamBuilderView } from './TeamBuilderView'
 import { StartupAuctionView } from './StartupAuctionView'
 import { SalaryCapAIPanel } from './SalaryCapAIPanel'
 import { SalaryCapRulesView } from './SalaryCapRulesView'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 export interface SalaryCapHomeProps {
   leagueId: string
@@ -36,6 +37,7 @@ const VIEW_LABELS: Record<SalaryCapView, string> = {
 }
 
 export function SalaryCapHome({ leagueId }: SalaryCapHomeProps) {
+  const { formatDateInTimezone } = useUserTimezone()
   const [summary, setSummary] = useState<SalaryCapSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -262,7 +264,7 @@ export function SalaryCapHome({ leagueId }: SalaryCapHomeProps) {
                     className="flex items-center justify-between rounded border border-white/5 px-2 py-1 text-xs text-white/70"
                   >
                     <span>{e.eventType.replace(/_/g, ' ')}</span>
-                    <span>{new Date(e.createdAt).toLocaleDateString()}</span>
+                    <span>{formatDateInTimezone(e.createdAt)}</span>
                   </li>
                 ))}
               </ul>

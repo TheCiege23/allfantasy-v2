@@ -33,6 +33,7 @@ import {
   Scatter,
   Legend,
 } from "recharts";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type Alert = {
   severity: "warning" | "critical";
@@ -989,6 +990,7 @@ function NarrativeIntegritySection({ data }: { data: NarrativeData }) {
 }
 
 function RecalibrationSection({ data }: { data: RecalibrationData }) {
+  const { formatInTimezone, formatDateInTimezone } = useUserTimezone();
   const shadow = data.shadowB0Metrics;
   const segments = data.segmentB0s?.segments ?? [];
   const history = data.calibrationHistory ?? [];
@@ -1008,7 +1010,7 @@ function RecalibrationSection({ data }: { data: RecalibrationData }) {
         : "pending";
 
   const historyChartData = history.map((h) => ({
-    date: new Date(h.timestamp).toLocaleDateString("en-US", {
+    date: formatInTimezone(h.timestamp, {
       month: "short",
       day: "numeric",
     }),
@@ -1047,11 +1049,7 @@ function RecalibrationSection({ data }: { data: RecalibrationData }) {
           label="Last Recalibration"
           value={
             data.lastRecalibrationAt
-              ? new Date(data.lastRecalibrationAt).toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                })
+              ? formatDateInTimezone(data.lastRecalibrationAt)
               : "Never"
           }
           subtitle="Weekly cadence"
@@ -1101,7 +1099,7 @@ function RecalibrationSection({ data }: { data: RecalibrationData }) {
             <div>
               <p className="text-xs text-white/50">Computed</p>
               <p className="text-sm font-medium text-white/90">
-                {new Date(shadow.computedAt).toLocaleDateString("en-US", {
+                {formatInTimezone(shadow.computedAt, {
                   month: "short",
                   day: "numeric",
                   hour: "numeric",
@@ -1234,6 +1232,7 @@ function DrilldownPanel({
   drilldown: DrilldownData;
   onClose: () => void;
 }) {
+  const { formatInTimezone } = useUserTimezone();
   const curveData = drilldown.reliabilityCurve.map((b) => ({
     name: b.bucketLabel,
     predicted: Math.round(b.predicted * 100),
@@ -1333,7 +1332,7 @@ function DrilldownPanel({
                       {offer.drivers.map((d) => `${d.id}(${d.direction})`).join(", ")}
                     </td>
                     <td className="py-2 px-3 text-white/50 text-xs">
-                      {new Date(offer.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {formatInTimezone(offer.createdAt, { month: "short", day: "numeric" })}
                     </td>
                   </tr>
                 ))}
@@ -1473,6 +1472,7 @@ function CollapsibleSection({
 }
 
 export default function AdminCalibration() {
+  const { formatInTimezone } = useUserTimezone();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1745,7 +1745,7 @@ export default function AdminCalibration() {
         <div className={`space-y-4 ${loading ? "opacity-50 pointer-events-none" : ""}`}>
           <div className="text-xs text-white/30">
             Data range: {data.dateRange.from} to {data.dateRange.to} | Generated:{" "}
-            {new Date(data.generatedAt).toLocaleString()}
+            {formatInTimezone(data.generatedAt)}
           </div>
 
           <TopSegmentsCard data={data.segmentDrift} />

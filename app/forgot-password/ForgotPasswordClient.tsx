@@ -259,6 +259,12 @@ export default function ForgotPasswordClient() {
             <h1 className="text-xl font-semibold">Reset via email</h1>
             <p className="mt-1 text-sm text-white/50">Enter your email and we&apos;ll send a 6-digit reset code.</p>
           </div>
+          {error && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
+              <TriangleAlert className="h-5 w-5 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
             <form onSubmit={handleRequestEmail} className="space-y-3">
               <div>

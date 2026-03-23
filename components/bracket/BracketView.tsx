@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Game = {
   id: string
@@ -50,6 +51,7 @@ function teamLabel(name: string | null, seed: number | null) {
 export function BracketView({ nodes, entryId, picks }: Props) {
   const [saving, setSaving] = useState<string | null>(null)
   const [localPicks, setLocalPicks] = useState<Record<string, string | null>>(picks)
+  const { formatInTimezone } = useUserTimezone()
 
   const { byRegion, finalRounds, firstFour } = useMemo(() => {
     const regionMap: Record<string, Node[]> = {}
@@ -189,7 +191,7 @@ export function BracketView({ nodes, entryId, picks }: Props) {
             <span className="truncate">{g.status ?? "—"}</span>
             <span className="truncate">
               {g.startTime
-                ? new Date(g.startTime).toLocaleString()
+                ? formatInTimezone(g.startTime)
                 : ""}
             </span>
           </div>

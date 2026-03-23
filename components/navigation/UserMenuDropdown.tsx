@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useRef, useState, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { ChevronDown, User, Settings as SettingsIcon, LogOut } from "lucide-react"
@@ -17,6 +17,7 @@ export interface UserMenuDropdownProps {
 }
 
 export function UserMenuDropdown({ userLabel, className = "", compact = false }: UserMenuDropdownProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { profile } = useSettingsProfile()
@@ -67,18 +68,21 @@ export function UserMenuDropdown({ userLabel, className = "", compact = false }:
           role="menu"
         >
           {USER_MENU_ITEMS.map((item) => (
-            <Link
+            <button
               key={item.href}
-              href={item.href}
+              type="button"
               role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 text-sm transition"
+              onClick={() => {
+                setOpen(false)
+                router.push(item.href)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition"
               style={{ color: "var(--text)" }}
             >
               {item.label === "Profile" && <User className="h-4 w-4" style={{ color: "var(--muted)" }} />}
               {item.label === "Settings" && <SettingsIcon className="h-4 w-4" style={{ color: "var(--muted)" }} />}
               {item.label}
-            </Link>
+            </button>
           ))}
           <button
             type="button"

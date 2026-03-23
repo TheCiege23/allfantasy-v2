@@ -17,6 +17,7 @@ import {
   MicOff,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type ReportedContent = {
   id: string
@@ -49,6 +50,7 @@ type BannedUser = { userId: string; email: string | null; username: string | nul
 type MutedUser = { userId: string; email: string | null; username: string | null; mutedAt: string | null; expiresAt: string | null }
 
 export default function AdminModerationPanel() {
+  const { formatInTimezone } = useUserTimezone()
   const [reportedContent, setReportedContent] = useState<ReportedContent[]>([])
   const [reportedUsers, setReportedUsers] = useState<ReportedUser[]>([])
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
@@ -193,12 +195,11 @@ export default function AdminModerationPanel() {
 
   const fmtDate = (iso: string) => {
     try {
-      return new Date(iso).toLocaleDateString("en-US", {
+      return formatInTimezone(iso, {
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
-        timeZone: "UTC",
       })
     } catch {
       return iso

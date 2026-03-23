@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type LeagueOverviewKind = "by_sport" | "largest" | "recent" | "flagged"
 type SportCount = { sport: string; count: number }
@@ -36,6 +37,7 @@ const SPORT_LABELS: Record<string, string> = {
 }
 
 export default function AdminLeagueOverview() {
+  const { formatInTimezone } = useUserTimezone()
   const [kind, setKind] = useState<LeagueOverviewKind>("recent")
   const [bySport, setBySport] = useState<SportCount[]>([])
   const [leagues, setLeagues] = useState<LeagueRow[]>([])
@@ -74,11 +76,10 @@ export default function AdminLeagueOverview() {
 
   const fmtDate = (iso: string) => {
     try {
-      return new Date(iso).toLocaleDateString("en-US", {
+      return formatInTimezone(iso, {
         month: "short",
         day: "numeric",
         year: "numeric",
-        timeZone: "UTC",
       })
     } catch {
       return iso

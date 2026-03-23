@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type DraftConfig = {
   draft_type?: string
@@ -90,6 +91,7 @@ const POSITION_FILTER_BEHAVIOR_OPTIONS = [
 ] as const
 
 export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
+  const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<DraftSettingsResponse | null>(null)
   const [loading, setLoading] = useState(!!leagueId)
   const [error, setError] = useState<string | null>(null)
@@ -543,7 +545,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 </>
               )}
               {data?.lotteryLastRunAt && (
-                <p className="text-xs text-white/50">Last run: {new Date(data.lotteryLastRunAt).toLocaleString()}{data.lotteryLastSeed ? ` · Seed: ${data.lotteryLastSeed}` : ''}</p>
+                <p className="text-xs text-white/50">Last run: {formatInTimezone(data.lotteryLastRunAt)}{data.lotteryLastSeed ? ` · Seed: ${data.lotteryLastSeed}` : ''}</p>
               )}
             </div>
           )}
@@ -651,7 +653,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 </p>
                 {orphanStatus.recentActions.length > 0 && (
                   <p className="mt-1 text-white/60">
-                    Last action: {orphanStatus.recentActions[0].action} at {new Date(orphanStatus.recentActions[0].createdAt).toLocaleString()}
+                    Last action: {orphanStatus.recentActions[0].action} at {formatInTimezone(orphanStatus.recentActions[0].createdAt)}
                   </p>
                 )}
               </div>

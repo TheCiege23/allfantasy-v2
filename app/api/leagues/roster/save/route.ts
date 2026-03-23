@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
 import { validateRosterSectionsAgainstTemplate } from '@/lib/roster/LineupTemplateValidation'
+import { validateAiActionExecution } from '@/lib/ai/action-validation'
 
 // Guillotine: chopped (eliminated) rosters cannot change lineup/roster.
 // Salary cap: when persisting roster changes for a salary_cap league, call
@@ -135,6 +136,15 @@ export async function POST(req: NextRequest) {
 
   if (!leagueId) {
     return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+  }
+
+  const aiValidation = validateAiActionExecution({
+    body,
+    action: 'apply_lineup',
+    leagueId,
+  })
+  if (!aiValidation.ok) {
+    return NextResponse.json({ error: aiValidation.error }, { status: aiValidation.status })
   }
 
   const league = await prisma.league.findUnique({

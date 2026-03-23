@@ -36,6 +36,8 @@ export type PlatformChatMessage = {
   threadId: string
   senderUserId: string | null
   senderName: string
+  senderAvatarUrl?: string | null
+  senderAvatarPreset?: string | null
   messageType: string
   body: string
   createdAt: string

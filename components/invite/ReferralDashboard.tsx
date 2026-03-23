@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link2, Users, Share2, Copy, Check, UserPlus } from 'lucide-react'
 import { InviteModal } from './InviteModal'
 import { ReferralShareBar } from '@/components/referral/ReferralShareBar'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface InviteStats {
   totalCreated: number
@@ -19,6 +20,7 @@ interface ReferredUser {
 }
 
 export function ReferralDashboard() {
+  const { formatDateInTimezone, formatInTimezone } = useUserTimezone()
   const [stats, setStats] = useState<InviteStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -168,7 +170,7 @@ export function ReferralDashboard() {
             {referred.slice(0, 20).map((r, i) => (
               <li key={r.referredUserId} className="flex justify-between items-center" style={{ color: 'var(--muted)' }}>
                 <span>{r.displayName || 'Friend'} signed up</span>
-                <span className="text-xs">{new Date(r.createdAt).toLocaleDateString()}</span>
+                <span className="text-xs">{formatDateInTimezone(r.createdAt)}</span>
               </li>
             ))}
           </ul>
@@ -187,7 +189,7 @@ export function ReferralDashboard() {
             {statsSafe.recentEvents.slice(0, 10).map((e, i) => (
               <li key={i} className="flex justify-between" style={{ color: 'var(--muted)' }}>
                 <span>{e.eventType}{e.channel ? ` (${e.channel})` : ''} · {e.type}</span>
-                <span className="text-xs">{new Date(e.createdAt).toLocaleString()}</span>
+                <span className="text-xs">{formatInTimezone(e.createdAt)}</span>
               </li>
             ))}
           </ul>

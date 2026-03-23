@@ -26,11 +26,12 @@ export default async function DraftResultsPage({
 }: {
   params: Promise<{ leagueId: string }>,
 }) {
+  const { leagueId } = await params
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
-  if (!userId) redirect('/login')
-
-  const { leagueId } = await params
+  if (!userId) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/app/league/${leagueId}/draft-results`)}`)
+  }
   if (!leagueId) redirect('/app')
 
   const league = await prisma.league.findUnique({

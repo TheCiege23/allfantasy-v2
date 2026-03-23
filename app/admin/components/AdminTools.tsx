@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RefreshCw, Trash2, Activity, CheckCircle, XCircle, Clock, TrendingUp, AlertCircle, Zap, Database, Upload, Brain } from "lucide-react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type PurgeResult = {
   ok: boolean;
@@ -17,6 +18,7 @@ type PurgeResult = {
 type ToolUsage = { name: string; count: number; err: number; p95: number | null };
 
 export default function AdminTools() {
+  const { formatInTimezone, formatDateInTimezone } = useUserTimezone();
   const [olderThanDays, setOlderThanDays] = useState<number>(14);
   const [limitSample, setLimitSample] = useState<number>(10);
 
@@ -469,7 +471,7 @@ export default function AdminTools() {
                   {result.dryRun ? "Dry run results" : "Purge completed"}
                 </div>
                 <div className="mt-1" style={{ color: "var(--muted)" }}>
-                  Cutoff: <span style={{ color: "var(--muted)" }}>{new Date(result.cutoff).toLocaleString()}</span>
+                  Cutoff: <span style={{ color: "var(--muted)" }}>{formatInTimezone(result.cutoff)}</span>
                 </div>
 
                 {result.dryRun ? (
@@ -486,7 +488,7 @@ export default function AdminTools() {
                             <li key={s.id} className="flex items-center justify-between gap-2">
                               <span className="truncate">{s.email}</span>
                               <span className="text-xs" style={{ color: "var(--muted2)" }}>
-                                {new Date(s.createdAt).toLocaleDateString()}
+                                {formatDateInTimezone(s.createdAt)}
                               </span>
                             </li>
                           ))}
@@ -739,7 +741,7 @@ export default function AdminTools() {
 
         <div className="mt-3 text-xs flex items-center gap-2" style={{ color: "var(--muted2)" }}>
           <Clock className="h-3 w-3" />
-          <span>Last checked: {Object.values(apiStatus)[0]?.lastCheck ? new Date(Object.values(apiStatus)[0].lastCheck).toLocaleString() : 'Never'}</span>
+          <span>Last checked: {Object.values(apiStatus)[0]?.lastCheck ? formatInTimezone(Object.values(apiStatus)[0].lastCheck) : 'Never'}</span>
         </div>
       </div>
 
@@ -802,7 +804,7 @@ export default function AdminTools() {
             {analyticsStats.lastImport && (
               <div className="text-[10px] flex items-center gap-1" style={{ color: "var(--muted2)" }}>
                 <Clock className="h-3 w-3" />
-                Last import: {new Date(analyticsStats.lastImport.importedAt).toLocaleString()} ({analyticsStats.lastImport.dataVersion})
+                Last import: {formatInTimezone(analyticsStats.lastImport.importedAt)} ({analyticsStats.lastImport.dataVersion})
               </div>
             )}
 

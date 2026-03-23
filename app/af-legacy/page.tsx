@@ -101,6 +101,7 @@ import {
   Lightbulb
 } from "lucide-react"
 import { useAnalytics } from "@/app/hooks/useAnalytics"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
@@ -822,6 +823,7 @@ function ToolStatCard({ label, value, icon, accent, subValue }: { label: string;
 
 function AFLegacyContent() {
   const { trackToolUse } = useAnalytics()
+  const { formatInTimezone, formatDateInTimezone, formatTimeInTimezone } = useUserTimezone()
   const [platform, setPlatform] = useState<'sleeper' | 'yahoo' | 'mfl' | 'fantrax' | 'espn'>('sleeper')
   const [showEspnHelp, setShowEspnHelp] = useState(false)
   const [espnLeagueId, setEspnLeagueId] = useState('')
@@ -8838,7 +8840,7 @@ function AFLegacyContent() {
                                         cumulative += value
                                         return {
                                           timestamp: trade.timestamp,
-                                          date: new Date(trade.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }),
+                                          date: formatInTimezone(trade.timestamp, { month: 'short', day: 'numeric', year: '2-digit' }),
                                           value: cumulative,
                                           grade: trade.grade,
                                           isWin: ['A+', 'A', 'A-', 'B+', 'B', 'B-'].includes(trade.grade)
@@ -9143,7 +9145,7 @@ function AFLegacyContent() {
                                             {/* Trade Details */}
                                             <div className="text-center text-sm text-white/60 mb-1">vs {otherParty?.displayName || 'Unknown'}</div>
                                             <div className="text-center text-xs text-white/40 mb-4">
-                                              {new Date(trade.timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                              {formatInTimezone(trade.timestamp, { month: 'long', day: 'numeric', year: 'numeric' })}
                                             </div>
                                             
                                             {/* Assets */}
@@ -9243,7 +9245,7 @@ function AFLegacyContent() {
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-white/70">{recentAdd.position}</span>
                                                   </div>
                                                   <div className="text-xs text-white/50">
-                                                    Picked up {new Date(recentAdd.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    Picked up {formatInTimezone(recentAdd.timestamp, { month: 'short', day: 'numeric', year: 'numeric' })}
                                                   </div>
                                                   <div className="text-[10px] text-white/40 mt-1">Your highest-value waiver pickup</div>
                                                 </div>
@@ -9268,7 +9270,7 @@ function AFLegacyContent() {
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-white/70">{recentDrop.position}</span>
                                                   </div>
                                                   <div className="text-xs text-white/50">
-                                                    Dropped {new Date(recentDrop.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    Dropped {formatInTimezone(recentDrop.timestamp, { month: 'short', day: 'numeric', year: 'numeric' })}
                                                   </div>
                                                   <div className="text-[10px] text-white/40 mt-1">Your most valuable drop no longer on your roster</div>
                                                 </div>
@@ -10096,7 +10098,7 @@ function AFLegacyContent() {
                                                       {trade.grade}
                                                     </span>
                                                     <span className="text-xs text-white/40">
-                                                      Week {trade.week} • {new Date(trade.timestamp).toLocaleDateString()}
+                                                      Week {trade.week} • {formatDateInTimezone(trade.timestamp)}
                                                     </span>
                                                   </div>
                                                   <div className="text-xs text-white/60 line-clamp-2">
@@ -14054,7 +14056,7 @@ function AFLegacyContent() {
                                     {devyBoardData && (
                                       <>
                                         <span className="px-2.5 py-1 rounded-lg bg-slate-700/60 text-[10px] font-medium text-slate-300">
-                                          Updated: {new Date(devyBoardData.updatedAt).toLocaleTimeString()}
+                                          Updated: {formatTimeInTimezone(devyBoardData.updatedAt)}
                                         </span>
                                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-medium ${
                                           devyBoardData.confidence === 'High' ? 'bg-emerald-500/20 text-emerald-300' :

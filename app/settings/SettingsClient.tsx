@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   User,
   Sliders,
@@ -38,6 +39,7 @@ import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
 import {
   getSecurityStatus,
   getContactSummary,
+  updateContactEmail,
   startPhoneVerification,
   checkPhoneCode,
   sendVerificationEmail,
@@ -92,9 +94,32 @@ const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: 
   { id: "account", label: "Account", icon: AlertTriangle },
 ]
 
+function isTabId(value: string | null | undefined): value is TabId {
+  return TABS.some((tab) => tab.id === value)
+}
+
 export default function SettingsClient() {
-  const [activeTab, setActiveTab] = useState<TabId>("profile")
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+  const tabFromQuery = searchParams?.get("tab")
+  const initialTab = isTabId(tabFromQuery) ? tabFromQuery : "profile"
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab)
   const { profile, loading, saving, error, updateProfile, fetchProfile } = useSettingsProfile()
+
+  useEffect(() => {
+    if (!isTabId(tabFromQuery)) return
+    if (tabFromQuery !== activeTab) {
+      setActiveTab(tabFromQuery)
+    }
+  }, [tabFromQuery, activeTab])
+
+  const handleTabSelect = (tabId: TabId) => {
+    setActiveTab(tabId)
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
+    params.set("tab", tabId)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   if (loading && !profile) {
     return (
@@ -117,7 +142,7 @@ export default function SettingsClient() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabSelect(tab.id)}
               className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium whitespace-nowrap"
               style={{
                 color: active ? "var(--text)" : "var(--muted2)",
@@ -144,7 +169,7 @@ export default function SettingsClient() {
         {activeTab === "connected" && <ConnectedAccountsSection profile={profile} />}
         {activeTab === "referral" && <ReferralSection />}
         {activeTab === "legacy" && <LegacyImportSection />}
-        {activeTab === "legal" && <LegalSection />}
+        {activeTab === "legal" && <LegalSection profile={profile} />}
         {activeTab === "account" && <AccountSection />}
       </section>
     </div>
@@ -164,6 +189,7 @@ function ProfileSection({
 }) {
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "")
   const [avatarPreset, setAvatarPreset] = useState<string | null>(profile?.avatarPreset ?? null)
+  const [avatarSelectionTouched, setAvatarSelectionTouched] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [previewObjectUrl, setPreviewObjectUrl] = useState<string | null>(null)
@@ -172,7 +198,15 @@ function ProfileSection({
   useEffect(() => {
     setDisplayName(profile?.displayName ?? "")
     setAvatarPreset(profile?.avatarPreset ?? null)
+    setAvatarSelectionTouched(false)
   }, [profile?.displayName, profile?.avatarPreset])
+
+  const resetDraft = () => {
+    setDisplayName(profile?.displayName ?? "")
+    setAvatarPreset(profile?.avatarPreset ?? null)
+    setAvatarSelectionTouched(false)
+    setUploadError(null)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -180,7 +214,7 @@ function ProfileSection({
     await onSave({
       displayName: displayName.trim() || null,
       avatarPreset: (avatarPreset as AvatarPresetId) || null,
-      avatarUrl: avatarPreset ? null : undefined,
+      avatarUrl: avatarSelectionTouched ? null : undefined,
     })
   }
 
@@ -272,11 +306,30 @@ function ProfileSection({
       <div>
         <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Avatar (20 options)</label>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setAvatarPreset(null)
+              setAvatarSelectionTouched(true)
+            }}
+            className="flex h-9 min-w-14 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold"
+            style={{
+              borderColor: avatarPreset == null ? "var(--accent-cyan)" : "var(--border)",
+              background: avatarPreset == null ? "color-mix(in srgb, var(--accent-cyan) 18%, transparent)" : "var(--panel2)",
+              color: "var(--text)",
+            }}
+            title="Use initial"
+          >
+            Initial
+          </button>
           {AVATAR_PRESETS.map((id) => (
             <button
               key={id}
               type="button"
-              onClick={() => setAvatarPreset(id)}
+              onClick={() => {
+                setAvatarPreset(id)
+                setAvatarSelectionTouched(true)
+              }}
               className="flex h-9 w-9 items-center justify-center rounded-lg border text-base"
               style={{
                 borderColor: avatarPreset === id ? "var(--accent-cyan)" : "var(--border)",
@@ -302,17 +355,27 @@ function ProfileSection({
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-xl px-4 py-2 text-sm font-semibold"
-        style={{
-          background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
-          color: "var(--on-accent-bg)",
-        }}
-      >
-        {saving ? "Saving…" : "Save profile"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl px-4 py-2 text-sm font-semibold"
+          style={{
+            background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
+            color: "var(--on-accent-bg)",
+          }}
+        >
+          {saving ? "Saving…" : "Save profile"}
+        </button>
+        <button
+          type="button"
+          onClick={resetDraft}
+          className="rounded-xl border px-4 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Cancel changes
+        </button>
+      </div>
     </form>
   )
 }
@@ -337,16 +400,22 @@ function PreferencesSection({
     setTheme(profile?.themePreference ?? mode)
   }, [profile?.timezone, profile?.preferredLanguage, profile?.themePreference, language, mode])
 
+  const resetDraft = () => {
+    setTimezone(profile?.timezone ?? "")
+    setLang(profile?.preferredLanguage ?? language)
+    setTheme(profile?.themePreference ?? mode)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMode(theme)
-    setLanguage(lang)
     const ok = await onSave({
       preferredLanguage: lang,
       timezone: timezone || null,
       themePreference: theme,
     })
     if (ok) {
+      setMode(theme)
+      setLanguage(lang)
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem("af_lang", lang)
@@ -401,7 +470,7 @@ function PreferencesSection({
         </select>
         {timezone && (
           <p className="mt-1.5 text-xs" style={{ color: "var(--muted)" }}>
-            Your local time: {formatInTimezone(new Date(), timezone)}
+            Your local time: {formatInTimezone(new Date(), timezone, undefined, lang)}
           </p>
         )}
       </div>
@@ -427,17 +496,27 @@ function PreferencesSection({
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="rounded-xl px-4 py-2 text-sm font-semibold"
-        style={{
-          background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
-          color: "var(--on-accent-bg)",
-        }}
-      >
-        {saving ? "Saving…" : "Save preferences"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-xl px-4 py-2 text-sm font-semibold"
+          style={{
+            background: "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))",
+            color: "var(--on-accent-bg)",
+          }}
+        >
+          {saving ? "Saving…" : "Save preferences"}
+        </button>
+        <button
+          type="button"
+          onClick={resetDraft}
+          className="rounded-xl border px-4 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Cancel changes
+        </button>
+      </div>
     </form>
   )
 }
@@ -454,6 +533,14 @@ function SecuritySection({
 
   const [emailSending, setEmailSending] = useState(false)
   const [emailResult, setEmailResult] = useState<"sent" | "already" | "error" | "rate_limited" | null>(null)
+  const [emailEdit, setEmailEdit] = useState(false)
+  const [emailInput, setEmailInput] = useState(profile?.email ?? "")
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState("")
+  const [showEmailCurrentPassword, setShowEmailCurrentPassword] = useState(false)
+  const [emailSaving, setEmailSaving] = useState(false)
+  const [emailSaveResult, setEmailSaveResult] = useState<
+    "saved" | "saved_no_email" | "invalid" | "duplicate" | "wrong_password" | "password_required" | "error" | null
+  >(null)
 
   const [phoneEdit, setPhoneEdit] = useState(false)
   const [phoneInput, setPhoneInput] = useState(profile?.phone ?? "")
@@ -474,9 +561,70 @@ function SecuritySection({
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
 
+  useEffect(() => {
+    if (!emailEdit) {
+      setEmailInput(profile?.email ?? "")
+      setEmailCurrentPassword("")
+      setShowEmailCurrentPassword(false)
+    }
+  }, [profile?.email, emailEdit])
+
+  useEffect(() => {
+    if (!phoneEdit) {
+      setPhoneInput(profile?.phone ?? "")
+    }
+  }, [profile?.phone, phoneEdit])
+
+  const handleStartEmailEdit = () => {
+    setEmailEdit(true)
+    setEmailResult(null)
+    setEmailSaveResult(null)
+    setEmailInput(profile?.email ?? "")
+    setEmailCurrentPassword("")
+  }
+
+  const handleCancelEmailEdit = () => {
+    setEmailEdit(false)
+    setEmailInput(profile?.email ?? "")
+    setEmailCurrentPassword("")
+    setShowEmailCurrentPassword(false)
+    setEmailSaveResult(null)
+  }
+
+  const handleSaveEmail = async () => {
+    setEmailSaveResult(null)
+    const nextEmail = emailInput.trim().toLowerCase()
+    if (!nextEmail || !nextEmail.includes("@")) {
+      setEmailSaveResult("invalid")
+      return
+    }
+    setEmailSaving(true)
+    const result = await updateContactEmail({
+      email: nextEmail,
+      currentPassword: status.hasPassword ? emailCurrentPassword : undefined,
+      returnTo: "/settings?tab=security",
+    })
+    setEmailSaving(false)
+
+    if (result.ok) {
+      setEmailEdit(false)
+      setEmailCurrentPassword("")
+      setEmailSaveResult(result.verificationEmailSent ? "saved" : "saved_no_email")
+      onRefetch()
+      return
+    }
+
+    if (result.invalidEmail) setEmailSaveResult("invalid")
+    else if (result.duplicateEmail) setEmailSaveResult("duplicate")
+    else if (result.wrongPassword) setEmailSaveResult("wrong_password")
+    else if (result.requiresPassword) setEmailSaveResult("password_required")
+    else setEmailSaveResult("error")
+  }
+
   const handleSendVerificationEmail = async () => {
     setEmailSending(true)
     setEmailResult(null)
+    setEmailSaveResult(null)
     const result = await sendVerificationEmail("/settings")
     setEmailSending(false)
     if (result.ok && result.alreadyVerified) setEmailResult("already")
@@ -586,7 +734,7 @@ function SecuritySection({
       </div>
 
       {/* Email */}
-      <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--text)" }}>
@@ -595,31 +743,118 @@ function SecuritySection({
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{contact.email ?? "—"}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {!contact.emailVerified && contact.email && (
+          {!emailEdit ? (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={emailSending}
-                onClick={handleSendVerificationEmail}
+                onClick={handleStartEmailEdit}
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                {emailSending ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Sending…</> : "Send verification"}
+                Edit email
               </button>
-            )}
-            <Link
-              href="/verify?method=email"
+              {!contact.emailVerified && contact.email && (
+                <button
+                  type="button"
+                  disabled={emailSending}
+                  onClick={handleSendVerificationEmail}
+                  className="rounded-lg border px-3 py-2 text-sm font-medium"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                >
+                  {emailSending ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Sending…</> : "Send verification"}
+                </button>
+              )}
+              <Link
+                href="/verify?method=email"
+                className="rounded-lg border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                Verify / change
+              </Link>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCancelEmailEdit}
               className="rounded-lg border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
-              Verify / change
-            </Link>
-          </div>
+              Cancel
+            </button>
+          )}
         </div>
+        {emailEdit && (
+          <div className="pt-2 border-t space-y-3" style={{ borderColor: "var(--border)" }}>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>New email</label>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+              />
+            </div>
+            {status.hasPassword && (
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Current password</label>
+                <div className="relative">
+                  <input
+                    type={showEmailCurrentPassword ? "text" : "password"}
+                    value={emailCurrentPassword}
+                    onChange={(e) => setEmailCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="w-full rounded-lg border px-3 py-2 pr-10 text-sm"
+                    style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailCurrentPassword((s) => !s)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                    aria-label={showEmailCurrentPassword ? "Hide" : "Show"}
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {showEmailCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>
+                  Required to protect your account when changing email.
+                </p>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={emailSaving || !emailInput.trim() || (status.hasPassword && !emailCurrentPassword.trim())}
+                onClick={handleSaveEmail}
+                className="rounded-lg border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: "var(--accent-cyan)", color: "var(--text)" }}
+              >
+                {emailSaving ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Saving…</> : "Save email"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelEmailEdit}
+                className="rounded-lg border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         {emailResult === "sent" && <p className="text-xs text-emerald-600">Check your email for the verification link.</p>}
         {emailResult === "already" && <p className="text-xs" style={{ color: "var(--muted)" }}>Email is already verified.</p>}
         {emailResult === "rate_limited" && <p className="text-xs text-amber-600">Too many attempts. Please try again later.</p>}
         {emailResult === "error" && <p className="text-xs text-red-600">Failed to send. Try again.</p>}
+        {emailSaveResult === "saved" && <p className="text-xs text-emerald-600">Email updated. Check your inbox to verify the new address.</p>}
+        {emailSaveResult === "saved_no_email" && <p className="text-xs text-amber-600">Email updated, but verification email could not be sent right now.</p>}
+        {emailSaveResult === "invalid" && <p className="text-xs text-red-600">Enter a valid email address.</p>}
+        {emailSaveResult === "duplicate" && <p className="text-xs text-red-600">That email is already in use by another account.</p>}
+        {emailSaveResult === "wrong_password" && <p className="text-xs text-red-600">Current password is incorrect.</p>}
+        {emailSaveResult === "password_required" && <p className="text-xs text-red-600">Current password is required to change email.</p>}
+        {emailSaveResult === "error" && <p className="text-xs text-red-600">Could not update email. Please try again.</p>}
       </div>
 
       {/* Phone */}
@@ -1152,7 +1387,13 @@ function LegacyImportSection() {
   )
 }
 
-function LegalSection() {
+function LegalSection({
+  profile,
+}: {
+  profile: ReturnType<typeof useSettingsProfile>["profile"]
+}) {
+  const legalState = profile?.settings?.legalAcceptanceState
+
   return (
     <div className="space-y-6">
       <div>
@@ -1161,7 +1402,24 @@ function LegalSection() {
           Terms and privacy policy.
         </p>
       </div>
+      <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Acceptance state</p>
+        <ul className="space-y-1 text-sm" style={{ color: "var(--muted)" }}>
+          <li>Age verified: {legalState?.ageVerified ? "Yes" : "No"}</li>
+          <li>Disclaimer accepted: {legalState?.disclaimerAccepted ? "Yes" : "No"}</li>
+          <li>Terms accepted: {legalState?.termsAccepted ? "Yes" : "No"}</li>
+          <li>
+            Accepted at:{" "}
+            {legalState?.acceptedAt
+              ? formatInTimezone(legalState.acceptedAt, profile?.timezone, undefined, profile?.preferredLanguage)
+              : "Not recorded"}
+          </li>
+        </ul>
+      </div>
       <div className="flex flex-wrap gap-2">
+        <Link href="/disclaimer" className="rounded-lg border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+          Disclaimer
+        </Link>
         <Link href="/terms" className="rounded-lg border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
           Terms of Service
         </Link>
@@ -1191,9 +1449,19 @@ function AccountSection() {
         >
           Sign out
         </button>
+        <a
+          href="mailto:support@allfantasy.ai?subject=Account%20Deletion%20Request"
+          className="rounded-xl border px-4 py-2 text-sm font-semibold"
+          style={{
+            borderColor: "color-mix(in srgb, var(--accent-red) 55%, var(--border))",
+            color: "var(--accent-red-strong)",
+          }}
+        >
+          Request account deletion
+        </a>
       </div>
       <p className="text-xs" style={{ color: "var(--muted)" }}>
-        Account deletion or deactivation can be requested via support.
+        Account deletion or deactivation is handled by support for safety verification.
       </p>
     </div>
   )

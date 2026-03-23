@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Send, Loader2 } from "lucide-react"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 
 type ChatMessage = {
   id: string
@@ -12,6 +13,7 @@ type ChatMessage = {
     displayName: string | null
     email: string
     avatarUrl: string | null
+    profile?: { avatarPreset?: string | null } | null
   }
 }
 
@@ -55,7 +57,13 @@ export function LeagueChat({ leagueId, currentUserId }: { leagueId: string; curr
       id: `temp-${Date.now()}`,
       message: text,
       createdAt: new Date().toISOString(),
-      user: { id: currentUserId, displayName: null, email: "", avatarUrl: null },
+      user: {
+        id: currentUserId,
+        displayName: null,
+        email: "",
+        avatarUrl: null,
+        profile: { avatarPreset: null },
+      },
     }
     setMessages((prev) => [...prev, optimistic])
 
@@ -78,11 +86,6 @@ export function LeagueChat({ leagueId, currentUserId }: { leagueId: string; curr
     } finally {
       setSending(false)
     }
-  }
-
-  function getInitials(user: ChatMessage["user"]) {
-    const name = user.displayName || user.email || "?"
-    return name.slice(0, 2).toUpperCase()
   }
 
   function formatTime(iso: string) {
@@ -114,13 +117,13 @@ export function LeagueChat({ leagueId, currentUserId }: { leagueId: string; curr
           const isOwn = msg.user.id === currentUserId
           return (
             <div key={msg.id} className={`flex gap-2.5 ${isOwn ? "flex-row-reverse" : ""}`}>
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[11px] font-bold text-white">
-                {msg.user.avatarUrl ? (
-                  <img src={msg.user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
-                ) : (
-                  getInitials(msg.user)
-                )}
-              </div>
+              <IdentityImageRenderer
+                avatarUrl={msg.user.avatarUrl}
+                avatarPreset={msg.user.profile?.avatarPreset ?? null}
+                displayName={msg.user.displayName}
+                username={msg.user.email?.split("@")[0] ?? null}
+                size="sm"
+              />
               <div className={`max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                 <div className={`text-[11px] mb-0.5 ${isOwn ? "text-right" : ""} text-white/40`}>
                   {msg.user.displayName || msg.user.email?.split("@")[0] || "User"}

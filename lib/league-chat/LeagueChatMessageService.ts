@@ -6,7 +6,17 @@
 import { prisma } from '@/lib/prisma'
 import type { PlatformChatMessage } from '@/types/platform-shared'
 
-const includeUser = { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } }
+const includeUser = {
+  user: {
+    select: {
+      id: true,
+      displayName: true,
+      email: true,
+      avatarUrl: true,
+      profile: { select: { avatarPreset: true } },
+    },
+  },
+}
 
 export async function getLeagueChatMessages(
   leagueId: string,
@@ -36,6 +46,8 @@ export async function getLeagueChatMessages(
       threadId: `league:${leagueId}`,
       senderUserId: m.user?.id ?? null,
       senderName: m.user?.displayName || m.user?.email || 'User',
+      senderAvatarUrl: m.user?.avatarUrl ?? null,
+      senderAvatarPreset: m.user?.profile?.avatarPreset ?? null,
       messageType: m.type || 'text',
       body: m.message || '',
       createdAt: m.createdAt.toISOString(),
@@ -71,12 +83,22 @@ export async function createLeagueChatMessage(
     },
     include: includeUser,
   })
-  const withUser = created as typeof created & { user?: { id: string; displayName: string | null; email: string | null; avatarUrl: string | null } }
+  const withUser = created as typeof created & {
+    user?: {
+      id: string
+      displayName: string | null
+      email: string | null
+      avatarUrl: string | null
+      profile?: { avatarPreset?: string | null } | null
+    }
+  }
   const out: PlatformChatMessage = {
     id: created.id,
     threadId: `league:${leagueId}`,
     senderUserId: withUser.user?.id ?? created.userId,
     senderName: withUser.user?.displayName || withUser.user?.email || 'User',
+    senderAvatarUrl: withUser.user?.avatarUrl ?? null,
+    senderAvatarPreset: withUser.user?.profile?.avatarPreset ?? null,
     messageType: created.type || 'text',
     body: created.message || '',
     createdAt: created.createdAt.toISOString(),

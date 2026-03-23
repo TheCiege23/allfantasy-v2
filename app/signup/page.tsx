@@ -31,7 +31,6 @@ import {
   suggestUsername,
 } from "@/lib/signup/UsernameAvailabilityService"
 import { validateAvatarUploadFile } from "@/lib/signup/AvatarPickerService"
-import { uploadProfileImage } from "@/lib/signup/ProfileImageUploadService"
 import {
   LEGACY_IMPORT_PROVIDERS,
   getLegacyImportProviderMessage,
@@ -40,6 +39,7 @@ import {
 import { validateSignupAgreements } from "@/lib/signup/AgreementAcceptanceService"
 import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
 import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
+import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import {
@@ -93,9 +93,8 @@ function SignupContent() {
     language === "es" ? "es" : "en"
   )
   const [preferredLanguageTouched, setPreferredLanguageTouched] = useState(false)
-  const [avatarPreset, setAvatarPreset] = useState<string>("crest")
+  const [avatarPreset, setAvatarPreset] = useState<string | null>("crest")
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [avatarUploadFile, setAvatarUploadFile] = useState<File | null>(null)
   const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [phone, setPhone] = useState("")
@@ -261,15 +260,6 @@ function SignupContent() {
   }
 
   async function runPostSignupProfileSetup() {
-    if (avatarUploadFile) {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const result = await uploadProfileImage(avatarUploadFile).catch(() => ({
-          ok: false as const,
-        }))
-        if (result.ok) break
-        await new Promise((resolve) => setTimeout(resolve, 200))
-      }
-    }
     if (sleeperResult?.found && sleeperResult.username) {
       await fetch("/api/legacy/import", {
         method: "POST",
@@ -753,7 +743,35 @@ function SignupContent() {
 
           <div>
             <label className="block text-xs text-white/60 mb-1">Profile Image</label>
+            <div className="mb-3 flex items-center gap-3">
+              <IdentityImageRenderer
+                avatarUrl={avatarPreview}
+                avatarPreset={avatarPreview ? null : avatarPreset}
+                displayName={username || email}
+                username={username || email}
+                size="md"
+              />
+              <p className="text-[11px] text-white/45">
+                Live preview updates instantly for presets and uploads.
+              </p>
+            </div>
             <div className="grid grid-cols-5 gap-2 text-xs mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAvatarPreset(null)
+                  setAvatarPreview(null)
+                  setAvatarFileError(null)
+                }}
+                className={`rounded-lg border px-2 py-2 transition ${
+                  avatarPreset == null && !avatarPreview
+                    ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
+                    : "border-white/10 bg-black/20 text-white/70 hover:border-white/20"
+                }`}
+                title="Use initial"
+              >
+                Initial
+              </button>
               {AVATAR_PRESETS.map((preset) => (
                 <button
                   key={preset}
@@ -761,7 +779,6 @@ function SignupContent() {
                   onClick={() => {
                     setAvatarPreset(preset)
                     setAvatarPreview(null)
-                    setAvatarUploadFile(null)
                     setAvatarFileError(null)
                   }}
                   className={`rounded-lg border px-2 py-2 transition ${
@@ -780,6 +797,7 @@ function SignupContent() {
                 <input
                   type="file"
                   accept="image/*"
+                  data-testid="signup-avatar-upload-input"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
@@ -792,7 +810,6 @@ function SignupContent() {
                     const reader = new FileReader()
                     reader.onload = () => {
                       setAvatarPreview(reader.result as string)
-                      setAvatarUploadFile(file)
                       setAvatarFileError(null)
                     }
                     reader.readAsDataURL(file)
@@ -811,7 +828,6 @@ function SignupContent() {
                     type="button"
                     onClick={() => {
                       setAvatarPreview(null)
-                      setAvatarUploadFile(null)
                     }}
                     className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white/60 hover:text-white/80"
                   >

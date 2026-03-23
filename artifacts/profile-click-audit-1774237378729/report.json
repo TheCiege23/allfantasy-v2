@@ -1,0 +1,165 @@
+{
+  "timestamp": "2026-03-23T03:51:14.574Z",
+  "baseUrl": "http://127.0.0.1:3000",
+  "accountUsed": {
+    "email": "qa_1774237378729@example.com",
+    "username": "qa_profile_1774237378729",
+    "generated": true,
+    "authenticated": true
+  },
+  "results": [
+    {
+      "interaction": "Authentication",
+      "expected": "User is authenticated for profile click audit",
+      "actual": "Authenticated using generated account qa_1774237378729@example.com",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\01-authentication.png"
+    },
+    {
+      "interaction": "Dashboard to Profile entry point",
+      "expected": "A visible profile entry routes to /profile",
+      "actual": "Profile link present and routed to /profile",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\02-dashboard-to-profile-entry-point.png"
+    },
+    {
+      "interaction": "Profile load identity",
+      "expected": "Identity card and profile header load",
+      "actual": "locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByRole('heading', { name: /profile/i }).first() to be visible\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\03-profile-load-identity-failure.png"
+    },
+    {
+      "interaction": "Edit profile open",
+      "expected": "Edit button reveals editable profile form",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^edit$/i }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\04-edit-profile-open-failure.png"
+    },
+    {
+      "interaction": "Display/Bio/Sports save",
+      "expected": "Profile edits persist after save and reload",
+      "actual": "locator.fill: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('input[placeholder=\"Your display name\"]')\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\05-display-bio-sports-save-failure.png"
+    },
+    {
+      "interaction": "Avatar preset selection save",
+      "expected": "Preset selection is clickable and save succeeds",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^edit$/i }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\06-avatar-preset-selection-save-failure.png"
+    },
+    {
+      "interaction": "Upload image button filechooser",
+      "expected": "Upload image click opens file chooser event",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^edit$/i }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\07-upload-image-button-filechooser-failure.png"
+    },
+    {
+      "interaction": "Cancel edit restores persisted state",
+      "expected": "Cancel discards unsaved draft changes",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: /^edit$/i }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\08-cancel-edit-restores-persisted-state-failure.png"
+    },
+    {
+      "interaction": "Quick link: Sports App",
+      "expected": "Sports App quick link routes into app shell",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: 'Sports App' }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\09-quick-link-sports-app-failure.png"
+    },
+    {
+      "interaction": "Quick link: Profile & settings",
+      "expected": "Profile & settings quick link opens /settings",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: 'Profile & settings' }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\10-quick-link-profile-settings-failure.png"
+    },
+    {
+      "interaction": "Settings tab preferences deep link",
+      "expected": "Language/timezone/theme quick link opens settings preferences tab",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: 'Language, timezone, theme' }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\11-settings-tab-preferences-deep-link-failure.png"
+    },
+    {
+      "interaction": "Quick link: View public profile",
+      "expected": "Own public profile quick link routes to /profile/{username}",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: 'View public profile' }).first()\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\12-quick-link-view-public-profile-failure.png"
+    },
+    {
+      "interaction": "Back link from profile page",
+      "expected": "Back control returns to dashboard",
+      "actual": "Back link routed to dashboard",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\13-back-link-from-profile-page.png"
+    },
+    {
+      "interaction": "Public profile (own username)",
+      "expected": "Own public route still renders profile page successfully",
+      "actual": "Could not resolve current username from profile page",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\14-public-profile-own-username-failure.png"
+    },
+    {
+      "interaction": "Public profile not-found handling",
+      "expected": "Unknown username shows not-found state",
+      "actual": "locator.waitFor: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByText(/profile not found/i) to be visible\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\15-public-profile-not-found-handling-failure.png"
+    },
+    {
+      "interaction": "HomeTopNav profile link",
+      "expected": "Authenticated home top-nav profile link navigates to /profile",
+      "actual": "Top-nav profile link works",
+      "status": "PASS",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\16-hometopnav-profile-link.png"
+    },
+    {
+      "interaction": "Settings modal open + tab switches",
+      "expected": "Settings icon opens modal and tabs are interactive",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: 'Notifications' }).first()\n    - locator resolved to <button type=\"button\" title=\"Notifications\" aria-expanded=\"false\" aria-label=\"Notifications\" class=\"relative rounded-lg border p-2 transition\">…</button>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div role=\"dialog\" aria-modal=\"true\" class=\"fixed inset-0 z-50 flex items-center justify-center px-3\">…</div> intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div role=\"dialog\" aria-modal=\"true\" class=\"fixed inset-0 z-50 flex items-center justify-center px-3\">…</div> intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    56 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div role=\"dialog\" aria-modal=\"true\" class=\"fixed inset-0 z-50 flex items-center justify-center px-3\">…</div> intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\17-settings-modal-open-tab-switches-failure.png"
+    },
+    {
+      "interaction": "Settings modal deep link closes modal",
+      "expected": "Clicking modal deep link navigates and closes overlay",
+      "actual": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Notifications' }) resolved to 2 elements:\n    1) <button type=\"button\" title=\"Notifications\" aria-expanded=\"false\" aria-label=\"Notifications\" class=\"relative rounded-lg border p-2 transition\">…</button> aka getByLabel('Notifications', { exact: true })\n    2) <button type=\"button\" class=\"flex w-full items-center gap-2 px-4 py-3 text-left whitespace-nowrap\">…</button> aka getByRole('list').getByRole('button', { name: 'Notifications' })\n\nCall log:\n  - waiting for getByRole('button', { name: 'Notifications' })\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\18-settings-modal-deep-link-closes-modal-failure.png"
+    },
+    {
+      "interaction": "User menu dropdown links (if visible)",
+      "expected": "User menu opens and profile/settings links navigate correctly",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for getByRole('menuitem', { name: /^profile$/i })\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\19-user-menu-dropdown-links-if-visible-failure.png"
+    },
+    {
+      "interaction": "Mobile bottom tab: Profile",
+      "expected": "Profile bottom tab works on mobile viewport",
+      "actual": "locator.click: Timeout 30000ms exceeded.\nCall log:\n  - waiting for locator('nav a[href=\"/profile\"]').last()\n    - locator resolved to <a href=\"/profile\" class=\"group relative flex flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-semibold transition duration-150 active:scale-95 text-slate-300 hover:bg-slate-800/70\">…</a>\n  - attempting click action\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <button title=\"AF Legacy Mode\" aria-label=\"AF Legacy Mode\" class=\"rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur\"> </button> from <div class=\"fixed bottom-4 right-4 z-40\">…</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 × waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <button title=\"AF Legacy Mode\" aria-label=\"AF Legacy Mode\" class=\"rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur\"> </button> from <div class=\"fixed bottom-4 right-4 z-40\">…</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    56 × waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <button title=\"AF Legacy Mode\" aria-label=\"AF Legacy Mode\" class=\"rounded-xl border px-3 py-2 text-xs font-semibold shadow-lg backdrop-blur\">AF Legacy</button> from <div class=\"fixed bottom-4 right-4 z-40\">…</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\20-mobile-bottom-tab-profile-failure.png"
+    },
+    {
+      "interaction": "Mobile sports tab active state",
+      "expected": "Sports tab is active on sports routes",
+      "actual": "locator.waitFor: Timeout 10000ms exceeded.\nCall log:\n  - waiting for getByRole('link', { name: /^sports$/i }).first() to be visible\n",
+      "status": "FAIL",
+      "screenshot": "artifacts\\profile-click-audit-1774237378729\\21-mobile-sports-tab-active-state-failure.png"
+    }
+  ],
+  "summary": {
+    "pass": 4,
+    "fail": 17,
+    "blocked": 0,
+    "total": 21
+  }
+}

@@ -21,6 +21,8 @@
     "test:e2e:db": "playwright test --grep @db",
     "test:e2e:draft-room": "playwright test --grep @draft-room",
     "test:e2e:draft-room:chromium": "playwright test --grep @draft-room --project=chromium",
+    "test:e2e:admin-timezone:core": "playwright test e2e/admin-timezone-smoke.spec.ts",
+    "test:e2e:admin-timezone:heavy": "playwright test e2e/admin-timezone-heavy-tabs.spec.ts",
     "test:prompt2": "vitest run __tests__/sport-team-player-pool-mapping.test.ts __tests__/sport-default-roster-settings.test.ts __tests__/league-roster-validation-context.test.ts __tests__/league-creation-defaults-loader-variants.test.ts __tests__/prompt2-slot-flex-behavior.test.ts",
     "qa:legacy-smoke": "node scripts/legacy-feature-smoke-test.mjs",
     "qa:legacy-report": "node scripts/legacy-qa-report.mjs",

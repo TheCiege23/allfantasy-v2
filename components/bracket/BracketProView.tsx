@@ -5,6 +5,7 @@ import { Timer, Trophy, Sparkles } from "lucide-react"
 import { useBracketLive } from "@/lib/hooks/useBracketLive"
 import { PickWizard } from "./PickWizard"
 import { PickAssistCard } from "./PickAssistCard"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type Game = {
   id: string
@@ -230,6 +231,7 @@ function MiniCell({
 }
 
 export function BracketProView({ tournamentId, leagueId, entryId, nodes, initialPicks }: Props) {
+  const { formatInTimezone } = useUserTimezone()
   const { data: live } = useBracketLive({ tournamentId, leagueId, enabled: true, intervalMs: 12000 })
   const [picks, setPicks] = useState<Record<string, string | null>>(initialPicks)
   const [wizardNode, setWizardNode] = useState<Node | null>(null)
@@ -271,8 +273,8 @@ export function BracketProView({ tournamentId, leagueId, entryId, nodes, initial
       .filter((n): n is number => typeof n === "number")
       .sort((a, b) => a - b)
     if (!starts.length) return "TBD"
-    return new Date(starts[0]).toLocaleDateString(undefined, { month: "long", day: "numeric" })
-  }, [nodesWithLive])
+    return formatInTimezone(starts[0], { month: "long", day: "numeric" })
+  }, [formatInTimezone, nodesWithLive])
 
   const totalPicks = Object.values(picks).filter(Boolean).length
   const totalGames = nodesWithLive.filter(n => n.round >= 1).length

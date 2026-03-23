@@ -6,6 +6,7 @@ import { useMediaArticles } from '@/hooks/useMediaArticles'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import type { ArticleGenerationType } from '@/lib/sports-media-engine/types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const ARTICLE_TYPE_LABELS: Record<ArticleGenerationType, string> = {
   weekly_recap: 'Weekly recap',
@@ -26,6 +27,7 @@ const TAG_OPTIONS: ArticleGenerationType[] = [
 ]
 
 export default function NewsTab({ leagueId, isCommissioner = false }: LeagueTabProps & { isCommissioner?: boolean }) {
+  const { formatDateInTimezone } = useUserTimezone()
   const [sportFilter, setSportFilter] = useState<string>('')
   const [tagFilter, setTagFilter] = useState<string>('')
   const [generateType, setGenerateType] = useState<ArticleGenerationType>('weekly_recap')
@@ -168,7 +170,7 @@ export default function NewsTab({ leagueId, isCommissioner = false }: LeagueTabP
                   <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{a.body.slice(0, 160)}…</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className="text-xs text-zinc-500">
-                      {new Date(a.createdAt).toLocaleDateString()} · {a.sport}
+                      {formatDateInTimezone(a.createdAt)} · {a.sport}
                     </span>
                     {a.tags?.map((t) => (
                       <span

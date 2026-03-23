@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react"
 import type { PlatformChatMessage, PlatformChatThread } from "@/types/platform-shared"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type ChatTab = "league" | "dm" | "ai"
 
@@ -37,6 +38,7 @@ type LeagueMeta = {
 }
 
 export default function HomeChatDock() {
+  const { formatInTimezone } = useUserTimezone()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<ChatTab>("league")
   const [input, setInput] = useState("")
@@ -314,7 +316,7 @@ export default function HomeChatDock() {
             <span>
               Last viewed:{" "}
               {leagueMeta?.lastViewed
-                ? new Date(leagueMeta.lastViewed).toLocaleString()
+                ? formatInTimezone(leagueMeta.lastViewed)
                 : "Not viewed yet"}
             </span>
             <span className="hidden sm:inline">
@@ -633,6 +635,7 @@ function ChatMessageRow({
   msg: PlatformChatMessage
   onBlock?: (userId: string, displayName: string) => void
 }) {
+  const { formatInTimezone } = useUserTimezone()
   return (
     <article className="group rounded-xl px-2 py-1.5 transition-colors hover:bg-black/5">
       <div className="flex items-start gap-2">
@@ -654,7 +657,7 @@ function ChatMessageRow({
                 {msg.senderName}
               </span>
               <span className="ml-1 text-[10px]" style={{ color: "var(--muted2)" }}>
-                {new Date(msg.createdAt).toLocaleTimeString()}
+                {formatInTimezone(msg.createdAt, { hour: "numeric", minute: "2-digit" })}
               </span>
             </div>
             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

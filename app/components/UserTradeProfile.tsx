@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { User, AlertTriangle, TrendingUp, BarChart3 } from 'lucide-react';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface ProfileData {
   summary: string | null;
@@ -10,6 +11,7 @@ interface ProfileData {
 }
 
 export default function UserTradeProfile() {
+  const { formatDateInTimezone } = useUserTimezone();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -62,7 +64,7 @@ export default function UserTradeProfile() {
             {profile.lastUpdated && (
               <>
                 <span>·</span>
-                <span>Updated {new Date(profile.lastUpdated).toLocaleDateString()}</span>
+                <span>Updated {formatDateInTimezone(profile.lastUpdated)}</span>
               </>
             )}
           </div>

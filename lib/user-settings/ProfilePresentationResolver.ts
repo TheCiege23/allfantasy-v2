@@ -1,6 +1,5 @@
 import { getSportLabel } from "./PreferredSportsResolver"
-import type { UserProfileForSettings } from "./types"
-import type { PublicProfileDto } from "./PublicProfileQueryService"
+import type { PublicProfileDto, UserProfileForSettings } from "./types"
 
 export interface ProfilePresentation {
   displayName: string

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PlatformAnalyticsPanel } from "./PlatformAnalyticsPanel";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type AnalyticsRow = {
   id: string;
@@ -218,9 +219,18 @@ type SourceQualityData = {
   totalUsers: number;
 };
 
-function fmtDate(iso: string) {
+function fmtDate(
+  iso: string,
+  formatter: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
+) {
   try {
-    return new Date(iso).toLocaleString();
+    return formatter(iso, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   } catch {
     return iso;
   }
@@ -261,6 +271,7 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function RetentionPanel() {
+  const { formatInTimezone } = useUserTimezone();
   const [retention, setRetention] = useState<RetentionData | null>(null);
   const [stickiness, setStickiness] = useState<StickinessData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -595,7 +606,7 @@ function RetentionPanel() {
                           <div className="text-xs font-medium" style={{ color: "var(--text)" }}>{u.displayName || u.username}</div>
                           {u.displayName && <div className="text-[10px]" style={{ color: "var(--muted)" }}>{u.username}</div>}
                         </div>
-                        <div className="text-[10px]" style={{ color: "var(--muted)" }}>{fmtDate(u.signupAt)}</div>
+                        <div className="text-[10px]" style={{ color: "var(--muted)" }}>{fmtDate(u.signupAt, formatInTimezone)}</div>
                       </div>
                     ))}
                   </div>
@@ -1135,7 +1146,7 @@ function RetentionPanel() {
                           </span>
                         </td>
                         <td className="p-3 text-right tabular-nums">{u.distinctDays}</td>
-                        <td className="p-3 text-right text-xs" style={{ color: "var(--muted)" }}>{fmtDate(u.lastUse)}</td>
+                        <td className="p-3 text-right text-xs" style={{ color: "var(--muted)" }}>{fmtDate(u.lastUse, formatInTimezone)}</td>
                       </tr>
                     ))}
                     {stickiness.users.length === 0 && (
@@ -1264,6 +1275,7 @@ function RetentionPanel() {
 }
 
 export default function AdminAnalytics() {
+  const { formatInTimezone } = useUserTimezone();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1867,7 +1879,7 @@ export default function AdminAnalytics() {
                       onClick={() => setSelected(r)}
                       title="Click to view details"
                     >
-                      <td className="p-3 whitespace-nowrap">{fmtDate(r.createdAt)}</td>
+                      <td className="p-3 whitespace-nowrap">{fmtDate(r.createdAt, formatInTimezone)}</td>
                       <td className="p-3">{r.toolKey || "-"}</td>
                       <td className="p-3">{r.event}</td>
                       <td className="p-3">{r.path || "-"}</td>
@@ -1904,7 +1916,7 @@ export default function AdminAnalytics() {
                 style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}
                 onClick={() => setSelected(r)}
               >
-                <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>{fmtDate(r.createdAt)}</div>
+                <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>{fmtDate(r.createdAt, formatInTimezone)}</div>
                 <div className="flex flex-wrap gap-1 mb-1">
                   {r.toolKey && (
                     <span className="px-2 py-0.5 rounded text-xs font-medium border border-cyan-500/20 bg-cyan-500/10 text-cyan-300">
@@ -1974,7 +1986,7 @@ export default function AdminAnalytics() {
             <div className="mt-4 space-y-3 text-sm">
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Time</div>
-                <div>{fmtDate(selected.createdAt)}</div>
+                <div>{fmtDate(selected.createdAt, formatInTimezone)}</div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { getCoachAdvice } from '@/lib/fantasy-coach';
 import type { AdviceType } from '@/lib/fantasy-coach/types';
+import { authOptions } from '@/lib/auth';
+import { assertLeagueMember } from '@/lib/league-access';
+import { logAiOutput } from '@/lib/ai/output-logger';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   let body: { type?: string; leagueId?: string; leagueName?: string; week?: number; teamName?: string };
   try {
     body = await req.json();
@@ -21,6 +30,14 @@ export async function POST(req: Request) {
     );
   }
 
+  if (body.leagueId) {
+    try {
+      await assertLeagueMember(body.leagueId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   try {
     const result = await getCoachAdvice(type as AdviceType, {
       leagueId: body.leagueId,
@@ -28,6 +45,20 @@ export async function POST(req: Request) {
       week: body.week,
       teamName: body.teamName,
     });
+
+    await logAiOutput({
+      provider: 'openai',
+      role: 'narrative',
+      taskType: type === 'lineup' ? 'start_sit_assistant' : `coach_${type}`,
+      targetType: 'user',
+      targetId: session.user.id,
+      contentJson: result,
+      meta: {
+        leagueId: body.leagueId ?? null,
+        type,
+      },
+    });
+
     return NextResponse.json(result);
   } catch (e) {
     console.error('[coach/advice]', e);

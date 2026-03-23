@@ -9,7 +9,7 @@ export default async function TradeFinderPage() {
     user?: { id?: string };
   } | null;
 
-  if (!session?.user?.id) redirect('/login');
+  if (!session?.user?.id) redirect('/login?callbackUrl=/trade-finder');
 
   const [leagues, userProfile] = await Promise.all([
     (prisma as any).league.findMany({

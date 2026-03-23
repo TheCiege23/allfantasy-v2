@@ -24,6 +24,7 @@ import {
 import { groupLeaguesBySport, type LeagueForGrouping } from "@/lib/dashboard"
 import { useLeagueList } from "@/hooks/useLeagueList"
 import { getLeagueVariantLabel } from "@/lib/league-creation/LeagueVariantResolver"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 interface DashboardProps {
   onboardingComplete?: boolean
@@ -125,11 +126,14 @@ function rosterItemLabel(item: unknown): string {
   return "Roster asset"
 }
 
-function formatDateLabel(input: string | null | undefined): string {
+function formatDateLabel(
+  input: string | null | undefined,
+  formatter: (date: Date | string | number, options?: Intl.DateTimeFormatOptions) => string
+): string {
   if (!input) return "No timestamp"
   const date = new Date(input)
   if (Number.isNaN(date.getTime())) return "No timestamp"
-  return date.toLocaleString()
+  return formatter(input)
 }
 
 function formatVariantLabel(league: { leagueVariant?: string | null; league_variant?: string | null }): string {
@@ -138,6 +142,7 @@ function formatVariantLabel(league: { leagueVariant?: string | null; league_vari
 
 export default function DashboardContent({ user, profile, leagues, entries, userCareerTier }: DashboardProps) {
   const displayName = user.displayName || user.username || user.email.split("@")[0] || "Manager"
+  const { formatInTimezone } = useUserTimezone()
   const careerTier = Number.isFinite(Number(userCareerTier)) ? Math.max(1, Math.floor(Number(userCareerTier))) : 1
   const visibleLeagues = useMemo(() => leagues.filter((league) => league.inTierRange !== false), [leagues])
   const { leagues: connectedLeagueList, loading: connectedLeaguesLoading, error: connectedLeaguesError, refetch: refetchConnectedLeagues } = useLeagueList(true)
@@ -736,7 +741,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                     </div>
                     <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
                       <span>{league.syncStatus || leagueMeta.status || "Connected"}</span>
-                      <span>{formatDateLabel(league.lastSyncedAt || leagueMeta.createdAt)}</span>
+                      <span>{formatDateLabel(league.lastSyncedAt || leagueMeta.createdAt, formatInTimezone)}</span>
                     </div>
                   </Link>
                 )
@@ -851,7 +856,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                 const card = (
                   <>
                     <p className="text-sm font-bold text-white">{item.title}</p>
-                    <p className="mt-1 text-xs text-slate-400">{item.source} · {formatDateLabel(item.publishedAt)}</p>
+                    <p className="mt-1 text-xs text-slate-400">{item.source} · {formatDateLabel(item.publishedAt, formatInTimezone)}</p>
                   </>
                 )
                 if (item.href) {
@@ -1004,7 +1009,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                 <div key={msg.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                   <p className="text-sm font-bold text-cyan-200">{msg.userName}</p>
                   <p className="mt-1 text-sm text-slate-200">{msg.message}</p>
-                  <p className="mt-2 text-[11px] text-slate-400">{formatDateLabel(msg.createdAt)}</p>
+                  <p className="mt-2 text-[11px] text-slate-400">{formatDateLabel(msg.createdAt, formatInTimezone)}</p>
                 </div>
               ))
             ) : (
@@ -1064,7 +1069,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
                 <>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 uppercase tracking-[0.1em]">{item.label}</span>
-                    <span>{formatDateLabel(item.publishedAt)}</span>
+                    <span>{formatDateLabel(item.publishedAt, formatInTimezone)}</span>
                   </div>
                   <p className="mt-2 text-lg font-bold text-white">{item.title}</p>
                   <p className="mt-1 text-sm text-slate-300">{item.summary}</p>

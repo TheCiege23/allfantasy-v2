@@ -3,9 +3,15 @@
  * Use for game times, league deadlines, schedule data across Sports App, Bracket, Legacy.
  */
 
+import { isValidTimezone, DEFAULT_TIMEZONE } from "./TimezonePreferenceService"
+
 export type TimezoneIana = string
 
-const DEFAULT_TIMEZONE = "America/New_York"
+type FormattingLocale = "en-US" | "es-MX"
+
+function resolveLocale(localeOrLanguage?: string | null): FormattingLocale {
+  return localeOrLanguage === "es" || localeOrLanguage === "es-MX" ? "es-MX" : "en-US"
+}
 
 /**
  * Format a Date or ISO string in the given IANA timezone.
@@ -18,14 +24,16 @@ export function formatInTimezone(
     dateStyle: "short",
     timeStyle: "short",
     hour12: true,
-  }
+  },
+  localeOrLanguage?: string | null
 ): string {
-  const tz = timezone && timezone.length > 0 ? timezone : DEFAULT_TIMEZONE
+  const tz = isValidTimezone(timezone) ? timezone : DEFAULT_TIMEZONE
+  const locale = resolveLocale(localeOrLanguage)
   const d = typeof date === "object" && "getTime" in date ? date : new Date(date)
   try {
-    return new Intl.DateTimeFormat("en-US", { ...options, timeZone: tz }).format(d)
+    return new Intl.DateTimeFormat(locale, { ...options, timeZone: tz }).format(d)
   } catch {
-    return new Intl.DateTimeFormat("en-US", { ...options, timeZone: DEFAULT_TIMEZONE }).format(d)
+    return new Intl.DateTimeFormat(locale, { ...options, timeZone: DEFAULT_TIMEZONE }).format(d)
   }
 }
 
@@ -34,9 +42,10 @@ export function formatInTimezone(
  */
 export function formatTimeInTimezone(
   date: Date | string | number,
-  timezone: TimezoneIana | null | undefined
+  timezone: TimezoneIana | null | undefined,
+  localeOrLanguage?: string | null
 ): string {
-  return formatInTimezone(date, timezone, { timeStyle: "short", hour12: true })
+  return formatInTimezone(date, timezone, { timeStyle: "short", hour12: true }, localeOrLanguage)
 }
 
 /**
@@ -44,7 +53,8 @@ export function formatTimeInTimezone(
  */
 export function formatDateInTimezone(
   date: Date | string | number,
-  timezone: TimezoneIana | null | undefined
+  timezone: TimezoneIana | null | undefined,
+  localeOrLanguage?: string | null
 ): string {
-  return formatInTimezone(date, timezone, { dateStyle: "short" })
+  return formatInTimezone(date, timezone, { dateStyle: "short" }, localeOrLanguage)
 }

@@ -3,6 +3,7 @@
 import { Lock, Unlock, Trophy, History } from 'lucide-react'
 import { getMinigameDef } from '@/lib/survivor/SurvivorMiniGameRegistry'
 import type { SurvivorSummary, SurvivorSummaryChallenge } from './types'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 export interface SurvivorChallengeCenterProps {
   leagueId: string
@@ -61,6 +62,7 @@ function getChallengeDetails(challenge: SurvivorSummaryChallenge, names: Record<
  * Challenge Center: active mini-game, submission windows, locked state, tribe result history, reward/advantage outputs.
  */
 export function SurvivorChallengeCenter({ summary, names }: SurvivorChallengeCenterProps) {
+  const { formatInTimezone } = useUserTimezone()
   const { challenges, currentWeek } = summary
   const weekChallenges = challenges.filter((challenge) => challenge.week === currentWeek)
   const locked = weekChallenges.filter((challenge) => challenge.lockAt && new Date(challenge.lockAt) < new Date())
@@ -91,7 +93,7 @@ export function SurvivorChallengeCenter({ summary, names }: SurvivorChallengeCen
                       <span className="font-medium text-white">{challenge.challengeType}</span>
                     </div>
                     <span className="text-xs text-white/60">
-                      Submissions: {challenge.submissionCount} · Lock: {challenge.lockAt ? new Date(challenge.lockAt).toLocaleString() : '—'}
+                      Submissions: {challenge.submissionCount} · Lock: {challenge.lockAt ? formatInTimezone(challenge.lockAt) : '—'}
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-white/60">

@@ -23,6 +23,7 @@ import {
   Clock,
   Send,
 } from "lucide-react";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type SourceFilter = "all" | "allfantasy.ai" | "allfantasysportsapp.net";
 
@@ -38,34 +39,6 @@ interface Signup {
   utmContent?: string | null;
   utmTerm?: string | null;
   referrer?: string | null;
-}
-
-function fmtDate(iso: string) {
-  try {
-    return new Date(iso).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function fmtDateTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "UTC",
-    });
-  } catch {
-    return iso;
-  }
 }
 
 function downloadCsv(filename: string, rows: Array<Record<string, any>>) {
@@ -141,6 +114,32 @@ interface TrafficSourceData {
 }
 
 export default function AdminSignups() {
+  const { formatInTimezone } = useUserTimezone();
+  const fmtDate = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return iso;
+    }
+  };
+  const fmtDateTime = (iso: string) => {
+    try {
+      return formatInTimezone(iso, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch {
+      return iso;
+    }
+  };
+
   const [signups, setSignups] = useState<Signup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

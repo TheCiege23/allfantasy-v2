@@ -18,6 +18,16 @@ const MOBILE_BOTTOM_TABS: BottomTab[] = [
   { href: "/profile", label: "Profile", icon: User },
 ]
 
+const SPORTS_ACTIVE_PREFIXES = [
+  "/sports/",
+  "/fantasy-football",
+  "/fantasy-basketball",
+  "/fantasy-baseball",
+  "/fantasy-hockey",
+  "/fantasy-soccer",
+  "/fantasy-ncaa",
+]
+
 export default function MobileBottomTabs() {
   const pathname = usePathname()
 
@@ -25,7 +35,10 @@ export default function MobileBottomTabs() {
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-700/80 bg-[#0d0f29]/95 px-2 py-2 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {MOBILE_BOTTOM_TABS.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const active =
+            item.label === "Sports"
+              ? pathname === item.href || SPORTS_ACTIVE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+              : pathname === item.href || pathname.startsWith(`${item.href}/`)
           const Icon = item.icon
           return (
             <Link

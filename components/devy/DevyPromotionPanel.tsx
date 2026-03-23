@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface EligibleItem {
   rightsId: string
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function DevyPromotionPanel({ leagueId, rosterId, isCommissioner }: Props) {
+  const { formatDateInTimezone } = useUserTimezone()
   const [data, setData] = useState<PromotionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [promoting, setPromoting] = useState<string | null>(null)
@@ -128,7 +130,7 @@ export function DevyPromotionPanel({ leagueId, rosterId, isCommissioner }: Props
       </p>
       {data.promotionWindow?.deadlineIso && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-          Promotion deadline: {new Date(data.promotionWindow.deadlineIso).toLocaleDateString()}.
+          Promotion deadline: {formatDateInTimezone(data.promotionWindow.deadlineIso)}.
         </div>
       )}
       {(data.config?.promotionTiming === 'immediate_after_pro_draft' ||

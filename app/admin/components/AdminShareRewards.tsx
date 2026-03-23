@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Gift, User, Calendar, Coins, TrendingUp, RefreshCw } from 'lucide-react'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 interface ShareReward {
   id: string
@@ -25,6 +26,7 @@ interface Stats {
 }
 
 export default function AdminShareRewards() {
+  const { formatInTimezone } = useUserTimezone()
   const [rewards, setRewards] = useState<ShareReward[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,7 +54,7 @@ export default function AdminShareRewards() {
   }, [page])
 
   const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
+    return formatInTimezone(dateStr, {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

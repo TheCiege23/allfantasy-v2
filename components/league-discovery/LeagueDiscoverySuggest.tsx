@@ -8,6 +8,7 @@ import type {
   LeagueMatchSuggestion,
 } from '@/lib/league-discovery'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 const SKILL_OPTIONS: { value: string; label: string }[] = [
   { value: 'beginner', label: 'Beginner' },
@@ -38,6 +39,7 @@ function getDiscoveryErrorMessage(data: { error?: string } | null | undefined, f
 }
 
 export default function LeagueDiscoverySuggest() {
+  const { formatInTimezone } = useUserTimezone()
   const [sourceMode, setSourceMode] = useState<SourceMode>('pools')
   const [tournamentId, setTournamentId] = useState('')
   const [prefs, setPrefs] = useState<UserDiscoveryPreferences>({
@@ -274,7 +276,7 @@ export default function LeagueDiscoverySuggest() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-white">Suggested for you</h3>
             {generatedAt && (
-              <p className="text-xs text-white/50">Generated {new Date(generatedAt).toLocaleString()}</p>
+              <p className="text-xs text-white/50">Generated {formatInTimezone(generatedAt)}</p>
             )}
           </div>
           <ul className="space-y-3">

@@ -9,13 +9,13 @@ export const dynamic = "force-dynamic"
 /**
  * POST /api/marketplace/seed — seed default marketplace items if none exist (idempotent).
  */
-export async function POST(req?: Request) {
+export async function POST(req: Request) {
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    if (process.env.NODE_ENV === "production" && (!req || !isAuthorizedRequest(req))) {
+    if (process.env.NODE_ENV === "production" && !isAuthorizedRequest(req)) {
       return adminUnauthorized()
     }
     const added = await seedDefaultMarketplaceItems()

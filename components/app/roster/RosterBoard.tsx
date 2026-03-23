@@ -5,6 +5,7 @@ import { ChevronsDown, Users, Activity } from "lucide-react"
 import { useRosterManager, type RosterPlayer, type RosterSectionKey } from "./useRosterManager"
 import { teamLogoUrl } from "@/lib/media-url"
 import PlayerCardAnalytics from "@/components/player-card/PlayerCardAnalytics"
+import { useUserTimezone } from "@/hooks/useUserTimezone"
 
 type RosterBoardProps = {
   leagueId?: string
@@ -32,6 +33,7 @@ const EMPTY_ROSTER = {
 } as const
 
 export default function RosterBoard({ leagueId }: RosterBoardProps) {
+  const { formatTimeInTimezone } = useUserTimezone()
   const {
     roster,
     leagueSport,
@@ -136,7 +138,7 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
           {saving && <span className="text-[10px] text-white/60">Saving…</span>}
           {!saving && !saveError && lastSavedAt && (
             <span className="text-[10px] text-emerald-300">
-              Saved {new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              Saved {formatTimeInTimezone(lastSavedAt)}
             </span>
           )}
           {saveError && (
