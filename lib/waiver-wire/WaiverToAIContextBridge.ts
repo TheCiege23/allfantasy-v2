@@ -13,6 +13,13 @@ type AIChatContextOptions = {
   week?: number
 }
 
+type WaiverSummaryContext = {
+  waiverType?: string | null
+  pendingClaims?: number
+  watchlistCount?: number
+  topTargets?: string[]
+}
+
 /**
  * URL to open AI Chat (Legacy). Optionally pass a suggested prompt for waiver discussion.
  */
@@ -31,10 +38,20 @@ export function getWaiverAIChatUrl(suggestedPrompt?: string, options?: AIChatCon
 /**
  * Build a short suggested prompt for waiver help in AI context.
  */
-export function buildWaiverSummaryForAI(leagueContext?: string, sport?: string): string {
+export function buildWaiverSummaryForAI(
+  leagueContext?: string,
+  sport?: string,
+  context?: WaiverSummaryContext
+): string {
   const parts = ["I'm managing my waiver wire"]
   if (sport) parts.push(`for ${sport}`)
   if (leagueContext) parts.push(`(${leagueContext})`)
-  parts.push(". Can you suggest priority adds, FAAB bids, or drops?")
+  if (context?.waiverType) parts.push(`using ${context.waiverType} rules`)
+  if (typeof context?.pendingClaims === "number") parts.push(`with ${context.pendingClaims} pending claims`)
+  if (typeof context?.watchlistCount === "number") parts.push(`and ${context.watchlistCount} watchlist targets`)
+  if (context?.topTargets && context.topTargets.length > 0) {
+    parts.push(`Top targets: ${context.topTargets.slice(0, 3).join(", ")}`)
+  }
+  parts.push(". Can you suggest priority adds, FAAB bids, drops, and fallback contingencies?")
   return parts.join(" ")
 }

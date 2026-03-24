@@ -9,29 +9,24 @@ import WaiverPlayerRow from "@/components/waiver-wire/WaiverPlayerRow"
 import WaiverClaimDrawer from "@/components/waiver-wire/WaiverClaimDrawer"
 import {
   getTabLabel,
+  getWaiverRuleSummary,
+  getWaiverTypeLabel,
   WAIVER_EMPTY_PLAYERS_TITLE,
   WAIVER_EMPTY_PLAYERS_HINT,
   WAIVER_EMPTY_PENDING_TITLE,
   WAIVER_EMPTY_HISTORY_TITLE,
 } from "@/lib/waiver-wire/WaiverWireViewService"
+import { getWaiverAIChatUrl, buildWaiverSummaryForAI } from "@/lib/waiver-wire/WaiverToAIContextBridge"
+import { waiverPositionMatches } from "@/lib/waiver-wire/SportWaiverResolver"
 import {
-  getWaiverAIChatUrl,
-  buildWaiverSummaryForAI,
-} from "@/lib/waiver-wire/WaiverToAIContextBridge"
-import {
-  waiverPositionMatches,
-} from "@/lib/waiver-wire/SportWaiverResolver"
+  getDefaultWaiverFilterState,
+  getWaiverWatchlistStorageKey,
+  resetWaiverFilters,
+} from "@/lib/waiver-wire/WaiverUIStateService"
+import { parseOptionalNumber } from "@/lib/waiver-wire/WaiverClaimFlowController"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
-
-const WAIVER_TYPES = [
-  { value: "faab", label: "FAAB" },
-  { value: "rolling", label: "Rolling Waivers" },
-  { value: "reverse_standings", label: "Reverse Standings" },
-  { value: "fcfs", label: "First Come First Served" },
-  { value: "standard", label: "Standard" },
-]
 
 type WaiverSettings = {
   leagueId?: string
@@ -69,32 +64,39 @@ type Transaction = {
 }
 
 export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
+  const defaultFilterState = getDefaultWaiverFilterState()
   const { formatInTimezone } = useUserTimezone()
   const [settings, setSettings] = useState<WaiverSettings | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [claims, setClaims] = useState<Claim[]>([])
   const [history, setHistory] = useState<{ claims: Claim[]; transactions: Transaction[] }>({ claims: [], transactions: [] })
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
   const [claimLoading, setClaimLoading] = useState(false)
   const [faabRemaining, setFaabRemaining] = useState<number | null>(null)
   const [rosterPlayerIds, setRosterPlayerIds] = useState<string[]>([])
+  const [rosterCapacity, setRosterCapacity] = useState<number | null>(null)
   const [waiverPriority, setWaiverPriority] = useState<number | null>(null)
-  const [activeTab, setActiveTab] = useState<"available" | "trending" | "claimed" | "dropped" | "pending" | "history">("available")
+  const [activeTab, setActiveTab] = useState<"available" | "trending" | "claimed" | "dropped" | "pending" | "history">(
+    defaultFilterState.activeTab
+  )
 
-  const [search, setSearch] = useState("")
-  const [positionFilter, setPositionFilter] = useState("ALL")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [teamFilter, setTeamFilter] = useState("")
-  const [sort, setSort] = useState("name")
+  const [search, setSearch] = useState(defaultFilterState.search)
+  const [positionFilter, setPositionFilter] = useState(defaultFilterState.position)
+  const [statusFilter, setStatusFilter] = useState(defaultFilterState.status)
+  const [teamFilter, setTeamFilter] = useState(defaultFilterState.team)
+  const [sort, setSort] = useState(defaultFilterState.sort)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
-  const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string }>>({})
+  const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string; dropPlayerId: string }>>({})
   const [rosterPlayers, setRosterPlayers] = useState<Array<{ id: string; name: string | null }>>([])
+  const [watchlistPlayerIds, setWatchlistPlayerIds] = useState<string[]>([])
 
   const load = useCallback(async () => {
     if (!leagueId) return
     setLoading(true)
+    setLoadError("")
     try {
       const [settingsRes, claimsRes, playersRes, rosterRes, historyRes] = await Promise.all([
         fetch(`/api/waiver-wire/leagues/${leagueId}/settings`),
@@ -117,10 +119,18 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       if (!historyRes.ok) setHistory({ claims: [], transactions: [] })
       else setHistory({ claims: historyData.claims ?? [], transactions: historyData.transactions ?? [] })
       const roster = rosterData.roster
-      if (rosterData.faabRemaining != null) setFaabRemaining(rosterData.faabRemaining)
-      if (rosterData.waiverPriority != null) setWaiverPriority(rosterData.waiverPriority)
+      setFaabRemaining(rosterData.faabRemaining ?? null)
+      setWaiverPriority(rosterData.waiverPriority ?? null)
       const ids = getRosterPlayerIds(roster)
       setRosterPlayerIds(ids)
+      const slotLimits = rosterData?.slotLimits as
+        | { starters?: number; bench?: number; ir?: number; taxi?: number; devy?: number }
+        | null
+        | undefined
+      const capacityFromSlots = slotLimits
+        ? Object.values(slotLimits).reduce((sum, value) => sum + (Number(value) || 0), 0)
+        : 0
+      setRosterCapacity(capacityFromSlots > 0 ? capacityFromSlots : null)
       const raw = Array.isArray(roster) ? roster : (roster as any)?.players ?? []
       const withNames = raw.map((p: any) => {
         const id = typeof p === "string" ? p : p?.id ?? p?.player_id ?? ""
@@ -128,6 +138,10 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         return { id: String(id), name: name != null ? String(name) : null }
       }).filter((x: { id: string }) => x.id)
       setRosterPlayers(withNames)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load waiver wire data."
+      setLoadError(message)
+      toast.error("Unable to refresh waiver wire data.")
     } finally {
       setLoading(false)
     }
@@ -136,6 +150,29 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!leagueId) return
+    const storageKey = getWaiverWatchlistStorageKey(leagueId)
+    try {
+      const raw = window.localStorage.getItem(storageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) setWatchlistPlayerIds(parsed.map((id) => String(id)))
+    } catch {
+      // Non-blocking watchlist hydration.
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    if (!leagueId) return
+    const storageKey = getWaiverWatchlistStorageKey(leagueId)
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(watchlistPlayerIds))
+    } catch {
+      // Non-blocking watchlist persistence.
+    }
+  }, [leagueId, watchlistPlayerIds])
 
   const submitClaimForPlayer = async (player: Player, opts: { dropPlayerId: string | null; faabBid: number | null; priorityOrder: number | null }) => {
     if (claimLoading) return
@@ -187,15 +224,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-      </div>
-    )
-  }
-
   const isFaab = settings?.waiverType === "faab"
+  const hasOpenRosterSpot = rosterCapacity == null ? true : rosterPlayerIds.length < rosterCapacity
+  const watchlistIdSet = useMemo(() => new Set(watchlistPlayerIds), [watchlistPlayerIds])
   const uniqueTeams = useMemo(
     () =>
       Array.from(
@@ -206,6 +237,14 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
 
   const filteredPlayers = useMemo(() => {
     let list = [...players]
+    const trendMap = new Map<string, number>()
+    for (const tx of history.transactions) {
+      if (tx.addPlayerId) trendMap.set(tx.addPlayerId, (trendMap.get(tx.addPlayerId) ?? 0) + 2)
+      if (tx.dropPlayerId) trendMap.set(tx.dropPlayerId, (trendMap.get(tx.dropPlayerId) ?? 0) + 1)
+    }
+    for (const claim of claims) {
+      trendMap.set(claim.addPlayerId, (trendMap.get(claim.addPlayerId) ?? 0) + 1)
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.team?.toLowerCase().includes(q))
@@ -217,6 +256,9 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       const pendingIds = new Set(claims.map((c) => c.addPlayerId))
       list = list.filter((p) => !pendingIds.has(p.id))
     }
+    if (statusFilter === "watchlist") {
+      list = list.filter((p) => watchlistIdSet.has(p.id))
+    }
     if (teamFilter) {
       const t = teamFilter.toLowerCase()
       list = list.filter((p) => (p.team || "").toLowerCase() === t)
@@ -227,9 +269,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       list.sort((a, b) => (a.position || "").localeCompare(b.position || ""))
     } else if (sort === "team") {
       list.sort((a, b) => (a.team || "").localeCompare(b.team || ""))
+    } else if (sort === "trend") {
+      list.sort((a, b) => {
+        const scoreDelta = (trendMap.get(b.id) ?? 0) - (trendMap.get(a.id) ?? 0)
+        if (scoreDelta !== 0) return scoreDelta
+        return a.name.localeCompare(b.name)
+      })
     }
     return list
-  }, [players, search, positionFilter, statusFilter, teamFilter, sort, claims])
+  }, [players, history.transactions, search, positionFilter, statusFilter, teamFilter, sort, claims, watchlistIdSet])
 
   const trendScoreByPlayerId = useMemo(() => {
     const map = new Map<string, number>()
@@ -261,6 +309,30 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     [history.transactions]
   )
 
+  const toggleWatchlist = (playerId: string) => {
+    setWatchlistPlayerIds((prev) =>
+      prev.includes(playerId) ? prev.filter((id) => id !== playerId) : [...prev, playerId]
+    )
+  }
+
+  const waiverRuleSummary = getWaiverRuleSummary({
+    waiverType: settings?.waiverType ?? null,
+    tiebreakRule: settings?.tiebreakRule ?? null,
+    claimLimitPerPeriod: settings?.claimLimitPerPeriod ?? null,
+  })
+  const topWatchlistTargets = players
+    .filter((p) => watchlistIdSet.has(p.id))
+    .map((p) => p.name)
+    .slice(0, 3)
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12" data-testid="waiver-loading-state">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -283,9 +355,13 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
               Waiver priority: {waiverPriority}
             </span>
           )}
+          <span className="inline-flex items-center gap-1 rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 px-2.5 py-1 text-xs text-fuchsia-100 sm:text-sm">
+            Watchlist: {watchlistPlayerIds.length}
+          </span>
           <button
             type="button"
             onClick={() => load()}
+            data-testid="waiver-refresh-button"
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10 sm:text-sm"
           >
             <RefreshCw className="h-3.5 w-3.5" />
@@ -300,27 +376,24 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       </div>
 
+      {loadError && (
+        <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          {loadError}
+        </div>
+      )}
+
       <div className="flex gap-2 border-b border-white/10 pb-2">
         {(["available", "trending", "claimed", "dropped", "pending", "history"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
+            data-testid={`waiver-tab-${tab}`}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
               activeTab === tab ? "bg-cyan-500/20 text-cyan-200" : "text-white/70 hover:text-white"
             }`}
           >
-            {tab === "available"
-              ? "All players"
-              : tab === "trending"
-                ? "Trending"
-                : tab === "claimed"
-                  ? "Claimed"
-                  : tab === "dropped"
-                    ? "Dropped"
-                    : tab === "pending"
-                      ? getTabLabel("pending", claims.length)
-                      : getTabLabel("history")}
+            {tab === "available" ? "All players" : getTabLabel(tab, claims.length)}
           </button>
         ))}
       </div>
@@ -338,6 +411,15 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
             onStatusChange={setStatusFilter}
             sort={sort}
             onSortChange={setSort}
+            onResetFilters={() =>
+              resetWaiverFilters({
+                setSearch,
+                setPosition: setPositionFilter,
+                setTeam: setTeamFilter,
+                setStatus: setStatusFilter,
+                setSort,
+              })
+            }
             teams={uniqueTeams}
             sport={settings?.sport ?? undefined}
             formatType={settings?.formatType ?? undefined}
@@ -357,11 +439,18 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                     player={p}
                     sport={settings?.sport ?? null}
                     trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
+                    onRowClick={() => {
+                      if (alreadyClaimed) return
+                      setDrawerPlayer(p)
+                      setDrawerOpen(true)
+                    }}
                     onAddClick={() => {
                       if (alreadyClaimed) return
                       setDrawerPlayer(p)
                       setDrawerOpen(true)
                     }}
+                    onToggleWatchlist={() => toggleWatchlist(p.id)}
+                    watchlisted={watchlistIdSet.has(p.id)}
                     alreadyClaimed={alreadyClaimed}
                   />
                 )
@@ -433,7 +522,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           </div>
           <ul className="space-y-2">
             {claims.length === 0 ? (
-              <li className="py-4 text-center text-sm text-white/50">No pending claims.</li>
+              <li className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_PENDING_TITLE}</li>
             ) : (
               claims.map((c, idx) => (
                 <li
@@ -450,6 +539,36 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-1.5">
+                        <span className="text-white/50">Drop</span>
+                        <select
+                          value={pendingEdits[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? "")}
+                          aria-label={`Pending claim drop player ${c.id}`}
+                          data-testid={`waiver-claim-drop-edit-${c.id}`}
+                          onChange={(e) =>
+                            setPendingEdits((prev) => ({
+                              ...prev,
+                              [c.id]: {
+                                faabBid:
+                                  prev[c.id]?.faabBid ??
+                                  (c.faabBid != null ? c.faabBid.toString() : ""),
+                                priority:
+                                  prev[c.id]?.priority ??
+                                  (c.priorityOrder ?? idx + 1).toString(),
+                                dropPlayerId: e.target.value,
+                              },
+                            }))
+                          }
+                          className="rounded border border-white/25 bg-black/40 px-1.5 py-0.5 text-[11px] text-white outline-none"
+                        >
+                          <option value="">No drop</option>
+                          {rosterPlayers.map((rp) => (
+                            <option key={rp.id} value={rp.id}>
+                              {rp.name || rp.id}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <span className="text-white/50">Priority</span>
                         <input
                           type="number"
@@ -464,6 +583,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                                   prev[c.id]?.faabBid ??
                                   (c.faabBid != null ? c.faabBid.toString() : ""),
                                 priority: e.target.value,
+                                dropPlayerId: prev[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? ""),
                               },
                             }))
                           }
@@ -485,6 +605,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                                   priority:
                                     prev[c.id]?.priority ??
                                     (c.priorityOrder ?? idx + 1).toString(),
+                                  dropPlayerId: prev[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? ""),
                                 },
                               }))
                             }
@@ -500,9 +621,11 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                         const edit = pendingEdits[c.id]
                         const nextPriority = edit?.priority ?? (c.priorityOrder ?? idx + 1).toString()
                         const nextBidRaw = edit?.faabBid ?? (c.faabBid != null ? c.faabBid.toString() : "")
-                        const patch: { faabBid?: number | null; priorityOrder?: number | null } = {}
-                        if (nextPriority !== "") patch.priorityOrder = Number(nextPriority) || 0
-                        if (isFaab && nextBidRaw !== "") patch.faabBid = Number(nextBidRaw) || 0
+                        const nextDropPlayerId = edit?.dropPlayerId ?? (c.dropPlayerId ?? "")
+                        const patch: { faabBid?: number | null; priorityOrder?: number | null; dropPlayerId?: string | null } = {}
+                        if (nextPriority !== "") patch.priorityOrder = parseOptionalNumber(nextPriority) || 0
+                        if (isFaab && nextBidRaw !== "") patch.faabBid = parseOptionalNumber(nextBidRaw) || 0
+                        patch.dropPlayerId = nextDropPlayerId || null
                         void updateClaimById(c.id, patch)
                       }}
                       data-testid={`waiver-claim-save-${c.id}`}
@@ -584,11 +707,12 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
 
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h2 className="mb-2 text-sm font-semibold text-white">League waiver rules</h2>
+        <p className="mb-3 text-xs text-white/55">{waiverRuleSummary}</p>
         <dl className="grid gap-2 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-white/50">Type</dt>
             <dd className="text-white">
-              {WAIVER_TYPES.find((t) => t.value === settings?.waiverType)?.label ?? settings?.waiverType ?? "—"}
+              {getWaiverTypeLabel(settings?.waiverType ?? null)}
             </dd>
           </div>
           {settings?.faabBudget != null && (
@@ -634,13 +758,19 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         <div className="mt-3 pt-3 border-t border-white/10">
           <Link
             href={getWaiverAIChatUrl(
-              buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined),
+              buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined, {
+                waiverType: getWaiverTypeLabel(settings?.waiverType ?? null),
+                pendingClaims: claims.length,
+                watchlistCount: watchlistPlayerIds.length,
+                topTargets: topWatchlistTargets,
+              }),
               {
                 leagueId,
                 insightType: 'waiver',
                 sport: settings?.sport ?? DEFAULT_SPORT,
               }
             )}
+            data-testid="waiver-ai-help-link"
             className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 transition-colors"
           >
             <MessageSquare className="h-3.5 w-3.5" />
@@ -649,28 +779,25 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-2 sm:inset-y-0 sm:right-0 sm:left-auto sm:items-stretch sm:px-0">
-        <div className="w-full sm:h-full sm:max-w-md">
-          <WaiverClaimDrawer
-            open={drawerOpen}
-            onClose={() => {
-              if (!claimLoading) {
-                setDrawerOpen(false)
-                setDrawerPlayer(null)
-              }
-            }}
-            player={drawerPlayer}
-            faabMode={isFaab}
-            faabRemaining={faabRemaining}
-            rosterPlayerIds={rosterPlayerIds}
-            rosterPlayers={rosterPlayers.length > 0 ? rosterPlayers : undefined}
-            onSubmit={async (opts) => {
-              if (!drawerPlayer) return
-              await submitClaimForPlayer(drawerPlayer, opts)
-            }}
-          />
-        </div>
-      </div>
+      <WaiverClaimDrawer
+        open={drawerOpen}
+        onClose={() => {
+          if (!claimLoading) {
+            setDrawerOpen(false)
+            setDrawerPlayer(null)
+          }
+        }}
+        player={drawerPlayer}
+        faabMode={isFaab}
+        faabRemaining={faabRemaining}
+        hasOpenRosterSpot={hasOpenRosterSpot}
+        rosterPlayerIds={rosterPlayerIds}
+        rosterPlayers={rosterPlayers.length > 0 ? rosterPlayers : undefined}
+        onSubmit={async (opts) => {
+          if (!drawerPlayer) return
+          await submitClaimForPlayer(drawerPlayer, opts)
+        }}
+      />
     </div>
   )
 }

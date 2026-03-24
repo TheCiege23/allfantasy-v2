@@ -11,6 +11,7 @@ export {
   getSportDisplayLabel,
   getSportOptions,
   isPickHeavySport,
+  supportsDraftPicksForSport,
   getDefaultPickRounds,
 } from "./SportTradeAnalyzerResolver"
 export {
@@ -39,6 +40,7 @@ export {
   getFairnessColorClass,
   getWinnerLabel,
   formatValueBreakdown,
+  estimateTradeValueLens,
 } from "./TradeValueBreakdownResolver"
 export type { ValueBreakdownSide } from "./TradeValueBreakdownResolver"
 export {

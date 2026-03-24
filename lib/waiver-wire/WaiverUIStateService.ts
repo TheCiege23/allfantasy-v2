@@ -8,7 +8,9 @@ import {
   DEFAULT_TEAM,
   DEFAULT_STATUS,
   DEFAULT_SORT,
+  DEFAULT_TAB,
 } from "./WaiverFilterResolver"
+import type { WaiverTabId } from "./WaiverFilterResolver"
 
 export type WaiverFilterState = {
   search: string
@@ -16,6 +18,7 @@ export type WaiverFilterState = {
   team: string
   status: string
   sort: string
+  activeTab: WaiverTabId
 }
 
 export function getDefaultWaiverFilterState(): WaiverFilterState {
@@ -25,6 +28,7 @@ export function getDefaultWaiverFilterState(): WaiverFilterState {
     team: DEFAULT_TEAM,
     status: DEFAULT_STATUS,
     sort: DEFAULT_SORT,
+    activeTab: DEFAULT_TAB as WaiverTabId,
   }
 }
 
@@ -41,4 +45,8 @@ export function resetWaiverFilters(setters: {
   setters.setTeam(d.team)
   setters.setStatus(d.status)
   setters.setSort(d.sort)
+}
+
+export function getWaiverWatchlistStorageKey(leagueId: string): string {
+  return `allfantasy.waiver.watchlist.${leagueId}`
 }

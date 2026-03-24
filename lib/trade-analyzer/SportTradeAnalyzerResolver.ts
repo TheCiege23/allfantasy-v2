@@ -23,8 +23,15 @@ export function isPickHeavySport(sport: string): boolean {
   return u === "NFL" || u === "NCAAF" || u === "NCAAB"
 }
 
+export function supportsDraftPicksForSport(sport: string): boolean {
+  const u = normalizeToSupportedSport(sport)
+  // Trade analyzer supports picks for every scoped sport today.
+  return Boolean(u)
+}
+
 export function getDefaultPickRounds(sport: string): number[] {
   const u = normalizeToSupportedSport(sport)
-  if (u === "NBA" || u === "NHL" || u === "MLB") return [1, 2]
+  if (u === "NBA" || u === "NHL" || u === "MLB" || u === "SOCCER") return [1, 2]
+  if (u === "NCAAB") return [1, 2, 3]
   return [1, 2, 3, 4, 5]
 }

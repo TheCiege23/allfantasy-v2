@@ -10,6 +10,7 @@ export * from "./roster-utils"
 
 export {
   getPositionFiltersForSport,
+  resolveWaiverSport,
   getSportDisplayLabel,
   waiverPositionMatches,
   WAIVER_WIRE_SPORTS,
@@ -20,6 +21,7 @@ export {
   DEFAULT_TEAM,
   DEFAULT_STATUS,
   DEFAULT_SORT,
+  DEFAULT_TAB,
   WAIVER_STATUS_FILTERS,
   SORT_OPTIONS,
   WAIVER_TABS,
@@ -36,16 +38,20 @@ export {
   WAIVER_ERROR_RETRY,
   shouldShowClaimDrawer,
   getTabLabel,
+  getWaiverTypeLabel,
+  getWaiverRuleSummary,
 } from "./WaiverWireViewService"
 export {
   clampFaabBid,
   normalizePriorityOrder,
   canSubmitClaim,
   getClaimSummary,
+  parseOptionalNumber,
 } from "./WaiverClaimFlowController"
 export {
   getDefaultWaiverFilterState,
   resetWaiverFilters,
+  getWaiverWatchlistStorageKey,
 } from "./WaiverUIStateService"
 export type { WaiverFilterState } from "./WaiverUIStateService"
 export {

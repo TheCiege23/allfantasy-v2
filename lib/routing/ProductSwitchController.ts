@@ -16,7 +16,7 @@ export function getProductSwitchHref(productId: ProductId): string {
 
 /** All switch targets (same order as nav: Home, WebApp, Bracket, Legacy). */
 export function getProductSwitchItems(): { productId: ProductId; href: string; label: string }[] {
-  const preferredOrder: ProductId[] = ["home", "webapp", "bracket", "legacy"]
+  const preferredOrder: NonNullable<ProductId>[] = ["home", "webapp", "bracket", "legacy"]
   const configById = new Map(
     getProductRouteConfigs().map((config) => [config.productId, config] as const)
   )

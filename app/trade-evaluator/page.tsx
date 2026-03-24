@@ -10,6 +10,7 @@ import {
   addPlayerSlot,
   buildTradeSummaryForAI,
   canSubmitTradeByAssets,
+  estimateTradeValueLens,
   formatValueBreakdown,
   getDefaultPickRounds,
   getFairnessColorClass,
@@ -22,6 +23,7 @@ import {
   getWinnerLabel as getWinnerLabelUtil,
   removeAssetAtIndex,
   shouldShowResult,
+  supportsDraftPicksForSport,
   TRADE_ANALYZER_EMPTY_SUBTITLE,
   TRADE_ANALYZER_EMPTY_TITLE,
 } from '@/lib/trade-analyzer'
@@ -149,6 +151,7 @@ function TradeEvaluatorInner() {
   const [lastAnalyzedSignature, setLastAnalyzedSignature] = useState<string | null>(null)
 
   const pickRoundOptions = useMemo(() => getDefaultPickRounds(sport), [sport])
+  const pickSupportEnabled = useMemo(() => supportsDraftPicksForSport(sport), [sport])
   const currentInputSignature = useMemo(
     () =>
       JSON.stringify({
@@ -269,6 +272,7 @@ function TradeEvaluatorInner() {
   }
 
   const addPick = (team: 'sender' | 'receiver') => {
+    if (!pickSupportEnabled) return
     if (team === 'sender') {
       setSender({ ...sender, gives_picks: [...sender.gives_picks, { ...defaultPick }] })
     } else {
@@ -300,6 +304,9 @@ function TradeEvaluatorInner() {
         gives_faab: 0,
       })
     }
+    setResult(null)
+    setLastAnalyzedSignature(null)
+    setError('')
   }
 
   const updatePick = (team: 'sender' | 'receiver', index: number, field: keyof PickInput, value: string) => {
@@ -354,7 +361,10 @@ function TradeEvaluatorInner() {
   }
 
   const renderTeamForm = (team: TeamInput, setTeam: SetTeamFn, label: string, teamKey: 'sender' | 'receiver') => (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 backdrop-blur">
+    <div
+      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 backdrop-blur"
+      data-testid={`trade-team-builder-${teamKey}`}
+    >
       <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
         <div>
           <h3 className="text-base sm:text-lg font-medium text-white/90">{label}</h3>
@@ -374,8 +384,9 @@ function TradeEvaluatorInner() {
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Manager/Team Name</label>
+          <label htmlFor={`trade-${teamKey}-manager-name`} className="block text-sm text-white/60 mb-1.5">Manager/Team Name</label>
           <input
+            id={`trade-${teamKey}-manager-name`}
             type="text"
             value={team.manager_name}
             onChange={(e) => setTeam({ ...team, manager_name: e.target.value })}
@@ -385,8 +396,9 @@ function TradeEvaluatorInner() {
         </div>
 
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Record/Rank <span className="text-white/40">(optional)</span></label>
+          <label htmlFor={`trade-${teamKey}-record-rank`} className="block text-sm text-white/60 mb-1.5">Record/Rank <span className="text-white/40">(optional)</span></label>
           <input
+            id={`trade-${teamKey}-record-rank`}
             type="text"
             value={team.record_or_rank}
             onChange={(e) => setTeam({ ...team, record_or_rank: e.target.value })}
@@ -413,6 +425,7 @@ function TradeEvaluatorInner() {
                 type="text"
                 value={player.name}
                 onChange={(e) => updatePlayer(teamKey, i, 'name', e.target.value)}
+                aria-label={`${teamKey} player ${i + 1} name`}
                 className="col-span-2 sm:col-span-5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 sm:py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
                 placeholder="Player name"
               />
@@ -420,6 +433,7 @@ function TradeEvaluatorInner() {
                 type="text"
                 value={player.position}
                 onChange={(e) => updatePlayer(teamKey, i, 'position', e.target.value)}
+                aria-label={`${teamKey} player ${i + 1} position`}
                 className="col-span-1 sm:col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 sm:py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
                 placeholder="Pos"
               />
@@ -427,6 +441,7 @@ function TradeEvaluatorInner() {
                 type="text"
                 value={player.team}
                 onChange={(e) => updatePlayer(teamKey, i, 'team', e.target.value)}
+                aria-label={`${teamKey} player ${i + 1} team`}
                 className="col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
                 placeholder="Team"
               />
@@ -434,6 +449,7 @@ function TradeEvaluatorInner() {
                 type="text"
                 value={player.age}
                 onChange={(e) => updatePlayer(teamKey, i, 'age', e.target.value)}
+                aria-label={`${teamKey} player ${i + 1} age`}
                 className="col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
                 placeholder="Age"
               />
@@ -441,6 +457,7 @@ function TradeEvaluatorInner() {
                 type="button"
                 onClick={() => removePlayer(teamKey, i)}
                 data-testid={`trade-remove-player-${teamKey}-${i}`}
+                aria-label={`Remove ${teamKey} player ${i + 1}`}
                 className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
               >
                 ×
@@ -455,27 +472,32 @@ function TradeEvaluatorInner() {
             <button
               type="button"
               onClick={() => addPick(teamKey)}
+              disabled={!pickSupportEnabled}
               data-testid={`trade-add-pick-${teamKey}`}
-              className="text-xs text-cyan-400 hover:text-cyan-300"
+              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               + Add Pick
             </button>
           </div>
-          <p className="mb-2 text-[11px] text-white/40">
-            Round options adapt to {sport}. Available rounds: {pickRoundOptions.join(', ')}.
-          </p>
-          {team.gives_picks.map((pick, i) => (
+          {pickSupportEnabled ? (
+            <>
+              <p className="mb-2 text-[11px] text-white/40">
+                Round options adapt to {sport}. Available rounds: {pickRoundOptions.join(', ')}.
+              </p>
+              {team.gives_picks.map((pick, i) => (
             <div key={i} className="grid grid-cols-12 gap-2 mb-2">
               <input
                 type="text"
                 value={pick.year}
                 onChange={(e) => updatePick(teamKey, i, 'year', e.target.value)}
+                aria-label={`${teamKey} pick ${i + 1} year`}
                 className="col-span-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
                 placeholder="Year"
               />
               <select
                 value={pick.round}
                 onChange={(e) => updatePick(teamKey, i, 'round', e.target.value)}
+                aria-label={`${teamKey} pick ${i + 1} round`}
                 className="col-span-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
               >
                 {pickRoundOptions.map(r => <option key={r} value={r}>Round {r}</option>)}
@@ -483,6 +505,7 @@ function TradeEvaluatorInner() {
               <select
                 value={pick.projected_range}
                 onChange={(e) => updatePick(teamKey, i, 'projected_range', e.target.value)}
+                aria-label={`${teamKey} pick ${i + 1} projected range`}
                 className="col-span-5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
               >
                 <option value="early">Early</option>
@@ -494,17 +517,23 @@ function TradeEvaluatorInner() {
                 type="button"
                 onClick={() => removePick(teamKey, i)}
                 data-testid={`trade-remove-pick-${teamKey}-${i}`}
+                aria-label={`Remove ${teamKey} pick ${i + 1}`}
                 className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
               >
                 ×
               </button>
             </div>
-          ))}
+              ))}
+            </>
+          ) : (
+            <p className="mb-2 text-[11px] text-white/40">Draft picks are not currently configurable for {sport} in this flow.</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">FAAB Giving</label>
+          <label htmlFor={`trade-${teamKey}-faab`} className="block text-sm text-white/60 mb-1.5">FAAB Giving</label>
           <input
+            id={`trade-${teamKey}-faab`}
             type="number"
             value={team.gives_faab}
             onChange={(e) => setTeam({ ...team, gives_faab: Number(e.target.value) })}
@@ -519,6 +548,7 @@ function TradeEvaluatorInner() {
             type="checkbox"
             checked={team.is_af_pro}
             onChange={(e) => setTeam({ ...team, is_af_pro: e.target.checked })}
+            aria-label={`${teamKey} AF Pro member`}
             className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-400"
           />
           <span className="text-sm text-white/70">AF Pro Member</span>
@@ -551,6 +581,10 @@ function TradeEvaluatorInner() {
       assets: receiverAssetLabels,
     }
   )
+  const senderValueLens = estimateTradeValueLens(sender.gives_players, sender.gives_picks, sender.gives_faab)
+  const receiverValueLens = estimateTradeValueLens(receiver.gives_players, receiver.gives_picks, receiver.gives_faab)
+  const currentValueDelta = Number((senderValueLens.current - receiverValueLens.current).toFixed(1))
+  const futureValueDelta = Number((senderValueLens.future - receiverValueLens.future).toFixed(1))
 
   const content = (
     <div role="main" className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
@@ -598,8 +632,9 @@ function TradeEvaluatorInner() {
             <h3 className="text-lg font-medium text-white/90 mb-4">League Settings</h3>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">Format</label>
+                <label htmlFor="trade-league-format" className="block text-sm text-white/60 mb-1.5">Format</label>
                 <select
+                  id="trade-league-format"
                   value={leagueFormat}
                   onChange={(e) => setLeagueFormat(e.target.value as 'dynasty' | 'keeper' | 'redraft')}
                   className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
@@ -610,8 +645,9 @@ function TradeEvaluatorInner() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">QB Format</label>
+                <label htmlFor="trade-qb-format" className="block text-sm text-white/60 mb-1.5">QB Format</label>
                 <select
+                  id="trade-qb-format"
                   value={qbFormat}
                   onChange={(e) => setQbFormat(e.target.value as '1qb' | 'sf')}
                   className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
@@ -621,8 +657,9 @@ function TradeEvaluatorInner() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">Sport</label>
+                <label htmlFor="trade-sport" className="block text-sm text-white/60 mb-1.5">Sport</label>
                 <select
+                  id="trade-sport"
                   value={sport}
                   onChange={(e) => setSport(e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
@@ -633,8 +670,9 @@ function TradeEvaluatorInner() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-white/60 mb-1.5">Scoring</label>
+                <label htmlFor="trade-scoring" className="block text-sm text-white/60 mb-1.5">Scoring</label>
                 <select
+                  id="trade-scoring"
                   value={scoring}
                   onChange={(e) => setScoring(e.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
@@ -649,11 +687,12 @@ function TradeEvaluatorInner() {
                 </select>
               </div>
               <div className="sm:col-span-2 lg:col-span-2">
-                <label className="block text-sm text-white/60 mb-1.5">
+                <label htmlFor="trade-as-of-date" className="block text-sm text-white/60 mb-1.5">
                   As Of Date <span className="text-white/40">(optional - for historical analysis)</span>
                 </label>
                 <div className="flex gap-2">
                   <input
+                    id="trade-as-of-date"
                     type="date"
                     value={asOfDate}
                     onChange={(e) => setAsOfDate(e.target.value)}
@@ -666,6 +705,7 @@ function TradeEvaluatorInner() {
                     <button
                       type="button"
                       onClick={() => setAsOfDate('')}
+                      aria-label="Clear as-of date"
                       className="px-3 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/[0.08] transition-colors"
                     >
                       Clear
@@ -791,7 +831,11 @@ function TradeEvaluatorInner() {
                       buildTradeSummaryForAI(
                         senderAssetLabels.join(', ') || '—',
                         receiverAssetLabels.join(', ') || '—',
-                        sport
+                        sport,
+                        {
+                          fairnessScore: getFairnessScore(result),
+                          winnerLabel: getWinnerLabel(result.evaluation?.winner),
+                        }
                       ),
                       {
                         insightType: 'trade',
@@ -884,6 +928,29 @@ function TradeEvaluatorInner() {
                   <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
                     <h3 className="mb-3 text-lg font-medium text-fuchsia-300">{receiver.manager_name || "Receiver"} gives</h3>
                     <p className="text-sm text-white/70">{valueBreakdown.sideB}</p>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white/60">Current vs Future Value Lens</h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+                      <div className="text-xs text-cyan-200">{sender.manager_name || "Sender"}</div>
+                      <div className="mt-1 text-xs text-white/70">Current: <span className="font-semibold text-white">{senderValueLens.current}</span></div>
+                      <div className="text-xs text-white/70">Future: <span className="font-semibold text-white">{senderValueLens.future}</span></div>
+                    </div>
+                    <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
+                      <div className="text-xs text-fuchsia-200">{receiver.manager_name || "Receiver"}</div>
+                      <div className="mt-1 text-xs text-white/70">Current: <span className="font-semibold text-white">{receiverValueLens.current}</span></div>
+                      <div className="text-xs text-white/70">Future: <span className="font-semibold text-white">{receiverValueLens.future}</span></div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full border border-white/15 bg-white/[0.03] px-2 py-1 text-white/65">
+                      Current delta: <span className={currentValueDelta >= 0 ? 'text-cyan-300' : 'text-fuchsia-300'}>{currentValueDelta >= 0 ? '+' : ''}{currentValueDelta}</span>
+                    </span>
+                    <span className="rounded-full border border-white/15 bg-white/[0.03] px-2 py-1 text-white/65">
+                      Future delta: <span className={futureValueDelta >= 0 ? 'text-cyan-300' : 'text-fuchsia-300'}>{futureValueDelta >= 0 ? '+' : ''}{futureValueDelta}</span>
+                    </span>
                   </div>
                 </div>
 

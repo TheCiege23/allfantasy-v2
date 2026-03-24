@@ -15,6 +15,11 @@ type AIChatContextOptions = {
   week?: number
 }
 
+type AISummaryContext = {
+  fairnessScore?: number
+  winnerLabel?: string
+}
+
 /**
  * URL to open AI Chat from Trade Analyzer with optional contextual metadata.
  */
@@ -35,10 +40,21 @@ export function getTradeAnalyzerAIChatUrl(suggestedPrompt?: string, options?: AI
 /**
  * Build a short suggested prompt summarizing the trade for AI context.
  */
-export function buildTradeSummaryForAI(senderSummary: string, receiverSummary: string, sport: string): string {
+export function buildTradeSummaryForAI(
+  senderSummary: string,
+  receiverSummary: string,
+  sport: string,
+  context?: AISummaryContext
+): string {
   const normalizedSport = normalizeToSupportedSport(sport || DEFAULT_SPORT)
   const sportLabel = getSportDisplayLabel(normalizedSport)
   const a = [senderSummary, receiverSummary].filter(Boolean).join(" vs ")
-  if (!a) return `I want to discuss a ${sportLabel} fantasy trade.`
-  return `I just analyzed this ${sportLabel} trade: ${a}. Can you help me understand the value and risks?`
+  const fairnessText =
+    typeof context?.fairnessScore === "number"
+      ? ` Fairness score was ${context.fairnessScore}/100.`
+      : ""
+  const winnerText = context?.winnerLabel ? ` Winner: ${context.winnerLabel}.` : ""
+
+  if (!a) return `I want to discuss a ${sportLabel} fantasy trade.${fairnessText}${winnerText}`
+  return `I just analyzed this ${sportLabel} trade: ${a}.${fairnessText}${winnerText} Can you help me understand the value and risks?`
 }

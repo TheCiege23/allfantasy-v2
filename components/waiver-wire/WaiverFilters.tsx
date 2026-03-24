@@ -15,6 +15,7 @@ type Props = {
   onStatusChange: (value: string) => void
   sort: string
   onSortChange: (value: string) => void
+  onResetFilters?: () => void
   teams?: string[]
   /** Sport for position filters (e.g. NFL, NBA). When set, position options are sport-specific. */
   sport?: string | null
@@ -33,6 +34,7 @@ export default function WaiverFilters({
   onStatusChange,
   sort,
   onSortChange,
+  onResetFilters,
   teams = [],
   sport,
   formatType,
@@ -120,6 +122,16 @@ export default function WaiverFilters({
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
+          {onResetFilters && (
+            <button
+              type="button"
+              onClick={onResetFilters}
+              data-testid="waiver-reset-filters"
+              className="rounded-lg border border-white/20 bg-black/40 px-2 py-1 text-[11px] text-white/70 hover:text-white"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
     </div>

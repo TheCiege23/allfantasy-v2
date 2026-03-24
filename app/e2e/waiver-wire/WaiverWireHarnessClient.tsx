@@ -6,6 +6,7 @@ import WaiverPlayerRow from '@/components/waiver-wire/WaiverPlayerRow'
 import WaiverClaimDrawer from '@/components/waiver-wire/WaiverClaimDrawer'
 import { waiverPositionMatches } from '@/lib/waiver-wire/SportWaiverResolver'
 import { getTabLabel, WAIVER_EMPTY_HISTORY_TITLE, WAIVER_EMPTY_PENDING_TITLE, WAIVER_EMPTY_PLAYERS_HINT, WAIVER_EMPTY_PLAYERS_TITLE } from '@/lib/waiver-wire/WaiverWireViewService'
+import { buildWaiverSummaryForAI, getWaiverAIChatUrl } from '@/lib/waiver-wire/WaiverToAIContextBridge'
 
 type Player = { id: string; name: string; position: string | null; team: string | null }
 type Claim = { id: string; addPlayerId: string; dropPlayerId: string | null; faabBid: number | null; priorityOrder: number; status: string }
@@ -23,6 +24,7 @@ const MOCK_TX: Tx[] = [
 ]
 
 export function WaiverWireHarnessClient() {
+  const [wireOpen, setWireOpen] = useState(false)
   const [players] = useState<Player[]>(MOCK_PLAYERS)
   const [claims, setClaims] = useState<Claim[]>([
     {
@@ -44,6 +46,7 @@ export function WaiverWireHarnessClient() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
   const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string }>>({})
+  const [watchlistPlayerIds, setWatchlistPlayerIds] = useState<string[]>([])
 
   const rosterPlayers = [{ id: 'roster-1', name: 'Existing Player' }]
   const rosterPlayerIds = ['roster-1']
@@ -70,12 +73,19 @@ export function WaiverWireHarnessClient() {
       const claimedIds = new Set(claims.map((c) => c.addPlayerId))
       list = list.filter((p) => !claimedIds.has(p.id))
     }
+    if (statusFilter === 'watchlist') {
+      const watchlist = new Set(watchlistPlayerIds)
+      list = list.filter((p) => watchlist.has(p.id))
+    }
     if (teamFilter) list = list.filter((p) => (p.team || '').toLowerCase() === teamFilter.toLowerCase())
     if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name))
     if (sort === 'position') list.sort((a, b) => (a.position || '').localeCompare(b.position || ''))
     if (sort === 'team') list.sort((a, b) => (a.team || '').localeCompare(b.team || ''))
+    if (sort === 'trend') {
+      list.sort((a, b) => (trendScoreByPlayerId.get(b.id) ?? 0) - (trendScoreByPlayerId.get(a.id) ?? 0))
+    }
     return list
-  }, [players, search, positionFilter, statusFilter, teamFilter, sort, claims])
+  }, [players, search, positionFilter, statusFilter, teamFilter, sort, claims, trendScoreByPlayerId, watchlistPlayerIds])
 
   const trendingPlayers = useMemo(
     () => [...filteredPlayers].sort((a, b) => (trendScoreByPlayerId.get(b.id) ?? 0) - (trendScoreByPlayerId.get(a.id) ?? 0)),
@@ -85,9 +95,35 @@ export function WaiverWireHarnessClient() {
   const claimedTransactions = useMemo(() => transactions.filter((tx) => Boolean(tx.addPlayerId)), [transactions])
   const droppedTransactions = useMemo(() => transactions.filter((tx) => Boolean(tx.dropPlayerId)), [transactions])
 
+  if (!wireOpen) {
+    return (
+      <main className="min-h-screen bg-[#0a0a0f] p-6 text-white">
+        <h1 className="mb-4 text-xl font-semibold">Waiver Wire Harness</h1>
+        <button
+          type="button"
+          data-testid="waiver-open-button"
+          onClick={() => setWireOpen(true)}
+          className="rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200"
+        >
+          Open Waiver Wire
+        </button>
+      </main>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-[#0a0a0f] p-6 text-white">
-      <h1 className="mb-4 text-xl font-semibold">Waiver Wire</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Waiver Wire</h1>
+        <button
+          type="button"
+          data-testid="waiver-back-button"
+          onClick={() => setWireOpen(false)}
+          className="rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-xs text-white/80"
+        >
+          Back
+        </button>
+      </div>
 
       <WaiverFilters
         search={search}
@@ -100,6 +136,13 @@ export function WaiverWireHarnessClient() {
         onStatusChange={setStatusFilter}
         sort={sort}
         onSortChange={setSort}
+        onResetFilters={() => {
+          setSearch('')
+          setPositionFilter('ALL')
+          setTeamFilter('')
+          setStatusFilter('all')
+          setSort('name')
+        }}
         teams={teams}
         sport="NFL"
         formatType="IDP"
@@ -111,6 +154,7 @@ export function WaiverWireHarnessClient() {
             key={tab}
             type="button"
             onClick={() => setActiveTab(tab)}
+            data-testid={`waiver-tab-${tab}`}
             className={`rounded-full px-3 py-1.5 ${activeTab === tab ? 'bg-cyan-500 text-black' : 'bg-black/40 text-white/80'}`}
           >
             {tab === 'trending'
@@ -143,7 +187,19 @@ export function WaiverWireHarnessClient() {
                     player={p}
                     alreadyClaimed={alreadyClaimed}
                     trendScore={trendScoreByPlayerId.get(p.id) ?? 0}
+                    watchlisted={watchlistPlayerIds.includes(p.id)}
+                    onToggleWatchlist={() =>
+                      setWatchlistPlayerIds((prev) =>
+                        prev.includes(p.id) ? prev.filter((id) => id !== p.id) : [...prev, p.id]
+                      )
+                    }
+                    onRowClick={() => {
+                      if (alreadyClaimed) return
+                      setDrawerPlayer(p)
+                      setDrawerOpen(true)
+                    }}
                     onAddClick={() => {
+                      if (alreadyClaimed) return
                       setDrawerPlayer(p)
                       setDrawerOpen(true)
                     }}
@@ -249,11 +305,31 @@ export function WaiverWireHarnessClient() {
         </div>
       )}
 
+      <div className="mt-4 border-t border-white/10 pt-3">
+        <a
+          data-testid="waiver-ai-help-link"
+          href={getWaiverAIChatUrl(buildWaiverSummaryForAI(undefined, "NFL", {
+            waiverType: "FAAB",
+            pendingClaims: claims.length,
+            watchlistCount: watchlistPlayerIds.length,
+            topTargets: players.filter((p) => watchlistPlayerIds.includes(p.id)).map((p) => p.name),
+          }), {
+            leagueId: "e2e-league",
+            insightType: "waiver",
+            sport: "NFL",
+          })}
+          className="text-xs text-cyan-300 underline"
+        >
+          Get AI waiver help
+        </a>
+      </div>
+
       <WaiverClaimDrawer
         open={drawerOpen}
         player={drawerPlayer}
         faabMode
         faabRemaining={74}
+        hasOpenRosterSpot={false}
         rosterPlayers={rosterPlayers}
         rosterPlayerIds={rosterPlayerIds}
         onClose={() => {

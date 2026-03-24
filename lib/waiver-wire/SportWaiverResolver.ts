@@ -2,7 +2,7 @@
  * SportWaiverResolver — sport-specific position filters and labels for waiver wire UI.
  */
 
-import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { DEFAULT_SPORT, normalizeToSupportedSport, SUPPORTED_SPORTS } from "@/lib/sport-scope"
 
 /** Position filter options (ALL + sport positions) for waiver browse. */
 const POSITIONS_BY_SPORT: Record<string, string[]> = {
@@ -22,11 +22,16 @@ const DEFAULT_POSITIONS = ["ALL", "QB", "RB", "WR", "TE", "FLEX", "DST"]
 
 export const WAIVER_WIRE_SPORTS = SUPPORTED_SPORTS
 
+/** Resolve arbitrary sport input to a supported waiver-wire sport key. */
+export function resolveWaiverSport(sport: string | null | undefined): string {
+  return normalizeToSupportedSport(sport) ?? DEFAULT_SPORT
+}
+
 /**
  * Get position filter options for waiver wire. When formatType is 'IDP' for NFL, includes Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX.
  */
 export function getPositionFiltersForSport(sport: string | null | undefined, formatType?: string | null): string[] {
-  const key = sport?.trim().toUpperCase()
+  const key = resolveWaiverSport(sport)
   if (key === "NFL" && (formatType === "IDP" || formatType === "idp")) return ["ALL", ...NFL_IDP_WAIVER_POSITIONS]
   if (key && POSITIONS_BY_SPORT[key]) return ["ALL", ...POSITIONS_BY_SPORT[key]]
   return DEFAULT_POSITIONS

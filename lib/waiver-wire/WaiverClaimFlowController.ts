@@ -32,3 +32,9 @@ export function getClaimSummary(addName: string, dropName: string | null, faabBi
   if (faabBid != null && faabBid > 0) parts.push(`$${faabBid} FAAB`)
   return parts.join(" · ")
 }
+
+export function parseOptionalNumber(value: string): number | null {
+  const n = Number(value)
+  if (value.trim() === "" || Number.isNaN(n)) return null
+  return n
+}
