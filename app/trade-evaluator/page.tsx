@@ -3,10 +3,29 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-import React, { Suspense, useState } from 'react'
+import React, { Suspense, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI, getSportOptions, getFairnessScore as getFairnessScoreUtil, getFairnessColorClass, getWinnerLabel as getWinnerLabelUtil } from '@/lib/trade-analyzer'
+import {
+  addPlayerSlot,
+  buildTradeSummaryForAI,
+  canSubmitTradeByAssets,
+  formatValueBreakdown,
+  getDefaultPickRounds,
+  getFairnessColorClass,
+  getFairnessScore as getFairnessScoreUtil,
+  getNamedPlayerCount,
+  getResultStaleBadge,
+  getSportOptions,
+  getTotalTradeAssetCount,
+  getTradeAnalyzerAIChatUrl,
+  getWinnerLabel as getWinnerLabelUtil,
+  removeAssetAtIndex,
+  shouldShowResult,
+  TRADE_ANALYZER_EMPTY_SUBTITLE,
+  TRADE_ANALYZER_EMPTY_TITLE,
+} from '@/lib/trade-analyzer'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
 import { ErrorStateRenderer } from '@/components/ui-states'
@@ -118,13 +137,37 @@ function TradeEvaluatorInner() {
     }
   })
   const [leagueFormat, setLeagueFormat] = useState<'dynasty' | 'keeper' | 'redraft'>('dynasty')
-  const [sport, setSport] = useState('NFL')
+  const [sport, setSport] = useState<string>(DEFAULT_SPORT)
   const [scoring, setScoring] = useState('PPR')
   const [qbFormat, setQbFormat] = useState<'1qb' | 'sf'>('sf')
   const [asOfDate, setAsOfDate] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<EvaluationResult | null>(null)
+  const [activeResultTab, setActiveResultTab] = useState<'overview' | 'breakdown' | 'outlook'>('overview')
+  const [outlookMode, setOutlookMode] = useState<'current' | 'future'>('current')
+  const [lastAnalyzedSignature, setLastAnalyzedSignature] = useState<string | null>(null)
+
+  const pickRoundOptions = useMemo(() => getDefaultPickRounds(sport), [sport])
+  const currentInputSignature = useMemo(
+    () =>
+      JSON.stringify({
+        sender,
+        receiver,
+        leagueFormat,
+        sport,
+        scoring,
+        qbFormat,
+        asOfDate,
+      }),
+    [sender, receiver, leagueFormat, sport, scoring, qbFormat, asOfDate]
+  )
+  const analysisStale = shouldShowResult(result, loading, error || null) && lastAnalyzedSignature !== currentInputSignature
+  const staleBanner = getResultStaleBadge(analysisStale)
+
+  const senderAssetCount = getTotalTradeAssetCount(sender.gives_players, sender.gives_picks, sender.gives_faab)
+  const receiverAssetCount = getTotalTradeAssetCount(receiver.gives_players, receiver.gives_picks, receiver.gives_faab)
+  const canAnalyzeTrade = canSubmitTradeByAssets(senderAssetCount, receiverAssetCount, true)
 
   const evaluateTrade = async () => {
     setLoading(true)
@@ -139,11 +182,13 @@ function TradeEvaluatorInner() {
       }))
 
     const formatPicks = (picks: PickInput[]) =>
-      picks.map(p => ({
-        year: parseInt(p.year),
-        round: parseInt(p.round),
-        projected_range: p.projected_range,
-      }))
+      picks
+        .filter((pick) => String(pick.year).trim() && String(pick.round).trim())
+        .map(p => ({
+          year: parseInt(p.year, 10),
+          round: parseInt(p.round, 10),
+          projected_range: p.projected_range,
+        }))
 
     try {
       const res = await fetch('/api/trade-evaluator', {
@@ -169,7 +214,7 @@ function TradeEvaluatorInner() {
           },
           league: {
             format: leagueFormat,
-            sport,
+            sport: normalizeToSupportedSport(sport),
             scoring_summary: scoring,
             qb_format: qbFormat,
           },
@@ -184,10 +229,10 @@ function TradeEvaluatorInner() {
         return
       }
 
-      setResult({
-        evaluation: data.evaluation,
-        tradeInsights: data.tradeInsights
-      })
+      setResult(data)
+      setLastAnalyzedSignature(currentInputSignature)
+      setActiveResultTab('overview')
+      setError('')
     } catch {
       setError('Network error. Please try again.')
     } finally {
@@ -197,17 +242,17 @@ function TradeEvaluatorInner() {
 
   const addPlayer = (team: 'sender' | 'receiver') => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_players: [...sender.gives_players, { ...defaultPlayer }] })
+      setSender({ ...sender, gives_players: addPlayerSlot(sender.gives_players, { ...defaultPlayer }) })
     } else {
-      setReceiver({ ...receiver, gives_players: [...receiver.gives_players, { ...defaultPlayer }] })
+      setReceiver({ ...receiver, gives_players: addPlayerSlot(receiver.gives_players, { ...defaultPlayer }) })
     }
   }
 
   const removePlayer = (team: 'sender' | 'receiver', index: number) => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_players: sender.gives_players.filter((_, i) => i !== index) })
+      setSender({ ...sender, gives_players: removeAssetAtIndex(sender.gives_players, index) })
     } else {
-      setReceiver({ ...receiver, gives_players: receiver.gives_players.filter((_, i) => i !== index) })
+      setReceiver({ ...receiver, gives_players: removeAssetAtIndex(receiver.gives_players, index) })
     }
   }
 
@@ -233,9 +278,27 @@ function TradeEvaluatorInner() {
 
   const removePick = (team: 'sender' | 'receiver', index: number) => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_picks: sender.gives_picks.filter((_, i) => i !== index) })
+      setSender({ ...sender, gives_picks: removeAssetAtIndex(sender.gives_picks, index) })
     } else {
-      setReceiver({ ...receiver, gives_picks: receiver.gives_picks.filter((_, i) => i !== index) })
+      setReceiver({ ...receiver, gives_picks: removeAssetAtIndex(receiver.gives_picks, index) })
+    }
+  }
+
+  const clearTeamAssets = (team: 'sender' | 'receiver') => {
+    if (team === 'sender') {
+      setSender({
+        ...sender,
+        gives_players: [{ ...defaultPlayer }],
+        gives_picks: [],
+        gives_faab: 0,
+      })
+    } else {
+      setReceiver({
+        ...receiver,
+        gives_players: [{ ...defaultPlayer }],
+        gives_picks: [],
+        gives_faab: 0,
+      })
     }
   }
 
@@ -254,10 +317,8 @@ function TradeEvaluatorInner() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    const senderNames = sender.gives_players.filter((p) => p.name.trim())
-    const receiverNames = receiver.gives_players.filter((p) => p.name.trim())
-    if (senderNames.length === 0 || receiverNames.length === 0) {
-      setError('Add at least one player (or pick) to each side.')
+    if (!canAnalyzeTrade) {
+      setError('Add at least one trade asset (player, pick, or FAAB) to each side.')
       return
     }
     await evaluateTrade()
@@ -270,18 +331,46 @@ function TradeEvaluatorInner() {
   const resetTrade = () => {
     setSender({ ...defaultTeam, manager_name: 'Sender Team', gives_players: [{ ...defaultPlayer }] })
     setReceiver({ ...defaultTeam, manager_name: 'Receiver Team', gives_players: [{ ...defaultPlayer }] })
+    setLeagueFormat('dynasty')
+    setSport(DEFAULT_SPORT)
+    setScoring('PPR')
+    setQbFormat('sf')
+    setAsOfDate('')
     setResult(null)
     setError('')
+    setLastAnalyzedSignature(null)
+    setActiveResultTab('overview')
+    setOutlookMode('current')
   }
 
   const swapSides = () => {
-    setSender((prev) => ({ ...prev, ...receiver, manager_name: receiver.manager_name || 'Sender Team' }))
-    setReceiver((prev) => ({ ...prev, ...sender, manager_name: sender.manager_name || 'Receiver Team' }))
+    const senderSnapshot = { ...sender }
+    const receiverSnapshot = { ...receiver }
+    setSender({ ...receiverSnapshot, manager_name: receiverSnapshot.manager_name || 'Sender Team' })
+    setReceiver({ ...senderSnapshot, manager_name: senderSnapshot.manager_name || 'Receiver Team' })
+    setResult(null)
+    setError('')
+    setLastAnalyzedSignature(null)
   }
 
   const renderTeamForm = (team: TeamInput, setTeam: SetTeamFn, label: string, teamKey: 'sender' | 'receiver') => (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 backdrop-blur">
-      <h3 className="text-base sm:text-lg font-medium text-white/90 mb-3 sm:mb-4">{label}</h3>
+      <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
+        <div>
+          <h3 className="text-base sm:text-lg font-medium text-white/90">{label}</h3>
+          <p className="text-xs text-white/45">
+            {getNamedPlayerCount(team.gives_players)} players, {team.gives_picks.length} picks, {team.gives_faab} FAAB
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => clearTeamAssets(teamKey)}
+          data-testid={`trade-clear-side-${teamKey}`}
+          className="rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/[0.08] hover:text-white/85"
+        >
+          Clear side
+        </button>
+      </div>
 
       <div className="space-y-4">
         <div>
@@ -312,6 +401,7 @@ function TradeEvaluatorInner() {
             <button
               type="button"
               onClick={() => addPlayer(teamKey)}
+              data-testid={`trade-add-player-${teamKey}`}
               className="text-xs text-cyan-400 hover:text-cyan-300"
             >
               + Add Player
@@ -350,6 +440,7 @@ function TradeEvaluatorInner() {
               <button
                 type="button"
                 onClick={() => removePlayer(teamKey, i)}
+                data-testid={`trade-remove-player-${teamKey}-${i}`}
                 className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
               >
                 ×
@@ -364,11 +455,15 @@ function TradeEvaluatorInner() {
             <button
               type="button"
               onClick={() => addPick(teamKey)}
+              data-testid={`trade-add-pick-${teamKey}`}
               className="text-xs text-cyan-400 hover:text-cyan-300"
             >
               + Add Pick
             </button>
           </div>
+          <p className="mb-2 text-[11px] text-white/40">
+            Round options adapt to {sport}. Available rounds: {pickRoundOptions.join(', ')}.
+          </p>
           {team.gives_picks.map((pick, i) => (
             <div key={i} className="grid grid-cols-12 gap-2 mb-2">
               <input
@@ -383,7 +478,7 @@ function TradeEvaluatorInner() {
                 onChange={(e) => updatePick(teamKey, i, 'round', e.target.value)}
                 className="col-span-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
               >
-                {[1, 2, 3, 4, 5].map(r => <option key={r} value={r}>Round {r}</option>)}
+                {pickRoundOptions.map(r => <option key={r} value={r}>Round {r}</option>)}
               </select>
               <select
                 value={pick.projected_range}
@@ -398,6 +493,7 @@ function TradeEvaluatorInner() {
               <button
                 type="button"
                 onClick={() => removePick(teamKey, i)}
+                data-testid={`trade-remove-pick-${teamKey}-${i}`}
                 className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
               >
                 ×
@@ -430,6 +526,31 @@ function TradeEvaluatorInner() {
       </div>
     </div>
   );
+
+  const senderAssetLabels = [
+    ...sender.gives_players.map((p) => p.name.trim()).filter(Boolean),
+    ...sender.gives_picks
+      .map((p) => (String(p.year).trim() && String(p.round).trim() ? `${p.year} Round ${p.round}` : ""))
+      .filter(Boolean),
+    ...(sender.gives_faab > 0 ? [`${sender.gives_faab} FAAB`] : []),
+  ]
+  const receiverAssetLabels = [
+    ...receiver.gives_players.map((p) => p.name.trim()).filter(Boolean),
+    ...receiver.gives_picks
+      .map((p) => (String(p.year).trim() && String(p.round).trim() ? `${p.year} Round ${p.round}` : ""))
+      .filter(Boolean),
+    ...(receiver.gives_faab > 0 ? [`${receiver.gives_faab} FAAB`] : []),
+  ]
+  const valueBreakdown = formatValueBreakdown(
+    {
+      label: sender.manager_name || "Sender",
+      assets: senderAssetLabels,
+    },
+    {
+      label: receiver.manager_name || "Receiver",
+      assets: receiverAssetLabels,
+    }
+  )
 
   const content = (
     <div role="main" className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
@@ -566,7 +687,7 @@ function TradeEvaluatorInner() {
               title="Trade evaluation failed"
               message={error}
               onRetry={
-                error.includes("Add at least one player")
+                error.includes("Add at least one trade asset")
                   ? undefined
                   : () => void evaluateTrade()
               }
@@ -579,26 +700,29 @@ function TradeEvaluatorInner() {
             />
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-6 py-4 font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                Analyzing Trade...
-              </span>
-            ) : (
-              'Evaluate Trade'
-            )}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              disabled={loading || !canAnalyzeTrade}
+              data-testid="trade-evaluate-button"
+              className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-6 py-4 font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed sm:flex-1"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Analyzing Trade...
+                </span>
+              ) : (
+                'Evaluate Trade'
+              )}
             </button>
             <button
               type="button"
               onClick={swapSides}
+              data-testid="trade-swap-sides-button"
               className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/80 hover:bg-white/[0.08] transition-all"
             >
               Swap sides
@@ -606,202 +730,251 @@ function TradeEvaluatorInner() {
             <button
               type="button"
               onClick={resetTrade}
+              data-testid="trade-reset-button"
               className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/60 hover:bg-white/[0.08] transition-all"
             >
               Reset trade
             </button>
+          </div>
+          {!canAnalyzeTrade && (
+            <p className="text-xs text-white/45">Add at least one player, pick, or FAAB on both sides to analyze.</p>
+          )}
         </form>
 
         {result && (
           <div className="mt-10 space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur text-center">
-              <div className="mb-4">
-                <span className="text-sm text-white/50 uppercase tracking-wider">Fairness Score</span>
-                <div className={`text-6xl font-bold mt-2 ${getFairnessColor(getFairnessScore(result))}`}>
-                  {getFairnessScore(result)}
-                </div>
-                <div className="text-white/40 text-sm mt-1">out of 100 (50 = perfectly fair)</div>
-              </div>
-
-              <div className="inline-block rounded-full px-4 py-2 bg-white/[0.06] border border-white/10">
-                <span className="text-white/60">Winner: </span>
-                <span className="text-white font-medium">{getWinnerLabel(result.evaluation?.winner)}</span>
-              </div>
-
-              <p className="mt-6 text-white/70 max-w-2xl mx-auto">
-                {result.evaluation?.summary || result.evaluation?.explanation}
-              </p>
-              <Link
-                href={getTradeAnalyzerAIChatUrl(
-                  buildTradeSummaryForAI(
-                    sender.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
-                    receiver.gives_players.map((p) => p.name).filter(Boolean).join(', ') || '—',
-                    sport
-                  ),
-                  {
-                    insightType: 'trade',
-                    sport,
-                  }
-                )}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
-              >
-                <span>Discuss in AI Chat</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-              </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {(["overview", "breakdown", "outlook"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveResultTab(tab)}
+                  data-testid={`trade-result-tab-${tab}`}
+                  className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                    activeResultTab === tab
+                      ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-200"
+                      : "border-white/15 bg-white/[0.03] text-white/65 hover:text-white/90"
+                  }`}
+                >
+                  {tab === "overview" ? "Summary" : tab === "breakdown" ? "Value Breakdown" : "Current/Future Outlook"}
+                </button>
+              ))}
             </div>
 
-            {/* Trade Insights - Labels, Warnings, Veto */}
-            {result.tradeInsights && (
-              <div className="space-y-4">
-                {/* Veto Alert */}
-                {result.tradeInsights.veto && (
-                  <div className="rounded-2xl border-2 border-red-500/50 bg-red-500/10 p-6">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-2xl">🚫</span>
-                      <h3 className="text-lg font-bold text-red-400">Trade Not Recommended</h3>
+            {staleBanner && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+                {staleBanner}
+              </div>
+            )}
+
+            {activeResultTab === "overview" && (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur text-center">
+                  <div className="mb-4">
+                    <span className="text-sm text-white/50 uppercase tracking-wider">Fairness Score</span>
+                    <div className={`text-6xl font-bold mt-2 ${getFairnessColor(getFairnessScore(result))}`}>
+                      {getFairnessScore(result)}
                     </div>
-                    <p className="text-red-300">{result.tradeInsights.vetoReason}</p>
+                    <div className="text-white/40 text-sm mt-1">out of 100 (50 = perfectly fair)</div>
                   </div>
-                )}
 
-                {/* Expert Warning */}
-                {result.tradeInsights.expertWarning && !result.tradeInsights.veto && (
-                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">⚠️</span>
-                      <span className="text-amber-300 font-medium">Expert Warning:</span>
-                      <span className="text-amber-200/80">{result.tradeInsights.expertWarning}</span>
-                    </div>
+                  <div className="inline-block rounded-full px-4 py-2 bg-white/[0.06] border border-white/10">
+                    <span className="text-white/60">Winner: </span>
+                    <span className="text-white font-medium">{getWinnerLabel(result.evaluation?.winner)}</span>
                   </div>
-                )}
 
-                {/* IDP lineup warning (deterministic) */}
-                <IdpTradeLineupWarning idpLineupWarning={result.tradeInsights.idpLineupWarning} />
+                  <p className="mt-6 text-white/70 max-w-2xl mx-auto">
+                    {result.evaluation?.summary || result.evaluation?.explanation}
+                  </p>
+                  <Link
+                    href={getTradeAnalyzerAIChatUrl(
+                      buildTradeSummaryForAI(
+                        senderAssetLabels.join(', ') || '—',
+                        receiverAssetLabels.join(', ') || '—',
+                        sport
+                      ),
+                      {
+                        insightType: 'trade',
+                        sport,
+                      }
+                    )}
+                    data-testid="trade-ai-explanation-link"
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                  >
+                    <span>Discuss in AI Chat</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  </Link>
+                </div>
 
-                {/* Positive Labels */}
-                {result.tradeInsights.labels.length > 0 && (
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    {result.tradeInsights.labels.map((label) => (
-                      <div 
-                        key={label.id}
-                        className="group relative rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 cursor-help"
-                      >
-                        <span className="text-emerald-400 font-medium">{label.emoji} {label.name}</span>
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                          <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
-                            {label.description}
-                          </div>
+                {result.tradeInsights && (
+                  <div className="space-y-4">
+                    {result.tradeInsights.veto && (
+                      <div className="rounded-2xl border-2 border-red-500/50 bg-red-500/10 p-6">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-2xl">🚫</span>
+                          <h3 className="text-lg font-bold text-red-400">Trade Not Recommended</h3>
+                        </div>
+                        <p className="text-red-300">{result.tradeInsights.vetoReason}</p>
+                      </div>
+                    )}
+                    {result.tradeInsights.expertWarning && !result.tradeInsights.veto && (
+                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">⚠️</span>
+                          <span className="text-amber-300 font-medium">Expert Warning:</span>
+                          <span className="text-amber-200/80">{result.tradeInsights.expertWarning}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Warning Labels */}
-                {result.tradeInsights.warnings.length > 0 && (
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    {result.tradeInsights.warnings.map((warning) => (
-                      <div 
-                        key={warning.id}
-                        className="group relative rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 cursor-help"
-                      >
-                        <span className="text-orange-400 font-medium">{warning.emoji} {warning.name}</span>
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                          <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
-                            {warning.description}
+                    )}
+                    <IdpTradeLineupWarning idpLineupWarning={result.tradeInsights.idpLineupWarning} />
+                    {result.tradeInsights.labels.length > 0 && (
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        {result.tradeInsights.labels.map((label) => (
+                          <div
+                            key={label.id}
+                            className="group relative rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 cursor-help"
+                          >
+                            <span className="text-emerald-400 font-medium">{label.emoji} {label.name}</span>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                              <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
+                                {label.description}
+                              </div>
+                            </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                    {result.tradeInsights.warnings.length > 0 && (
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        {result.tradeInsights.warnings.map((warning) => (
+                          <div
+                            key={warning.id}
+                            className="group relative rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 cursor-help"
+                          >
+                            <span className="text-orange-400 font-medium">{warning.emoji} {warning.name}</span>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                              <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
+                                {warning.description}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-center text-sm text-white/50">
+                      Fairness Score: <span className={result.tradeInsights.fairnessScore >= 45 && result.tradeInsights.fairnessScore <= 55 ? 'text-emerald-400' : result.tradeInsights.fairnessScore >= 40 ? 'text-yellow-400' : 'text-red-400'}>
+                        {result.tradeInsights.fairnessScore}/100
+                      </span>
+                      <span className="ml-2 text-xs text-white/30">
+                        ({result.tradeInsights.fairnessMethod === 'lineup' ? 'lineup-based' : 'value-based'})
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeResultTab === "breakdown" && (
+              <>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+                    <h3 className="mb-3 text-lg font-medium text-cyan-300">{sender.manager_name || "Sender"} gives</h3>
+                    <p className="text-sm text-white/70">{valueBreakdown.sideA}</p>
+                  </div>
+                  <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
+                    <h3 className="mb-3 text-lg font-medium text-fuchsia-300">{receiver.manager_name || "Receiver"} gives</h3>
+                    <p className="text-sm text-white/70">{valueBreakdown.sideB}</p>
+                  </div>
+                </div>
+
+                {result.evaluation?.risk_flags && result.evaluation.risk_flags.length > 0 && (
+                  <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-6">
+                    <h3 className="text-lg font-medium text-yellow-400 mb-3">Risk Flags</h3>
+                    <ul className="space-y-2">
+                      {result.evaluation.risk_flags.map((flag, i) => (
+                        <li key={i} className="flex gap-2 text-white/70 text-sm">
+                          <span className="text-yellow-400">!</span>
+                          {flag}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {result.improvements?.best_counter_offer && (
+                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+                    <h3 className="text-lg font-medium text-cyan-400 mb-3">Suggested Counter-Offer</h3>
+                    <p className="text-white/70 text-sm mb-4">{result.improvements.best_counter_offer.why_this_is_better}</p>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {result.improvements.best_counter_offer.sender_gives_changes?.length ? (
+                        <div>
+                          <h4 className="text-sm text-white/60 mb-2">Sender adjustments:</h4>
+                          <ul className="space-y-1">
+                            {result.improvements.best_counter_offer.sender_gives_changes.map((adj, i) => (
+                              <li key={i} className="text-white/70 text-sm">→ {adj}</li>
+                            ))}
+                          </ul>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Fairness Score Display */}
-                <div className="text-center text-sm text-white/50">
-                  Fairness Score: <span className={result.tradeInsights.fairnessScore >= 45 && result.tradeInsights.fairnessScore <= 55 ? 'text-emerald-400' : result.tradeInsights.fairnessScore >= 40 ? 'text-yellow-400' : 'text-red-400'}>
-                    {result.tradeInsights.fairnessScore}/100
-                  </span>
-                  <span className="ml-2 text-xs text-white/30">
-                    ({result.tradeInsights.fairnessMethod === 'lineup' ? 'lineup-based' : 'value-based'})
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {result.user_message && (
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                  <h3 className="text-lg font-medium text-cyan-400 mb-3">Message for {sender.manager_name || 'Sender'}</h3>
-                  <p className="text-white/70 text-sm">{result.user_message.to_sender}</p>
-                </div>
-                <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
-                  <h3 className="text-lg font-medium text-fuchsia-400 mb-3">Message for {receiver.manager_name || 'Receiver'}</h3>
-                  <p className="text-white/70 text-sm">{result.user_message.to_receiver}</p>
-                </div>
-              </div>
-            )}
-
-            {result.evaluation?.risk_flags && result.evaluation.risk_flags.length > 0 && (
-              <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-6">
-                <h3 className="text-lg font-medium text-yellow-400 mb-3">Risk Flags</h3>
-                <ul className="space-y-2">
-                  {result.evaluation.risk_flags.map((flag, i) => (
-                    <li key={i} className="flex gap-2 text-white/70 text-sm">
-                      <span className="text-yellow-400">!</span>
-                      {flag}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {result.improvements?.best_counter_offer && (
-              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                <h3 className="text-lg font-medium text-cyan-400 mb-3">Suggested Counter-Offer</h3>
-                <p className="text-white/70 text-sm mb-4">{result.improvements.best_counter_offer.why_this_is_better}</p>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {result.improvements.best_counter_offer.sender_gives_changes?.length ? (
-                    <div>
-                      <h4 className="text-sm text-white/60 mb-2">Sender adjustments:</h4>
-                      <ul className="space-y-1">
-                        {result.improvements.best_counter_offer.sender_gives_changes.map((adj, i) => (
-                          <li key={i} className="text-white/70 text-sm">→ {adj}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  {result.improvements.best_counter_offer.receiver_gives_changes?.length ? (
-                    <div>
-                      <h4 className="text-sm text-white/60 mb-2">Receiver adjustments:</h4>
-                      <ul className="space-y-1">
-                        {result.improvements.best_counter_offer.receiver_gives_changes.map((adj, i) => (
-                          <li key={i} className="text-white/70 text-sm">→ {adj}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            )}
-
-            {(result.dynasty_idp_outlook || result.end_of_season_projection) && (
-              <div className="grid md:grid-cols-2 gap-6">
-                {result.dynasty_idp_outlook && (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                    <h3 className="text-lg font-medium text-white/90 mb-3">Dynasty Outlook</h3>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="text-white/50">{sender.manager_name || 'Sender'}: </span>
-                        <span className="text-white/70">{result.dynasty_idp_outlook.sender}</span>
-                      </div>
-                      <div>
-                        <span className="text-white/50">{receiver.manager_name || 'Receiver'}: </span>
-                        <span className="text-white/70">{result.dynasty_idp_outlook.receiver}</span>
-                      </div>
+                      ) : null}
+                      {result.improvements.best_counter_offer.receiver_gives_changes?.length ? (
+                        <div>
+                          <h4 className="text-sm text-white/60 mb-2">Receiver adjustments:</h4>
+                          <ul className="space-y-1">
+                            {result.improvements.best_counter_offer.receiver_gives_changes.map((adj, i) => (
+                              <li key={i} className="text-white/70 text-sm">→ {adj}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 )}
-                {result.end_of_season_projection && (
+
+                {result.user_message && (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+                      <h3 className="text-lg font-medium text-cyan-400 mb-3">Message for {sender.manager_name || 'Sender'}</h3>
+                      <p className="text-white/70 text-sm">{result.user_message.to_sender}</p>
+                    </div>
+                    <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
+                      <h3 className="text-lg font-medium text-fuchsia-400 mb-3">Message for {receiver.manager_name || 'Receiver'}</h3>
+                      <p className="text-white/70 text-sm">{result.user_message.to_receiver}</p>
+                    </div>
+                  </div>
+                )}
+
+                <Link
+                  href={`/trade-finder?context=analyzer&sport=${encodeURIComponent(sport)}`}
+                  data-testid="trade-propose-flow-link"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/[0.04] px-4 py-2 text-sm text-white/80 hover:bg-white/[0.08]"
+                >
+                  Open trade finder / propose flow
+                </Link>
+              </>
+            )}
+
+            {activeResultTab === "outlook" && (
+              <>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOutlookMode('current')}
+                    data-testid="trade-outlook-current-toggle"
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${outlookMode === 'current' ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200' : 'border-white/15 bg-white/[0.03] text-white/65'}`}
+                  >
+                    Current season outlook
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOutlookMode('future')}
+                    data-testid="trade-outlook-future-toggle"
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${outlookMode === 'future' ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200' : 'border-white/15 bg-white/[0.03] text-white/65'}`}
+                  >
+                    Future / dynasty outlook
+                  </button>
+                </div>
+
+                {outlookMode === 'current' && result.end_of_season_projection && (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
                     <h3 className="text-lg font-medium text-white/90 mb-3">End of Season Projection</h3>
                     <div className="space-y-3 text-sm">
@@ -816,8 +989,38 @@ function TradeEvaluatorInner() {
                     </div>
                   </div>
                 )}
-              </div>
+
+                {outlookMode === 'future' && result.dynasty_idp_outlook && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                    <h3 className="text-lg font-medium text-white/90 mb-3">Dynasty Outlook</h3>
+                    <div className="space-y-3 text-sm">
+                      <div>
+                        <span className="text-white/50">{sender.manager_name || 'Sender'}: </span>
+                        <span className="text-white/70">{result.dynasty_idp_outlook.sender}</span>
+                      </div>
+                      <div>
+                        <span className="text-white/50">{receiver.manager_name || 'Receiver'}: </span>
+                        <span className="text-white/70">{result.dynasty_idp_outlook.receiver}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {((outlookMode === 'current' && !result.end_of_season_projection) ||
+                  (outlookMode === 'future' && !result.dynasty_idp_outlook)) && (
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-6 text-sm text-white/55">
+                    No {outlookMode === 'current' ? 'current season' : 'future dynasty'} outlook data returned for this trade.
+                  </div>
+                )}
+              </>
             )}
+          </div>
+        )}
+
+        {!result && !loading && !error && (
+          <div className="mt-10 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center">
+            <h2 className="text-lg font-semibold text-white/85">{TRADE_ANALYZER_EMPTY_TITLE}</h2>
+            <p className="mt-2 text-sm text-white/55">{TRADE_ANALYZER_EMPTY_SUBTITLE}</p>
           </div>
         )}
       </div>

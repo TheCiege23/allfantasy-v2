@@ -29,6 +29,9 @@ export {
   removeAssetById,
   canSubmitTrade,
   getNamedPlayerCount,
+  getNamedPickCount,
+  getTotalTradeAssetCount,
+  canSubmitTradeByAssets,
 } from "./TradeAssetSelectionController"
 export type { AssetLike } from "./TradeAssetSelectionController"
 export {
@@ -44,6 +47,8 @@ export {
   TRADE_ANALYZER_LOADING_TITLE,
   TRADE_ANALYZER_ERROR_TITLE,
   TRADE_ANALYZER_ERROR_RETRY,
+  TRADE_ANALYZER_STALE_WARNING,
   shouldShowResult,
   getResultSectionTitle,
+  getResultStaleBadge,
 } from "./TradeAnalyzerViewService"

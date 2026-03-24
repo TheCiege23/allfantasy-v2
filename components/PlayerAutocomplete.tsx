@@ -28,12 +28,14 @@ interface PlayerAutocompleteProps {
   value?: Player | null;
   onChange: (player: Player | null) => void;
   placeholder?: string;
+  sport?: string;
 }
 
 export function PlayerAutocomplete({
   value,
   onChange,
   placeholder = 'Search players...',
+  sport,
 }: PlayerAutocompleteProps) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
@@ -49,7 +51,9 @@ export function PlayerAutocomplete({
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/players/search?q=${encodeURIComponent(search)}`);
+        const params = new URLSearchParams({ q: search });
+        if (sport) params.set('sport', sport);
+        const res = await fetch(`/api/players/search?${params.toString()}`);
         if (res.ok) {
           const data = await res.json();
           setOptions(data);
@@ -61,7 +65,7 @@ export function PlayerAutocomplete({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, sport]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

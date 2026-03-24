@@ -16,13 +16,27 @@ export type EmptyTradeState = {
   leagueContext: string
 }
 
-export function getEmptyTradeState(useSenderReceiverLabels: boolean): EmptyTradeState {
+type EmptyTradeStateOptions = {
+  useSenderReceiverLabels?: boolean
+  leagueContext?: string
+}
+
+export function getEmptyTradeState(options?: boolean | EmptyTradeStateOptions): EmptyTradeState {
+  const useSenderReceiverLabels =
+    typeof options === "boolean"
+      ? options
+      : Boolean(options?.useSenderReceiverLabels)
+  const leagueContext =
+    typeof options === "object" && options?.leagueContext
+      ? options.leagueContext
+      : DEFAULT_LEAGUE_CONTEXT
+
   return {
     teamAName: useSenderReceiverLabels ? "Sender" : DEFAULT_TEAM_A_LABEL,
     teamBName: useSenderReceiverLabels ? "Receiver" : DEFAULT_TEAM_B_LABEL,
     teamAAssets: [],
     teamBAssets: [],
-    leagueContext: DEFAULT_LEAGUE_CONTEXT,
+    leagueContext,
   }
 }
 

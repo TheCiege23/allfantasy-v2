@@ -7,6 +7,7 @@ export const TRADE_ANALYZER_EMPTY_SUBTITLE = "Then click Evaluate Trade to get A
 export const TRADE_ANALYZER_LOADING_TITLE = "Analyzing trade..."
 export const TRADE_ANALYZER_ERROR_TITLE = "Analysis failed"
 export const TRADE_ANALYZER_ERROR_RETRY = "Try again"
+export const TRADE_ANALYZER_STALE_WARNING = "Inputs changed. Re-run analysis to refresh this result."
 
 export function shouldShowResult(result: unknown, loading: boolean, error: string | null): boolean {
   return !loading && !error && result != null
@@ -16,4 +17,8 @@ export function getResultSectionTitle(hasError: boolean, hasResult: boolean): st
   if (hasError) return TRADE_ANALYZER_ERROR_TITLE
   if (hasResult) return "Trade analysis"
   return null
+}
+
+export function getResultStaleBadge(isStale: boolean): string | null {
+  return isStale ? TRADE_ANALYZER_STALE_WARNING : null
 }

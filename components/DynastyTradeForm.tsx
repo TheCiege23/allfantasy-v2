@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import NextLink from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,18 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { ArrowLeftRight, Plus, X, Loader2, TrendingUp, Crown, Search, Download, Share2, Link as LinkIcon, Shield, Target, MessageSquare, CheckCircle, AlertTriangle, XCircle, Clock } from 'lucide-react';
-import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI } from '@/lib/trade-analyzer';
+import {
+  buildTradeSummaryForAI,
+  canSubmitTradeByAssets,
+  getEmptyTradeState,
+  getSportOptions,
+  getTotalTradeAssetCount,
+  getTradeAnalyzerAIChatUrl,
+  removeAssetById,
+  swapSides as swapAssetSides,
+  DEFAULT_LEAGUE_CONTEXT,
+} from '@/lib/trade-analyzer';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 import { Skeleton } from '@/components/ui/legacy-ui';
 import { PlayerAutocomplete } from '@/components/PlayerAutocomplete';
 import { useAI } from '@/hooks/useAI';
@@ -153,16 +164,21 @@ interface PlayerValue {
   comparables: string[];
 }
 
+const SPORT_OPTIONS = getSportOptions();
+const DEFAULT_DYNASTY_SPORT = SPORT_OPTIONS[0]?.value ?? 'NFL';
+const EMPTY_DYNASTY_STATE = getEmptyTradeState({ leagueContext: DEFAULT_LEAGUE_CONTEXT });
+
 export default function DynastyTradeForm() {
   const { callAI, loading } = useAI<{ analysis: TradeResult; sections: TradeSections; canonicalContext?: CanonicalContextMeta; deterministicVerdict?: DeterministicVerdictData }>();
 
-  const [teamAName, setTeamAName] = useState('Team A');
-  const [teamBName, setTeamBName] = useState('Team B');
+  const [teamAName, setTeamAName] = useState(EMPTY_DYNASTY_STATE.teamAName);
+  const [teamBName, setTeamBName] = useState(EMPTY_DYNASTY_STATE.teamBName);
   const [teamAAssets, setTeamAAssets] = useState<TradeAsset[]>([]);
   const [teamBAssets, setTeamBAssets] = useState<TradeAsset[]>([]);
   const [teamAPickInput, setTeamAPickInput] = useState('');
   const [teamBPickInput, setTeamBPickInput] = useState('');
-  const [leagueContext, setLeagueContext] = useState('12-team SF PPR dynasty');
+  const [leagueContext, setLeagueContext] = useState(EMPTY_DYNASTY_STATE.leagueContext);
+  const [sport, setSport] = useState<string>(DEFAULT_DYNASTY_SPORT);
   const [result, setResult] = useState<TradeResult | null>(null);
   const [sections, setSections] = useState<TradeSections | null>(null);
   const [canonicalCtx, setCanonicalCtx] = useState<CanonicalContextMeta | null>(null);
@@ -170,6 +186,19 @@ export default function DynastyTradeForm() {
   const [reliability, setReliability] = useState<{ usedDeterministicFallback?: boolean; fallbackExplanation?: string; confidence?: number; providerResults?: { provider: string; status: string; error?: string }[]; dataQualityWarnings?: string[] } | null>(null);
   const [playerValues, setPlayerValues] = useState<Record<string, PlayerValue>>({});
   const [valueLookupLoading, setValueLookupLoading] = useState<string | null>(null);
+  const [lastAnalyzedSignature, setLastAnalyzedSignature] = useState<string | null>(null);
+
+  const currentInputSignature = useMemo(
+    () =>
+      JSON.stringify({
+        sport,
+        leagueContext,
+        teamAAssets: teamAAssets.map((asset) => asset.name),
+        teamBAssets: teamBAssets.map((asset) => asset.name),
+      }),
+    [sport, leagueContext, teamAAssets, teamBAssets]
+  );
+  const analysisStale = Boolean(result) && Boolean(lastAnalyzedSignature) && lastAnalyzedSignature !== currentInputSignature;
 
   useEffect(() => {
     try {
@@ -181,6 +210,7 @@ export default function DynastyTradeForm() {
         if (data.teamAAssets) setTeamAAssets(data.teamAAssets);
         if (data.teamBAssets) setTeamBAssets(data.teamBAssets);
         if (data.leagueContext) setLeagueContext(data.leagueContext);
+        if (data.sport) setSport(normalizeToSupportedSport(data.sport));
       }
     } catch {}
   }, []);
@@ -188,10 +218,10 @@ export default function DynastyTradeForm() {
   useEffect(() => {
     try {
       localStorage.setItem('dynastyTrade', JSON.stringify({
-        teamAName, teamBName, teamAAssets, teamBAssets, leagueContext,
+        teamAName, teamBName, teamAAssets, teamBAssets, leagueContext, sport,
       }));
     } catch {}
-  }, [teamAName, teamBName, teamAAssets, teamBAssets, leagueContext]);
+  }, [teamAName, teamBName, teamAAssets, teamBAssets, leagueContext, sport]);
 
   function addPlayerAsset(side: 'a' | 'b', player: Player | null) {
     if (!player) return;
@@ -248,12 +278,22 @@ export default function DynastyTradeForm() {
   }
 
   function removeAsset(side: 'a' | 'b', id: string) {
-    if (side === 'a') setTeamAAssets(prev => prev.filter(a => a.id !== id));
-    else setTeamBAssets(prev => prev.filter(a => a.id !== id));
+    if (side === 'a') setTeamAAssets(prev => removeAssetById(prev, id));
+    else setTeamBAssets(prev => removeAssetById(prev, id));
   }
 
   async function handleAnalyze() {
-    if (teamAAssets.length === 0 || teamBAssets.length === 0) {
+    const teamAAssetCount = getTotalTradeAssetCount(
+      teamAAssets.filter((a) => a.type === 'player').map((a) => ({ name: a.name })),
+      teamAAssets.filter((a) => a.type === 'pick').map(() => ({ year: '1', round: '1' })),
+      0
+    );
+    const teamBAssetCount = getTotalTradeAssetCount(
+      teamBAssets.filter((a) => a.type === 'player').map((a) => ({ name: a.name })),
+      teamBAssets.filter((a) => a.type === 'pick').map(() => ({ year: '1', round: '1' })),
+      0
+    );
+    if (!canSubmitTradeByAssets(teamAAssetCount, teamBAssetCount, true)) {
       toast.error('Both sides need at least one asset');
       return;
     }
@@ -267,6 +307,7 @@ export default function DynastyTradeForm() {
         sideA: sideADesc,
         sideB: sideBDesc,
         leagueContext,
+        sport,
       },
       { successMessage: 'Trade analyzed!' }
     );
@@ -294,6 +335,7 @@ export default function DynastyTradeForm() {
       if (data.deterministicVerdict) {
         setDetVerdict(data.deterministicVerdict);
       }
+      setLastAnalyzedSignature(currentInputSignature);
       const rel = (data as { reliability?: { fallbackExplanation?: string }; fallbackExplanation?: string }).reliability;
       setReliability(rel ? {
         ...rel,
@@ -373,21 +415,40 @@ export default function DynastyTradeForm() {
   }
 
   const clearTrade = () => {
+    const emptyState = getEmptyTradeState({ leagueContext: DEFAULT_LEAGUE_CONTEXT });
     setTeamAAssets([]);
     setTeamBAssets([]);
     setTeamAPickInput('');
     setTeamBPickInput('');
-    setTeamAName('Team A');
-    setTeamBName('Team B');
-    setLeagueContext('12-team SF PPR dynasty');
+    setTeamAName(emptyState.teamAName);
+    setTeamBName(emptyState.teamBName);
+    setLeagueContext(emptyState.leagueContext);
+    setSport(DEFAULT_DYNASTY_SPORT);
     setResult(null);
     setSections(null);
     setCanonicalCtx(null);
     setDetVerdict(null);
+    setReliability(null);
+    setLastAnalyzedSignature(null);
     setPlayerValues({});
     setValueLookupLoading(null);
     localStorage.removeItem('dynastyTrade');
     toast.info('Trade cleared');
+  };
+
+  const swapSides = () => {
+    const [nextA, nextB] = swapAssetSides(teamAAssets, teamBAssets);
+    setTeamAAssets(nextA);
+    setTeamBAssets(nextB);
+    setTeamAName((prev) => teamBName || prev);
+    setTeamBName((prev) => teamAName || prev);
+    setResult(null);
+    setSections(null);
+    setCanonicalCtx(null);
+    setDetVerdict(null);
+    setReliability(null);
+    setLastAnalyzedSignature(null);
+    toast.success('Trade sides swapped');
   };
 
   const [sharing, setSharing] = useState(false);
@@ -439,8 +500,8 @@ export default function DynastyTradeForm() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="flex-1 space-y-3">
           <label className="block text-sm font-medium mb-2 text-gray-300">League Context</label>
           <Textarea
             value={leagueContext}
@@ -449,14 +510,37 @@ export default function DynastyTradeForm() {
             className="bg-gray-950 border-gray-700 min-h-[60px]"
           />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearTrade}
-          className="text-gray-400 hover:text-gray-200 mt-6 shrink-0"
-        >
-          <X className="h-4 w-4 mr-1" /> Clear Trade
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 md:mt-6">
+          <Label htmlFor="dynasty-trade-sport" className="text-xs text-gray-400">Sport</Label>
+          <select
+            id="dynasty-trade-sport"
+            value={sport}
+            onChange={(e) => setSport(e.target.value)}
+            className="h-9 rounded-md border border-gray-700 bg-gray-950 px-2 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+          >
+            {SPORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={swapSides}
+            className="text-gray-300 hover:text-white shrink-0"
+          >
+            <ArrowLeftRight className="h-4 w-4 mr-1" /> Swap Sides
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearTrade}
+            className="text-gray-400 hover:text-gray-200 shrink-0"
+          >
+            <X className="h-4 w-4 mr-1" /> Clear Trade
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -472,6 +556,15 @@ export default function DynastyTradeForm() {
               />
               <span className="text-sm text-gray-500 font-normal">(Outgoing)</span>
             </CardTitle>
+            <CardDescription>
+              <button
+                type="button"
+                onClick={() => setTeamAAssets([])}
+                className="text-xs text-gray-400 hover:text-gray-200"
+              >
+                Clear this side
+              </button>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <AssetList side="a" assets={teamAAssets} />
@@ -479,6 +572,7 @@ export default function DynastyTradeForm() {
               value={null}
               onChange={(player) => addPlayerAsset('a', player)}
               placeholder="Search players to add..."
+              sport={sport}
             />
             <div className="flex gap-2">
               <Input
@@ -513,6 +607,15 @@ export default function DynastyTradeForm() {
               />
               <span className="text-sm text-gray-500 font-normal">(Incoming)</span>
             </CardTitle>
+            <CardDescription>
+              <button
+                type="button"
+                onClick={() => setTeamBAssets([])}
+                className="text-xs text-gray-400 hover:text-gray-200"
+              >
+                Clear this side
+              </button>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <AssetList side="b" assets={teamBAssets} />
@@ -520,6 +623,7 @@ export default function DynastyTradeForm() {
               value={null}
               onChange={(player) => addPlayerAsset('b', player)}
               placeholder="Search players to add..."
+              sport={sport}
             />
             <div className="flex gap-2">
               <Input
@@ -557,6 +661,12 @@ export default function DynastyTradeForm() {
           )}
         </Button>
       </div>
+
+      {analysisStale && (
+        <div className="rounded-lg border border-amber-600/30 bg-amber-950/20 px-4 py-2 text-sm text-amber-300">
+          Inputs changed since the last analysis. Re-run to refresh value, fairness, and AI recommendations.
+        </div>
+      )}
 
       {loading ? (
         <Card className="glass-card border-purple-900/30">
@@ -1017,9 +1127,9 @@ export default function DynastyTradeForm() {
                   buildTradeSummaryForAI(
                     teamAAssets.map((a) => a.name).join(', '),
                     teamBAssets.map((a) => a.name).join(', '),
-                    'dynasty'
+                    sport
                   ),
-                  { insightType: 'trade' }
+                  { insightType: 'trade', sport }
                 )}
                 className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
               >
@@ -1085,7 +1195,7 @@ export default function DynastyTradeForm() {
             chimmyPrompt={buildTradeSummaryForAI(
               teamAAssets.map((a) => a.name).join(', '),
               teamBAssets.map((a) => a.name).join(', '),
-              'dynasty'
+              sport
             )}
             onReRun={handleAnalyze}
             reRunLoading={loading}

@@ -20,6 +20,7 @@ import {
   getMandatorySystemPromptSuffix,
   normalizeToContract,
 } from '@/lib/ai-context-envelope';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 
 function parseLeagueContext(raw: string | undefined): LeagueContextInput {
   if (!raw) return {}
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
   }
 
   const includeTrace = wantsDebugTrace(req);
-  const { sideA, sideB, leagueContext, leagueId } = await req.json();
+  const { sideA, sideB, leagueContext, leagueId, sport } = await req.json();
 
   if (!sideA || !sideB) {
     return NextResponse.json(
@@ -80,8 +81,10 @@ export async function POST(req: Request) {
   }
 
   try {
+    const normalizedSport = normalizeToSupportedSport(sport);
     const parsedLeague = parseLeagueContext(leagueContext)
     if (leagueId) parsedLeague.leagueId = leagueId
+    parsedLeague.platform = parsedLeague.platform || normalizedSport
 
     const sideAAssets = sideA.split(/,|and/i).map((s: string) => s.trim()).filter((s: string) => s.length > 1)
     const sideBAssets = sideB.split(/,|and/i).map((s: string) => s.trim()).filter((s: string) => s.length > 1)
