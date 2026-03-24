@@ -30,12 +30,18 @@ export function NotificationCategoryRenderer({
   const label = NOTIFICATION_CATEGORY_LABELS[categoryId]
 
   return (
-    <div className="rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+    <div
+      className="rounded-lg border"
+      style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+      data-notification-category={categoryId}
+    >
       <button
         type="button"
         onClick={onToggleExpand}
         className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
         style={{ color: "var(--text)" }}
+        aria-expanded={expanded}
+        aria-controls={`notification-category-${categoryId}-panel`}
       >
         <span className="flex items-center gap-2">
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -49,11 +55,16 @@ export function NotificationCategoryRenderer({
             onChange={(e) => onToggleEnabled(e.target.checked)}
             className="h-4 w-4 rounded border"
             style={{ accentColor: "var(--accent-cyan)" }}
+            aria-label={`${label} enabled`}
           />
         </label>
       </button>
       {expanded && (
-        <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--border)" }}>
+        <div
+          id={`notification-category-${categoryId}-panel`}
+          className="border-t px-3 py-2 space-y-2"
+          style={{ borderColor: "var(--border)" }}
+        >
           <p className="text-xs font-medium" style={{ color: "var(--muted2)" }}>Delivery</p>
           <div className="flex flex-wrap gap-4">
             <label className="flex items-center gap-2 text-sm">
@@ -64,6 +75,7 @@ export function NotificationCategoryRenderer({
                 disabled={!deliveryAvailability.inApp}
                 className="h-3.5 w-3.5 rounded"
                 style={{ accentColor: "var(--accent-cyan)" }}
+                aria-label={`${label} ${DELIVERY_LABELS.inApp}`}
               />
               <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.inApp}</span>
             </label>
@@ -75,6 +87,7 @@ export function NotificationCategoryRenderer({
                 disabled={!deliveryAvailability.email}
                 className="h-3.5 w-3.5 rounded"
                 style={{ accentColor: "var(--accent-cyan)" }}
+                aria-label={`${label} ${DELIVERY_LABELS.email}`}
               />
               <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.email}</span>
             </label>
@@ -86,6 +99,7 @@ export function NotificationCategoryRenderer({
                   onChange={(e) => onToggleChannel("sms", e.target.checked)}
                   className="h-3.5 w-3.5 rounded"
                   style={{ accentColor: "var(--accent-cyan)" }}
+                  aria-label={`${label} ${DELIVERY_LABELS.sms}`}
                 />
                 <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.sms}</span>
               </label>

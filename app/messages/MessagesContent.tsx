@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -13,8 +13,12 @@ import {
   Smile,
   ImageIcon,
   FileImage,
+  Paperclip,
+  Search,
   X,
   BarChart3,
+  UserPlus,
+  Pencil,
 } from "lucide-react"
 import type { PlatformChatMessage, PlatformChatThread } from "@/types/platform-shared"
 import {
@@ -22,23 +26,37 @@ import {
   getGroupThreads,
   sortThreadsByLastMessage,
   getConversationDisplayTitle,
+  getConversationPreview,
   getUnreadCount,
   getUnreadBadgeLabel,
   hasUnread,
   getThreadMessagesUrl,
   getLeaveGroupUrl,
+  getAddParticipantsUrl,
+  getRenamePayload,
+  getRenameThreadUrl,
+  getMuteThreadUrl,
   handleComposerKeyDown,
+  parseParticipantUsernames,
 } from "@/lib/conversations"
 import {
   EMOJI_LIST,
   appendEmoji,
   isGifSearchConfigured,
+  getGifProviderName,
   isValidGifOrImageUrl,
+  searchGifs,
   validateImageFile,
+  validateAttachmentFile,
   getMessagePayloadForImage,
   getMessagePayloadForGif,
+  getMessagePayloadForFile,
+  canSendComposerMessage,
+  getAttachmentPreviewLabel,
+  clearAttachmentState,
+  resolveMediaViewerUrl,
 } from "@/lib/rich-message"
-import type { AttachmentPreview } from "@/lib/rich-message"
+import type { AttachmentPreview, GifSearchResult } from "@/lib/rich-message"
 import {
   parseMentions,
   notifyMentions,
@@ -66,8 +84,13 @@ import {
   getReportMessagePayload,
   getReportUserPayload,
   REPORT_REASONS,
-} from "@/lib/moderation"
+  isBlockedDirectConversation,
+  getBlockedConversationNotice,
+  getBlockedVisibilityNotice,
+} from "@/lib/moderation/client"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
+import { ChimmyChatShell } from "@/components/chimmy"
+import { readAIContextFromSearchParams, resolveMessagesTab } from "@/lib/chimmy-chat"
 
 const TABS = [
   { id: "dm" as const, label: "Private DMs" },
@@ -78,12 +101,15 @@ const TABS = [
 export default function MessagesContent() {
   const { formatInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get("tab")
   const threadIdFromUrl = searchParams.get("thread")
+  const messageIdFromUrl = searchParams.get("message")
   const startUsernameFromUrl = searchParams.get("start")
+  const aiContext = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
 
   const [threads, setThreads] = useState<PlatformChatThread[]>([])
   const [loadingThreads, setLoadingThreads] = useState(true)
-  const [activeTab, setActiveTab] = useState<"dm" | "groups" | "ai">("dm")
+  const [activeTab, setActiveTab] = useState<"dm" | "groups" | "ai">(() => resolveMessagesTab(tabFromUrl))
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(threadIdFromUrl)
   const [messages, setMessages] = useState<PlatformChatMessage[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
@@ -96,14 +122,19 @@ export default function MessagesContent() {
   const [newGroupTitle, setNewGroupTitle] = useState("")
   const [newGroupUsernames, setNewGroupUsernames] = useState("")
   const [newGroupLoading, setNewGroupLoading] = useState(false)
+  const [newGroupError, setNewGroupError] = useState<string | null>(null)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<AttachmentPreview | null>(null)
   const [gifUrlInput, setGifUrlInput] = useState("")
   const [gifUrlOpen, setGifUrlOpen] = useState(false)
+  const [gifSearchQuery, setGifSearchQuery] = useState("")
+  const [gifSearchLoading, setGifSearchLoading] = useState(false)
+  const [gifSearchResults, setGifSearchResults] = useState<GifSearchResult[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [mediaViewerUrl, setMediaViewerUrl] = useState<string | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pinned, setPinned] = useState<PlatformChatMessage[]>([])
   const [pollCreateOpen, setPollCreateOpen] = useState(false)
   const [pollQuestion, setPollQuestion] = useState("")
@@ -117,11 +148,41 @@ export default function MessagesContent() {
   const [reportReason, setReportReason] = useState("other")
   const [reportSubmitting, setReportSubmitting] = useState(false)
   const [reportSuccess, setReportSuccess] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
   const [blockConfirmOpen, setBlockConfirmOpen] = useState<{ userId: string; username: string } | null>(null)
   const [blockedListOpen, setBlockedListOpen] = useState(false)
   const [mutedThreads, setMutedThreads] = useState<Set<string>>(new Set())
+  const [conversationSearch, setConversationSearch] = useState("")
+  const [renameGroupOpen, setRenameGroupOpen] = useState(false)
+  const [renameGroupTitle, setRenameGroupTitle] = useState("")
+  const [renamingGroup, setRenamingGroup] = useState(false)
+  const [renameGroupError, setRenameGroupError] = useState<string | null>(null)
+  const [addParticipantOpen, setAddParticipantOpen] = useState(false)
+  const [addParticipantUsernames, setAddParticipantUsernames] = useState("")
+  const [addingParticipants, setAddingParticipants] = useState(false)
+  const [addParticipantError, setAddParticipantError] = useState<string | null>(null)
+  const [threadActionError, setThreadActionError] = useState<string | null>(null)
+  const [focusedMessageId, setFocusedMessageId] = useState<string | null>(messageIdFromUrl)
+  const [hiddenBlockedMessageCount, setHiddenBlockedMessageCount] = useState(0)
 
   const { data: session } = useSession()
+  useEffect(() => {
+    const nextTab = resolveMessagesTab(tabFromUrl)
+    setActiveTab((prev) => (prev === nextTab ? prev : nextTab))
+  }, [tabFromUrl])
+
+  const handleSelectTab = useCallback((tab: "dm" | "groups" | "ai") => {
+    setActiveTab(tab)
+    if (typeof window === "undefined") return
+    const url = new URL(window.location.href)
+    if (tab === "ai") {
+      url.searchParams.set("tab", "ai")
+    } else {
+      url.searchParams.delete("tab")
+    }
+    window.history.replaceState(null, "", url.pathname + url.search)
+  }, [])
+
   const currentUserId = (session?.user as { id?: string })?.id ?? null
 
   const mentionState = getMentionQueryFromInput(input)
@@ -153,6 +214,10 @@ export default function MessagesContent() {
   }, [threadIdFromUrl])
 
   useEffect(() => {
+    setFocusedMessageId(messageIdFromUrl || null)
+  }, [messageIdFromUrl])
+
+  useEffect(() => {
     if (startUsernameFromUrl?.trim()) {
       setStartDmUsername(startUsernameFromUrl.trim())
       setStartDmOpen(true)
@@ -165,20 +230,75 @@ export default function MessagesContent() {
 
   const dmThreads = sortThreadsByLastMessage(getDMThreads(threads))
   const groupThreads = sortThreadsByLastMessage(getGroupThreads(threads))
-  const currentList = activeTab === "dm" ? dmThreads : activeTab === "groups" ? groupThreads : []
+  const baseList = activeTab === "dm" ? dmThreads : activeTab === "groups" ? groupThreads : []
+  const normalizedSearch = conversationSearch.trim().toLowerCase()
+  const currentList = baseList.filter((thread) => {
+    if (!normalizedSearch) return true
+    const title = getConversationDisplayTitle(thread).toLowerCase()
+    const preview = getConversationPreview(thread).toLowerCase()
+    return title.includes(normalizedSearch) || preview.includes(normalizedSearch)
+  })
+  const selectedThread = useMemo(
+    () => threads.find((t) => t.id === selectedThreadId) ?? null,
+    [threads, selectedThreadId]
+  )
+  const blockedUserIdSet = useMemo(() => new Set(blockedUsers.map((b) => b.userId)), [blockedUsers])
+  const selectedThreadBlockedDirect = useMemo(
+    () => isBlockedDirectConversation(selectedThread, blockedUserIdSet),
+    [selectedThread, blockedUserIdSet]
+  )
+  const blockedConversationNotice = useMemo(() => {
+    if (!selectedThreadBlockedDirect) return ""
+    const displayTitle = selectedThread ? getConversationDisplayTitle(selectedThread) : null
+    return getBlockedConversationNotice(displayTitle)
+  }, [selectedThread, selectedThreadBlockedDirect])
+  const blockedVisibilityNotice = useMemo(
+    () => getBlockedVisibilityNotice(blockedUsers.length),
+    [blockedUsers.length]
+  )
 
-  const loadMessages = useCallback(async (tid: string) => {
+  useEffect(() => {
+    const muted = new Set<string>()
+    for (const thread of threads) {
+      const context = (thread.context || {}) as Record<string, unknown>
+      if (context.isMuted === true) muted.add(thread.id)
+    }
+    setMutedThreads(muted)
+  }, [threads])
+
+  useEffect(() => {
+    if (!selectedThreadId) return
+    const selected = threads.find((t) => t.id === selectedThreadId)
+    if (!selected) {
+      setSelectedThreadId(null)
+      return
+    }
+    if (activeTab === "dm" && selected.threadType !== "dm") {
+      if (selected.threadType === "group") setActiveTab("groups")
+      return
+    } else if (activeTab === "groups" && selected.threadType !== "group") {
+      if (selected.threadType === "dm") setActiveTab("dm")
+      return
+    }
+  }, [activeTab, selectedThreadId, threads])
+
+  const loadMessages = useCallback(async (tid: string, options?: { refreshThreads?: boolean }) => {
     setLoadingMessages(true)
     try {
       const res = await fetch(getThreadMessagesUrl(tid), { cache: "no-store" })
       const json = await res.json().catch(() => ({}))
       setMessages(Array.isArray(json?.messages) ? json.messages : [])
+      setHiddenBlockedMessageCount(Math.max(0, Number(json?.hiddenBlockedCount || 0)))
+      if (options?.refreshThreads !== false) {
+        await loadThreads()
+      }
     } catch {
       setMessages([])
+      setHiddenBlockedMessageCount(0)
     } finally {
       setLoadingMessages(false)
     }
-  }, [])
+  }, [loadThreads])
 
   const loadPinned = useCallback(async (tid: string) => {
     try {
@@ -227,51 +347,62 @@ export default function MessagesContent() {
       setMessages([])
       setPinned([])
       setThreadMembers([])
+      setHiddenBlockedMessageCount(0)
     }
   }, [selectedThreadId, loadMessages, loadPinned, loadThreadMembers])
 
+  useEffect(() => {
+    if (!focusedMessageId) return
+    const target = document.getElementById(`message-row-${focusedMessageId}`)
+    if (!target) return
+    target.scrollIntoView({ behavior: "smooth", block: "center" })
+    const timer = window.setTimeout(() => setFocusedMessageId(null), 2800)
+    return () => window.clearTimeout(timer)
+  }, [focusedMessageId, messages])
+
   const handleSend = useCallback(async () => {
     if (sending || !selectedThreadId) return
+    if (selectedThreadBlockedDirect) {
+      setThreadActionError(blockedConversationNotice || "This conversation is blocked.")
+      return
+    }
     const text = input.trim()
     const hasAttachment = attachmentPreview !== null
     if (!text && !hasAttachment) return
 
     setSending(true)
     setUploadError(null)
+    setThreadActionError(null)
     try {
       if (hasAttachment && attachmentPreview) {
-        if (attachmentPreview.type === "image" && "url" in attachmentPreview) {
-          const payload = getMessagePayloadForImage(attachmentPreview.url)
-          const res = await fetch(
-            `/api/shared/chat/threads/${encodeURIComponent(selectedThreadId)}/messages`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ ...payload, metadata: payload.metadata }),
-            }
-          )
-          const json = await res.json().catch(() => ({}))
-          const created: PlatformChatMessage | null = json?.message ?? null
-          if (created) {
-            setMessages((prev) => [...prev, created])
-            setAttachmentPreview(null)
+        const payload =
+          attachmentPreview.type === "image"
+            ? getMessagePayloadForImage(attachmentPreview.url)
+            : attachmentPreview.type === "gif"
+              ? getMessagePayloadForGif(attachmentPreview.url, attachmentPreview.source)
+              : getMessagePayloadForFile(
+                  attachmentPreview.url || "",
+                  attachmentPreview.file?.name || "attachment",
+                  attachmentPreview.file?.type || undefined,
+                )
+
+        const res = await fetch(
+          `/api/shared/chat/threads/${encodeURIComponent(selectedThreadId)}/messages`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...payload, metadata: payload.metadata }),
           }
-        } else if (attachmentPreview.type === "gif") {
-          const payload = getMessagePayloadForGif(attachmentPreview.url)
-          const res = await fetch(
-            `/api/shared/chat/threads/${encodeURIComponent(selectedThreadId)}/messages`,
-            {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ ...payload, metadata: payload.metadata }),
-            }
-          )
-          const json = await res.json().catch(() => ({}))
-          const created: PlatformChatMessage | null = json?.message ?? null
-          if (created) {
-            setMessages((prev) => [...prev, created])
-            setAttachmentPreview(null)
-          }
+        )
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setUploadError(typeof json?.error === "string" ? json.error : "Unable to send attachment")
+          return
+        }
+        const created: PlatformChatMessage | null = json?.message ?? null
+        if (created) {
+          setMessages((prev) => [...prev, created])
+          clearAttachmentState(setAttachmentPreview, setUploadError)
         }
       } else {
         setInput("")
@@ -284,6 +415,11 @@ export default function MessagesContent() {
           }
         )
         const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setInput(text)
+          setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to send message")
+          return
+        }
         const created: PlatformChatMessage | null = json?.message ?? null
         if (created) {
           setMessages((prev) => [...prev, created])
@@ -291,13 +427,13 @@ export default function MessagesContent() {
           if (mentioned.length > 0) notifyMentions(selectedThreadId, created.id, mentioned).catch(() => {})
         }
       }
-      loadThreads()
+      await loadThreads()
     } catch {
       if (!hasAttachment) setInput(text)
     } finally {
       setSending(false)
     }
-  }, [input, sending, selectedThreadId, attachmentPreview, loadThreads])
+  }, [input, sending, selectedThreadId, attachmentPreview, loadThreads, selectedThreadBlockedDirect, blockedConversationNotice])
 
   const handleEmojiSelect = useCallback((emoji: string) => {
     setInput((prev) => appendEmoji(prev, emoji))
@@ -334,6 +470,36 @@ export default function MessagesContent() {
     []
   )
 
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ""
+      if (!file) return
+      const validation = validateAttachmentFile(file)
+      if (!validation.valid) {
+        setUploadError(validation.error ?? "Invalid file")
+        return
+      }
+      setUploadError(null)
+      setUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        const res = await fetch("/api/shared/chat/upload", { method: "POST", body: formData })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setUploadError(data?.error ?? "Upload failed")
+          return
+        }
+        const url = typeof data?.url === "string" ? data.url : ""
+        if (url) setAttachmentPreview({ type: "file", file, url })
+      } finally {
+        setUploading(false)
+      }
+    },
+    []
+  )
+
   const handleGifUrlSubmit = useCallback(() => {
     const url = gifUrlInput.trim()
     if (!isValidGifOrImageUrl(url)) {
@@ -341,12 +507,24 @@ export default function MessagesContent() {
       return
     }
     setUploadError(null)
-    setAttachmentPreview({ type: "gif", url })
+    setAttachmentPreview({ type: "gif", url, source: "url" })
     setGifUrlInput("")
     setGifUrlOpen(false)
   }, [gifUrlInput])
 
-  const canSend = (input.trim() || attachmentPreview) && !sending
+  const handleGifSearch = useCallback(async () => {
+    const query = gifSearchQuery.trim()
+    if (!query || !isGifSearchConfigured()) return
+    setGifSearchLoading(true)
+    try {
+      const results = await searchGifs(query, 16)
+      setGifSearchResults(results)
+    } finally {
+      setGifSearchLoading(false)
+    }
+  }, [gifSearchQuery])
+
+  const canSend = canSendComposerMessage(input, attachmentPreview, sending) && !selectedThreadBlockedDirect
 
   const applyMentionSuggestion = useCallback((username: string) => {
     if (!mentionState) return
@@ -387,6 +565,7 @@ export default function MessagesContent() {
     const username = startDmUsername.trim()
     if (!username || startDmLoading) return
     setStartDmLoading(true)
+    setThreadActionError(null)
     try {
       const res = await fetch("/api/shared/chat/dm/start", {
         method: "POST",
@@ -394,6 +573,10 @@ export default function MessagesContent() {
         body: JSON.stringify({ username }),
       })
       const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to start DM")
+        return
+      }
       const thread: PlatformChatThread | null = json?.thread ?? null
       if (thread) {
         setStartDmOpen(false)
@@ -403,14 +586,18 @@ export default function MessagesContent() {
         loadThreads()
         window.history.replaceState(null, "", `/messages?thread=${encodeURIComponent(thread.id)}`)
       }
+    } catch {
+      setThreadActionError("Unable to start DM")
     } finally {
       setStartDmLoading(false)
     }
   }, [startDmUsername, startDmLoading, loadThreads])
 
   const handleCreateGroup = useCallback(async () => {
-    const usernames = newGroupUsernames.split(/[\s,]+/).map((u) => u.trim()).filter(Boolean)
+    const usernames = parseParticipantUsernames(newGroupUsernames)
     if (usernames.length < 1 || newGroupLoading) return
+    setNewGroupError(null)
+    setThreadActionError(null)
     setNewGroupLoading(true)
     try {
       const res = await fetch("/api/shared/chat/threads", {
@@ -423,6 +610,10 @@ export default function MessagesContent() {
         }),
       })
       const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewGroupError(typeof json?.error === "string" ? json.error : "Unable to create group")
+        return
+      }
       const thread: PlatformChatThread | null = json?.thread ?? null
       if (thread) {
         setNewGroupOpen(false)
@@ -433,6 +624,8 @@ export default function MessagesContent() {
         loadThreads()
         window.history.replaceState(null, "", `/messages?thread=${encodeURIComponent(thread.id)}`)
       }
+    } catch {
+      setNewGroupError("Unable to create group")
     } finally {
       setNewGroupLoading(false)
     }
@@ -440,20 +633,80 @@ export default function MessagesContent() {
 
   const handleLeaveGroup = useCallback(
     async (tid: string) => {
+      setThreadActionError(null)
       try {
         const res = await fetch(getLeaveGroupUrl(tid), { method: "POST" })
         if (res.ok) {
           if (selectedThreadId === tid) setSelectedThreadId(null)
           loadThreads()
+        } else {
+          const json = await res.json().catch(() => ({}))
+          setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to leave group")
         }
       } catch {
-        // ignore
+        setThreadActionError("Unable to leave group")
       }
     },
     [selectedThreadId, loadThreads]
   )
 
-  const selectedThread = threads.find((t) => t.id === selectedThreadId)
+  const handleRenameGroup = useCallback(async () => {
+    if (!selectedThreadId || !renameGroupTitle.trim() || renamingGroup) return
+    setRenamingGroup(true)
+    setRenameGroupError(null)
+    setThreadActionError(null)
+    try {
+      const res = await fetch(getRenameThreadUrl(selectedThreadId), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(getRenamePayload(renameGroupTitle.trim())),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRenameGroupError(typeof json?.error === "string" ? json.error : "Unable to rename group")
+        return
+      }
+      setRenameGroupOpen(false)
+      setRenameGroupTitle("")
+      await loadThreads()
+    } catch {
+      setRenameGroupError("Unable to rename group")
+    } finally {
+      setRenamingGroup(false)
+    }
+  }, [loadThreads, renameGroupTitle, renamingGroup, selectedThreadId])
+
+  const handleAddParticipants = useCallback(async () => {
+    if (!selectedThreadId || addingParticipants) return
+    const usernames = parseParticipantUsernames(addParticipantUsernames)
+    if (usernames.length === 0) {
+      setAddParticipantError("Enter at least one username")
+      return
+    }
+    setAddingParticipants(true)
+    setAddParticipantError(null)
+    setThreadActionError(null)
+    try {
+      const res = await fetch(getAddParticipantsUrl(selectedThreadId), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ usernames }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setAddParticipantError(typeof json?.error === "string" ? json.error : "Unable to add participants")
+        return
+      }
+      setAddParticipantOpen(false)
+      setAddParticipantUsernames("")
+      await loadThreadMembers(selectedThreadId)
+      await loadThreads()
+    } catch {
+      setAddParticipantError("Unable to add participants")
+    } finally {
+      setAddingParticipants(false)
+    }
+  }, [addParticipantUsernames, addingParticipants, loadThreadMembers, loadThreads, selectedThreadId])
 
   return (
     <div className="flex flex-col gap-4">
@@ -462,7 +715,7 @@ export default function MessagesContent() {
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleSelectTab(tab.id)}
               className="rounded-lg px-4 py-2 text-sm transition"
               style={
                 activeTab === tab.id
@@ -477,22 +730,20 @@ export default function MessagesContent() {
       </section>
 
       {activeTab === "ai" && (
-        <section className="mode-panel rounded-2xl p-6">
-          <h3 className="text-lg font-semibold mode-text">AI Chatbot</h3>
-          <p className="mt-1 text-sm mode-muted">
-            Ask one question at a time for trade, waiver, draft, and strategy coaching.
-          </p>
-          <Link
-            href="/af-legacy?tab=chat"
-            className="mt-4 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm"
-            style={{
-              borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))",
-              color: "var(--accent-cyan-strong)",
-              background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)",
-            }}
-          >
-            Open Legacy AI Chat
-          </Link>
+        <section className="mode-panel rounded-2xl p-3 sm:p-4">
+          <ChimmyChatShell
+            initialPrompt={aiContext.prompt ?? ""}
+            clearUrlPromptAfterUse
+            leagueId={aiContext.leagueId ?? null}
+            leagueName={aiContext.leagueName ?? null}
+            sleeperUsername={aiContext.sleeperUsername ?? null}
+            insightType={aiContext.insightType}
+            teamId={aiContext.teamId ?? null}
+            sport={aiContext.sport ?? null}
+            season={aiContext.season ?? null}
+            week={aiContext.week ?? null}
+            className="min-h-[520px]"
+          />
         </section>
       )}
 
@@ -503,7 +754,7 @@ export default function MessagesContent() {
         >
           <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)]">
             <div
-              className="border-b md:border-b-0 md:border-r flex flex-col"
+              className={`border-b md:border-b-0 md:border-r flex flex-col ${selectedThreadId ? "hidden md:flex" : "flex"}`}
               style={{ borderColor: "var(--border)" }}
             >
               <div className="flex flex-col gap-1 p-3 border-b" style={{ borderColor: "var(--border)" }}>
@@ -530,6 +781,19 @@ export default function MessagesContent() {
                 >
                   Blocked users {blockedUsers.length > 0 ? `(${blockedUsers.length})` : ""}
                 </button>
+                {blockedVisibilityNotice && (
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                    {blockedVisibilityNotice}
+                  </p>
+                )}
+                <input
+                  type="search"
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  placeholder={activeTab === "dm" ? "Search conversations" : "Search groups"}
+                  className="mt-1 w-full rounded-lg border px-2 py-1.5 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                />
               </div>
               <ul className="overflow-y-auto flex-1">
                 {loadingThreads ? (
@@ -538,7 +802,11 @@ export default function MessagesContent() {
                   </li>
                 ) : currentList.length === 0 ? (
                   <li className="p-4 text-sm mode-muted">
-                    {activeTab === "dm" ? "No DMs yet. Start a conversation." : "No groups yet. Create one."}
+                    {activeTab === "dm"
+                      ? blockedUsers.length > 0
+                        ? "No visible DMs. Blocked conversations are hidden for safety."
+                        : "No DMs yet. Start a conversation."
+                      : "No groups yet. Create one."}
                   </li>
                 ) : (
                   currentList.map((t) => (
@@ -555,7 +823,12 @@ export default function MessagesContent() {
                           color: selectedThreadId === t.id ? "var(--accent-cyan-strong)" : "var(--text)",
                         }}
                       >
-                        <span className="min-w-0 truncate text-sm">{getConversationDisplayTitle(t)}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm">{getConversationDisplayTitle(t)}</p>
+                          <p className="truncate text-[10px]" style={{ color: "var(--muted)" }}>
+                            {getConversationPreview(t)}
+                          </p>
+                        </div>
                         {hasUnread(t) && (
                           <span
                             className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
@@ -571,7 +844,7 @@ export default function MessagesContent() {
               </ul>
             </div>
 
-            <div className="flex flex-col min-h-[320px]">
+            <div className={`flex flex-col min-h-[320px] ${selectedThreadId ? "flex" : "hidden md:flex"}`}>
               {selectedThreadId ? (
                 <>
                   <div className="flex items-center gap-2 p-3 border-b" style={{ borderColor: "var(--border)" }}>
@@ -588,6 +861,37 @@ export default function MessagesContent() {
                       {selectedThread ? getConversationDisplayTitle(selectedThread) : "Conversation"}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
+                      {selectedThread?.threadType === "group" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenameGroupTitle(selectedThread.title || "")
+                              setRenameGroupError(null)
+                              setRenameGroupOpen(true)
+                            }}
+                            className="rounded-lg border p-1.5"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                            title="Rename group"
+                            aria-label="Rename group"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddParticipantError(null)
+                              setAddParticipantOpen(true)
+                            }}
+                            className="rounded-lg border p-1.5"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                            title="Add participant"
+                            aria-label="Add participant"
+                          >
+                            <UserPlus className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
                       {selectedThreadId && (
                         <button
                           type="button"
@@ -595,16 +899,34 @@ export default function MessagesContent() {
                             const next = !mutedThreads.has(selectedThreadId)
                             try {
                               const res = await fetch(
-                                `/api/shared/chat/threads/${encodeURIComponent(selectedThreadId)}/mute`,
+                                getMuteThreadUrl(selectedThreadId),
                                 {
                                   method: "POST",
                                   headers: { "content-type": "application/json" },
                                   body: JSON.stringify({ muted: next }),
                                 }
                               )
-                              if (res.ok) setMutedThreads((s) => (next ? new Set(s).add(selectedThreadId) : (() => { const n = new Set(s); n.delete(selectedThreadId); return n })()))
+                              if (res.ok) {
+                                setMutedThreads((s) =>
+                                  next
+                                    ? new Set(s).add(selectedThreadId)
+                                    : (() => {
+                                        const n = new Set(s)
+                                        n.delete(selectedThreadId)
+                                        return n
+                                      })()
+                                )
+                                await loadThreads()
+                              } else {
+                                const json = await res.json().catch(() => ({}))
+                                setThreadActionError(
+                                  typeof json?.error === "string"
+                                    ? json.error
+                                    : "Unable to update mute preference"
+                                )
+                              }
                             } catch {
-                              // ignore
+                              setThreadActionError("Unable to update mute preference")
                             }
                           }}
                           className="rounded-lg border p-1.5"
@@ -631,6 +953,23 @@ export default function MessagesContent() {
                       )}
                     </div>
                   </div>
+                  {threadActionError && (
+                    <p className="px-3 py-1 text-[11px]" style={{ color: "var(--error)" }}>
+                      {threadActionError}
+                    </p>
+                  )}
+                  {selectedThreadBlockedDirect && blockedConversationNotice && (
+                    <p className="px-3 py-1 text-[11px]" style={{ color: "var(--muted)" }}>
+                      {blockedConversationNotice}
+                    </p>
+                  )}
+                  {!selectedThreadBlockedDirect && hiddenBlockedMessageCount > 0 && (
+                    <p className="px-3 py-1 text-[11px]" style={{ color: "var(--muted)" }}>
+                      {hiddenBlockedMessageCount === 1
+                        ? "1 message is hidden because the sender is blocked."
+                        : `${hiddenBlockedMessageCount} messages are hidden because senders are blocked.`}
+                    </p>
+                  )}
                   <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[200px]">
                     {selectedThreadId && pinned.length > 0 && (
                       <PinnedSection
@@ -648,6 +987,9 @@ export default function MessagesContent() {
                             // ignore
                           }
                         }}
+                        onSelectPinned={(_pinMessage, referencedMessageId) => {
+                          setFocusedMessageId(referencedMessageId)
+                        }}
                         canUnpin={true}
                         className="mb-3"
                       />
@@ -664,10 +1006,16 @@ export default function MessagesContent() {
                         .map((m) => (
                           <div
                             key={m.id}
+                            id={`message-row-${m.id}`}
+                            data-message-id={m.id}
                             className="rounded-lg px-3 py-2 text-sm"
                             style={{
                               background: "color-mix(in srgb, var(--panel2) 80%, transparent)",
                               color: "var(--text)",
+                              border:
+                                focusedMessageId === m.id
+                                  ? "1px solid var(--accent-cyan-strong)"
+                                  : "1px solid transparent",
                             }}
                           >
                             <div className="flex items-start gap-2">
@@ -675,7 +1023,11 @@ export default function MessagesContent() {
                                 avatarUrl={m.senderAvatarUrl ?? null}
                                 avatarPreset={m.senderAvatarPreset ?? null}
                                 displayName={m.senderName}
-                                username={null}
+                                username={
+                                  typeof (m as { senderUsername?: unknown }).senderUsername === "string"
+                                    ? ((m as { senderUsername?: string }).senderUsername ?? null)
+                                    : null
+                                }
                                 size="sm"
                                 className="mt-0.5 shrink-0"
                               />
@@ -692,22 +1044,49 @@ export default function MessagesContent() {
                                       senderUserId={m.senderUserId}
                                       senderName={m.senderName}
                                       isBlocked={m.senderUserId ? blockedUsers.some((b) => b.userId === m.senderUserId) : false}
-                                      onReportMessage={() => setReportMessageOpen({ messageId: m.id, threadId: selectedThreadId! })}
-                                      onReportUser={() => m.senderUserId && setReportUserOpen({ userId: m.senderUserId, username: m.senderName })}
-                                      onBlockUser={() => m.senderUserId && setBlockConfirmOpen({ userId: m.senderUserId, username: m.senderName })}
+                                      onReportMessage={() => {
+                                        setReportError(null)
+                                        setReportMessageOpen({ messageId: m.id, threadId: selectedThreadId! })
+                                      }}
+                                      onReportUser={() => {
+                                        if (!m.senderUserId) return
+                                        setReportError(null)
+                                        setReportUserOpen({
+                                          userId: m.senderUserId,
+                                          username:
+                                            (typeof (m as { senderUsername?: unknown }).senderUsername === "string"
+                                              ? ((m as { senderUsername?: string }).senderUsername ?? "")
+                                              : "") || m.senderName,
+                                        })
+                                      }}
+                                      onBlockUser={() =>
+                                        m.senderUserId &&
+                                        setBlockConfirmOpen({
+                                          userId: m.senderUserId,
+                                          username:
+                                            (typeof (m as { senderUsername?: unknown }).senderUsername === "string"
+                                              ? ((m as { senderUsername?: string }).senderUsername ?? "")
+                                              : "") || m.senderName,
+                                        })
+                                      }
                                       onUnblockUser={async () => {
                                         if (!m.senderUserId) return
                                         try {
-                                          await fetch(UNBLOCK_API, {
+                                          const res = await fetch(UNBLOCK_API, {
                                             method: "POST",
                                             headers: { "content-type": "application/json" },
                                             body: JSON.stringify(getUnblockPayload(m.senderUserId)),
                                           })
+                                          if (!res.ok) {
+                                            const json = await res.json().catch(() => ({}))
+                                            setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to unblock user")
+                                            return
+                                          }
                                           loadBlockedList()
                                           loadMessages(selectedThreadId!)
                                           loadThreads()
                                         } catch {
-                                          // ignore
+                                          setThreadActionError("Unable to unblock user")
                                         }
                                       }}
                                     />
@@ -722,7 +1101,7 @@ export default function MessagesContent() {
                                   onPinUpdate={() => { loadPinned(selectedThreadId!); loadMessages(selectedThreadId!) }}
                                   onVote={() => loadMessages(selectedThreadId!)}
                                   onPollClose={() => loadMessages(selectedThreadId!)}
-                                  onImageClick={(url) => setMediaViewerUrl(url)}
+                                  onImageClick={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
                                   getMessageSnippet={(msgId) => {
                                     const msg = messages.find((x) => x.id === msgId)
                                     const b = msg?.body ?? ""
@@ -741,18 +1120,16 @@ export default function MessagesContent() {
                   )}
                   {attachmentPreview && (
                     <div className="flex items-center gap-2 p-2 border-b" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-                      {attachmentPreview.type === "image" && (
+                      {(attachmentPreview.type === "image" || attachmentPreview.type === "gif") && (
                         <img src={attachmentPreview.url} alt="Preview" className="h-14 w-14 rounded object-cover" />
                       )}
-                      {attachmentPreview.type === "gif" && (
-                        <img src={attachmentPreview.url} alt="GIF" className="h-14 w-14 rounded object-cover" />
-                      )}
+                      {attachmentPreview.type === "file" && <Paperclip className="h-4 w-4 shrink-0" style={{ color: "var(--muted)" }} />}
                       <span className="text-xs mode-muted flex-1 truncate">
-                        {attachmentPreview.type === "image" ? "Image" : "GIF"}
+                        {getAttachmentPreviewLabel(attachmentPreview)}
                       </span>
                       <button
                         type="button"
-                        onClick={() => { setAttachmentPreview(null); setUploadError(null) }}
+                        onClick={() => clearAttachmentState(setAttachmentPreview, setUploadError)}
                         className="rounded p-1"
                         style={{ color: "var(--muted)" }}
                         aria-label="Remove"
@@ -803,6 +1180,24 @@ export default function MessagesContent() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="rounded-lg p-2 disabled:opacity-50"
+                        style={{ color: "var(--muted)" }}
+                        title="Attach file"
+                        aria-label="Attach file"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/csv"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
+                      <button
+                        type="button"
                         onClick={() => setPollCreateOpen(true)}
                         className="rounded-lg p-2"
                         style={{ color: "var(--muted)" }}
@@ -817,7 +1212,8 @@ export default function MessagesContent() {
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => handleComposerKeyDownWithMentions(e, handleSend, Boolean(canSend))}
-                      placeholder="Message… (type @ to mention)"
+                      placeholder={selectedThreadBlockedDirect ? "Conversation blocked. Unblock to message." : "Message… (type @ to mention)"}
+                      disabled={selectedThreadBlockedDirect}
                       className="flex-1 rounded-lg border px-3 py-2 text-sm outline-none"
                       style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                     />
@@ -886,9 +1282,61 @@ export default function MessagesContent() {
                       style={{ background: "var(--panel)", borderColor: "var(--border)" }}
                     >
                       {isGifSearchConfigured() ? (
-                        <p className="text-xs mode-muted mb-2">GIF search is available. Paste a GIF URL below to send.</p>
+                        <p className="text-xs mode-muted mb-2">Search GIFs or paste a GIF/image URL.</p>
                       ) : (
                         <p className="text-xs mode-muted mb-2">Paste a GIF or image URL to send.</p>
+                      )}
+                      {isGifSearchConfigured() && (
+                        <div className="mb-2">
+                          <div className="flex gap-2 mb-2">
+                            <div className="relative flex-1">
+                              <Search className="absolute left-2 top-2 h-3.5 w-3.5" style={{ color: "var(--muted)" }} />
+                              <input
+                                type="text"
+                                value={gifSearchQuery}
+                                onChange={(e) => setGifSearchQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault()
+                                    void handleGifSearch()
+                                  }
+                                }}
+                                placeholder={`Search ${getGifProviderName() || "GIF"}...`}
+                                className="w-full rounded-lg border pl-7 pr-2 py-1.5 text-sm"
+                                style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleGifSearch()}
+                              disabled={!gifSearchQuery.trim() || gifSearchLoading}
+                              className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+                              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                            >
+                              {gifSearchLoading ? "…" : "Search"}
+                            </button>
+                          </div>
+                          {gifSearchResults.length > 0 && (
+                            <div className="grid max-h-44 grid-cols-4 gap-1.5 overflow-y-auto rounded-lg border p-1.5 mb-2" style={{ borderColor: "var(--border)" }}>
+                              {gifSearchResults.map((gif) => (
+                                <button
+                                  key={gif.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setAttachmentPreview({ type: "gif", url: gif.url, source: gif.provider })
+                                    setGifUrlOpen(false)
+                                    setUploadError(null)
+                                  }}
+                                  className="overflow-hidden rounded border"
+                                  style={{ borderColor: "var(--border)" }}
+                                  aria-label="Select GIF"
+                                >
+                                  <img src={gif.previewUrl || gif.url} alt="GIF result" className="h-14 w-full object-cover" loading="lazy" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                       <input
                         type="url"
@@ -901,7 +1349,7 @@ export default function MessagesContent() {
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          onClick={() => { setGifUrlOpen(false); setGifUrlInput("") }}
+                          onClick={() => { setGifUrlOpen(false); setGifUrlInput(""); setGifSearchResults([]); setGifSearchQuery("") }}
                           className="rounded-lg border px-2 py-1 text-xs"
                           style={{ borderColor: "var(--border)", color: "var(--muted)" }}
                         >
@@ -955,7 +1403,7 @@ export default function MessagesContent() {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => { setReportMessageOpen(null); setReportReason("other") }}
+                onClick={() => { setReportMessageOpen(null); setReportReason("other"); setReportError(null) }}
                 className="flex-1 rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
@@ -966,18 +1414,25 @@ export default function MessagesContent() {
                 disabled={reportSubmitting}
                 onClick={async () => {
                   setReportSubmitting(true)
+                  setReportError(null)
                   try {
                     const res = await fetch(REPORT_MESSAGE_API, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify(getReportMessagePayload(reportMessageOpen.messageId, reportMessageOpen.threadId, reportReason)),
                     })
+                    const json = await res.json().catch(() => ({}))
                     if (res.ok) {
                       setReportSuccess(true)
                       setReportMessageOpen(null)
                       setReportReason("other")
+                      setReportError(null)
                       setTimeout(() => setReportSuccess(false), 3000)
+                    } else {
+                      setReportError(typeof json?.error === "string" ? json.error : "Unable to submit report")
                     }
+                  } catch {
+                    setReportError("Unable to submit report")
                   } finally {
                     setReportSubmitting(false)
                   }
@@ -988,6 +1443,11 @@ export default function MessagesContent() {
                 {reportSubmitting ? "Submitting…" : "Submit report"}
               </button>
             </div>
+            {reportError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {reportError}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1014,7 +1474,7 @@ export default function MessagesContent() {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => { setReportUserOpen(null); setReportReason("other") }}
+                onClick={() => { setReportUserOpen(null); setReportReason("other"); setReportError(null) }}
                 className="flex-1 rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
@@ -1025,18 +1485,25 @@ export default function MessagesContent() {
                 disabled={reportSubmitting}
                 onClick={async () => {
                   setReportSubmitting(true)
+                  setReportError(null)
                   try {
                     const res = await fetch(REPORT_USER_API, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify(getReportUserPayload(reportUserOpen.userId, reportReason)),
                     })
+                    const json = await res.json().catch(() => ({}))
                     if (res.ok) {
                       setReportSuccess(true)
                       setReportUserOpen(null)
                       setReportReason("other")
+                      setReportError(null)
                       setTimeout(() => setReportSuccess(false), 3000)
+                    } else {
+                      setReportError(typeof json?.error === "string" ? json.error : "Unable to submit report")
                     }
+                  } catch {
+                    setReportError("Unable to submit report")
                   } finally {
                     setReportSubmitting(false)
                   }
@@ -1047,6 +1514,11 @@ export default function MessagesContent() {
                 {reportSubmitting ? "Submitting…" : "Submit report"}
               </button>
             </div>
+            {reportError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {reportError}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1075,11 +1547,16 @@ export default function MessagesContent() {
                 type="button"
                 onClick={async () => {
                   try {
-                    await fetch(BLOCK_API, {
+                    const res = await fetch(BLOCK_API, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify(getBlockPayload(blockConfirmOpen.userId)),
                     })
+                    if (!res.ok) {
+                      const json = await res.json().catch(() => ({}))
+                      setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to block user")
+                      return
+                    }
                     loadBlockedList()
                     if (selectedThreadId) {
                       loadMessages(selectedThreadId)
@@ -1087,7 +1564,7 @@ export default function MessagesContent() {
                     }
                     setBlockConfirmOpen(null)
                   } catch {
-                    // ignore
+                    setThreadActionError("Unable to block user")
                   }
                 }}
                 className="flex-1 rounded-lg px-3 py-2 text-sm font-medium"
@@ -1120,18 +1597,23 @@ export default function MessagesContent() {
                       type="button"
                       onClick={async () => {
                         try {
-                          await fetch(UNBLOCK_API, {
+                          const res = await fetch(UNBLOCK_API, {
                             method: "POST",
                             headers: { "content-type": "application/json" },
                             body: JSON.stringify(getUnblockPayload(u.userId)),
                           })
+                          if (!res.ok) {
+                            const json = await res.json().catch(() => ({}))
+                            setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to unblock user")
+                            return
+                          }
                           loadBlockedList()
                           if (selectedThreadId) {
                             loadMessages(selectedThreadId)
                             loadThreads()
                           }
                         } catch {
-                          // ignore
+                          setThreadActionError("Unable to unblock user")
                         }
                       }}
                       className="rounded-lg border px-2 py-1 text-xs"
@@ -1182,6 +1664,11 @@ export default function MessagesContent() {
               className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
             />
+            {threadActionError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {threadActionError}
+              </p>
+            )}
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -1229,6 +1716,11 @@ export default function MessagesContent() {
               className="mt-2 w-full rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
             />
+            {newGroupError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {newGroupError}
+              </p>
+            )}
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
@@ -1246,6 +1738,101 @@ export default function MessagesContent() {
                 style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
               >
                 {newGroupLoading ? "Creating…" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renameGroupOpen && selectedThread?.threadType === "group" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            className="w-full max-w-sm rounded-2xl border p-4"
+            style={{ background: "var(--panel)", borderColor: "var(--border)" }}
+          >
+            <h3 className="text-lg font-semibold mode-text">Rename group</h3>
+            <input
+              type="text"
+              value={renameGroupTitle}
+              onChange={(e) => setRenameGroupTitle(e.target.value)}
+              placeholder="Group name"
+              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+            />
+            {renameGroupError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {renameGroupError}
+              </p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameGroupOpen(false)
+                  setRenameGroupTitle("")
+                  setRenameGroupError(null)
+                }}
+                className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRenameGroup}
+                disabled={!renameGroupTitle.trim() || renamingGroup}
+                className="flex-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
+                style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+              >
+                {renamingGroup ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addParticipantOpen && selectedThread?.threadType === "group" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            className="w-full max-w-sm rounded-2xl border p-4"
+            style={{ background: "var(--panel)", borderColor: "var(--border)" }}
+          >
+            <h3 className="text-lg font-semibold mode-text">Add participants</h3>
+            <p className="mt-1 text-sm mode-muted">Enter usernames separated by comma or space.</p>
+            <input
+              type="text"
+              value={addParticipantUsernames}
+              onChange={(e) => setAddParticipantUsernames(e.target.value)}
+              placeholder="user1, user2"
+              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+            />
+            {addParticipantError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--error)" }}>
+                {addParticipantError}
+              </p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAddParticipantOpen(false)
+                  setAddParticipantUsernames("")
+                  setAddParticipantError(null)
+                }}
+                className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddParticipants}
+                disabled={!addParticipantUsernames.trim() || addingParticipants}
+                className="flex-1 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-50"
+                style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+              >
+                {addingParticipants ? "Adding…" : "Add"}
               </button>
             </div>
           </div>

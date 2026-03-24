@@ -12,6 +12,7 @@ export interface DesktopNavBarProps {
   userLabel?: string | null
   onOpenMobileMenu?: () => void
   onOpenSearch?: () => void
+  mobileMenuOpen?: boolean
 }
 
 export default function DesktopNavBar(props: DesktopNavBarProps) {

@@ -2,9 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { MessageCircle, Shield, Sparkles, Menu, Search } from "lucide-react"
+import { MessageCircle, Shield, Sparkles, Menu, Search, Settings as SettingsIcon } from "lucide-react"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
-import ProductSwitcher from "@/components/shared/ProductSwitcher"
+import { ProductContextSwitcher } from "@/components/shell/ProductContextSwitcher"
 import NotificationBell from "@/components/shared/NotificationBell"
 import WalletSummaryBadge from "@/components/shared/WalletSummaryBadge"
 import { ModeToggle } from "@/components/theme/ModeToggle"
@@ -14,6 +14,8 @@ import { getPrimaryNavItems } from "@/lib/navigation"
 import { showAdminNav } from "@/lib/navigation"
 import { isNavItemActive } from "@/lib/shell"
 import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
+import { getCommandPaletteShortcut } from "@/lib/search"
+import { getTopBarUtilities, type TopBarUtilitySpec } from "@/lib/notification-center"
 
 type Props = {
   isAuthenticated: boolean
@@ -21,16 +23,105 @@ type Props = {
   userLabel?: string | null
   onOpenMobileMenu?: () => void
   onOpenSearch?: () => void
+  mobileMenuOpen?: boolean
 }
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ")
 }
 
-export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLabel, onOpenMobileMenu, onOpenSearch }: Props) {
+export default function GlobalTopNav({
+  isAuthenticated,
+  isAdmin = false,
+  userLabel,
+  onOpenMobileMenu,
+  onOpenSearch,
+  mobileMenuOpen = false,
+}: Props) {
   const pathname = usePathname()
   const chimmyEntry = getPrimaryChimmyEntry()
   const primaryItems = getPrimaryNavItems(isAdmin)
+  const shortcutLabel = getCommandPaletteShortcut()
+  const utilitySpecs = getTopBarUtilities({
+    isAuthenticated,
+    isAdmin,
+    hasSearch: Boolean(onOpenSearch),
+  })
+
+  function renderUtility(spec: TopBarUtilitySpec) {
+    if (!isAuthenticated) return null
+    if (spec.id === "search" && onOpenSearch) {
+      return (
+        <button
+          key={spec.id}
+          type="button"
+          onClick={onOpenSearch}
+          className="rounded-lg border p-2 transition"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--muted)" }}
+          title={`${spec.title} (${shortcutLabel})`}
+          aria-label="Search"
+        >
+          <Search className="h-4 w-4" />
+        </button>
+      )
+    }
+    if (spec.id === "wallet") {
+      return <WalletSummaryBadge key={spec.id} />
+    }
+    if (spec.id === "messages") {
+      return (
+        <Link key={spec.id} href={spec.href ?? "/messages"} className="rounded-lg border p-2 transition" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--text)" }} title={spec.title} aria-label={spec.title}>
+          <MessageCircle className="h-4 w-4" />
+        </Link>
+      )
+    }
+    if (spec.id === "notifications") {
+      return <NotificationBell key={spec.id} />
+    }
+    if (spec.id === "settings") {
+      return (
+        <Link
+          key={spec.id}
+          href={spec.href ?? "/settings"}
+          className="rounded-lg border p-2 transition"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--text)" }}
+          title={spec.title}
+          aria-label={spec.title}
+          data-testid="topbar-settings-shortcut"
+        >
+          <SettingsIcon className="h-4 w-4" />
+        </Link>
+      )
+    }
+    if (spec.id === "ai_chat") {
+      return (
+        <Link key={spec.id} href={spec.href ?? chimmyEntry.href} className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }} title={spec.title} aria-label={spec.title}>
+          <Sparkles className="h-4 w-4" />
+        </Link>
+      )
+    }
+    if (spec.id === "language") {
+      return (
+        <div key={spec.id} className="hidden sm:inline-flex">
+          <LanguageToggle />
+        </div>
+      )
+    }
+    if (spec.id === "theme") {
+      return <ModeToggle key={spec.id} className="rounded-lg border px-2.5 py-2 text-xs font-semibold transition" />
+    }
+    if (spec.id === "admin" && showAdminNav(isAdmin)) {
+      return (
+        <Link key={spec.id} href={spec.href ?? "/admin"} className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-amber) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-amber) 14%, transparent)", color: "var(--accent-amber-strong)" }} title={spec.title} aria-label={spec.title}>
+          <Shield className="h-4 w-4" />
+        </Link>
+      )
+    }
+    if (spec.id === "profile") {
+      return <UserMenuDropdown key={spec.id} userLabel={userLabel} />
+    }
+    return null
+  }
 
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur-xl transition-colors mode-panel" style={{ background: "color-mix(in srgb, var(--panel) 88%, transparent)", borderColor: "var(--border)" }}>
@@ -43,6 +134,8 @@ export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLab
               className="flex lg:hidden h-9 w-9 items-center justify-center rounded-lg border"
               style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               aria-label="Open menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="global-mobile-nav-drawer"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -52,42 +145,11 @@ export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLab
             <span className="text-sm font-bold tracking-wide mode-text">AllFantasy.ai</span>
           </Link>
 
-          <ProductSwitcher />
+          <ProductContextSwitcher />
 
           <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:gap-2">
             {isAuthenticated ? (
-              <>
-                {onOpenSearch && (
-                  <button
-                    type="button"
-                    onClick={onOpenSearch}
-                    className="rounded-lg border p-2 transition"
-                    style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--muted)" }}
-                    title="Search (Ctrl+K)"
-                    aria-label="Search"
-                  >
-                    <Search className="h-4 w-4" />
-                  </button>
-                )}
-                <WalletSummaryBadge />
-                <Link href="/messages" className="rounded-lg border p-2 transition" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)", color: "var(--text)" }} title="Messages">
-                  <MessageCircle className="h-4 w-4" />
-                </Link>
-                <NotificationBell />
-                <Link href={chimmyEntry.href} className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }} title={chimmyEntry.label}>
-                  <Sparkles className="h-4 w-4" />
-                </Link>
-                <div className="hidden sm:inline-flex">
-                  <LanguageToggle />
-                </div>
-                <ModeToggle className="rounded-lg border px-2.5 py-2 text-xs font-semibold transition" />
-                {showAdminNav(isAdmin) && (
-                  <Link href="/admin" className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-amber) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-amber) 14%, transparent)", color: "var(--accent-amber-strong)" }} title="Admin">
-                    <Shield className="h-4 w-4" />
-                  </Link>
-                )}
-                <UserMenuDropdown userLabel={userLabel} />
-              </>
+              utilitySpecs.map((spec) => renderUtility(spec))
             ) : (
               <>
                 <ModeToggle className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition" />
@@ -107,6 +169,7 @@ export default function GlobalTopNav({ isAuthenticated, isAdmin = false, userLab
                 key={item.href}
                 href={item.href}
                 className={cn("whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] transition sm:px-3 sm:text-xs")}
+                aria-current={active ? "page" : undefined}
                 style={active
                   ? { background: "var(--text)", color: "var(--bg)" }
                   : { background: "color-mix(in srgb, var(--panel2) 80%, transparent)", color: "var(--muted)" }}

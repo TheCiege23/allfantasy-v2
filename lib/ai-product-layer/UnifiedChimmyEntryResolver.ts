@@ -4,8 +4,9 @@
  */
 
 import type { ChimmyEntry } from './types';
+import { buildAIChatHref } from '@/lib/chimmy-chat';
 
-const CHAT_BASE = '/af-legacy?tab=chat';
+const CHAT_BASE = buildAIChatHref();
 const CHIMMY_LANDING = '/chimmy';
 const LEGACY_CHAT = '/legacy?tab=chat';
 
@@ -29,13 +30,7 @@ export function getChimmyLandingHref(): string {
  */
 export function getChimmyChatHrefWithPrompt(prompt: string): string {
   if (!prompt?.trim()) return CHAT_BASE;
-  try {
-    const u = new URL(CHAT_BASE, typeof window !== 'undefined' ? window.location.origin : 'https://allfantasy.com');
-    u.searchParams.set('prompt', prompt.trim().slice(0, 500));
-    return u.pathname + u.search;
-  } catch {
-    return CHAT_BASE;
-  }
+  return buildAIChatHref({ prompt });
 }
 
 /**

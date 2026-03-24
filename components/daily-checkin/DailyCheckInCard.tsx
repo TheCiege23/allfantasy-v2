@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { MessageCircle, Flame, Check } from "lucide-react"
+import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
 
 export interface DailyCheckInCardProps {
   className?: string
@@ -27,6 +28,7 @@ export function DailyCheckInCard({
   className = "",
   recordOnClick = true,
 }: DailyCheckInCardProps) {
+  const fallbackChimmyHref = getPrimaryChimmyEntry().href
   const [data, setData] = useState<DailyCheckInState | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -49,7 +51,7 @@ export function DailyCheckInCard({
   const handleClick = async (e: React.MouseEvent) => {
     if (recordOnClick) {
       e.preventDefault()
-      const href = data?.chimmyHref ?? "/af-legacy?tab=chat"
+      const href = data?.chimmyHref ?? fallbackChimmyHref
       try {
         await fetch("/api/daily-checkin", { method: "POST" })
         const res = await fetch("/api/daily-checkin", { cache: "no-store" })

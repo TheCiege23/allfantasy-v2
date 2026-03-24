@@ -255,7 +255,6 @@ function PollBlock({
   const userVotedIndex = currentUserId
     ? Object.entries(votes).find(([, ids]) => Array.isArray(ids) && ids.includes(currentUserId))?.[0]
     : null
-  const userVoted = userVotedIndex !== undefined && userVotedIndex !== null
   const isClosed = Boolean(poll.closed)
 
   const handleVote = async (optionIndex: number) => {
@@ -301,7 +300,7 @@ function PollBlock({
               <button
                 type="button"
                 onClick={() => handleVote(i)}
-                disabled={userVoted || isClosed}
+                disabled={isClosed}
                 className="w-full text-left rounded-lg border px-2 py-1.5 text-sm flex items-center justify-between gap-2 disabled:opacity-80"
                 style={{
                   borderColor: isSelected ? "var(--accent-cyan-strong)" : "var(--border)",
@@ -320,6 +319,11 @@ function PollBlock({
       {totalVotes > 0 && (
         <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
           {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+        </p>
+      )}
+      {!isClosed && userVotedIndex !== null && userVotedIndex !== undefined && (
+        <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
+          You can change your vote.
         </p>
       )}
       {!isClosed && onClose && (

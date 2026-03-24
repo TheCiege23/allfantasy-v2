@@ -102,7 +102,7 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
         await sendSms(profile.phone, smsBody.slice(0, 320))
       }
 
-      if (isPushCategory(category)) {
+      if (catPrefs.inApp && availability.inApp && isPushCategory(category)) {
         sendPushToUser(userId, {
           title,
           body: body ?? undefined,

@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { Plus, Users, Trophy, MessageCircle, Sparkles, History } from 'lucide-react'
+import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
 
 export default function BracketHomeTabs({ poolCount }: { poolCount: number }) {
+  const chimmyHref = getPrimaryChimmyEntry().href
   const cards = [
     { href: '/brackets/leagues/new', label: 'Create Pool', desc: 'Set scoring, entry limit, privacy, and invite link.', icon: Plus },
     { href: '/brackets/join', label: 'Join Pool', desc: 'Enter invite code and start competing quickly.', icon: Users },
     { href: '/brackets', label: 'My Pools', desc: `${poolCount} active pool${poolCount === 1 ? '' : 's'} in your account.`, icon: Trophy },
     { href: '/messages', label: 'Pool Chat', desc: 'Jump into chat, polls, and AI discussion.', icon: MessageCircle },
-    { href: '/af-legacy?tab=chat', label: 'AI Coach', desc: 'Get safe vs contrarian guidance instantly.', icon: Sparkles },
+    { href: chimmyHref, label: 'AI Coach', desc: 'Get safe vs contrarian guidance instantly.', icon: Sparkles },
     { href: '/brackets', label: 'History', desc: 'Review prior entries and finishing trends.', icon: History },
   ]
 

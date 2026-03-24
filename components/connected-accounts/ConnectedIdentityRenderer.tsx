@@ -28,6 +28,11 @@ export function ConnectedIdentityRenderer({
         {provider.name}
       </span>
       <div className="flex items-center gap-2">
+        {!provider.configured && (
+          <span className="text-[11px]" style={{ color: "var(--muted)" }}>
+            Not configured
+          </span>
+        )}
         {provider.linked ? (
           <span className="inline-flex items-center gap-1 text-xs" style={{ color: "var(--muted)" }}>
             <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden />

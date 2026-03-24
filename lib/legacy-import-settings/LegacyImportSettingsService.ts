@@ -12,3 +12,10 @@ export async function getLegacyImportStatus(): Promise<LegacyImportStatusRespons
     providers: data.providers ?? {},
   }
 }
+
+/**
+ * Explicit refresh helper for settings UI actions.
+ */
+export async function refreshLegacyImportStatus(): Promise<LegacyImportStatusResponse> {
+  return getLegacyImportStatus()
+}

@@ -3,8 +3,10 @@
  * Ensures product switcher and nav links use canonical entry routes.
  */
 
-import { getProductNavItems } from "@/lib/navigation"
-import { getProductEntryRoute } from "./CrossProductRouteResolver"
+import {
+  getProductEntryRoute,
+  getProductRouteConfigs,
+} from "./CrossProductRouteResolver"
 import type { ProductId } from "@/lib/shell"
 
 /** Get the href to use when switching to a product (for links and redirects). */
@@ -14,13 +16,18 @@ export function getProductSwitchHref(productId: ProductId): string {
 
 /** All switch targets (same order as nav: Home, WebApp, Bracket, Legacy). */
 export function getProductSwitchItems(): { productId: ProductId; href: string; label: string }[] {
-  const items = getProductNavItems()
-  const productIds: ProductId[] = ["home", "webapp", "bracket", "legacy"]
-  return items.map((item, i) => ({
-    productId: productIds[i] ?? "home",
-    href: item.href,
-    label: item.label,
-  }))
+  const preferredOrder: ProductId[] = ["home", "webapp", "bracket", "legacy"]
+  const configById = new Map(
+    getProductRouteConfigs().map((config) => [config.productId, config] as const)
+  )
+  return preferredOrder.map((productId) => {
+    const config = configById.get(productId)
+    return {
+      productId,
+      href: config?.entryRoute ?? getProductSwitchHref(productId),
+      label: config?.label ?? productId,
+    }
+  })
 }
 
 /** Resolve switch target for a product (for redirects or programmatic nav). */

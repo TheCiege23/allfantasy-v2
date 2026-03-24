@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolvePlatformUser } from "@/lib/platform/current-user"
-import { createMessageReport, isValidReason } from "@/lib/moderation"
+import { submitMessageReportForUser } from "@/lib/moderation"
 
 export async function POST(req: NextRequest) {
   const user = await resolvePlatformUser()
@@ -14,15 +14,13 @@ export async function POST(req: NextRequest) {
   if (!messageId || !threadId) {
     return NextResponse.json({ error: "messageId and threadId required" }, { status: 400 })
   }
-  if (!reason) {
-    return NextResponse.json({ error: "reason required" }, { status: 400 })
-  }
-  if (!isValidReason(reason)) {
-    return NextResponse.json({ error: "Invalid reason" }, { status: 400 })
-  }
+  const result = await submitMessageReportForUser({
+    reporterUserId: user.appUserId,
+    messageId,
+    threadId,
+    reason,
+  })
+  if (!result.ok) return NextResponse.json({ error: result.error || "Could not submit report" }, { status: 400 })
 
-  const created = await createMessageReport(user.appUserId, messageId, threadId, reason)
-  if (!created) return NextResponse.json({ error: "Could not submit report" }, { status: 400 })
-
-  return NextResponse.json({ status: "ok", reportId: created.id })
+  return NextResponse.json({ status: "ok", reportId: result.reportId })
 }

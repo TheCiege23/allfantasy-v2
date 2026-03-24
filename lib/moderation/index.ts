@@ -12,13 +12,16 @@ export {
 export type { BlockedUserInfo } from "./BlockUserService"
 
 export {
-  createMessageReport,
-  createUserReport,
   REPORT_REASONS,
   REPORT_STATUS,
+} from "./shared"
+export type { ReportReason } from "./shared"
+
+export {
+  createMessageReport,
+  createUserReport,
   isValidReason,
 } from "./ReportSubmissionService"
-export type { ReportReason } from "./ReportSubmissionService"
 
 export {
   getMessageReportQueue,
@@ -26,6 +29,14 @@ export {
   REPORT_STATUSES,
 } from "./ModerationQueueService"
 export type { ReportStatus, MessageReportItem, UserReportItem } from "./ModerationQueueService"
+
+export {
+  getModerationQueueSnapshot,
+} from "./ModerationQueueBridge"
+export type {
+  ModerationQueueSnapshot,
+  ModerationBlockedUserItem,
+} from "./ModerationQueueBridge"
 
 export {
   applyModerationAction,
@@ -44,6 +55,12 @@ export {
   getMessageReportById,
   getUserReportById,
 } from "./ChatModerationService"
+
+export {
+  submitMessageReportForUser,
+  submitUserReportForUser,
+  resolveConversationSafetyForUser,
+} from "./ModerationService"
 
 export {
   checkProfanity,
@@ -69,4 +86,7 @@ export {
   getUnblockPayload,
   getReportMessagePayload,
   getReportUserPayload,
+  isBlockedDirectConversation,
+  getBlockedConversationNotice,
+  getBlockedVisibilityNotice,
 } from "./ConversationSafetyResolver"

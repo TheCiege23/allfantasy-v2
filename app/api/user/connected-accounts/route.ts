@@ -23,7 +23,7 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
     case "google":
       return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET)
     case "apple":
-      return process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true"
+      return !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
     case "facebook":
     case "instagram":
     case "x":
@@ -32,6 +32,15 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
     default:
       return false
   }
+}
+
+function normalizeProviderForSettings(provider: string): SignInProviderId | null {
+  const lowered = provider.trim().toLowerCase()
+  if (lowered === "twitter") return "x"
+  if (PROVIDER_IDS.includes(lowered as SignInProviderId)) {
+    return lowered as SignInProviderId
+  }
+  return null
 }
 
 /**
@@ -47,19 +56,37 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const accounts = await (prisma as any).authAccount.findMany({
-    where: { userId: session.user.id },
-    select: { provider: true },
-  }).catch(() => [])
+  const [accounts, user] = await Promise.all([
+    (prisma as any).authAccount.findMany({
+      where: { userId: session.user.id },
+      select: { provider: true },
+    }).catch(() => []),
+    (prisma as any).appUser.findUnique({
+      where: { id: session.user.id },
+      select: { passwordHash: true },
+    }).catch(() => null),
+  ])
 
-  const linkedSet = new Set((accounts as { provider: string }[]).map((a) => a.provider.toLowerCase()))
+  const linkedSet = new Set(
+    (accounts as { provider: string }[])
+      .map((entry) => normalizeProviderForSettings(entry.provider))
+      .filter(Boolean) as SignInProviderId[]
+  )
+  const linkedCount = PROVIDER_IDS.filter((id) => linkedSet.has(id)).length
+  const hasPassword = !!user?.passwordHash
 
-  const providers = PROVIDER_IDS.map((id) => ({
-    id,
-    name: PROVIDER_NAMES[id],
-    configured: isProviderConfigured(id),
-    linked: linkedSet.has(id),
-  }))
+  const providers = PROVIDER_IDS.map((id) => {
+    const linked = linkedSet.has(id)
+    const disconnectable = linked && (linkedCount > 1 || hasPassword)
+    return {
+      id,
+      name: PROVIDER_NAMES[id],
+      configured: isProviderConfigured(id),
+      linked,
+      disconnectable,
+      disconnectBlockedReason: linked && !disconnectable ? "LOCKOUT_RISK" : null,
+    }
+  })
 
   return NextResponse.json({ providers })
 }

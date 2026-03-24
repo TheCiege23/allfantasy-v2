@@ -9,8 +9,14 @@ const CATEGORY_MAP: Record<keyof UserAlertPreferences, string> = {
   lineupAlerts: "lineup_alerts",
 }
 
-function toChannelPref(enabled: boolean): NotificationChannelPrefs {
-  return { enabled, inApp: enabled, email: false, sms: false }
+function toChannelPref(enabled: boolean, existing?: NotificationChannelPrefs): NotificationChannelPrefs {
+  return {
+    enabled,
+    inApp: enabled,
+    // Preserve email/SMS selections managed in full notification settings.
+    email: existing?.email ?? false,
+    sms: existing?.sms ?? false,
+  }
 }
 
 /**
@@ -22,9 +28,9 @@ export async function getAlertPreferences(userId: string): Promise<UserAlertPref
     ?.notificationPreferences?.categories ?? {}
 
   return {
-    injuryAlerts: prefs.injury_alerts?.inApp ?? true,
-    performanceAlerts: prefs.performance_alerts?.inApp ?? true,
-    lineupAlerts: prefs.lineup_alerts?.inApp ?? true,
+    injuryAlerts: (prefs.injury_alerts?.enabled ?? true) && (prefs.injury_alerts?.inApp ?? true),
+    performanceAlerts: (prefs.performance_alerts?.enabled ?? true) && (prefs.performance_alerts?.inApp ?? true),
+    lineupAlerts: (prefs.lineup_alerts?.enabled ?? true) && (prefs.lineup_alerts?.inApp ?? true),
   }
 }
 
@@ -43,17 +49,19 @@ export async function setAlertPreferences(
   }
 
   const categories: Partial<Record<string, NotificationChannelPrefs>> = {}
-  for (const key of Object.keys(merged) as (keyof UserAlertPreferences)[]) {
-    const catId = CATEGORY_MAP[key]
-    if (catId) {
-      categories[catId] = toChannelPref(merged[key])
-    }
-  }
-
   const existing = await getSettingsProfile(userId)
   const existingPrefs = (existing as { notificationPreferences?: NotificationPreferences } | null)
     ?.notificationPreferences ?? {}
-  const mergedCategories = { ...existingPrefs.categories, ...categories }
+  const existingCategories = existingPrefs.categories ?? {}
+
+  for (const key of Object.keys(merged) as (keyof UserAlertPreferences)[]) {
+    const catId = CATEGORY_MAP[key]
+    if (!catId) continue
+    const prev = existingCategories[catId as keyof typeof existingCategories] as NotificationChannelPrefs | undefined
+    categories[catId] = toChannelPref(merged[key], prev)
+  }
+
+  const mergedCategories = { ...existingCategories, ...categories }
 
   return updateUserProfile(userId, {
     notificationPreferences: {

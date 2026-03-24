@@ -1,27 +1,23 @@
 import type { ProductId } from "./ShellRouteResolver"
+import {
+  PRIMARY_NAV_ITEMS,
+  PRODUCT_NAV_ITEMS,
+  type NavLinkItem,
+} from "@/lib/navigation/NavLinkResolver"
 
 export interface NavItem {
   href: string
   label: string
 }
 
-/** Primary nav items for shell (tabs + mobile drawer). Synced with lib/navigation PRIMARY_NAV_ITEMS + admin when isAdmin. */
-export const SHELL_NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/profile", label: "Profile" },
-  { href: "/app", label: "WebApp" },
-  { href: "/brackets", label: "Bracket" },
-  { href: "/tools-hub", label: "Tools" },
-  { href: "/messages", label: "Messages" },
-  { href: "/wallet", label: "Wallet" },
-  { href: "/settings", label: "Settings" },
-]
+function toNavItems(items: NavLinkItem[]): NavItem[] {
+  return items.map((item) => ({ href: item.href, label: item.label }))
+}
 
-export const PRODUCT_SWITCHER_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Home" },
-  { href: "/app", label: "WebApp" },
-  { href: "/brackets", label: "Bracket" },
-]
+/** Primary nav items for shell (tabs + mobile drawer). */
+export const SHELL_NAV_ITEMS: NavItem[] = toNavItems(PRIMARY_NAV_ITEMS)
+
+export const PRODUCT_SWITCHER_ITEMS: NavItem[] = toNavItems(PRODUCT_NAV_ITEMS)
 
 /**
  * Returns whether the given pathname matches href (exact or prefix).
@@ -30,7 +26,18 @@ export function isNavItemActive(pathname: string | null, href: string): boolean 
   if (!pathname) return false
   if (pathname === href) return true
   if (href === "/dashboard" && pathname === "/") return false
+  if (href === "/app") {
+    return (
+      pathname === "/app" ||
+      pathname.startsWith("/app/") ||
+      pathname === "/leagues" ||
+      pathname.startsWith("/leagues/")
+    )
+  }
   if (href === "/tools-hub") return pathname === "/tools-hub" || pathname.startsWith("/tools/")
+  if (href === "/af-legacy") {
+    return pathname === "/af-legacy" || pathname.startsWith("/af-legacy/") || pathname === "/legacy" || pathname.startsWith("/legacy/")
+  }
   return pathname.startsWith(`${href}/`)
 }
 

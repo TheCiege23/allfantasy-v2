@@ -50,3 +50,67 @@ export function isValidGifOrImageUrl(url: string): boolean {
     return false
   }
 }
+
+export type GifSearchResult = {
+  id: string
+  url: string
+  previewUrl?: string
+  provider: "tenor" | "giphy"
+}
+
+function normalizeTenorResults(payload: unknown): GifSearchResult[] {
+  const list = Array.isArray((payload as { results?: unknown[] })?.results)
+    ? ((payload as { results: unknown[] }).results)
+    : []
+  const normalized: GifSearchResult[] = []
+  for (const entry of list) {
+      const obj = entry as Record<string, unknown>
+      const id = typeof obj.id === "string" ? obj.id : ""
+      const mediaFormats = (obj.media_formats || {}) as Record<string, Record<string, unknown>>
+      const gif = mediaFormats.gif
+      const tiny = mediaFormats.tinygif
+      const url = typeof gif?.url === "string" ? gif.url : ""
+      const previewUrl = typeof tiny?.url === "string" ? tiny.url : url
+      if (!id || !url) continue
+      normalized.push({ id, url, previewUrl, provider: "tenor" })
+  }
+  return normalized
+}
+
+function normalizeGiphyResults(payload: unknown): GifSearchResult[] {
+  const list = Array.isArray((payload as { data?: unknown[] })?.data)
+    ? ((payload as { data: unknown[] }).data)
+    : []
+  const normalized: GifSearchResult[] = []
+  for (const entry of list) {
+      const obj = entry as Record<string, unknown>
+      const id = typeof obj.id === "string" ? obj.id : ""
+      const images = (obj.images || {}) as Record<string, Record<string, unknown>>
+      const original = images.original
+      const preview = images.preview_gif || images.fixed_width_small || original
+      const url = typeof original?.url === "string" ? original.url : ""
+      const previewUrl = typeof preview?.url === "string" ? preview.url : url
+      if (!id || !url) continue
+      normalized.push({ id, url, previewUrl, provider: "giphy" })
+  }
+  return normalized
+}
+
+export async function searchGifs(query: string, limit = 12): Promise<GifSearchResult[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
+  const provider = getGifProviderName()
+  if (!provider) return []
+
+  const url = provider === "tenor" ? getTenorSearchUrl(trimmed, limit) : getGiphySearchUrl(trimmed, limit)
+  if (!url) return []
+
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return []
+    const data = await res.json().catch(() => ({}))
+    return provider === "tenor" ? normalizeTenorResults(data) : normalizeGiphyResults(data)
+  } catch {
+    return []
+  }
+}

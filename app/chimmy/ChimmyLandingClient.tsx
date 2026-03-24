@@ -6,6 +6,7 @@ import SeoLandingFooter from '@/components/landing/SeoLandingFooter'
 import { LandingCTAStrip } from '@/components/landing/LandingCTAStrip'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { Bot, Sparkles, BarChart3, DraftingCompass, Layers3, Target, Zap, ArrowRight, AppWindow } from 'lucide-react'
+import { getChimmyChatHref } from '@/lib/ai-product-layer'
 
 const FEATURES = [
   { icon: DraftingCompass, title: 'Draft help', body: 'Real-time rankings, strategy tips, and answers to your draft questions.' },
@@ -48,7 +49,7 @@ export default function ChimmyLandingClient() {
 
           <section className="mt-8">
             <LandingCTAStrip
-              primaryHref="/af-legacy?tab=chat"
+              primaryHref={getChimmyChatHref()}
               primaryLabel={t('home.chimmy.cta')}
               showSignInSignUp
             />
@@ -96,7 +97,7 @@ export default function ChimmyLandingClient() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/af-legacy?tab=chat"
+                href={getChimmyChatHref()}
                 className="inline-flex items-center gap-2 rounded-xl bg-purple-500 px-4 py-3 text-sm font-semibold text-white hover:bg-purple-400"
               >
                 <Sparkles className="h-4 w-4" />

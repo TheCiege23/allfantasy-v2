@@ -33,13 +33,25 @@ export async function GET(
       select: { id: true, platformUserId: true },
     }),
   ])
+  const candidateUserIds = Array.from(
+    new Set(rosters.map((r) => r.platformUserId).filter((id): id is string => Boolean(id))),
+  )
+  const appUsers = candidateUserIds.length
+    ? await prisma.appUser.findMany({
+        where: { id: { in: candidateUserIds } },
+        select: { id: true, username: true, displayName: true },
+      })
+    : []
+  const appUserById = new Map(appUsers.map((u) => [u.id, u]))
   const teamByExtId = new Map(teams.map((t) => [t.externalId, t]))
   const managers = rosters.map((r) => {
     const team = teamByExtId.get(r.platformUserId) ?? teamByExtId.get(r.id)
+    const appUser = r.platformUserId ? appUserById.get(r.platformUserId) : null
     return {
       rosterId: r.id,
       userId: r.platformUserId,
-      displayName: team?.ownerName ?? team?.teamName ?? r.platformUserId,
+      username: appUser?.username ?? null,
+      displayName: team?.ownerName ?? appUser?.displayName ?? team?.teamName ?? r.platformUserId,
     }
   })
 

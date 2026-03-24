@@ -50,15 +50,13 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   const nhlSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^NHL$/ }) }).first()
   const mlbSection = page.locator('section').filter({ has: page.getByRole('heading', { name: /^MLB$/ }) }).first()
 
-  await expect(nhlSection.getByText(nhlLeagueName)).toBeVisible({ timeout: 45_000 })
-  await expect(mlbSection.getByText(mlbLeagueName)).toBeVisible({ timeout: 45_000 })
-
-  await expect(nhlSection).toBeVisible()
-  await expect(mlbSection).toBeVisible()
-
   // League cards must route directly into league detail pages.
   const nhlCard = nhlSection.getByRole('link', { name: new RegExp(nhlLeagueName) }).first()
   const mlbCard = mlbSection.getByRole('link', { name: new RegExp(mlbLeagueName) }).first()
+  await expect(nhlCard).toBeVisible({ timeout: 45_000 })
+  await expect(mlbCard).toBeVisible({ timeout: 45_000 })
+  await expect(nhlSection).toBeVisible()
+  await expect(mlbSection).toBeVisible()
   await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/app/league/${nhlLeague?.id ?? ''}$`))
   await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/app/league/${mlbLeague?.id ?? ''}$`))
 
@@ -72,11 +70,11 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   expect(nhlIndex).toBeLessThan(mlbIndex)
 
   // Tab transitions: verify click handlers switch dashboard sections.
-  await page.getByRole('button', { name: 'Sports' }).click()
+  await page.locator('[data-dashboard-tab="Sports"]').click()
   await expect(page.getByRole('heading', { name: /^Sports$/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /NCAA Football Fantasy/i })).toBeVisible()
   await expect(page.getByRole('link', { name: /NCAA Basketball Fantasy/i })).toBeVisible()
-  await page.getByRole('button', { name: 'AI' }).click()
+  await page.locator('[data-dashboard-tab="AI"]').click()
   await expect(page.getByRole('heading', { name: /^AI$/ })).toBeVisible()
 
   // AI launch points must carry league context.

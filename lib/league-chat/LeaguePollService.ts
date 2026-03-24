@@ -8,6 +8,13 @@ export const LEAGUE_POLL_MAX_OPTIONS = 6
 export const LEAGUE_POLL_QUESTION_MAX_LENGTH = 200
 export const LEAGUE_POLL_OPTION_MAX_LENGTH = 100
 
+export type LeaguePollPayload = {
+  question: string
+  options: string[]
+  votes?: Record<string, string[]>
+  closed?: boolean
+}
+
 export function createLeaguePollPayload(question: string, options: string[]): {
   question: string
   options: string[]
@@ -23,4 +30,44 @@ export function createLeaguePollPayload(question: string, options: string[]): {
 
 export function isPollMessage(messageType: string, metadata?: { question?: string } | null): boolean {
   return messageType === "poll" || !!(metadata?.question)
+}
+
+export function parseLeaguePollPayload(input: {
+  body?: string | null
+  metadata?: Record<string, unknown> | null
+}): LeaguePollPayload | null {
+  const fromMetadata =
+    input.metadata && typeof input.metadata.question === "string" && Array.isArray(input.metadata.options)
+      ? {
+          question: String(input.metadata.question),
+          options: (input.metadata.options as unknown[]).map((o) => String(o)),
+          votes:
+            input.metadata.votes && typeof input.metadata.votes === "object"
+              ? (input.metadata.votes as Record<string, string[]>)
+              : {},
+          closed: Boolean(input.metadata.closed),
+        }
+      : null
+  if (fromMetadata) return fromMetadata
+
+  try {
+    const parsed = JSON.parse(input.body || "{}") as Record<string, unknown>
+    if (typeof parsed.question !== "string" || !Array.isArray(parsed.options)) return null
+    return {
+      question: parsed.question,
+      options: parsed.options.map((o) => String(o)),
+      votes: parsed.votes && typeof parsed.votes === "object" ? (parsed.votes as Record<string, string[]>) : {},
+      closed: Boolean(parsed.closed),
+    }
+  } catch {
+    return null
+  }
+}
+
+export function getLeaguePollVoteUrl(threadId: string, messageId: string): string {
+  return `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/vote`
+}
+
+export function getLeaguePollCloseUrl(threadId: string, messageId: string): string {
+  return `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/close-poll`
 }

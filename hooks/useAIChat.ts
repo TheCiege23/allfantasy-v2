@@ -4,7 +4,11 @@ import { useCallback, useState } from "react"
 
 export type AIChatMessage = { role: "user" | "assistant"; content: string }
 
-export function useAIChat(options?: { leagueId?: string; contextScope?: { sleeper_username?: string } }) {
+export function useAIChat(options?: {
+  leagueId?: string
+  sport?: string
+  contextScope?: { sleeper_username?: string }
+}) {
   const [messages, setMessages] = useState<AIChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +31,9 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
           formData.append("message", trimmed)
           formData.append("messages", JSON.stringify(conversation))
           formData.append("leagueId", options.leagueId)
+          if (options.sport) {
+            formData.append("sport", options.sport)
+          }
           if (options?.contextScope?.sleeper_username) {
             formData.append("sleeperUsername", options.contextScope.sleeper_username)
           }
@@ -42,6 +49,7 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
             body: JSON.stringify({
               message: trimmed,
               conversation_history: conversation,
+              sport: options?.sport,
               context_scope: options?.contextScope ?? { sleeper_username: "user", include_legacy: true },
             }),
           })
@@ -71,7 +79,7 @@ export function useAIChat(options?: { leagueId?: string; contextScope?: { sleepe
         setLoading(false)
       }
     },
-    [loading, messages, options?.contextScope, options?.leagueId]
+    [loading, messages, options?.contextScope, options?.leagueId, options?.sport]
   )
 
   const clear = useCallback(() => {

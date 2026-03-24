@@ -34,7 +34,8 @@ export interface UnifiedDashboardPayload {
 /** Build full dashboard payload for the unified dashboard. */
 export function getUnifiedDashboardPayload(
   leagueInput: DashboardLeagueSummaryInput,
-  profileInput: { isVerified?: boolean; isAgeConfirmed?: boolean; profileComplete?: boolean }
+  profileInput: { isVerified?: boolean; isAgeConfirmed?: boolean; profileComplete?: boolean },
+  context?: { isAdmin?: boolean }
 ): UnifiedDashboardPayload {
   const leagueCounts = getLeagueSummaryCounts(leagueInput)
   const needsSetup = needsSetupAction(profileInput)
@@ -53,7 +54,7 @@ export function getUnifiedDashboardPayload(
       poolCount: leagueCounts.totalBracketPools,
       entryCount: leagueCounts.totalBracketEntries,
     }),
-    quickActions: getDashboardQuickActions(),
+    quickActions: getDashboardQuickActions({ isAdmin: context?.isAdmin }),
     setupAlerts,
     leagueCounts,
     appLeaguesBySport: getAppLeaguesBySport(leagueInput.appLeagues ?? []),

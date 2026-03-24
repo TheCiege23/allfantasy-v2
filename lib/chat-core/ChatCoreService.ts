@@ -22,7 +22,7 @@ export function bracketMessageToPlatformShape(
     message: string
     type?: string
     createdAt: string
-    user?: { id: string; displayName?: string | null; email?: string | null }
+    user?: { id: string; username?: string | null; displayName?: string | null; email?: string | null }
   },
   threadId: string
 ): PlatformChatMessage {
@@ -31,6 +31,7 @@ export function bracketMessageToPlatformShape(
     threadId,
     senderUserId: msg.user?.id ?? null,
     senderName: msg.user?.displayName || msg.user?.email || "User",
+    senderUsername: msg.user?.username ?? null,
     messageType: msg.type || "text",
     body: msg.message || "",
     createdAt: typeof msg.createdAt === "string" ? msg.createdAt : new Date(msg.createdAt).toISOString(),

@@ -22,11 +22,20 @@ export function parsePollBody(body: string): PollPayload | null {
   try {
     const parsed = JSON.parse(body || "{}")
     if (parsed && typeof parsed.question === "string" && Array.isArray(parsed.options)) {
+      const votesRaw =
+        typeof parsed.votes === "object" && parsed.votes !== null
+          ? (parsed.votes as Record<string, unknown>)
+          : {}
+      const votes: Record<string, string[]> = {}
+      for (const [key, value] of Object.entries(votesRaw)) {
+        votes[key] = Array.isArray(value) ? value.map((entry) => String(entry)).filter(Boolean) : []
+      }
       return {
         question: parsed.question,
         options: parsed.options.map(String),
-        votes: typeof parsed.votes === "object" && parsed.votes !== null ? parsed.votes : {},
+        votes,
         expiresAt: parsed.expiresAt ?? null,
+        closed: Boolean(parsed.closed),
       }
     }
   } catch {

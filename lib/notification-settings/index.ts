@@ -1,6 +1,7 @@
 export {
   getDefaultNotificationPreferences,
   resolveNotificationPreferences,
+  getNotificationPreferencesFingerprint,
 } from "./NotificationPreferenceResolver"
 export {
   getDeliveryMethodAvailability,
@@ -10,6 +11,10 @@ export {
   getNotificationPreferencesFromProfile,
   updateNotificationPreferences,
 } from "./NotificationSettingsService"
+export {
+  sendTestNotification,
+  type SendTestNotificationResult,
+} from "./TestNotificationService"
 export type { DeliveryMethodAvailability } from "./DeliveryMethodResolver"
 export type {
   NotificationPreferences,

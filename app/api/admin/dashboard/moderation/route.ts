@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/adminAuth"
-import { getReportedContent, getReportedUserRecords, getBlockedUsers } from "@/lib/admin-dashboard"
+import { getModerationQueueSnapshot } from "@/lib/moderation"
 
 export const dynamic = "force-dynamic"
 
@@ -9,15 +9,11 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return gate.res
   const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "50", 10) || 50))
   try {
-    const [reportedContent, reportedUsers, blockedUsers] = await Promise.all([
-      getReportedContent(limit),
-      getReportedUserRecords(limit),
-      getBlockedUsers(limit),
-    ])
+    const snapshot = await getModerationQueueSnapshot(limit)
     return NextResponse.json({
-      reportedContent,
-      reportedUsers,
-      blockedUsers,
+      reportedContent: snapshot.reportedContent,
+      reportedUsers: snapshot.reportedUsers,
+      blockedUsers: snapshot.blockedUsers,
     })
   } catch (e) {
     console.error("[admin/dashboard/moderation]", e)

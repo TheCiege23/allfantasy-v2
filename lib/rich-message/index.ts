@@ -16,7 +16,9 @@ export {
   getTenorSearchUrl,
   getGiphySearchUrl,
   isValidGifOrImageUrl,
+  searchGifs,
 } from "./GIFIntegrationResolver"
+export type { GifSearchResult } from "./GIFIntegrationResolver"
 
 export {
   MAX_IMAGE_SIZE_BYTES,
@@ -31,7 +33,20 @@ export {
 } from "./MessageAttachmentService"
 export type { ImagePreview, GifPreview, FilePreview, AttachmentPreview } from "./MessageAttachmentService"
 
+export {
+  hasAttachmentPreview,
+  getAttachmentPreviewLabel,
+  canSendComposerMessage,
+  clearAttachmentState,
+} from "./AttachmentPreviewController"
+
 export { RichMessageRenderer } from "./RichMessageRenderer"
 export type { RichMessageRendererProps } from "./RichMessageRenderer"
 
 export { getSafeMessageMediaUrl, isSafeToRenderMedia } from "./safeMedia"
+
+export {
+  resolveMediaViewerUrl,
+  canOpenInMediaViewer,
+  getMediaViewerAriaLabel,
+} from "./MediaViewerController"

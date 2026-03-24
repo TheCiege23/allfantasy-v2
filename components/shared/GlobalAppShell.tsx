@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { resolveAdminEmail } from "@/lib/auth/admin"
 import { GlobalShellClient } from "@/components/shell/GlobalShellClient"
-import GlobalRightRail from "@/components/shared/GlobalRightRail"
+import { AppSidebar } from "@/components/shell/AppSidebar"
+import { ShellLayoutContainer } from "@/components/shell/ShellLayoutContainer"
 
 export default async function GlobalAppShell({ children }: { children: ReactNode }) {
   const session = (await getServerSession(authOptions as any)) as {
@@ -21,12 +22,16 @@ export default async function GlobalAppShell({ children }: { children: ReactNode
         isAdmin={isAdmin}
         userLabel={userLabel}
       >
-        <div className="mx-auto w-full max-w-[1400px] px-0 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:px-4">
+        <ShellLayoutContainer
+          maxWidth="max-w-[1400px]"
+          paddingClassName="px-0 lg:px-4"
+          className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6"
+        >
           <div className="min-w-0">{children}</div>
           <div className="hidden py-6 lg:block">
-            <GlobalRightRail />
+            <AppSidebar />
           </div>
-        </div>
+        </ShellLayoutContainer>
       </GlobalShellClient>
     </div>
   )

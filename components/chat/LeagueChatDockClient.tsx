@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import LeagueChatDock from "@/components/chat/LeagueChatDock"
 
@@ -10,13 +11,34 @@ import LeagueChatDock from "@/components/chat/LeagueChatDock"
 export default function LeagueChatDockClient() {
   const params = useParams<{ leagueId: string }>()
   const leagueId = params?.leagueId ?? ""
+  const [isCommissioner, setIsCommissioner] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function loadCommissionerStatus() {
+      if (!leagueId) return
+      try {
+        const res = await fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/check`, {
+          cache: "no-store",
+        })
+        const json = await res.json().catch(() => ({}))
+        if (active) setIsCommissioner(Boolean(json?.isCommissioner))
+      } catch {
+        if (active) setIsCommissioner(false)
+      }
+    }
+    void loadCommissionerStatus()
+    return () => {
+      active = false
+    }
+  }, [leagueId])
 
   if (!leagueId) return null
 
   return (
     <LeagueChatDock
       leagueId={leagueId}
-      isCommissioner={false}
+      isCommissioner={isCommissioner}
     />
   )
 }

@@ -47,29 +47,41 @@ import {
 } from "@/lib/security-settings"
 import {
   getConnectedAccounts,
-  getProviderFallbackMessage,
+  disconnectConnectedAccount,
+  getProviderConnectAction,
+  getFallbackViewMessage,
+  canDisconnectProvider,
+  getDisconnectBlockedMessage,
   type SignInProviderId,
   type ProviderStatus,
 } from "@/lib/connected-accounts"
 import {
-  getLegacyImportStatus,
+  refreshLegacyImportStatus,
   LEGACY_PROVIDER_IDS,
   getLegacyProviderName,
   getImportStatusLabel,
   getProviderStatus,
+  getLegacyProviderPrimaryAction,
+  getLegacyProviderHelpHref,
+  isImportStatusActive,
   type LegacyImportStatusResponse,
 } from "@/lib/legacy-import-settings"
 import { ConnectedIdentityRenderer } from "@/components/connected-accounts/ConnectedIdentityRenderer"
 import {
   resolveNotificationPreferences,
+  getNotificationPreferencesFingerprint,
   getDefaultNotificationPreferences,
   getDeliveryMethodAvailability,
   updateNotificationPreferences,
+  sendTestNotification,
   NOTIFICATION_CATEGORY_IDS,
+  NOTIFICATION_CATEGORY_LABELS,
   type NotificationPreferences,
   type NotificationCategoryId,
 } from "@/lib/notification-settings"
 import { NotificationCategoryRenderer } from "@/components/notification-settings/NotificationCategoryRenderer"
+import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
+import { resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
 
 type TabId =
   | "profile"
@@ -123,9 +135,23 @@ export default function SettingsClient() {
 
   if (loading && !profile) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-2xl border p-8" style={{ borderColor: "var(--border)" }}>
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Loading settings…</p>
-      </div>
+      <LoadingStateRenderer label="Loading settings..." testId="settings-loading-state" />
+    )
+  }
+
+  if (!loading && !profile) {
+    return (
+      <ErrorStateRenderer
+        title="Unable to load settings"
+        message={error ?? "Settings are currently unavailable. Retry to recover your profile state."}
+        onRetry={() => void fetchProfile()}
+        actions={resolveRecoveryActions("settings").map((action) => ({
+          id: action.id,
+          label: action.label,
+          href: action.href,
+        }))}
+        testId="settings-error-state"
+      />
     )
   }
 
@@ -158,15 +184,21 @@ export default function SettingsClient() {
 
       <section className="min-w-0 flex-1 rounded-2xl border p-4 sm:p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
         {error && (
-          <div className="mb-4 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}>
-            {error}
+          <div className="mb-4">
+            <ErrorStateRenderer
+              compact
+              title="Some settings did not refresh"
+              message={error}
+              onRetry={() => void fetchProfile()}
+              testId="settings-inline-error-state"
+            />
           </div>
         )}
         {activeTab === "profile" && <ProfileSection profile={profile} saving={saving} onSave={updateProfile} onRefetch={fetchProfile} />}
         {activeTab === "preferences" && <PreferencesSection profile={profile} saving={saving} onSave={updateProfile} />}
         {activeTab === "security" && <SecuritySection profile={profile} onRefetch={fetchProfile} />}
         {activeTab === "notifications" && <NotificationsSection profile={profile} onRefetch={fetchProfile} />}
-        {activeTab === "connected" && <ConnectedAccountsSection profile={profile} />}
+        {activeTab === "connected" && <ConnectedAccountsSection profile={profile} onRefetchProfile={fetchProfile} />}
         {activeTab === "referral" && <ReferralSection />}
         {activeTab === "legacy" && <LegacyImportSection />}
         {activeTab === "legal" && <LegalSection profile={profile} />}
@@ -251,7 +283,7 @@ function ProfileSection({
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Profile</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
           How you appear across AllFantasy Sports App, Bracket Challenge, and Legacy.{" "}
-          <Link href="/profile" className="font-medium" style={{ color: "var(--accent-cyan)" }}>Edit full profile (bio, sports) →</Link>
+          <a href="/profile" className="font-medium" style={{ color: "var(--accent-cyan)" }}>Edit full profile (bio, sports) →</a>
         </p>
       </div>
 
@@ -1073,6 +1105,14 @@ function NotificationsSection({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [remoteUpdatePending, setRemoteUpdatePending] = useState(false)
+  const [testCategory, setTestCategory] = useState<NotificationCategoryId>("lineup_reminders")
+  const [testing, setTesting] = useState(false)
+  const [testResultMessage, setTestResultMessage] = useState<string | null>(null)
+  const [testResultTone, setTestResultTone] = useState<"success" | "info" | "error" | null>(null)
+  const [lastLoadedFingerprint, setLastLoadedFingerprint] = useState(
+    getNotificationPreferencesFingerprint(profile?.notificationPreferences as NotificationPreferences | null)
+  )
 
   const deliveryAvailability = getDeliveryMethodAvailability({
     hasEmail: !!profile?.email,
@@ -1080,12 +1120,26 @@ function NotificationsSection({
   })
 
   useEffect(() => {
-    setPrefs(resolveNotificationPreferences(profile?.notificationPreferences as NotificationPreferences | null))
-  }, [profile?.notificationPreferences])
+    const nextPrefs = resolveNotificationPreferences(profile?.notificationPreferences as NotificationPreferences | null)
+    const nextFingerprint = getNotificationPreferencesFingerprint(
+      profile?.notificationPreferences as NotificationPreferences | null
+    )
+    if (dirty) {
+      if (nextFingerprint !== lastLoadedFingerprint) {
+        setRemoteUpdatePending(true)
+      }
+      return
+    }
+    setPrefs(nextPrefs)
+    setLastLoadedFingerprint(nextFingerprint)
+    setRemoteUpdatePending(false)
+  }, [profile?.notificationPreferences, dirty, lastLoadedFingerprint])
 
   const updateCategory = (categoryId: NotificationCategoryId, patch: Partial<NonNullable<NotificationPreferences["categories"]>[NotificationCategoryId]>) => {
     setDirty(true)
     setSaveError(null)
+    setTestResultMessage(null)
+    setTestResultTone(null)
     setPrefs((prev) => ({
       ...prev,
       categories: {
@@ -1102,6 +1156,8 @@ function NotificationsSection({
     setSaving(false)
     if (result.ok) {
       setDirty(false)
+      setRemoteUpdatePending(false)
+      setLastLoadedFingerprint(getNotificationPreferencesFingerprint(prefs))
       onRefetch()
     } else setSaveError(result.error ?? "Failed to save")
   }
@@ -1111,6 +1167,68 @@ function NotificationsSection({
     setPrefs(defaults)
     setDirty(true)
     setSaveError(null)
+    setRemoteUpdatePending(false)
+    setTestResultMessage(null)
+    setTestResultTone(null)
+  }
+
+  const handleReloadSaved = () => {
+    const saved = resolveNotificationPreferences(profile?.notificationPreferences as NotificationPreferences | null)
+    setPrefs(saved)
+    setDirty(false)
+    setRemoteUpdatePending(false)
+    setSaveError(null)
+    setTestResultMessage(null)
+    setTestResultTone(null)
+  }
+
+  const handleSendTestNotification = async () => {
+    const selectedCategoryPrefs = prefs.categories?.[testCategory] ?? {
+      enabled: true,
+      inApp: true,
+      email: true,
+      sms: false,
+    }
+
+    setTesting(true)
+    setTestResultMessage(null)
+    setTestResultTone(null)
+    const result = await sendTestNotification({
+      category: testCategory,
+      channels: {
+        inApp: selectedCategoryPrefs.inApp,
+        email: selectedCategoryPrefs.email,
+        sms: selectedCategoryPrefs.sms,
+      },
+    })
+    setTesting(false)
+
+    if (!result.ok) {
+      if (result.rateLimited) {
+        setTestResultTone("error")
+        setTestResultMessage("Rate limited. Please wait before sending another test.")
+        return
+      }
+      if ((result.blockedReasons?.length ?? 0) > 0) {
+        setTestResultTone("info")
+        setTestResultMessage(`No test sent. Blocked by: ${(result.blockedReasons ?? []).join(", ")}.`)
+        return
+      }
+      setTestResultTone("error")
+      setTestResultMessage(result.error ?? "Failed to send test notification.")
+      return
+    }
+
+    const sentChannels = Object.entries(result.sent ?? {})
+      .filter(([, sent]) => sent)
+      .map(([name]) => name)
+    if (sentChannels.length > 0) {
+      setTestResultTone("success")
+      setTestResultMessage(`Test sent via ${sentChannels.join(", ")}.`)
+    } else {
+      setTestResultTone("info")
+      setTestResultMessage("No test sent. Check your current category and delivery settings.")
+    }
   }
 
   return (
@@ -1130,7 +1248,13 @@ function NotificationsSection({
             <input
               type="checkbox"
               checked={prefs.globalEnabled !== false}
-              onChange={(e) => { setDirty(true); setSaveError(null); setPrefs((p) => ({ ...p, globalEnabled: e.target.checked })) }}
+              onChange={(e) => {
+                setDirty(true)
+                setSaveError(null)
+                setTestResultMessage(null)
+                setTestResultTone(null)
+                setPrefs((p) => ({ ...p, globalEnabled: e.target.checked }))
+              }}
               className="h-4 w-4 rounded"
               style={{ accentColor: "var(--accent-cyan)" }}
             />
@@ -1160,6 +1284,63 @@ function NotificationsSection({
         </ul>
       </div>
 
+      {remoteUpdatePending && (
+        <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--accent-cyan)", background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)", color: "var(--text)" }}>
+          Saved notification preferences changed in another session. Keep editing or reload the latest saved version.
+          <button
+            type="button"
+            onClick={handleReloadSaved}
+            className="ml-2 rounded-lg border px-2 py-1 text-xs font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            Reload saved
+          </button>
+        </div>
+      )}
+
+      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Send a test notification</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={testCategory}
+            onChange={(e) => setTestCategory(e.target.value as NotificationCategoryId)}
+            className="rounded-lg border px-3 py-2 text-sm"
+            style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+          >
+            {NOTIFICATION_CATEGORY_IDS.map((id) => (
+              <option key={id} value={id}>{NOTIFICATION_CATEGORY_LABELS[id]}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleSendTestNotification}
+            disabled={testing}
+            className="rounded-lg border px-3 py-2 text-sm font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            {testing ? "Sending test…" : "Send test notification"}
+          </button>
+        </div>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          Test uses your currently selected delivery channels for the chosen category.
+        </p>
+        {testResultMessage && (
+          <p
+            className="text-xs"
+            style={{
+              color:
+                testResultTone === "success"
+                  ? "#059669"
+                  : testResultTone === "error"
+                    ? "var(--accent-red-strong)"
+                    : "var(--muted2)",
+            }}
+          >
+            {testResultMessage}
+          </p>
+        )}
+      </div>
+
       {saveError && (
         <p className="text-sm" style={{ color: "var(--accent-red-strong)" }}>{saveError}</p>
       )}
@@ -1186,36 +1367,119 @@ function NotificationsSection({
         >
           Reset to defaults
         </button>
+        <a
+          href="/alerts/settings"
+          className="rounded-xl border px-4 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Sports alerts page
+        </a>
+        <a
+          href="/settings?tab=profile"
+          className="rounded-xl border px-4 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Back to profile
+        </a>
       </div>
     </div>
   )
 }
 
-function ConnectedAccountsSection({ profile }: { profile: ReturnType<typeof useSettingsProfile>["profile"] }) {
+function ConnectedAccountsSection({
+  profile,
+  onRefetchProfile,
+}: {
+  profile: ReturnType<typeof useSettingsProfile>["profile"]
+  onRefetchProfile: () => void
+}) {
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(true)
-  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [busyProviderId, setBusyProviderId] = useState<SignInProviderId | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [statusTone, setStatusTone] = useState<"info" | "error" | "success" | null>(null)
+
+  const linkedProvidersCount = providers.filter((provider) => provider.linked).length
+  const hasPassword = !!profile?.hasPassword
+
+  const loadProviders = async (asRefresh = false) => {
+    if (asRefresh) setRefreshing(true)
+    else setLoading(true)
+
+    try {
+      if (asRefresh) onRefetchProfile()
+      const data = await getConnectedAccounts()
+      setProviders(data.providers)
+    } catch {
+      setStatusTone("error")
+      setStatusMessage("Could not load connected providers right now.")
+    } finally {
+      if (asRefresh) setRefreshing(false)
+      else setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false
-    getConnectedAccounts().then((data) => {
-      if (!cancelled) {
-        setProviders(data.providers)
-        setLoading(false)
-      }
-    }).catch(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => { cancelled = true }
+    loadProviders()
+  }, [])
+
+  useEffect(() => {
+    const onFocus = () => {
+      void loadProviders(true)
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus)
+      return () => window.removeEventListener("focus", onFocus)
+    }
   }, [])
 
   const handleConnect = (providerId: SignInProviderId, configured: boolean) => {
-    if (!configured) {
-      setFallbackMessage(getProviderFallbackMessage(providerId))
+    const action = getProviderConnectAction(providerId, configured)
+    if (action === "fallback") {
+      setStatusTone("info")
+      setStatusMessage(getFallbackViewMessage(providerId))
       return
     }
-    setFallbackMessage(null)
-    signIn(providerId, { callbackUrl: "/settings" })
+    setStatusMessage(null)
+    setStatusTone(null)
+    setBusyProviderId(providerId)
+    void signIn(providerId, { callbackUrl: "/settings?tab=connected" }).finally(() => {
+      setBusyProviderId(null)
+    })
+  }
+
+  const handleDisconnect = async (provider: ProviderStatus) => {
+    if (!canDisconnectProvider(provider, linkedProvidersCount, hasPassword)) {
+      setStatusTone("error")
+      setStatusMessage(getDisconnectBlockedMessage(provider.id))
+      return
+    }
+    if (typeof window !== "undefined") {
+      const shouldDisconnect = window.confirm(`Disconnect ${provider.name} from your sign-in methods?`)
+      if (!shouldDisconnect) return
+    }
+    setBusyProviderId(provider.id)
+    setStatusMessage(null)
+    setStatusTone(null)
+    const result = await disconnectConnectedAccount(provider.id)
+    setBusyProviderId(null)
+    if (!result.ok) {
+      setStatusTone("error")
+      if (result.error === "LOCKOUT_RISK") {
+        setStatusMessage("Disconnect blocked to prevent account lockout. Add another provider or password first.")
+      } else {
+        setStatusMessage("Could not disconnect provider right now.")
+      }
+      return
+    }
+    if (result.providers && result.providers.length > 0) {
+      setProviders(result.providers)
+    } else {
+      await loadProviders(true)
+    }
+    setStatusTone("success")
+    setStatusMessage(`${provider.name} disconnected.`)
   }
 
   return (
@@ -1226,13 +1490,36 @@ function ConnectedAccountsSection({ profile }: { profile: ReturnType<typeof useS
           Sign-in providers and fantasy platform links. Connect to sign in with Google, Apple, or link Sleeper below.
         </p>
       </div>
-      {fallbackMessage && (
-        <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--accent-cyan)", background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)", color: "var(--text)" }}>
-          {fallbackMessage}
+      {statusMessage && (
+        <div
+          className="rounded-xl border px-3 py-2 text-sm"
+          style={{
+            borderColor: statusTone === "error" ? "var(--accent-red)" : "var(--accent-cyan)",
+            background:
+              statusTone === "error"
+                ? "color-mix(in srgb, var(--accent-red) 10%, transparent)"
+                : statusTone === "success"
+                  ? "color-mix(in srgb, #10b981 16%, transparent)"
+                  : "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+            color: "var(--text)",
+          }}
+        >
+          {statusMessage}
         </div>
       )}
       <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Sign-in providers</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Sign-in providers</p>
+          <button
+            type="button"
+            onClick={() => void loadProviders(true)}
+            disabled={refreshing}
+            className="rounded-lg border px-3 py-1.5 text-xs font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            {refreshing ? "Refreshing…" : "Refresh status"}
+          </button>
+        </div>
         {loading ? (
           <p className="text-sm" style={{ color: "var(--muted)" }}>Loading…</p>
         ) : (
@@ -1244,25 +1531,48 @@ function ConnectedAccountsSection({ profile }: { profile: ReturnType<typeof useS
                   <button
                     type="button"
                     onClick={() => handleConnect(provider.id, provider.configured)}
+                    disabled={busyProviderId === provider.id}
                     className="rounded-lg border px-3 py-2 text-sm font-medium"
                     style={{ borderColor: "var(--border)", color: "var(--text)" }}
                   >
-                    Connect
+                    {busyProviderId === provider.id ? "Connecting…" : "Connect"}
+                  </button>
+                ) : canDisconnectProvider(provider, linkedProvidersCount, hasPassword) ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnect(provider)}
+                    disabled={busyProviderId === provider.id}
+                    className="rounded-lg border px-3 py-2 text-sm font-medium"
+                    style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}
+                  >
+                    {busyProviderId === provider.id ? "Disconnecting…" : "Disconnect"}
                   </button>
                 ) : (
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>Connected</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>Connected (protected)</span>
                 )}
               </li>
             ))}
           </ul>
         )}
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          To prevent lockout, your last linked provider cannot be disconnected unless you have a password set.
+        </p>
       </div>
       <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
         <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Fantasy platform (Legacy import)</p>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Sleeper</span>
           {profile?.sleeperUsername ? (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>Linked as @{profile.sleeperUsername}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs" style={{ color: "var(--muted)" }}>Linked as @{profile.sleeperUsername}</span>
+              <Link
+                href="/dashboard"
+                className="rounded-lg border px-3 py-2 text-xs font-medium"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                Reconnect
+              </Link>
+            </div>
           ) : (
             <Link
               href="/dashboard"
@@ -1276,6 +1586,22 @@ function ConnectedAccountsSection({ profile }: { profile: ReturnType<typeof useS
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           Link Sleeper here or in Legacy Import to enable league import and rankings.
         </p>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/settings?tab=legacy"
+            className="rounded-lg border px-3 py-2 text-xs font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            Open Legacy Import tab
+          </Link>
+          <Link
+            href="/import"
+            className="rounded-lg border px-3 py-2 text-xs font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          >
+            Import help
+          </Link>
+        </div>
       </div>
     </div>
   )
@@ -1284,19 +1610,60 @@ function ConnectedAccountsSection({ profile }: { profile: ReturnType<typeof useS
 function LegacyImportSection() {
   const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null)
+
+  const loadLegacyStatus = async (asRefresh = false) => {
+    if (asRefresh) setRefreshing(true)
+    else setLoading(true)
+    setError(null)
+    try {
+      const data = await refreshLegacyImportStatus()
+      setLegacyStatus(data)
+      setLastUpdatedAt(new Date())
+    } catch {
+      setError("Could not load import status right now.")
+    } finally {
+      if (asRefresh) setRefreshing(false)
+      else setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false
-    getLegacyImportStatus().then((data) => {
-      if (!cancelled) {
-        setLegacyStatus(data)
-        setLoading(false)
-      }
-    }).catch(() => {
-      if (!cancelled) setLoading(false)
-    })
-    return () => { cancelled = true }
+    void loadLegacyStatus()
   }, [])
+
+  useEffect(() => {
+    const onFocus = () => {
+      void loadLegacyStatus(true)
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", onFocus)
+      return () => window.removeEventListener("focus", onFocus)
+    }
+  }, [])
+
+  const hasActiveImport = LEGACY_PROVIDER_IDS.some((providerId) => {
+    const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
+    return isImportStatusActive(status?.importStatus ?? null)
+  })
+  const hasLinkedProvider = LEGACY_PROVIDER_IDS.some((providerId) => {
+    const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
+    return Boolean(status?.linked)
+  })
+  const hasCompletedImport = LEGACY_PROVIDER_IDS.some((providerId) => {
+    const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
+    return status?.importStatus === "completed"
+  })
+
+  useEffect(() => {
+    if (!hasActiveImport) return
+    const timer = window.setInterval(() => {
+      void loadLegacyStatus(true)
+    }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [hasActiveImport])
 
   return (
     <div className="space-y-6">
@@ -1312,11 +1679,32 @@ function LegacyImportSection() {
           Legacy import affects your rankings and level progression. If you don&apos;t import history, you start from scratch (level 1). Import from a connected provider to bring in your league history.
         </p>
       </div>
+      {error && (
+        <p className="text-sm" style={{ color: "var(--accent-red-strong)" }}>
+          {error}
+        </p>
+      )}
       {loading ? (
         <p className="text-sm" style={{ color: "var(--muted)" }}>Loading import status…</p>
       ) : (
         <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-          <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Import providers</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Import providers</p>
+            <button
+              type="button"
+              onClick={() => void loadLegacyStatus(true)}
+              disabled={refreshing}
+              className="rounded-lg border px-3 py-1.5 text-xs font-medium"
+              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            >
+              {refreshing ? "Refreshing…" : "Refresh status"}
+            </button>
+          </div>
+          {lastUpdatedAt && (
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              Last updated: {formatInTimezone(lastUpdatedAt, undefined, undefined, "en")}
+            </p>
+          )}
           <ul className="space-y-4">
             {LEGACY_PROVIDER_IDS.map((providerId) => {
               const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
@@ -1325,6 +1713,9 @@ function LegacyImportSection() {
               const linked = status?.linked ?? false
               const importStatusLabel = status?.importStatus ? getImportStatusLabel(status.importStatus) : "—"
               const available = status?.available ?? false
+              const primaryAction = getLegacyProviderPrimaryAction({ providerId, status })
+              const helpHref = getLegacyProviderHelpHref(providerId)
+              const showReconnect = isSleeper && linked
 
               return (
                 <li key={providerId} className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 last:border-0 last:pb-0" style={{ borderColor: "var(--border)" }}>
@@ -1337,34 +1728,57 @@ function LegacyImportSection() {
                       <p className="text-xs mt-0.5" style={{ color: "var(--accent-red-strong)" }}>{status.error}</p>
                     )}
                   </div>
-                  {isSleeper && (
-                    <div className="flex gap-2">
-                      {linked ? (
-                        <Link
-                          href="/af-legacy"
-                          className="rounded-lg border px-3 py-2 text-sm font-medium"
-                          style={{ borderColor: "var(--accent-cyan)", color: "var(--text)" }}
-                        >
-                          {status?.importStatus === "completed" || status?.importStatus === "running" ? "Re-import / refresh" : "Start import"}
-                        </Link>
-                      ) : (
-                        <Link
-                          href="/dashboard"
-                          className="rounded-lg border px-3 py-2 text-sm font-medium"
-                          style={{ borderColor: "var(--border)", color: "var(--text)" }}
-                        >
-                          Connect first
-                        </Link>
-                      )}
-                    </div>
-                  )}
-                  {!isSleeper && !available && (
-                    <span className="text-xs" style={{ color: "var(--muted)" }}>Coming soon</span>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {primaryAction ? (
+                      <Link
+                        href={primaryAction.href}
+                        className="rounded-lg border px-3 py-2 text-sm font-medium"
+                        style={{ borderColor: primaryAction.label.includes("Retry") ? "var(--accent-red)" : "var(--accent-cyan)", color: "var(--text)" }}
+                      >
+                        {primaryAction.label}
+                      </Link>
+                    ) : (
+                      !available && <span className="text-xs" style={{ color: "var(--muted)" }}>Coming soon</span>
+                    )}
+                    {showReconnect && (
+                      <Link
+                        href="/dashboard"
+                        className="rounded-lg border px-3 py-2 text-sm font-medium"
+                        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                      >
+                        Reconnect
+                      </Link>
+                    )}
+                    <Link
+                      href={helpHref}
+                      className="rounded-lg border px-3 py-2 text-sm font-medium"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      Help
+                    </Link>
+                  </div>
                 </li>
               )
             })}
           </ul>
+          {hasActiveImport && (
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              Active import detected. This tab refreshes automatically every 15 seconds.
+            </p>
+          )}
+          {!hasActiveImport && !hasLinkedProvider && !hasCompletedImport ? (
+            <EmptyStateRenderer
+              compact
+              title={resolveNoResultsState({ context: "legacy_import" }).title}
+              description={resolveNoResultsState({ context: "legacy_import" }).description}
+              actions={resolveNoResultsState({ context: "legacy_import" }).actions.map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+              testId="legacy-import-empty-state"
+            />
+          ) : null}
         </div>
       )}
       <div className="flex flex-wrap gap-2">
@@ -1381,6 +1795,13 @@ function LegacyImportSection() {
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
           Dashboard (link Sleeper)
+        </Link>
+        <Link
+          href="/import"
+          className="rounded-lg border px-3 py-2 text-sm font-medium"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Import instructions
         </Link>
       </div>
     </div>

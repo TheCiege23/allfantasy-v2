@@ -1,4 +1,3 @@
-import { createPlatformNotification } from "@/lib/platform/notification-service"
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher"
 import { getDeepLinkRedirect } from "@/lib/routing/DeepLinkHandler"
 import type { EngagementNotificationType } from "./types"
@@ -22,19 +21,19 @@ export async function sendDailyDigest(params: {
     : params.leagueId
       ? `/app/league/${params.leagueId}`
       : "/dashboard"
-  return createPlatformNotification({
-    userId: params.userId,
+  await dispatchNotification({
+    userIds: [params.userId],
+    category: "system_account",
     productType: "app",
     type: "daily_digest",
     title: params.title,
     body: params.body ?? undefined,
+    actionHref: href,
+    actionLabel: params.actionLabel ?? "Open",
+    meta: { leagueId: params.leagueId ?? undefined },
     severity: "low",
-    meta: {
-      actionHref: href,
-      actionLabel: params.actionLabel ?? "Open",
-      leagueId: params.leagueId ?? undefined,
-    },
   })
+  return true
 }
 
 export async function sendLeagueReminder(params: {
@@ -45,19 +44,19 @@ export async function sendLeagueReminder(params: {
   actionLabel?: string
 }): Promise<boolean> {
   const href = getDeepLinkRedirect(`/app/league/${params.leagueId}`, "/dashboard")
-  return createPlatformNotification({
-    userId: params.userId,
+  await dispatchNotification({
+    userIds: [params.userId],
+    category: "lineup_reminders",
     productType: "app",
     type: "league_reminder",
     title: params.title,
     body: params.body ?? undefined,
+    actionHref: href,
+    actionLabel: params.actionLabel ?? "Open league",
+    meta: { leagueId: params.leagueId },
     severity: "medium",
-    meta: {
-      leagueId: params.leagueId,
-      actionHref: href,
-      actionLabel: params.actionLabel ?? "Open league",
-    },
   })
+  return true
 }
 
 export async function sendAIInsight(params: {
@@ -97,17 +96,17 @@ export async function sendWeeklyRecap(params: {
   meta?: Record<string, unknown>
 }): Promise<boolean> {
   const href = getDeepLinkRedirect(params.actionHref, "/dashboard")
-  return createPlatformNotification({
-    userId: params.userId,
+  await dispatchNotification({
+    userIds: [params.userId],
+    category: "matchup_results",
     productType: "shared",
     type: "weekly_recap",
     title: params.title,
     body: params.body,
+    actionHref: href,
+    actionLabel: params.actionLabel,
+    meta: params.meta,
     severity: "low",
-    meta: {
-      actionHref: href,
-      actionLabel: params.actionLabel,
-      ...params.meta,
-    },
   })
+  return true
 }

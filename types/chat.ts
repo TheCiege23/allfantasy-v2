@@ -13,6 +13,11 @@ export type ChatMessageType =
   | "stats_bot"
   | "pin"
   | "system"
+  | "waiver_bot"
+  | "commissioner_notice"
+  | "trade_notice"
+  | "waiver_notice"
+  | "trade_accepted"
 
 export type ChatAttachment = {
   type: "gif" | "image" | "video" | "meme"

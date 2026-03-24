@@ -38,7 +38,7 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const [waiverPending, setWaiverPending] = useState<unknown[]>([])
   const [waiverSettings, setWaiverSettings] = useState<Record<string, unknown> | null>(null)
   const [invite, setInvite] = useState<{ inviteCode: string | null; inviteLink: string | null; joinUrl: string | null } | null>(null)
-  const [managers, setManagers] = useState<{ teams: unknown[]; rosters: unknown[]; managers?: { rosterId: string; userId: string; displayName: string }[] } | null>(null)
+  const [managers, setManagers] = useState<{ teams: unknown[]; rosters: unknown[]; managers?: { rosterId: string; userId: string; username?: string | null; displayName: string }[] } | null>(null)
   const [lineupInfo, setLineupInfo] = useState<CommissionerLineupInfo | null>(null)
   const [lineupLockRuleDraft, setLineupLockRuleDraft] = useState('')
   const [forceCorrectRosterId, setForceCorrectRosterId] = useState('')
@@ -417,6 +417,26 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
               >
                 {transferring ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Transfer commissioner'}
               </Button>
+              <div className="pt-2">
+                <p className="text-xs font-medium text-white/80">Message managers</p>
+                <ul className="mt-2 space-y-1">
+                  {managers.managers.map((m) => (
+                    <li key={`${m.rosterId}-message`} className="flex items-center justify-between gap-2 text-xs text-white/80">
+                      <span className="truncate">{m.displayName}</span>
+                      {m.username ? (
+                        <Link
+                          href={`/messages?start=${encodeURIComponent(m.username)}`}
+                          className="rounded border border-cyan-500/40 px-2 py-0.5 text-[11px] text-cyan-200 hover:bg-cyan-500/20"
+                        >
+                          Message
+                        </Link>
+                      ) : (
+                        <span className="text-[11px] text-white/40">No username</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </section>

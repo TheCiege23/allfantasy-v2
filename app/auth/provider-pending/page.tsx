@@ -9,6 +9,7 @@ import {
   getProviderFallbackMessage,
 } from "@/lib/auth/ProviderFallbackFlowService"
 import { type SocialProvider } from "@/lib/auth/SocialProviderResolver"
+import { resolveFallbackRoute } from "@/lib/ui-state"
 
 const SUPPORTED_PROVIDER_IDS: SocialProvider[] = [
   "google",
@@ -29,9 +30,11 @@ function toProvider(value: string | null): SocialProvider {
 
 export default function ProviderPendingPage() {
   const searchParams = useSearchParams()
-  const callbackUrlRaw = searchParams?.get("callbackUrl") ?? "/dashboard"
-  const callbackUrl = callbackUrlRaw.startsWith("/") ? callbackUrlRaw : "/dashboard"
+  const defaultDashboardHref = resolveFallbackRoute("dashboard").href
+  const callbackUrlRaw = searchParams?.get("callbackUrl") ?? defaultDashboardHref
+  const callbackUrl = callbackUrlRaw.startsWith("/") ? callbackUrlRaw : defaultDashboardHref
   const provider = toProvider(searchParams?.get("provider"))
+  const landingFallback = resolveFallbackRoute("home")
 
   const providerName = useMemo(() => getProviderDisplayName(provider), [provider])
   const message = useMemo(() => getProviderFallbackMessage(provider), [provider])
@@ -71,11 +74,11 @@ export default function ProviderPendingPage() {
         </div>
 
         <Link
-          href="/"
+          href={landingFallback.href}
           className="inline-flex items-center gap-2 text-xs text-white/50 hover:text-white/70"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Back to landing page
+          {landingFallback.label}
         </Link>
       </div>
     </main>

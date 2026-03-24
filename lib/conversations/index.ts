@@ -23,6 +23,7 @@ export {
   getGroupThreads,
   sortThreadsByLastMessage,
   getConversationDisplayTitle,
+  getConversationPreview,
 } from "./ConversationListResolver"
 export type { ConversationType } from "./ConversationListResolver"
 
@@ -37,6 +38,8 @@ export {
   getParticipantDisplayName,
   PARTICIPANT_SEARCH_MIN_QUERY,
   canSearchParticipants,
+  parseParticipantUsernames,
+  filterParticipantsByQuery,
 } from "./ParticipantSelectorService"
 
 export {
@@ -47,6 +50,7 @@ export {
 
 export {
   getLeaveGroupUrl,
+  getAddParticipantsUrl,
   getRenameThreadUrl,
   getMuteThreadUrl,
   getRenamePayload,

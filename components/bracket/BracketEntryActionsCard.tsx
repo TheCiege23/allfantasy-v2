@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Sparkles, Copy, BarChart3, Loader2, ListChecks, Swords } from "lucide-react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { buildAIChatHref } from "@/lib/chimmy-chat"
 
 type Props = {
   leagueId: string
@@ -154,7 +155,7 @@ export default function BracketEntryActionsCard({ leagueId, tournamentId, entryI
           {t("bracket.intel.actions.backToPool")}
         </Link>
         <Link
-          href={`/af-legacy?tab=chat&leagueId=${leagueId}`}
+          href={buildAIChatHref({ leagueId, source: "league_forecast" })}
           className="rounded-lg border border-cyan-400/35 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 transition inline-flex items-center gap-1.5"
         >
           <Sparkles className="h-3.5 w-3.5" />

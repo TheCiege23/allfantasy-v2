@@ -26,5 +26,5 @@ export function getUnauthorizedFallback(
   if (requestedPath?.startsWith("/admin") && !isAdmin) {
     return DEFAULT_UNAUTHORIZED_FALLBACK
   }
-  return getLoginRedirectUrl(requestedPath)
+  return DEFAULT_UNAUTHORIZED_FALLBACK
 }

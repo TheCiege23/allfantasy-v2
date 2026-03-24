@@ -4,7 +4,6 @@
  */
 
 import { safeRedirectPath } from "./PostAuthIntentRouter"
-import { isProtectedPath } from "./ProtectedRouteResolver"
 
 /** Allowed path prefixes for deep links (no open redirect; must be internal). */
 const ALLOWED_DEEP_LINK_PREFIXES = [
@@ -65,6 +64,10 @@ export function getDeepLinkRedirect(
   path: string | null | undefined,
   defaultPath: string = "/dashboard"
 ): string {
+  const normalizedDefault = isAllowedDeepLink(defaultPath)
+    ? normalizeDeepLink(defaultPath)
+    : "/dashboard"
+  if (!isAllowedDeepLink(path)) return normalizedDefault
   const normalized = normalizeDeepLink(path)
-  return isAllowedDeepLink(normalized) ? normalized : defaultPath
+  return isAllowedDeepLink(normalized) ? normalized : normalizedDefault
 }

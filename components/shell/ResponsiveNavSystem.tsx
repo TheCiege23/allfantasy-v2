@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import DesktopNavBar from "@/components/navigation/DesktopNavBar"
+import { AppHeader } from "./AppHeader"
 import MobileBottomTabs from "@/components/navigation/MobileBottomTabs"
-import { MobileNavigationDrawer } from "./MobileNavigationDrawer"
+import { MobileNavDrawer } from "./MobileNavDrawer"
 import { SearchOverlay } from "@/components/search/SearchOverlay"
 import { createCommandPaletteHandler } from "@/lib/search"
 
@@ -33,17 +33,32 @@ export function ResponsiveNavSystem({
   useEffect(() => {
     const mql = window.matchMedia(`(min-width: ${LG_BREAKPOINT_PX}px)`)
     const handle = () => {
-      if (mql.matches) setMobileMenuOpen(false)
+      if (mql.matches) {
+        setMobileMenuOpen(false)
+        setMobileTopNavHidden(false)
+      }
     }
     mql.addEventListener("change", handle)
     return () => mql.removeEventListener("change", handle)
   }, [])
 
   useEffect(() => {
-    const handler = createCommandPaletteHandler(() => setSearchOpen(true))
+    const handler = createCommandPaletteHandler(() => {
+      setMobileMenuOpen(false)
+      setSearchOpen(true)
+    })
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
   }, [])
+
+  useEffect(() => {
+    if (!mobileMenuOpen && !searchOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [mobileMenuOpen, searchOpen])
 
   useEffect(() => {
     let lastY = window.scrollY
@@ -81,18 +96,20 @@ export function ResponsiveNavSystem({
   return (
     <>
       <div className={mobileTopNavHidden ? "-translate-y-full transition-transform duration-200 lg:translate-y-0" : "translate-y-0 transition-transform duration-200"}>
-        <DesktopNavBar
+        <AppHeader
           isAuthenticated={isAuthenticated}
           isAdmin={isAdmin}
           userLabel={userLabel}
+          mobileMenuOpen={mobileMenuOpen}
           onOpenMobileMenu={() => setMobileMenuOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
         />
       </div>
-      <MobileNavigationDrawer
+      <MobileNavDrawer
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         isAdmin={isAdmin}
+        onOpenSearch={() => setSearchOpen(true)}
       />
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
       <div className={isAuthenticated ? "pb-20 lg:pb-0" : undefined}>{children}</div>

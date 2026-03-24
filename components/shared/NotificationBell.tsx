@@ -1,18 +1,23 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
-import NotificationPanel from "@/components/notifications/NotificationPanel"
+import { NotificationPanelView } from "@/components/notifications/NotificationPanel"
 import { getUnreadBadgeCount } from "@/lib/notification-center"
 import { isNotificationDrawerCloseKey } from "@/lib/notification-center"
 
 export default function NotificationBell() {
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const { notifications } = useNotifications(20)
+  const lastPathRef = useRef(pathname)
+  const notificationsState = useNotifications(40, { usePlaceholders: false })
+  const { notifications } = notificationsState
   const unreadBadge = getUnreadBadgeCount(notifications, 9)
+  const panelId = "notification-center-drawer"
 
   useEffect(() => {
     if (!open) return
@@ -41,6 +46,13 @@ export default function NotificationBell() {
     return () => document.removeEventListener("keydown", handleKeyDown)
   }, [open])
 
+  useEffect(() => {
+    if (lastPathRef.current !== pathname) {
+      setOpen(false)
+      lastPathRef.current = pathname
+    }
+  }, [pathname])
+
   return (
     <div className="relative">
       <button
@@ -57,7 +69,9 @@ export default function NotificationBell() {
         }}
         title="Notifications"
         aria-label="Notifications"
+        aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
       >
         <Bell className="h-4 w-4" />
         {unreadBadge !== 0 && (
@@ -76,8 +90,11 @@ export default function NotificationBell() {
         <div
           ref={panelRef}
           className="absolute right-0 top-full z-50 mt-1.5"
+          id={panelId}
+          role="dialog"
+          aria-label="Notification center"
         >
-          <NotificationPanel onClose={() => setOpen(false)} />
+          <NotificationPanelView state={notificationsState} onClose={() => setOpen(false)} />
         </div>
       )}
     </div>

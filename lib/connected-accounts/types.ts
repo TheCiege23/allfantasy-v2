@@ -5,6 +5,8 @@ export interface ProviderStatus {
   name: string
   configured: boolean
   linked: boolean
+  disconnectable?: boolean
+  disconnectBlockedReason?: "LOCKOUT_RISK" | null
 }
 
 export interface ConnectedAccountsResponse {

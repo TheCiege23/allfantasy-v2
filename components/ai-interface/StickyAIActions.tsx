@@ -3,7 +3,7 @@
 import React from 'react'
 import { Copy, MessageCircle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer'
+import { getChimmyChatHrefWithPrompt, getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
 
 export interface StickyAIActionsProps {
   /** Text to copy (e.g. primaryAnswer) */
@@ -43,7 +43,7 @@ export default function StickyAIActions({
     }
   }
 
-  const chimmyHref = chimmyPrompt ? getChimmyChatHrefWithPrompt(chimmyPrompt) : '/af-legacy?tab=chat'
+  const chimmyHref = chimmyPrompt ? getChimmyChatHrefWithPrompt(chimmyPrompt) : getPrimaryChimmyEntry().href
 
   const content = (
     <div className="flex items-center justify-end gap-2 flex-wrap">

@@ -10,6 +10,7 @@ const includeUser = {
   user: {
     select: {
       id: true,
+      username: true,
       displayName: true,
       email: true,
       avatarUrl: true,
@@ -46,6 +47,7 @@ export async function getLeagueChatMessages(
       threadId: `league:${leagueId}`,
       senderUserId: m.user?.id ?? null,
       senderName: m.user?.displayName || m.user?.email || 'User',
+      senderUsername: m.user?.username ?? null,
       senderAvatarUrl: m.user?.avatarUrl ?? null,
       senderAvatarPreset: m.user?.profile?.avatarPreset ?? null,
       messageType: m.type || 'text',
@@ -86,6 +88,7 @@ export async function createLeagueChatMessage(
   const withUser = created as typeof created & {
     user?: {
       id: string
+      username: string | null
       displayName: string | null
       email: string | null
       avatarUrl: string | null
@@ -97,6 +100,7 @@ export async function createLeagueChatMessage(
     threadId: `league:${leagueId}`,
     senderUserId: withUser.user?.id ?? created.userId,
     senderName: withUser.user?.displayName || withUser.user?.email || 'User',
+    senderUsername: withUser.user?.username ?? null,
     senderAvatarUrl: withUser.user?.avatarUrl ?? null,
     senderAvatarPreset: withUser.user?.profile?.avatarPreset ?? null,
     messageType: created.type || 'text',

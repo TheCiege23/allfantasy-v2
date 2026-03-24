@@ -29,4 +29,37 @@ describe("league message proxy avatar mapping", () => {
       senderAvatarPreset: "trophy",
     })
   })
+
+  it("maps bracket reactions into unified metadata shape", () => {
+    const out = bracketMessagesToPlatform(
+      [
+        {
+          id: "m2",
+          message: "react to this",
+          type: "text",
+          createdAt: new Date("2026-03-22T10:01:00.000Z"),
+          metadata: { custom: "value" },
+          reactions: [
+            { emoji: "🔥", userId: "u1" },
+            { emoji: "🔥", userId: "u2" },
+            { emoji: "😂", userId: "u1" },
+          ],
+          user: {
+            id: "u3",
+            displayName: "Casey",
+          },
+        },
+      ],
+      "league:l1"
+    )
+
+    expect(out).toHaveLength(1)
+    expect(out[0]?.metadata).toMatchObject({
+      custom: "value",
+      reactions: [
+        { emoji: "🔥", count: 2, userIds: ["u1", "u2"] },
+        { emoji: "😂", count: 1, userIds: ["u1"] },
+      ],
+    })
+  })
 })

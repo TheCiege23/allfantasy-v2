@@ -45,7 +45,18 @@ export function getProductLauncherCards(opts?: {
   poolCount?: number
   entryCount?: number
 }): DashboardCardConfig[] {
-  return PRODUCT_LAUNCHER_CARDS.map((card) => ({ ...card }))
+  const poolCount = Math.max(0, Number(opts?.poolCount ?? 0))
+  const entryCount = Math.max(0, Number(opts?.entryCount ?? 0))
+  return PRODUCT_LAUNCHER_CARDS.map((card) => {
+    if (card.id !== "bracket") return { ...card }
+    return {
+      ...card,
+      description:
+        poolCount > 0 || entryCount > 0
+          ? `${entryCount} entries across ${poolCount} pools.`
+          : card.description,
+    }
+  })
 }
 
 /** Section card types for dashboard layout. */

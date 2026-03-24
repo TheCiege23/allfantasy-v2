@@ -4,6 +4,13 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Send, Image as ImageIcon, Loader2, X, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface'
+import {
+  getAIThreadStorageKey,
+  loadAIThreadMessages,
+  resolveSportForAIChat,
+  saveAIThreadMessages,
+  sendChimmyMessage,
+} from '@/lib/chimmy-chat'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
 import ChimmyConversationThread from './ChimmyConversationThread'
 import ChimmyQuickPrompts from './ChimmyQuickPrompts'
@@ -109,6 +116,30 @@ export default function ChimmyChatShell({
     () => getDefaultChimmyChips({ leagueName: leagueName ?? undefined, hasLeagues: !!leagueName }),
     [leagueName]
   )
+  const resolvedSport = useMemo(() => resolveSportForAIChat(sport, null), [sport])
+  const requestContext = useMemo(
+    () => ({
+      leagueId: leagueId ?? undefined,
+      sleeperUsername: sleeperUsername ?? undefined,
+      insightType,
+      teamId: teamId ?? undefined,
+      sport: resolvedSport,
+      season: season ?? undefined,
+      week: week ?? undefined,
+      source: "messages_ai" as const,
+    }),
+    [insightType, leagueId, resolvedSport, season, sleeperUsername, teamId, week]
+  )
+  const threadStorageKey = useMemo(
+    () =>
+      getAIThreadStorageKey({
+        leagueId: leagueId ?? undefined,
+        sport: resolvedSport,
+        insightType,
+        teamId: teamId ?? undefined,
+      }),
+    [insightType, leagueId, resolvedSport, teamId]
+  )
 
   const canCompare = lastMeta && Object.keys(lastMeta).length > 1
 
@@ -131,6 +162,19 @@ export default function ChimmyChatShell({
       }
     }
   }, [initialPrompt, clearUrlPromptAfterUse])
+
+  useEffect(() => {
+    const restored = loadAIThreadMessages(threadStorageKey)
+    if (restored.length > 0) {
+      setMessages(restored as ChimmyChatMessage[])
+      return
+    }
+    setMessages([{ role: 'assistant', content: CHIMMY_GREETING }])
+  }, [threadStorageKey])
+
+  useEffect(() => {
+    saveAIThreadMessages(threadStorageKey, messages)
+  }, [messages, threadStorageKey])
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -197,41 +241,31 @@ export default function ChimmyChatShell({
         content: outgoingText.trim() || 'Analyze this screenshot.',
         imageUrl: image ? null : undefined,
       }
-      const formData = new FormData()
-      formData.append('message', outgoingText)
-      if (image) formData.append('image', image)
-      if (leagueId) formData.append('leagueId', leagueId)
-      if (sleeperUsername) formData.append('sleeperUsername', sleeperUsername)
-      if (insightType) formData.append('insightType', insightType)
-      if (teamId) formData.append('teamId', teamId)
-      if (sport) formData.append('sport', sport)
-      if (season != null) formData.append('season', String(season))
-      if (week != null) formData.append('week', String(week))
-      formData.append(
-        'messages',
-        JSON.stringify(
-          [...conversationBeforeUser, userMsg].slice(-10).map((m) => ({ role: m.role, content: m.content }))
-        )
-      )
+      const result = await sendChimmyMessage({
+        message: outgoingText,
+        imageFile: image,
+        conversation: [...conversationBeforeUser, userMsg],
+        context: requestContext,
+      })
 
-      const res = await fetch('/api/chat/chimmy', { method: 'POST', body: formData })
-      const data = await res.json()
+      if (!result.ok && result.error) {
+        toast.error(result.error)
+      }
 
-      const reply = data.response ?? "I couldn't complete that. Please try again or rephrase."
-      const meta = data.meta
-      const providerStatus: ChimmyMessageMeta['providerStatus'] =
-        meta?.providerStatus && typeof meta.providerStatus === 'object' ? meta.providerStatus : undefined
+      const reply = result.response || "I couldn't complete that. Please try again or rephrase."
+      const meta = result.meta
+      const providerStatus: ChimmyMessageMeta['providerStatus'] = meta?.providerStatus
 
       const assistantMsg: ChimmyChatMessage = {
         role: 'assistant',
         content: reply,
         meta: {
-          confidencePct: meta?.confidencePct,
+          confidencePct: result.meta?.confidencePct,
           providerStatus,
-          recommendedTool: meta?.recommendedTool,
-          dataSources: meta?.dataSources,
-          quantData: meta?.quantData,
-          trendData: meta?.trendData,
+          recommendedTool: result.meta?.recommendedTool,
+          dataSources: result.meta?.dataSources,
+          quantData: result.meta?.quantData,
+          trendData: result.meta?.trendData,
         },
       }
 
@@ -243,7 +277,7 @@ export default function ChimmyChatShell({
       }
       speak(reply)
     },
-    [insightType, leagueId, season, sleeperUsername, sport, speak, teamId, week]
+    [requestContext, speak]
   )
 
   const sendMessage = useCallback(async () => {

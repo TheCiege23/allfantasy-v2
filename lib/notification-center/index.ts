@@ -1,6 +1,7 @@
 export {
   groupNotifications,
   getGroupKey,
+  NOTIFICATION_GROUP_ORDER,
   NOTIFICATION_GROUP_LABELS,
   type NotificationGroupKey,
 } from "./NotificationCenterService"
@@ -16,6 +17,8 @@ export {
   type TopBarUtilityId,
 } from "./TopBarUtilityResolver"
 export {
+  NOTIFICATIONS_ENDPOINT,
+  getNotificationsEndpoint,
   getNotificationReadEndpoint,
   NOTIFICATIONS_READ_ENDPOINT,
   NOTIFICATIONS_READ_ALL_ENDPOINT,

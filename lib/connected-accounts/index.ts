@@ -1,4 +1,8 @@
-export { getConnectedAccounts } from "./ConnectedAccountService"
+export {
+  getConnectedAccounts,
+  disconnectConnectedAccount,
+  type DisconnectConnectedAccountResult,
+} from "./ConnectedAccountService"
 export {
   getProviderConnectAction,
   getProviderFallbackMessage,
@@ -6,5 +10,6 @@ export {
 export {
   getFallbackViewMessage,
   canDisconnectProvider,
+  getDisconnectBlockedMessage,
 } from "./ProviderFallbackViewService"
 export type { SignInProviderId, ProviderStatus, ConnectedAccountsResponse } from "./types"

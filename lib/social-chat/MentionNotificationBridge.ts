@@ -9,10 +9,13 @@ export function getMentionsPayload(threadId: string, messageId: string, mentione
   messageId: string
   mentionedUsernames: string[]
 } {
+  const normalized = mentionedUsernames
+    .map((value) => String(value).trim().replace(/^@+/, ""))
+    .filter(Boolean)
   return {
     threadId,
     messageId,
-    mentionedUsernames: mentionedUsernames.filter(Boolean),
+    mentionedUsernames: Array.from(new Set(normalized)),
   }
 }
 

@@ -44,7 +44,7 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
         process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       )
     case "apple":
-      return process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true"
+      return !!(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET)
     case "facebook":
     case "instagram":
     case "x":
@@ -53,6 +53,15 @@ function isProviderConfigured(providerId: SignInProviderId): boolean {
     default:
       return false
   }
+}
+
+function normalizeProviderForSettings(provider: string): SignInProviderId | null {
+  const lowered = provider.trim().toLowerCase()
+  if (lowered === "twitter") return "x"
+  if (SIGN_IN_PROVIDER_IDS.includes(lowered as SignInProviderId)) {
+    return lowered as SignInProviderId
+  }
+  return null
 }
 
 function resolveSecurityRecoveryMethods(
@@ -75,9 +84,9 @@ async function resolveProviderConnections(
     .catch(() => [])
 
   const linkedSet = new Set(
-    (accounts as { provider: string }[]).map((entry) =>
-      entry.provider.toLowerCase()
-    )
+    (accounts as { provider: string }[])
+      .map((entry) => normalizeProviderForSettings(entry.provider))
+      .filter(Boolean) as SignInProviderId[]
   )
 
   return SIGN_IN_PROVIDER_IDS.map((providerId) => ({

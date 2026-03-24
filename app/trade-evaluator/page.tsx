@@ -9,6 +9,8 @@ import { useSearchParams } from 'next/navigation'
 import { getTradeAnalyzerAIChatUrl, buildTradeSummaryForAI, getSportOptions, getFairnessScore as getFairnessScoreUtil, getFairnessColorClass, getWinnerLabel as getWinnerLabelUtil } from '@/lib/trade-analyzer'
 import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
+import { ErrorStateRenderer } from '@/components/ui-states'
+import { resolveRecoveryActions } from '@/lib/ui-state'
 
 interface PlayerInput {
   name: string
@@ -124,71 +126,7 @@ function TradeEvaluatorInner() {
   const [error, setError] = useState('')
   const [result, setResult] = useState<EvaluationResult | null>(null)
 
-  const addPlayer = (team: 'sender' | 'receiver') => {
-    if (team === 'sender') {
-      setSender({ ...sender, gives_players: [...sender.gives_players, { ...defaultPlayer }] })
-    } else {
-      setReceiver({ ...receiver, gives_players: [...receiver.gives_players, { ...defaultPlayer }] })
-    }
-  }
-
-  const removePlayer = (team: 'sender' | 'receiver', index: number) => {
-    if (team === 'sender') {
-      setSender({ ...sender, gives_players: sender.gives_players.filter((_, i) => i !== index) })
-    } else {
-      setReceiver({ ...receiver, gives_players: receiver.gives_players.filter((_, i) => i !== index) })
-    }
-  }
-
-  const updatePlayer = (team: 'sender' | 'receiver', index: number, field: keyof PlayerInput, value: string) => {
-    if (team === 'sender') {
-      const players = [...sender.gives_players]
-      players[index] = { ...players[index], [field]: value }
-      setSender({ ...sender, gives_players: players })
-    } else {
-      const players = [...receiver.gives_players]
-      players[index] = { ...players[index], [field]: value }
-      setReceiver({ ...receiver, gives_players: players })
-    }
-  }
-
-  const addPick = (team: 'sender' | 'receiver') => {
-    if (team === 'sender') {
-      setSender({ ...sender, gives_picks: [...sender.gives_picks, { ...defaultPick }] })
-    } else {
-      setReceiver({ ...receiver, gives_picks: [...receiver.gives_picks, { ...defaultPick }] })
-    }
-  }
-
-  const removePick = (team: 'sender' | 'receiver', index: number) => {
-    if (team === 'sender') {
-      setSender({ ...sender, gives_picks: sender.gives_picks.filter((_, i) => i !== index) })
-    } else {
-      setReceiver({ ...receiver, gives_picks: receiver.gives_picks.filter((_, i) => i !== index) })
-    }
-  }
-
-  const updatePick = (team: 'sender' | 'receiver', index: number, field: keyof PickInput, value: string) => {
-    if (team === 'sender') {
-      const picks = [...sender.gives_picks]
-      picks[index] = { ...picks[index], [field]: value } as PickInput
-      setSender({ ...sender, gives_picks: picks })
-    } else {
-      const picks = [...receiver.gives_picks]
-      picks[index] = { ...picks[index], [field]: value } as PickInput
-      setReceiver({ ...receiver, gives_picks: picks })
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    const senderNames = sender.gives_players.filter((p) => p.name.trim())
-    const receiverNames = receiver.gives_players.filter((p) => p.name.trim())
-    if (senderNames.length === 0 || receiverNames.length === 0) {
-      setError('Add at least one player (or pick) to each side.')
-      return
-    }
+  const evaluateTrade = async () => {
     setLoading(true)
     setResult(null)
 
@@ -255,6 +193,74 @@ function TradeEvaluatorInner() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const addPlayer = (team: 'sender' | 'receiver') => {
+    if (team === 'sender') {
+      setSender({ ...sender, gives_players: [...sender.gives_players, { ...defaultPlayer }] })
+    } else {
+      setReceiver({ ...receiver, gives_players: [...receiver.gives_players, { ...defaultPlayer }] })
+    }
+  }
+
+  const removePlayer = (team: 'sender' | 'receiver', index: number) => {
+    if (team === 'sender') {
+      setSender({ ...sender, gives_players: sender.gives_players.filter((_, i) => i !== index) })
+    } else {
+      setReceiver({ ...receiver, gives_players: receiver.gives_players.filter((_, i) => i !== index) })
+    }
+  }
+
+  const updatePlayer = (team: 'sender' | 'receiver', index: number, field: keyof PlayerInput, value: string) => {
+    if (team === 'sender') {
+      const players = [...sender.gives_players]
+      players[index] = { ...players[index], [field]: value }
+      setSender({ ...sender, gives_players: players })
+    } else {
+      const players = [...receiver.gives_players]
+      players[index] = { ...players[index], [field]: value }
+      setReceiver({ ...receiver, gives_players: players })
+    }
+  }
+
+  const addPick = (team: 'sender' | 'receiver') => {
+    if (team === 'sender') {
+      setSender({ ...sender, gives_picks: [...sender.gives_picks, { ...defaultPick }] })
+    } else {
+      setReceiver({ ...receiver, gives_picks: [...receiver.gives_picks, { ...defaultPick }] })
+    }
+  }
+
+  const removePick = (team: 'sender' | 'receiver', index: number) => {
+    if (team === 'sender') {
+      setSender({ ...sender, gives_picks: sender.gives_picks.filter((_, i) => i !== index) })
+    } else {
+      setReceiver({ ...receiver, gives_picks: receiver.gives_picks.filter((_, i) => i !== index) })
+    }
+  }
+
+  const updatePick = (team: 'sender' | 'receiver', index: number, field: keyof PickInput, value: string) => {
+    if (team === 'sender') {
+      const picks = [...sender.gives_picks]
+      picks[index] = { ...picks[index], [field]: value } as PickInput
+      setSender({ ...sender, gives_picks: picks })
+    } else {
+      const picks = [...receiver.gives_picks]
+      picks[index] = { ...picks[index], [field]: value } as PickInput
+      setReceiver({ ...receiver, gives_picks: picks })
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    const senderNames = sender.gives_players.filter((p) => p.name.trim())
+    const receiverNames = receiver.gives_players.filter((p) => p.name.trim())
+    if (senderNames.length === 0 || receiverNames.length === 0) {
+      setError('Add at least one player (or pick) to each side.')
+      return
+    }
+    await evaluateTrade()
   }
 
   const getFairnessScore = (r: EvaluationResult): number => getFairnessScoreUtil(r)
@@ -555,9 +561,22 @@ function TradeEvaluatorInner() {
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-400 text-sm">
-              {error}
-            </div>
+            <ErrorStateRenderer
+              compact
+              title="Trade evaluation failed"
+              message={error}
+              onRetry={
+                error.includes("Add at least one player")
+                  ? undefined
+                  : () => void evaluateTrade()
+              }
+              actions={resolveRecoveryActions("tool_page").map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+              testId="trade-evaluator-error-state"
+            />
           )}
 
           <button

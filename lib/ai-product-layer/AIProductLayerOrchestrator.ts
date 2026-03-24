@@ -18,7 +18,7 @@ import { getSupportedSportsForAI, isSportSupportedForAI, getSportLabelForAI, get
 export const AIProductLayer = {
   /** Chimmy as the face of the AI layer */
   chimmy: {
-    getChatHref: () => '/af-legacy?tab=chat',
+    getChatHref: () => getPrimaryChimmyEntry().href,
     getChatHrefWithPrompt: getChimmyChatHrefWithPrompt,
     getPrimaryEntry: getPrimaryChimmyEntry,
     getEntries: getUnifiedChimmyEntries,

@@ -2,21 +2,21 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { getProductNavItems } from "@/lib/navigation"
-import { isNavItemActive } from "@/lib/shell"
+import { getProductSwitchItems, isPathInProduct } from "@/lib/routing"
 
 export default function ProductSwitcher() {
   const pathname = usePathname()
-  const products = getProductNavItems()
+  const products = getProductSwitchItems()
   return (
-    <div className="hidden items-center gap-1 md:flex">
+    <nav className="hidden items-center gap-1 md:flex" aria-label="Product switcher">
       {products.map((item) => {
-        const active = isNavItemActive(pathname, item.href)
+        const active = isPathInProduct(pathname, item.productId)
         return (
           <Link
-            key={item.href}
+            key={item.productId}
             href={item.href}
             className="rounded-lg px-2.5 py-1.5 text-xs transition"
+            aria-current={active ? "page" : undefined}
             style={active
               ? { background: "color-mix(in srgb, var(--accent-cyan) 20%, transparent)", color: "var(--accent-cyan-strong)" }
               : { color: "var(--muted)", background: "transparent" }}
@@ -25,7 +25,7 @@ export default function ProductSwitcher() {
           </Link>
         )
       })}
-    </div>
+    </nav>
   )
 }
 

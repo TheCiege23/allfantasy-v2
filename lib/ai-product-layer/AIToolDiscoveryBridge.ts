@@ -8,8 +8,10 @@ import { ROUTES } from '@/lib/tool-hub';
 import type { AIToolDiscoveryLink } from './types';
 import type { ToolAIEntryKey } from '@/lib/unified-ai/types';
 
+const PRIMARY_CHIMMY_HREF = getPrimaryChimmyEntry().href;
+
 const LINKS: AIToolDiscoveryLink[] = [
-  { label: 'Ask Chimmy', href: '/af-legacy?tab=chat', description: 'AI chat', featureKey: 'chimmy_chat', category: 'chat' },
+  { label: 'Ask Chimmy', href: PRIMARY_CHIMMY_HREF, description: 'AI chat', featureKey: 'chimmy_chat', category: 'chat' },
   { label: 'Trade Analyzer', href: '/af-legacy?tab=trade', description: 'Trade evaluations', featureKey: 'trade_analyzer', category: 'tool' },
   { label: 'Trade Finder', href: '/af-legacy?tab=finder', description: 'Trade matchmaking', featureKey: 'trade_evaluator', category: 'tool' },
   { label: 'Waiver AI', href: '/af-legacy?tab=waiver', description: 'Waiver recommendations', featureKey: 'waiver_ai', category: 'tool' },
@@ -54,5 +56,5 @@ export function getAIToolDiscoveryLinksByCategory(category: AIToolDiscoveryLink[
 export function getAIDiscoveryHrefForTool(key: ToolAIEntryKey | string): string {
   if (key === 'chimmy_chat') return getPrimaryChimmyEntry().href;
   const w = LINKS.find((l) => l.featureKey === key);
-  return w?.href ?? '/af-legacy?tab=chat';
+  return w?.href ?? getPrimaryChimmyEntry().href;
 }

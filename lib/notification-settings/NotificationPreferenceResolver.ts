@@ -48,3 +48,17 @@ export function resolveNotificationPreferences(
     categories,
   }
 }
+
+/**
+ * Stable fingerprint for comparing preference snapshots in the client.
+ */
+export function getNotificationPreferencesFingerprint(
+  prefs: NotificationPreferences | null | undefined
+): string {
+  const resolved = resolveNotificationPreferences(prefs)
+  const categories = NOTIFICATION_CATEGORY_IDS.map((id) => {
+    const value = resolved.categories?.[id] ?? DEFAULT_CHANNEL
+    return `${id}:${value.enabled ? "1" : "0"}${value.inApp ? "1" : "0"}${value.email ? "1" : "0"}${value.sms ? "1" : "0"}`
+  })
+  return `${resolved.globalEnabled !== false ? "1" : "0"}|${categories.join("|")}`
+}

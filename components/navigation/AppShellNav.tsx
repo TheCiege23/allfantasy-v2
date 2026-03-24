@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { MessageCircle, Shield, Wallet, Sparkles } from "lucide-react"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
+import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
 
 function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ")
@@ -42,6 +43,7 @@ export default function AppShellNav({
   balanceLabel = "$0.00",
   winningsLabel = "$0.00",
 }: AppShellNavProps) {
+  const chimmyEntry = getPrimaryChimmyEntry()
   const pathname = usePathname()
 
   return (
@@ -97,7 +99,7 @@ export default function AppShellNav({
                   <MessageCircle className="h-4 w-4" />
                 </Link>
                 <Link
-                  href="/af-legacy?tab=chat"
+                  href={chimmyEntry.href}
                   className="rounded-lg border p-2 transition hover:opacity-90"
                   style={{ borderColor: "color-mix(in srgb, var(--accent-cyan) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-cyan) 14%, transparent)", color: "var(--accent-cyan-strong)" }}
                   title="AI Chat"

@@ -1,28 +1,60 @@
 "use client"
 
 import { useCallback, useState } from "react"
+import { isValidGifOrImageUrl, validateAttachmentFile } from "@/lib/rich-message"
 
 export type MediaType = "gif" | "image" | "video" | "meme"
 
 /**
- * Placeholder media upload hook. Replace with real storage (S3, etc.) and
- * /api/shared/chat/threads/[threadId]/media or similar.
+ * Shared upload helper for media actions. Returns uploaded URL (or GIF URL)
+ * and exposes simple progress/error state.
  */
 export function useMediaUpload(_threadId?: string) {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const upload = useCallback(
-    async (type: MediaType, _file?: File | null, _url?: string): Promise<string | null> => {
+    async (type: MediaType, file?: File | null, url?: string): Promise<string | null> => {
       setError(null)
-      setProgress(10)
-      await new Promise((r) => setTimeout(r, 300))
-      setProgress(50)
-      await new Promise((r) => setTimeout(r, 200))
-      setProgress(100)
-      setProgress(0)
-      // Placeholder: return a stub URL for UI demo. Real impl would upload and return CDN URL.
-      return `https://placeholders.allfantasy.ai/${type}/${Date.now()}`
+      if (type === "gif") {
+        if (!url || !isValidGifOrImageUrl(url)) {
+          setError("Enter a valid GIF URL")
+          return null
+        }
+        return url.trim()
+      }
+
+      if (!file) {
+        setError("Select a file first")
+        return null
+      }
+
+      const validation = validateAttachmentFile(file)
+      if (!validation.valid) {
+        setError(validation.error ?? "Invalid file")
+        return null
+      }
+
+      setProgress(20)
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        const res = await fetch("/api/shared/chat/upload", { method: "POST", body: formData })
+        setProgress(80)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || typeof data?.url !== "string") {
+          setError(typeof data?.error === "string" ? data.error : "Upload failed")
+          setProgress(0)
+          return null
+        }
+        setProgress(100)
+        return data.url
+      } catch {
+        setError("Upload failed")
+        return null
+      } finally {
+        setTimeout(() => setProgress(0), 150)
+      }
     },
     []
   )

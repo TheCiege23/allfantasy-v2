@@ -17,6 +17,12 @@ export const DASHBOARD_QUICK_ACTIONS: QuickActionConfig[] = [
     description: "Start your own challenge.",
   },
   {
+    id: "join_bracket_pool",
+    label: "Join Bracket Pool",
+    href: "/brackets/join",
+    description: "Join a pool with an invite code.",
+  },
+  {
     id: "open_webapp",
     label: "Open WebApp",
     href: "/app/home",
@@ -28,8 +34,39 @@ export const DASHBOARD_QUICK_ACTIONS: QuickActionConfig[] = [
     href: "/af-legacy",
     description: "Team scan, trade center, draft war room.",
   },
+  {
+    id: "open_tools_hub",
+    label: "Open Tools Hub",
+    href: "/tools-hub",
+    description: "Cross-product tools and AI workflows.",
+  },
+  {
+    id: "open_notifications",
+    label: "Open Notifications",
+    href: "/app/notifications",
+    description: "Review in-app alerts and updates.",
+  },
+  {
+    id: "open_settings",
+    label: "Open Settings",
+    href: "/settings",
+    description: "Manage profile, preferences, and security.",
+  },
 ]
 
-export function getDashboardQuickActions(): QuickActionConfig[] {
-  return [...DASHBOARD_QUICK_ACTIONS]
+export interface DashboardQuickActionInput {
+  isAdmin?: boolean
+}
+
+export function getDashboardQuickActions(input?: DashboardQuickActionInput): QuickActionConfig[] {
+  const actions = [...DASHBOARD_QUICK_ACTIONS]
+  if (input?.isAdmin) {
+    actions.push({
+      id: "open_admin",
+      label: "Open Admin",
+      href: "/admin",
+      description: "Open the admin dashboard.",
+    })
+  }
+  return actions
 }

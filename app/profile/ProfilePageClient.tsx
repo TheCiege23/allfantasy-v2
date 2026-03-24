@@ -20,6 +20,8 @@ import { IdentityImageRenderer } from "@/components/identity/IdentityImageRender
 import type { PublicProfileDto, UserProfileForSettings } from "@/lib/user-settings/types"
 import { resolveProfilePresentation } from "@/lib/user-settings/ProfilePresentationResolver"
 import EditableProfileFormController from "./EditableProfileFormController"
+import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
+import { resolveRecoveryActions } from "@/lib/ui-state"
 
 function formatCosmeticCategory(category: string): string {
   return category
@@ -63,12 +65,14 @@ export default function ProfilePageClient({
 
   const [publicProfile, setPublicProfile] = useState<PublicProfileDto | null>(null)
   const [publicLoading, setPublicLoading] = useState(!!publicUsername)
+  const [publicLoadState, setPublicLoadState] = useState<"idle" | "not_found" | "error">("idle")
   const [highlights, setHighlights] = useState<ProfileHighlightsDto | null>(null)
   const [highlightsLoading, setHighlightsLoading] = useState(false)
 
   const loadPublic = useCallback(async () => {
     if (!publicUsername?.trim()) return
     setPublicLoading(true)
+    setPublicLoadState("idle")
     const controller = new AbortController()
     const timeoutId = window.setTimeout(() => controller.abort(), 12000)
     try {
@@ -77,10 +81,16 @@ export default function ProfilePageClient({
         signal: controller.signal,
       })
       const data = await res.json()
-      if (res.ok) setPublicProfile(data)
-      else setPublicProfile(null)
+      if (res.ok) {
+        setPublicProfile(data)
+        setPublicLoadState("idle")
+      } else {
+        setPublicProfile(null)
+        setPublicLoadState(res.status === 404 ? "not_found" : "error")
+      }
     } catch {
       setPublicProfile(null)
+      setPublicLoadState("error")
     } finally {
       window.clearTimeout(timeoutId)
       setPublicLoading(false)
@@ -126,27 +136,42 @@ export default function ProfilePageClient({
   if (!isOwnProfile && publicUsername) {
     if (publicLoading) {
       return (
-        <div className="flex min-h-[280px] items-center justify-center rounded-2xl border p-8" style={{ borderColor: "var(--border)" }}>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>Loading profile…</p>
-        </div>
+        <LoadingStateRenderer label="Loading profile..." testId="public-profile-loading-state" />
+      )
+    }
+    if (publicLoadState === "error") {
+      return (
+        <ErrorStateRenderer
+          title="Unable to load public profile"
+          message="This profile could not be loaded right now. Try again or return to a stable route."
+          onRetry={() => void loadPublic()}
+          actions={resolveRecoveryActions("profile").map((action) => ({
+            id: action.id,
+            label: action.label,
+            href: action.href,
+          }))}
+          testId="public-profile-error-state"
+        />
       )
     }
     if (!publicProfile) {
       return (
-        <div className="rounded-2xl border p-8 text-center" style={{ borderColor: "var(--border)" }}>
-          <p className="font-medium" style={{ color: "var(--text)" }}>Profile not found</p>
-          <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>@{publicUsername}</p>
-          <Link href="/" className="mt-4 inline-block text-sm font-medium" style={{ color: "var(--accent-cyan)" }}>Go home</Link>
-        </div>
+        <EmptyStateRenderer
+          title="Profile not found"
+          description={`@${publicUsername} does not have a public profile yet.`}
+          actions={[
+            { id: "go-home", label: "Go home", href: "/" },
+            { id: "open-dashboard", label: "Go to dashboard", href: "/dashboard" },
+          ]}
+          testId="public-profile-not-found-state"
+        />
       )
     }
   }
 
   if (isOwnProfile && loading && !profile) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-2xl border p-8" style={{ borderColor: "var(--border)" }}>
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Loading profile…</p>
-      </div>
+      <LoadingStateRenderer label="Loading profile..." testId="profile-loading-state" />
     )
   }
 

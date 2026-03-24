@@ -10,9 +10,29 @@ export {
 } from "./SearchOverlayController"
 
 export type { UniversalSearchPayload } from "./UniversalSearchService"
-export { getUniversalSearchPayload, getGroupedStaticResults } from "./UniversalSearchService"
+export {
+  getUniversalSearchPayload,
+  getGroupedStaticResults,
+  getUniversalLiveResults,
+  mergeSearchResults,
+  normalizeSearchQuery,
+  shouldRunLiveSearch,
+} from "./UniversalSearchService"
 export { getQuickActions, filterQuickActionsByQuery } from "./QuickActionsService"
 export type { QuickActionItem } from "./QuickActionsService"
-export { resolveStaticResults, getStaticSearchItems, groupResultsByCategory } from "./SearchResultResolver"
+export {
+  resolveStaticResults,
+  getStaticSearchItems,
+  mapLeagueSearchHitsToResults,
+  mapPlayerSearchHitsToResults,
+  dedupeSearchResults,
+  groupResultsByCategory,
+} from "./SearchResultResolver"
 export type { SearchResultItem, SearchResultCategory } from "./SearchResultResolver"
-export { getSupportedSportFilters, resolveSportFilter, shouldShowSportFilter } from "./SportSearchFilterResolver"
+export {
+  ALL_SPORT_SEARCH_FILTER,
+  getSupportedSportFilters,
+  getSportSearchFilterOptions,
+  resolveSportFilter,
+  shouldShowSportFilter,
+} from "./SportSearchFilterResolver"

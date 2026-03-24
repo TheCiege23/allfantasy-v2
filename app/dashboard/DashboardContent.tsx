@@ -6,8 +6,9 @@ import {
   Activity,
   ArrowRight,
   Bot,
-  BrainCircuit,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   CloudSun,
   Copy,
   Download,
@@ -20,11 +21,27 @@ import {
   PlusCircle,
   ShieldCheck,
   Wand2,
+  RefreshCw,
 } from "lucide-react"
-import { groupLeaguesBySport, type LeagueForGrouping } from "@/lib/dashboard"
+import ProductLauncherCards from "@/components/dashboard/ProductLauncherCards"
+import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
+import {
+  getSportSectionLabel,
+  getUnifiedDashboardPayload,
+  groupLeaguesBySport,
+  type LeagueForGrouping,
+  type UnifiedDashboardPayload,
+} from "@/lib/dashboard"
 import { useLeagueList } from "@/hooks/useLeagueList"
 import { getLeagueVariantLabel } from "@/lib/league-creation/LeagueVariantResolver"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
+import {
+  normalizeToSupportedSport,
+  SUPPORTED_SPORTS,
+  type SupportedSport,
+} from "@/lib/sport-scope"
+import { resolveFallbackRoute, resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
+import { buildAIChatHref } from "@/lib/chimmy-chat"
 
 interface DashboardProps {
   onboardingComplete?: boolean
@@ -61,6 +78,7 @@ interface DashboardProps {
     score: number
   }[]
   isAdmin?: boolean
+  initialDashboardPayload?: UnifiedDashboardPayload
 }
 
 type DashboardTab = "Home" | "My Leagues" | "Sports" | "Matchups" | "Team" | "Tools" | "AI" | "Messages" | "Activity"
@@ -115,6 +133,8 @@ type SportsWeatherCard = {
 }
 
 const DASHBOARD_TABS: DashboardTab[] = ["Home", "My Leagues", "Sports", "Matchups", "Team", "Tools", "AI", "Messages", "Activity"]
+const ALL_SPORTS_FILTER = "ALL" as const
+type SportFilter = typeof ALL_SPORTS_FILTER | SupportedSport
 
 function rosterItemLabel(item: unknown): string {
   if (typeof item === "string") return item
@@ -140,16 +160,32 @@ function formatVariantLabel(league: { leagueVariant?: string | null; league_vari
   return getLeagueVariantLabel(league.leagueVariant ?? league.league_variant ?? null)
 }
 
-export default function DashboardContent({ user, profile, leagues, entries, userCareerTier }: DashboardProps) {
+export default function DashboardContent({
+  user,
+  profile,
+  leagues,
+  entries,
+  userCareerTier,
+  isAdmin = false,
+  initialDashboardPayload,
+}: DashboardProps) {
   const displayName = user.displayName || user.username || user.email.split("@")[0] || "Manager"
   const { formatInTimezone } = useUserTimezone()
   const careerTier = Number.isFinite(Number(userCareerTier)) ? Math.max(1, Math.floor(Number(userCareerTier))) : 1
   const visibleLeagues = useMemo(() => leagues.filter((league) => league.inTierRange !== false), [leagues])
   const { leagues: connectedLeagueList, loading: connectedLeaguesLoading, error: connectedLeaguesError, refetch: refetchConnectedLeagues } = useLeagueList(true)
   const connectedLeagues = useMemo(() => connectedLeagueList as DashboardLeague[], [connectedLeagueList])
-  const groupedConnectedLeagues = useMemo(() => groupLeaguesBySport(connectedLeagues), [connectedLeagues])
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("Home")
+  const [sportFilter, setSportFilter] = useState<SportFilter>(ALL_SPORTS_FILTER)
+  const [collapsedSports, setCollapsedSports] = useState<Record<string, boolean>>({})
+  const [homeSectionExpanded, setHomeSectionExpanded] = useState({
+    quickActions: true,
+    bracketSummary: true,
+    deadlines: true,
+  })
+  const [refreshingDashboard, setRefreshingDashboard] = useState(false)
+  const [dashboardRefreshTick, setDashboardRefreshTick] = useState(0)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(visibleLeagues[0]?.id ?? null)
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle")
   const [chatMessages, setChatMessages] = useState<LeagueChatMessage[]>([])
@@ -172,6 +208,71 @@ export default function DashboardContent({ user, profile, leagues, entries, user
   const [sportsWeather, setSportsWeather] = useState<SportsWeatherCard | null>(null)
   const [sportsWeatherLoading, setSportsWeatherLoading] = useState(false)
 
+  const filteredConnectedLeagues = useMemo(() => {
+    if (sportFilter === ALL_SPORTS_FILTER) return connectedLeagues
+    return connectedLeagues.filter((league) => {
+      const sport = typeof league.sport === "string" ? league.sport : typeof league.sport_type === "string" ? league.sport_type : undefined
+      return normalizeToSupportedSport(sport) === sportFilter
+    })
+  }, [connectedLeagues, sportFilter])
+
+  const groupedConnectedLeagues = useMemo(
+    () => groupLeaguesBySport(filteredConnectedLeagues),
+    [filteredConnectedLeagues]
+  )
+
+  const dashboardPayload = useMemo(
+    () =>
+      getUnifiedDashboardPayload(
+        {
+          appLeagues: connectedLeagues,
+          bracketLeagues: visibleLeagues.map((league) => ({
+            id: league.id,
+            name: league.name,
+            tournamentId: league.tournamentId,
+            memberCount: league.memberCount,
+          })),
+          bracketEntries: entries.map((entry) => ({
+            id: entry.id,
+            name: entry.name,
+            tournamentId: entry.tournamentId,
+            score: entry.score,
+          })),
+        },
+        {
+          isVerified: profile.isVerified,
+          isAgeConfirmed: profile.isAgeConfirmed,
+          profileComplete: profile.profileComplete,
+        },
+        {
+          isAdmin,
+        }
+      ),
+    [
+      connectedLeagues,
+      entries,
+      isAdmin,
+      profile.isAgeConfirmed,
+      profile.isVerified,
+      profile.profileComplete,
+      visibleLeagues,
+    ]
+  )
+
+  const resolvedDashboardPayload =
+    connectedLeagues.length === 0 && initialDashboardPayload
+      ? initialDashboardPayload
+      : dashboardPayload
+  const visibleDashboardSectionIds = useMemo(
+    () =>
+      new Set(
+        resolvedDashboardPayload.sections
+          .filter((section) => section.visible)
+          .map((section) => section.id)
+      ),
+    [resolvedDashboardPayload.sections]
+  )
+
   useEffect(() => {
     if (!visibleLeagues.length) {
       setSelectedLeagueId(null)
@@ -181,6 +282,16 @@ export default function DashboardContent({ user, profile, leagues, entries, user
       setSelectedLeagueId(visibleLeagues[0].id)
     }
   }, [selectedLeagueId, visibleLeagues])
+
+  useEffect(() => {
+    setCollapsedSports((prev) => {
+      const next: Record<string, boolean> = {}
+      for (const group of groupedConnectedLeagues) {
+        next[group.sport] = prev[group.sport] ?? false
+      }
+      return next
+    })
+  }, [groupedConnectedLeagues])
 
   const selectedLeague = useMemo(
     () => visibleLeagues.find((league) => league.id === selectedLeagueId) || visibleLeagues[0] || null,
@@ -257,7 +368,11 @@ export default function DashboardContent({ user, profile, leagues, entries, user
   const teamHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Roster` : "/player-comparison"
   const draftHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}/draft` : "/mock-draft"
   const intelligenceHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Intelligence` : buildLeagueContextHref("/chimmy")
-  const chimmyHref = buildLeagueContextHref("/chimmy")
+  const chimmyHref = buildAIChatHref({
+    leagueId: selectedLeagueContext?.id,
+    sport: normalizeToSupportedSport(selectedLeagueContext?.sport),
+    source: "dashboard",
+  })
   const tradeAnalyzerHref = buildLeagueContextHref("/trade-analyzer")
   const tradeFinderHref = buildLeagueContextHref("/trade-finder")
   const waiverAiHref = buildLeagueContextHref("/waiver-ai")
@@ -336,7 +451,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [selectedLeague?.id])
+  }, [dashboardRefreshTick, selectedLeague?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -372,7 +487,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [selectedLeague?.id])
+  }, [dashboardRefreshTick, selectedLeague?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -403,7 +518,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [normalizeChatMessage, selectedLeague?.id])
+  }, [dashboardRefreshTick, normalizeChatMessage, selectedLeague?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -435,7 +550,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dashboardRefreshTick])
 
   useEffect(() => {
     let cancelled = false
@@ -466,7 +581,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dashboardRefreshTick])
 
   useEffect(() => {
     let cancelled = false
@@ -500,7 +615,7 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dashboardRefreshTick])
 
   const handleCopyInvite = useCallback(async () => {
     if (!inviteLink) return
@@ -513,6 +628,29 @@ export default function DashboardContent({ user, profile, leagues, entries, user
       window.setTimeout(() => setCopyStatus("idle"), 1400)
     }
   }, [inviteLink])
+
+  const handleRefreshDashboard = useCallback(async () => {
+    setRefreshingDashboard(true)
+    try {
+      await refetchConnectedLeagues()
+      setDashboardRefreshTick((tick) => tick + 1)
+    } finally {
+      setRefreshingDashboard(false)
+    }
+  }, [refetchConnectedLeagues])
+
+  const handleRetryConnectedLeagues = useCallback(async () => {
+    await refetchConnectedLeagues()
+    setDashboardRefreshTick((tick) => tick + 1)
+  }, [refetchConnectedLeagues])
+
+  const toggleHomeSection = useCallback((section: "quickActions" | "bracketSummary" | "deadlines") => {
+    setHomeSectionExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
+  }, [])
+
+  const toggleSportSection = useCallback((sport: string) => {
+    setCollapsedSports((prev) => ({ ...prev, [sport]: !prev[sport] }))
+  }, [])
 
   const handleSendMessage = useCallback(async () => {
     if (!selectedLeague?.id || !newMessage.trim()) return
@@ -536,7 +674,11 @@ export default function DashboardContent({ user, profile, leagues, entries, user
     }
   }, [newMessage, normalizeChatMessage, selectedLeague?.id])
 
-  const emptyState = !visibleLeagues.length && !connectedLeaguesLoading && connectedLeagues.length === 0
+  const emptyState =
+    !visibleLeagues.length &&
+    !connectedLeaguesLoading &&
+    connectedLeagues.length === 0 &&
+    !connectedLeaguesError
 
   const renderHomeTab = () => (
     <div className="space-y-4">
@@ -554,6 +696,178 @@ export default function DashboardContent({ user, profile, leagues, entries, user
           </section>
         ))}
       </div>
+
+      {visibleDashboardSectionIds.has("product_launchers") ? (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4" data-dashboard-section="product-launchers">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-bold text-white">Product launchers</h2>
+            <Link href="/dashboard" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+              Refresh view
+            </Link>
+          </div>
+          <ProductLauncherCards
+            poolCount={resolvedDashboardPayload.leagueCounts.totalBracketPools}
+            entryCount={resolvedDashboardPayload.leagueCounts.totalBracketEntries}
+          />
+        </section>
+      ) : null}
+
+      {visibleDashboardSectionIds.has("quick_actions") ? (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="quick-actions">
+          <button
+            type="button"
+            onClick={() => toggleHomeSection("quickActions")}
+            className="flex w-full items-center justify-between"
+            aria-expanded={homeSectionExpanded.quickActions}
+            aria-controls="dashboard-home-quick-actions"
+          >
+            <div className="text-left">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quick actions</p>
+              <h3 className="mt-1 text-2xl font-black text-white">Open a flow instantly</h3>
+            </div>
+            {homeSectionExpanded.quickActions ? (
+              <ChevronUp className="h-5 w-5 text-cyan-300" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-cyan-300" />
+            )}
+          </button>
+          {homeSectionExpanded.quickActions ? (
+            <div id="dashboard-home-quick-actions" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {resolvedDashboardPayload.quickActions.map((action) => (
+                <Link
+                  key={action.id}
+                  href={action.href}
+                  data-dashboard-quick-action={action.id}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+                >
+                  <p className="text-base font-bold text-white">{action.label}</p>
+                  <p className="mt-1 text-sm text-slate-300">{action.description}</p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-cyan-200">
+                    Open
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {visibleDashboardSectionIds.has("bracket_entries") ? (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="bracket-summary">
+          <button
+            type="button"
+            onClick={() => toggleHomeSection("bracketSummary")}
+            className="flex w-full items-center justify-between"
+            aria-expanded={homeSectionExpanded.bracketSummary}
+            aria-controls="dashboard-home-bracket-summary"
+          >
+            <div className="text-left">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Bracket challenge</p>
+              <h3 className="mt-1 text-2xl font-black text-white">Pools and entries overview</h3>
+            </div>
+            {homeSectionExpanded.bracketSummary ? (
+              <ChevronUp className="h-5 w-5 text-cyan-300" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-cyan-300" />
+            )}
+          </button>
+          {homeSectionExpanded.bracketSummary ? (
+            <div id="dashboard-home-bracket-summary" className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Active pools</p>
+                  <Link href="/brackets" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+                    View all
+                  </Link>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {visibleLeagues.slice(0, 4).map((league) => (
+                    <Link
+                      key={league.id}
+                      href={`/brackets/leagues/${league.id}`}
+                      data-dashboard-pool-link={league.id}
+                      className="block rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-100 hover:bg-white/[0.08]"
+                    >
+                      {league.name}
+                    </Link>
+                  ))}
+                  {!visibleLeagues.length ? (
+                    <p className="text-sm text-slate-300">No bracket pools yet.</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-white">Top entries</p>
+                  <Link href="/brackets" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
+                    View all
+                  </Link>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {entries.slice(0, 4).map((entry) => (
+                    <Link
+                      key={entry.id}
+                      href={`/bracket/${entry.tournamentId}/entry/${entry.id}`}
+                      data-dashboard-entry-link={entry.id}
+                      className="block rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-100 hover:bg-white/[0.08]"
+                    >
+                      {entry.name} · {entry.score} pts
+                    </Link>
+                  ))}
+                  {!entries.length ? (
+                    <p className="text-sm text-slate-300">No bracket entries yet.</p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="upcoming-deadlines">
+        <button
+          type="button"
+          onClick={() => toggleHomeSection("deadlines")}
+          className="flex w-full items-center justify-between"
+          aria-expanded={homeSectionExpanded.deadlines}
+          aria-controls="dashboard-home-deadlines"
+        >
+          <div className="text-left">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Upcoming deadlines</p>
+            <h3 className="mt-1 text-2xl font-black text-white">What to do next</h3>
+          </div>
+          {homeSectionExpanded.deadlines ? (
+            <ChevronUp className="h-5 w-5 text-cyan-300" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-cyan-300" />
+          )}
+        </button>
+        {homeSectionExpanded.deadlines ? (
+          <div id="dashboard-home-deadlines" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Link href={waiverAiHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Waivers</p>
+              <p className="mt-2 text-lg font-bold text-white">Run waiver plan</p>
+              <p className="mt-1 text-sm text-slate-300">Lock claims before your next waiver processing window.</p>
+            </Link>
+            <Link href={draftHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Draft prep</p>
+              <p className="mt-2 text-lg font-bold text-white">Open draft room</p>
+              <p className="mt-1 text-sm text-slate-300">Review queue and late-round priorities.</p>
+            </Link>
+            <Link href={tradeFinderHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Trade market</p>
+              <p className="mt-2 text-lg font-bold text-white">Check opportunities</p>
+              <p className="mt-1 text-sm text-slate-300">Identify targets and prepare offers.</p>
+            </Link>
+            <Link href="/app/notifications" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Alerts</p>
+              <p className="mt-2 text-lg font-bold text-white">Review notifications</p>
+              <p className="mt-1 text-sm text-slate-300">Keep up with league, bracket, and AI alerts.</p>
+            </Link>
+          </div>
+        ) : null}
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="rounded-3xl border border-cyan-400/20 bg-[radial-gradient(70%_90%_at_10%_10%,rgba(34,211,238,0.12),transparent_55%),radial-gradient(70%_90%_at_90%_20%,rgba(147,51,234,0.18),transparent_65%),rgba(11,13,31,0.92)] p-5">
@@ -693,64 +1007,161 @@ export default function DashboardContent({ user, profile, leagues, entries, user
           <div className="flex flex-wrap gap-2">
             <Link href="/create-league" className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950">Create League</Link>
             <Link href="/import" className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white">Import League</Link>
-            <button type="button" onClick={() => void refetchConnectedLeagues()} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white">Refresh</button>
+            <button
+              type="button"
+              onClick={() => void handleRefreshDashboard()}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white"
+              aria-label="Refresh league summaries"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshingDashboard ? "animate-spin" : ""}`} />
+              {refreshingDashboard ? "Refreshing..." : "Refresh"}
+            </button>
           </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setSportFilter(ALL_SPORTS_FILTER)}
+            data-sport-filter="ALL"
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+              sportFilter === ALL_SPORTS_FILTER
+                ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
+                : "border-white/15 bg-white/[0.04] text-slate-200"
+            }`}
+          >
+            All sports
+          </button>
+          {SUPPORTED_SPORTS.map((sport) => (
+            <button
+              key={sport}
+              type="button"
+              onClick={() => setSportFilter(sport)}
+              data-sport-filter={sport}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                sportFilter === sport
+                  ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
+                  : "border-white/15 bg-white/[0.04] text-slate-200"
+              }`}
+            >
+              {getSportSectionLabel(sport)}
+            </button>
+          ))}
         </div>
       </section>
 
       {connectedLeaguesLoading ? (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300">Loading your connected leagues...</section>
+        <LoadingStateRenderer
+          label="Loading your connected leagues..."
+          testId="dashboard-leagues-loading-state"
+        />
       ) : connectedLeaguesError ? (
-        <section className="rounded-3xl border border-amber-400/20 bg-amber-500/10 p-6 text-sm text-amber-100">{connectedLeaguesError}</section>
+        <ErrorStateRenderer
+          title="Unable to load connected leagues"
+          message={connectedLeaguesError}
+          onRetry={() => void handleRetryConnectedLeagues()}
+          actions={resolveRecoveryActions("dashboard").map((action) => ({
+            id: action.id,
+            label: action.label,
+            href: action.href,
+          }))}
+          testId="dashboard-leagues-error-state"
+        />
       ) : groupedConnectedLeagues.length ? (
         groupedConnectedLeagues.map((group) => (
-          <section key={group.sport} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{group.emoji}</span>
-              <h3 className="text-xl font-black text-white">{group.label}</h3>
+          <section key={group.sport} className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-sport-group={group.sport}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{group.emoji}</span>
+                <h3 className="text-xl font-black text-white">{group.label}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleSportSection(group.sport)}
+                aria-expanded={!collapsedSports[group.sport]}
+                aria-controls={`dashboard-sport-group-${group.sport}`}
+                className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-white/[0.08]"
+              >
+                {collapsedSports[group.sport] ? "Expand" : "Collapse"}
+                {collapsedSports[group.sport] ? (
+                  <ChevronDown className="h-3.5 w-3.5 text-cyan-300" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5 text-cyan-300" />
+                )}
+              </button>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {group.leagues.map((league) => {
-                const leagueMeta = league as DashboardLeague
-                const variantLabel = formatVariantLabel(leagueMeta)
-                const href = `/app/league/${league.id}`
-                return (
-                  <Link key={league.id} href={href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-2">
-                        {leagueMeta.avatarUrl ? (
-                          <img
-                            src={leagueMeta.avatarUrl}
-                            alt=""
-                            className="h-8 w-8 rounded-full object-cover border border-white/15"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[10px] font-semibold text-cyan-200">
-                            {String(league.sport ?? league.sport_type ?? "NFL")
-                              .toUpperCase()
-                              .slice(0, 3)}
-                          </span>
-                        )}
-                        <div className="min-w-0">
-                        <p className="truncate text-lg font-bold text-white">{league.name || "Unnamed League"}</p>
-                        <p className="mt-1 text-sm text-slate-300">{(league.platform || "custom").toUpperCase()} · {league.leagueSize || "?"}-team · {variantLabel} · {league.isDynasty ? "Dynasty" : "Redraft"}</p>
+            {!collapsedSports[group.sport] ? (
+              <div id={`dashboard-sport-group-${group.sport}`} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {group.leagues.map((league) => {
+                  const leagueMeta = league as DashboardLeague
+                  const variantLabel = formatVariantLabel(leagueMeta)
+                  const href = `/app/league/${league.id}`
+                  return (
+                    <Link key={league.id} href={href} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-start gap-2">
+                          {leagueMeta.avatarUrl ? (
+                            <img
+                              src={leagueMeta.avatarUrl}
+                              alt=""
+                              className="h-8 w-8 rounded-full object-cover border border-white/15"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[10px] font-semibold text-cyan-200">
+                              {String(league.sport ?? league.sport_type ?? "NFL")
+                                .toUpperCase()
+                                .slice(0, 3)}
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                          <p className="truncate text-lg font-bold text-white">{league.name || "Unnamed League"}</p>
+                          <p className="mt-1 text-sm text-slate-300">{(league.platform || "custom").toUpperCase()} · {league.leagueSize || "?"}-team · {variantLabel} · {league.isDynasty ? "Dynasty" : "Redraft"}</p>
+                          </div>
                         </div>
+                        {selectedLeague?.id === league.id ? <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-200">Current</span> : null}
                       </div>
-                      {selectedLeague?.id === league.id ? <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-1 text-[11px] text-cyan-200">Current</span> : null}
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-                      <span>{league.syncStatus || leagueMeta.status || "Connected"}</span>
-                      <span>{formatDateLabel(league.lastSyncedAt || leagueMeta.createdAt, formatInTimezone)}</span>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
+                      <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
+                        <span>{league.syncStatus || leagueMeta.status || "Connected"}</span>
+                        <span>{formatDateLabel(league.lastSyncedAt || leagueMeta.createdAt, formatInTimezone)}</span>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : null}
           </section>
         ))
       ) : (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-slate-300">No connected leagues yet. Import a league or create one to get started.</section>
+        <EmptyStateRenderer
+          title={
+            connectedLeagues.length > 0 && sportFilter !== ALL_SPORTS_FILTER
+              ? `No connected ${getSportSectionLabel(sportFilter)} leagues found`
+              : resolveNoResultsState({ context: "dashboard_leagues" }).title
+          }
+          description={
+            connectedLeagues.length > 0 && sportFilter !== ALL_SPORTS_FILTER
+              ? "Try another sport filter or clear filters to see every connected league."
+              : resolveNoResultsState({ context: "dashboard_leagues" }).description
+          }
+          actions={[
+            ...(connectedLeagues.length > 0 && sportFilter !== ALL_SPORTS_FILTER
+              ? [
+                  {
+                    id: "clear-filter",
+                    label: "Clear filters",
+                    onClick: () => setSportFilter(ALL_SPORTS_FILTER),
+                    testId: "dashboard-clear-sport-filter",
+                  },
+                ]
+              : []),
+            ...resolveNoResultsState({ context: "dashboard_leagues" }).actions.map((action) => ({
+              id: action.id,
+              label: action.label,
+              href: action.href,
+            })),
+          ]}
+          testId="dashboard-leagues-empty-state"
+        />
       )}
     </div>
   )
@@ -1109,6 +1520,16 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">AllFantasy dashboard</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight text-white md:text-5xl">Welcome back, {displayName}</h1>
               <p className="mt-3 text-sm text-slate-300 md:text-base">{heroLabel}. Keep league context, AI actions, tools, and messages in one dense dashboard workflow.</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                <Link href="/profile" className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 font-semibold text-cyan-200 hover:bg-white/[0.08]">
+                  View profile
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+                <Link href="/settings" className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 font-semibold text-cyan-200 hover:bg-white/[0.08]">
+                  Open settings
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             </div>
 
             <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-[520px]">
@@ -1137,17 +1558,49 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{connectedLeagues.length} connected leagues</span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{entries.length} tracked entries</span>
             {connectedPlatforms.length ? <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{connectedPlatforms.join(" · ")}</span> : null}
+            <button
+              type="button"
+              onClick={() => void handleRefreshDashboard()}
+              className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 font-semibold text-cyan-200 hover:bg-white/[0.1]"
+              aria-label="Sync dashboard data"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshingDashboard ? "animate-spin" : ""}`} />
+              {refreshingDashboard ? "Syncing..." : "Sync dashboard"}
+            </button>
           </div>
 
-          {!profile.profileComplete || !profile.isVerified || !profile.isAgeConfirmed || !profile.sleeperUsername ? (
+          {resolvedDashboardPayload.needsSetup || !profile.sleeperUsername ? (
             <div className="mt-5 rounded-2xl border border-amber-400/15 bg-amber-500/10 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200/80">Setup checklist</p>
-                  <p className="mt-2 text-sm text-amber-50">Keep this compact checklist green so every dashboard action stays league-aware and fully enabled.</p>
+                  <p className="mt-2 text-sm text-amber-50">Keep this checklist green so every dashboard action stays league-aware and fully enabled.</p>
                 </div>
                 <Link href="/settings" className="rounded-xl border border-amber-200/20 px-4 py-2 text-sm font-semibold text-amber-50 hover:bg-white/5">Open settings</Link>
               </div>
+              {resolvedDashboardPayload.setupAlerts.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {resolvedDashboardPayload.setupAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="rounded-xl border border-amber-400/15 bg-white/[0.04] p-3"
+                      data-dashboard-alert={alert.id}
+                    >
+                      <p className="text-sm font-semibold text-amber-100">{alert.title}</p>
+                      <p className="mt-1 text-xs text-amber-50/90">{alert.message}</p>
+                      {alert.actionHref ? (
+                        <Link
+                          href={alert.actionHref}
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-200 hover:text-cyan-100"
+                        >
+                          {alert.actionLabel || "Open"}
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap gap-2">
                 {compactChecklist.map((item) => (
                   <span key={item.label} className={`rounded-full border px-3 py-1 text-xs ${item.complete ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200" : "border-amber-400/15 bg-white/[0.04] text-amber-100"}`}>
@@ -1157,18 +1610,60 @@ export default function DashboardContent({ user, profile, leagues, entries, user
               </div>
             </div>
           ) : null}
+
+          {connectedLeaguesError ? (
+            <div className="mt-4">
+              <ErrorStateRenderer
+                compact
+                title="League sync issue"
+                message={connectedLeaguesError}
+                onRetry={() => void handleRetryConnectedLeagues()}
+                actions={resolveRecoveryActions("dashboard").map((action) => ({
+                  id: action.id,
+                  label: action.label,
+                  href: action.href,
+                }))}
+                testId="dashboard-top-error-state"
+              />
+            </div>
+          ) : null}
         </section>
 
         {emptyState ? (
-          <section className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
-            <h2 className="text-3xl font-black text-white">No leagues yet</h2>
-            <p className="mt-3 text-sm text-slate-300">Create a league, join an existing one, or import from Sleeper, Yahoo, or MFL to unlock the full dashboard workflow.</p>
-            <div className="mt-5 flex flex-wrap justify-center gap-3">
-              <Link href="/create-league" className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950">Create League</Link>
-              <Link href="/join" className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white">Join League</Link>
-              <Link href="/import" className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white">Import League</Link>
-            </div>
-          </section>
+          <div className="mt-4">
+            <EmptyStateRenderer
+              title="No leagues yet"
+              description="Create a league, join bracket challenge, import history, or connect a provider to unlock the full dashboard workflow."
+              actions={[
+                {
+                  id: "create-league",
+                  ...resolveFallbackRoute("create_league"),
+                  testId: "dashboard-empty-create-league",
+                },
+                {
+                  id: "join-bracket",
+                  ...resolveFallbackRoute("join_bracket"),
+                  testId: "dashboard-empty-join-bracket",
+                },
+                {
+                  id: "import-league",
+                  ...resolveFallbackRoute("import_league"),
+                  testId: "dashboard-empty-import-league",
+                },
+                {
+                  id: "connect-provider",
+                  ...resolveFallbackRoute("connect_provider"),
+                  testId: "dashboard-empty-connect-provider",
+                },
+                {
+                  id: "ask-chimmy",
+                  ...resolveFallbackRoute("ask_chimmy"),
+                  testId: "dashboard-empty-ask-chimmy",
+                },
+              ]}
+              testId="dashboard-global-empty-state"
+            />
+          </div>
         ) : (
           <div className="mt-4 grid gap-4 xl:grid-cols-[270px_minmax(0,1fr)_320px]">
             <aside className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
@@ -1221,7 +1716,14 @@ export default function DashboardContent({ user, profile, leagues, entries, user
             <section className="min-w-0 space-y-4">
               <div className="no-scrollbar sticky top-2 z-10 flex gap-2 overflow-x-auto rounded-[24px] border border-white/10 bg-[rgba(12,10,28,0.92)] p-2 backdrop-blur">
                 {DASHBOARD_TABS.map((tab) => (
-                  <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`whitespace-nowrap rounded-2xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab ? "bg-cyan-400 text-slate-950" : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"}`}>
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    data-dashboard-tab={tab}
+                    aria-pressed={activeTab === tab}
+                    className={`whitespace-nowrap rounded-2xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab ? "bg-cyan-400 text-slate-950" : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"}`}
+                  >
                     {tab}
                   </button>
                 ))}

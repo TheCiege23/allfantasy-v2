@@ -1,15 +1,38 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import LeagueChatPanel from "@/components/chat/LeagueChatPanel"
 import type { LeagueTabProps } from "@/components/app/tabs/types"
 
 export default function LeagueChatTab({ leagueId }: LeagueTabProps) {
+  const [isCommissioner, setIsCommissioner] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    async function loadCommissionerStatus() {
+      if (!leagueId) return
+      try {
+        const res = await fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/check`, {
+          cache: "no-store",
+        })
+        const json = await res.json().catch(() => ({}))
+        if (active) setIsCommissioner(Boolean(json?.isCommissioner))
+      } catch {
+        if (active) setIsCommissioner(false)
+      }
+    }
+    void loadCommissionerStatus()
+    return () => {
+      active = false
+    }
+  }, [leagueId])
+
   return (
     <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <LeagueChatPanel
         leagueId={leagueId}
         leagueName={undefined}
-        isCommissioner={false}
+        isCommissioner={isCommissioner}
         defaultOpen
         className="min-h-[480px]"
       />

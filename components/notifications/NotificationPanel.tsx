@@ -10,7 +10,6 @@ import {
   Handshake,
   Mail,
   AtSign,
-  Loader2,
   AlertCircle,
   Clock,
   Pause,
@@ -20,10 +19,14 @@ import { useNotifications } from "@/hooks/useNotifications"
 import type { PlatformNotification } from "@/types/platform-shared"
 import {
   groupNotifications,
+  getUnreadCount,
+  NOTIFICATION_GROUP_ORDER,
   NOTIFICATION_GROUP_LABELS,
   getNotificationDestination,
 } from "@/lib/notification-center"
 import type { NotificationGroupKey } from "@/lib/notification-center"
+import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
+import { resolveNoResultsState } from "@/lib/ui-state"
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   mention: AtSign,
@@ -69,10 +72,29 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString()
 }
 
-export default function NotificationPanel({ onClose }: { onClose?: () => void }) {
-  const { notifications, loading, error, markAsRead, markAllAsRead } = useNotifications(40)
+export interface NotificationPanelState {
+  notifications: PlatformNotification[]
+  loading: boolean
+  error: string | null
+  markAsRead: (notificationId: string) => Promise<void> | void
+  markAllAsRead: () => Promise<void> | void
+  refresh: () => Promise<void> | void
+}
+
+export interface NotificationPanelViewProps {
+  state: NotificationPanelState
+  onClose?: () => void
+  showFooter?: boolean
+}
+
+export function NotificationPanelView({
+  state,
+  onClose,
+  showFooter = true,
+}: NotificationPanelViewProps) {
+  const { notifications, loading, error, markAsRead, markAllAsRead, refresh } = state
   const groups = groupNotifications(notifications)
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = getUnreadCount(notifications)
 
   return (
     <div
@@ -81,6 +103,7 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
         borderColor: "var(--border)",
         background: "var(--panel)",
       }}
+      data-testid="notification-drawer-panel"
     >
       <header className="flex items-center justify-between gap-2 border-b px-3 py-2.5" style={{ borderColor: "var(--border)" }}>
         <h2 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
@@ -101,21 +124,34 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
 
       <div className="max-h-[min(70vh,420px)] overflow-y-auto">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--muted)" }} />
+          <div className="p-3">
+            <LoadingStateRenderer compact label="Loading notifications..." />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
-            <AlertCircle className="h-8 w-8" style={{ color: "var(--muted)" }} />
-            <p className="text-[11px]" style={{ color: "var(--muted)" }}>{error}</p>
+          <div className="p-3">
+            <ErrorStateRenderer
+              compact
+              title="Unable to load notifications"
+              message={error}
+              onRetry={() => void refresh()}
+            />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="py-8 text-center text-[11px]" style={{ color: "var(--muted)" }}>
-            No notifications yet.
+          <div className="p-3">
+            <EmptyStateRenderer
+              compact
+              title={resolveNoResultsState({ context: "notifications" }).title}
+              description={resolveNoResultsState({ context: "notifications" }).description}
+              actions={resolveNoResultsState({ context: "notifications" }).actions.map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+            />
           </div>
         ) : (
           <>
-            {(["today", "yesterday", "earlier"] as const).map((key: NotificationGroupKey) => {
+            {NOTIFICATION_GROUP_ORDER.map((key: NotificationGroupKey) => {
               const items = groups[key]
               if (items.length === 0) return null
               const label = NOTIFICATION_GROUP_LABELS[key]
@@ -175,12 +211,12 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
                                     Mark read
                                   </button>
                                 )}
-                                {dest && (
+                                {dest ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-medium" style={{ color: "var(--accent-cyan-strong)" }}>
                                     {dest.label === "Open chat" && <MessageSquare className="h-3 w-3" />}
                                     {dest.label}
                                   </span>
-                                )}
+                                ) : null}
                               </div>
                             </div>
                         </>
@@ -188,7 +224,7 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
                       return (
                         <li key={n.id}>
                           {dest ? (
-                            <Link href={dest.href} onClick={onClose} className={rowClassName} style={rowStyle}>
+                            <Link href={dest.href} className={rowClassName} style={rowStyle}>
                               {inner}
                             </Link>
                           ) : (
@@ -207,16 +243,22 @@ export default function NotificationPanel({ onClose }: { onClose?: () => void })
         )}
       </div>
 
-      <footer className="border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
-        <Link
-          href="/app/notifications"
-          onClick={onClose}
-          className="block text-center text-[11px] font-medium"
-          style={{ color: "var(--accent-cyan-strong)" }}
-        >
-          See all notifications
-        </Link>
-      </footer>
+      {showFooter ? (
+        <footer className="border-t px-3 py-2" style={{ borderColor: "var(--border)" }}>
+          <Link
+            href="/app/notifications"
+            className="block text-center text-[11px] font-medium"
+            style={{ color: "var(--accent-cyan-strong)" }}
+          >
+            See all notifications
+          </Link>
+        </footer>
+      ) : null}
     </div>
   )
+}
+
+export default function NotificationPanel({ onClose }: { onClose?: () => void }) {
+  const state = useNotifications(40, { usePlaceholders: false })
+  return <NotificationPanelView state={state} onClose={onClose} />
 }

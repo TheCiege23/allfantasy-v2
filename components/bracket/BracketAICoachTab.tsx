@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
 
 export default function BracketAICoachTab() {
+  const chimmyHref = getPrimaryChimmyEntry().href
   return (
     <section className="rounded-xl border border-cyan-400/25 bg-cyan-500/5 p-4">
       <h3 className="text-sm font-semibold text-cyan-200">AI Coach</h3>
@@ -8,7 +10,7 @@ export default function BracketAICoachTab() {
         Matchup probabilities, upset leverage, and uniqueness guidance from your AI stack.
       </p>
       <div className="mt-3 flex gap-2">
-        <Link href="/af-legacy?tab=chat" className="rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20">
+        <Link href={chimmyHref} className="rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20">
           Open AI Coach
         </Link>
       </div>

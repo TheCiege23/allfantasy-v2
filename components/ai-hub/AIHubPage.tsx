@@ -26,7 +26,7 @@ const AI_TOOL_CARDS = [
   { id: 'matchup', title: 'Matchup AI', description: 'Matchup analysis and advice', href: getChimmyChatHrefWithPrompt('Explain my matchup'), icon: BarChart3, accent: 'from-amber-500/20 to-orange-500/10 border-amber-500/20' },
   { id: 'rankings', title: 'Rankings AI', description: 'Power rankings and explanations', href: '/af-legacy?tab=rankings', icon: Trophy, accent: 'from-cyan-500/20 to-blue-500/10 border-cyan-500/20' },
   { id: 'story', title: 'Story Creator', description: 'Narratives and Hall of Fame', href: '/af-legacy?tab=overview', icon: FileText, accent: 'from-amber-500/20 to-yellow-500/10 border-amber-500/20' },
-  { id: 'coach', title: 'Fantasy Coach', description: 'Ask Chimmy for strategy', href: '/af-legacy?tab=chat', icon: MessageCircle, accent: 'from-violet-500/20 to-purple-500/10 border-violet-500/20' },
+  { id: 'coach', title: 'Fantasy Coach', description: 'Ask Chimmy for strategy', href: getChimmyChatHref(), icon: MessageCircle, accent: 'from-violet-500/20 to-purple-500/10 border-violet-500/20' },
   { id: 'content', title: 'Content Generator', description: 'Social clips and share copy', href: '/social-clips', icon: Share2, accent: 'from-pink-500/20 to-rose-500/10 border-pink-500/20' },
 ]
 

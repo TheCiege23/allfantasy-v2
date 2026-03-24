@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   MessageCircle,
   X,
@@ -11,8 +11,6 @@ import {
   Film,
   SmilePlus,
   BarChart2,
-  Pin,
-  MoreHorizontal,
   AtSign,
   ShieldAlert,
   BellOff,
@@ -20,6 +18,22 @@ import {
 } from "lucide-react"
 import type { PlatformChatMessage, PlatformChatThread } from "@/types/platform-shared"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
+import { getMuteThreadUrl } from "@/lib/conversations"
+import {
+  BLOCK_API,
+  UNBLOCK_API,
+  getBlockPayload,
+  getUnblockPayload,
+  REPORT_MESSAGE_API,
+  REPORT_USER_API,
+  getReportMessagePayload,
+  getReportUserPayload,
+  REPORT_REASONS,
+  isBlockedDirectConversation,
+  getBlockedConversationNotice,
+  getBlockedVisibilityNotice,
+} from "@/lib/moderation/client"
+import MessageActionsMenu from "@/components/chat/MessageActionsMenu"
 
 type ChatTab = "league" | "dm" | "ai"
 
@@ -49,10 +63,20 @@ export default function HomeChatDock() {
   const [dmThreadId, setDmThreadId] = useState<string | null>(null)
   const [aiThreadId, setAiThreadId] = useState<string | null>(null)
   const [messagesByThread, setMessagesByThread] = useState<Record<string, PlatformChatMessage[]>>({})
+  const [hiddenBlockedByThread, setHiddenBlockedByThread] = useState<Record<string, number>>({})
   const [sending, setSending] = useState(false)
   const [loadingMessagesFor, setLoadingMessagesFor] = useState<string | null>(null)
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([])
   const [leagueMeta, setLeagueMeta] = useState<LeagueMeta | null>(null)
+  const [mutedThreads, setMutedThreads] = useState<Set<string>>(new Set())
+  const [threadActionError, setThreadActionError] = useState<string | null>(null)
+  const [reportMessageOpen, setReportMessageOpen] = useState<{ messageId: string; threadId: string } | null>(null)
+  const [reportUserOpen, setReportUserOpen] = useState<{ userId: string; username: string } | null>(null)
+  const [reportReason, setReportReason] = useState("other")
+  const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [reportSuccess, setReportSuccess] = useState(false)
+  const [reportError, setReportError] = useState<string | null>(null)
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState<{ userId: string; username: string } | null>(null)
 
   const activeThreadId = useMemo(() => {
     if (activeTab === "league") return leagueThreadId
@@ -64,6 +88,64 @@ export default function HomeChatDock() {
     if (!activeThreadId) return []
     return messagesByThread[activeThreadId] || []
   }, [activeThreadId, messagesByThread])
+  const activeHiddenBlockedCount = useMemo(() => {
+    if (!activeThreadId) return 0
+    return hiddenBlockedByThread[activeThreadId] ?? 0
+  }, [activeThreadId, hiddenBlockedByThread])
+  const activeThread = useMemo(
+    () => (activeThreadId ? threads.find((thread) => thread.id === activeThreadId) || null : null),
+    [activeThreadId, threads]
+  )
+  const blockedUserSet = useMemo(() => new Set(blockedUsers.map((user) => user.userId)), [blockedUsers])
+  const activeThreadBlockedDirect = useMemo(
+    () => isBlockedDirectConversation(activeThread, blockedUserSet),
+    [activeThread, blockedUserSet]
+  )
+  const activeThreadLabel = useMemo(() => {
+    if (!activeThread) return null
+    const context = (activeThread.context || {}) as { otherDisplayName?: string | null; otherUsername?: string | null }
+    return context.otherDisplayName || context.otherUsername || activeThread.title
+  }, [activeThread])
+  const blockedConversationNotice = useMemo(() => {
+    if (!activeThreadBlockedDirect) return ""
+    return getBlockedConversationNotice(activeThreadLabel)
+  }, [activeThreadBlockedDirect, activeThreadLabel])
+  const blockedVisibilityNotice = useMemo(
+    () => getBlockedVisibilityNotice(blockedUsers.length),
+    [blockedUsers.length]
+  )
+
+  const loadThreads = useCallback(async (): Promise<PlatformChatThread[]> => {
+    try {
+      const threadsRes = await fetch("/api/shared/chat/threads", { cache: "no-store" })
+      if (!threadsRes.ok) return []
+      const tJson = await threadsRes.json()
+      const list: PlatformChatThread[] = Array.isArray(tJson?.threads) ? tJson.threads : []
+      setThreads(list)
+      const league = list.find((thread) => thread.threadType === "league") || null
+      const dm = list.find((thread) => thread.threadType === "dm") || null
+      const ai = list.find((thread) => thread.threadType === "ai") || null
+      setLeagueThreadId(league?.id || null)
+      setDmThreadId(dm?.id || null)
+      setAiThreadId(ai?.id || null)
+      return list
+    } catch {
+      return []
+    }
+  }, [])
+
+  const loadBlockedUsers = useCallback(async (): Promise<BlockedUser[]> => {
+    try {
+      const blockedRes = await fetch("/api/shared/chat/blocked", { cache: "no-store" })
+      if (!blockedRes.ok) return []
+      const blockedJson = await blockedRes.json()
+      const list: BlockedUser[] = Array.isArray(blockedJson?.blockedUsers) ? blockedJson.blockedUsers : []
+      setBlockedUsers(list)
+      return list
+    } catch {
+      return []
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -71,40 +153,14 @@ export default function HomeChatDock() {
     let cancelled = false
 
     async function loadInitial() {
-      try {
-        const [threadsRes, blockedRes] = await Promise.all([
-          fetch("/api/shared/chat/threads", { cache: "no-store" }),
-          fetch("/api/shared/chat/blocked", { cache: "no-store" }),
-        ])
-
-        if (!cancelled) {
-          if (threadsRes.ok) {
-            const tJson = await threadsRes.json()
-            const list: PlatformChatThread[] = Array.isArray(tJson?.threads) ? tJson.threads : []
-            setThreads(list)
-
-            const league = list.find((t) => t.threadType === "league") || null
-            const dm = list.find((t) => t.threadType === "dm") || null
-            const ai = list.find((t) => t.threadType === "ai") || null
-
-            setLeagueThreadId(league?.id || null)
-            setDmThreadId(dm?.id || null)
-            setAiThreadId(ai?.id || null)
-
-            const initialThreadId = league?.id || dm?.id || ai?.id || null
-            if (initialThreadId) {
-              void loadMessages(initialThreadId)
-            }
-          }
-
-          if (blockedRes.ok) {
-            const bJson = await blockedRes.json()
-            const list: BlockedUser[] = Array.isArray(bJson?.blockedUsers) ? bJson.blockedUsers : []
-            setBlockedUsers(list)
-          }
-        }
-      } catch {
-        // ignore
+      const [list] = await Promise.all([loadThreads(), loadBlockedUsers()])
+      if (cancelled) return
+      const league = list.find((thread) => thread.threadType === "league") || null
+      const dm = list.find((thread) => thread.threadType === "dm") || null
+      const ai = list.find((thread) => thread.threadType === "ai") || null
+      const initialThreadId = league?.id || dm?.id || ai?.id || null
+      if (initialThreadId) {
+        void loadMessages(initialThreadId)
       }
     }
 
@@ -113,7 +169,7 @@ export default function HomeChatDock() {
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, loadBlockedUsers, loadThreads])
 
   useEffect(() => {
     if (!open || !leagueThreadId) return
@@ -136,7 +192,7 @@ export default function HomeChatDock() {
     }
   }, [open, leagueThreadId])
 
-  const loadMessages = async (threadId: string) => {
+  const loadMessages = useCallback(async (threadId: string) => {
     if (!threadId) return
     setLoadingMessagesFor(threadId)
     try {
@@ -148,25 +204,42 @@ export default function HomeChatDock() {
         const json = await res.json()
         const list: PlatformChatMessage[] = Array.isArray(json?.messages) ? json.messages : []
         setMessagesByThread((prev) => ({ ...prev, [threadId]: list }))
+        setHiddenBlockedByThread((prev) => ({
+          ...prev,
+          [threadId]: Math.max(0, Number(json?.hiddenBlockedCount || 0)),
+        }))
       }
     } catch {
       // ignore
     } finally {
       setLoadingMessagesFor((prev) => (prev === threadId ? null : prev))
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!activeThreadId || !open) return
     if (messagesByThread[activeThreadId]?.length) return
     void loadMessages(activeThreadId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeThreadId, open])
+  }, [activeThreadId, open, messagesByThread, loadMessages])
+
+  useEffect(() => {
+    const muted = new Set<string>()
+    for (const thread of threads) {
+      const context = (thread.context || {}) as Record<string, unknown>
+      if (context.isMuted === true) muted.add(thread.id)
+    }
+    setMutedThreads(muted)
+  }, [threads])
 
   const handleSend = async () => {
     if (!activeThreadId || !input.trim() || sending) return
+    if (activeThreadBlockedDirect) {
+      setThreadActionError(blockedConversationNotice || "This conversation is blocked.")
+      return
+    }
     const text = input.trim()
     setSending(true)
+    setThreadActionError(null)
     setInput("")
 
     try {
@@ -187,9 +260,16 @@ export default function HomeChatDock() {
             [activeThreadId]: [...(prev[activeThreadId] || []), created],
           }))
         }
+      } else {
+        const json = await res.json().catch(() => ({}))
+        setInput(text)
+        setThreadActionError(
+          typeof json?.error === "string" ? json.error : "Unable to send message right now."
+        )
       }
     } catch {
-      // ignore send error for now
+      setInput(text)
+      setThreadActionError("Unable to send message right now.")
     } finally {
       setSending(false)
     }
@@ -348,22 +428,70 @@ export default function HomeChatDock() {
             <BellOff className="h-3 w-3" />
             <span>DM preferences</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setAllowDMs((v) => !v)}
-            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
-            style={{
-              borderColor: "var(--border)",
-              background: allowDMs
-                ? "color-mix(in srgb, var(--accent-emerald) 10%, transparent)"
-                : "color-mix(in srgb, var(--panel) 92%, transparent)",
-              color: allowDMs
-                ? "var(--accent-emerald-strong)"
-                : "var(--muted2)",
-            }}
-          >
-            {allowDMs ? "Allow DMs" : "Decline new DMs"}
-          </button>
+          <div className="flex items-center gap-1">
+            {activeThreadId && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const next = !mutedThreads.has(activeThreadId)
+                  try {
+                    const res = await fetch(getMuteThreadUrl(activeThreadId), {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ muted: next }),
+                    })
+                    if (!res.ok) {
+                      const json = await res.json().catch(() => ({}))
+                      setThreadActionError(
+                        typeof json?.error === "string"
+                          ? json.error
+                          : "Unable to update mute preference."
+                      )
+                      return
+                    }
+                    setMutedThreads((prev) => {
+                      const nextSet = new Set(prev)
+                      if (next) nextSet.add(activeThreadId)
+                      else nextSet.delete(activeThreadId)
+                      return nextSet
+                    })
+                    setThreadActionError(null)
+                    await loadThreads()
+                  } catch {
+                    setThreadActionError("Unable to update mute preference.")
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
+                style={{
+                  borderColor: "var(--border)",
+                  background: mutedThreads.has(activeThreadId)
+                    ? "color-mix(in srgb, var(--accent-cyan) 10%, transparent)"
+                    : "color-mix(in srgb, var(--panel2) 92%, transparent)",
+                  color: mutedThreads.has(activeThreadId)
+                    ? "var(--accent-cyan-strong)"
+                    : "var(--muted2)",
+                }}
+              >
+                {mutedThreads.has(activeThreadId) ? "Unmute chat" : "Mute chat"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAllowDMs((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px]"
+              style={{
+                borderColor: "var(--border)",
+                background: allowDMs
+                  ? "color-mix(in srgb, var(--accent-emerald) 10%, transparent)"
+                  : "color-mix(in srgb, var(--panel) 92%, transparent)",
+                color: allowDMs
+                  ? "var(--accent-emerald-strong)"
+                  : "var(--muted2)",
+              }}
+            >
+              {allowDMs ? "Allow DMs" : "Decline new DMs"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -402,6 +530,11 @@ export default function HomeChatDock() {
           </button>
         )}
       </div>
+      {blockedVisibilityNotice && (
+        <p className="mx-3 mb-1 text-[10px]" style={{ color: "var(--muted2)" }}>
+          {blockedVisibilityNotice}
+        </p>
+      )}
 
       {/* Block list panel */}
       {showBlocked && (
@@ -428,16 +561,24 @@ export default function HomeChatDock() {
                     type="button"
                     onClick={async () => {
                       try {
-                        const res = await fetch("/api/shared/chat/unblock", {
+                        const res = await fetch(UNBLOCK_API, {
                           method: "POST",
                           headers: { "content-type": "application/json" },
-                          body: JSON.stringify({ blockedUserId: u.userId }),
+                          body: JSON.stringify(getUnblockPayload(u.userId)),
                         })
                         if (res.ok) {
                           setBlockedUsers((prev) => prev.filter((b) => b.userId !== u.userId))
+                          setThreadActionError(null)
+                          await loadThreads()
+                          if (activeThreadId) void loadMessages(activeThreadId)
+                        } else {
+                          const json = await res.json().catch(() => ({}))
+                          setThreadActionError(
+                            typeof json?.error === "string" ? json.error : "Unable to unblock user."
+                          )
                         }
                       } catch {
-                        // ignore
+                        setThreadActionError("Unable to unblock user.")
                       }
                     }}
                     className="text-[10px] underline"
@@ -464,28 +605,69 @@ export default function HomeChatDock() {
                 Loading messages…
               </p>
             )}
+            {threadActionError && (
+              <p className="text-[11px]" style={{ color: "var(--accent-red-strong)" }}>
+                {threadActionError}
+              </p>
+            )}
+            {activeThreadBlockedDirect && blockedConversationNotice && (
+              <p className="text-[11px]" style={{ color: "var(--muted2)" }}>
+                {blockedConversationNotice}
+              </p>
+            )}
+            {!activeThreadBlockedDirect && activeHiddenBlockedCount > 0 && (
+              <p className="text-[11px]" style={{ color: "var(--muted2)" }}>
+                {activeHiddenBlockedCount === 1
+                  ? "1 message is hidden because the sender is blocked."
+                  : `${activeHiddenBlockedCount} messages are hidden because senders are blocked.`}
+              </p>
+            )}
             {activeMessages.map((m) => (
               <ChatMessageRow
                 key={m.id}
                 msg={m}
-                onBlock={async (userId, displayName) => {
+                threadId={activeThreadId}
+                isBlocked={m.senderUserId ? blockedUsers.some((b) => b.userId === m.senderUserId) : false}
+                onReportMessage={() => {
+                  setReportError(null)
+                  if (!activeThreadId) return
+                  setReportMessageOpen({ messageId: m.id, threadId: activeThreadId })
+                }}
+                onReportUser={() => {
+                  if (!m.senderUserId) return
+                  setReportError(null)
+                  setReportUserOpen({
+                    userId: m.senderUserId,
+                    username: m.senderUsername || m.senderName,
+                  })
+                }}
+                onBlockUser={() => {
+                  if (!m.senderUserId) return
+                  setBlockConfirmOpen({
+                    userId: m.senderUserId,
+                    username: m.senderUsername || m.senderName,
+                  })
+                }}
+                onUnblockUser={async () => {
+                  if (!m.senderUserId) return
                   try {
-                    const res = await fetch("/api/shared/chat/block", {
+                    const res = await fetch(UNBLOCK_API, {
                       method: "POST",
                       headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ blockedUserId: userId }),
+                      body: JSON.stringify(getUnblockPayload(m.senderUserId)),
                     })
-                    if (res.ok) {
-                      setBlockedUsers((prev) => {
-                        if (prev.some((b) => b.userId === userId)) return prev
-                        return [
-                          ...prev,
-                          { userId, username: null, displayName: displayName || null },
-                        ]
-                      })
+                    if (!res.ok) {
+                      const json = await res.json().catch(() => ({}))
+                      setThreadActionError(
+                        typeof json?.error === "string" ? json.error : "Unable to unblock user."
+                      )
+                      return
                     }
+                    await Promise.all([loadBlockedUsers(), loadThreads()])
+                    if (activeThreadId) void loadMessages(activeThreadId)
+                    setThreadActionError(null)
                   } catch {
-                    // ignore
+                    setThreadActionError("Unable to unblock user.")
                   }
                 }}
               />
@@ -571,8 +753,11 @@ export default function HomeChatDock() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              disabled={activeThreadBlockedDirect}
               placeholder={
-                activeTab === "ai"
+                activeThreadBlockedDirect
+                  ? "Conversation blocked. Unblock to message."
+                  : activeTab === "ai"
                   ? "Ask the AI coach about a trade or matchup…"
                   : "Message league, @mention, or /poll…"
               }
@@ -584,7 +769,7 @@ export default function HomeChatDock() {
           <button
             type="button"
             onClick={handleSend}
-            disabled={!input.trim() || !activeThreadId || sending}
+            disabled={!input.trim() || !activeThreadId || sending || activeThreadBlockedDirect}
             className="inline-flex items-center justify-center rounded-full px-3 py-1 text-[11px] font-semibold disabled:opacity-40"
             style={{
               background: "color-mix(in srgb, var(--accent-cyan) 60%, #020617)",
@@ -595,6 +780,217 @@ export default function HomeChatDock() {
           </button>
         </div>
       </div>
+
+      {reportMessageOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+            <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Report message</h3>
+            <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+              Choose a reason. Reports are reviewed by moderators.
+            </p>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+            >
+              {REPORT_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+            {reportError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--accent-red-strong)" }}>
+                {reportError}
+              </p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReportMessageOpen(null)
+                  setReportReason("other")
+                  setReportError(null)
+                }}
+                className="flex-1 rounded-lg border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reportSubmitting}
+                onClick={async () => {
+                  setReportSubmitting(true)
+                  setReportError(null)
+                  try {
+                    const res = await fetch(REPORT_MESSAGE_API, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(
+                        getReportMessagePayload(
+                          reportMessageOpen.messageId,
+                          reportMessageOpen.threadId,
+                          reportReason
+                        )
+                      ),
+                    })
+                    const json = await res.json().catch(() => ({}))
+                    if (!res.ok) {
+                      setReportError(typeof json?.error === "string" ? json.error : "Unable to submit report.")
+                      return
+                    }
+                    setReportMessageOpen(null)
+                    setReportReason("other")
+                    setReportSuccess(true)
+                    setTimeout(() => setReportSuccess(false), 3000)
+                  } catch {
+                    setReportError("Unable to submit report.")
+                  } finally {
+                    setReportSubmitting(false)
+                  }
+                }}
+                className="flex-1 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+              >
+                {reportSubmitting ? "Submitting…" : "Submit report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportUserOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+            <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Report user</h3>
+            <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+              Reporting @{reportUserOpen.username}. Reports are reviewed by moderators.
+            </p>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+            >
+              {REPORT_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
+            {reportError && (
+              <p className="mt-2 text-xs" style={{ color: "var(--accent-red-strong)" }}>
+                {reportError}
+              </p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReportUserOpen(null)
+                  setReportReason("other")
+                  setReportError(null)
+                }}
+                className="flex-1 rounded-lg border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reportSubmitting}
+                onClick={async () => {
+                  setReportSubmitting(true)
+                  setReportError(null)
+                  try {
+                    const res = await fetch(REPORT_USER_API, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(getReportUserPayload(reportUserOpen.userId, reportReason)),
+                    })
+                    const json = await res.json().catch(() => ({}))
+                    if (!res.ok) {
+                      setReportError(typeof json?.error === "string" ? json.error : "Unable to submit report.")
+                      return
+                    }
+                    setReportUserOpen(null)
+                    setReportReason("other")
+                    setReportSuccess(true)
+                    setTimeout(() => setReportSuccess(false), 3000)
+                  } catch {
+                    setReportError("Unable to submit report.")
+                  } finally {
+                    setReportSubmitting(false)
+                  }
+                }}
+                className="flex-1 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50"
+                style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+              >
+                {reportSubmitting ? "Submitting…" : "Submit report"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blockConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border p-4" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+            <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>Block user?</h3>
+            <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+              Block @{blockConfirmOpen.username}? They won't be able to message you directly.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setBlockConfirmOpen(null)}
+                className="flex-1 rounded-lg border px-3 py-2 text-xs"
+                style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(BLOCK_API, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(getBlockPayload(blockConfirmOpen.userId)),
+                    })
+                    if (!res.ok) {
+                      const json = await res.json().catch(() => ({}))
+                      setThreadActionError(typeof json?.error === "string" ? json.error : "Unable to block user.")
+                      return
+                    }
+                    await Promise.all([loadBlockedUsers(), loadThreads()])
+                    if (activeThreadId) void loadMessages(activeThreadId)
+                    setBlockConfirmOpen(null)
+                    setThreadActionError(null)
+                  } catch {
+                    setThreadActionError("Unable to block user.")
+                  }
+                }}
+                className="flex-1 rounded-lg px-3 py-2 text-xs font-semibold"
+                style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}
+              >
+                Block
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportSuccess && (
+        <div
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border px-3 py-1.5 text-xs"
+          style={{ background: "var(--panel)", borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          Report submitted. Thank you.
+        </div>
+      )}
     </section>
   )
 }
@@ -630,10 +1026,20 @@ function ChatTabButton({
 
 function ChatMessageRow({
   msg,
-  onBlock,
+  threadId,
+  isBlocked,
+  onReportMessage,
+  onReportUser,
+  onBlockUser,
+  onUnblockUser,
 }: {
   msg: PlatformChatMessage
-  onBlock?: (userId: string, displayName: string) => void
+  threadId: string | null
+  isBlocked: boolean
+  onReportMessage: () => void
+  onReportUser: () => void
+  onBlockUser: () => void
+  onUnblockUser: () => void
 }) {
   const { formatInTimezone } = useUserTimezone()
   return (
@@ -660,30 +1066,20 @@ function ChatMessageRow({
                 {formatInTimezone(msg.createdAt, { hour: "numeric", minute: "2-digit" })}
               </span>
             </div>
-            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-              {msg.senderUserId && onBlock && (
-                <button
-                  type="button"
-                  onClick={() => onBlock(msg.senderUserId!, msg.senderName)}
-                  className="rounded-full border px-1.5 py-0.5 text-[9px]"
-                  style={{
-                    borderColor: "color-mix(in srgb, var(--accent-red) 40%, var(--border))",
-                    color: "var(--accent-red-strong)",
-                    background: "color-mix(in srgb, var(--accent-red) 8%, transparent)",
-                  }}
-                >
-                  Block
-                </button>
-              )}
-              <button
-                type="button"
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full"
-                style={{ color: "var(--muted2)" }}
-                aria-label="More actions"
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </button>
-            </div>
+            {threadId && (
+              <MessageActionsMenu
+                messageId={msg.id}
+                threadId={threadId}
+                senderUserId={msg.senderUserId}
+                senderName={msg.senderName}
+                isBlocked={isBlocked}
+                onReportMessage={onReportMessage}
+                onReportUser={onReportUser}
+                onBlockUser={onBlockUser}
+                onUnblockUser={onUnblockUser}
+                className="opacity-0 transition-opacity group-hover:opacity-100"
+              />
+            )}
           </div>
           <p className="mt-0.5 text-[11px]" style={{ color: "var(--text)" }}>
             {msg.body}

@@ -10,6 +10,7 @@ export type TopBarUtilityId =
   | "wallet"
   | "messages"
   | "notifications"
+  | "settings"
   | "ai_chat"
   | "language"
   | "theme"
@@ -42,10 +43,11 @@ export function getTopBarUtilities(opts: {
   }
   const chimmy = getPrimaryChimmyEntry()
   const list: TopBarUtilitySpec[] = [
-    { id: "search", visible: !!hasSearch, title: "Search (Ctrl+K)" },
+    { id: "search", visible: !!hasSearch, title: "Search" },
     { id: "wallet", visible: true, title: "Wallet" },
     { id: "messages", visible: true, href: "/messages", title: "Messages" },
     { id: "notifications", visible: true, title: "Notifications" },
+    { id: "settings", visible: true, href: "/settings", title: "Settings" },
     { id: "ai_chat", visible: true, href: chimmy.href, title: chimmy.label },
     { id: "language", visible: true, title: "Language" },
     { id: "theme", visible: true, title: "Theme" },

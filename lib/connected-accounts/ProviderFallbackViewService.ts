@@ -1,4 +1,5 @@
 import type { SignInProviderId } from "./types"
+import type { ProviderStatus } from "./types"
 import { getProviderFallbackMessage } from "./ProviderConnectionResolver"
 
 /**
@@ -13,8 +14,16 @@ export function getFallbackViewMessage(providerId: SignInProviderId): string {
  * For now we do not expose disconnect in settings to avoid lockout; document in deliverable.
  */
 export function canDisconnectProvider(
-  _providerId: SignInProviderId,
-  _linkedProvidersCount: number
+  provider: ProviderStatus,
+  linkedProvidersCount: number,
+  hasPassword: boolean
 ): boolean {
-  return false
+  if (!provider.linked) return false
+  if (linkedProvidersCount > 1) return true
+  return hasPassword
+}
+
+export function getDisconnectBlockedMessage(providerId: SignInProviderId): string {
+  const label = providerId === "x" ? "X (Twitter)" : providerId.charAt(0).toUpperCase() + providerId.slice(1)
+  return `You cannot disconnect ${label} yet because it is your only sign-in method. Add another provider or set a password first.`
 }

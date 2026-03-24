@@ -6,6 +6,7 @@ import {
   getDashboardMissingEnvVars,
   getDashboardRuntimeIssue,
 } from "@/lib/dashboard/runtime-issues"
+import { getUnifiedDashboardPayload } from "@/lib/dashboard"
 import {
   extractLeagueCareerTier,
   isLeagueVisibleForCareerTier,
@@ -167,6 +168,32 @@ export default async function DashboardPage() {
       getNudges(userId).catch(() => []),
     ])
 
+    const unifiedDashboardPayload = getUnifiedDashboardPayload(
+      {
+        appLeagues: [],
+        bracketLeagues: leagues.map((m: any) => ({
+          id: m.league.id,
+          name: m.league.name,
+          tournamentId: m.league.tournamentId,
+          memberCount: m.league._count?.members || 0,
+        })),
+        bracketEntries: entries.map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          tournamentId: e.tournamentId,
+          score: e.score || 0,
+        })),
+      },
+      {
+        isVerified,
+        isAgeConfirmed,
+        profileComplete: profile?.profileComplete || false,
+      },
+      {
+        isAdmin,
+      }
+    )
+
     return (
       <DashboardContent
         onboardingComplete={!!onboardingComplete}
@@ -207,6 +234,7 @@ export default async function DashboardPage() {
         isAdmin={isAdmin}
         checklistState={checklistState}
         retentionNudges={nudges}
+        initialDashboardPayload={unifiedDashboardPayload}
       />
     )
   } catch (error) {

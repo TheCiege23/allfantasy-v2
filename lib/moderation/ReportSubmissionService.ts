@@ -3,21 +3,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
-
-export const REPORT_REASONS = [
-  "spam",
-  "harassment",
-  "hate_speech",
-  "violence",
-  "nudity",
-  "self_harm",
-  "impersonation",
-  "other",
-] as const
-
-export type ReportReason = (typeof REPORT_REASONS)[number]
-
-export const REPORT_STATUS = ["pending", "reviewed", "resolved", "dismissed"] as const
+import { REPORT_REASONS, type ReportReason } from "./shared"
 
 export async function createMessageReport(
   reporterUserId: string,
@@ -28,6 +14,25 @@ export async function createMessageReport(
   if (!reporterUserId || !messageId || !threadId || !reason.trim()) return null
   const r = reason.trim().slice(0, 500)
   try {
+    const canAccessThread = await prisma.platformChatThreadMember.findFirst({
+      where: { userId: reporterUserId, threadId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!canAccessThread) return null
+
+    const message = await prisma.platformChatMessage.findFirst({
+      where: { id: messageId, threadId },
+      select: { id: true, senderUserId: true },
+    })
+    if (!message) return null
+    if (message.senderUserId && message.senderUserId === reporterUserId) return null
+
+    const existingPending = await prisma.platformMessageReport.findFirst({
+      where: { messageId, threadId, reporterUserId, status: "pending" },
+      select: { id: true },
+    })
+    if (existingPending) return existingPending
+
     const created = await prisma.platformMessageReport.create({
       data: {
         messageId,
@@ -52,6 +57,18 @@ export async function createUserReport(
   if (!reporterUserId || !reportedUserId || reporterUserId === reportedUserId || !reason.trim()) return null
   const r = reason.trim().slice(0, 500)
   try {
+    const reportedExists = await prisma.appUser.findUnique({
+      where: { id: reportedUserId },
+      select: { id: true },
+    })
+    if (!reportedExists) return null
+
+    const existingPending = await prisma.platformUserReport.findFirst({
+      where: { reporterUserId, reportedUserId, status: "pending" },
+      select: { id: true },
+    })
+    if (existingPending) return existingPending
+
     const created = await prisma.platformUserReport.create({
       data: {
         reportedUserId,

@@ -10,37 +10,21 @@ import {
   Handshake,
   Mail,
   AtSign,
-  Loader2,
   ArrowLeft,
 } from "lucide-react"
+import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
+import { resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
 import { useNotifications } from "@/hooks/useNotifications"
 import type { PlatformNotification } from "@/types/platform-shared"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
-
-type GroupKey = "today" | "yesterday" | "earlier"
-
-function getGroup(dateStr: string): GroupKey {
-  const d = new Date(dateStr)
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const startOfYesterday = new Date(startOfToday)
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1)
-  if (d >= startOfToday) return "today"
-  if (d >= startOfYesterday) return "yesterday"
-  return "earlier"
-}
-
-function groupNotifications(notifications: PlatformNotification[]): Record<GroupKey, PlatformNotification[]> {
-  const groups: Record<GroupKey, PlatformNotification[]> = {
-    today: [],
-    yesterday: [],
-    earlier: [],
-  }
-  for (const n of notifications) {
-    groups[getGroup(n.createdAt)].push(n)
-  }
-  return groups
-}
+import {
+  getNotificationDestination,
+  getUnreadCount,
+  groupNotifications,
+  NOTIFICATION_GROUP_LABELS,
+  NOTIFICATION_GROUP_ORDER,
+  type NotificationGroupKey,
+} from "@/lib/notification-center"
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   mention: AtSign,
@@ -73,9 +57,11 @@ function formatTime(
 
 export default function NotificationsPage() {
   const { formatTimeInTimezone, formatDateInTimezone } = useUserTimezone()
-  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications(100)
+  const { notifications, loading, error, markAsRead, markAllAsRead, refresh } = useNotifications(100, {
+    usePlaceholders: false,
+  })
   const groups = groupNotifications(notifications)
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = getUnreadCount(notifications)
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
@@ -111,19 +97,44 @@ export default function NotificationsPage() {
         style={{ borderColor: "var(--border)", background: "var(--panel)" }}
       >
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--muted)" }} />
+          <div className="p-4">
+            <LoadingStateRenderer compact label="Loading notifications..." testId="notifications-loading-state" />
+          </div>
+        ) : error ? (
+          <div className="p-4">
+            <ErrorStateRenderer
+              compact
+              title="Unable to load notifications"
+              message={error}
+              onRetry={() => void refresh()}
+              actions={resolveRecoveryActions("notifications").map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+              testId="notifications-error-state"
+            />
           </div>
         ) : notifications.length === 0 ? (
-          <div className="py-16 text-center text-sm" style={{ color: "var(--muted)" }}>
-            No notifications yet.
+          <div className="p-4">
+            <EmptyStateRenderer
+              compact
+              title={resolveNoResultsState({ context: "notifications" }).title}
+              description={resolveNoResultsState({ context: "notifications" }).description}
+              actions={resolveNoResultsState({ context: "notifications" }).actions.map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+              testId="notifications-empty-state"
+            />
           </div>
         ) : (
           <>
-            {(["today", "yesterday", "earlier"] as const).map((key) => {
+            {NOTIFICATION_GROUP_ORDER.map((key: NotificationGroupKey) => {
               const items = groups[key]
               if (items.length === 0) return null
-              const label = key === "today" ? "Today" : key === "yesterday" ? "Yesterday" : "Earlier"
+              const label = NOTIFICATION_GROUP_LABELS[key]
               return (
                 <div key={key} className="border-b last:border-b-0" style={{ borderColor: "var(--border)" }}>
                   <div
@@ -135,16 +146,13 @@ export default function NotificationsPage() {
                   <ul>
                     {items.map((n) => {
                       const Icon = getIcon(n.type)
-                      const leagueId = (n.meta?.leagueId as string) ?? null
-                      const chatThreadId = (n.meta?.chatThreadId as string) ?? null
-                      return (
-                        <li
-                          key={n.id}
-                          className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-black/5"
-                          style={{
-                            background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
-                          }}
-                        >
+                      const destination = getNotificationDestination(n)
+                      const rowClassName = "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-black/5"
+                      const rowStyle = {
+                        background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
+                      }
+                      const inner = (
+                        <>
                           <div
                             className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
                             style={{
@@ -168,38 +176,47 @@ export default function NotificationsPage() {
                               {formatTime(n.createdAt, formatTimeInTimezone, formatDateInTimezone)}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-3">
-                              {!n.read && (
+                              {!n.read ? (
                                 <button
                                   type="button"
-                                  onClick={() => markAsRead(n.id)}
+                                  onClick={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    void markAsRead(n.id)
+                                  }}
                                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium"
                                   style={{ color: "var(--accent-cyan-strong)" }}
                                 >
                                   <Check className="h-3.5 w-3.5" />
                                   Mark read
                                 </button>
-                              )}
-                              {leagueId && (
-                                <Link
-                                  href={`/app/league/${leagueId}`}
+                              ) : null}
+                              {destination ? (
+                                <span
                                   className="inline-flex items-center gap-1 text-xs font-medium"
                                   style={{ color: "var(--accent-cyan-strong)" }}
                                 >
-                                  Open league
-                                </Link>
-                              )}
-                              {chatThreadId && (
-                                <Link
-                                  href={`/messages?thread=${chatThreadId}`}
-                                  className="inline-flex items-center gap-1 text-xs font-medium"
-                                  style={{ color: "var(--accent-cyan-strong)" }}
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                  Open chat
-                                </Link>
-                              )}
+                                  {destination.label === "Open chat" ? (
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  ) : null}
+                                  {destination.label}
+                                </span>
+                              ) : null}
                             </div>
                           </div>
+                        </>
+                      )
+                      return (
+                        <li key={n.id}>
+                          {destination ? (
+                            <Link href={destination.href} className={rowClassName} style={rowStyle}>
+                              {inner}
+                            </Link>
+                          ) : (
+                            <div className={rowClassName} style={rowStyle}>
+                              {inner}
+                            </div>
+                          )}
                         </li>
                       )
                     })}

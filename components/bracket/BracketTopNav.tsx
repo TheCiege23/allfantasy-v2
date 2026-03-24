@@ -2,6 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
+
+const CHIMMY_HREF = getPrimaryChimmyEntry().href
 
 const TABS = [
   { href: '/brackets', label: 'Home' },
@@ -11,7 +14,7 @@ const TABS = [
   { href: '/brackets', label: 'My Entries' },
   { href: '/brackets', label: 'Standings' },
   { href: '/messages', label: 'Pool Chat' },
-  { href: '/af-legacy?tab=chat', label: 'AI Coach' },
+  { href: CHIMMY_HREF, label: 'AI Coach' },
   { href: '/brackets', label: 'History' },
 ] as const
 
@@ -21,7 +24,7 @@ export default function BracketTopNav() {
   return (
     <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
       {TABS.map((tab, idx) => {
-        const active = tab.href !== '/af-legacy?tab=chat' && pathname === tab.href
+        const active = tab.href !== CHIMMY_HREF && pathname === tab.href
         return (
           <Link
             key={`${tab.label}-${idx}`}

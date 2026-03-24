@@ -14,6 +14,7 @@ export {
   getDashboardQuickActions,
   DASHBOARD_QUICK_ACTIONS,
   type QuickActionConfig,
+  type DashboardQuickActionInput,
 } from "./DashboardQuickActionResolver"
 export {
   getDashboardSetupAlerts,

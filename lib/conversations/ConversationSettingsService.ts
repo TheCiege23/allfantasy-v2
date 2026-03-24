@@ -6,6 +6,10 @@ export function getLeaveGroupUrl(threadId: string): string {
   return `/api/shared/chat/threads/${encodeURIComponent(threadId)}/leave`
 }
 
+export function getAddParticipantsUrl(threadId: string): string {
+  return `/api/shared/chat/threads/${encodeURIComponent(threadId)}/members`
+}
+
 export function getRenameThreadUrl(threadId: string): string {
   return `/api/shared/chat/threads/${encodeURIComponent(threadId)}`
 }

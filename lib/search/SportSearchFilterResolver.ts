@@ -4,17 +4,31 @@
  */
 
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { getSportLabel } from "@/lib/multi-sport/SportSelectorUIService"
 
 export type SportFilterValue = string | null
+export const ALL_SPORT_SEARCH_FILTER = "ALL" as const
+
+export interface SportFilterOption {
+  value: typeof ALL_SPORT_SEARCH_FILTER | string
+  label: string
+}
 
 /** Supported sport codes for filter dropdown/chips. */
 export function getSupportedSportFilters(): string[] {
   return [...SUPPORTED_SPORTS]
 }
 
+export function getSportSearchFilterOptions(): SportFilterOption[] {
+  return [
+    { value: ALL_SPORT_SEARCH_FILTER, label: "All sports" },
+    ...SUPPORTED_SPORTS.map((sport) => ({ value: sport, label: getSportLabel(sport) })),
+  ]
+}
+
 /** Resolve sport filter from query or selection; null = all. */
 export function resolveSportFilter(value: SportFilterValue): SportFilterValue {
-  if (!value || value === "all") return null
+  if (!value || value.toUpperCase() === "ALL") return null
   const upper = value.trim().toUpperCase()
   return SUPPORTED_SPORTS.includes(upper as any) ? upper : null
 }

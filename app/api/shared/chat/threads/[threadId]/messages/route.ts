@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
 import { createPlatformThreadMessage, getPlatformThreadMessages } from '@/lib/platform/chat-service'
-import { isLeagueVirtualRoom, getLeagueIdFromVirtualRoom } from '@/lib/chat-core'
+import type { PlatformChatMessage } from '@/types/platform-shared'
+import {
+  isLeagueVirtualRoom,
+  getLeagueIdFromVirtualRoom,
+  getMessageQueryOptions,
+  parseCursor,
+} from '@/lib/chat-core'
 import { bracketMessagesToPlatform } from '@/lib/chat-core/league-message-proxy'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getLeagueChatMessages } from '@/lib/league-chat/LeagueChatMessageService'
@@ -18,10 +24,17 @@ const bracketMessageInclude = {
   user: {
     select: {
       id: true,
+      username: true,
       displayName: true,
       email: true,
       avatarUrl: true,
       profile: { select: { avatarPreset: true } },
+    },
+  },
+  reactions: {
+    select: {
+      emoji: true,
+      userId: true,
     },
   },
 }
@@ -52,6 +65,18 @@ async function canAccessSurvivorTribeSource(
   return memberRosterIds.includes(rosterId)
 }
 
+function applyBlockedVisibility(
+  messages: PlatformChatMessage[],
+  blockSet: Set<string>
+): { messages: PlatformChatMessage[]; hiddenBlockedCount: number } {
+  if (blockSet.size === 0) return { messages, hiddenBlockedCount: 0 }
+  const filtered = filterMessagesByBlocked(messages, blockSet)
+  return {
+    messages: filtered,
+    hiddenBlockedCount: Math.max(0, messages.length - filtered.length),
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { threadId: string } },
@@ -62,10 +87,14 @@ export async function GET(
   }
 
   const threadId = decodeURIComponent(params.threadId)
-  const limit = Math.max(1, Math.min(Number(req.nextUrl.searchParams.get('limit') || '50'), 100))
+  const query = getMessageQueryOptions(req.nextUrl.searchParams)
+  const limit = query.limit ?? 50
+  const beforeDate = parseCursor(query.before ?? null)
   const source = normalizeLeagueChatSource(
     req.nextUrl.searchParams.has('source') ? req.nextUrl.searchParams.get('source') : undefined
   )
+  const blockedIds = await getBlockedUserIds(user.appUserId)
+  const blockSet = blockedIds.length > 0 ? new Set(blockedIds) : new Set<string>()
 
   if (isLeagueVirtualRoom(threadId)) {
     const leagueId = getLeagueIdFromVirtualRoom(threadId)
@@ -74,18 +103,22 @@ export async function GET(
       where: { leagueId_userId: { leagueId, userId: user.appUserId } },
     })
     if (member) {
-      const cursor = req.nextUrl.searchParams.get('before')
       const rows = await (prisma as any).bracketLeagueMessage.findMany({
         where: {
           leagueId,
-          ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+          ...(beforeDate ? { createdAt: { lt: beforeDate } } : {}),
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
         include: bracketMessageInclude,
       })
       const messages = bracketMessagesToPlatform(rows.reverse(), threadId)
-      return NextResponse.json({ status: 'ok', messages })
+      const visible = applyBlockedVisibility(messages, blockSet)
+      return NextResponse.json({
+        status: 'ok',
+        messages: visible.messages,
+        hiddenBlockedCount: visible.hiddenBlockedCount,
+      })
     }
     const mainLeagueAccess = await canAccessLeagueDraft(leagueId, user.appUserId)
     if (mainLeagueAccess) {
@@ -93,24 +126,28 @@ export async function GET(
       if (!sourceAllowed) {
         return NextResponse.json({ error: 'Not allowed to access this tribe chat' }, { status: 403 })
       }
-      const cursor = req.nextUrl.searchParams.get('before')
       const messages = await getLeagueChatMessages(leagueId, {
         limit,
-        before: cursor ? new Date(cursor) : undefined,
+        before: beforeDate ?? undefined,
         source,
       })
-      return NextResponse.json({ status: 'ok', messages })
+      const visible = applyBlockedVisibility(messages, blockSet)
+      return NextResponse.json({
+        status: 'ok',
+        messages: visible.messages,
+        hiddenBlockedCount: visible.hiddenBlockedCount,
+      })
     }
     return NextResponse.json({ error: 'Not a member' }, { status: 403 })
   }
 
-  let messages = await getPlatformThreadMessages(user.appUserId, threadId, limit)
-  const blockedIds = await getBlockedUserIds(user.appUserId)
-  if (blockedIds.length > 0) {
-    const blockSet = new Set(blockedIds)
-    messages = filterMessagesByBlocked(messages, blockSet)
-  }
-  return NextResponse.json({ status: 'ok', messages })
+  const messages = await getPlatformThreadMessages(user.appUserId, threadId, limit)
+  const visible = applyBlockedVisibility(messages, blockSet)
+  return NextResponse.json({
+    status: 'ok',
+    messages: visible.messages,
+    hiddenBlockedCount: visible.hiddenBlockedCount,
+  })
 }
 
 export async function POST(
@@ -124,8 +161,27 @@ export async function POST(
 
   const threadId = decodeURIComponent(params.threadId)
   const body = await req.json().catch(() => ({}))
-  const message = String(body?.body || body?.message || '').trim()
+  const metadata =
+    body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+      ? (body.metadata as Record<string, unknown>)
+      : undefined
+  const rawMessage = String(body?.body || body?.message || '').trim()
   const messageType = String(body?.messageType || 'text')
+  const message =
+    messageType === 'poll' &&
+    metadata &&
+    typeof metadata.question === 'string' &&
+    Array.isArray(metadata.options)
+      ? JSON.stringify({
+          question: String(metadata.question),
+          options: (metadata.options as unknown[]).map((option) => String(option)).filter(Boolean),
+          votes:
+            metadata.votes && typeof metadata.votes === 'object'
+              ? (metadata.votes as Record<string, string[]>)
+              : {},
+          closed: Boolean(metadata.closed),
+        })
+      : rawMessage
   const source = normalizeLeagueChatSource(body?.source)
 
   if (!message) {
@@ -198,10 +254,42 @@ export async function POST(
     return NextResponse.json({ error: 'Not a member' }, { status: 403 })
   }
 
-  const metadata =
-    body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
-      ? (body.metadata as Record<string, unknown>)
-      : undefined
+  const myMembership = await (prisma as any).platformChatThreadMember.findFirst({
+    where: { threadId, userId: user.appUserId, isBlocked: false },
+    include: {
+      thread: {
+        select: {
+          threadType: true,
+          members: { select: { userId: true } },
+        },
+      },
+    },
+  })
+  if (!myMembership?.thread) {
+    return NextResponse.json({ error: "Thread not available" }, { status: 403 })
+  }
+
+  if (myMembership.thread.threadType === "dm") {
+    const members = Array.isArray(myMembership.thread.members) ? myMembership.thread.members : []
+    const otherUserId = members.find((member: { userId: string }) => member.userId !== user.appUserId)?.userId
+    if (otherUserId) {
+      const blockedRelation = await (prisma as any).platformBlockedUser.findFirst({
+        where: {
+          OR: [
+            { blockerUserId: user.appUserId, blockedUserId: otherUserId },
+            { blockerUserId: otherUserId, blockedUserId: user.appUserId },
+          ],
+        },
+        select: { id: true },
+      })
+      if (blockedRelation) {
+        return NextResponse.json(
+          { error: "Direct messages are blocked between these users. Unblock to continue." },
+          { status: 403 }
+        )
+      }
+    }
+  }
 
   const created = await createPlatformThreadMessage(
     user.appUserId,

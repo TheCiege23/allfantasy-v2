@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { PlayoffOddsPanel } from './PlayoffOddsPanel'
 import { SimulationConfidenceIndicator } from './SimulationConfidenceIndicator'
 import type { TeamSeasonForecastDisplay } from './TeamForecastCard'
+import { getToolToAIChatHref } from '@/lib/chimmy-chat'
 
 export type LeagueForecastDashboardProps = {
   teamForecasts: TeamSeasonForecastDisplay[]
@@ -89,20 +90,13 @@ export function LeagueForecastDashboard({
   }, [volatile.length, teamForecasts.length])
 
   const playoffChatHref = useMemo(() => {
-    try {
-      const url = new URL('/af-legacy?tab=chat', 'https://allfantasy.com')
-      url.searchParams.set(
-        'prompt',
-        "Explain my league's playoff odds, title race, and best next move."
-      )
-      url.searchParams.set('insightType', 'playoff')
-      if (leagueId) url.searchParams.set('leagueId', leagueId)
-      if (season != null) url.searchParams.set('season', String(season))
-      if (week != null) url.searchParams.set('week', String(week))
-      return `${url.pathname}${url.search}`
-    } catch {
-      return '/af-legacy?tab=chat'
-    }
+    return getToolToAIChatHref('playoff', {
+      prompt: "Explain my league's playoff odds, title race, and best next move.",
+      insightType: 'playoff',
+      leagueId,
+      season,
+      week,
+    })
   }, [leagueId, season, week])
 
   return (

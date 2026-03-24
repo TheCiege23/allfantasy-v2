@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useRef, useState, useEffect } from "react"
 import { signOut } from "next-auth/react"
 import { ChevronDown, User, Settings as SettingsIcon, LogOut } from "lucide-react"
@@ -17,11 +17,11 @@ export interface UserMenuDropdownProps {
 }
 
 export function UserMenuDropdown({ userLabel, className = "", compact = false }: UserMenuDropdownProps) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { profile } = useSettingsProfile()
   const username = userLabel ?? profile?.username ?? "User"
+  const menuId = "global-user-menu-dropdown"
 
   useEffect(() => {
     if (!open) return
@@ -30,6 +30,18 @@ export function UserMenuDropdown({ userLabel, className = "", compact = false }:
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault()
+        setOpen(false)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
   }, [open])
 
   return (
@@ -45,6 +57,7 @@ export function UserMenuDropdown({ userLabel, className = "", compact = false }:
         }}
         aria-expanded={open}
         aria-haspopup="true"
+        aria-controls={open ? menuId : undefined}
         aria-label="User menu"
       >
         <IdentityImageRenderer
@@ -63,26 +76,24 @@ export function UserMenuDropdown({ userLabel, className = "", compact = false }:
       </button>
       {open && (
         <div
+          id={menuId}
           className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] rounded-lg border py-1 shadow-lg"
           style={{ background: "var(--panel)", borderColor: "var(--border)" }}
           role="menu"
         >
           {USER_MENU_ITEMS.map((item) => (
-            <button
+            <Link
               key={item.href}
-              type="button"
+              href={item.href}
               role="menuitem"
-              onClick={() => {
-                setOpen(false)
-                router.push(item.href)
-              }}
+              onClick={() => setOpen(false)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition"
               style={{ color: "var(--text)" }}
             >
               {item.label === "Profile" && <User className="h-4 w-4" style={{ color: "var(--muted)" }} />}
               {item.label === "Settings" && <SettingsIcon className="h-4 w-4" style={{ color: "var(--muted)" }} />}
               {item.label}
-            </button>
+            </Link>
           ))}
           <button
             type="button"

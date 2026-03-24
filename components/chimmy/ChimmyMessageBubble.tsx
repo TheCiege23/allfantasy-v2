@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { SuggestedActionRenderer } from '@/lib/chimmy-chat/SuggestedActionRenderer'
 
 export interface ChimmyMessageMeta {
   confidencePct?: number
@@ -33,13 +34,15 @@ function renderContentWithLinks(text: string) {
     if (match.index > lastIndex) {
       nodes.push(<span key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</span>)
     }
+    const href = match[2]
+    const isInternal = href.startsWith("/") && !href.startsWith("//")
     nodes.push(
       <a
         key={`l-${match.index}`}
-        href={match[2]}
+        href={href}
         className="underline text-cyan-300 hover:text-cyan-200"
-        target="_blank"
-        rel="noopener noreferrer"
+        target={isInternal ? undefined : "_blank"}
+        rel={isInternal ? undefined : "noopener noreferrer"}
       >
         {match[1]}
       </a>
@@ -95,6 +98,7 @@ export default function ChimmyMessageBubble({
             )}
           </div>
         )}
+        {!isUser && <SuggestedActionRenderer content={content} />}
 
         {!isUser && showListen && onListen && (
           <div className="mt-2">

@@ -1,22 +1,82 @@
 import { prisma } from '@/lib/prisma'
 import type { PlatformChatMessage, PlatformChatThread } from '@/types/platform-shared'
+import { getDefaultChatSport, resolveSportForChatRoom } from '@/lib/chat-core'
 
 function toIso(value: Date | string | null | undefined): string {
   if (!value) return new Date(0).toISOString()
   return new Date(value).toISOString()
 }
 
-function normalizeThread(row: any): PlatformChatThread {
+function toMessagePreview(messageType: string | null | undefined, body: string | null | undefined): string | null {
+  const normalizedType = String(messageType || "text").toLowerCase()
+  if (normalizedType === "image") return "Image"
+  if (normalizedType === "gif") return "GIF"
+  if (normalizedType === "video") return "Video"
+  if (normalizedType === "meme") return "Meme"
+  if (normalizedType === "poll") return "Poll"
+  if (normalizedType === "pin") return "Pinned a message"
+  if (normalizedType === "broadcast") return "Commissioner announcement"
+  const text = String(body || "").trim()
+  if (!text) return null
+  return text.length > 90 ? `${text.slice(0, 90)}…` : text
+}
+
+async function resolveUnreadCountForMember(
+  appUserId: string,
+  threadId: string,
+  lastReadAt: Date | null | undefined,
+  lastMessageAt: Date | null | undefined,
+): Promise<number> {
+  if (!lastMessageAt) return 0
+  if (lastReadAt && new Date(lastReadAt).getTime() >= new Date(lastMessageAt).getTime()) return 0
+  try {
+    const count = await (prisma as any).platformChatMessage.count({
+      where: {
+        threadId,
+        ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+        NOT: { senderUserId: appUserId },
+      },
+    })
+    return Math.max(0, Number(count || 0))
+  } catch {
+    return 0
+  }
+}
+
+async function normalizeThread(row: any, memberRow: any, appUserId: string): Promise<PlatformChatThread> {
+  const latestMessage = Array.isArray(row?.messages) ? row.messages[0] : null
+  const otherDmMember =
+    row?.threadType === "dm" && Array.isArray(row?.members)
+      ? row.members.find((m: any) => m.userId !== appUserId && m.user)
+      : null
+  const dmTitle =
+    otherDmMember?.user?.displayName ||
+    otherDmMember?.user?.username ||
+    otherDmMember?.user?.email ||
+    "Direct message"
+  const unreadCount = await resolveUnreadCountForMember(
+    appUserId,
+    row.id,
+    memberRow?.lastReadAt ?? null,
+    latestMessage?.createdAt ?? row?.lastMessageAt ?? null,
+  )
   return {
     id: row.id,
     threadType: row.threadType,
     productType: row.productType,
-    title: row.title || 'Chat Thread',
+    title: row.title || (row.threadType === "dm" ? dmTitle : "Chat Thread"),
     lastMessageAt: toIso(row.lastMessageAt),
-    unreadCount: 0,
+    unreadCount,
     memberCount: Number(row?._count?.members || 0),
     context: {
       createdByUserId: row.createdByUserId || null,
+      isMuted: Boolean(memberRow?.isMuted),
+      lastReadAt: memberRow?.lastReadAt ? toIso(memberRow.lastReadAt) : null,
+      lastMessagePreview: toMessagePreview(latestMessage?.messageType, latestMessage?.body),
+      lastMessageType: latestMessage?.messageType || null,
+      otherUserId: otherDmMember?.user?.id || null,
+      otherUsername: otherDmMember?.user?.username || null,
+      otherDisplayName: otherDmMember?.user?.displayName || null,
     },
   }
 }
@@ -29,6 +89,28 @@ async function getUnifiedThreads(appUserId: string): Promise<PlatformChatThread[
         thread: {
           include: {
             _count: { select: { members: true } },
+            members: {
+              select: {
+                userId: true,
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+            messages: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                createdAt: true,
+                messageType: true,
+                body: true,
+              },
+            },
           },
         },
       },
@@ -36,7 +118,7 @@ async function getUnifiedThreads(appUserId: string): Promise<PlatformChatThread[
       take: 100,
     })
 
-    return rows.map((m: any) => normalizeThread(m.thread))
+    return Promise.all(rows.map((m: any) => normalizeThread(m.thread, m, appUserId)))
   } catch {
     return null
   }
@@ -53,6 +135,11 @@ async function getLegacyFallbackThreads(appUserId: string): Promise<PlatformChat
               id: true,
               name: true,
               updatedAt: true,
+              tournament: {
+                select: {
+                  sport: true,
+                },
+              },
               _count: { select: { members: true } },
             },
           },
@@ -75,16 +162,20 @@ async function getLegacyFallbackThreads(appUserId: string): Promise<PlatformChat
       .catch(() => []),
   ])
 
-  const leagueThreads: PlatformChatThread[] = leagueMemberships.map((m: any) => ({
-    id: `league:${m.league.id}`,
-    threadType: 'league',
-    productType: 'app',
-    title: m.league.name || 'League Chat',
-    lastMessageAt: toIso(m.league.updatedAt),
-    unreadCount: 0,
-    memberCount: Number(m.league?._count?.members || 0),
-    context: { leagueId: m.league.id },
-  }))
+  const leagueThreads: PlatformChatThread[] = leagueMemberships.map((m: any) => {
+    const sport =
+      resolveSportForChatRoom({ sport: m?.league?.tournament?.sport ?? null }) ?? getDefaultChatSport()
+    return {
+      id: `league:${m.league.id}`,
+      threadType: 'league',
+      productType: 'app',
+      title: m.league.name || 'League Chat',
+      lastMessageAt: toIso(m.league.updatedAt),
+      unreadCount: 0,
+      memberCount: Number(m.league?._count?.members || 0),
+      context: { leagueId: m.league.id, sport },
+    }
+  })
 
   const aiThreads: PlatformChatThread[] = aiConversations.map((c: any) => ({
     id: `ai:${c.id}`,
@@ -94,7 +185,11 @@ async function getLegacyFallbackThreads(appUserId: string): Promise<PlatformChat
     lastMessageAt: toIso(c.lastMessageAt),
     unreadCount: 0,
     memberCount: 1,
-    context: { conversationId: c.id, messageCount: Number(c.messageCount || 0) },
+    context: {
+      conversationId: c.id,
+      messageCount: Number(c.messageCount || 0),
+      sport: getDefaultChatSport(),
+    },
   }))
 
   return [...leagueThreads, ...aiThreads].sort(
@@ -116,12 +211,34 @@ export async function getPlatformThreadById(appUserId: string, threadId: string)
         thread: {
           include: {
             _count: { select: { members: true } },
+            members: {
+              select: {
+                userId: true,
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    email: true,
+                  },
+                },
+              },
+            },
+            messages: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: {
+                createdAt: true,
+                messageType: true,
+                body: true,
+              },
+            },
           },
         },
       },
     })
     if (!member) return null
-    return normalizeThread(member.thread)
+    return normalizeThread(member.thread, member, appUserId)
   } catch {
     return null
   }
@@ -152,7 +269,8 @@ export async function createPlatformThread(params: {
       })
 
       if (existing && Number(existing?._count?.members || 0) === 2) {
-        return normalizeThread(existing)
+        const found = await getPlatformThreadById(params.creatorUserId, existing.id)
+        if (found) return found
       }
     } catch {
     }
@@ -176,7 +294,18 @@ export async function createPlatformThread(params: {
       include: { _count: { select: { members: true } } },
     })
 
-    return normalizeThread(created)
+    const hydrated = await getPlatformThreadById(params.creatorUserId, created.id)
+    if (hydrated) return hydrated
+    return {
+      id: created.id,
+      threadType: created.threadType,
+      productType: created.productType,
+      title: created.title || "Chat Thread",
+      lastMessageAt: toIso(created.lastMessageAt),
+      unreadCount: 0,
+      memberCount: Number(created?._count?.members || 0),
+      context: { createdByUserId: created.createdByUserId || null },
+    }
   } catch {
     return null
   }
@@ -215,12 +344,18 @@ export async function getPlatformThreadMessages(
       take,
     })
 
+    await (prisma as any).platformChatThreadMember.updateMany({
+      where: { threadId, userId: appUserId },
+      data: { lastReadAt: new Date() },
+    })
+
     const visible = rows.filter((r: any) => !(r.metadata as Record<string, unknown>)?.hiddenByMod)
     return visible.reverse().map((msg: any) => ({
       id: msg.id,
       threadId,
       senderUserId: msg.senderUserId || null,
       senderName: msg.sender?.displayName || msg.sender?.username || msg.sender?.email || 'User',
+      senderUsername: msg.sender?.username || null,
       senderAvatarUrl: msg.sender?.avatarUrl ?? null,
       senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
       messageType: msg.messageType || 'text',
@@ -315,6 +450,7 @@ export async function createPlatformThreadMessage(
       threadId,
       senderUserId: created.senderUserId || null,
       senderName: created.sender?.displayName || created.sender?.username || created.sender?.email || 'User',
+      senderUsername: created.sender?.username || null,
       senderAvatarUrl: created.sender?.avatarUrl ?? null,
       senderAvatarPreset: created.sender?.profile?.avatarPreset ?? null,
       messageType: created.messageType || 'text',
@@ -493,12 +629,13 @@ export async function votePollMessage(
     })
     if (!msg?.body) return false
 
-    let payload: { question?: string; options?: string[]; votes?: Record<string, string[]> } = {}
+    let payload: { question?: string; options?: string[]; votes?: Record<string, string[]>; closed?: boolean } = {}
     try {
       payload = typeof msg.body === 'string' ? JSON.parse(msg.body) : msg.body
     } catch {
       return false
     }
+    if (payload.closed) return false
     const options = Array.isArray(payload.options) ? payload.options : []
     if (optionIndex < 0 || optionIndex >= options.length) return false
 
@@ -609,6 +746,64 @@ export async function leaveThread(appUserId: string, threadId: string): Promise<
 }
 
 /**
+ * Add participants to an existing group thread. Caller must be a member.
+ */
+export async function addThreadParticipants(
+  appUserId: string,
+  threadId: string,
+  userIds: string[],
+): Promise<boolean> {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean))).filter((id) => id !== appUserId)
+  if (uniqueIds.length === 0) return false
+
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      include: { thread: { select: { id: true, threadType: true } } },
+    })
+    if (!member?.thread?.id || member.thread.threadType !== "group") return false
+
+    const existing = await (prisma as any).platformChatThreadMember.findMany({
+      where: { threadId, userId: { in: uniqueIds } },
+      select: { userId: true, isBlocked: true },
+    })
+    const existingMap = new Map<string, { isBlocked: boolean }>(
+      existing.map((entry: any) => [entry.userId as string, { isBlocked: Boolean(entry.isBlocked) }]),
+    )
+
+    for (const userId of uniqueIds) {
+      const found = existingMap.get(userId)
+      if (found) {
+        if (found.isBlocked) {
+          await (prisma as any).platformChatThreadMember.updateMany({
+            where: { threadId, userId },
+            data: { isBlocked: false, joinedAt: new Date() },
+          })
+        }
+        continue
+      }
+      await (prisma as any).platformChatThreadMember.create({
+        data: {
+          threadId,
+          userId,
+          role: "member",
+          joinedAt: new Date(),
+        },
+      })
+    }
+
+    await (prisma as any).platformChatThread.update({
+      where: { id: threadId },
+      data: { updatedAt: new Date() },
+    })
+
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Get thread members for mention suggestions. Caller must be a member. Returns id, username, displayName.
  */
 export async function getThreadMembers(
@@ -651,9 +846,9 @@ export async function updateThreadTitle(
   try {
     const member = await (prisma as any).platformChatThreadMember.findFirst({
       where: { threadId, userId: appUserId, isBlocked: false },
-      select: { id: true },
+      include: { thread: { select: { threadType: true } } },
     })
-    if (!member) return false
+    if (!member || member.thread?.threadType !== "group") return false
     await (prisma as any).platformChatThread.update({
       where: { id: threadId },
       data: { title: title.trim().slice(0, 100) || null, updatedAt: new Date() },
@@ -716,6 +911,7 @@ export async function blockUserInSharedThreads(
   try {
     const shared = await (prisma as any).platformChatThread.findMany({
       where: {
+        threadType: "dm",
         members: {
           some: { userId: requesterUserId },
         },
@@ -757,6 +953,7 @@ export async function unblockUserInSharedThreads(
   try {
     const shared = await (prisma as any).platformChatThread.findMany({
       where: {
+        threadType: "dm",
         members: {
           some: { userId: requesterUserId },
         },

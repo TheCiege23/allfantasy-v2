@@ -15,12 +15,22 @@ export function isCommandPaletteShortcut(e: KeyboardEvent): boolean {
   return (MAC ? e.metaKey : e.ctrlKey) && e.key.toLowerCase() === COMMAND_PALETTE_KEY
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"
+}
+
 /** Handler for keydown: call onOpen when shortcut pressed. Use in useEffect with this handler. */
-export function createCommandPaletteHandler(onOpen: () => void) {
+export function createCommandPaletteHandler(
+  onOpen: () => void,
+  options?: { allowInInputs?: boolean }
+) {
   return (e: KeyboardEvent) => {
-    if (isCommandPaletteShortcut(e)) {
-      e.preventDefault()
-      onOpen()
-    }
+    if (!isCommandPaletteShortcut(e) || e.defaultPrevented || e.repeat) return
+    if (!options?.allowInInputs && isEditableTarget(e.target)) return
+    e.preventDefault()
+    onOpen()
   }
 }

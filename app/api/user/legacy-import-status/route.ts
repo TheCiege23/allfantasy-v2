@@ -39,14 +39,18 @@ export async function GET() {
       const lastJob = await (prisma as any).legacyImportJob.findFirst({
         where: { userId: legacyUser.id },
         orderBy: { createdAt: "desc" },
-        select: { status: true, progress: true, completedAt: true, error: true },
+        select: { status: true, progress: true, completedAt: true, createdAt: true, error: true },
       }).catch(() => null)
 
       if (lastJob) {
         sleeperImportStatus = {
           status: lastJob.status,
           progress: lastJob.progress ?? undefined,
-          lastJobAt: lastJob.completedAt ? new Date(lastJob.completedAt).toISOString() : undefined,
+          lastJobAt: lastJob.completedAt
+            ? new Date(lastJob.completedAt).toISOString()
+            : lastJob.createdAt
+              ? new Date(lastJob.createdAt).toISOString()
+              : undefined,
           error: lastJob.error ?? undefined,
         }
       } else {

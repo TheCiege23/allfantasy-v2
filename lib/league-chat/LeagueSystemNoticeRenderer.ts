@@ -3,7 +3,17 @@
  * Used by message list to render broadcast, stats_bot, pin distinctly from normal messages.
  */
 
-export const LEAGUE_SYSTEM_MESSAGE_TYPES = ["broadcast", "stats_bot", "pin", "system"] as const
+export const LEAGUE_SYSTEM_MESSAGE_TYPES = [
+  "broadcast",
+  "stats_bot",
+  "pin",
+  "system",
+  "waiver_bot",
+  "commissioner_notice",
+  "trade_notice",
+  "waiver_notice",
+  "trade_accepted",
+] as const
 export type LeagueSystemMessageType = (typeof LEAGUE_SYSTEM_MESSAGE_TYPES)[number]
 
 export function isLeagueSystemNotice(messageType: string): messageType is LeagueSystemMessageType {
@@ -20,6 +30,15 @@ export function getLeagueSystemNoticeLabel(messageType: string): string {
       return "Pinned"
     case "system":
       return "System"
+    case "waiver_bot":
+      return "Waiver"
+    case "commissioner_notice":
+      return "Commissioner"
+    case "trade_notice":
+    case "trade_accepted":
+      return "Trade"
+    case "waiver_notice":
+      return "Waiver"
     default:
       return "Notice"
   }
@@ -63,4 +82,17 @@ export function getPinReferencedMessageId(body: string): string | null {
     // ignore
   }
   return null
+}
+
+/** Parse generic system notice text from JSON body when available. */
+export function getSystemNoticeBody(body: string): string {
+  try {
+    const parsed = JSON.parse(body || "{}") as Record<string, unknown>
+    if (typeof parsed.text === "string" && parsed.text.trim()) return parsed.text
+    if (typeof parsed.message === "string" && parsed.message.trim()) return parsed.message
+    if (typeof parsed.notice === "string" && parsed.notice.trim()) return parsed.notice
+  } catch {
+    // fall back to raw body
+  }
+  return body || ""
 }

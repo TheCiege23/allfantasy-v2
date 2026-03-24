@@ -23,7 +23,7 @@ import AdminSystemPanel from "./components/AdminSystemPanel";
 import AdminProviderDiagnostics from "./components/AdminProviderDiagnostics";
 import { UsageAnalyticsPanel } from "@/components/admin/UsageAnalyticsPanel";
 import { verifyAdminSessionCookie } from "@/lib/adminSession";
-import { getLoginRedirectUrl } from "@/lib/routing";
+import { getLoginRedirectUrl, getUnauthorizedFallback } from "@/lib/routing";
 
 type MeResponse = {
   user?: {
@@ -96,7 +96,7 @@ export default async function AdminPage({
   const tab = parseTab(searchParams?.tab);
   const me = await getMe();
   if (!me?.user) redirect(getLoginRedirectUrl(`/admin?tab=${tab}`));
-  if (!isAdmin(me)) redirect("/");
+  if (!isAdmin(me)) redirect(getUnauthorizedFallback(true, false, `/admin?tab=${tab}`));
 
   return (
     <AdminLayout

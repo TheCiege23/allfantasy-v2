@@ -5,6 +5,11 @@
 import type { PlatformNotification } from "@/types/platform-shared"
 
 export type NotificationGroupKey = "today" | "yesterday" | "earlier"
+export const NOTIFICATION_GROUP_ORDER: NotificationGroupKey[] = [
+  "today",
+  "yesterday",
+  "earlier",
+]
 
 export function getGroupKey(dateStr: string): NotificationGroupKey {
   const d = new Date(dateStr)
@@ -25,7 +30,12 @@ export function groupNotifications(
     yesterday: [],
     earlier: [],
   }
-  for (const n of notifications) {
+  const sorted = [...notifications].sort((a, b) => {
+    const aTime = new Date(a.createdAt).getTime()
+    const bTime = new Date(b.createdAt).getTime()
+    return bTime - aTime
+  })
+  for (const n of sorted) {
     const key = getGroupKey(n.createdAt)
     groups[key].push(n)
   }
