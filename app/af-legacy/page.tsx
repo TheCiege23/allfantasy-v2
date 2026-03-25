@@ -18104,6 +18104,51 @@ function AFLegacyContent() {
 }
 
 export default function AFLegacyPage() {
+  const [legacyEnabled, setLegacyEnabled] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const res = await fetch('/api/config/features', { cache: 'no-store' })
+        const json = await res.json().catch(() => ({}))
+        const enabled = json?.features?.feature_legacy_mode
+        if (active) setLegacyEnabled(enabled !== false)
+      } catch {
+        if (active) setLegacyEnabled(true)
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (legacyEnabled == null) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6 bg-[#05060b]">
+        <div className="text-sm" style={{ color: "var(--muted)" }}>Loading legacy mode…</div>
+      </main>
+    )
+  }
+
+  if (legacyEnabled === false) {
+    return (
+      <main className="min-h-screen flex items-center justify-center p-6 bg-[#05060b]">
+        <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>
+            Legacy mode is temporarily disabled
+          </h1>
+          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+            This experience has been turned off by platform configuration.
+          </p>
+          <Link href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>
+            Back to dashboard
+          </Link>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <>
       <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 flex items-center justify-center"><div className="text-white">Loading...</div></div>}>

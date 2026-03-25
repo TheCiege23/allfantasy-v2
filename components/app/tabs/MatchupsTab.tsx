@@ -67,9 +67,14 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
     [data]
   )
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectionCleared, setSelectionCleared] = useState(false)
   const selected = useMemo(
-    () => matchups.find((m) => m.id === selectedId) ?? matchups[0] ?? null,
-    [matchups, selectedId]
+    () => {
+      if (selectedId) return matchups.find((m) => m.id === selectedId) ?? null
+      if (selectionCleared) return null
+      return matchups[0] ?? null
+    },
+    [matchups, selectedId, selectionCleared]
   )
 
   return (
@@ -105,6 +110,7 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
             </button>
             <select
               aria-label="Matchup period selector"
+              data-testid="matchup-period-selector"
               value={data?.selectedWeekOrRound ?? selectedWeekOrRound ?? 1}
               onChange={(e) => setSelectedWeekOrRound(Math.max(1, Number(e.target.value) || 1))}
               className="rounded border border-white/20 bg-black/50 px-2 py-1 text-white"
@@ -143,7 +149,10 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
                 <MatchupCard
                   key={m.id}
                   matchup={m}
-                  onClick={() => setSelectedId(m.id)}
+                  onClick={() => {
+                    setSelectedId(m.id)
+                    setSelectionCleared(false)
+                  }}
                 />
               ))
             ) : (
@@ -156,7 +165,11 @@ export default function MatchupsTab({ leagueId }: LeagueTabProps) {
             {selected && (
               <button
                 type="button"
-                onClick={() => setSelectedId(null)}
+                onClick={() => {
+                  setSelectedId(null)
+                  setSelectionCleared(true)
+                }}
+                data-testid="matchup-clear-selection"
                 className="md:hidden mb-2 text-[10px] text-white/50 hover:text-white/80"
               >
                 Clear selection

@@ -89,6 +89,7 @@ export default function CreatorLeagueLandingPage() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <Link
           href={`/creators/${encodeURIComponent(creatorSlug)}`}
+          data-testid="creator-league-back-to-profile"
           className="text-sm font-medium mb-6 inline-block"
           style={{ color: 'var(--muted)' }}
         >
@@ -97,6 +98,7 @@ export default function CreatorLeagueLandingPage() {
 
         {joinResult && (
           <div
+            data-testid="creator-league-join-result"
             className="rounded-xl border p-4 mb-6"
             style={{
               borderColor: joinResult.success ? 'var(--accent)' : 'var(--destructive)',

@@ -60,14 +60,26 @@ export function FeedCardRenderer({
   const isSaved = savedIds.has(item.id)
   const showCreatorCta =
     item.type === "creator_post" && (item.creatorHandle ?? item.creatorId)
+  const safeId = item.id.replace(/[^a-zA-Z0-9_-]/g, "_")
+  const isAiInsightCard =
+    item.type === "ai_insight" || item.type === "ai_story_card" || item.type === "power_rankings_card"
 
   return (
     <article
       className="rounded-xl border border-white/10 bg-white/5 overflow-hidden hover:bg-white/[0.07] transition"
       data-feed-id={item.id}
       data-feed-type={item.type}
+      data-testid={`content-feed-card-${safeId}`}
     >
-      <Link href={item.href} className="block p-4">
+      <Link
+        href={item.href}
+        className="block p-4"
+        data-testid={
+          isAiInsightCard
+            ? `content-feed-ai-insight-card-${safeId}`
+            : `content-feed-article-link-${safeId}`
+        }
+      >
         <div className="flex gap-3">
           {item.creatorAvatarUrl ? (
             <div className="relative h-10 w-10 shrink-0 rounded-full overflow-hidden bg-white/10">

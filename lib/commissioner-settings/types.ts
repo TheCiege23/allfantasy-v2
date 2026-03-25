@@ -15,6 +15,8 @@ export type RosterSettingsInput = {
   rosterSize?: number | null
   leagueSize?: number | null
   starters?: unknown
+  benchSize?: number | null
+  rosterPositions?: string[] | null
 }
 
 export type TradeSettingsInput = {
@@ -28,6 +30,7 @@ export type LeagueSettingsPatch = GeneralSettingsInput & RosterSettingsInput & T
   publicDashboard?: boolean
   rankedVisibility?: boolean
   orphanSeeking?: boolean
+  orphanDifficulty?: string | null
   leagueChatThreadId?: string | null
 }
 

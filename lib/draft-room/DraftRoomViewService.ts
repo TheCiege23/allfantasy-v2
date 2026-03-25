@@ -5,6 +5,13 @@
 
 export type DraftViewState = 'pre_draft' | 'live' | 'complete' | 'loading' | 'error'
 
+export const DRAFT_ROOM_MESSAGES = {
+  loading: 'Loading draft room…',
+  noSession: 'No draft session for this league.',
+  queueEmpty: 'Queue is empty. Add players from the player list.',
+  playerPoolLoading: 'Loading player pool…',
+} as const
+
 export type CurrentPickDisplay = {
   overall: number
   round: number
@@ -82,4 +89,8 @@ export function getTimerDisplay(
     isUrgent,
     label,
   }
+}
+
+export function getPickConfirmationLabel(playerName: string, position: string, team?: string | null): string {
+  return `${playerName} (${position}${team ? ` · ${team}` : ''})`
 }

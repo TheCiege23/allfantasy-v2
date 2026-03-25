@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { assertCommissioner } from "@/lib/commissioner/permissions"
 import { getLeaguePrivacySettings } from "@/lib/league-privacy"
+import { buildFantasyInviteLink, generateInviteToken, getDefaultFantasyInviteExpiry } from "@/lib/league-invite"
 
 export const dynamic = "force-dynamic"
 
@@ -61,17 +62,18 @@ export async function POST(
 
   const settings = (league.settings as Record<string, unknown>) || {}
   let inviteCode = (settings.inviteCode as string) ?? null
-  if (!inviteCode) {
-    const crypto = await import("crypto")
-    inviteCode = crypto.randomBytes(6).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8)
+  let inviteExpiresAt = settings.inviteExpiresAt as string | null | undefined
+  if (!inviteCode || !inviteExpiresAt) {
+    inviteCode = inviteCode || generateInviteToken(8)
+    inviteExpiresAt = inviteExpiresAt || getDefaultFantasyInviteExpiry()
     await prisma.league.update({
       where: { id: league.id },
-      data: { settings: { ...settings, inviteCode } },
+      data: { settings: { ...settings, inviteCode, inviteExpiresAt } },
     })
   }
 
   const baseUrl = getBaseUrl(req)
-  const inviteUrl = `${baseUrl}/join?code=${encodeURIComponent(inviteCode)}`
+  const inviteUrl = buildFantasyInviteLink(inviteCode || generateInviteToken(8), baseUrl)
   const leagueName = (league.name as string) || "League"
 
   if (type === "email") {

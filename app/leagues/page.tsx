@@ -1,11 +1,15 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import LeagueSyncDashboard from "@/app/components/LeagueSyncDashboard"
+import { buildMetadata, getSEOPageConfig } from "@/lib/seo"
 
-export const metadata = {
-  title: "League Sync | AllFantasy",
-  description: "Sync and manage your fantasy leagues",
-}
+export const metadata = buildMetadata(
+  getSEOPageConfig("leagues") ?? {
+    title: "League Sync | AllFantasy",
+    description: "Sync and manage your fantasy leagues.",
+    canonical: "https://allfantasy.ai/leagues",
+  }
+)
 
 export default async function LeaguesPage() {
   const session = (await getServerSession(authOptions as any)) as {

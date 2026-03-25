@@ -28,6 +28,7 @@ export function FeedTabs({ activeTab, onTabChange, className = "" }: FeedTabsPro
           role="tab"
           aria-selected={activeTab === value}
           onClick={() => onTabChange(value)}
+          data-testid={`content-feed-tab-${value}`}
           className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
             activeTab === value
               ? "bg-cyan-500/20 text-cyan-300 shadow-sm"

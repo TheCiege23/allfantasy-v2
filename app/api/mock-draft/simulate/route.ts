@@ -9,6 +9,7 @@ import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-poo
 import { summarizeDraftValidation, type DraftType } from '@/lib/mock-draft/draft-engine'
 import { runDraft } from '@/lib/mock-draft-simulator'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { isMockDraftsEnabled } from '@/lib/feature-toggle'
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
 
@@ -108,6 +109,13 @@ function generateInlineTradeProposals(draftResults: any[], league: any): any[] {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await isMockDraftsEnabled())) {
+      return NextResponse.json(
+        { error: 'Mock drafts are temporarily disabled by platform configuration.' },
+        { status: 503 }
+      )
+    }
+
     const session = await getServerSession(authOptions as any) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

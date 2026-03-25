@@ -58,6 +58,8 @@ export async function PATCH(
       "roundPoints",
       "incompleteEntryPolicy",
       "bracketType",
+      "challengeType",
+      "sport",
     ]
 
     const updatedRules = { ...currentRules }
@@ -96,7 +98,14 @@ export async function PATCH(
     }
 
     if (updatedRules.bracketType !== undefined) {
-      updatedRules.bracketType = updatedRules.bracketType === "mens_ncaa" ? "mens_ncaa" : "mens_ncaa"
+      updatedRules.bracketType =
+        updatedRules.bracketType === "mens_ncaa" ? "mens_ncaa" : "playoff_challenge"
+      updatedRules.challengeType = updatedRules.bracketType
+    }
+
+    if (updatedRules.challengeType !== undefined) {
+      updatedRules.challengeType =
+        updatedRules.challengeType === "mens_ncaa" ? "mens_ncaa" : "playoff_challenge"
     }
 
     await (prisma as any).bracketLeague.update({

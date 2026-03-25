@@ -13,6 +13,8 @@ export type SimulationDisplayProps = {
   scoreRangeB: [number, number]
   winProbA: number
   winProbB: number
+  marginMean: number
+  marginStdDev: number
   volatilityTag: 'low' | 'medium' | 'high'
   upsetChance: number
   iterations: number | null
@@ -30,6 +32,8 @@ export function resultToDisplayProps(result: MatchupSimulationResult): Simulatio
     scoreRangeB: p.rangeB,
     winProbA: p.probA,
     winProbB: p.probB,
+    marginMean: result.marginMean,
+    marginStdDev: result.marginStdDev,
     volatilityTag: p.vol,
     upsetChance: p.upsetChance,
     iterations: p.iterations,

@@ -131,6 +131,7 @@ export function ReferralSection() {
                 <button
                   type="button"
                   onClick={copyCode}
+                  data-testid="referral-copy-code"
                   className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
                   style={{ borderColor: "var(--border)", color: "var(--text)" }}
                 >
@@ -154,6 +155,7 @@ export function ReferralSection() {
             <button
               type="button"
               onClick={copyLink}
+              data-testid="referral-copy-link"
               className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
@@ -163,7 +165,7 @@ export function ReferralSection() {
           </div>
           {link && (
             <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-              <ReferralShareBar referralLink={link} />
+              <ReferralShareBar referralLink={link} testIdPrefix="referral-share" />
             </div>
           )}
         </div>
@@ -171,28 +173,28 @@ export function ReferralSection() {
 
       {stats && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+          <div data-testid="referral-stat-clicks" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5" style={{ color: "var(--muted)" }} />
               <span className="text-sm" style={{ color: "var(--muted)" }}>Clicks</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.clicks}</p>
           </div>
-          <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+          <div data-testid="referral-stat-signups" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" style={{ color: "var(--muted)" }} />
               <span className="text-sm" style={{ color: "var(--muted)" }}>Signups</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.signups}</p>
           </div>
-          <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+          <div data-testid="referral-stat-pending-rewards" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Gift className="h-5 w-5" style={{ color: "var(--muted)" }} />
               <span className="text-sm" style={{ color: "var(--muted)" }}>Pending rewards</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.pendingRewards}</p>
           </div>
-          <div className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
+          <div data-testid="referral-stat-redeemed-rewards" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <span className="text-sm" style={{ color: "var(--muted)" }}>Redeemed</span>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.redeemedRewards}</p>
           </div>
@@ -222,6 +224,7 @@ export function ReferralSection() {
                     type="button"
                     disabled={redeemingId === r.id}
                     onClick={() => redeem(r.id)}
+                    data-testid={`referral-redeem-${r.id}`}
                     className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                     style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                   >

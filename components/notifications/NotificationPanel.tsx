@@ -61,6 +61,10 @@ function getIcon(type: string) {
   return TYPE_ICONS[type] ?? Bell
 }
 
+function toSafeTestId(raw: string) {
+  return raw.replace(/[^a-zA-Z0-9_-]/g, "-")
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
@@ -113,6 +117,7 @@ export function NotificationPanelView({
           <button
             type="button"
             onClick={() => markAllAsRead()}
+            data-testid="notification-mark-all-read"
             className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition-colors hover:bg-black/5"
             style={{ color: "var(--accent-cyan-strong)" }}
           >
@@ -167,6 +172,7 @@ export function NotificationPanelView({
                     {items.map((n) => {
                       const Icon = getIcon(n.type)
                       const dest = getNotificationDestination(n)
+                      const safeId = toSafeTestId(n.id)
                       const rowClassName = "group flex items-start gap-2 px-3 py-2 transition-colors hover:bg-black/5"
                       const rowStyle = {
                         background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
@@ -199,11 +205,20 @@ export function NotificationPanelView({
                                 {!n.read && (
                                   <button
                                     type="button"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                    }}
+                                    onPointerDown={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                    }}
                                     onClick={(e) => {
                                       e.preventDefault()
                                       e.stopPropagation()
                                       markAsRead(n.id)
                                     }}
+                                    data-testid={`notification-dismiss-${safeId}`}
                                     className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium"
                                     style={{ color: "var(--accent-cyan-strong)" }}
                                   >
@@ -222,9 +237,14 @@ export function NotificationPanelView({
                         </>
                       )
                       return (
-                        <li key={n.id}>
+                        <li key={n.id} data-testid={`notification-item-${safeId}`}>
                           {dest ? (
-                            <Link href={dest.href} className={rowClassName} style={rowStyle}>
+                            <Link
+                              href={dest.href}
+                              className={rowClassName}
+                              style={rowStyle}
+                              data-testid={`notification-link-${safeId}`}
+                            >
                               {inner}
                             </Link>
                           ) : (

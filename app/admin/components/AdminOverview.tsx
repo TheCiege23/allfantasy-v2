@@ -290,6 +290,7 @@ export default function AdminOverview() {
         <button
           onClick={() => { load(); loadRightNow(); loadRegions(); loadPlatformOverview(); }}
           disabled={loading}
+          data-testid="admin-overview-refresh"
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all disabled:opacity-50"
           style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
         >
@@ -474,6 +475,7 @@ export default function AdminOverview() {
                   <a
                     key={qa.key}
                     href={qa.href}
+                    data-testid={`admin-overview-quick-link-${qa.key}`}
                     className="flex items-center gap-3 rounded-xl p-4 transition-all"
                     style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
                   >
@@ -488,6 +490,7 @@ export default function AdminOverview() {
                   key={qa.key}
                   onClick={qa.action}
                   disabled={isLoading}
+                  data-testid={`admin-overview-quick-action-${qa.key}`}
                   className="flex flex-col items-start gap-2 rounded-xl p-4 transition-all disabled:opacity-60 text-left"
                   style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}
                 >

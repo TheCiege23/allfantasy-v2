@@ -11,6 +11,13 @@ export type PickCell = {
   isSnakeReversed: boolean
 }
 
+export type RoundNavigationState = {
+  round: number
+  canGoPrev: boolean
+  canGoNext: boolean
+  label: string
+}
+
 /**
  * Compute slot index in round (0-based) for a given overall pick.
  * Handles snake and 3rd-round reversal.
@@ -45,4 +52,18 @@ export function formatPickLabel(overall: number, teamCount: number): string {
  */
 export function getCellKey(round: number, slotIndex: number): string {
   return `${round}-${slotIndex}`
+}
+
+/**
+ * Build board navigation state for round-by-round viewing.
+ */
+export function getRoundNavigationState(round: number, totalRounds: number): RoundNavigationState {
+  const safeTotal = Math.max(1, totalRounds)
+  const safeRound = Math.min(safeTotal, Math.max(1, round))
+  return {
+    round: safeRound,
+    canGoPrev: safeRound > 1,
+    canGoNext: safeRound < safeTotal,
+    label: `Round ${safeRound} of ${safeTotal}`,
+  }
 }

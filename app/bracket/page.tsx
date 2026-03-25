@@ -38,6 +38,7 @@ function BracketLandingInner() {
             <Link
               href={isAuthed ? '/brackets/leagues/new' : '/signup?next=/brackets/leagues/new'}
               className="inline-flex items-center gap-2 rounded-full bg-sky-400 px-4 py-2 text-xs font-semibold text-black shadow-sm hover:bg-sky-300 sm:text-sm"
+              data-testid="bracket-landing-create-button"
             >
               <UserPlus className="h-3.5 w-3.5" />
               <span>{t('bracket.page.hero.cta.create')}</span>
@@ -45,6 +46,7 @@ function BracketLandingInner() {
             <Link
               href={isAuthed ? '/brackets/join' : '/login?next=/brackets/join'}
               className="inline-flex items-center gap-2 rounded-full border border-sky-300/80 bg-sky-900/40 px-4 py-2 text-xs font-medium text-sky-100 hover:bg-sky-800/60 sm:text-sm"
+              data-testid="bracket-landing-join-button"
             >
               <Trophy className="h-3.5 w-3.5" />
               <span>{t('bracket.page.hero.cta.join')}</span>
@@ -52,9 +54,18 @@ function BracketLandingInner() {
             <Link
               href="/login?next=/brackets"
               className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 sm:text-sm"
+              data-testid="bracket-landing-signin-button"
             >
               <LogIn className="h-3.5 w-3.5" />
               <span>{t('bracket.page.hero.cta.signIn')}</span>
+            </Link>
+            <Link
+              href="/brackets"
+              className="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 bg-cyan-900/30 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-800/60 sm:text-sm"
+              data-testid="bracket-open-challenge-button"
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              <span>Open Challenge</span>
             </Link>
             {!isAuthed && (
               <Link

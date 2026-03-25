@@ -2,36 +2,23 @@ import type { Metadata } from 'next'
 import {
   TOOLS_HUB_TITLE,
   TOOLS_HUB_DESCRIPTION,
-  SPORT_SLUGS,
-  TOOL_SLUGS,
-  SPORT_CONFIG,
-  TOOL_CONFIG,
 } from '@/lib/seo-landing/config'
+import { getAllSports, getAllTools } from '@/lib/tool-hub'
 import ToolsHubClient from './ToolsHubClient'
+import { buildMetadata } from '@/lib/seo'
 
-const BASE = 'https://allfantasy.ai'
-
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: TOOLS_HUB_TITLE,
   description: TOOLS_HUB_DESCRIPTION,
-  alternates: { canonical: `${BASE}/tools-hub` },
-  openGraph: {
-    title: TOOLS_HUB_TITLE,
-    description: TOOLS_HUB_DESCRIPTION,
-    url: `${BASE}/tools-hub`,
-    siteName: 'AllFantasy',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: TOOLS_HUB_TITLE,
-    description: TOOLS_HUB_DESCRIPTION,
-  },
-  robots: { index: true, follow: true },
-}
+  canonical: 'https://allfantasy.ai/tools-hub',
+})
 
 export default function ToolsHubPage() {
-  const sports = SPORT_SLUGS.map((slug) => ({ slug, headline: SPORT_CONFIG[slug].headline }))
-  const tools = TOOL_SLUGS.map((slug) => ({ slug, headline: TOOL_CONFIG[slug].headline, openToolHref: TOOL_CONFIG[slug].openToolHref }))
+  const sports = getAllSports().map((sport) => ({ slug: sport.slug, headline: sport.headline }))
+  const tools = getAllTools().map((tool) => ({
+    slug: tool.slug,
+    headline: tool.headline,
+    openToolHref: tool.openToolHref,
+  }))
   return <ToolsHubClient sports={sports} tools={tools} />
 }

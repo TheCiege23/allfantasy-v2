@@ -5,6 +5,7 @@ export {
   recordClick,
   recordShare,
   attributeSignup,
+  attributeSignupToReferrer,
   getReferralStats,
   getReferredUsers,
   type ReferralStats,

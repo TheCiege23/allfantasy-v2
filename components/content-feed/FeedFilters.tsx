@@ -50,6 +50,7 @@ export function FeedFilters({
         <button
           type="button"
           onClick={() => onSportChange(null)}
+          data-testid="content-feed-sport-filter-all"
           className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
             sport === null
               ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-300"
@@ -63,6 +64,7 @@ export function FeedFilters({
             key={s}
             type="button"
             onClick={() => onSportChange(s)}
+            data-testid={`content-feed-sport-filter-${s}`}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
               sport === s
                 ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-300"
@@ -78,6 +80,7 @@ export function FeedFilters({
         <button
           type="button"
           onClick={() => onContentTypeChange(null)}
+          data-testid="content-feed-type-filter-all"
           className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
             contentType === null
               ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-300"
@@ -102,6 +105,7 @@ export function FeedFilters({
             key={t}
             type="button"
             onClick={() => onContentTypeChange(t)}
+            data-testid={`content-feed-type-filter-${t}`}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
               contentType === t
                 ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-300"

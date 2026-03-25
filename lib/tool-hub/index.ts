@@ -7,6 +7,8 @@ export {
   getAllSports,
   getToolsInCategory,
   getToolsForSport,
+  getFeaturedTools,
+  getTrendingTools,
 } from './ToolHubService'
 export type { ToolHubTool, ToolHubSport } from './ToolHubService'
 
@@ -23,6 +25,7 @@ export type { SportFilterOption } from './SportToolFilterResolver'
 
 export {
   getFeaturedToolSlugs,
+  getTrendingToolSlugs,
   getToolsByCategory,
   getCategoryForTool,
   getCategoryLabel,
@@ -34,6 +37,8 @@ export {
   getOpenToolHref,
   getToolsHubPath,
   getToolLandingPath,
+  getToolsHubPathWithFilters,
+  getBestToolForMeHref,
 } from './ToolDiscoveryNavigationService'
 
 export type { ToolCardDisplay, ToolCategoryId, FeaturedToolEntry } from './types'

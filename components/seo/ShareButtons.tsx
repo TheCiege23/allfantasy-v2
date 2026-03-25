@@ -12,9 +12,16 @@ export interface ShareButtonsProps {
   title: string
   description: string
   className?: string
+  testIdPrefix?: string
 }
 
-export function ShareButtons({ path, title, description, className = "" }: ShareButtonsProps) {
+export function ShareButtons({
+  path,
+  title,
+  description,
+  className = "",
+  testIdPrefix = "seo-share",
+}: ShareButtonsProps) {
   const config = getSocialShareConfig({ path, title, description })
   const twitterUrl = getTwitterShareUrl(config)
   const facebookUrl = getFacebookShareUrl(config)
@@ -29,6 +36,7 @@ export function ShareButtons({ path, title, description, className = "" }: Share
         href={twitterUrl}
         target="_blank"
         rel="noopener noreferrer"
+        data-testid={`${testIdPrefix}-x`}
         className="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90"
         style={{ borderColor: "var(--border)", color: "var(--text)" }}
         aria-label="Share on X (Twitter)"
@@ -39,6 +47,7 @@ export function ShareButtons({ path, title, description, className = "" }: Share
         href={facebookUrl}
         target="_blank"
         rel="noopener noreferrer"
+        data-testid={`${testIdPrefix}-facebook`}
         className="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90"
         style={{ borderColor: "var(--border)", color: "var(--text)" }}
         aria-label="Share on Facebook"
@@ -49,6 +58,7 @@ export function ShareButtons({ path, title, description, className = "" }: Share
         href={linkedInUrl}
         target="_blank"
         rel="noopener noreferrer"
+        data-testid={`${testIdPrefix}-linkedin`}
         className="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-medium hover:opacity-90"
         style={{ borderColor: "var(--border)", color: "var(--text)" }}
         aria-label="Share on LinkedIn"

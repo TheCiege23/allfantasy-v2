@@ -197,6 +197,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
                 setEditing(true)
               }
             }}
+            data-testid="commissioner-waiver-edit-toggle"
             className="rounded border border-white/20 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50"
           >
             {editing ? 'Cancel' : 'Edit overrides'}
@@ -232,6 +233,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
                   )
                 }
                 className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+                data-testid="commissioner-waiver-type-select"
               >
                 {WAIVER_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -346,6 +348,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
                     )
                   }
                   className="mt-1 w-full rounded border border-white/20 bg-black/40 px-2 py-1.5 text-xs text-white"
+                  data-testid="commissioner-waiver-faab-budget-input"
                 />
               </label>
             )}
@@ -359,6 +362,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
                   )
                 }
                 className="rounded border-white/20"
+                data-testid="commissioner-waiver-instant-fa-toggle"
               />
               Instant free agents after clear
             </label>
@@ -370,6 +374,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
                 setForm(toEditableForm(config))
                 setEditing(false)
               }}
+              data-testid="commissioner-waiver-cancel"
               className="rounded border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
             >
               Cancel
@@ -378,6 +383,7 @@ export default function WaiverSettingsPanel({ leagueId }: { leagueId: string }) 
               type="button"
               disabled={saving}
               onClick={() => void saveOverrides()}
+              data-testid="commissioner-waiver-save"
               className="rounded bg-cyan-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-cyan-500 disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save overrides'}

@@ -175,7 +175,12 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6 space-y-6">
+    <div className="mx-auto max-w-lg px-4 pb-6 pt-2 space-y-6">
+      <div className="space-y-1">
+        <h2 className="text-4xl font-black tracking-tight text-white">Set Up Your League</h2>
+        <p className="text-sm text-white/65">Keep everything you already have, now with a cleaner visual flow.</p>
+      </div>
+
       <LeagueCreationModeSelector
         value={setupMode}
         onChange={(mode) => {
@@ -188,12 +193,12 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
       {setupMode === 'create' && (
         <>
           <div className="space-y-2">
-            <Label>Start from template (optional)</Label>
+            <Label className="text-cyan-300">Start from template (optional)</Label>
             <select
               value={selectedTemplateId ?? ''}
               onChange={(e) => setSelectedTemplateId(e.target.value || null)}
               disabled={templatesLoading}
-              className="w-full rounded-md border border-white/20 bg-gray-900 px-3 py-2 text-sm text-white focus:border-purple-500 focus:outline-none"
+              className="w-full rounded-2xl border border-cyan-400/30 bg-[#07122d]/90 px-4 py-3 text-sm text-white focus:border-cyan-300 focus:outline-none"
             >
               <option value="">None — build from scratch</option>
               {templates.map((t) => (
@@ -205,26 +210,26 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
           </div>
 
           {saveTemplateState && (
-            <div className="rounded-lg border border-purple-600/40 bg-gray-900/60 p-4 space-y-3">
+            <div className="rounded-2xl border border-cyan-400/35 bg-[#07122d]/90 p-4 space-y-3 shadow-[0_0_0_1px_rgba(0,255,220,0.08)_inset]">
               <p className="text-sm font-medium text-white">Save as template</p>
               <Input
                 placeholder="Template name"
                 value={saveTemplateState.name}
                 onChange={(e) => setSaveTemplateState((s) => s && { ...s, name: e.target.value })}
-                className="bg-gray-900 border-purple-600/40"
+                className="bg-[#030a20] border-cyan-400/25"
               />
               <Input
                 placeholder="Description (optional)"
                 value={saveTemplateState.description}
                 onChange={(e) => setSaveTemplateState((s) => s && { ...s, description: e.target.value })}
-                className="bg-gray-900 border-purple-600/40"
+                className="bg-[#030a20] border-cyan-400/25"
               />
               <div className="flex gap-2">
                 <Button
                   size="sm"
                   onClick={handleSubmitSaveTemplate}
                   disabled={savingTemplate}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className="bg-cyan-500 text-slate-950 hover:bg-cyan-400"
                 >
                   {savingTemplate ? 'Saving…' : 'Save template'}
                 </Button>
@@ -233,7 +238,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
                   variant="outline"
                   onClick={() => setSaveTemplateState(null)}
                   disabled={savingTemplate}
-                  className="border-purple-600/40"
+                  className="border-cyan-400/25 text-white/85 hover:bg-white/10"
                 >
                   Cancel
                 </Button>
@@ -251,7 +256,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
       )}
 
       {setupMode === 'import' && (
-        <div className="space-y-5">
+        <div className="space-y-5 rounded-2xl border border-cyan-400/20 bg-[#07122d]/70 p-4">
           <ImportProviderSelector
             value={importProvider}
             onChange={(p) => {

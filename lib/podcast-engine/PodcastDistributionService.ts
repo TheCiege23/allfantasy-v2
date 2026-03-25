@@ -55,8 +55,17 @@ export function getPlaybackUrl(episode: PodcastEpisodeRecord): string | null {
  * Share URL for the episode (public or authenticated page).
  */
 export function getShareUrl(episodeId: string, baseUrl: string): string {
-  const base = baseUrl.replace(/\/$/, "")
-  return `${base}/podcast/${episodeId}`
+  const trimmed = baseUrl.trim()
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const url = new URL(withProtocol)
+    url.pathname = `/podcast/${episodeId}`
+    url.search = ""
+    url.hash = ""
+    return url.toString()
+  } catch {
+    return `https://allfantasy.ai/podcast/${episodeId}`
+  }
 }
 
 function mapRow(row: any): PodcastEpisodeRecord {

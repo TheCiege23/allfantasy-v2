@@ -5,6 +5,8 @@ import { useMemo, useState, useEffect, useCallback } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
+import PlayerDetailModal from "@/components/PlayerDetailModal"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import LeagueIntelligenceGraphPanel from "@/components/app/league-intelligence/LeagueIntelligenceGraphPanel"
 import { UnifiedRelationshipInsightsPanel } from "@/components/app/league-intelligence/UnifiedRelationshipInsightsPanel"
 import { LeagueForecastSection } from "@/components/simulation/LeagueForecastSection"
@@ -102,10 +104,17 @@ type ChatResponse = {
   }>
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+
+function Card({ title, children, accent }: { title: string; children: React.ReactNode; accent?: boolean }) {
   return (
-    <section className="mode-panel rounded-2xl p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <section
+      className={`mode-panel rounded-2xl p-5 shadow-lg ${accent ? "border border-cyan-400/40 bg-cyan-900/10" : ""}`}
+      style={{ minHeight: 120 }}
+    >
+      <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
+        {accent && <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />}
+        {title}
+      </h2>
       <div className="mt-3">{children}</div>
     </section>
   )
@@ -116,6 +125,9 @@ function InlineNote({ text }: { text: string }) {
 }
 
 export default function LeagueHomeShellPage() {
+    // Player modal state
+    const [selectedPlayer, setSelectedPlayer] = useState<any | null>(null)
+    const [playerModalOpen, setPlayerModalOpen] = useState(false)
   const params = useParams<{ leagueId: string }>()
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId || "unknown"
@@ -358,8 +370,9 @@ export default function LeagueHomeShellPage() {
         ) : (
           <>
             {activeTab === "Overview" && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card title="League Snapshot">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {/* League Snapshot */}
+                <Card title="League Snapshot" accent>
                   <InlineNote text="Live from bracket league and standings APIs." />
                   <div className="mt-3 space-y-1 text-sm text-white/80">
                     <div>League: {leagueSummary?.name || "Unknown"}</div>
@@ -367,6 +380,29 @@ export default function LeagueHomeShellPage() {
                     <div>Total Entries: {entries?.length ?? 0}</div>
                   </div>
                 </Card>
+
+                {/* Next Matchup (Placeholder) */}
+                <Card title="Next Matchup">
+                  <InlineNote text="Your next scheduled matchup." />
+                  <div className="mt-3 text-sm text-white/80">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">vs. [Opponent]</span>
+                      <span className="rounded bg-cyan-800/40 px-2 py-1 text-xs text-cyan-200">Projected: --</span>
+                    </div>
+                    <div className="text-xs text-white/60 mt-1">Date: --</div>
+                  </div>
+                </Card>
+
+                {/* Quick Stats */}
+                <Card title="Quick Stats">
+                  <div className="space-y-1 text-sm text-white/80">
+                    <div>Record: <span className="font-semibold">--</span></div>
+                    <div>Streak: <span className="font-semibold">--</span></div>
+                    <div>Rank: <span className="font-semibold">{standings?.find(s => s.entryName === userLabel)?.rank ?? '--'}</span></div>
+                  </div>
+                </Card>
+
+                {/* Top Standings */}
                 <Card title="Top Standings">
                   {standings && standings.length > 0 ? (
                     <ul className="space-y-2 text-sm">
@@ -381,6 +417,28 @@ export default function LeagueHomeShellPage() {
                     <InlineNote text="No standings available yet." />
                   )}
                 </Card>
+
+                {/* Recent Activity (Placeholder) */}
+                <Card title="Recent Activity">
+                  <InlineNote text="Latest trades, waivers, and chat highlights." />
+                  <ul className="mt-2 space-y-1 text-xs text-white/70">
+                    {chatMessages && chatMessages.length > 0 ? (
+                      chatMessages.slice(-5).reverse().map((msg) => (
+                        <li key={msg.id}>
+                          <span className="font-semibold">{msg.user?.displayName || 'User'}:</span> {msg.message}
+                        </li>
+                      ))
+                    ) : (
+                      <li>No recent activity.</li>
+                    )}
+                  </ul>
+                </Card>
+
+                {/* League News/Announcements (Placeholder) */}
+                <Card title="League News">
+                  <InlineNote text="Announcements and league news." />
+                  <div className="mt-2 text-xs text-white/70">No announcements yet.</div>
+                </Card>
               </div>
             )}
 
@@ -388,7 +446,27 @@ export default function LeagueHomeShellPage() {
               <Card title={activeTab === "Team" ? "Team Context" : "Roster"}>
                 {rosterData?.roster ? (
                   <div className="mode-panel-soft rounded-xl p-3">
-                    <SmartDataView data={rosterData.roster} />
+                    {/* Render player list with clickable names */}
+                    {Array.isArray(rosterData.roster.players) ? (
+                      <ul className="divide-y divide-white/10">
+                        {rosterData.roster.players.map((player: any) => (
+                          <li key={player.playerId || player.id} className="flex items-center gap-3 py-2">
+                            <button
+                              className="text-cyan-300 hover:underline text-left font-semibold"
+                              onClick={() => {
+                                setSelectedPlayer(player)
+                                setPlayerModalOpen(true)
+                              }}
+                            >
+                              {player.playerName || player.name}
+                            </button>
+                            <span className="ml-2 text-xs text-white/60">{player.position} {player.team ? `- ${player.team}` : ''}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <SmartDataView data={rosterData.roster} />
+                    )}
                   </div>
                 ) : (
                   <InlineNote text="No imported roster found for this league/user yet." />
@@ -396,6 +474,23 @@ export default function LeagueHomeShellPage() {
                 {typeof rosterData?.faabRemaining === "number" && (
                   <p className="mt-2 text-xs text-white/60">FAAB Remaining: {rosterData.faabRemaining}</p>
                 )}
+
+                {/* Player modal dialog */}
+                <Dialog open={playerModalOpen} onOpenChange={setPlayerModalOpen}>
+                  <DialogContent className="max-w-2xl bg-slate-950 border-cyan-400/20">
+                    {selectedPlayer && (
+                      <PlayerDetailModal
+                        isOpen={playerModalOpen}
+                        onClose={() => setPlayerModalOpen(false)}
+                        playerName={selectedPlayer.playerName || selectedPlayer.name}
+                        playerId={selectedPlayer.playerId || selectedPlayer.id}
+                        position={selectedPlayer.position}
+                        team={selectedPlayer.team}
+                        sport={selectedPlayer.sport || 'NFL'}
+                      />
+                    )}
+                  </DialogContent>
+                </Dialog>
               </Card>
             )}
 

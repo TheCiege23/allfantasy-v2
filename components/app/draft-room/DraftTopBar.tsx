@@ -1,6 +1,7 @@
 'use client'
 
-import { Clock, User, Hash, Settings, Play, Pause, RotateCcw, Undo2, Sparkles, ArrowLeftRight } from 'lucide-react'
+import Link from 'next/link'
+import { Clock, User, Hash, Settings, Play, Pause, RotateCcw, Undo2, Sparkles, ArrowLeftRight, RefreshCw } from 'lucide-react'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
 
 export type DraftTopBarProps = {
@@ -35,6 +36,9 @@ export type DraftTopBarProps = {
   useQueueLoading?: boolean
   /** Show "Use queue" (timer expired, user on clock, has queue) */
   showUseQueue?: boolean
+  onResync?: () => void
+  resyncLoading?: boolean
+  backHref?: string
 }
 
 const TIMER_COLORS = {
@@ -71,6 +75,9 @@ export function DraftTopBar({
   onUseQueue,
   useQueueLoading = false,
   showUseQueue = false,
+  onResync,
+  resyncLoading = false,
+  backHref,
 }: DraftTopBarProps) {
   const timerDisplay =
     timerStatus === 'none' || (timerRemainingSeconds == null && timerStatus !== 'paused')
@@ -80,16 +87,25 @@ export function DraftTopBar({
         : formatTimerRemaining(timerRemainingSeconds ?? 0)
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/12 bg-black/30 px-3 py-2.5 sm:px-4 sm:py-3">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#070f21]/95 px-3 py-2.5 sm:px-4 sm:py-3">
       <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <h1 className="text-base font-semibold text-white md:text-lg">{leagueName}</h1>
-          <p className="text-xs text-white/60">
+        <div className="min-w-0">
+          <h1 className="truncate text-base font-semibold text-white/95 md:text-lg">{leagueName}</h1>
+          <p className="text-xs text-white/55">
             {sport} · {draftType}
           </p>
         </div>
+        {backHref && (
+          <Link
+            href={backHref}
+            data-testid="draft-back-button"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 touch-manipulation"
+          >
+            Back
+          </Link>
+        )}
         {pickLabel && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#0a1228] px-2.5 py-1.5">
             <Hash className="h-3.5 w-3.5 text-cyan-400" />
             <span className="text-sm font-medium tabular-nums text-white">{pickLabel}</span>
             {overallPickNumber != null && (
@@ -98,7 +114,7 @@ export function DraftTopBar({
           </div>
         )}
         {currentManagerOnClock && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/25 bg-cyan-500/8 px-2.5 py-1.5">
             <User className="h-3.5 w-3.5 text-cyan-300" />
             <span className="text-sm font-medium text-cyan-100">{currentManagerOnClock}</span>
             {isOrphanOnClock ? (
@@ -108,7 +124,7 @@ export function DraftTopBar({
             )}
           </div>
         )}
-        <div className={`flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 ${TIMER_COLORS[timerStatus]}`}>
+        <div className={`flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#0a1228] px-2.5 py-1.5 ${TIMER_COLORS[timerStatus]}`}>
           <Clock className="h-3.5 w-3.5" />
           <span className="text-sm font-medium tabular-nums">{timerDisplay}</span>
           {timerStatus === 'paused' && <span className="text-[10px]">(paused)</span>}
@@ -119,7 +135,8 @@ export function DraftTopBar({
             type="button"
             onClick={onUseQueue}
             disabled={useQueueLoading}
-            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/20 px-3 py-2.5 text-xs text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50 touch-manipulation"
+            data-testid="draft-use-queue-button"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/12 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
             aria-label="Submit pick from queue"
           >
             {useQueueLoading ? '…' : 'Use queue'}
@@ -132,13 +149,14 @@ export function DraftTopBar({
           <button
             type="button"
             onClick={onTradesClick}
-            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/90 hover:bg-white/10 touch-manipulation"
+            data-testid="draft-open-trades-button"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/85 hover:bg-white/10 touch-manipulation"
             aria-label="Draft pick trades"
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
             Trades
             {pendingTradesCount > 0 && (
-              <span className="rounded-full bg-cyan-500/40 px-1.5 py-0.5 text-[10px] font-medium text-cyan-200">
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-medium text-cyan-100">
                 {pendingTradesCount}
               </span>
             )}
@@ -147,12 +165,26 @@ export function DraftTopBar({
         {isReconnecting && (
           <span className="text-[10px] text-amber-400">Reconnecting…</span>
         )}
+        {onResync && (
+          <button
+            type="button"
+            onClick={onResync}
+            disabled={resyncLoading}
+            data-testid="draft-resync-button"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/75 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
+            aria-label="Resync draft room"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${resyncLoading ? 'animate-spin' : ''}`} />
+            Resync
+          </button>
+        )}
         {isCommissioner && (
           <>
             <button
               type="button"
               onClick={onCommissionerOpen}
-              className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
+              data-testid="draft-open-commissioner-controls"
+              className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/85 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
               disabled={commissionerLoading}
               aria-label="Commissioner controls"
             >
@@ -165,7 +197,8 @@ export function DraftTopBar({
                   type="button"
                   onClick={onPause}
                   disabled={commissionerLoading}
-                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-50 touch-manipulation"
+                  data-testid="draft-pause-button"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Pause draft"
                 >
                   <Pause className="h-3.5 w-3.5" />
@@ -175,7 +208,8 @@ export function DraftTopBar({
                   type="button"
                   onClick={onResume}
                   disabled={commissionerLoading}
-                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
+                  data-testid="draft-resume-button"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Resume draft"
                 >
                   <Play className="h-3.5 w-3.5" />
@@ -188,7 +222,8 @@ export function DraftTopBar({
                 type="button"
                 onClick={onResume}
                 disabled={commissionerLoading}
-                className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
+                data-testid="draft-resume-button"
+                className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
                 aria-label="Resume draft"
               >
                 <Play className="h-3.5 w-3.5" />
@@ -202,7 +237,8 @@ export function DraftTopBar({
                     type="button"
                     onClick={onRunAiPick}
                     disabled={commissionerLoading || runAiPickLoading}
-                    className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-200 hover:bg-violet-500/20 disabled:opacity-50 touch-manipulation"
+                    data-testid="draft-run-ai-pick-button"
+                    className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-100 hover:bg-violet-500/20 disabled:opacity-50 touch-manipulation"
                     aria-label="Run AI pick for orphan"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -213,7 +249,8 @@ export function DraftTopBar({
                   type="button"
                   onClick={onResetTimer}
                   disabled={commissionerLoading}
-                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
+                  data-testid="draft-reset-timer-button"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/75 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
                   aria-label="Reset timer"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -223,7 +260,8 @@ export function DraftTopBar({
                   type="button"
                   onClick={onUndoPick}
                   disabled={commissionerLoading}
-                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-xs text-red-200 hover:bg-red-500/20 disabled:opacity-50 touch-manipulation"
+                  data-testid="draft-undo-pick-button"
+                  className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2.5 text-xs text-red-100 hover:bg-red-500/20 disabled:opacity-50 touch-manipulation"
                   aria-label="Undo last pick"
                 >
                   <Undo2 className="h-3.5 w-3.5" />

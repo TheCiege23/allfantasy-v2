@@ -30,6 +30,11 @@ const LEAGUE_TYPE_TOOLTIPS: Partial<Record<LeagueTypeId, string>> = {
   salary_cap: 'Salary cap and contracts.',
 }
 
+const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW'>> = {
+  redraft: 'POPULAR',
+  salary_cap: 'NEW',
+}
+
 /**
  * League type selection (redraft, dynasty, keeper, etc.). Options filtered by sport.
  */
@@ -39,10 +44,10 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
   const selectedMedia = getLeagueTypeMedia(safeValue)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <StepHeader
-        title="League type"
-        description="Redraft is the most common: one season, then a new draft next year. Dynasty and keeper let you keep players."
+        title="Choose League Type"
+        description="You can change this later in settings (except where league rules lock the choice)."
         help={
           <>
             <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players (NFL/NCAAF).
@@ -52,8 +57,8 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
       />
 
       <div className="space-y-3">
-        <Label className="text-white/90">Type</Label>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <Label className="text-cyan-300">Type</Label>
+        <div className="grid gap-3 sm:grid-cols-2">
           {LEAGUE_TYPE_IDS.filter((id) => allowed.includes(id)).map((id) => {
             const media = getLeagueTypeMedia(id)
             return (
@@ -61,23 +66,28 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
                 key={id}
                 type="button"
                 onClick={() => onChange(id)}
-                className={`group relative overflow-hidden rounded-xl border text-left transition ${
+                className={`group relative overflow-hidden rounded-2xl border text-left transition ${
                   safeValue === id
-                    ? 'border-cyan-400/40 bg-cyan-400/10'
+                    ? 'border-cyan-300 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
                     : 'border-white/15 bg-black/25 hover:bg-white/[0.05]'
                 }`}
                 title={LEAGUE_TYPE_TOOLTIPS[id]}
               >
+                {LEAGUE_TYPE_BADGES[id] && (
+                  <span className="absolute left-2 top-2 z-10 rounded-md bg-[#00ffd4] px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] text-[#021827]">
+                    {LEAGUE_TYPE_BADGES[id]}
+                  </span>
+                )}
                 <img
                   src={media.thumbnail}
                   alt={`${LEAGUE_TYPE_LABELS[id]} thumbnail`}
-                  className="h-20 w-full object-cover opacity-75"
+                  className="h-28 w-full object-cover opacity-75"
                   onError={(event) => {
                     event.currentTarget.src = media.thumbnailFallback
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-2">
+                <div className="absolute inset-x-0 bottom-0 p-3">
                   <p className="text-sm font-semibold text-white">{LEAGUE_TYPE_LABELS[id]}</p>
                 </div>
               </button>
@@ -86,12 +96,12 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
         </div>
       </div>
 
-      <div className="rounded-xl border border-white/15 bg-black/30 p-3">
-        <p className="text-xs uppercase tracking-[0.14em] text-white/65">Selected league type preview</p>
+      <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected league type preview</p>
         <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
         <video
           key={selectedMedia.selectionVideo}
-          className="mt-3 h-44 w-full rounded-lg border border-white/10 bg-black object-cover"
+          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
           src={selectedMedia.selectionVideo}
           poster={selectedMedia.thumbnail}
           autoPlay

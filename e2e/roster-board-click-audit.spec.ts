@@ -130,12 +130,18 @@ test.describe('@roster roster board click audit', () => {
     await expect(page.getByTestId('roster-player-card-p-wr')).toBeVisible()
     await expect(page.getByTestId('roster-player-team-logo-p-qb')).toBeVisible()
 
-    await page.getByTestId('roster-player-card-p-qb').click()
+    await page.getByTestId('roster-player-details-p-qb').click()
     const detailsDialog = page.getByRole('dialog', { name: /roster player details/i })
     await expect(detailsDialog).toBeVisible()
     await expect(detailsDialog.getByText(/test quarterback/i)).toBeVisible()
     await detailsDialog.getByRole('button', { name: /close/i }).click()
     await expect(detailsDialog).not.toBeVisible()
+
+    // Sleeper-style tap-to-swap between starters and bench.
+    await page.getByTestId('roster-player-card-p-qb').click()
+    await page.getByTestId('roster-player-card-p-wr').click()
+    await expect(page.getByTestId('roster-section-starters').getByTestId('roster-player-card-p-wr')).toBeVisible()
+    await expect(page.getByTestId('roster-section-bench').getByTestId('roster-player-card-p-qb')).toBeVisible()
 
     await page.getByLabel('Search available players').fill('linebacker')
     await page.getByLabel('Choose roster section for add').selectOption('starters')

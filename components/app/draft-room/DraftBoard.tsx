@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { DraftBoardCell, type DraftBoardCellPick } from './DraftBoardCell'
 import type { DraftPickSnapshot, SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
 import type { KeeperSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { formatPickLabel, getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
+import { getRoundNavigationState } from '@/lib/draft-room/DraftBoardRenderer'
 
 export type DraftBoardProps = {
   picks: DraftPickSnapshot[]
@@ -23,6 +24,7 @@ export type DraftBoardProps = {
   devyRounds?: number[]
   /** C2C: 1-based round numbers that are college-only (show "College" on empty slots) */
   c2cCollegeRounds?: number[]
+  currentOverallPick?: number | null
 }
 
 function DraftBoardInner({
@@ -38,7 +40,15 @@ function DraftBoardInner({
   keeperLocks = [],
   devyRounds = [],
   c2cCollegeRounds = [],
+  currentOverallPick = null,
 }: DraftBoardProps) {
+  const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
+  const [selectedRound, setSelectedRound] = useState(1)
+
+  useEffect(() => {
+    setSelectedRound((prev) => Math.min(Math.max(1, prev), Math.max(1, rounds)))
+  }, [rounds])
+
   const pickByKey = useMemo(() => {
     const map: Record<string, DraftPickSnapshot> = {}
     for (const p of picks) {
@@ -105,20 +115,70 @@ function DraftBoardInner({
     return map
   }, [grid])
 
+  const navigation = getRoundNavigationState(selectedRound, rounds)
+  const visibleRounds =
+    viewMode === 'single'
+      ? [navigation.round]
+      : Array.from({ length: rounds }, (_, i) => i + 1)
+
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-black/25">
-      <div className="border-b border-white/10 px-2 py-1.5 text-xs font-medium text-white/70">
-        Draft board
+    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-board">
+      <div className="border-b border-white/8 px-2 py-1.5 text-xs font-medium text-white/70 flex items-center justify-between gap-2">
+        <span>Draft board</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            data-testid="draft-board-prev-round"
+            onClick={() => setSelectedRound((prev) => Math.max(1, prev - 1))}
+            disabled={!navigation.canGoPrev}
+            className="rounded border border-white/15 bg-black/20 px-2 py-1 text-[10px] text-white/70 hover:bg-white/10 disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <select
+            value={navigation.round}
+            data-testid="draft-board-round-selector"
+            onChange={(event) => setSelectedRound(Math.max(1, Number(event.target.value) || 1))}
+            className="rounded border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white"
+            aria-label="Draft board round selector"
+          >
+            {Array.from({ length: rounds }, (_, i) => i + 1).map((round) => (
+              <option key={round} value={round}>
+                Round {round}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            data-testid="draft-board-next-round"
+            onClick={() => setSelectedRound((prev) => Math.min(rounds, prev + 1))}
+            disabled={!navigation.canGoNext}
+            className="rounded border border-white/15 bg-black/20 px-2 py-1 text-[10px] text-white/70 hover:bg-white/10 disabled:opacity-40"
+          >
+            Next
+          </button>
+          <button
+            type="button"
+            data-testid="draft-board-toggle-view-mode"
+            onClick={() => setViewMode((prev) => (prev === 'all' ? 'single' : 'all'))}
+            className="rounded border border-cyan-300/35 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100 hover:bg-cyan-500/20"
+          >
+            {viewMode === 'all' ? 'Focus round' : 'All rounds'}
+          </button>
+        </div>
       </div>
-      <div className="overflow-auto p-2">
+      <div className="px-2 py-1 text-[10px] text-white/50 border-b border-white/8" data-testid="draft-board-round-label">
+        {viewMode === 'all' ? `All rounds (${rounds})` : navigation.label}
+      </div>
+      <div className="overflow-auto p-1.5 sm:p-2">
         <table className="w-full border-collapse text-[10px]">
           <thead>
             <tr>
-              <th className="w-12 border-b border-white/10 py-1 text-left text-white/50">Rd</th>
+              <th className="w-12 border-b border-white/8 py-1 text-left text-white/45">Rd</th>
               {Array.from({ length: teamCount }, (_, i) => (
                 <th
                   key={i}
-                  className="min-w-[72px] border-b border-white/10 px-1 py-1 text-center text-white/50"
+                  className="min-w-[72px] border-b border-white/8 px-1 py-1 text-center text-white/45"
                 >
                   {i + 1}
                 </th>
@@ -126,9 +186,9 @@ function DraftBoardInner({
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: rounds }, (_, i) => i + 1).map((round) => (
-              <tr key={round}>
-                <td className="border-b border-white/5 py-1 pl-2 font-medium text-white/60">
+            {visibleRounds.map((round) => (
+              <tr key={round} data-testid={`draft-board-round-${round}`}>
+                <td className="border-b border-white/5 py-1 pl-2 font-medium text-white/55">
                   {round}
                 </td>
                 {(byRound[round] ?? []).map(({ pick }) => (
@@ -136,6 +196,7 @@ function DraftBoardInner({
                     <DraftBoardCell
                       pick={pick}
                       isEmpty={!pick.playerName}
+                      isCurrentPick={currentOverallPick != null && pick.overall === currentOverallPick}
                       tradedPickColorMode={tradedPickColorMode}
                       showNewOwnerInRed={showNewOwnerInRed}
                       isDevyRound={devyRounds.includes(round) && !pick.playerName}

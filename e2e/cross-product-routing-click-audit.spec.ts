@@ -20,6 +20,12 @@ test.describe("@db @routing cross-product routing click audit", () => {
   test.describe.configure({ mode: "serial", timeout: 240_000 })
 
   test("audits product switching, deep links, protection, and shell transitions", async ({ page }) => {
+    const runAuthedShellE2E = process.env.PLAYWRIGHT_ENABLE_AUTH_DB_E2E === "1"
+    test.skip(
+      !runAuthedShellE2E,
+      "Set PLAYWRIGHT_ENABLE_AUTH_DB_E2E=1 in a DB-configured environment to run authenticated shell/routing E2E."
+    )
+
     await registerAndLogin(page)
 
     await page.route("**/api/user/settings", async (route) => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { dispatchSportsAlert } from "@/lib/sports-alerts"
+import { dispatchSportsAlert, SPORTS_ALERT_TYPES } from "@/lib/sports-alerts"
 import type { SportsAlertPayload } from "@/lib/sports-alerts"
 
 export const dynamic = "force-dynamic"
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const type = body.type as string
-  if (!type || !["injury_alert", "performance_alert", "lineup_alert"].includes(type)) {
+  if (!type || !SPORTS_ALERT_TYPES.includes(type as SportsAlertPayload["type"])) {
     return NextResponse.json({ error: "Invalid type" }, { status: 400 })
   }
   if (!body.title || typeof body.title !== "string") {
@@ -42,8 +42,14 @@ export async function POST(req: Request) {
     playerId: body.playerId,
     playerName: body.playerName,
     sport: body.sport,
+    triggeredAt: typeof body.triggeredAt === "string" ? body.triggeredAt : undefined,
+    eventId: typeof body.eventId === "string" ? body.eventId : undefined,
   }
 
-  const { sent, skipped } = await dispatchSportsAlert(payload, [session.user.id])
-  return NextResponse.json({ ok: true, sent, skipped })
+  const result = await dispatchSportsAlert(payload, [session.user.id])
+  return NextResponse.json({
+    ok: true,
+    ...result,
+    averageMsPerTarget: result.targetCount > 0 ? Math.round(result.durationMs / result.targetCount) : 0,
+  })
 }

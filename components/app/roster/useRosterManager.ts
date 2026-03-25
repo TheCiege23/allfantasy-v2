@@ -356,7 +356,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
 
   const movePlayer = useCallback(
     (playerId: string, toSlot: RosterSectionKey) => {
-      if (!roster) return
+      if (!roster) return false
       let moved: RosterPlayer | null = null
 
       const next: RosterState = {
@@ -380,27 +380,30 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       if (moved) {
         if (!isSectionEnabled(toSlot, slotLimits)) {
           setSaveError(`${toSlot.toUpperCase()} is not enabled for this league.`)
-          return
+          return false
         }
         if (next[toSlot].length >= slotLimits[toSlot]) {
           setSaveError(`${toSlot.toUpperCase()} is full.`)
-          return
+          return false
         }
         if (toSlot === "starters" && !isStarterPositionEligible(moved.position, starterAllowedPositions)) {
           setSaveError(`${moved.position} is not eligible for starter slots in this league.`)
-          return
+          return false
         }
         next[toSlot] = [...next[toSlot], moved]
+        setSaveError(null)
         setRoster(next)
         void autoSave(next)
+        return true
       }
+      return false
     },
     [roster, slotLimits, starterAllowedPositions],
   )
 
   const swapPlayers = useCallback(
     (aId: string, bId: string) => {
-      if (!roster) return
+      if (!roster) return false
       const next: RosterState = { ...roster, starters: [...roster.starters], bench: [...roster.bench], ir: [...roster.ir], taxi: [...roster.taxi], devy: [...roster.devy] }
 
       let aRef: { section: RosterSectionKey; index: number } | null = null
@@ -414,7 +417,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
         })
       })
 
-      if (!aRef || !bRef) return
+      if (!aRef || !bRef) return false
 
       type Ref = { section: RosterSectionKey; index: number }
       const aR = aRef as Ref
@@ -426,28 +429,30 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
         (!isSectionEnabled(aR.section, slotLimits) || !isSectionEnabled(bR.section, slotLimits))
       ) {
         setSaveError("Cannot move players into a disabled roster section.")
-        return
+        return false
       }
       if (
         aR.section === "starters" &&
         !isStarterPositionEligible(b.position, starterAllowedPositions)
       ) {
         setSaveError(`${b.position} is not eligible for starter slots in this league.`)
-        return
+        return false
       }
       if (
         bR.section === "starters" &&
         !isStarterPositionEligible(a.position, starterAllowedPositions)
       ) {
         setSaveError(`${a.position} is not eligible for starter slots in this league.`)
-        return
+        return false
       }
 
       next[aR.section][aR.index] = { ...b, slot: aR.section }
       next[bR.section][bR.index] = { ...a, slot: bR.section }
 
+      setSaveError(null)
       setRoster(next)
       void autoSave(next)
+      return true
     },
     [roster, slotLimits, starterAllowedPositions],
   )

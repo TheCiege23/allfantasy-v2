@@ -66,7 +66,7 @@ export function ImportSourceInputPanel({
 
   if (!available) {
     return (
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-3 flex items-start gap-2">
+      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-3 flex items-start gap-2">
         <Info className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
         <div className="text-sm text-white/90">
           <p className="font-medium text-amber-200">Import from {getImportProviderLabel(provider)} is coming soon</p>
@@ -78,7 +78,7 @@ export function ImportSourceInputPanel({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="import-source-input">{config.label}</Label>
+      <Label className="text-cyan-300" htmlFor="import-source-input">{config.label}</Label>
       <div className="flex gap-2">
         <Input
           id="import-source-input"
@@ -86,14 +86,14 @@ export function ImportSourceInputPanel({
           value={sourceInput}
           onChange={(e) => onSourceInputChange(e.target.value)}
           disabled={loading || disabled}
-          className="flex-1 bg-gray-900 border-purple-600/40"
+          className="flex-1 border-cyan-400/35 bg-[#030a20]"
         />
         <Button
           type="button"
           onClick={onFetchPreview}
           disabled={loading || !sourceInput.trim() || disabled}
           variant="outline"
-          className="border-purple-600/40 text-purple-300 shrink-0"
+          className="shrink-0 border-cyan-300/40 text-cyan-200 hover:bg-cyan-300/10"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch & Preview'}
         </Button>

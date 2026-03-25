@@ -29,7 +29,38 @@ export function getSportFilterOptions(): SportFilterOption[] {
 function getToolHrefsSet(sportSlug: SportSlug): Set<string> {
   const config = SPORT_CONFIG[sportSlug]
   if (!config?.toolHrefs?.length) return new Set()
-  return new Set(config.toolHrefs.map((h) => h.href))
+  return new Set(config.toolHrefs.map((h) => normalizeHref(h.href)))
+}
+
+function normalizeHref(href: string): string {
+  const raw = String(href || '').trim().toLowerCase()
+  if (!raw) return ''
+  const [pathAndQuery] = raw.split('#')
+  return pathAndQuery.endsWith('/') && pathAndQuery !== '/' ? pathAndQuery.slice(0, -1) : pathAndQuery
+}
+
+const HREF_TOOL_ALIASES: Record<string, ToolSlug> = {
+  '/trade-analyzer': 'trade-analyzer',
+  '/trade-evaluator': 'trade-analyzer',
+  '/mock-draft': 'mock-draft-simulator',
+  '/waiver-ai': 'waiver-wire-advisor',
+  '/waiver-wire': 'waiver-wire-advisor',
+  '/af-legacy?tab=mock-draft': 'ai-draft-assistant',
+  '/app/simulation-lab': 'matchup-simulator',
+  '/matchup-simulator': 'matchup-simulator',
+  '/app/power-rankings': 'power-rankings',
+  '/bracket': 'bracket-challenge',
+  '/brackets': 'bracket-challenge',
+  '/af-legacy': 'legacy-dynasty',
+}
+
+function resolveToolSlugFromHref(href: string, allToolSlugsByHref: Map<string, ToolSlug>): ToolSlug | null {
+  const normalized = normalizeHref(href)
+  if (!normalized) return null
+  if (HREF_TOOL_ALIASES[normalized]) return HREF_TOOL_ALIASES[normalized]
+  const direct = allToolSlugsByHref.get(normalized)
+  if (direct) return direct
+  return null
 }
 
 /**
@@ -40,6 +71,14 @@ export function getToolSlugsForSport(sportSlug: SportSlug | null): ToolSlug[] {
   if (!sportSlug) return getAllTools().map((t) => t.slug)
   const hrefSet = getToolHrefsSet(sportSlug)
   const all = getAllTools()
-  const filtered = all.filter((t) => hrefSet.has(t.openToolHref))
-  return filtered.length > 0 ? filtered.map((t) => t.slug) : all.map((t) => t.slug)
+  const allToolSlugsByHref = new Map(all.map((tool) => [normalizeHref(tool.openToolHref), tool.slug]))
+  const slugs = new Set<ToolSlug>()
+
+  for (const href of hrefSet) {
+    const slug = resolveToolSlugFromHref(href, allToolSlugsByHref)
+    if (slug) slugs.add(slug)
+  }
+
+  if (slugs.size > 0) return Array.from(slugs)
+  return all.map((t) => t.slug)
 }

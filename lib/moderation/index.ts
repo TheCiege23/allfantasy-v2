@@ -42,6 +42,7 @@ export {
   applyModerationAction,
   removeBan,
   removeMute,
+  removeSuspend,
   isUserBanned,
   isUserMuted,
   getActiveActionsForUser,

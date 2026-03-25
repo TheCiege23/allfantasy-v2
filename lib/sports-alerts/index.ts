@@ -7,6 +7,7 @@ export {
 } from "./SportsAlertService"
 export { dispatchSportsAlert, isSportsAlertType } from "./AlertDispatcher"
 export type {
+  DispatchSportsAlertResult,
   SportsAlertType,
   SportsAlertPayload,
   UserAlertPreferences,

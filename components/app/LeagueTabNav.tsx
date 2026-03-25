@@ -64,6 +64,9 @@ export default function LeagueTabNav({
   tabs?: LeagueShellTab[]
 }) {
   const list = tabs ?? LEAGUE_SHELL_TABS
+  const toSlug = (tab: LeagueShellTab) =>
+    tab.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
   return (
     <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
       {list.map((tab) => (
@@ -72,6 +75,8 @@ export default function LeagueTabNav({
           type="button"
           onClick={() => onChange(tab)}
           className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition ${activeTab === tab ? "bg-white text-black" : "border border-white/10 bg-black/20 text-white/75 hover:bg-white/10"}`}
+          data-testid={`league-tab-${toSlug(tab)}`}
+          data-audit={tab === "Rankings" ? "rankings-tab" : undefined}
         >
           {tab}
         </button>

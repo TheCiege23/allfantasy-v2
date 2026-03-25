@@ -4,7 +4,7 @@
  * Draft room: IDP scoring-style explainer and scarcity note. AI explains; engine enforces.
  */
 
-import { IDP_SCORING_PRESET_LABELS } from '@/lib/idp'
+import { IDP_SCORING_PRESET_LABELS } from '@/lib/idp/IDPScoringPresets'
 
 const SCORING_HINT: Record<string, string> = {
   balanced: 'In balanced scoring, every-down LBs and versatile DBs are valuable; don’t reach for big names over fit.',

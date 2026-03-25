@@ -15,6 +15,7 @@ import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
 import type { CoachEvaluationResult } from '@/lib/fantasy-coach/types';
 import { ActionRecommendationCards } from './ActionRecommendationCards';
 import { WeeklyAdvicePanel } from './WeeklyAdvicePanel';
+import { CoachAdvicePanel } from './CoachAdvicePanel';
 
 export interface CoachDashboardProps {
   leagueId?: string;
@@ -82,6 +83,12 @@ export function CoachDashboard({ leagueId, leagueName }: CoachDashboardProps) {
           </Button>
         </CardContent>
       </Card>
+
+      <CoachAdvicePanel
+        leagueId={leagueId}
+        leagueName={leagueName}
+        sport={sport}
+      />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 

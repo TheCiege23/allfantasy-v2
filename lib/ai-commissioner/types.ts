@@ -93,3 +93,56 @@ export interface AICommissionerOverview {
   alerts: AICommissionerAlertView[]
   actionLogs: AICommissionerActionLogView[]
 }
+
+export type TradeControversyLevel = 'low' | 'medium' | 'high'
+
+export interface TradeFairnessInsight {
+  tradeId: string
+  transactionId: string | null
+  createdAt: string
+  sport: LeagueSport
+  fairnessScore: number
+  imbalancePct: number
+  controversyLevel: TradeControversyLevel
+  summary: string
+  relatedManagerIds: string[]
+}
+
+export interface WeeklyRecapPost {
+  title: string
+  body: string
+  bullets: string[]
+  actionHref: string
+  actionLabel: string
+}
+
+export interface MatchupInsight {
+  matchupId: string
+  weekOrPeriod: number
+  summary: string
+}
+
+export interface WaiverInsight {
+  claimId: string | null
+  summary: string
+  processedAt: string | null
+}
+
+export interface DraftInsight {
+  pickId: string
+  summary: string
+  createdAt: string
+}
+
+export interface LeagueInsightReport {
+  leagueId: string
+  sport: LeagueSport
+  season: number
+  generatedAt: string
+  weeklyRecapPost: WeeklyRecapPost
+  matchupSummaries: MatchupInsight[]
+  waiverHighlights: WaiverInsight[]
+  draftCommentary: DraftInsight[]
+  controversialTrades: TradeFairnessInsight[]
+  suggestedRuleAdjustments: string[]
+}

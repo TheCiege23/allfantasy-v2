@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { validateLeagueJoin } from '@/lib/league-privacy'
+import { validateFantasyInviteCode } from '@/lib/league-invite'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -23,10 +23,39 @@ export async function POST(req: NextRequest) {
 
   if (!code) return NextResponse.json({ error: 'Missing invite code' }, { status: 400 })
 
-  const result = await validateLeagueJoin(code, password)
-  if (!result.valid) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+  const validation = await validateFantasyInviteCode(code, { password, userId })
+  if (!validation.valid) {
+    if (validation.error === 'ALREADY_MEMBER' && validation.preview?.leagueId) {
+      return NextResponse.json({
+        success: true,
+        leagueId: validation.preview.leagueId,
+        alreadyMember: true,
+      })
+    }
+    const statusByError: Record<string, number> = {
+      INVALID_CODE: 404,
+      EXPIRED: 410,
+      LEAGUE_FULL: 409,
+      PASSWORD_REQUIRED: 400,
+      INCORRECT_PASSWORD: 400,
+      INVITE_DISABLED: 403,
+      ALREADY_MEMBER: 409,
+    }
+    const messageByError: Record<string, string> = {
+      INVALID_CODE: 'Invalid invite code',
+      EXPIRED: 'Invite expired',
+      LEAGUE_FULL: 'League is full',
+      PASSWORD_REQUIRED: 'League password is required',
+      INCORRECT_PASSWORD: 'Incorrect password',
+      INVITE_DISABLED: 'Invite link is disabled',
+      ALREADY_MEMBER: 'You are already in this league',
+    }
+    return NextResponse.json(
+      { error: messageByError[validation.error] ?? 'Failed to validate invite' },
+      { status: statusByError[validation.error] ?? 400 }
+    )
   }
+  const result = validation.preview
 
   const joinResult = await prisma.$transaction(async (tx) => {
     const existing = await tx.roster.findUnique({

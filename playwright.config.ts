@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 const PLAYWRIGHT_PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
 const PLAYWRIGHT_BASE_URL =
-  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${PLAYWRIGHT_PORT}`;
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PLAYWRIGHT_PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -80,5 +80,11 @@ export default defineConfig({
     url: PLAYWRIGHT_BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      ...process.env,
+      DATABASE_URL:
+        process.env.DATABASE_URL ?? 'postgresql://playwright:playwright@localhost:5432/playwright',
+      PLAYWRIGHT_E2E: '1',
+    },
   },
 });

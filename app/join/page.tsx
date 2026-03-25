@@ -14,6 +14,7 @@ export default function JoinByCodePage() {
   const [password, setPassword] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewErrorCode, setPreviewErrorCode] = useState<string | null>(null)
   const [status, setStatus] = useState<'idle' | 'joining' | 'success' | 'error'>(codeFromUrl ? 'idle' : 'idle')
   const [message, setMessage] = useState<string>('')
   const [joinedLeagueId, setJoinedLeagueId] = useState<string | null>(null)
@@ -34,12 +35,14 @@ export default function JoinByCodePage() {
             sport: data.sport,
             requiresPassword: !!data.requiresPassword,
           })
-          setPreviewError(null)
+          setPreviewError(typeof data.error === 'string' ? data.error : null)
+          setPreviewErrorCode(typeof data.errorCode === 'string' ? data.errorCode : null)
           // Set growth attribution cookie so signup can attribute to league_invite (PROMPT 291)
           fetch(`/api/viral/context?type=league_invite&code=${encodeURIComponent(effectiveCode)}`, { credentials: 'include' }).catch(() => {})
         } else {
           setPreview(null)
-          setPreviewError(data.error ?? null)
+          setPreviewError(typeof data.error === 'string' ? data.error : null)
+          setPreviewErrorCode(typeof data.errorCode === 'string' ? data.errorCode : null)
         }
       })
       .catch(() => {
@@ -105,7 +108,7 @@ export default function JoinByCodePage() {
   )
 
 
-  if (codeFromUrl && preview && !preview.requiresPassword && status === 'idle') {
+  if (codeFromUrl && preview && !preview.requiresPassword && status === 'idle' && !previewError) {
     return (
       <div className="min-h-screen flex items-center justify-center mode-surface mode-readable">
         <div className="max-w-md mx-auto px-4 w-full">
@@ -120,6 +123,7 @@ export default function JoinByCodePage() {
           <button
             type="button"
             onClick={() => join(codeFromUrl, '')}
+            data-testid="league-join-button"
             className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
           >
             Join league
@@ -157,6 +161,7 @@ export default function JoinByCodePage() {
             <button
               type="button"
               onClick={() => join(code, password)}
+              data-testid="league-join-button"
               className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
             >
               Join
@@ -197,10 +202,38 @@ export default function JoinByCodePage() {
           <button
             type="button"
             onClick={() => join(effectiveCode, password)}
+            data-testid="league-join-button"
             className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
           >
             Join
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (preview && previewError && status === 'idle' && codeFromUrl) {
+    return (
+      <div className="min-h-screen flex items-center justify-center mode-surface mode-readable">
+        <div className="max-w-md mx-auto px-4 w-full">
+          <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text)' }}>
+            Join league
+          </h1>
+          {preview.name && (
+            <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
+              {preview.name} · {preview.sport}
+            </p>
+          )}
+          <p
+            className="text-sm mb-4"
+            style={{ color: previewErrorCode === 'EXPIRED' ? 'var(--destructive)' : 'var(--muted)' }}
+            data-testid="league-join-preview-error"
+          >
+            {previewError}
+          </p>
+          <Link href="/join" className="text-sm underline" style={{ color: 'var(--accent)' }}>
+            Try another invite code
+          </Link>
         </div>
       </div>
     )
@@ -227,6 +260,7 @@ export default function JoinByCodePage() {
           <button
             type="button"
             onClick={() => join(codeFromUrl, '')}
+            data-testid="league-join-button"
             className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
           >
             Try join

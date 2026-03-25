@@ -1,11 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { FEATURE_KEYS } from "@/lib/feature-toggle"
+import { FEATURE_KEYS } from "@/lib/feature-toggle/constants"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import { toast } from "sonner"
 import { Loader2, RefreshCw } from "lucide-react"
-import type { LeagueSport } from "@prisma/client"
 
 const LABELS: Record<string, string> = {
   [FEATURE_KEYS.AI_ASSISTANT]: "AI assistant",
@@ -58,6 +57,7 @@ export default function AdminFeatureToggles() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error || "Failed to load config")
       setSnapshot(data)
+      setPendingSports(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load")
     } finally {
@@ -108,15 +108,6 @@ export default function AdminFeatureToggles() {
     }
   }
 
-  const toggleSport = (sport: string) => {
-    if (!snapshot) return
-    const current = snapshot.sports as string[]
-    const next = current.includes(sport)
-      ? current.filter((s) => s !== sport)
-      : [...current, sport]
-    setSports(next)
-  }
-
   if (loading && !snapshot) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -152,6 +143,7 @@ export default function AdminFeatureToggles() {
         <button
           onClick={load}
           disabled={loading}
+          data-testid="admin-feature-refresh"
           className="h-10 px-4 rounded-xl border flex items-center gap-2 text-sm font-medium"
           style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}
         >
@@ -169,6 +161,7 @@ export default function AdminFeatureToggles() {
           {SECTIONS.map((section) => (
             <section
               key={section.title}
+              data-testid={`admin-feature-section-${section.title.toLowerCase().replace(/\s+/g, "-")}`}
               className="rounded-xl border overflow-hidden"
               style={{ borderColor: "var(--border)" }}
             >
@@ -197,6 +190,7 @@ export default function AdminFeatureToggles() {
                         aria-checked={enabled}
                         disabled={!!toggling}
                         onClick={() => setToggle(key, !enabled)}
+                        data-testid={`admin-feature-toggle-${key}`}
                         className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50"
                         style={{
                           background: enabled ? "var(--accent)" : "var(--muted)",
@@ -221,6 +215,7 @@ export default function AdminFeatureToggles() {
 
           {/* Sports availability */}
           <section
+            data-testid="admin-feature-section-sports"
             className="rounded-xl border overflow-hidden"
             style={{ borderColor: "var(--border)" }}
           >
@@ -254,6 +249,7 @@ export default function AdminFeatureToggles() {
                                 : [...currentSports, sport]
                           setPendingSports(next.length ? next : allSports)
                         }}
+                        data-testid={`admin-feature-sport-${sport}`}
                         className="rounded border"
                         style={{ borderColor: "var(--border)" }}
                       />
@@ -264,9 +260,30 @@ export default function AdminFeatureToggles() {
                   )
                 })}
               </div>
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setPendingSports(allSports)}
+                  className="px-2.5 py-1 rounded-md text-xs border"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  data-testid="admin-feature-sports-select-all"
+                >
+                  Enable all sports
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingSports(savedSports)}
+                  className="px-2.5 py-1 rounded-md text-xs border"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  data-testid="admin-feature-sports-reset"
+                >
+                  Reset
+                </button>
+              </div>
               <button
                 onClick={() => setSports(currentSports)}
                 disabled={sportsSaving}
+                data-testid="admin-feature-sports-save"
                 className="px-3 py-1.5 rounded-lg text-sm font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >

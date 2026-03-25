@@ -33,6 +33,10 @@ export type DraftPlayerCardProps = {
   loading?: boolean
   /** Error state (e.g. failed to load asset) */
   error?: string | null
+  /** Optional card click handler for player detail drill-down. */
+  onSelect?: () => void
+  /** Optional explicit test id */
+  testId?: string
 }
 
 function HeadshotOrFallback({
@@ -123,6 +127,8 @@ function DraftPlayerCardInner({
   secondaryAction,
   loading = false,
   error = null,
+  onSelect,
+  testId,
   isDevy = false,
   school = null,
   graduatedToNFL = false,
@@ -142,7 +148,7 @@ function DraftPlayerCardInner({
   if (loading) {
     return (
       <div
-        className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2 py-2 animate-pulse"
+        className="flex items-center gap-2 rounded-lg border border-white/10 bg-[#0a1228] px-2 py-2 animate-pulse"
         aria-busy="true"
       >
         <div className="h-8 w-8 rounded-full bg-white/10" />
@@ -170,7 +176,14 @@ function DraftPlayerCardInner({
       <div
         data-draft-player-card="true"
         data-variant="card"
-        className={`rounded-xl border bg-black/30 p-3 ${
+        data-testid={testId}
+        onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onSelect?.()
+        }}
+        role={onSelect ? 'button' : undefined}
+        tabIndex={onSelect ? 0 : undefined}
+        className={`rounded-xl border bg-[#0a1228] p-3 ${
           isDrafted ? 'border-white/5 opacity-75' : 'border-white/12'
         } ${isDevy ? 'ring-1 ring-inset ring-violet-500/30' : ''}`}
       >
@@ -208,7 +221,11 @@ function DraftPlayerCardInner({
             </div>
           </div>
           {(primaryAction || secondaryAction) && (
-            <div className="flex shrink-0 gap-1">
+            <div
+              className="flex shrink-0 gap-1"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
               {secondaryAction}
               {primaryAction}
             </div>
@@ -222,8 +239,15 @@ function DraftPlayerCardInner({
     <li
       data-draft-player-card="true"
       data-variant="row"
+      data-testid={testId}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onSelect?.()
+      }}
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
       className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[11px] min-w-0 ${
-        isDrafted ? 'border-white/5 bg-black/20 opacity-70' : 'border-white/10 bg-black/30 hover:border-white/20'
+        isDrafted ? 'border-white/5 bg-[#0a1228]/70 opacity-70' : 'border-white/10 bg-[#0a1228] hover:border-white/20'
       } ${isDevy ? 'border-l-2 border-l-violet-500/50' : ''}`}
     >
       <HeadshotOrFallback headshotUrl={headshotUrl} displayName={displayName} size={28} />
@@ -253,7 +277,11 @@ function DraftPlayerCardInner({
           {injuryStatus ? ` · ${injuryStatus}` : ''}
         </p>
       </div>
-      <div className="flex shrink-0 gap-1">
+      <div
+        className="flex shrink-0 gap-1"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
         {secondaryAction}
         {primaryAction}
       </div>

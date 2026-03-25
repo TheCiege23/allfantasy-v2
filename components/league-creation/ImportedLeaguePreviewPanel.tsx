@@ -28,9 +28,9 @@ export function ImportedLeaguePreviewPanel({
 }: ImportedLeaguePreviewPanelProps) {
   if (loading) {
     return (
-      <Card className="border-purple-500/30 bg-black/40 backdrop-blur-md">
+      <Card className="border-cyan-400/25 bg-[#07122d]/80 backdrop-blur-md">
         <CardContent className="flex items-center justify-center py-10">
-          <Loader2 className="h-8 w-8 animate-spin text-purple-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-cyan-300" />
           <span className="ml-2 text-white">Fetching league…</span>
         </CardContent>
       </Card>
@@ -51,14 +51,14 @@ export function ImportedLeaguePreviewPanel({
   const managersWithTeamLogos = managers.filter((m) => Boolean(m.teamLogo)).length;
 
   return (
-    <Card className="border-purple-500/30 bg-black/40 backdrop-blur-md" data-testid="import-preview-panel">
+    <Card className="border-cyan-400/25 bg-[#07122d]/80 backdrop-blur-md" data-testid="import-preview-panel">
       <CardHeader>
         <div className="flex items-center gap-2">
           {league.avatar && (
             <img
               src={league.avatar}
               alt=""
-              className="h-10 w-10 rounded-full object-cover border border-purple-600/40"
+              className="h-10 w-10 rounded-full object-cover border border-cyan-300/35"
             />
           )}
           <div>
@@ -76,7 +76,7 @@ export function ImportedLeaguePreviewPanel({
                 </>
               )}
               <span>·</span>
-              <span className="text-purple-300">Source: {sourceLabel}</span>
+              <span className="text-cyan-200">Source: {sourceLabel}</span>
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@ export function ImportedLeaguePreviewPanel({
         )}
 
         {/* Settings summary: roster, scoring, playoff, draft */}
-        <div className="rounded border border-purple-600/30 bg-gray-900/50 p-3 space-y-2">
+        <div className="rounded border border-cyan-400/25 bg-[#030a20]/80 p-3 space-y-2">
           <p className="text-xs font-medium text-white/70 flex items-center gap-1.5">
             <Settings className="h-3.5 w-3.5" />
             Settings
@@ -165,7 +165,7 @@ export function ImportedLeaguePreviewPanel({
           <p className="mb-2 text-[11px] text-white/50" data-testid="import-preview-team-logo-count">
             Team logos available: {managersWithTeamLogos}/{managers.length}
           </p>
-          <div className="max-h-44 overflow-y-auto rounded border border-purple-600/30 bg-gray-900/50 p-2 space-y-1.5">
+          <div className="max-h-44 overflow-y-auto rounded border border-cyan-400/25 bg-[#030a20]/80 p-2 space-y-1.5">
             {managers.slice(0, 24).map((m) => (
               <div
                 key={m.rosterId}
@@ -229,7 +229,7 @@ export function ImportedLeaguePreviewPanel({
           <Button
             onClick={onCreateFromImport}
             disabled={createLoading}
-            className="flex-1 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700"
+            className="flex-1 bg-[#00ffd4] text-[#00131a] hover:bg-[#2bffe0]"
             size="lg"
             data-testid="import-preview-create-button"
           >
@@ -248,7 +248,7 @@ export function ImportedLeaguePreviewPanel({
               variant="outline"
               onClick={onBack}
               disabled={createLoading}
-              className="border-purple-600/40 text-purple-300 shrink-0"
+              className="shrink-0 border-cyan-400/35 text-cyan-200 hover:bg-cyan-300/10"
               data-testid="import-preview-back-button"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />

@@ -6,7 +6,9 @@ import SeoLandingFooter from '@/components/landing/SeoLandingFooter'
 import { LandingCTAStrip } from '@/components/landing/LandingCTAStrip'
 import { RelatedToolsSection } from '@/components/landing/RelatedToolsSection'
 import type { SportConfig } from '@/lib/seo-landing/config'
+import { getSportCanonical } from '@/lib/seo-landing/config'
 import { AppWindow, Trophy, Zap, ArrowRight } from 'lucide-react'
+import { ShareButtons } from '@/components/seo/ShareButtons'
 
 export default function SportLandingClient({ config }: { config: SportConfig }) {
   const relatedSlugs = ['trade-analyzer', 'mock-draft-simulator', 'waiver-wire-advisor', 'bracket-challenge', 'legacy-dynasty'] as const
@@ -26,6 +28,24 @@ export default function SportLandingClient({ config }: { config: SportConfig }) 
           <p className="mt-4 text-base leading-relaxed" style={{ color: 'var(--muted)' }}>
             {config.body}
           </p>
+          <div className="mt-4">
+            <ShareButtons
+              path={getSportCanonical(config.slug)}
+              title={config.title}
+              description={config.description}
+              testIdPrefix={`sport-landing-share-${config.slug}`}
+            />
+          </div>
+          <div className="mt-2">
+            <Link
+              href="/install"
+              className="inline-flex items-center gap-2 text-xs font-medium hover:underline"
+              style={{ color: 'var(--muted)' }}
+              data-testid="sport-landing-install-link"
+            >
+              Install AllFantasy app
+            </Link>
+          </div>
 
           <section className="mt-8">
             <h2 className="text-lg font-semibold mb-3">Featured tools for {config.leagueSport}</h2>
@@ -34,6 +54,7 @@ export default function SportLandingClient({ config }: { config: SportConfig }) 
                 <li key={href}>
                   <Link
                     href={href}
+                    data-testid={`sport-landing-feature-link-${href.replace(/\//g, '-').replace(/^-+/, '')}`}
                     className="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium hover:opacity-90"
                     style={{
                       borderColor: 'var(--border)',
@@ -57,6 +78,7 @@ export default function SportLandingClient({ config }: { config: SportConfig }) 
             </p>
             <Link
               href="/chimmy"
+              data-testid="sport-landing-chimmy-link"
               className="mt-3 inline-flex items-center gap-2 text-sm font-medium"
               style={{ color: 'var(--accent-cyan)' }}
             >
@@ -81,11 +103,21 @@ export default function SportLandingClient({ config }: { config: SportConfig }) 
               showSignInSignUp
             />
             <div className="flex flex-wrap gap-3 text-sm">
-              <Link href="/bracket" className="inline-flex items-center gap-1 hover:underline" style={{ color: 'var(--muted)' }}>
+              <Link
+                href="/bracket"
+                data-testid="sport-landing-bracket-link"
+                className="inline-flex items-center gap-1 hover:underline"
+                style={{ color: 'var(--muted)' }}
+              >
                 <Trophy className="h-4 w-4" />
                 Bracket Challenge
               </Link>
-              <Link href="/af-legacy" className="inline-flex items-center gap-1 hover:underline" style={{ color: 'var(--muted)' }}>
+              <Link
+                href="/af-legacy"
+                data-testid="sport-landing-legacy-link"
+                className="inline-flex items-center gap-1 hover:underline"
+                style={{ color: 'var(--muted)' }}
+              >
                 <Zap className="h-4 w-4" />
                 AllFantasy Legacy
               </Link>
@@ -103,6 +135,7 @@ export default function SportLandingClient({ config }: { config: SportConfig }) 
             </p>
             <Link
               href="/"
+              data-testid="sport-landing-home-link"
               className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium"
               style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
             >

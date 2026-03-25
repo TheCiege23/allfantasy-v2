@@ -11,6 +11,15 @@ import Link from "next/link"
 import { requireVerifiedSession } from "@/lib/require-verified"
 import { getEntryBracketData } from "@/lib/brackets/getEntryBracketData"
 import { ArrowLeft, CheckCircle2 } from "lucide-react"
+import {
+  getBracketViewState,
+  getBracketProgressDisplay,
+  getBracketLockStateMessage,
+  SCORING_INFO_LABEL,
+  getPoolLeaderboardUrl,
+  resolveBracketChallengeLabel,
+  resolveBracketSportUI,
+} from "@/lib/bracket-challenge"
 
 export default async function EntryBracketPage({
   params,
@@ -31,7 +40,8 @@ export default async function EntryBracketPage({
       league: {
         select: {
           tournamentId: true,
-          tournament: { select: { lockAt: true } },
+          scoringRules: true,
+          tournament: { select: { lockAt: true, sport: true } },
         },
       },
     },
@@ -43,9 +53,8 @@ export default async function EntryBracketPage({
     return <div className="p-6 mode-muted">Wrong tournament.</div>
 
   const { nodesWithGame, pickMap } = await getEntryBracketData(params.tournamentId, entry.id)
-  const totalPicks = Object.values(pickMap || {}).filter(Boolean).length
   const totalGames = (nodesWithGame || []).filter((n: any) => Number(n?.round || 0) >= 1).length
-  const completionPct = totalGames > 0 ? Math.round((totalPicks / totalGames) * 100) : 0
+  const progress = getBracketProgressDisplay(pickMap || {}, totalGames)
 
   const leagueLockAt = (entry as any).league?.tournament?.lockAt as Date | null | undefined
   const isLocked =
@@ -53,6 +62,21 @@ export default async function EntryBracketPage({
     entry.status === "SCORED" ||
     !!entry.lockedAt ||
     !!(leagueLockAt && new Date(leagueLockAt) <= new Date())
+  const viewState = getBracketViewState(
+    entry.status,
+    leagueLockAt,
+    entry.lockedAt,
+    false,
+    null,
+  )
+  const lockMessage = getBracketLockStateMessage(viewState)
+  const leagueLeaderboardUrl = getPoolLeaderboardUrl(entry.leagueId)
+  const sportUI = resolveBracketSportUI((entry as any).league?.tournament?.sport ?? null)
+  const challengeLabel = resolveBracketChallengeLabel({
+    bracketType: (entry as any).league?.scoringRules?.bracketType,
+    challengeType: (entry as any).league?.scoringRules?.challengeType,
+    sport: (entry as any).league?.tournament?.sport,
+  })
 
   return (
     <div className="mode-surface mode-readable min-h-screen pb-20">
@@ -63,6 +87,7 @@ export default async function EntryBracketPage({
               href={`/brackets/leagues/${entry.leagueId}`}
               className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
               style={{ background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--muted)" }}
+              data-testid="bracket-entry-back-button"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -70,8 +95,26 @@ export default async function EntryBracketPage({
               <h1 className="text-lg font-bold leading-tight">
                 {entry.name || "My Bracket"}
               </h1>
+              <div className="inline-flex items-center gap-1.5 text-[11px] w-fit rounded-full px-2 py-0.5" style={{ background: "rgba(56,189,248,0.12)", color: "rgba(186,230,253,0.95)" }}>
+                <span className="font-semibold">{sportUI.badge}</span>
+                <span>{challengeLabel}</span>
+              </div>
               <div className="flex items-center gap-2 flex-wrap text-xs">
-                <span className="mode-muted">Build your NCAA bracket with live context and AI assist.</span>
+                <span className="mode-muted">
+                  Build your {sportUI.label} challenge with live context and AI assist.
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <Link href={leagueLeaderboardUrl} className="mode-muted underline" data-testid="bracket-entry-leaderboard-link">
+                    Leaderboard
+                  </Link>
+                  <Link
+                    href={`${leagueLeaderboardUrl}#settings-rules`}
+                    className="mode-muted underline"
+                    data-testid="bracket-entry-scoring-info-link"
+                  >
+                    {SCORING_INFO_LABEL}
+                  </Link>
+                </span>
               </div>
             </div>
           </div>
@@ -82,7 +125,7 @@ export default async function EntryBracketPage({
                 <CheckCircle2 className="h-4 w-4" />
                 <span className="font-semibold">Bracket locked</span>
                 <span className="text-emerald-100/80">
-                  Your picks are now read-only. You can still track standings and run analysis.
+                  {lockMessage}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-[11px]">
@@ -100,13 +143,13 @@ export default async function EntryBracketPage({
             <div className="mode-panel rounded-xl p-3">
               <div className="text-xs text-white/55">Picks Made</div>
               <div className="mt-1 text-lg font-semibold text-white">
-                {totalPicks}/{totalGames || 0}
+                {progress.pickedCount}/{totalGames || 0}
               </div>
             </div>
             <div className="mode-panel rounded-xl p-3">
               <div className="text-xs text-white/55">Completion</div>
               <div className="mt-1 text-lg font-semibold text-white">
-                {completionPct}%
+                {progress.percentComplete}%
               </div>
             </div>
             <div className="mode-panel rounded-xl p-3">
@@ -151,7 +194,7 @@ export default async function EntryBracketPage({
       <BracketSubmitBar
         entryId={entry.id}
         status={entry.status}
-        totalPicks={totalPicks}
+        totalPicks={progress.pickedCount}
         totalGames={totalGames}
         lockAtIso={leagueLockAt ? leagueLockAt.toISOString() : null}
         isLocked={isLocked}

@@ -78,7 +78,7 @@ export function FeedList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="content-feed-list">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-white">
           {tab === "following" ? "Following" : tab === "trending" ? "Trending" : "For you"}
@@ -89,6 +89,7 @@ export function FeedList({
           disabled={refreshing}
           className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-3 py-2 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 transition"
           aria-label="Refresh feed"
+          data-testid="content-feed-refresh-button"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing..." : "Refresh"}
@@ -117,7 +118,7 @@ export function FeedList({
         </div>
       )}
 
-      <ul className="space-y-3">
+      <ul className="space-y-3" data-testid="content-feed-cards">
         {items.map((item) => (
           <li key={item.id}>
             <FeedCardRenderer

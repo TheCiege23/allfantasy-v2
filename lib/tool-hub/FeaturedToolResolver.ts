@@ -36,6 +36,14 @@ const FEATURED_SLUGS: ToolSlug[] = [
   'ai-draft-assistant',
 ]
 
+/** Trending tool slugs (shown in separate momentum rail). */
+const TRENDING_SLUGS: ToolSlug[] = [
+  'matchup-simulator',
+  'bracket-challenge',
+  'power-rankings',
+  'legacy-dynasty',
+]
+
 /** Category order for tabs/sections. */
 export const CATEGORY_ORDER: ToolCategoryId[] = [
   'trade',
@@ -58,6 +66,10 @@ export function getCategoryForTool(slug: ToolSlug): ToolCategoryId {
 
 export function getFeaturedToolSlugs(): ToolSlug[] {
   return FEATURED_SLUGS
+}
+
+export function getTrendingToolSlugs(): ToolSlug[] {
+  return TRENDING_SLUGS
 }
 
 /**

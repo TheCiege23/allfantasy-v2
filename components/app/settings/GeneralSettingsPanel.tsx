@@ -148,6 +148,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
           <button
             type="button"
             onClick={() => setEditing(true)}
+            data-testid="commissioner-general-edit"
             className="text-xs font-medium text-cyan-400 hover:text-cyan-300"
           >
             Edit
@@ -158,6 +159,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
               type="button"
               onClick={handleCancel}
               disabled={saving}
+              data-testid="commissioner-general-cancel"
               className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 disabled:opacity-50"
             >
               <X className="h-3.5 w-3.5" /> Cancel
@@ -166,6 +168,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
               type="button"
               onClick={handleSave}
               disabled={saving}
+              data-testid="commissioner-general-save"
               className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -184,6 +187,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                data-testid="commissioner-general-name-input"
                 className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50"
                 placeholder="My League"
               />
@@ -193,6 +197,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                data-testid="commissioner-general-description-input"
                 rows={2}
                 className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50 resize-none"
                 placeholder="Optional description"
@@ -203,6 +208,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
               <select
                 value={sport}
                 onChange={(e) => setSport(e.target.value)}
+                data-testid="commissioner-general-sport-select"
                 className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50"
               >
                 {sportOptions.map((o) => (
@@ -218,6 +224,7 @@ export default function GeneralSettingsPanel({ leagueId }: { leagueId?: string }
                 max={2100}
                 value={season}
                 onChange={(e) => setSeason(e.target.value)}
+                data-testid="commissioner-general-season-input"
                 className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500/50"
                 placeholder="e.g. 2025"
               />

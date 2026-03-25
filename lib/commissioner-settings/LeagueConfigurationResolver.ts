@@ -17,5 +17,9 @@ export function getEditableGeneralKeys(): readonly string[] {
 }
 
 export function getEditableRosterKeys(): readonly string[] {
-  return ["rosterSize", "leagueSize", "starters"]
+  return ["rosterSize", "leagueSize", "benchSize", "rosterPositions", "starters"]
+}
+
+export function getEditableTradeKeys(): readonly string[] {
+  return ["tradeReviewType", "vetoThreshold"]
 }

@@ -3,6 +3,7 @@
  */
 
 import type { AdviceType, CoachContext, StrategyRecommendation } from './types';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 
 export async function getStrategyRecommendation(
   type: AdviceType,
@@ -25,6 +26,7 @@ export async function getStrategyRecommendation(
 function buildContextSummary(ctx: CoachContext): string {
   const parts: string[] = [];
   if (ctx.leagueName) parts.push(`League: ${ctx.leagueName}`);
+  if (ctx.sport) parts.push(`Sport: ${normalizeToSupportedSport(String(ctx.sport))}`);
   if (ctx.week != null) parts.push(`Week ${ctx.week}`);
   if (ctx.teamName) parts.push(`Team: ${ctx.teamName}`);
   if (ctx.leagueId) parts.push(`(ID: ${ctx.leagueId})`);

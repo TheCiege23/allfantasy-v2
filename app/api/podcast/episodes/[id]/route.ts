@@ -26,7 +26,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? req.headers.get("x-forwarded-host") ?? ""
+  const baseUrl = process.env.NEXTAUTH_URL ?? new URL(req.url).origin
   const shareUrl = getShareUrl(episode.id, baseUrl || "https://allfantasy.ai")
   const playbackUrl = getPlaybackUrl(episode)
 

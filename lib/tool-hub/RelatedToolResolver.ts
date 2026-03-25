@@ -17,9 +17,12 @@ export type RelatedToolLink = {
  */
 export function getRelatedTools(forSlug: ToolSlug): RelatedToolLink[] {
   const c = TOOL_CONFIG[forSlug]
-  const related = c?.relatedToolSlugs ?? []
+  const related = (c?.relatedToolSlugs ?? []).filter((slug) => slug !== forSlug)
+  const seen = new Set<ToolSlug>()
   return related
     .map((slug) => {
+      if (seen.has(slug)) return null
+      seen.add(slug)
       const config = TOOL_CONFIG[slug]
       if (!config) return null
       return {

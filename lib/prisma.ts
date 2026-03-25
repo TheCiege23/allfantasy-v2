@@ -19,31 +19,42 @@ function isConnectionError(error: unknown): boolean {
   const err = error as { code?: string; message?: string };
   const code = err?.code ?? "";
   const message = String(err?.message ?? "");
+  const messageLower = message.toLowerCase();
 
   if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(code)) {
     return true;
   }
 
-  if (message.includes("terminating connection due to administrator command")) {
+  if (messageLower.includes("terminating connection due to administrator command")) {
     return true;
   }
 
-  if (message.includes("Can't reach database server")) {
+  if (messageLower.includes("can't reach database server")) {
     return true;
   }
 
-  if (message.includes("Connection timed out")) {
+  if (messageLower.includes("connection timed out")) {
     return true;
   }
 
   if (
-    message.includes("prepared statement") &&
-    (message.includes("does not exist") || message.includes("already exists"))
+    messageLower.includes("maxclientsinsessionmode") ||
+    messageLower.includes("too many clients")
   ) {
     return true;
   }
 
-  if (message.includes("bind message supplies") && message.includes("prepared statement")) {
+  if (
+    messageLower.includes("prepared statement") &&
+    (messageLower.includes("does not exist") || messageLower.includes("already exists"))
+  ) {
+    return true;
+  }
+
+  if (
+    messageLower.includes("bind message supplies") &&
+    messageLower.includes("prepared statement")
+  ) {
     return true;
   }
 
@@ -54,8 +65,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function applyNonProdConnectionGuardrails(rawUrl: string): string {
+  if (process.env.NODE_ENV === "production") return rawUrl;
+
+  try {
+    const parsed = new URL(rawUrl);
+    if (!parsed.searchParams.has("connection_limit")) {
+      // Keep local/dev and e2e runs from exhausting pooled DB sessions.
+      parsed.searchParams.set("connection_limit", "1");
+    }
+    if (!parsed.searchParams.has("pool_timeout")) {
+      parsed.searchParams.set("pool_timeout", "30");
+    }
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 function createPrismaClient() {
-  const databaseUrl = getDatabaseUrlOrThrow();
+  const databaseUrl = applyNonProdConnectionGuardrails(getDatabaseUrlOrThrow());
 
   if (!process.env.DATABASE_URL?.trim()) {
     process.env.DATABASE_URL = databaseUrl;

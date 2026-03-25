@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCreators } from '@/lib/creator-system'
+import { getCreators, getCreatorsLeaderboard } from '@/lib/creator-system'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +9,19 @@ export async function GET(req: NextRequest) {
     const visibility = (searchParams.get('visibility') as 'public' | 'unlisted' | 'all') || 'public'
     const sport = searchParams.get('sport') || undefined
     const limit = Math.min(Number(searchParams.get('limit')) || 24, 48)
+    const sort = searchParams.get('sort') as 'members' | 'leagues' | null
     const cursor = searchParams.get('cursor') || undefined
 
+    if (sort === 'members' || sort === 'leagues') {
+      const creators = await getCreatorsLeaderboard({
+        limit,
+        sort,
+      })
+      return NextResponse.json({ ok: true, creators })
+    }
+
     const result = await getCreators({ visibility, sport, limit, cursor })
-    return NextResponse.json(result)
+    return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[api/creators]', e)
     return NextResponse.json({ error: 'Failed to list creators' }, { status: 500 })

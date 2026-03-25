@@ -33,6 +33,8 @@ export type DraftContextForAI = {
   round?: number
   pick?: number
   queueLength?: number
+  queueTopPlayers?: string[]
+  currentOnClockManager?: string
   rosterPositions?: string[]
   leagueName?: string
 }
@@ -47,6 +49,12 @@ export function buildDraftSummaryForAI(ctx: DraftContextForAI): string {
   if (ctx.pick != null) parts.push(`Pick ${ctx.pick}.`)
   if (ctx.queueLength != null && ctx.queueLength > 0) {
     parts.push(`I have ${ctx.queueLength} players in my queue.`)
+  }
+  if (ctx.queueTopPlayers?.length) {
+    parts.push(`Top queue names: ${ctx.queueTopPlayers.slice(0, 3).join(', ')}.`)
+  }
+  if (ctx.currentOnClockManager) {
+    parts.push(`Current manager on clock: ${ctx.currentOnClockManager}.`)
   }
   if (ctx.rosterPositions && ctx.rosterPositions.length > 0) {
     parts.push(`Roster slots: ${ctx.rosterPositions.slice(0, 8).join(', ')}.`)

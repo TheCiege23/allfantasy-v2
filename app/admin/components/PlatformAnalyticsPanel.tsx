@@ -12,7 +12,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts"
-import { getSportOptions } from "@/lib/platform-analytics"
+import { getSportOptions } from "@/lib/platform-analytics/SportAnalyticsFilterResolver"
 
 type DateCount = { date: string; count: number; uniqueUsers?: number }
 
@@ -102,7 +102,7 @@ export function PlatformAnalyticsPanel() {
   const sportOptions = getSportOptions()
 
   return (
-    <div className="mb-8">
+    <div className="mb-8" data-testid="platform-analytics-panel">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <h2 className="text-base sm:text-xl font-semibold" style={{ color: "var(--text)" }}>
           Platform Analytics
@@ -113,6 +113,7 @@ export function PlatformAnalyticsPanel() {
             type="date"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
+            data-testid="platform-analytics-date-from"
             className="px-2 py-1.5 rounded-lg text-sm border"
             style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)", color: "var(--text)" }}
           />
@@ -121,17 +122,20 @@ export function PlatformAnalyticsPanel() {
             type="date"
             value={to}
             onChange={(e) => setTo(e.target.value)}
+            data-testid="platform-analytics-date-to"
             className="px-2 py-1.5 rounded-lg text-sm border"
             style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)", color: "var(--text)" }}
           />
           {(["7d", "30d", "90d"] as const).map((p) => (
             <button
               key={p}
+              type="button"
               onClick={() => {
                 const r = presetRange(p)
                 setFrom(r.from)
                 setTo(r.to)
               }}
+              data-testid={`platform-analytics-preset-${p}`}
               className="px-2 py-1 rounded text-xs font-medium border"
               style={{ borderColor: "var(--border)", color: "var(--muted)" }}
             >
@@ -142,6 +146,7 @@ export function PlatformAnalyticsPanel() {
           <select
             value={sport}
             onChange={(e) => setSport(e.target.value)}
+            data-testid="platform-analytics-sport-filter"
             className="px-2 py-1.5 rounded-lg text-sm border appearance-none pr-8"
             style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)", color: "var(--text)" }}
           >
@@ -150,8 +155,10 @@ export function PlatformAnalyticsPanel() {
             ))}
           </select>
           <button
+            type="button"
             onClick={load}
             disabled={loading}
+            data-testid="platform-analytics-apply"
             className="px-3 py-1.5 rounded-lg border text-sm"
             style={{ borderColor: "var(--border)", background: "var(--accent)", color: "#fff" }}
           >
@@ -161,7 +168,10 @@ export function PlatformAnalyticsPanel() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200 mb-4">
+        <div
+          className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200 mb-4"
+          data-testid="platform-analytics-error"
+        >
           {error}
         </div>
       )}
@@ -175,10 +185,11 @@ export function PlatformAnalyticsPanel() {
       {data && (
         <>
           {/* User Growth */}
-          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }}>
+          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }} data-testid="platform-analytics-user-growth">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>User Growth</h3>
               <button
+                type="button"
                 onClick={() => {
                   const headers = ["Date", "Signups", "Active Users"]
                   const rows = data.userGrowth.signupsOverTime.map((s, i) => [
@@ -188,6 +199,7 @@ export function PlatformAnalyticsPanel() {
                   ])
                   downloadCsv("platform_user_growth.csv", headers, rows)
                 }}
+                data-testid="platform-analytics-export-user-growth"
                 className="px-2 py-1 rounded text-xs font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >
@@ -196,15 +208,15 @@ export function PlatformAnalyticsPanel() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.userGrowth.dau}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-user-growth-dau">{data.userGrowth.dau}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>DAU</div>
               </div>
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.userGrowth.mau}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-user-growth-mau">{data.userGrowth.mau}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>MAU</div>
               </div>
             </div>
-            <div className="h-64">
+            <div className="h-64" data-testid="platform-analytics-chart-user-growth">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.userGrowth.activeUsersOverTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -218,23 +230,25 @@ export function PlatformAnalyticsPanel() {
           </section>
 
           {/* League Growth */}
-          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }}>
+          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }} data-testid="platform-analytics-league-growth">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>League Growth</h3>
               <button
+                type="button"
                 onClick={() => {
                   const headers = ["Date", "Leagues created"]
                   const rows = data.leagueGrowth.leaguesCreatedOverTime.map((r) => [r.date, String(r.count)])
                   downloadCsv("platform_league_growth.csv", headers, rows)
                 }}
+                data-testid="platform-analytics-export-league-growth"
                 className="px-2 py-1 rounded text-xs font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >
                 Export CSV
               </button>
             </div>
-            <div className="mb-3 text-lg font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.leagueGrowth.totalLeagues} total leagues</div>
-            <div className="h-48 mb-4">
+            <div className="mb-3 text-lg font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-league-growth-total">{data.leagueGrowth.totalLeagues} total leagues</div>
+            <div className="h-48 mb-4" data-testid="platform-analytics-chart-league-growth">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.leagueGrowth.leaguesCreatedOverTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -253,22 +267,24 @@ export function PlatformAnalyticsPanel() {
           </section>
 
           {/* Tool Usage */}
-          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }}>
+          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }} data-testid="platform-analytics-tool-usage">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>Tool Usage</h3>
               <button
+                type="button"
                 onClick={() => {
                   const headers = ["Tool", "Count", "Unique users"]
                   const rows = data.toolUsage.byToolKey.slice(0, 50).map((t) => [t.toolKey, String(t.count), String(t.uniqueUsers)])
                   downloadCsv("platform_tool_usage.csv", headers, rows)
                 }}
+                data-testid="platform-analytics-export-tool-usage"
                 className="px-2 py-1 rounded text-xs font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >
                 Export CSV
               </button>
             </div>
-            <div className="h-48 mb-4">
+            <div className="h-48 mb-4" data-testid="platform-analytics-chart-tool-usage">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.toolUsage.eventsOverTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -302,15 +318,17 @@ export function PlatformAnalyticsPanel() {
           </section>
 
           {/* AI Requests */}
-          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }}>
+          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }} data-testid="platform-analytics-ai-requests">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>AI Requests</h3>
               <button
+                type="button"
                 onClick={() => {
                   const headers = ["Date", "Count"]
                   const rows = data.aiRequests.overTime.map((r) => [r.date, String(r.count)])
                   downloadCsv("platform_ai_requests.csv", headers, rows)
                 }}
+                data-testid="platform-analytics-export-ai-requests"
                 className="px-2 py-1 rounded text-xs font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >
@@ -319,15 +337,15 @@ export function PlatformAnalyticsPanel() {
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.aiRequests.total}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-ai-total">{data.aiRequests.total}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Total requests</div>
               </div>
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.aiRequests.uniqueUsers}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-ai-unique-users">{data.aiRequests.uniqueUsers}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Unique users</div>
               </div>
             </div>
-            <div className="h-48">
+            <div className="h-48" data-testid="platform-analytics-chart-ai-requests">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data.aiRequests.overTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -341,15 +359,17 @@ export function PlatformAnalyticsPanel() {
           </section>
 
           {/* Revenue Metrics */}
-          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }}>
+          <section className="rounded-xl border p-4 mb-4" style={{ borderColor: "var(--border)" }} data-testid="platform-analytics-revenue">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>Revenue Metrics (Bracket)</h3>
               <button
+                type="button"
                 onClick={() => {
                   const headers = ["Date", "Amount (cents)"]
                   const rows = data.revenue.overTime.map((r) => [r.date, String(r.count)])
                   downloadCsv("platform_revenue.csv", headers, rows)
                 }}
+                data-testid="platform-analytics-export-revenue"
                 className="px-2 py-1 rounded text-xs font-medium"
                 style={{ background: "var(--accent)", color: "#fff" }}
               >
@@ -358,15 +378,15 @@ export function PlatformAnalyticsPanel() {
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>${(data.revenue.totalCents / 100).toFixed(2)}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-revenue-total">${(data.revenue.totalCents / 100).toFixed(2)}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Total (period)</div>
               </div>
               <div className="p-3 rounded-lg border" style={{ borderColor: "var(--border)" }}>
-                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }}>{data.revenue.transactionCount}</div>
+                <div className="text-xl font-bold tabular-nums" style={{ color: "var(--text)" }} data-testid="platform-analytics-revenue-transactions">{data.revenue.transactionCount}</div>
                 <div className="text-xs" style={{ color: "var(--muted)" }}>Transactions</div>
               </div>
             </div>
-            <div className="h-48">
+            <div className="h-48" data-testid="platform-analytics-chart-revenue">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.revenue.overTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />

@@ -7,8 +7,10 @@ import type {
 import { prisma } from '@/lib/prisma'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import { createSystemMessage } from '@/lib/platform/chat-service'
+import { openaiChatText } from '@/lib/openai-client'
 import { analyzeLeagueGovernance } from './LeagueGovernanceAnalyzer'
 import { generateCommissionerAlerts } from './CommissionerAlertGenerator'
+import { generateLeagueInsights } from './LeagueInsightGenerator'
 import {
   normalizeSportForCommissioner,
   toLeagueSport,
@@ -18,6 +20,7 @@ import type {
   AICommissionerAlertStatus,
   AICommissionerAlertView,
   AICommissionerConfigView,
+  LeagueInsightReport,
   AICommissionerNotificationMode,
   GovernanceAnalysis,
 } from './types'
@@ -397,4 +400,126 @@ export async function updateAICommissionerAlertStatus(input: {
   })
 
   return toAlertView(updated)
+}
+
+export async function getAICommissionerInsights(input: {
+  leagueId: string
+  sport?: string | null
+  season?: number | null
+}): Promise<LeagueInsightReport> {
+  return generateLeagueInsights({
+    leagueId: input.leagueId,
+    sport: input.sport ?? null,
+    season: input.season ?? null,
+  })
+}
+
+function buildDeterministicCommissionerAnswer(input: {
+  question: string
+  insights: LeagueInsightReport
+}): string {
+  const q = input.question.trim().toLowerCase()
+  const { insights } = input
+
+  if (q.includes('rule')) {
+    return [
+      `League rule guidance for ${insights.sport}:`,
+      ...insights.suggestedRuleAdjustments.slice(0, 3).map((row) => `- ${row}`),
+    ].join('\n')
+  }
+  if (q.includes('matchup') || q.includes('weekly recap') || q.includes('recap')) {
+    return [
+      insights.weeklyRecapPost.body,
+      ...insights.matchupSummaries.slice(0, 3).map((row) => `- ${row.summary}`),
+    ].join('\n')
+  }
+  if (q.includes('trade')) {
+    if (insights.controversialTrades.length === 0) {
+      return 'No controversial trades are currently flagged for this league context.'
+    }
+    return insights.controversialTrades
+      .slice(0, 3)
+      .map(
+        (trade) =>
+          `- ${trade.summary} (fairness ${trade.fairnessScore}/100, controversy ${trade.controversyLevel})`
+      )
+      .join('\n')
+  }
+  if (q.includes('waiver')) {
+    if (insights.waiverHighlights.length === 0) {
+      return 'No recent waiver transactions were found in this league context.'
+    }
+    return insights.waiverHighlights
+      .slice(0, 4)
+      .map((row) => `- ${row.summary}`)
+      .join('\n')
+  }
+  if (q.includes('draft')) {
+    if (insights.draftCommentary.length === 0) {
+      return 'No draft commentary is available yet for this league context.'
+    }
+    return insights.draftCommentary
+      .slice(0, 4)
+      .map((row) => `- ${row.summary}`)
+      .join('\n')
+  }
+
+  return [
+    `AI Commissioner recap for ${insights.sport}:`,
+    `- ${insights.weeklyRecapPost.body}`,
+    `- ${insights.controversialTrades.length} controversial trade(s) currently tracked.`,
+    `- ${insights.waiverHighlights.length} waiver highlight(s) in the latest cycle.`,
+    `- ${insights.draftCommentary.length} draft commentary note(s) available.`,
+  ].join('\n')
+}
+
+export async function answerAICommissionerQuestion(input: {
+  leagueId: string
+  question: string
+  sport?: string | null
+  season?: number | null
+}): Promise<{ answer: string; source: 'ai' | 'template'; insights: LeagueInsightReport }> {
+  const insights = await getAICommissionerInsights({
+    leagueId: input.leagueId,
+    sport: input.sport ?? null,
+    season: input.season ?? null,
+  })
+  const fallback = buildDeterministicCommissionerAnswer({
+    question: input.question,
+    insights,
+  })
+
+  const aiResult = await openaiChatText({
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are the AllFantasy AI League Commissioner assistant. Use only supplied league context. Keep answers concise and actionable. Cover rule explanations, matchup recap, trade fairness concerns, waiver outcomes, and draft commentary without inventing facts.',
+      },
+      {
+        role: 'user',
+        content: JSON.stringify({
+          question: input.question,
+          leagueId: input.leagueId,
+          sport: insights.sport,
+          season: insights.season,
+          recap: insights.weeklyRecapPost,
+          matchups: insights.matchupSummaries,
+          waivers: insights.waiverHighlights,
+          draftCommentary: insights.draftCommentary,
+          controversialTrades: insights.controversialTrades,
+          suggestedRuleAdjustments: insights.suggestedRuleAdjustments,
+        }),
+      },
+    ],
+    temperature: 0.35,
+    maxTokens: 420,
+  }).catch(() => null)
+
+  const answer = aiResult?.ok && aiResult.text?.trim() ? aiResult.text.trim() : fallback
+  return {
+    answer,
+    source: aiResult?.ok && aiResult.text?.trim() ? 'ai' : 'template',
+    insights,
+  }
 }

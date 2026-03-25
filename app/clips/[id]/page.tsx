@@ -9,6 +9,7 @@ import { GraphicRenderer, SOCIAL_CLIP_GRAPHIC_ID } from '@/lib/social-clips';
 import {
   getClipPageUrl,
   getTwitterShareUrl,
+  getFacebookShareUrl,
   getCopyLinkPayload,
 } from '@/lib/social-clips/ShareLinkResolver';
 import type { ClipPayload } from '@/lib/social-clips/types';
@@ -53,12 +54,11 @@ export default function ClipDetailPage() {
   const handleShare = useCallback(async () => {
     if (!clipPageUrl || !clip) return;
     try {
-      const text = getCopyLinkPayload(clipPageUrl, clip.title);
       if (navigator.share && navigator.canShare?.({ title: clip.title, url: clipPageUrl })) {
         await navigator.share({
           title: clip.title,
           url: clipPageUrl,
-          text: clip.title,
+          text: getCopyLinkPayload(clipPageUrl, clip.title),
         });
       } else {
         await navigator.clipboard.writeText(clipPageUrl);
@@ -81,6 +81,12 @@ export default function ClipDetailPage() {
     const url = getTwitterShareUrl(clipPageUrl, clip.title);
     window.open(url, '_blank', 'noopener,noreferrer');
   }, [clipPageUrl, clip]);
+
+  const openFacebookShare = useCallback(() => {
+    if (!clipPageUrl) return;
+    const url = getFacebookShareUrl(clipPageUrl);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [clipPageUrl]);
 
   const handleDownload = useCallback(async () => {
     const element = document.getElementById(SOCIAL_CLIP_GRAPHIC_ID);
@@ -145,6 +151,7 @@ export default function ClipDetailPage() {
             size="sm"
             onClick={handleShare}
             className="gap-1.5 border-white/20"
+            data-testid="social-clip-share-graphic-button"
           >
             <Share2 className="h-4 w-4" />
             {shareDone ? 'Copied!' : 'Share graphic'}
@@ -154,8 +161,18 @@ export default function ClipDetailPage() {
             size="sm"
             onClick={openTwitterShare}
             className="gap-1.5 border-white/20"
+            data-testid="social-clip-share-x-button"
           >
             Post to X
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openFacebookShare}
+            className="gap-1.5 border-white/20"
+            data-testid="social-clip-share-facebook-button"
+          >
+            Share to Facebook
           </Button>
           <Button
             variant="outline"
@@ -163,6 +180,7 @@ export default function ClipDetailPage() {
             onClick={handleDownload}
             disabled={downloading}
             className="gap-1.5 border-white/20"
+            data-testid="social-clip-download-graphic-button"
           >
             {downloading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -178,6 +196,7 @@ export default function ClipDetailPage() {
         <GraphicRenderer
           payload={payload!}
           clipType={clip.clipType as 'weekly_league_winners' | 'biggest_upset' | 'top_scoring_team'}
+          className="shadow-xl"
         />
       </div>
     </div>

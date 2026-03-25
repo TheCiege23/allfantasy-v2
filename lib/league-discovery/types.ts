@@ -4,6 +4,8 @@ export interface LeagueCard {
   name: string
   joinCode: string
   sport: string
+  challengeType?: string | null
+  bracketType?: string | null
   season: number
   tournamentName: string
   tournamentId: string

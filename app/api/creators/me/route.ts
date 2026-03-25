@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   const profile = await getCreatorBySlugOrId(profileRow.slug, userId)
   if (!profile) return NextResponse.json({ creator: null, leagues: [] })
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? req.headers.get('x-forwarded-host') ? `https://${req.headers.get('x-forwarded-host')}` : ''
+  const forwardedHost = req.headers.get('x-forwarded-host')
+  const baseUrl = process.env.NEXTAUTH_URL ?? (forwardedHost ? `https://${forwardedHost}` : '')
   const leagues = await getCreatorLeagues(profile.id, userId, baseUrl)
 
   return NextResponse.json({

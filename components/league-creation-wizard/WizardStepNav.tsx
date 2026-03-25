@@ -28,22 +28,22 @@ export const WizardStepNav = memo(function WizardStepNav({
   error,
 }: WizardStepNavProps) {
   return (
-    <div className="mt-6 pt-4 border-t border-white/10 space-y-3">
+    <div className="sticky bottom-0 z-10 mt-8 space-y-3 border-t border-white/10 bg-gradient-to-b from-transparent via-[#02061a]/95 to-[#02061a] pt-4 pb-2">
       {error && (
-        <p className="text-sm text-red-400" role="alert">
+        <p className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200" role="alert">
           {error}
         </p>
       )}
-      <div className="flex justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
             disabled={creating}
-            className="rounded-xl border border-white/20 px-4 py-3 text-sm font-medium text-white/90 hover:bg-white/10 min-h-[44px] touch-manipulation disabled:opacity-50 flex-1 max-w-[140px]"
+            className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-full border border-white/20 bg-black/20 text-xl font-semibold text-white/90 hover:bg-white/10 touch-manipulation disabled:opacity-50"
             aria-label="Previous step"
           >
-            Back
+            ←
           </button>
         )}
         {!onBack && <span />}
@@ -52,7 +52,7 @@ export const WizardStepNav = memo(function WizardStepNav({
             type="button"
             onClick={onCreate}
             disabled={creating || disableForward}
-            className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-medium text-white hover:bg-emerald-500 min-h-[44px] touch-manipulation disabled:opacity-50 flex-1 max-w-[200px]"
+            className="min-h-[58px] flex-1 rounded-full bg-[#00ffd4] px-6 text-sm font-black uppercase tracking-[0.14em] text-[#00131a] hover:bg-[#2bffe0] touch-manipulation disabled:opacity-50"
             aria-busy={creating}
             aria-label={creating ? 'Creating league' : 'Create league'}
           >
@@ -64,7 +64,7 @@ export const WizardStepNav = memo(function WizardStepNav({
               type="button"
               onClick={onNext}
               disabled={disableForward}
-              className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 min-h-[44px] touch-manipulation disabled:opacity-50 flex-1 max-w-[140px]"
+              className="min-h-[58px] flex-1 rounded-full bg-[#00ffd4] px-6 text-sm font-black uppercase tracking-[0.14em] text-[#00131a] hover:bg-[#2bffe0] touch-manipulation disabled:opacity-50"
               aria-label={nextLabel}
             >
               {nextLabel}

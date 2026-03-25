@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma"
 import type { SystemHealthStatus } from "./types"
+import { getSportsAlertLatency } from "./SportsAlertLatencyResolver"
 
 const API_KEYS = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "espn", "openai", "grok"] as const
 const ENDPOINTS: Record<string, string> = {
@@ -48,10 +49,41 @@ async function checkDatabase(): Promise<{ status: "healthy" | "degraded" | "down
   }
 }
 
+async function checkWorkerQueue(): Promise<{
+  status: "healthy" | "degraded" | "down"
+  queued: number
+  running: number
+  failedLast24h: number
+}> {
+  try {
+    const failedWindow = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const [queued, running, failedLast24h] = await Promise.all([
+      prisma.legacyImportJob.count({ where: { status: { in: ["queued", "pending"] } } }),
+      prisma.legacyImportJob.count({ where: { status: { in: ["running", "processing"] } } }),
+      prisma.legacyImportJob.count({
+        where: {
+          status: { in: ["failed", "error"] },
+          updatedAt: { gte: failedWindow },
+        },
+      }),
+    ])
+
+    let status: "healthy" | "degraded" | "down" = "healthy"
+    if (failedLast24h >= 25 || queued >= 500) status = "down"
+    else if (failedLast24h > 0 || queued >= 100) status = "degraded"
+
+    return { status, queued, running, failedLast24h }
+  } catch {
+    return { status: "down", queued: 0, running: 0, failedLast24h: 0 }
+  }
+}
+
 export async function getSystemHealth(): Promise<SystemHealthStatus> {
-  const [apiResults, db] = await Promise.all([
+  const [apiResults, db, workerQueue, sportsAlerts] = await Promise.all([
     Promise.all(API_KEYS.map(async (key) => ({ key, ...(await checkApi(key)) }))),
     checkDatabase(),
+    checkWorkerQueue(),
+    getSportsAlertLatency(24),
   ])
   const now = new Date().toISOString()
   const api: SystemHealthStatus["api"] = {}
@@ -62,5 +94,10 @@ export async function getSystemHealth(): Promise<SystemHealthStatus> {
     api,
     database: db.status,
     databaseLatencyMs: db.latencyMs,
+    workerQueue: {
+      ...workerQueue,
+      lastCheck: now,
+    },
+    sportsAlerts,
   }
 }

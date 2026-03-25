@@ -3,9 +3,10 @@
  * Use this at runtime (server-side or in API routes) to gate features.
  */
 
-import { getBoolean, getStringArray, getFeatureTogglesSnapshot, FEATURE_KEYS } from "./FeatureToggleService"
+import { getBoolean, getStringArray, getFeatureTogglesSnapshot } from "./FeatureToggleService"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import type { LeagueSport } from "@prisma/client"
+import { FEATURE_KEYS } from "./constants"
 
 let cache: { snapshot: Awaited<ReturnType<typeof getFeatureTogglesSnapshot>>; at: number } | null = null
 const CACHE_MS = 30 * 1000 // 30s

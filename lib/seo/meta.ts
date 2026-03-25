@@ -8,6 +8,7 @@ import { getOgImageUrl } from './SocialShareMetadataService'
 
 const BASE = 'https://allfantasy.ai'
 const SITE_NAME = 'AllFantasy'
+const INSTALL_PATH = '/install'
 
 export interface BuildSeoMetaInput {
   /** Page title (document and default for OG/Twitter). */
@@ -46,11 +47,26 @@ export function buildSeoMeta(input: BuildSeoMetaInput): Metadata {
   const twTitle = input.twitterTitle ?? input.title
   const twDesc = input.twitterDescription ?? input.description
   const imageUrl = input.imagePath ? getOgImageUrl(input.imagePath) : getOgImageUrl(null)
+  const appLinkTarget = canonical ?? `${BASE}${INSTALL_PATH}`
 
   return {
     title: input.title,
     description: input.description,
+    applicationName: SITE_NAME,
+    category: 'sports',
     keywords: input.keywords,
+    manifest: '/manifest.webmanifest',
+    appleWebApp: {
+      capable: true,
+      title: SITE_NAME,
+      statusBarStyle: 'black-translucent',
+    },
+    appLinks: {
+      web: {
+        url: appLinkTarget,
+        should_fallback: true,
+      },
+    },
     metadataBase: new URL(BASE),
     alternates: canonical ? { canonical } : undefined,
     openGraph: {
@@ -65,6 +81,12 @@ export function buildSeoMeta(input: BuildSeoMetaInput): Metadata {
       card: 'summary_large_image',
       title: twTitle,
       description: twDesc,
+      images: [imageUrl],
+    },
+    other: {
+      'mobile-web-app-capable': 'yes',
+      'apple-mobile-web-app-capable': 'yes',
+      'theme-color': '#020617',
     },
     robots: input.noIndex ? { index: false, follow: true } : { index: true, follow: true },
   }

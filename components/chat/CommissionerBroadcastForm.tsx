@@ -70,6 +70,7 @@ export default function CommissionerBroadcastForm({
       <textarea
         value={announcement}
         onChange={(e) => setAnnouncement(e.target.value)}
+        data-testid="commissioner-announcement-input"
         placeholder="Announcement (e.g. Trade deadline Sunday 11:59 PM ET)"
         rows={2}
         className="mt-2 w-full resize-none rounded-lg border px-2.5 py-1.5 text-xs outline-none"
@@ -88,6 +89,7 @@ export default function CommissionerBroadcastForm({
         type="button"
         onClick={handleSubmit}
         disabled={!announcement.trim() || sending}
+        data-testid="commissioner-announcement-send"
         className="mt-2 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
         style={{
           borderColor: "var(--accent-amber-strong)",

@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { Shield, BookOpen, MessageSquare } from 'lucide-react'
-import { IDP_SCORING_PRESET_LABELS } from '@/lib/idp'
+import { IDP_SCORING_PRESET_LABELS } from '@/lib/idp/IDPScoringPresets'
 
 const SCORING_TIPS: Record<string, string> = {
   balanced: 'Tackles, sacks, and turnovers all matter. Every-down LBs and versatile DBs have strong value.',

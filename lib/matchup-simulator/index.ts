@@ -5,6 +5,8 @@
 export {
   getViewState,
   getDisplayPayload,
+  formatScoreRangeLabel,
+  MATCHUP_SIMULATOR_MESSAGES,
   type ViewState,
   type MatchupDisplayPayload,
 } from './MatchupSimulatorViewService'
@@ -21,7 +23,9 @@ export {
 
 export {
   getPositionSlotsForSport,
+  buildPositionComparisonRows,
   type PositionSlot,
+  type PositionComparisonRow,
 } from './PositionComparisonResolver'
 
 export {
@@ -35,5 +39,7 @@ export {
   getSportLabel,
   getDefaultStdDevForSport,
   getVolatilityLabel,
+  getSimulationTeamPresets,
   type SportOption,
+  type SimulationTeamPreset,
 } from './SportSimulationUIResolver'

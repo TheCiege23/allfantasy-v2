@@ -11,7 +11,7 @@ import {
   type SportSlug,
 } from '@/lib/seo-landing/config'
 import type { ToolCategoryId } from './types'
-import { getToolsByCategory } from './FeaturedToolResolver'
+import { getToolsByCategory, getFeaturedToolSlugs, getTrendingToolSlugs } from './FeaturedToolResolver'
 
 export type ToolHubTool = {
   slug: ToolSlug
@@ -84,6 +84,30 @@ export function getToolsForSport(sportSlug: SportSlug | null): ToolHubTool[] {
   if (!sportSlug) return getAllTools()
   const sportConfig = SPORT_CONFIG[sportSlug]
   if (!sportConfig?.toolHrefs?.length) return getAllTools()
-  const hrefSet = new Set(sportConfig.toolHrefs.map((h) => h.href))
-  return getAllTools().filter((t) => hrefSet.has(t.openToolHref))
+  const normalize = (href: string) => String(href || '').trim().toLowerCase().replace(/\/$/, '')
+  const alias: Record<string, string> = {
+    '/trade-analyzer': '/trade-evaluator',
+    '/waiver-wire': '/waiver-ai',
+    '/matchup-simulator': '/app/simulation-lab',
+    '/brackets': '/bracket',
+  }
+  const hrefSet = new Set(
+    sportConfig.toolHrefs.map((h) => {
+      const key = normalize(h.href)
+      return alias[key] ?? key
+    })
+  )
+  const all = getAllTools()
+  const filtered = all.filter((t) => hrefSet.has(normalize(t.openToolHref)))
+  return filtered.length > 0 ? filtered : all
+}
+
+export function getFeaturedTools(): ToolHubTool[] {
+  const featured = new Set(getFeaturedToolSlugs())
+  return getAllTools().filter((tool) => featured.has(tool.slug))
+}
+
+export function getTrendingTools(): ToolHubTool[] {
+  const trending = new Set(getTrendingToolSlugs())
+  return getAllTools().filter((tool) => trending.has(tool.slug))
 }

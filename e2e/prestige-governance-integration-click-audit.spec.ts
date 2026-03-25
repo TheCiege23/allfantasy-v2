@@ -118,6 +118,30 @@ test.describe('@prestige Prompt43 integration click audit', () => {
         }),
       })
     })
+    await page.route(`**/api/leagues/${leagueId}/ai-commissioner/insights?**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          leagueId,
+          sport: 'NFL',
+          season: 2026,
+          generatedAt: new Date().toISOString(),
+          weeklyRecapPost: {
+            title: 'NFL Commissioner Weekly Recap',
+            body: 'Weekly recap context for prestige integration test.',
+            bullets: [],
+            actionHref: `/app/league/${leagueId}?tab=Commissioner`,
+            actionLabel: 'Open Commissioner',
+          },
+          matchupSummaries: [],
+          waiverHighlights: [],
+          draftCommentary: [],
+          controversialTrades: [],
+          suggestedRuleAdjustments: [],
+        }),
+      })
+    })
 
     await page.goto(`/e2e/commissioner?leagueId=${leagueId}`)
     await expect(page.getByRole('heading', { name: /e2e commissioner harness/i })).toBeVisible()

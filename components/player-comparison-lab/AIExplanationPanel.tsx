@@ -74,7 +74,8 @@ export function AIExplanationPanel({
             onClick={handleRetry}
             disabled={loading}
             className="gap-2"
-            data-audit="get-ai-insight-button"
+            data-audit="ai-insight-button"
+            data-testid="ai-insight-button"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -34,7 +34,7 @@ export function getLeagueFilterOptions(): LeagueFilterOptions {
   return {
     sports: SUPPORTED_SPORTS.map((s) => ({ value: s, label: s })),
     leagueTypes: [
-      { value: "fancred_edge", label: "AF March Madness" },
+      { value: "fancred_edge", label: "AF Edge" },
       { value: "momentum", label: "Momentum" },
       { value: "accuracy_boldness", label: "Accuracy + Boldness" },
       { value: "streak_survival", label: "Streak & Survival" },
@@ -115,7 +115,11 @@ export function buildDiscoveryWhere(
   const and: Prisma.BracketLeagueWhereInput[] = []
 
   if (resolved.sport) {
-    and.push({ tournament: { sport: resolved.sport } })
+    if (resolved.sport === 'NCAAB') {
+      and.push({ tournament: { sport: { in: ['NCAAB', 'ncaam'] } } })
+    } else {
+      and.push({ tournament: { sport: resolved.sport } })
+    }
   }
 
   if (resolved.visibility !== "all") {

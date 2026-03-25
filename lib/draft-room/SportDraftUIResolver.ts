@@ -8,6 +8,7 @@ import { getPositionsForSport } from '@/lib/roster-defaults/PositionEligibilityR
 import { getSlotNamesForSport } from '@/lib/roster-defaults/RosterDefaultsRegistry'
 
 export type PositionFilterOption = { value: string; label: string }
+export type DraftSportOption = { value: string; label: string }
 
 /**
  * Get position filter options for draft room (All + sport positions).
@@ -74,4 +75,21 @@ export function getDefaultRosterSlotsForSport(sport: string): string[] {
  */
 export function getSupportedDraftSports(): readonly string[] {
   return SUPPORTED_SPORTS
+}
+
+const SPORT_LABELS: Record<string, string> = {
+  NFL: 'NFL',
+  NHL: 'NHL',
+  NBA: 'NBA',
+  MLB: 'MLB',
+  NCAAB: 'NCAA Basketball',
+  NCAAF: 'NCAA Football',
+  SOCCER: 'Soccer',
+}
+
+export function getDraftSportOptions(): DraftSportOption[] {
+  return SUPPORTED_SPORTS.map((sport) => ({
+    value: sport,
+    label: SPORT_LABELS[sport] ?? sport,
+  }))
 }

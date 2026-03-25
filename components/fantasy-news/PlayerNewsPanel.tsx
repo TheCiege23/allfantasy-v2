@@ -48,35 +48,45 @@ export function PlayerNewsPanel({ items, title = 'News', onShare }: PlayerNewsPa
         ) : (
           <ul className="space-y-4">
             {items.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-xl border border-white/10 bg-black/20 p-4"
-                data-audit="news-card"
-              >
-                <a
-                  href={item.sourceUrl || '#'}
-                  target={item.sourceUrl ? '_blank' : undefined}
-                  rel={item.sourceUrl ? 'noopener noreferrer' : undefined}
-                  className="block group"
-                  data-audit="news-card-opens-full-article"
-                >
-                  <h3 className="font-semibold text-white group-hover:text-cyan-400 transition">
-                    {item.headline || item.title}
-                  </h3>
-                  {item.summary && (
-                    <p className="mt-1 text-sm text-white/70 line-clamp-2">{item.summary}</p>
-                  )}
-                  {item.fantasyImpact && (
-                    <p className="mt-2 text-xs text-cyan-300/90">Impact: {item.fantasyImpact}</p>
-                  )}
-                  <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
-                    <span>{item.source}</span>
-                    {item.publishedAt && <span>{formatTime(item.publishedAt)}</span>}
-                    {item.confidenceLevel && (
-                      <span className="capitalize">Confidence: {item.confidenceLevel}</span>
+              <li key={item.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                {item.sourceUrl ? (
+                  <a
+                    href={item.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block group"
+                    data-audit="news-card"
+                    data-testid={`fantasy-news-card-${item.id}`}
+                  >
+                    <h3 className="font-semibold text-white group-hover:text-cyan-400 transition">
+                      {item.headline || item.title}
+                    </h3>
+                    {item.summary && (
+                      <p className="mt-1 text-sm text-white/70 line-clamp-2">{item.summary}</p>
                     )}
+                    {item.fantasyImpact && (
+                      <p className="mt-2 text-xs text-cyan-300/90">Impact: {item.fantasyImpact}</p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
+                      <span>{item.source}</span>
+                      {item.publishedAt && <span>{formatTime(item.publishedAt)}</span>}
+                      {item.confidenceLevel && (
+                        <span className="capitalize">Confidence: {item.confidenceLevel}</span>
+                      )}
+                    </div>
+                  </a>
+                ) : (
+                  <div data-audit="news-card" data-testid={`fantasy-news-card-${item.id}`}>
+                    <h3 className="font-semibold text-white">{item.headline || item.title}</h3>
+                    {item.summary && (
+                      <p className="mt-1 text-sm text-white/70 line-clamp-2">{item.summary}</p>
+                    )}
+                    <div className="mt-2 flex items-center gap-2 text-xs text-white/50">
+                      <span>{item.source}</span>
+                      {item.publishedAt && <span>{formatTime(item.publishedAt)}</span>}
+                    </div>
                   </div>
-                </a>
+                )}
                 {item.playersMentioned.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {item.playersMentioned.map((name) => (
@@ -98,6 +108,8 @@ export function PlayerNewsPanel({ items, title = 'News', onShare }: PlayerNewsPa
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-xs text-white/70 hover:text-cyan-400"
+                      data-audit="source-link"
+                      data-testid={`fantasy-news-source-link-${item.id}`}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                       Full article

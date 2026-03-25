@@ -19,7 +19,11 @@ export function RelatedToolsSection({ slugs, title = 'Related tools' }: RelatedT
   if (tools.length === 0) return null
 
   return (
-    <section className="rounded-2xl border p-5 sm:p-6" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}>
+    <section
+      className="rounded-2xl border p-5 sm:p-6"
+      style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
+      data-testid="tool-landing-related-tools"
+    >
       <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text)' }}>
         {title}
       </h2>
@@ -34,6 +38,7 @@ export function RelatedToolsSection({ slugs, title = 'Related tools' }: RelatedT
                 background: 'color-mix(in srgb, var(--panel2) 60%, transparent)',
                 color: 'var(--text)',
               }}
+              data-testid={`tool-landing-related-link-${tool.slug}`}
             >
               <span className="font-medium">{tool.headline}</span>
               <ArrowRight className="h-4 w-4 shrink-0" style={{ color: 'var(--muted)' }} />

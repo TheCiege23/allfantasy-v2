@@ -14,9 +14,39 @@
 import { setErrorReporter } from './capture'
 
 type SentryCapture = (error: unknown, ctx?: Record<string, unknown>) => void
+type SentryModuleLike = {
+  init: (options: Record<string, unknown>) => void
+  captureException: (error: unknown, context?: { extra?: Record<string, unknown> }) => void
+}
 
 let clientInitDone = false
 let serverInitDone = false
+let sentryLoadPromise: Promise<SentryModuleLike | null> | null = null
+
+function loadOptionalSentryModule(): Promise<SentryModuleLike | null> {
+  if (sentryLoadPromise) return sentryLoadPromise
+
+  sentryLoadPromise = (async () => {
+    try {
+      // Avoid static module analysis so optional Sentry does not trigger bundler warnings when unused.
+      const dynamicImport = new Function(
+        'specifier',
+        'return import(specifier)'
+      ) as (specifier: string) => Promise<unknown>
+      const mod = await dynamicImport('@sentry/nextjs')
+      const candidate = (mod as { default?: unknown }).default ?? mod
+      const sentry = candidate as Partial<SentryModuleLike>
+      if (typeof sentry.init !== 'function' || typeof sentry.captureException !== 'function') {
+        return null
+      }
+      return sentry as SentryModuleLike
+    } catch {
+      return null
+    }
+  })()
+
+  return sentryLoadPromise
+}
 
 /**
  * Initialize Sentry on the client. Call once from a client root (e.g. layout wrapper).
@@ -26,10 +56,10 @@ export function initSentryClient(): void {
   if (clientInitDone || typeof window === 'undefined') return
   const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN
   if (!dsn?.trim()) return
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sentryPkg = '@sentry' + '/nextjs'
-    const Sentry = require(sentryPkg)
+  clientInitDone = true
+  void (async () => {
+    const Sentry = await loadOptionalSentryModule()
+    if (!Sentry) return
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,
@@ -40,10 +70,7 @@ export function initSentryClient(): void {
       Sentry.captureException(error, { extra: ctx })
     }
     setErrorReporter(capture)
-    clientInitDone = true
-  } catch {
-    // @sentry/nextjs not installed
-  }
+  })()
 }
 
 /**
@@ -54,10 +81,10 @@ export function initSentryServer(): void {
   if (serverInitDone || typeof window !== 'undefined') return
   const dsn = process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN
   if (!dsn?.trim()) return
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const sentryPkg = '@sentry' + '/nextjs'
-    const Sentry = require(sentryPkg)
+  serverInitDone = true
+  void (async () => {
+    const Sentry = await loadOptionalSentryModule()
+    if (!Sentry) return
     Sentry.init({
       dsn,
       environment: process.env.NODE_ENV,
@@ -67,8 +94,5 @@ export function initSentryServer(): void {
       Sentry.captureException(error, { extra: ctx })
     }
     setErrorReporter(capture)
-    serverInitDone = true
-  } catch {
-    // @sentry/nextjs not installed
-  }
+  })()
 }

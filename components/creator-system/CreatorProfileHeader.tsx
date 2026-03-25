@@ -59,7 +59,13 @@ export function CreatorProfileHeader({
               {displayName}
             </h1>
             {creator.isVerified && (
-              <VerifiedCreatorBadge handle={creator.handle} showLabel={true} linkToProfile={false} size="md" />
+              <VerifiedCreatorBadge
+                handle={creator.handle}
+                badge={creator.verificationBadge}
+                showLabel={true}
+                linkToProfile={false}
+                size="md"
+              />
             )}
           </div>
           <p className="text-sm mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -88,6 +94,7 @@ export function CreatorProfileHeader({
               type="button"
               disabled={followLoading}
               onClick={isFollowing ? onUnfollow : onFollow}
+              data-testid="creator-profile-follow-button"
               className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60"
               style={{
                 background: isFollowing ? 'var(--panel2)' : 'var(--accent)',
@@ -101,6 +108,7 @@ export function CreatorProfileHeader({
           <button
             type="button"
             onClick={handleShare}
+            data-testid="creator-profile-share-button"
             className="rounded-lg border px-4 py-2 text-sm font-medium inline-flex items-center gap-2"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >

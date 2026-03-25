@@ -64,6 +64,8 @@ function isDatabaseUnavailableError(err: unknown): boolean {
   if (message.includes("can't reach database server")) return true
   if (message.includes("connection timed out")) return true
   if (message.includes("terminating connection due to administrator command")) return true
+  if (message.includes("maxclientsinsessionmode")) return true
+  if (message.includes("too many clients")) return true
 
   return false
 }
@@ -82,7 +84,12 @@ export async function POST(req: Request) {
       }
     }
 
-    const body = await req.json()
+    let body: any
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid request payload." }, { status: 400 })
+    }
     const {
       password,
       displayName,

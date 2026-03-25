@@ -202,7 +202,7 @@ export function PoolStandings({
   const toggle = (id: string) => setExpandedId(prev => prev === id ? null : id)
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)' }} data-testid="bracket-pool-standings">
       <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div>
           <h2 className="text-base font-bold text-white">Standings</h2>

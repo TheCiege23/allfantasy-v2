@@ -4,6 +4,7 @@ export {
   getAchievementShareUrl,
   getTwitterShareUrl,
   getFacebookShareUrl,
+  getRedditShareUrl,
   getCopyLinkPayload,
   getAchievementSharePayload,
 } from './SocialShareService';

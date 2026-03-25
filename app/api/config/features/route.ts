@@ -10,6 +10,10 @@ export async function GET() {
     return NextResponse.json({
       features: snapshot.features,
       sports: snapshot.sports,
+    }, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
     })
   } catch (e) {
     console.error("[config/features]", e)

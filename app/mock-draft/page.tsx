@@ -4,17 +4,42 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import MockDraftLobbyPage from '@/components/mock-draft/MockDraftLobbyPage'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
+import { isMockDraftsEnabled } from '@/lib/feature-toggle'
+import { buildMetadata, getSEOPageConfig } from '@/lib/seo'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata = {
-  title: 'Mock Drafts – AllFantasy',
-  description: 'Create, run, and share unlimited AllFantasy mock drafts with AI-powered insights.',
-}
+export const metadata = buildMetadata(
+  getSEOPageConfig('mock-draft') ?? {
+    title: 'Mock Drafts – AllFantasy',
+    description: 'Create, run, and share unlimited AllFantasy mock drafts with AI-powered insights.',
+    canonical: 'https://allfantasy.ai/mock-draft',
+  }
+)
 
 export default async function MockDraftPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) redirect('/login?callbackUrl=/mock-draft')
+  const enabled = await isMockDraftsEnabled()
+
+  if (!enabled) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="rounded-xl border p-6 max-w-md text-center" style={{ borderColor: "var(--border)" }}>
+          <h1 className="text-lg font-semibold mb-2" style={{ color: "var(--text)" }}>
+            Mock drafts are temporarily disabled
+          </h1>
+          <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
+            This tool has been turned off by the platform configuration.
+          </p>
+          <a href="/dashboard" className="text-sm font-medium" style={{ color: "var(--accent)" }}>
+            Back to dashboard
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   const [leagues, savedDrafts] = await Promise.all([
     prisma.league.findMany({
@@ -68,6 +93,11 @@ export default async function MockDraftPage() {
   return (
     <>
       <LandingToolVisitTracker path="/mock-draft" toolName="Draft Helper" />
+      <EngagementEventTracker
+        eventType="mock_draft"
+        oncePerDayKey="tool_mock_draft"
+        meta={{ product: "legacy" }}
+      />
       <div className="min-h-screen bg-[#05060b] py-10 pb-20">
       <div className="container mx-auto max-w-7xl px-4">
         <div className="mb-8 text-center">

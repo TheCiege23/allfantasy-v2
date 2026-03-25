@@ -13,11 +13,19 @@ import { getLiveADP } from '@/lib/adp-data'
 import { runDraft } from '@/lib/mock-draft-simulator'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { DraftPlayer, MockDraftConfig } from '@/lib/mock-draft-simulator/types'
+import { isMockDraftsEnabled } from '@/lib/feature-toggle'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+    if (!(await isMockDraftsEnabled())) {
+      return NextResponse.json(
+        { error: 'Mock drafts are temporarily disabled by platform configuration.' },
+        { status: 503 }
+      )
+    }
+
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

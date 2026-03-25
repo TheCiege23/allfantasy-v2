@@ -40,39 +40,42 @@ export function QueuePanel({
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-black/25">
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2.5">
+    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-queue-panel">
+      <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <ListOrdered className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-semibold text-white">Queue</span>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 border-b border-white/10 p-2.5">
+      <div className="flex flex-wrap gap-2 border-b border-white/8 p-2.5">
         {onAiReorder && (
           <button
             type="button"
             onClick={onAiReorder}
             disabled={aiReorderLoading || queue.length < 2}
-            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-3 py-2.5 text-xs text-cyan-200 hover:bg-cyan-500/25 disabled:opacity-50 touch-manipulation"
+            data-testid="draft-queue-ai-reorder"
+            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
           >
             <Zap className="h-3.5 w-3.5" />
             {aiReorderLoading ? 'Reordering…' : 'AI reorder'}
           </button>
         )}
-        <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-white/80 touch-manipulation">
+        <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-white/75 touch-manipulation">
           <input
             type="checkbox"
             checked={autoPickFromQueue}
             onChange={(e) => onAutoPickFromQueueChange(e.target.checked)}
+            data-testid="draft-queue-autopick-toggle"
             className="rounded border-white/20 w-4 h-4"
           />
           Auto-pick from queue
         </label>
-        <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-white/80 touch-manipulation">
+        <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-white/75 touch-manipulation">
           <input
             type="checkbox"
             checked={awayMode}
             onChange={(e) => onAwayModeChange(e.target.checked)}
+            data-testid="draft-queue-away-toggle"
             className="rounded border-white/20 w-4 h-4"
           />
           <UserMinus className="h-3.5 w-3.5" />
@@ -80,7 +83,7 @@ export function QueuePanel({
         </label>
       </div>
       {aiReorderExplanation && (
-        <p className="border-b border-white/10 px-2 py-1.5 text-[10px] text-cyan-200/90" title="AI reorder explanation">
+        <p className="border-b border-white/8 px-2 py-1.5 text-[10px] text-cyan-100/90" title="AI reorder explanation">
           {aiReorderExplanation}
         </p>
       )}
@@ -94,6 +97,7 @@ export function QueuePanel({
             {queue.map((entry, index) => (
               <li
                 key={`${entry.playerName}-${index}`}
+                data-testid={`draft-queue-item-${index}`}
                 draggable
                 onDragStart={() => setDragIndex(index)}
                 onDragOver={(e) => e.preventDefault()}
@@ -103,7 +107,7 @@ export function QueuePanel({
                     setDragIndex(null)
                   }
                 }}
-                className={`flex items-center justify-between gap-2 rounded-xl border border-white/15 bg-black/50 px-3 py-2.5 text-[11px] min-h-[52px] ${
+                className={`flex items-center justify-between gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2.5 text-[11px] min-h-[52px] ${
                   dragIndex === index ? 'opacity-60' : 'hover:bg-white/5'
                 }`}
               >
@@ -115,11 +119,32 @@ export function QueuePanel({
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onReorder(index, Math.max(0, index - 1))}
+                    disabled={index === 0}
+                    data-testid={`draft-queue-move-up-${index}`}
+                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    aria-label={`Move ${entry.playerName} up`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReorder(index, Math.min(queue.length - 1, index + 1))}
+                    disabled={index === queue.length - 1}
+                    data-testid={`draft-queue-move-down-${index}`}
+                    className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 disabled:opacity-40 touch-manipulation"
+                    aria-label={`Move ${entry.playerName} down`}
+                  >
+                    ↓
+                  </button>
                   {canDraft && onDraftFromQueue && index === 0 && (
                     <button
                       type="button"
                       onClick={() => onDraftFromQueue(entry)}
-                      className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/30 touch-manipulation"
+                      data-testid="draft-queue-draft-button"
+                    className="min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
                     >
                       <Play className="h-3.5 w-3.5" /> Draft
                     </button>
@@ -127,6 +152,7 @@ export function QueuePanel({
                   <button
                     type="button"
                     onClick={() => onRemove(index)}
+                    data-testid={`draft-queue-remove-${index}`}
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg text-white/50 hover:bg-white/10 hover:text-white/80 touch-manipulation"
                     aria-label={`Remove ${entry.playerName} from queue`}
                   >

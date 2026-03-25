@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Trophy, Loader2 } from 'lucide-react'
 import { CreatorCard } from '@/components/creator-system'
 import type { CreatorProfileDto } from '@/lib/creator-system/types'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
-const SPORTS = ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER'] as const
+const SPORTS = SUPPORTED_SPORTS
 
 export default function CreatorsDiscoveryClient() {
   const [creators, setCreators] = useState<CreatorProfileDto[]>([])
@@ -88,6 +89,7 @@ export default function CreatorsDiscoveryClient() {
         <button
           type="button"
           onClick={() => setSport('')}
+          data-testid="creator-sport-filter-all"
           className={`rounded-lg px-3 py-1.5 text-sm font-medium ${!sport ? 'opacity-100' : 'opacity-60'}`}
           style={{
             background: !sport ? 'var(--accent)' : 'var(--panel)',
@@ -102,6 +104,7 @@ export default function CreatorsDiscoveryClient() {
             key={s}
             type="button"
             onClick={() => setSport(s)}
+            data-testid={`creator-sport-filter-${s}`}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${sport === s ? 'opacity-100' : 'opacity-60'}`}
             style={{
               background: sport === s ? 'var(--accent)' : 'var(--panel)',

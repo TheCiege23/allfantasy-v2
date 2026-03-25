@@ -3,6 +3,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import crypto from "crypto"
 
 const REFERRAL_CODE_LENGTH = 10
@@ -81,15 +82,48 @@ export async function recordShare(
 
 export async function attributeSignup(referredUserId: string, referralCode: string): Promise<{ referrerId: string } | null> {
   const referrerId = await getReferrerIdByCode(referralCode)
+  if (!referrerId) return null
+  return attributeSignupToReferrer(referredUserId, referrerId)
+}
+
+/**
+ * Attribute a referred signup directly to a referrer user id.
+ * Idempotent for the same referred user due ReferralEvent.referredUserId unique constraint.
+ */
+export async function attributeSignupToReferrer(
+  referredUserId: string,
+  referrerId: string
+): Promise<{ referrerId: string } | null> {
   if (!referrerId || referrerId === referredUserId) return null
 
-  await prisma.referralEvent.create({
-    data: {
-      referrerId,
-      referredUserId,
-      type: "signup",
-    },
+  const existing = await prisma.referralEvent.findFirst({
+    where: { referredUserId },
+    select: { referrerId: true },
   })
+  if (existing) {
+    return existing.referrerId === referrerId ? { referrerId } : null
+  }
+
+  try {
+    await prisma.referralEvent.create({
+      data: {
+        referrerId,
+        referredUserId,
+        type: "signup",
+      },
+    })
+  } catch (error) {
+    // Keep attribution idempotent under concurrency races.
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+      throw error
+    }
+    const raced = await prisma.referralEvent.findFirst({
+      where: { referredUserId },
+      select: { referrerId: true },
+    })
+    return raced?.referrerId === referrerId ? { referrerId } : null
+  }
+
   return { referrerId }
 }
 

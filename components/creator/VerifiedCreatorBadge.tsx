@@ -6,6 +6,7 @@ import Link from "next/link"
 export interface VerifiedCreatorBadgeProps {
   handle: string
   displayName?: string | null
+  badge?: string | null
   size?: "sm" | "md"
   showLabel?: boolean
   linkToProfile?: boolean
@@ -15,6 +16,7 @@ export interface VerifiedCreatorBadgeProps {
 export function VerifiedCreatorBadge({
   handle,
   displayName,
+  badge,
   size = "sm",
   showLabel = true,
   linkToProfile = true,
@@ -23,8 +25,11 @@ export function VerifiedCreatorBadge({
   const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"
   const textSize = size === "sm" ? "text-[10px]" : "text-xs"
 
+  const badgeLabel = badge?.trim().toLowerCase() === "partner" ? "Partner Creator" : "Verified Creator"
+
   const content = (
     <span
+      data-testid="creator-verified-badge"
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${textSize} ${className}`}
       style={{
         background: "color-mix(in srgb, #3b82f6 14%, transparent)",
@@ -33,7 +38,7 @@ export function VerifiedCreatorBadge({
       }}
     >
       <BadgeCheck className={iconSize} />
-      {showLabel && <span>Creator</span>}
+      {showLabel && <span>{badgeLabel}</span>}
     </span>
   )
 

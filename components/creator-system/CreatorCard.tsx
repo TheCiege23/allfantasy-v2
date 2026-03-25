@@ -62,7 +62,13 @@ export function CreatorCard({
                 {displayName}
               </span>
               {creator.isVerified && (
-                <VerifiedCreatorBadge handle={creator.handle} showLabel={false} linkToProfile={false} size="sm" />
+                <VerifiedCreatorBadge
+                  handle={creator.handle}
+                  badge={creator.verificationBadge}
+                  showLabel={false}
+                  linkToProfile={false}
+                  size="sm"
+                />
               )}
             </div>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -77,7 +83,13 @@ export function CreatorCard({
                 {displayName}
               </span>
               {creator.isVerified && (
-                <VerifiedCreatorBadge handle={creator.handle} showLabel={false} linkToProfile={false} size="sm" />
+                <VerifiedCreatorBadge
+                  handle={creator.handle}
+                  badge={creator.verificationBadge}
+                  showLabel={false}
+                  linkToProfile={false}
+                  size="sm"
+                />
               )}
             </Link>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -104,6 +116,7 @@ export function CreatorCard({
       <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
         <Link
           href={profileHref}
+          data-testid={`creator-profile-link-${creator.slug}`}
           className="rounded-lg border px-3 py-2 text-sm font-medium"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >
@@ -114,6 +127,7 @@ export function CreatorCard({
             type="button"
             disabled={followLoading}
             onClick={() => onFollow(creator.id)}
+            data-testid={`creator-follow-button-${creator.slug}`}
             className="rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
             style={{
               background: isFollowing ? 'var(--panel2)' : 'var(--accent)',
@@ -127,6 +141,7 @@ export function CreatorCard({
         {showJoinLeague && leagueHref && (
           <Link
             href={leagueHref}
+            data-testid={`creator-join-league-link-${creator.slug}`}
             className="rounded-lg px-3 py-2 text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'var(--bg)' }}
           >
@@ -136,6 +151,7 @@ export function CreatorCard({
         <button
           type="button"
           onClick={handleShare}
+          data-testid={`creator-share-button-${creator.slug}`}
           className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >

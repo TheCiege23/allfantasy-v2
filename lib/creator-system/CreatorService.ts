@@ -51,7 +51,7 @@ function toDto(profile: {
     verificationBadge: profile.verificationBadge,
     visibility: profile.visibility,
     branding: (profile.branding as CreatorBranding) ?? null,
-    followerCount: profile.followers ?? profile._count?.leagues,
+    followerCount: profile.followers ?? 0,
     leagueCount: profile._count?.leagues,
     isFollowing: profile.isFollowing,
     createdAt: profile.createdAt.toISOString(),
@@ -134,6 +134,67 @@ export async function getCreators(options: {
   }
 }
 
+export async function getCreatorsLeaderboard(options?: {
+  limit?: number
+  sort?: "members" | "leagues"
+}) {
+  const limit = Math.min(50, Math.max(1, options?.limit ?? 25))
+  const sort = options?.sort ?? "members"
+
+  const profiles = await prisma.creatorProfile.findMany({
+    where: {
+      visibility: "public",
+      verifiedAt: { not: null },
+    },
+    take: limit * 3,
+    include: {
+      _count: { select: { leagues: true } },
+    },
+  })
+
+  const leaderboardRows = await Promise.all(
+    profiles.map(async (profile) => {
+      const [totalMembers, followerCount] = await Promise.all([
+        prisma.creatorLeague.aggregate({
+          where: { creatorId: profile.id, isPublic: true },
+          _sum: { memberCount: true },
+        }),
+        prisma.userFollow.count({
+          where: { followeeId: profile.userId },
+        }),
+      ])
+
+      return {
+        ...toDto({
+          ...profile,
+          followers: followerCount,
+        }),
+        leagueCount: profile._count?.leagues ?? 0,
+        totalMembers: totalMembers._sum.memberCount ?? 0,
+      }
+    })
+  )
+
+  leaderboardRows.sort((a, b) => {
+    if (sort === "leagues") {
+      return (b.leagueCount ?? 0) - (a.leagueCount ?? 0)
+    }
+    return (b.totalMembers ?? 0) - (a.totalMembers ?? 0)
+  })
+
+  return leaderboardRows.slice(0, limit).map((row, idx) => ({
+    userId: row.userId,
+    handle: row.handle,
+    displayName: row.displayName,
+    avatarUrl: row.avatarUrl,
+    verified: row.isVerified,
+    verificationBadge: row.verificationBadge ?? null,
+    leagueCount: row.leagueCount ?? 0,
+    totalMembers: row.totalMembers ?? 0,
+    rank: idx + 1,
+  }))
+}
+
 export async function getCreatorBySlugOrId(creatorIdOrSlug: string, viewerUserId?: string | null) {
   const isSlug = !/^[0-9a-f-]{36}$/i.test(creatorIdOrSlug)
   const profile = await prisma.creatorProfile.findFirst({
@@ -160,9 +221,15 @@ export async function getCreatorBySlugOrId(creatorIdOrSlug: string, viewerUserId
   return toDto({ ...profile, followers, isFollowing })
 }
 
-export async function getCreatorLeagues(creatorId: string, viewerUserId?: string | null, baseUrl = '') {
-  const creator = await prisma.creatorProfile.findUnique({
-    where: { id: creatorId },
+export async function getCreatorLeagues(
+  creatorIdOrSlug: string,
+  viewerUserId?: string | null,
+  baseUrl = ''
+) {
+  const creator = await prisma.creatorProfile.findFirst({
+    where: {
+      OR: [{ id: creatorIdOrSlug }, { slug: creatorIdOrSlug }],
+    },
     select: { id: true, visibility: true, userId: true },
   })
   if (!creator) return []

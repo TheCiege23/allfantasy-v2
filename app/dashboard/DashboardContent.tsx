@@ -1748,7 +1748,7 @@ export default function DashboardContent({
                     <span className="flex items-center gap-2"><Bot className="h-4 w-4 text-cyan-300" /> Chimmy</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>
-                  <Link href="/tools-hub" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
+                  <Link href="/tools-hub" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]" data-testid="dashboard-open-tools-hub-link">
                     <span className="flex items-center gap-2"><Wand2 className="h-4 w-4 text-cyan-300" /> Tools Hub</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>

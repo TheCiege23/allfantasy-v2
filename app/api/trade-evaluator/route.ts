@@ -40,6 +40,7 @@ import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getAllPlayers } f
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { logAiOutput } from '@/lib/ai/output-logger'
 import { logAiFailure } from '@/lib/error-tracking'
+import { isToolTradeAnalyzerEnabled } from '@/lib/feature-toggle'
 
 const PlayerInputSchema = z.object({
   name: z.string(),
@@ -248,6 +249,13 @@ function resolvePickData(p: string | { year: number; round: number; projected_ra
 
 export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "TradeEvaluator" })(async (request: NextRequest) => {
   try {
+    if (!(await isToolTradeAnalyzerEnabled())) {
+      return NextResponse.json(
+        { error: 'Trade analyzer is temporarily disabled by platform configuration.' },
+        { status: 503 }
+      )
+    }
+
     const body = await request.json()
     const data = TradeRequestSchema.parse(body)
 

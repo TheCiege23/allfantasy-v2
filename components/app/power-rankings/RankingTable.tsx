@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { PowerRankingTeam } from '@/lib/league-power-rankings/types';
 import { MovementIndicators } from './MovementIndicators';
-import { getLeagueRosterTabHref } from '@/lib/league-power-rankings';
+import { getLeagueRosterTabHref } from '@/lib/league-power-rankings/rosterLinkResolver';
 
 export interface RankingTableProps {
   leagueId: string;
@@ -35,7 +35,8 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
               <tr
                 key={team.rosterId}
                 className="border-b border-white/5 hover:bg-white/5 transition"
-                data-audit="team-row"
+                data-audit="team-card"
+                data-testid={`power-ranking-team-card-${team.rosterId}`}
               >
                 <td className="p-3">
                   <span className="font-medium text-amber-400">#{team.rank}</span>
@@ -44,7 +45,8 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
                   <Link
                     href={rosterHref}
                     className="font-medium text-white hover:text-cyan-400 transition"
-                    data-audit="team-row-opens-roster-page"
+                    data-audit="team-card-click"
+                    data-testid={`power-ranking-team-link-${team.rosterId}`}
                   >
                     {name}
                   </Link>

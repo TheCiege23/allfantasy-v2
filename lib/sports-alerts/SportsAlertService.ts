@@ -2,6 +2,13 @@ import { createPlatformNotification } from "@/lib/platform/notification-service"
 import { getDeepLinkRedirect } from "@/lib/routing/DeepLinkHandler"
 import type { SportsAlertPayload } from "./types"
 
+function getValidTriggeredAt(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) return null
+  return new Date(parsed).toISOString()
+}
+
 /**
  * Creates a single sports alert as a platform notification.
  * Stores actionHref in meta so NotificationRouteResolver routes the click to the correct player or league page.
@@ -11,6 +18,11 @@ export async function createSportsAlert(
   payload: SportsAlertPayload
 ): Promise<boolean> {
   const href = getDeepLinkRedirect(payload.actionHref, "/dashboard")
+  const dispatchedAt = new Date().toISOString()
+  const triggeredAt = getValidTriggeredAt(payload.triggeredAt)
+  const deliveryLatencyMs = triggeredAt
+    ? Math.max(0, Date.parse(dispatchedAt) - Date.parse(triggeredAt))
+    : undefined
   const meta: Record<string, unknown> = {
     actionHref: href,
     actionLabel: payload.actionLabel ?? "View",
@@ -18,6 +30,10 @@ export async function createSportsAlert(
     playerId: payload.playerId ?? undefined,
     playerName: payload.playerName ?? undefined,
     sport: payload.sport ?? undefined,
+    eventId: payload.eventId ?? undefined,
+    triggeredAt: triggeredAt ?? undefined,
+    dispatchedAt,
+    deliveryLatencyMs,
   }
   return createPlatformNotification({
     userId,

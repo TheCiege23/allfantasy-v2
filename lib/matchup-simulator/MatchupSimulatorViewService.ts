@@ -7,6 +7,12 @@ import type { MatchupSimulationResult } from '@/components/simulation/MatchupSim
 
 export type ViewState = 'empty' | 'loading' | 'error' | 'display'
 
+export const MATCHUP_SIMULATOR_MESSAGES = {
+  empty: 'Select teams and run a simulation to compare win probability and score ranges.',
+  loading: 'Running simulation…',
+  genericError: 'Simulation failed. Try rerunning after checking team projections.',
+} as const
+
 export type MatchupDisplayPayload = {
   projA: number
   projB: number
@@ -46,4 +52,8 @@ export function getDisplayPayload(result: MatchupSimulationResult): MatchupDispl
     upsetChance: result.upsetChance,
     iterations: result.iterations ?? null,
   }
+}
+
+export function formatScoreRangeLabel(range: [number, number]): string {
+  return `${range[0].toFixed(0)}-${range[1].toFixed(0)}`
 }

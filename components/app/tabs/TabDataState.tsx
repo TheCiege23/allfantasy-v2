@@ -23,6 +23,7 @@ export default function TabDataState({
           <button
             type="button"
             onClick={onReload}
+            data-testid="tab-refresh-button"
             className="rounded-md border border-white/20 px-2 py-1 text-xs text-white/75 hover:bg-white/10"
           >
             Refresh

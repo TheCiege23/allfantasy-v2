@@ -13,6 +13,7 @@ import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
+import { buildSeoMeta } from '@/lib/seo';
 import './globals.css';
 
 const inter = Inter({
@@ -29,35 +30,19 @@ export const viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'AllFantasy – AI Powered Fantasy Sports Tools',
-  description:
-    'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
-  keywords: [
-    'fantasy sports',
-    'fantasy football tools',
-    'fantasy trade analyzer',
-    'AI fantasy sports',
-    'fantasy bracket challenge',
-  ],
-  metadataBase: new URL('https://allfantasy.ai'),
-  alternates: {
+  ...buildSeoMeta({
+    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
+    description:
+      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
     canonical: 'https://allfantasy.ai/',
-  },
-  openGraph: {
-    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
-    description:
-      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
-    url: 'https://allfantasy.ai/',
-    siteName: 'AllFantasy',
-    type: 'website',
-    images: [{ url: '/og-image.jpg' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
-    description:
-      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
-  },
+    keywords: [
+      'fantasy sports',
+      'fantasy football tools',
+      'fantasy trade analyzer',
+      'AI fantasy sports',
+      'fantasy bracket challenge',
+    ],
+  }),
   icons: {
     icon: [
       { url: '/af-crest.png', type: 'image/png' },

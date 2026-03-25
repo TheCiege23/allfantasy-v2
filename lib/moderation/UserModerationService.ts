@@ -87,6 +87,27 @@ export async function removeMute(userId: string): Promise<boolean> {
   }
 }
 
+/** Remove active suspension for user. */
+export async function removeSuspend(userId: string): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const now = new Date()
+    const rows = await prisma.platformModerationAction.findMany({
+      where: { userId, actionType: "suspend" },
+      orderBy: { createdAt: "desc" },
+    })
+    for (const row of rows) {
+      if (!row.expiresAt || row.expiresAt > now) {
+        await prisma.platformModerationAction.delete({ where: { id: row.id } })
+        return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 /** Check if user is currently banned (has active ban action). */
 export async function isUserBanned(userId: string): Promise<boolean> {
   if (!userId) return false

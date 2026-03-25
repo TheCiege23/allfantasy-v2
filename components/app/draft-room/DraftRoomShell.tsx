@@ -59,25 +59,25 @@ export function DraftRoomShell({
   )
 
   return (
-    <div className="flex h-full flex-col bg-[#0a0a0f] text-white">
+    <div className="flex h-full flex-col bg-[#040915] text-white" data-testid="draft-room-shell">
       {topBar}
       {managerStrip}
 
       {/* Desktop layout */}
-      <div className="hidden md:flex flex-1 flex-col overflow-hidden">
+      <div className="hidden md:flex flex-1 flex-col overflow-hidden" data-testid="draft-desktop-layout">
         {auctionStrip && (
-          <div className="shrink-0 border-b border-white/10">
+          <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">
             {auctionStrip}
           </div>
         )}
-        <div className="min-h-[200px] flex-[2] overflow-auto border-b border-white/10">
+        <div className="min-h-[200px] flex-[2] overflow-auto border-b border-white/8 bg-[#050c1d]">
           {draftBoard}
         </div>
         <div className="flex min-h-[280px] flex-1 overflow-hidden">
-          <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/10">
+          <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">
             {playerPanel}
           </div>
-          <div className="min-w-0 flex-[2] overflow-hidden border-r border-white/10">
+          <div className="min-w-0 flex-[2] overflow-hidden border-r border-white/8">
             {queuePanel}
           </div>
           <div className="min-w-0 flex-[3] overflow-hidden">
@@ -87,19 +87,19 @@ export function DraftRoomShell({
       </div>
 
       {/* Mobile layout: sticky current-pick area + scrollable content + nav */}
-      <div className="flex md:hidden flex-1 flex-col overflow-hidden">
+      <div className="flex md:hidden flex-1 flex-col overflow-hidden" data-testid="draft-mobile-layout">
         <div className="flex-1 overflow-auto min-h-0 overscroll-contain">
           {mobileStickyBar && (
-            <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#0a0a0f]/95 backdrop-blur-sm">
+            <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#040915]/95 backdrop-blur-sm">
               {mobileStickyBar}
             </div>
           )}
           {auctionStrip && mobileTab === 'board' && (
-            <div className="shrink-0 border-b border-white/10">
+            <div className="shrink-0 border-b border-white/10 bg-[#050c1d]">
               {auctionStrip}
             </div>
           )}
-          <div className="p-3 sm:p-4 min-h-[200px] text-sm">
+          <div className="p-2.5 sm:p-3 min-h-[200px] text-sm">
             {mobileTab === 'board' && draftBoard}
             {mobileTab === 'players' && playerPanel}
             {mobileTab === 'queue' && queuePanel}
@@ -109,14 +109,15 @@ export function DraftRoomShell({
             {keeperPanel && mobileTab === 'keepers' && keeperPanel}
           </div>
         </div>
-        <nav className="flex shrink-0 border-t border-white/10 bg-black/40 safe-area-bottom" aria-label="Draft sections">
+        <nav className="flex shrink-0 border-t border-white/10 bg-[#070f21]/95 safe-area-bottom" aria-label="Draft sections">
           {visibleTabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
               onClick={() => onMobileTabChange(id)}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] py-3 text-[11px] touch-manipulation active:scale-[0.98] ${
-                mobileTab === id ? 'text-cyan-400' : 'text-white/60'
+              data-testid={`draft-mobile-tab-${id}`}
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] py-2.5 text-[11px] touch-manipulation active:scale-[0.98] ${
+                mobileTab === id ? 'text-cyan-200 bg-cyan-500/10' : 'text-white/60'
               }`}
               aria-pressed={mobileTab === id}
               aria-label={label}

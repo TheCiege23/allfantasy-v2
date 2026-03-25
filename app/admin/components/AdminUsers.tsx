@@ -14,7 +14,10 @@ import {
   Mail,
   Shield,
 } from "lucide-react"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
+import { downloadCsv } from "@/lib/admin-dashboard/CsvExport"
 
 interface AppUser {
   id: string
@@ -29,6 +32,7 @@ interface AppUser {
 }
 
 export default function AdminUsers() {
+  const searchParams = useSearchParams()
   const { formatInTimezone } = useUserTimezone()
   const fmtDate = (iso: string) => {
     try {
@@ -47,7 +51,11 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchQ, setSearchQ] = useState("")
+  const [searchQ, setSearchQ] = useState(searchParams.get("q") || "")
+  const [emailStatusFilter, setEmailStatusFilter] = useState<"all" | "verified" | "unverified">("all")
+  const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "email_asc" | "username_asc">("created_desc")
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 20
 
   const [resetLoading, setResetLoading] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<{ userId: string; ok: boolean; message: string } | null>(null)
@@ -55,6 +63,9 @@ export default function AdminUsers() {
   const [deleteConfirm, setDeleteConfirm] = useState<AppUser | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteResult, setDeleteResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [moderationAction, setModerationAction] = useState<string | null>(null)
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [bulkLoading, setBulkLoading] = useState<string | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -75,16 +86,182 @@ export default function AdminUsers() {
     load()
   }, [])
 
+  useEffect(() => {
+    const nextQ = searchParams.get("q") || ""
+    setSearchQ((prev) => (prev === nextQ ? prev : nextQ))
+  }, [searchParams])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQ, emailStatusFilter, sortBy])
+
   const filtered = useMemo(() => {
     const q = searchQ.trim().toLowerCase()
-    if (!q) return users
-    return users.filter(
+    let list = !q
+      ? users
+      : users.filter(
       (u) =>
         u.email?.toLowerCase().includes(q) ||
         u.username?.toLowerCase().includes(q) ||
-        u.sleeperUsername?.toLowerCase().includes(q)
+        u.sleeperUsername?.toLowerCase().includes(q) ||
+        u.id?.toLowerCase().includes(q)
+      )
+
+    if (emailStatusFilter === "verified") list = list.filter((u) => u.emailVerified)
+    if (emailStatusFilter === "unverified") list = list.filter((u) => !u.emailVerified)
+
+    const sorted = [...list]
+    if (sortBy === "created_asc") sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    if (sortBy === "created_desc") sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    if (sortBy === "email_asc") sorted.sort((a, b) => a.email.localeCompare(b.email))
+    if (sortBy === "username_asc") sorted.sort((a, b) => a.username.localeCompare(b.username))
+    return sorted
+  }, [users, searchQ, emailStatusFilter, sortBy])
+
+  const maxPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useEffect(() => {
+    if (page > maxPage) setPage(maxPage)
+  }, [page, maxPage])
+
+  useEffect(() => {
+    setSelectedUserIds((prev) => prev.filter((id) => users.some((u) => u.id === id)))
+  }, [users])
+
+  const applyModerationAction = async (userId: string, actionType: "ban" | "suspend") => {
+    setModerationAction(`${actionType}-${userId}`)
+    try {
+      const res = await fetch(`/api/admin/moderation/users/${encodeURIComponent(userId)}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionType,
+          reason: actionType === "ban" ? "Admin user management ban" : "Admin user management suspension",
+          expiresAt: actionType === "suspend" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || `Failed to ${actionType}`)
+      setDeleteResult({ ok: true, message: actionType === "ban" ? "User banned" : "User suspended for 7 days" })
+    } catch (e: any) {
+      setDeleteResult({ ok: false, message: e?.message || `Failed to ${actionType}` })
+    } finally {
+      setModerationAction(null)
+    }
+  }
+
+  const runBulkModerationAction = async (actionType: "ban" | "suspend") => {
+    if (selectedUserIds.length === 0) return
+    setBulkLoading(actionType)
+    try {
+      const results = await Promise.all(
+        selectedUserIds.map(async (id) => {
+          const res = await fetch(`/api/admin/moderation/users/${encodeURIComponent(id)}/action`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              actionType,
+              reason: actionType === "ban" ? "Admin bulk ban" : "Admin bulk suspension",
+              expiresAt: actionType === "suspend" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+            }),
+          })
+          return res.ok
+        })
+      )
+      const okCount = results.filter(Boolean).length
+      setDeleteResult({
+        ok: okCount > 0,
+        message: `${actionType === "ban" ? "Banned" : "Suspended"} ${okCount}/${selectedUserIds.length} selected users`,
+      })
+      setSelectedUserIds([])
+    } catch (e: any) {
+      setDeleteResult({ ok: false, message: e?.message || `Bulk ${actionType} failed` })
+    } finally {
+      setBulkLoading(null)
+    }
+  }
+
+  const runBulkUndoModerationAction = async (actionType: "unban" | "unmute" | "unsuspend") => {
+    if (selectedUserIds.length === 0) return
+    setBulkLoading(actionType)
+    try {
+      const path =
+        actionType === "unban"
+          ? "ban"
+          : actionType === "unmute"
+          ? "mute"
+          : "suspend"
+      const results = await Promise.all(
+        selectedUserIds.map(async (id) => {
+          const res = await fetch(`/api/admin/moderation/users/${encodeURIComponent(id)}/${path}`, {
+            method: "DELETE",
+          })
+          return res.ok
+        })
+      )
+      const okCount = results.filter(Boolean).length
+      const actionLabel =
+        actionType === "unban"
+          ? "Unbanned"
+          : actionType === "unmute"
+          ? "Unmuted"
+          : "Unsuspended"
+      setDeleteResult({
+        ok: okCount > 0,
+        message: `${actionLabel} ${okCount}/${selectedUserIds.length} selected users`,
+      })
+      setSelectedUserIds([])
+    } catch (e: any) {
+      setDeleteResult({ ok: false, message: e?.message || `Bulk ${actionType} failed` })
+    } finally {
+      setBulkLoading(null)
+    }
+  }
+
+  const runBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return
+    if (!confirm(`Delete ${selectedUserIds.length} selected users? This cannot be undone.`)) return
+    setBulkLoading("delete")
+    try {
+      const results = await Promise.all(
+        selectedUserIds.map(async (id) => {
+          const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" })
+          return res.ok
+        })
+      )
+      const okCount = results.filter(Boolean).length
+      if (okCount > 0) {
+        setUsers((prev) => prev.filter((u) => !selectedUserIds.includes(u.id)))
+      }
+      setDeleteResult({
+        ok: okCount > 0,
+        message: `Deleted ${okCount}/${selectedUserIds.length} selected users`,
+      })
+      setSelectedUserIds([])
+    } catch (e: any) {
+      setDeleteResult({ ok: false, message: e?.message || "Bulk delete failed" })
+    } finally {
+      setBulkLoading(null)
+    }
+  }
+
+  const exportVisibleCsv = () => {
+    downloadCsv(
+      "admin-users-visible.csv",
+      ["id", "email", "username", "emailVerified", "profileComplete", "sleeperUsername", "createdAt"],
+      filtered.map((u) => [u.id, u.email, u.username, u.emailVerified, u.profileComplete, u.sleeperUsername ?? "", u.createdAt])
     )
-  }, [users, searchQ])
+  }
+
+  const exportSelectedCsv = () => {
+    const selected = users.filter((u) => selectedUserIds.includes(u.id))
+    downloadCsv(
+      "admin-users-selected.csv",
+      ["id", "email", "username", "emailVerified", "profileComplete", "sleeperUsername", "createdAt"],
+      selected.map((u) => [u.id, u.email, u.username, u.emailVerified, u.profileComplete, u.sleeperUsername ?? "", u.createdAt])
+    )
+  }
 
   const handleResetPassword = async (user: AppUser) => {
     if (!confirm(`Send a password reset link to ${user.email}?`)) return
@@ -148,6 +325,7 @@ export default function AdminUsers() {
             <input
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
+              data-testid="admin-users-search"
               placeholder="Search email or username..."
               className="w-full h-10 pl-10 pr-4 rounded-xl border text-sm outline-none transition"
               style={{
@@ -160,6 +338,7 @@ export default function AdminUsers() {
           <button
             onClick={load}
             disabled={loading}
+            data-testid="admin-users-refresh"
             className="h-10 w-10 flex items-center justify-center rounded-xl border hover:opacity-80 transition"
             style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)" }}
             title="Refresh"
@@ -168,6 +347,136 @@ export default function AdminUsers() {
           </button>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={emailStatusFilter}
+          onChange={(e) => {
+            setEmailStatusFilter(e.target.value as "all" | "verified" | "unverified")
+            setPage(1)
+          }}
+          data-testid="admin-users-filter-email-status"
+          className="h-9 rounded-lg border px-2 text-sm"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)", color: "var(--text)" }}
+        >
+          <option value="all">All users</option>
+          <option value="verified">Verified email</option>
+          <option value="unverified">Unverified email</option>
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => {
+            setSortBy(e.target.value as "created_desc" | "created_asc" | "email_asc" | "username_asc")
+            setPage(1)
+          }}
+          data-testid="admin-users-sort"
+          className="h-9 rounded-lg border px-2 text-sm"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 5%, transparent)", color: "var(--text)" }}
+        >
+          <option value="created_desc">Newest first</option>
+          <option value="created_asc">Oldest first</option>
+          <option value="email_asc">Email A-Z</option>
+          <option value="username_asc">Username A-Z</option>
+        </select>
+        <button
+          type="button"
+          onClick={exportVisibleCsv}
+          className="h-9 rounded-lg border px-3 text-xs"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="admin-users-export-visible"
+        >
+          Export visible CSV
+        </button>
+        <button
+          type="button"
+          onClick={exportSelectedCsv}
+          disabled={selectedUserIds.length === 0}
+          className="h-9 rounded-lg border px-3 text-xs disabled:opacity-50"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="admin-users-export-selected"
+        >
+          Export selected CSV
+        </button>
+      </div>
+
+      {selectedUserIds.length > 0 && (
+        <div
+          className="rounded-xl border p-3 flex flex-wrap items-center gap-2"
+          style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 4%, transparent)" }}
+          data-testid="admin-users-bulk-bar"
+        >
+          <span className="text-xs" style={{ color: "var(--muted)" }}>{selectedUserIds.length} selected</span>
+          <button
+            type="button"
+            onClick={() => runBulkModerationAction("ban")}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-ban"
+          >
+            {bulkLoading === "ban" ? "Banning..." : "Ban selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runBulkModerationAction("suspend")}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-suspend"
+          >
+            {bulkLoading === "suspend" ? "Suspending..." : "Suspend selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runBulkUndoModerationAction("unban")}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-unban"
+          >
+            {bulkLoading === "unban" ? "Unbanning..." : "Unban selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runBulkUndoModerationAction("unmute")}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-unmute"
+          >
+            {bulkLoading === "unmute" ? "Unmuting..." : "Unmute selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => runBulkUndoModerationAction("unsuspend")}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-unsuspend"
+          >
+            {bulkLoading === "unsuspend" ? "Unsuspending..." : "Unsuspend selected"}
+          </button>
+          <button
+            type="button"
+            onClick={runBulkDelete}
+            disabled={bulkLoading != null}
+            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+            style={{ borderColor: "var(--border)", color: "#fda4af" }}
+            data-testid="admin-users-bulk-delete"
+          >
+            {bulkLoading === "delete" ? "Deleting..." : "Delete selected"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedUserIds([])}
+            className="rounded-lg border px-2 py-1 text-xs"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            data-testid="admin-users-bulk-clear"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
@@ -219,6 +528,22 @@ export default function AdminUsers() {
               <thead>
                 <tr style={{ background: "color-mix(in srgb, var(--text) 5%, transparent)" }}>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={paged.length > 0 && paged.every((u) => selectedUserIds.includes(u.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const next = new Set(selectedUserIds)
+                          paged.forEach((u) => next.add(u.id))
+                          setSelectedUserIds(Array.from(next))
+                        } else {
+                          setSelectedUserIds((prev) => prev.filter((id) => !paged.some((u) => u.id === id)))
+                        }
+                      }}
+                      data-testid="admin-users-select-page"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                     Email
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
@@ -236,19 +561,34 @@ export default function AdminUsers() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {paged.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center" style={{ color: "var(--muted)" }}>
+                    <td colSpan={6} className="px-4 py-8 text-center" style={{ color: "var(--muted)" }}>
                       {searchQ ? "No users match your search" : "No registered users found"}
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((user) => (
+                  paged.map((user) => (
                     <tr
                       key={user.id}
+                      data-testid={`admin-users-row-${user.id}`}
                       className="border-t transition hover:bg-white/[0.02]"
                       style={{ borderColor: "var(--border)" }}
                     >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedUserIds.includes(user.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedUserIds((prev) => Array.from(new Set([...prev, user.id])))
+                            } else {
+                              setSelectedUserIds((prev) => prev.filter((id) => id !== user.id))
+                            }
+                          }}
+                          data-testid={`admin-users-select-${user.id}`}
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Mail className="h-3.5 w-3.5 shrink-0" style={{ color: "var(--muted2)" }} />
@@ -296,6 +636,7 @@ export default function AdminUsers() {
                           <button
                             onClick={() => handleResetPassword(user)}
                             disabled={resetLoading === user.id || !user.email}
+                            data-testid={`admin-users-reset-${user.id}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-80 disabled:opacity-50"
                             style={{
                               borderColor: "var(--border)",
@@ -318,10 +659,41 @@ export default function AdminUsers() {
                             }}
                             className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-red-400 border-red-500/20 bg-red-500/10 transition hover:bg-red-500/20 disabled:opacity-50"
                             title="Delete user"
+                            data-testid={`admin-users-delete-${user.id}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
                           </button>
+                          <button
+                            onClick={() => applyModerationAction(user.id, "ban")}
+                            disabled={moderationAction === `ban-${user.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-300 border-rose-500/20 bg-rose-500/10 transition hover:bg-rose-500/20 disabled:opacity-50"
+                            data-testid={`admin-users-ban-${user.id}`}
+                          >
+                            {moderationAction === `ban-${user.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
+                            Ban
+                          </button>
+                          <button
+                            onClick={() => applyModerationAction(user.id, "suspend")}
+                            disabled={moderationAction === `suspend-${user.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-amber-300 border-amber-500/20 bg-amber-500/10 transition hover:bg-amber-500/20 disabled:opacity-50"
+                            data-testid={`admin-users-suspend-${user.id}`}
+                          >
+                            {moderationAction === `suspend-${user.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
+                            Suspend
+                          </button>
+                          <Link
+                            href={`/admin?tab=users&q=${encodeURIComponent(user.email || user.username || user.id)}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition hover:opacity-80"
+                            style={{
+                              borderColor: "var(--border)",
+                              background: "color-mix(in srgb, var(--text) 6%, transparent)",
+                              color: "var(--text)",
+                            }}
+                            data-testid={`admin-users-view-${user.id}`}
+                          >
+                            View user
+                          </Link>
                         </div>
                       </td>
                     </tr>
@@ -329,6 +701,29 @@ export default function AdminUsers() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              data-testid="admin-users-page-prev"
+            >
+              Prev
+            </button>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>Page {page} / {maxPage}</span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(maxPage, p + 1))}
+              disabled={page >= maxPage}
+              className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              data-testid="admin-users-page-next"
+            >
+              Next
+            </button>
           </div>
         </div>
       )}

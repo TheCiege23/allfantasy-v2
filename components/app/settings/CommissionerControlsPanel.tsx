@@ -44,7 +44,10 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
   const baseUrl = `/app/league/${leagueId}`
   const settingsTabs = [
     { tab: 'General', label: 'General' },
+    { tab: 'Roster Settings', label: 'Roster' },
+    { tab: 'Scoring Settings', label: 'Scoring' },
     { tab: 'Waiver Settings', label: 'Waivers' },
+    { tab: 'Trade Settings', label: 'Trades' },
     { tab: 'Draft Settings', label: 'Draft' },
     { tab: 'Member Settings', label: 'Members' },
     { tab: 'Reset League', label: 'Reset' },
@@ -69,6 +72,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
             <Link
               key={tab}
               href={`${baseUrl}?tab=Settings&settingsTab=${encodeURIComponent(tab)}`}
+              data-testid={`commissioner-controls-open-settings-${tab.toLowerCase().replace(/\s+/g, '-')}`}
               className="inline-flex items-center rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
             >
               {label}
@@ -76,12 +80,14 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
           ))}
           <Link
             href={`${baseUrl}?tab=Commissioner`}
+            data-testid="commissioner-controls-open-commissioner-tab"
             className="inline-flex items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20"
           >
             Commissioner tab
           </Link>
           <Link
             href={`${baseUrl}?tab=Commissioner`}
+            data-testid="commissioner-controls-open-ai-commissioner"
             className="inline-flex items-center rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/20"
           >
             AI Commissioner alerts
@@ -112,6 +118,22 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
 
       <div>
         <h4 className="text-xs font-semibold text-white/80 mb-2 flex items-center gap-1.5">
+          <Megaphone className="h-3.5 w-3.5" /> Chat moderation
+        </h4>
+        <p className="text-xs text-white/65 mb-2">
+          Open league chat to review reported messages, remove spam, and enforce moderation actions.
+        </p>
+        <Link
+          href={`${baseUrl}?tab=Chat`}
+          data-testid="commissioner-controls-open-chat-moderation"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
+        >
+          Open chat moderation
+        </Link>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-white/80 mb-2 flex items-center gap-1.5">
           <UserPlus className="h-3.5 w-3.5" /> Commissioner transfer
         </h4>
         <p className="text-xs text-white/65 mb-2">
@@ -119,6 +141,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
         </p>
         <Link
           href={`${baseUrl}?tab=Commissioner`}
+          data-testid="commissioner-controls-open-transfer"
           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20"
         >
           Open Commissioner tab to transfer

@@ -18,6 +18,7 @@ export interface ReferralShareBarProps {
   message?: string
   onShare?: (channel: InviteShareChannel) => void
   className?: string
+  testIdPrefix?: string
 }
 
 export function ReferralShareBar({
@@ -25,6 +26,7 @@ export function ReferralShareBar({
   message = DEFAULT_MESSAGE,
   onShare,
   className = '',
+  testIdPrefix = 'referral-share',
 }: ReferralShareBarProps) {
   const [copied, setCopied] = useState(false)
 
@@ -66,6 +68,7 @@ export function ReferralShareBar({
           key={key}
           type="button"
           onClick={() => handleShare(key)}
+          data-testid={`${testIdPrefix}-${key}`}
           className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-premium focus-ring"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >

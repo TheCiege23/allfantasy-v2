@@ -17,6 +17,7 @@ import { ComparisonMatrix } from './ComparisonMatrix';
 import { PlayerStatCards } from './PlayerStatCards';
 import { CategoryWinnerHighlights } from './CategoryWinnerHighlights';
 import { AIExplanationPanel } from './AIExplanationPanel';
+import { SideBySideChart } from './SideBySideChart';
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 6;
@@ -301,7 +302,8 @@ export function PlayerComparisonPage() {
             onClick={runComparison}
             disabled={loading}
             className="gap-2"
-            data-audit="compare-players-button"
+            data-audit="compare-player-button"
+            data-testid="compare-player-button"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -317,6 +319,7 @@ export function PlayerComparisonPage() {
 
       {comparison && (
         <>
+          <SideBySideChart matrix={comparison.matrix} players={comparison.players} />
           <ComparisonMatrix matrix={comparison.matrix} players={comparison.players} />
           <CategoryWinnerHighlights highlights={comparison.categoryWinners} />
           <PlayerStatCards players={comparison.players} scores={comparison.playerScores} />

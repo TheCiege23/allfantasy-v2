@@ -43,7 +43,7 @@ export function DraftManagerStrip({
   orderSourceLabel,
 }: DraftManagerStripProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/20 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-2 border-b border-white/8 bg-[#081022] px-3 py-2">
       <span className="mr-2 text-[10px] font-medium uppercase tracking-wider text-white/50">
         Draft order
       </span>

@@ -9,7 +9,7 @@ import {
   getAchievementSharePayload,
   ACHIEVEMENT_SHARE_TYPES,
 } from '@/lib/social-sharing';
-import { getTwitterShareUrl, getFacebookShareUrl } from '@/lib/social-sharing/SocialShareService';
+import { getTwitterShareUrl, getFacebookShareUrl, getRedditShareUrl } from '@/lib/social-sharing/SocialShareService';
 import type { AchievementShareType, AchievementShareContext } from '@/lib/social-sharing/types';
 import { toast } from 'sonner';
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
@@ -82,13 +82,18 @@ export default function ShareAchievementsPage() {
   const [publishLoading, setPublishLoading] = useState(false);
 
   const openTwitter = useCallback((type: AchievementShareType, context: AchievementShareContext) => {
-    const { shareUrl, text, twitterUrl } = getAchievementSharePayload(type, context);
+    const { shareUrl, text } = getAchievementSharePayload(type, context);
     window.open(getTwitterShareUrl(shareUrl, text), '_blank', 'noopener,noreferrer');
   }, []);
 
   const openFacebook = useCallback((type: AchievementShareType, context: AchievementShareContext) => {
-    const { shareUrl, facebookUrl } = getAchievementSharePayload(type, context);
+    const { facebookUrl } = getAchievementSharePayload(type, context);
     window.open(facebookUrl, '_blank', 'noopener,noreferrer');
+  }, []);
+
+  const openReddit = useCallback((type: AchievementShareType, context: AchievementShareContext) => {
+    const { shareUrl, title } = getAchievementSharePayload(type, context);
+    window.open(getRedditShareUrl(shareUrl, title), '_blank', 'noopener,noreferrer');
   }, []);
 
   const handleShare = useCallback(
@@ -238,6 +243,7 @@ export default function ShareAchievementsPage() {
           onChange={(e) => setSport(e.target.value)}
           className="rounded-lg border border-white/20 bg-black/30 px-3 py-1.5 text-white text-sm"
           data-audit="sport-selector"
+          data-testid="share-achievement-sport-selector"
         >
           {SUPPORTED_SPORTS.map((s) => (
             <option key={s} value={s}>{s}</option>
@@ -337,6 +343,7 @@ export default function ShareAchievementsPage() {
                   className="gap-2 border-white/20"
                   data-audit="share-button"
                   data-share-type={type}
+                  data-testid={`share-achievement-share-button-${type}`}
                 >
                   <Share2 className="h-4 w-4" />
                   Share
@@ -347,6 +354,7 @@ export default function ShareAchievementsPage() {
                   onClick={() => openTwitter(type, context)}
                   className="gap-2 border-white/20"
                   data-audit="share-button-twitter"
+                  data-testid={`share-achievement-share-button-x-${type}`}
                 >
                   Post to X
                 </Button>
@@ -356,8 +364,19 @@ export default function ShareAchievementsPage() {
                   onClick={() => openFacebook(type, context)}
                   className="gap-2 border-white/20"
                   data-audit="share-button-facebook"
+                  data-testid={`share-achievement-share-button-facebook-${type}`}
                 >
                   Share on Facebook
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openReddit(type, context)}
+                  className="gap-2 border-white/20"
+                  data-audit="share-button-reddit"
+                  data-testid={`share-achievement-share-button-reddit-${type}`}
+                >
+                  Share on Reddit
                 </Button>
                 <Button
                   variant="outline"
@@ -366,6 +385,7 @@ export default function ShareAchievementsPage() {
                   className="gap-2 border-white/20"
                   data-audit="copy-link-button"
                   data-share-type={type}
+                  data-testid={`share-achievement-copy-link-button-${type}`}
                 >
                   {copiedId === type ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

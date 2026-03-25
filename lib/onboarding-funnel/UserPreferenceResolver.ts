@@ -2,6 +2,7 @@ import { updateUserProfile } from "@/lib/user-settings/UserProfileService"
 import { getSettingsProfile } from "@/lib/user-settings/SettingsQueryService"
 import type { PreferredSportCode } from "@/lib/user-settings/types"
 import { isSupportedSport } from "@/lib/sport-scope"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 
 /**
@@ -12,7 +13,11 @@ export async function getPreferredSports(userId: string): Promise<PreferredSport
   const profile = await getSettingsProfile(userId)
   const raw = profile?.preferredSports ?? null
   if (!Array.isArray(raw) || raw.length === 0) return []
-  return raw.filter((s): s is PreferredSportCode => typeof s === "string" && isSupportedSport(s))
+  return [...new Set(
+    raw
+      .filter((s): s is string => typeof s === "string" && isSupportedSport(s))
+      .map((s) => normalizeToSupportedSport(s) as PreferredSportCode)
+  )]
 }
 
 /**
@@ -22,7 +27,9 @@ export async function setPreferredSports(
   userId: string,
   sports: PreferredSportCode[]
 ): Promise<{ ok: boolean; error?: string }> {
-  const valid = sports.filter((s) => isSupportedSport(s))
+  const valid = sports
+    .filter((s): s is string => typeof s === "string" && isSupportedSport(s))
+    .map((s) => normalizeToSupportedSport(s) as PreferredSportCode)
   const unique = [...new Set(valid)]
   return updateUserProfile(userId, { preferredSports: unique.length > 0 ? unique : null })
 }

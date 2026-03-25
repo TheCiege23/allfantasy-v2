@@ -14,6 +14,7 @@ import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/S
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
+import { isAIAssistantEnabled } from '@/lib/feature-toggle'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -250,6 +251,13 @@ Reference their history and patterns when giving recommendations.`
 
 export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(async (request: NextRequest) => {
   try {
+    if (!(await isAIAssistantEnabled())) {
+      return NextResponse.json(
+        { error: 'AI assistant is temporarily disabled by platform configuration.' },
+        { status: 503 }
+      )
+    }
+
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

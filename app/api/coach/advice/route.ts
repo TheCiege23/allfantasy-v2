@@ -5,6 +5,7 @@ import type { AdviceType } from '@/lib/fantasy-coach/types';
 import { authOptions } from '@/lib/auth';
 import { assertLeagueMember } from '@/lib/league-access';
 import { logAiOutput } from '@/lib/ai/output-logger';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let body: { type?: string; leagueId?: string; leagueName?: string; week?: number; teamName?: string };
+  let body: {
+    type?: string;
+    leagueId?: string;
+    leagueName?: string;
+    week?: number;
+    teamName?: string;
+    sport?: string;
+  };
   try {
     body = await req.json();
   } catch {
@@ -44,6 +52,7 @@ export async function POST(req: Request) {
       leagueName: body.leagueName,
       week: body.week,
       teamName: body.teamName,
+      sport: body.sport ? normalizeToSupportedSport(body.sport) : undefined,
     });
 
     await logAiOutput({

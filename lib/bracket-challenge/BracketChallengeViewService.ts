@@ -10,6 +10,7 @@ export type BracketProgressDisplay = {
   pickedCount: number
   percentComplete: number
   canSubmit: boolean
+  missingCount: number
 }
 
 /**
@@ -42,11 +43,27 @@ export function getBracketProgressDisplay(
 ): BracketProgressDisplay {
   const pickedCount = Object.values(picks).filter(Boolean).length
   const percentComplete = totalGames > 0 ? Math.round((pickedCount / totalGames) * 100) : 0
+  const missingCount = Math.max(0, totalGames - pickedCount)
   const canSubmit = totalGames > 0 && pickedCount >= totalGames
   return {
     totalGames,
     pickedCount,
     percentComplete,
     canSubmit,
+    missingCount,
   }
+}
+
+export function getBracketLockStateMessage(state: BracketViewState): string {
+  if (state === 'locked' || state === 'scored') {
+    return 'Bracket is locked. You can still track standings and leaderboard movement.'
+  }
+  if (state === 'submitted') {
+    return 'Bracket submitted. You can edit until lock if your league rules allow it.'
+  }
+  if (state === 'editing') {
+    return 'Bracket is editable. Picks auto-save on selection.'
+  }
+  if (state === 'loading') return 'Loading bracket...'
+  return 'There was a problem loading this bracket.'
 }

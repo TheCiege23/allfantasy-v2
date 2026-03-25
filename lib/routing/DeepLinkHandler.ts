@@ -22,6 +22,7 @@ const ALLOWED_DEEP_LINK_PREFIXES = [
   "/tools-hub",
   "/tools/",
   "/chimmy",
+  "/trade-analyzer",
   "/trade-evaluator",
   "/mock-draft",
   "/waiver-ai",

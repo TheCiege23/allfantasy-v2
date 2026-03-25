@@ -77,6 +77,64 @@ test.describe('@commissioner ai commissioner click audit', () => {
     const runPosts: Array<Record<string, unknown>> = []
     const alertPosts: Array<Record<string, unknown>> = []
     const explainPosts: Array<Record<string, unknown>> = []
+    const chatPosts: Array<Record<string, unknown>> = []
+
+    const insightsState = {
+      leagueId,
+      sport: 'NFL',
+      season,
+      generatedAt: new Date().toISOString(),
+      weeklyRecapPost: {
+        title: 'NFL Commissioner Weekly Recap',
+        body: 'Week-in-review for season 2026 with matchup momentum and waiver outcomes.',
+        bullets: [
+          '2 matchup storyline(s) summarized for NFL.',
+          '2 waiver result highlight(s) reviewed by AI Commissioner.',
+          '1 recent trade scanned for fairness.',
+          '2 draft commentary note(s) generated from recent picks.',
+        ],
+        actionHref: `/app/league/${leagueId}?tab=Commissioner`,
+        actionLabel: 'Open Commissioner',
+      },
+      matchupSummaries: [
+        {
+          matchupId: 'match-1',
+          weekOrPeriod: 8,
+          summary: 'Week 8: Alpha 121.2 - Beta 119.8 (winner: Alpha, margin 1.4).',
+        },
+      ],
+      waiverHighlights: [
+        {
+          claimId: 'claim-1',
+          summary: 'Roster r1 added player-a and dropped player-b for $17 FAAB.',
+          processedAt: new Date().toISOString(),
+        },
+      ],
+      draftCommentary: [
+        {
+          pickId: 'pick-1',
+          createdAt: new Date().toISOString(),
+          summary: 'Round 4, pick 42: Team Alpha selected RB Example (RB) via user pick.',
+        },
+      ],
+      controversialTrades: [
+        {
+          tradeId: 'trade-1',
+          transactionId: 'tx-1',
+          createdAt: new Date().toISOString(),
+          sport: 'NFL',
+          fairnessScore: 44,
+          imbalancePct: 56,
+          controversyLevel: 'high',
+          summary: 'Trade tx-1 shows an estimated 56% value imbalance and needs review.',
+          relatedManagerIds: ['m-a', 'm-b'],
+        },
+      ],
+      suggestedRuleAdjustments: [
+        'Increase waiver processing cadence to reduce queue backlog.',
+        'Require commissioner review for high-imbalance trades before league vote.',
+      ],
+    }
 
     const buildOverview = () => ({
       leagueId,
@@ -202,6 +260,27 @@ test.describe('@commissioner ai commissioner click audit', () => {
         }),
       })
     })
+    await page.route(`**/api/leagues/${leagueId}/ai-commissioner/insights?**`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(insightsState),
+      })
+    })
+    await page.route(`**/api/leagues/${leagueId}/ai-commissioner/chat`, async (route) => {
+      const payload = route.request().postDataJSON() as Record<string, unknown>
+      chatPosts.push(payload)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          answer:
+            'Commissioner guidance: tighten waiver windows this week and review any trade under a 50 fairness score before approval.',
+          source: 'template',
+          insights: insightsState,
+        }),
+      })
+    })
     await page.route(`**/api/leagues/${leagueId}/ai-commissioner/alerts/**`, async (route) => {
       const payload = route.request().postDataJSON() as Record<string, unknown>
       alertPosts.push(payload)
@@ -270,9 +349,26 @@ test.describe('@commissioner ai commissioner click audit', () => {
     await expect.poll(() => runPosts.length).toBeGreaterThan(0)
     await expect(page.getByText(/lineup lock reminders are active/i)).toBeVisible()
 
-    await page.getByRole('button', { name: 'AI explain' }).first().click()
+    await expect(page.getByTestId('ai-commissioner-recap-panel')).toBeVisible()
+    await expect(page.getByText(/commissioner weekly recap/i)).toBeVisible()
+
+    await page.getByTestId('ai-commissioner-alert-explain-alert-run-2').click()
     await expect.poll(() => explainPosts.length).toBeGreaterThan(0)
     await expect(page.getByText(/high priority because repeated manager concentration/i)).toBeVisible()
+
+    await page.getByTestId('ai-commissioner-trade-explain-trade-1').click()
+    await expect.poll(() => explainPosts.some((p) => p.tradeId === 'trade-1')).toBeTruthy()
+
+    await page.getByTestId('ai-commissioner-chat-input').fill(
+      'Summarize waiver results and controversial trades.'
+    )
+    await page.getByTestId('ai-commissioner-chat-button').click()
+    await expect.poll(() => chatPosts.length).toBeGreaterThan(0)
+    expect(String(chatPosts[0]?.question ?? '')).toMatch(/waiver results and controversial trades/i)
+    expect(typeof chatPosts[0]?.sport).toBe('string')
+    await expect(page.getByTestId('ai-commissioner-chat-response')).toContainText(
+      /tighten waiver windows this week/i
+    )
 
     await page.getByRole('button', { name: 'Snooze 24h' }).first().click()
     await expect.poll(() => alertPosts.some((p) => p.action === 'snooze')).toBeTruthy()

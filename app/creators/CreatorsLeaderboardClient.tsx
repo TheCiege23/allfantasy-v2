@@ -11,6 +11,7 @@ type Creator = {
   displayName: string | null
   avatarUrl: string | null
   verified: boolean
+  verificationBadge?: string | null
   leagueCount: number
   totalMembers: number
   rank: number
@@ -26,7 +27,7 @@ export default function CreatorsLeaderboardClient() {
     fetch(`/api/creators?limit=25&sort=${sort}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.ok && Array.isArray(data.creators)) setCreators(data.creators)
+        if (Array.isArray(data.creators)) setCreators(data.creators)
         else setCreators([])
       })
       .catch(() => setCreators([]))
@@ -87,6 +88,7 @@ export default function CreatorsLeaderboardClient() {
           <li key={c.userId}>
             <Link
               href={`/creators/${encodeURIComponent(c.handle)}`}
+              data-testid={`creator-leaderboard-profile-link-${c.handle}`}
               className="flex items-center gap-4 px-4 py-3 transition hover:opacity-90"
               style={{ color: "var(--text)" }}
             >
@@ -105,7 +107,15 @@ export default function CreatorsLeaderboardClient() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold truncate">{c.displayName || c.handle}</span>
-                  {c.verified && <VerifiedCreatorBadge handle={c.handle} showLabel={true} linkToProfile={false} size="sm" />}
+                  {c.verified && (
+                    <VerifiedCreatorBadge
+                      handle={c.handle}
+                      badge={c.verificationBadge}
+                      showLabel={true}
+                      linkToProfile={false}
+                      size="sm"
+                    />
+                  )}
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 text-xs" style={{ color: "var(--muted)" }}>
                   <span className="inline-flex items-center gap-1">

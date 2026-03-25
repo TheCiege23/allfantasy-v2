@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getUserInterests } from "./UserInterestModel"
 import { rankFeedItems } from "./FeedRankingResolver"
+import { DEFAULT_SPORT, normalizeToSupportedSport } from "@/lib/sport-scope"
 import {
   fetchCreatorFeedItems,
   fetchBlogFeedItems,
@@ -85,12 +86,83 @@ export async function getContentFeed(
     ...aiInsights,
   ]
 
+  combined = [...combined, ...buildDailyCoveragePlaceholders(combined, sportFilter)]
+
   if (contentTypeFilter) {
     combined = combined.filter((i) => i.type === contentTypeFilter)
   }
 
   const ranked = rankFeedItems(combined, interests, tab)
   return ranked.slice(0, Math.max(1, limit))
+}
+
+function buildDailyCoveragePlaceholders(
+  existing: ContentFeedItem[],
+  sportFilter: string | null
+): ContentFeedItem[] {
+  const existingTypes = new Set(existing.map((item) => item.type))
+  const now = new Date().toISOString()
+  const sport = normalizeToSupportedSport(sportFilter ?? DEFAULT_SPORT)
+  const placeholders: ContentFeedItem[] = []
+
+  if (!existingTypes.has("player_news")) {
+    placeholders.push({
+      id: "daily_player_news_placeholder",
+      type: "player_news",
+      title: `${sport} player news update`,
+      body: "Daily injury and role updates are loading. Check back shortly for latest player news.",
+      href: "/fantasy-media",
+      sport,
+      leagueId: null,
+      leagueName: null,
+      createdAt: now,
+      sourceType: "ai_generated",
+    })
+  }
+  if (!existingTypes.has("league_update")) {
+    placeholders.push({
+      id: "daily_league_update_placeholder",
+      type: "league_update",
+      title: "League activity highlights",
+      body: "No fresh league update cards yet. Open your league tabs to generate new activity highlights.",
+      href: "/dashboard",
+      sport: null,
+      leagueId: null,
+      leagueName: null,
+      createdAt: now,
+      sourceType: "ai_generated",
+    })
+  }
+  if (!existingTypes.has("community_highlight")) {
+    placeholders.push({
+      id: "daily_community_highlight_placeholder",
+      type: "community_highlight",
+      title: "Community highlights",
+      body: "Bracket momentum and community highlights will appear here as events are published.",
+      href: "/brackets",
+      sport: null,
+      leagueId: null,
+      leagueName: null,
+      createdAt: now,
+      sourceType: "ai_generated",
+    })
+  }
+  if (!existingTypes.has("ai_insight")) {
+    placeholders.push({
+      id: "daily_ai_insight_placeholder",
+      type: "ai_insight",
+      title: "AI recommendation",
+      body: "Ask Chimmy for a personalized edge on lineup, waiver, and trade decisions.",
+      href: "/chimmy",
+      sport: null,
+      leagueId: null,
+      leagueName: null,
+      createdAt: now,
+      sourceType: "ai_generated",
+    })
+  }
+
+  return placeholders
 }
 
 function fetchMediaArticles(leagueIds: string[]): Promise<ContentFeedItem[]> {

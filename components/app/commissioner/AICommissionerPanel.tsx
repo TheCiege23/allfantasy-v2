@@ -52,6 +52,57 @@ interface ActionLogView {
   createdAt: string
 }
 
+interface TradeFairnessView {
+  tradeId: string
+  transactionId: string | null
+  createdAt: string
+  sport: SupportedSport
+  fairnessScore: number
+  imbalancePct: number
+  controversyLevel: 'low' | 'medium' | 'high'
+  summary: string
+  relatedManagerIds: string[]
+}
+
+interface RecapView {
+  title: string
+  body: string
+  bullets: string[]
+  actionHref: string
+  actionLabel: string
+}
+
+interface MatchupInsightView {
+  matchupId: string
+  weekOrPeriod: number
+  summary: string
+}
+
+interface WaiverInsightView {
+  claimId: string | null
+  summary: string
+  processedAt: string | null
+}
+
+interface DraftInsightView {
+  pickId: string
+  summary: string
+  createdAt: string
+}
+
+interface InsightPayload {
+  leagueId: string
+  sport: SupportedSport
+  season: number
+  generatedAt: string
+  weeklyRecapPost: RecapView
+  matchupSummaries: MatchupInsightView[]
+  waiverHighlights: WaiverInsightView[]
+  draftCommentary: DraftInsightView[]
+  controversialTrades: TradeFairnessView[]
+  suggestedRuleAdjustments: string[]
+}
+
 interface OverviewPayload {
   leagueId: string
   sport: SupportedSport
@@ -89,6 +140,12 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
   const [actioning, setActioning] = useState<Record<string, string>>({})
   const [explaining, setExplaining] = useState<Record<string, boolean>>({})
   const [explanations, setExplanations] = useState<Record<string, string>>({})
+  const [insights, setInsights] = useState<InsightPayload | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsError, setInsightsError] = useState<string | null>(null)
+  const [commissionerQuestion, setCommissionerQuestion] = useState('Explain league rules for this week.')
+  const [commissionerAnswer, setCommissionerAnswer] = useState<string>('')
+  const [chatting, setChatting] = useState(false)
 
   const canRun = !loading && !running && !savingConfig
   const hasOpenAlerts = (payload?.alerts ?? []).some((alert) => alert.status === 'open')
@@ -122,9 +179,39 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     [includeResolved, leagueId, sport]
   )
 
+  const loadInsights = useCallback(async () => {
+    setInsightsLoading(true)
+    setInsightsError(null)
+    try {
+      const qs = new URLSearchParams()
+      qs.set('sport', sport)
+      if (season.trim()) qs.set('season', season.trim())
+      const res = await fetch(
+        `/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/insights?${qs.toString()}`,
+        { cache: 'no-store' }
+      )
+      const data = (await res.json().catch(() => ({}))) as InsightPayload & { error?: string }
+      if (!res.ok) throw new Error(data.error || 'Failed to load AI Commissioner insights')
+      setInsights(data)
+    } catch (e: any) {
+      setInsightsError(e?.message || 'Failed to load AI Commissioner insights')
+    } finally {
+      setInsightsLoading(false)
+    }
+  }, [leagueId, season, sport])
+
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    void loadInsights()
+  }, [loadInsights])
+
+  const refreshAll = useCallback(async () => {
+    await load()
+    await loadInsights()
+  }, [load, loadInsights])
 
   const saveConfig = useCallback(async () => {
     if (!draft) return
@@ -169,13 +256,13 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
       const data = (await res.json().catch(() => ({}))) as { error?: string; createdAlerts?: Array<unknown> }
       if (!res.ok) throw new Error(data.error || 'AI Commissioner run failed')
       toast.success(`AI Commissioner run complete (${data.createdAlerts?.length ?? 0} new alerts)`)
-      await load()
+      await refreshAll()
     } catch (e: any) {
       toast.error(e?.message || 'AI Commissioner run failed')
     } finally {
       setRunning(false)
     }
-  }, [leagueId, load, season, sport])
+  }, [leagueId, refreshAll, season, sport])
 
   const mutateAlert = useCallback(
     async (alertId: string, action: 'approve' | 'dismiss' | 'snooze' | 'resolve' | 'reopen' | 'send_notice') => {
@@ -236,6 +323,55 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     },
     [leagueId]
   )
+
+  const explainTradeFairness = useCallback(
+    async (tradeId: string) => {
+      const key = `trade:${tradeId}`
+      setExplaining((prev) => ({ ...prev, [key]: true }))
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/explain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tradeId }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string; narrative?: string }
+        if (!res.ok) throw new Error(data.error || 'Failed to explain trade fairness')
+        const narrative = String(data.narrative ?? '').trim()
+        if (narrative) {
+          setExplanations((prev) => ({ ...prev, [key]: narrative }))
+        }
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to explain trade fairness')
+      } finally {
+        setExplaining((prev) => ({ ...prev, [key]: false }))
+      }
+    },
+    [leagueId]
+  )
+
+  const askAICommissioner = useCallback(async () => {
+    const question = commissionerQuestion.trim()
+    if (!question) return
+    setChatting(true)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question,
+          sport,
+          season: season.trim() ? Number.parseInt(season.trim(), 10) : undefined,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; answer?: string }
+      if (!res.ok) throw new Error(data.error || 'Failed to reach AI Commissioner')
+      setCommissionerAnswer(String(data.answer ?? '').trim())
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to reach AI Commissioner')
+    } finally {
+      setChatting(false)
+    }
+  }, [commissionerQuestion, leagueId, season, sport])
 
   const alertSummary = useMemo(() => {
     const alerts = payload?.alerts ?? []
@@ -325,8 +461,8 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
           <Button
             size="sm"
             variant="outline"
-            onClick={() => void load()}
-            disabled={loading || running}
+            onClick={() => void refreshAll()}
+            disabled={loading || running || insightsLoading}
             data-testid="ai-commissioner-refresh"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -456,6 +592,158 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
         ) : (
           <p className="text-xs text-white/60">Loading commissioner behavior settings...</p>
         )}
+      </div>
+
+      <div
+        className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-3"
+        data-testid="ai-commissioner-recap-panel"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-white">AI recap panel</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void loadInsights()}
+            disabled={insightsLoading}
+            data-testid="ai-commissioner-recap-refresh"
+          >
+            {insightsLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Refresh recap'}
+          </Button>
+        </div>
+        {insightsError ? (
+          <p className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-xs text-red-100">
+            {insightsError}
+          </p>
+        ) : null}
+        {insights ? (
+          <>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <p className="text-sm font-semibold text-white">{insights.weeklyRecapPost.title}</p>
+              <p className="mt-1 text-xs text-white/75">{insights.weeklyRecapPost.body}</p>
+              {insights.weeklyRecapPost.bullets.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-[11px] text-white/70">
+                  {insights.weeklyRecapPost.bullets.slice(0, 4).map((row) => (
+                    <li key={`recap-bullet-${row}`}>- {row}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Weekly matchup summaries</p>
+                <div className="mt-1 space-y-1">
+                  {insights.matchupSummaries.slice(0, 3).map((row) => (
+                    <p key={row.matchupId} className="text-[11px] text-white/70">
+                      {row.summary}
+                    </p>
+                  ))}
+                  {insights.matchupSummaries.length === 0 ? (
+                    <p className="text-[11px] text-white/50">No matchup facts available yet.</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Waiver wire highlights</p>
+                <div className="mt-1 space-y-1">
+                  {insights.waiverHighlights.slice(0, 3).map((row, idx) => (
+                    <p key={`${row.claimId ?? idx}-${row.summary}`} className="text-[11px] text-white/70">
+                      {row.summary}
+                    </p>
+                  ))}
+                  {insights.waiverHighlights.length === 0 ? (
+                    <p className="text-[11px] text-white/50">No recent waiver transactions found.</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Draft commentary</p>
+                <div className="mt-1 space-y-1">
+                  {insights.draftCommentary.slice(0, 3).map((row) => (
+                    <p key={row.pickId} className="text-[11px] text-white/70">
+                      {row.summary}
+                    </p>
+                  ))}
+                  {insights.draftCommentary.length === 0 ? (
+                    <p className="text-[11px] text-white/50">No draft notes available yet.</p>
+                  ) : null}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Rule adjustment suggestions</p>
+                <div className="mt-1 space-y-1">
+                  {insights.suggestedRuleAdjustments.slice(0, 3).map((row) => (
+                    <p key={row} className="text-[11px] text-white/70">
+                      - {row}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+              <p className="text-[11px] font-semibold text-white/90">Controversial trade watchlist</p>
+              <div className="mt-2 space-y-2">
+                {insights.controversialTrades.slice(0, 3).map((trade) => {
+                  const key = `trade:${trade.tradeId}`
+                  return (
+                    <div key={trade.tradeId} className="rounded-md border border-white/10 bg-black/25 p-2">
+                      <p className="text-[11px] text-white/80">
+                        {trade.summary} (fairness {trade.fairnessScore}/100)
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => void explainTradeFairness(trade.tradeId)}
+                        disabled={!!explaining[key]}
+                        data-testid={`ai-commissioner-trade-explain-${trade.tradeId}`}
+                      >
+                        {explaining[key] ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'AI explain'}
+                      </Button>
+                      {explanations[key] ? (
+                        <p className="mt-1 text-[11px] text-white/80">{explanations[key]}</p>
+                      ) : null}
+                    </div>
+                  )
+                })}
+                {insights.controversialTrades.length === 0 ? (
+                  <p className="text-[11px] text-white/50">No controversial trades detected in this cycle.</p>
+                ) : null}
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-white/55">Loading AI recap insights...</p>
+        )}
+
+        <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+          <p className="text-xs font-semibold text-white/90">Ask AI Commissioner</p>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              value={commissionerQuestion}
+              onChange={(event) => setCommissionerQuestion(event.target.value)}
+              className="min-w-[220px] flex-1 bg-black/40 border-white/20 text-xs text-white"
+              data-testid="ai-commissioner-chat-input"
+            />
+            <Button
+              size="sm"
+              onClick={() => void askAICommissioner()}
+              disabled={chatting || !commissionerQuestion.trim()}
+              data-testid="ai-commissioner-chat-button"
+            >
+              {chatting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ask'}
+            </Button>
+          </div>
+          {commissionerAnswer ? (
+            <p
+              className="rounded-md border border-white/15 bg-black/25 px-2 py-1.5 text-xs text-white/90"
+              data-testid="ai-commissioner-chat-response"
+            >
+              {commissionerAnswer}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {error ? (
@@ -588,6 +876,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
                 variant="outline"
                 onClick={() => void explainAlert(alert.alertId)}
                 disabled={!!explaining[alert.alertId]}
+                data-testid={`ai-commissioner-alert-explain-${alert.alertId}`}
               >
                 {explaining[alert.alertId] ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -9,8 +9,15 @@ export const BRACKET_LANDING_PATH = '/bracket'
 export const BRACKETS_HOME_PATH = '/brackets'
 
 /** Create a new pool. */
-export function getCreatePoolPath(): string {
-  return '/brackets/leagues/new'
+export function getCreatePoolPath(options?: {
+  sport?: string | null
+  challengeType?: 'playoff_challenge' | 'mens_ncaa'
+}): string {
+  if (!options?.sport && !options?.challengeType) return '/brackets/leagues/new'
+  const params = new URLSearchParams()
+  if (options.sport) params.set('sport', options.sport)
+  if (options.challengeType) params.set('challengeType', options.challengeType)
+  return `/brackets/leagues/new?${params.toString()}`
 }
 
 /** Join a pool (with optional code query). */

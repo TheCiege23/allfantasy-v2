@@ -5,6 +5,7 @@ import { requireVerifiedUser } from '@/lib/auth-guard';
 import { prisma } from '@/lib/prisma';
 import { buildLeagueInviteUrl } from '@/lib/viral-loop';
 import { resolveEffectiveLeagueVariant } from '@/lib/league-creation/LeagueVariantResolver';
+import { isSportEnabled } from '@/lib/feature-toggle';
 import { z } from 'zod';
 
 const createSchema = z.object({
@@ -74,6 +75,12 @@ export async function POST(req: Request) {
   }
 
   let sport = sportInput ?? 'NFL';
+  if (!(await isSportEnabled(sport))) {
+    return NextResponse.json(
+      { error: `Sport ${sport} is currently disabled by platform configuration.` },
+      { status: 403 }
+    );
+  }
   const isIdpRequested =
     String(leagueVariantInput ?? '').toUpperCase() === 'IDP' ||
     String(leagueVariantInput ?? '').toUpperCase() === 'DYNASTY_IDP' ||

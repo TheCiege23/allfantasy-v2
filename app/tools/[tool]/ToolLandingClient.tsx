@@ -24,6 +24,17 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
 
       <article className="flex-1 px-4 py-8 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-3xl">
+          <div className="mb-4">
+            <Link
+              href={ROUTES.toolsHub()}
+              className="inline-flex items-center gap-2 text-sm font-medium hover:underline"
+              style={{ color: 'var(--muted)' }}
+              data-testid="tool-landing-back-to-hub"
+            >
+              <ArrowRight className="h-4 w-4 rotate-180" />
+              Back to Tools Hub
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             {config.headline}
           </h1>
@@ -42,7 +53,18 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
                 path={getToolCanonical(config.slug)}
                 title={config.title}
                 description={config.description}
+                testIdPrefix={`tool-landing-share-${config.slug}`}
               />
+              <div className="mt-3">
+                <Link
+                  href="/install"
+                  className="inline-flex items-center gap-2 text-xs font-medium hover:underline"
+                  style={{ color: 'var(--muted)' }}
+                  data-testid="tool-landing-install-link"
+                >
+                  Install AllFantasy app
+                </Link>
+              </div>
             </div>
           </section>
 
@@ -80,6 +102,7 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
                       background: 'color-mix(in srgb, var(--panel2) 70%, transparent)',
                       color: 'var(--text)',
                     }}
+                    data-testid={`tool-landing-sport-link-${slug}`}
                   >
                     {slug.replace(/-/g, ' ')}
                   </Link>
@@ -124,6 +147,7 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
                 href={ROUTES.toolsHub()}
                 className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium"
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+                data-testid="tool-landing-all-tools-link"
               >
                 All tools
                 <ArrowRight className="h-4 w-4" />

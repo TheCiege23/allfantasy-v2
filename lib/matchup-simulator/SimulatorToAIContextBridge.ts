@@ -33,11 +33,16 @@ export type MatchupContextForAI = {
   teamBName: string
   projectedScoreA?: number
   projectedScoreB?: number
+  scoreRangeA?: [number, number]
+  scoreRangeB?: [number, number]
   winProbA?: number
   winProbB?: number
   upsetChance?: number
   volatilityTag?: string
   sport?: string
+  strengths?: string[]
+  weaknesses?: string[]
+  positionEdgeSummary?: string
 }
 
 /**
@@ -53,11 +58,25 @@ export function buildMatchupSummaryForAI(ctx: MatchupContextForAI): string {
   if (ctx.winProbA != null && ctx.winProbB != null) {
     parts.push(`Win probability: ${ctx.winProbA.toFixed(0)}% – ${ctx.winProbB.toFixed(0)}%.`)
   }
+  if (ctx.scoreRangeA && ctx.scoreRangeB) {
+    parts.push(
+      `Likely score range: ${ctx.teamAName} ${ctx.scoreRangeA[0].toFixed(0)}-${ctx.scoreRangeA[1].toFixed(0)}, ${ctx.teamBName} ${ctx.scoreRangeB[0].toFixed(0)}-${ctx.scoreRangeB[1].toFixed(0)}.`
+    )
+  }
   if (ctx.upsetChance != null && ctx.upsetChance > 5) {
     parts.push(`Upset chance: ${ctx.upsetChance}%.`)
   }
   if (ctx.volatilityTag) {
     parts.push(`Volatility: ${ctx.volatilityTag}.`)
+  }
+  if (ctx.positionEdgeSummary) {
+    parts.push(`Position edges: ${ctx.positionEdgeSummary}.`)
+  }
+  if (ctx.strengths?.length) {
+    parts.push(`Strengths: ${ctx.strengths.slice(0, 3).join(' ')}`)
+  }
+  if (ctx.weaknesses?.length) {
+    parts.push(`Weaknesses: ${ctx.weaknesses.slice(0, 3).join(' ')}`)
   }
   if (ctx.sport) {
     parts.push(`Sport: ${ctx.sport}.`)

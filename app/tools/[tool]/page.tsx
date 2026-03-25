@@ -8,6 +8,7 @@ import {
 } from '@/lib/seo-landing/config'
 import { ToolPageJsonLd } from '@/components/seo/JsonLd'
 import ToolLandingClient from './ToolLandingClient'
+import { buildMetadata } from '@/lib/seo'
 
 export async function generateStaticParams() {
   return TOOL_SLUGS.map((tool) => ({ tool }))
@@ -20,28 +21,21 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { tool } = await params
   const config = TOOL_CONFIG[tool as ToolSlug]
-  if (!config) return { title: 'AllFantasy – Fantasy Sports Tools' }
+  if (!config) {
+    return buildMetadata({
+      title: 'AllFantasy – Fantasy Sports Tools',
+      description: 'AI-powered fantasy sports tools and league management.',
+      canonical: 'https://allfantasy.ai/tools-hub',
+    })
+  }
 
   const canonical = getToolCanonical(config.slug)
-  return {
+  return buildMetadata({
     title: config.title,
     description: config.description,
     keywords: config.keywords,
-    alternates: { canonical },
-    openGraph: {
-      title: config.title,
-      description: config.description,
-      url: canonical,
-      siteName: 'AllFantasy',
-      type: 'website',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: config.title,
-      description: config.description,
-    },
-    robots: { index: true, follow: true },
-  }
+    canonical,
+  })
 }
 
 export default async function ToolPage({

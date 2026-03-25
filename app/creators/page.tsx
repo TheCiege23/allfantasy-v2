@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Trophy } from 'lucide-react'
 import CreatorsDiscoveryClient from './CreatorsDiscoveryClient'
+import CreatorsLeaderboardClient from './CreatorsLeaderboardClient'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,21 @@ export default function CreatorsPage() {
             Join leagues hosted by creators, influencers, and analysts. Follow your favorites and get invite links.
           </p>
         </div>
-        <CreatorsDiscoveryClient />
+        <section>
+          <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>
+            Discover creators
+          </h2>
+          <CreatorsDiscoveryClient />
+        </section>
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>
+            Creator leaderboard
+          </h2>
+          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+            Ranked by community growth and public league participation.
+          </p>
+          <CreatorsLeaderboardClient />
+        </section>
       </div>
     </div>
   )

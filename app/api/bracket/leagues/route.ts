@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { requireVerifiedUser } from "@/lib/auth-guard"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
+import { ensureChallengeTournament } from "@/lib/brackets/PlayoffChallengeTournamentService"
 
 export const runtime = "nodejs"
 
@@ -109,17 +111,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 })
   }
 
-  const tournament = await (prisma as any).bracketTournament.findUnique({
-    where: { sport_season: { sport, season } },
-    select: { id: true },
+  const normalizedSport = normalizeToSupportedSport(sport)
+  const normalizedBracketType = bracketType === "mens_ncaa" ? "mens_ncaa" : "playoff_challenge"
+  const tournament = await ensureChallengeTournament({
+    sport: normalizedSport,
+    season,
+    challengeType: normalizedBracketType,
   })
-
-  if (!tournament) {
-    return NextResponse.json(
-      { error: "Tournament not found for that sport/season" },
-      { status: 404 }
-    )
-  }
 
   const normalizedMaxManagers = Math.min(10000, Math.max(2, Number(maxManagers || 10000)))
 
@@ -139,7 +137,6 @@ export async function POST(req: Request) {
     normalizedMaxEntriesPerUser,
     Math.max(1, Number(entriesPerUserFree || normalizedMaxEntriesPerUser))
   )
-  const normalizedBracketType = bracketType === "mens_ncaa" ? "mens_ncaa" : "mens_ncaa"
   const normalizedTiebreakerType =
     tiebreakerType === "championship_total_points" ? "championship_total_points" : "none"
   const normalizedIncompleteEntryPolicy =
@@ -157,6 +154,8 @@ export async function POST(req: Request) {
         mode: selectedMode,
         scoringMode: selectedMode,
         bracketType: normalizedBracketType,
+        challengeType: normalizedBracketType,
+        sport: normalizedSport,
         allowCopyBracket: allowCopyBracket !== false,
         pickVisibility: pickVisibility === "hidden_until_lock" ? "hidden_until_lock" : "visible",
         insuranceEnabled: Boolean(insuranceEnabled),

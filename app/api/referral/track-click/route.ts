@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getReferrerIdByCode, recordClick, setReferralCookie } from "@/lib/referral"
+import { getReferrerIdByCode, getReferralCodeFromRequest, recordClick, setReferralCookie } from "@/lib/referral"
 
 export const runtime = "nodejs"
 
@@ -9,11 +9,9 @@ export const runtime = "nodejs"
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
-  const refFromBody = typeof body?.ref === "string" ? body.ref.trim() : null
-  const refFromQuery = req.nextUrl.searchParams.get("ref")
-
-  const raw = refFromBody || refFromQuery
-  const code = raw ? raw.trim().toUpperCase() : null
+  const refFromBody = typeof body?.ref === "string" ? body.ref.trim().toUpperCase() : null
+  const refFromRequest = getReferralCodeFromRequest(req, { includeCookie: false })
+  const code = refFromBody || refFromRequest
   if (!code) return NextResponse.json({ error: "Missing ref" }, { status: 400 })
 
   const referrerId = await getReferrerIdByCode(code)

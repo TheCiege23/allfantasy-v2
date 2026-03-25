@@ -5,9 +5,10 @@ import Link from "next/link"
 import { Search, Trophy, Users, ChevronRight, Loader2 } from "lucide-react"
 import { getLeagueFilterOptions } from "@/lib/league-discovery/LeagueFilterResolver"
 import type { LeagueCard } from "@/lib/league-discovery/types"
+import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
 
 const SCORING_LABELS: Record<string, string> = {
-  fancred_edge: "AF March Madness",
+  fancred_edge: "AF Edge",
   momentum: "Momentum",
   accuracy_boldness: "Accuracy + Boldness",
   streak_survival: "Streak & Survival",
@@ -167,8 +168,15 @@ export default function LeagueDiscoveryClient() {
             {total} league{total !== 1 ? "s" : ""} found
           </p>
           <ul className="grid gap-4 sm:grid-cols-2">
-            {leagues.map((league) => (
-              <li key={league.id}>
+            {leagues.map((league) => {
+              const sportUI = resolveBracketSportUI(league.sport)
+              const challengeLabel = resolveBracketChallengeLabel({
+                sport: league.sport,
+                bracketType: league.bracketType,
+                challengeType: league.challengeType,
+              })
+              return (
+                <li key={league.id}>
                 <Link
                   href={`/brackets/leagues/${league.id}`}
                   className="block rounded-xl border p-4 transition hover:opacity-90 touch-manipulation min-h-[44px]"
@@ -181,9 +189,13 @@ export default function LeagueDiscoveryClient() {
                         {league.tournamentName}
                         {league.season ? ` · ${league.season}` : ""}
                       </p>
+                      <p className="text-[11px] mt-1 truncate" style={{ color: "var(--muted)" }}>
+                        {challengeLabel}
+                      </p>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)" }}>
-                          {league.sport}
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)" }}>
+                          <span className="font-semibold">{sportUI.badge}</span>
+                          <span>{sportUI.shortLabel}</span>
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--panel2)", color: "var(--muted)" }}>
                           {SCORING_LABELS[league.scoringMode] ?? league.scoringMode}
@@ -208,8 +220,9 @@ export default function LeagueDiscoveryClient() {
                     <ChevronRight className="h-5 w-5 shrink-0" style={{ color: "var(--muted)" }} />
                   </div>
                 </Link>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
 
           {totalPages > 1 && (

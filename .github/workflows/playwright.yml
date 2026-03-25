@@ -6,8 +6,27 @@ on:
     branches: [ main, master ]
 jobs:
   test:
+    name: Playwright (${{ matrix.lane }})
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [core, retention-engagement, onboarding-activation, referral-growth-db]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: allfantasy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d allfantasy_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -16,13 +35,36 @@ jobs:
     - name: Install dependencies
       run: npm ci
     - name: Install Playwright Browsers
+      if: matrix.lane == 'core'
       run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
+    - name: Install Playwright Chromium
+      if: matrix.lane == 'referral-growth-db' || matrix.lane == 'onboarding-activation' || matrix.lane == 'retention-engagement'
+      run: npx playwright install --with-deps chromium
+    - name: Prepare DB schema for referral lane
+      if: matrix.lane == 'referral-growth-db'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      run: npx prisma db push --skip-generate
+    - name: Run Playwright tests (core)
+      if: matrix.lane == 'core'
+      run: npm run test:e2e:core
+    - name: Run Playwright tests (retention engagement)
+      if: matrix.lane == 'retention-engagement'
+      run: npm run test:e2e:retention
+    - name: Run Playwright tests (onboarding activation)
+      if: matrix.lane == 'onboarding-activation'
+      run: npm run test:e2e:onboarding-activation
+    - name: Run Playwright tests (referral growth db)
+      if: matrix.lane == 'referral-growth-db'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        NEXTAUTH_SECRET: ci-nextauth-secret
+        NEXTAUTH_URL: http://localhost:3000
+      run: npx playwright test e2e/referral-growth-suite.spec.ts --project=chromium
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
-        name: playwright-report
+        name: playwright-report-${{ matrix.lane }}
         path: playwright-report/
         retention-days: 30
 

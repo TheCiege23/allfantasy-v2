@@ -66,3 +66,16 @@ export function getNextQueuedAvailable(
 ): QueuePlayer | null {
   return queue.find((p) => !draftedNames.has(p.name)) ?? null
 }
+
+/**
+ * Remove first queue entry by player name.
+ */
+export function removeFromQueueByPlayerName(
+  queue: QueuePlayer[],
+  playerName: string
+): QueuePlayer[] {
+  const target = playerName.trim().toLowerCase()
+  const index = queue.findIndex((entry) => entry.name.trim().toLowerCase() === target)
+  if (index < 0) return queue
+  return queue.filter((_, i) => i !== index)
+}

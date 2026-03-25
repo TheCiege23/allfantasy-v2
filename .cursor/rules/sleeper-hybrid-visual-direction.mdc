@@ -1,0 +1,17 @@
+---
+description: Sleeper-inspired UI direction blended with AllFantasy brand
+alwaysApply: true
+---
+
+# Sleeper-Hybrid Visual Direction
+
+For product UI work, use a Sleeper-inspired style system while preserving AllFantasy identity.
+
+- Use deep navy/charcoal surfaces (`#040915` to `#0a1228`) with subtle borders (`white/8-15`).
+- Keep layouts compact and information-dense on mobile (small row heights, tight spacing, clear hierarchy).
+- Prefer soft cyan/sky accents for primary draft actions and state highlights; avoid over-saturated neon.
+- Use amber for warnings and red for destructive/critical states with restrained opacity.
+- Keep typography crisp and legible: primary text high contrast, secondary text muted gray-blue.
+- Preserve existing functionality, handlers, and data wiring; visual passes must not change feature behavior.
+- Preserve `data-testid` hooks and interaction affordances (tap targets, drag/swap, keyboard access).
+- Match inspiration, not a literal copy: keep AllFantasy-specific components, wording, and structure.

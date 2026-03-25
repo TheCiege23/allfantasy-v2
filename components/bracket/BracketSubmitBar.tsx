@@ -142,7 +142,7 @@ export function BracketSubmitBar({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-3 z-30 flex justify-center pointer-events-none">
+    <div className="fixed inset-x-0 bottom-3 z-30 flex justify-center pointer-events-none" data-testid="bracket-submit-bar">
       <div className="pointer-events-auto w-full max-w-5xl px-3 sm:px-4">
         <div
           className="rounded-2xl border shadow-lg shadow-black/40 px-3.5 py-2.5 sm:px-4 sm:py-3 flex items-center gap-3 sm:gap-4 bg-[#020617]/95"
@@ -235,12 +235,12 @@ export function BracketSubmitBar({
           {/* Right: CTA */}
           <div className="flex items-center gap-2">
             {error && (
-              <span className="hidden sm:inline text-[10px]" style={{ color: "rgba(248,113,113,0.95)" }}>
+              <span className="hidden sm:inline text-[10px]" style={{ color: "rgba(248,113,113,0.95)" }} data-testid="bracket-submit-error">
                 {error}
               </span>
             )}
             {success && !error && (
-              <span className="hidden sm:inline text-[10px]" style={{ color: "rgba(52,211,153,0.95)" }}>
+              <span className="hidden sm:inline text-[10px]" style={{ color: "rgba(52,211,153,0.95)" }} data-testid="bracket-submit-success">
                 {t("bracket.entry.submit.success")}
               </span>
             )}
@@ -258,6 +258,7 @@ export function BracketSubmitBar({
                   ? "1px solid rgba(248,250,252,0.5)"
                   : "1px solid rgba(30,64,175,0.7)",
               }}
+              data-testid="bracket-submit-button"
             >
               {submitting ? (
                 <>

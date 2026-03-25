@@ -5,7 +5,6 @@
  */
 import type { SportType, TeamMetadata } from './types'
 import { getAllCanonicalTeams } from '@/lib/team-abbrev'
-import { prisma } from '@/lib/prisma'
 
 const ESPN_LOGO_BASE: Record<SportType, string> = {
   NFL: 'https://a.espncdn.com/i/teamlogos/nfl/500',
@@ -223,11 +222,31 @@ export async function getTeamMetadataForSportDbAware(
   options?: { limit?: number }
 ): Promise<TeamMetadata[]> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  const rows = await prisma.sportsTeam.findMany({
-    where: { sport },
-    orderBy: { fetchedAt: 'desc' },
-    take: options?.limit ?? 500,
-  })
+  if (typeof window !== 'undefined') {
+    return getTeamMetadataForSport(sport)
+  }
+
+  let rows: Array<{
+    externalId: string | null
+    shortName: string | null
+    name: string
+    city: string | null
+    conference: string | null
+    division: string | null
+    logo: string | null
+    primaryColor: string | null
+  }> = []
+
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    rows = await prisma.sportsTeam.findMany({
+      where: { sport },
+      orderBy: { fetchedAt: 'desc' },
+      take: options?.limit ?? 500,
+    })
+  } catch {
+    return getTeamMetadataForSport(sport)
+  }
 
   if (rows.length === 0) {
     return getTeamMetadataForSport(sport)

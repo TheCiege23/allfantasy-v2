@@ -7,6 +7,8 @@ export {
   getDraftViewState,
   getCurrentPickDisplay,
   getTimerDisplay,
+  getPickConfirmationLabel,
+  DRAFT_ROOM_MESSAGES,
   type DraftViewState,
   type CurrentPickDisplay,
   type TimerDisplay,
@@ -23,6 +25,7 @@ export {
   canAddToQueue,
   addToQueue,
   removeFromQueue,
+  removeFromQueueByPlayerName,
   reorderQueue,
   getNextQueuedAvailable,
   type QueuePlayer,
@@ -41,6 +44,7 @@ export {
   getLeagueDraftTabUrl,
   shouldShowWarRoomPanel,
   getWarRoomPanelTitle,
+  getWarRoomPanelDescription,
 } from './DraftWarRoomUIResolver'
 
 export {
@@ -53,5 +57,7 @@ export {
   getPositionFilterOptionsForSport,
   getDefaultRosterSlotsForSport,
   getSupportedDraftSports,
+  getDraftSportOptions,
   type PositionFilterOption,
+  type DraftSportOption,
 } from './SportDraftUIResolver'

@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
+import { isToolRankingsEnabled } from '@/lib/feature-toggle';
 
 const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' });
 
@@ -13,6 +14,13 @@ const bodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    if (!(await isToolRankingsEnabled())) {
+      return NextResponse.json(
+        { error: 'Rankings tool is temporarily disabled by platform configuration.' },
+        { status: 503 }
+      );
+    }
+
     const session = (await getServerSession(authOptions as any)) as {
       user?: { id?: string };
     } | null;

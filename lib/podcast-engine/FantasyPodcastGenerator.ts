@@ -3,6 +3,7 @@
  * Can be extended with AI or real league/waiver data.
  */
 import type { GeneratedPodcastScript, PodcastScriptSection } from "./types"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export interface GenerateOptions {
   leagueName?: string
@@ -15,7 +16,7 @@ export interface GenerateOptions {
  */
 export function generateFantasyPodcastScript(options: GenerateOptions = {}): GeneratedPodcastScript {
   const leagueName = options.leagueName ?? "your league"
-  const sport = options.sport ?? "NFL"
+  const sport = normalizeToSupportedSport(options.sport)
   const weekLabel = options.weekLabel ?? "this week"
 
   const sections: PodcastScriptSection[] = [

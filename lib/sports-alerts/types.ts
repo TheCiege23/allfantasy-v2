@@ -16,6 +16,9 @@ export interface SportsAlertPayload {
   playerName?: string | null
   sport?: string | null
   severity?: "low" | "medium" | "high"
+  /** Optional event timestamp used to measure delivery timing. */
+  triggeredAt?: string | null
+  eventId?: string | null
 }
 
 export interface UserAlertPreferences {
@@ -29,3 +32,13 @@ export const SPORTS_ALERT_TYPES: SportsAlertType[] = [
   "performance_alert",
   "lineup_alert",
 ]
+
+export interface DispatchSportsAlertResult {
+  sent: number
+  skipped: number
+  failed: number
+  targetCount: number
+  startedAt: string
+  completedAt: string
+  durationMs: number
+}

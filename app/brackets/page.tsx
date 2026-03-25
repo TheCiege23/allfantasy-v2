@@ -3,13 +3,15 @@ import Image from "next/image"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { areBracketChallengesEnabled } from "@/lib/feature-toggle"
+import { areBracketChallengesEnabled, getEnabledSports } from "@/lib/feature-toggle"
 import { Trophy, Plus, Users, ChevronRight, Star, Shield, Zap, Crown, ExternalLink, Sparkles, AlertTriangle, Scale, Heart } from "lucide-react"
 import BracketShell from "@/components/bracket/BracketShell"
+import EngagementEventTracker from "@/components/engagement/EngagementEventTracker"
 import BracketHomeTabs from "@/components/bracket/BracketHomeTabs"
 import MyPoolsTab from "@/components/bracket/MyPoolsTab"
 import BracketAICoachTab from "@/components/bracket/BracketAICoachTab"
 import CreatePoolTab from "@/components/bracket/CreatePoolTab"
+import PlayoffChallengeTab from "@/components/bracket/PlayoffChallengeTab"
 import JoinPoolTab from "@/components/bracket/JoinPoolTab"
 import StandingsTab from "@/components/bracket/StandingsTab"
 import BracketHistoryTab from "@/components/bracket/BracketHistoryTab"
@@ -17,6 +19,8 @@ import {
   buildLoginHrefWithIntent,
   buildSignupHrefWithIntent,
 } from "@/lib/auth/PostAuthIntentRouter"
+import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
 
 export const dynamic = "force-dynamic"
 
@@ -58,7 +62,8 @@ export default async function BracketsHomePage() {
               id: true,
               name: true,
               joinCode: true,
-              tournament: { select: { name: true, season: true } },
+              scoringRules: true,
+              tournament: { select: { name: true, season: true, sport: true } },
               _count: { select: { members: true, entries: true } },
             },
           },
@@ -70,9 +75,21 @@ export default async function BracketsHomePage() {
 
   const bracketSignupHref = buildSignupHrefWithIntent("/brackets")
   const bracketLoginHref = buildLoginHrefWithIntent("/brackets")
+  const enabledSports = await getEnabledSports()
+  const visibleSports = enabledSports.length > 0 ? enabledSports : SUPPORTED_SPORTS
+  const playoffSports = visibleSports.map((sport) => ({
+    sport,
+    ui: resolveBracketSportUI(sport),
+  }))
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
+      <EngagementEventTracker
+        eventType="bracket_view"
+        enabled={Boolean(userId)}
+        oncePerDayKey="brackets_home"
+        meta={{ product: "bracket" }}
+      />
       <div className="relative overflow-hidden" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, transparent) 0%, var(--bg) 100%)' }}>
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full" style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)' }} />
@@ -84,8 +101,8 @@ export default async function BracketsHomePage() {
             <div className="flex items-center gap-3">
               <Image src="/af-crest.png" alt="AllFantasy" width={40} height={40} className="rounded-xl" />
               <div>
-                <h1 className="text-xl font-bold">March Madness</h1>
-                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>NCAA Bracket Challenge</p>
+                <h1 className="text-xl font-bold">Bracket Challenges</h1>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>Multi-sport playoff and tournament pools</p>
               </div>
             </div>
             <Link
@@ -145,6 +162,7 @@ export default async function BracketsHomePage() {
                   href="/brackets/leagues/new"
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all"
                   style={{ background: '#3b82f6', boxShadow: '0 4px 14px rgba(59,130,246,0.25)' }}
+                  data-testid="bracket-create-pool-button"
                 >
                   <Plus className="w-4 h-4" />
                   Create Pool
@@ -153,6 +171,7 @@ export default async function BracketsHomePage() {
                   href="/brackets/join"
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all"
                   style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                  data-testid="bracket-join-pool-button"
                 >
                   <Users className="w-4 h-4" />
                   Join Pool
@@ -161,6 +180,7 @@ export default async function BracketsHomePage() {
                   href="/brackets/discover"
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold border transition-all"
                   style={{ borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)' }}
+                  data-testid="bracket-discover-link"
                 >
                   Discover leagues
                 </Link>
@@ -173,28 +193,69 @@ export default async function BracketsHomePage() {
                 </Link>
               </div>
 
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                    Playoff Challenge by Sport
+                  </h2>
+                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                    {playoffSports.length} sports
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {playoffSports.map(({ sport, ui }) => (
+                    <Link
+                      key={sport}
+                      href={`/brackets/leagues/new?sport=${encodeURIComponent(sport)}&challengeType=playoff_challenge`}
+                      className="rounded-xl px-3 py-2 text-xs font-semibold text-center transition flex items-center justify-center gap-2"
+                      style={{ border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.8)' }}
+                      data-testid={`bracket-playoff-sport-${sport}`}
+                    >
+                      <span
+                        className="inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[9px] font-bold"
+                        style={{ background: 'rgba(56,189,248,0.15)', color: 'rgba(186,230,253,0.95)' }}
+                      >
+                        {ui.badge}
+                      </span>
+                      <span>{ui.shortLabel}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
               {myLeagues.length > 0 ? (
                 <div className="space-y-2">
                   <h2 className="text-xs font-bold uppercase tracking-wider px-1" style={{ color: 'rgba(255,255,255,0.35)' }}>My Pools</h2>
-                  {myLeagues.map((m: any) => (
-                    <Link
-                      key={m.league.id}
-                      href={`/brackets/leagues/${m.league.id}`}
-                      className="flex items-center gap-3 p-3.5 rounded-xl transition group"
-                      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                    >
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,0.12)' }}>
-                        <Trophy className="w-5 h-5" style={{ color: '#3b82f6' }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate group-hover:text-white transition">{m.league.name}</div>
-                        <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                          {m.league._count.members} member{m.league._count.members !== 1 ? 's' : ''} &bull; {m.league._count.entries} bracket{m.league._count.entries !== 1 ? 's' : ''}
+                  {myLeagues.map((m: any) => {
+                    const sportUI = resolveBracketSportUI(m.league.tournament?.sport ?? null)
+                    const challengeLabel = resolveBracketChallengeLabel({
+                      sport: m.league.tournament?.sport,
+                      challengeType: m.league.scoringRules?.challengeType,
+                      bracketType: m.league.scoringRules?.bracketType,
+                    })
+                    return (
+                      <Link
+                        key={m.league.id}
+                        href={`/brackets/leagues/${m.league.id}`}
+                        className="flex items-center gap-3 p-3.5 rounded-xl transition group"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+                      >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,0.12)' }}>
+                          <span className="text-[10px] font-bold" style={{ color: '#7dd3fc' }}>{sportUI.badge}</span>
                         </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
-                    </Link>
-                  ))}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm truncate group-hover:text-white transition">{m.league.name}</div>
+                          <div className="text-[11px] mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                            {challengeLabel}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                            {m.league._count.members} member{m.league._count.members !== 1 ? 's' : ''} &bull; {m.league._count.entries} bracket{m.league._count.entries !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 shrink-0" style={{ color: 'rgba(255,255,255,0.2)' }} />
+                      </Link>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.08)' }}>
@@ -223,12 +284,16 @@ export default async function BracketsHomePage() {
                 name: m.league.name,
                 members: m.league._count.members,
                 entries: m.league._count.entries,
+                sport: m.league.tournament?.sport ?? "NFL",
+                challengeType: m.league.scoringRules?.challengeType ?? null,
+                bracketType: m.league.scoringRules?.bracketType ?? null,
               }))}
             />
             <BracketAICoachTab />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <CreatePoolTab />
+            <PlayoffChallengeTab />
             <JoinPoolTab />
             <StandingsTab />
             <BracketHistoryTab
@@ -236,6 +301,9 @@ export default async function BracketsHomePage() {
                 id: m.league.id,
                 name: m.league.name,
                 entries: m.league._count.entries,
+                sport: m.league.tournament?.sport ?? "NFL",
+                challengeType: m.league.scoringRules?.challengeType ?? null,
+                bracketType: m.league.scoringRules?.bracketType ?? null,
               }))}
             />
           </div>

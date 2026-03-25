@@ -35,6 +35,7 @@ import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFir
 import { TournamentLeagueHome, TournamentTeamView } from '@/components/tournament'
 import { useSession } from 'next-auth/react'
 import { getLeagueTypeMedia, normalizeLeagueTypeKey } from '@/lib/league-media/leagueTypeMedia'
+import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
 
 type LeagueSummary = { id: string; name: string }
 
@@ -185,6 +186,12 @@ export default function AppLeaguePage() {
 
   return (
     <div className="space-y-3">
+      <EngagementEventTracker
+        eventType="league_view"
+        enabled={Boolean(leagueId)}
+        oncePerDayKey={`league_view:${leagueId}`}
+        meta={{ leagueId, product: "app" }}
+      />
       {isGuillotine && (
         <GuillotineFirstEntryModal
           leagueId={leagueId}

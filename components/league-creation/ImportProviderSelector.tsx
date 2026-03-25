@@ -18,14 +18,14 @@ export function ImportProviderSelector({
 }: ImportProviderSelectorProps) {
   return (
     <div className="space-y-2">
-      <Label>Import from</Label>
+      <Label className="text-cyan-300">Import from</Label>
       <Select
         value={value ?? ''}
         onValueChange={(v) => onChange((v || null) as ImportProvider | null)}
         disabled={disabled}
       >
         <SelectTrigger
-          className="bg-gray-900 border-purple-600/40"
+          className="min-h-[50px] rounded-xl border-cyan-400/35 bg-[#030a20] text-white"
           aria-label="Import provider"
         >
           <SelectValue placeholder="Select platform" />

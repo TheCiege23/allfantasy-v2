@@ -16,7 +16,7 @@ import {
   IDP_ROSTER_PRESET_LABELS,
   IDP_SCORING_PRESET_LABELS,
   IDP_DRAFT_TYPE_LABELS,
-} from '@/lib/idp'
+} from '@/lib/idp/IDPScoringPresets'
 import { IdpRosterPreview } from '@/components/idp/IdpRosterPreview'
 
 /** Shape of roster preview returned by IDP config API (starterSlots, benchSlots, irSlots). */

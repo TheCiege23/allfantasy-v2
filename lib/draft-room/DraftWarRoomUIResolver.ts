@@ -27,3 +27,9 @@ export function shouldShowWarRoomPanel(
 export function getWarRoomPanelTitle(context: 'mock_draft' | 'league_draft'): string {
   return context === 'mock_draft' ? 'Draft War Room' : 'Legacy Draft War Room'
 }
+
+export function getWarRoomPanelDescription(context: 'mock_draft' | 'league_draft'): string {
+  return context === 'mock_draft'
+    ? 'Open advanced draft planning with queue strategy and live board context.'
+    : 'Open legacy war room planning tools for deeper draft decision support.'
+}

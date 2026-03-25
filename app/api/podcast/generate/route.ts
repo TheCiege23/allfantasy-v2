@@ -8,6 +8,7 @@ import {
   getShareUrl,
   getPlaybackUrl,
 } from "@/lib/podcast-engine/PodcastDistributionService"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}))
   const options = {
     leagueName: body.leagueName,
-    sport: body.sport,
+    sport: body.sport ? normalizeToSupportedSport(body.sport) : undefined,
     weekLabel: body.weekLabel,
   }
 
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to create episode" }, { status: 500 })
   }
 
-  const baseUrl = process.env.NEXTAUTH_URL ?? req.headers.get("x-forwarded-host") ?? ""
+  const baseUrl = process.env.NEXTAUTH_URL ?? new URL(req.url).origin
   const shareUrl = getShareUrl(episode.id, baseUrl || "https://allfantasy.ai")
   const playbackUrl = getPlaybackUrl(episode)
 

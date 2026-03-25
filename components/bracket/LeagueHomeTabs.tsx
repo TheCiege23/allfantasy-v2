@@ -132,6 +132,7 @@ export function LeagueHomeTabs(props: Props) {
               onClick={() => setActiveTab(tab.id)}
               className="relative shrink-0 px-4 py-3 text-xs font-semibold tracking-wide transition-colors sm:px-6 sm:text-sm"
               style={{ color: isActive ? 'var(--text)' : 'var(--muted2)' }}
+              data-testid={`bracket-tab-${tab.id}`}
             >
               {tab.label}
               {isActive && (
@@ -295,6 +296,7 @@ function PoolTab({
         onClick={() => setSettingsOpen(!settingsOpen)}
         className="w-full rounded-xl px-5 py-3.5 flex items-center justify-center gap-2 text-sm font-semibold transition"
         style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)' }}
+        data-testid="bracket-settings-toggle-button"
       >
         SETTINGS & RULES
         <ChevronDown className={`h-4 w-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`} />
@@ -353,6 +355,7 @@ function InviteSection({
         onClick={() => setInviteOpen(!inviteOpen)}
         className="w-full px-4 py-3 flex items-center justify-center gap-2 text-sm font-semibold"
         style={{ color: 'rgba(255,255,255,0.7)' }}
+        data-testid="bracket-invite-toggle-button"
       >
         INVITE TO POOL
         <ChevronDown className={`h-4 w-4 transition-transform ${inviteOpen ? "rotate-180" : ""}`} />
@@ -405,7 +408,7 @@ function InviteSection({
           </div>
           <div className="pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
             <p className="text-[10px] uppercase tracking-wider mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>Share via</p>
-            <LeagueInviteShareButtons inviteUrl={inviteUrl} message="Join my March Madness pool on AllFantasy!" />
+            <LeagueInviteShareButtons inviteUrl={inviteUrl} message="Join my bracket challenge pool on AllFantasy!" />
           </div>
         </div>
       )}
@@ -425,7 +428,7 @@ function normalizeScoringMode(raw: string | undefined | null): ScoringMode {
 }
 
 const SCORING_MODES: { id: ScoringMode; label: string; desc: string }[] = [
-  { id: 'fancred_edge', label: 'AF March Madness', desc: 'Upset delta + leverage bonus + insurance' },
+  { id: 'fancred_edge', label: 'AF Edge', desc: 'Upset delta + leverage bonus + insurance' },
   { id: 'momentum', label: 'Momentum', desc: 'Round base + seed-gap upset bonus' },
   { id: 'accuracy_boldness', label: 'Accuracy + Boldness', desc: 'Round base + uniqueness bonus within league' },
   { id: 'streak_survival', label: 'Streak & Survival', desc: 'Streak bonuses scaling deeper' },
@@ -595,7 +598,7 @@ function SettingsPanel({
   const scoring = getScoringTable(scoringMode)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" id="settings-rules" data-testid="bracket-settings-rules">
       <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="px-4 py-3 flex items-center gap-4 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
           <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>

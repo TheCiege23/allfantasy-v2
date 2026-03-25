@@ -296,8 +296,11 @@ export async function acceptInvite(
     }
 
     if (link.type === 'referral') {
-      const { attributeSignup } = await import('@/lib/referral')
-      await attributeSignup(userId, token)
+      const { attributeSignupToReferrer, grantRewardForSignup } = await import('@/lib/referral')
+      const attribution = await attributeSignupToReferrer(userId, link.createdByUserId)
+      if (attribution?.referrerId) {
+        await grantRewardForSignup(attribution.referrerId)
+      }
       await prisma.inviteLink.update({
         where: { id: link.id },
         data: { useCount: { increment: 1 } },

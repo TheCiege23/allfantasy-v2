@@ -254,6 +254,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                   <select
                     value={effectiveConfig.draft_type ?? 'snake'}
                     onChange={(e) => setConfigField('draft_type', e.target.value as 'snake' | 'linear' | 'auction')}
+                    data-testid="commissioner-draft-type-select"
                     className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                   >
                     <option value="snake">Snake</option>
@@ -288,6 +289,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                     max={86400}
                     value={effectiveConfig.timer_seconds ?? ''}
                     onChange={(e) => setConfigField('timer_seconds', e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                    data-testid="commissioner-draft-timer-input"
                     placeholder="—"
                     className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                   />
@@ -432,6 +434,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                     })
                   }
                 }}
+                data-testid="commissioner-draft-order-mode-select"
                 className="rounded border border-white/20 bg-black/40 px-3 py-1.5 text-sm text-white"
               >
                 <option value="randomize">Randomize</option>
@@ -822,6 +825,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
+                data-testid="commissioner-draft-save"
                 className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-4 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Save draft variant settings'}

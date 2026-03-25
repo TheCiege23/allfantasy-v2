@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import WaiverSuggestionCard from '@/app/components/WaiverSuggestionCard'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
 import type { WaiverResult } from '@/lib/types/WaiverResult'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -274,6 +275,11 @@ export default function WaiverAI() {
   return (
     <>
       <LandingToolVisitTracker path="/waiver-ai" toolName="Waiver AI" />
+      <EngagementEventTracker
+        eventType="waiver_ai"
+        oncePerDayKey={`tool_waiver_ai:${sport}`}
+        meta={{ product: "legacy", sport }}
+      />
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">

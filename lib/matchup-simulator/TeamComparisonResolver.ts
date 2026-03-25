@@ -12,6 +12,8 @@ export type ComparisonSummary = {
   underdogProb: number
   strengthSummary: string
   weaknessSummary: string
+  strengthBullets: string[]
+  weaknessBullets: string[]
 }
 
 /**
@@ -32,6 +34,8 @@ export function resolveComparisonSummary(
 
   const projA = result.projectedScoreA
   const projB = result.projectedScoreB
+  const rangeAWidth = Math.max(0, result.scoreRangeA[1] - result.scoreRangeA[0])
+  const rangeBWidth = Math.max(0, result.scoreRangeB[1] - result.scoreRangeB[0])
   const higherProj = projA >= projB ? teamAName : teamBName
   const lowerProj = projA >= projB ? teamBName : teamAName
 
@@ -40,6 +44,18 @@ export function resolveComparisonSummary(
     result.upsetChance > 5
       ? `Underdog ${underdogName} has ${result.upsetChance}% upset chance; volatility: ${result.volatilityTag}.`
       : `Score variance is ${result.volatilityTag}.`
+  const strengthBullets = [
+    `${higherProj} leads projection baseline (${Math.max(projA, projB).toFixed(1)} pts).`,
+    `${favoredName} carries ${favoredProb.toFixed(0)}% win odds in current settings.`,
+    result.upsetChance <= 15
+      ? 'Upset risk is controlled in this simulation profile.'
+      : 'Upset profile remains live, so depth and late-game variance matter.',
+  ]
+  const weaknessBullets = [
+    `${lowerProj} trails projection baseline (${Math.min(projA, projB).toFixed(1)} pts).`,
+    `${underdogName} only reaches ${underdogProb.toFixed(0)}% win odds without swing events.`,
+    `Score spread volatility: ${teamAName} ${rangeAWidth.toFixed(1)} vs ${teamBName} ${rangeBWidth.toFixed(1)}.`,
+  ]
 
   return {
     favoredName,
@@ -48,5 +64,7 @@ export function resolveComparisonSummary(
     underdogProb,
     strengthSummary,
     weaknessSummary,
+    strengthBullets,
+    weaknessBullets,
   }
 }

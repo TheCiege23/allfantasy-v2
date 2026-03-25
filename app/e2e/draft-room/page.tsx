@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { DraftRoomPageClient } from '@/components/app/draft-room/DraftRoomPageClient'
+import { DraftRoomHarnessClient } from './DraftRoomHarnessClient'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export default async function E2EDraftRoomPage(props: {
@@ -23,15 +23,6 @@ export default async function E2EDraftRoomPage(props: {
   const formatType = variant === 'IDP' || variant === 'DYNASTY_IDP' ? 'IDP' : undefined
 
   return (
-    <div className="min-h-screen">
-      <DraftRoomPageClient
-        leagueId={leagueId}
-        leagueName="E2E Draft Room"
-        sport={sport}
-        isDynasty={false}
-        isCommissioner={true}
-        formatType={formatType}
-      />
-    </div>
+    <DraftRoomHarnessClient leagueId={leagueId} sport={sport} formatType={formatType} />
   )
 }

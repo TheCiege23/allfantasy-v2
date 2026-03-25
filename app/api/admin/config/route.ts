@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/adminAuth"
-import { getFeatureTogglesSnapshot, setBoolean, setStringArray, FEATURE_KEYS } from "@/lib/feature-toggle"
+import { getFeatureTogglesSnapshot, setBoolean, setStringArray, FEATURE_KEYS, getBooleanToggleKeys } from "@/lib/feature-toggle"
 import { invalidateConfigCache } from "@/lib/feature-toggle"
+import { isSupportedSport } from "@/lib/sport-scope"
 
 export const dynamic = "force-dynamic"
 
@@ -27,12 +28,26 @@ export async function PATCH(req: NextRequest) {
       sports?: string[]
     }
     const { key, value, sports } = body
+    const booleanKeys = new Set(getBooleanToggleKeys())
+    const normalizeSports = (list: string[]): string[] =>
+      Array.from(
+        new Set(
+          list
+            .map((s) => String(s || "").trim().toUpperCase())
+            .filter((s) => isSupportedSport(s))
+        )
+      )
+
     if (Array.isArray(sports)) {
-      await setStringArray(FEATURE_KEYS.SPORTS_AVAILABILITY, sports)
+      await setStringArray(FEATURE_KEYS.SPORTS_AVAILABILITY, normalizeSports(sports))
     } else if (key === FEATURE_KEYS.SPORTS_AVAILABILITY) {
       const arr = Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : []
-      await setStringArray(key, arr)
-    } else if (typeof key === "string" && (value === true || value === false)) {
+      await setStringArray(key, normalizeSports(arr))
+    } else if (
+      typeof key === "string" &&
+      booleanKeys.has(key) &&
+      (value === true || value === false)
+    ) {
       await setBoolean(key, value)
     } else {
       return NextResponse.json({ error: "Invalid key or value" }, { status: 400 })

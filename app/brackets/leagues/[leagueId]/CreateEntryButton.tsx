@@ -54,6 +54,7 @@ export default function CreateEntryButton({
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors"
         style={{ background: 'white', color: 'black' }}
+        data-testid="bracket-create-entry-open-button"
       >
         <Plus className="h-3.5 w-3.5" />
         Create bracket
@@ -71,6 +72,7 @@ export default function CreateEntryButton({
           placeholder="e.g. My Bracket"
           disabled={loading}
           className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-sm outline-none focus:border-white/20"
+          data-testid="bracket-create-entry-name-input"
         />
 
         {tiebreakerEnabled && (
@@ -81,6 +83,7 @@ export default function CreateEntryButton({
             disabled={loading}
             inputMode="numeric"
             className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-sm outline-none focus:border-white/20"
+            data-testid="bracket-create-entry-tiebreak-input"
           />
         )}
 
@@ -90,6 +93,7 @@ export default function CreateEntryButton({
             disabled={!name.trim() || loading}
             className="rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-60 transition-colors"
             style={{ background: 'white', color: 'black' }}
+            data-testid="bracket-create-entry-submit-button"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />

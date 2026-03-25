@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
 
 export default function AlertSettingsClient() {
   const [injuryAlerts, setInjuryAlerts] = useState(true)
@@ -9,6 +8,7 @@ export default function AlertSettingsClient() {
   const [lineupAlerts, setLineupAlerts] = useState(true)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -28,6 +28,7 @@ export default function AlertSettingsClient() {
 
   async function save() {
     setSaving(true)
+    setSaved(false)
     setError(null)
     try {
       const res = await fetch("/api/alerts/preferences", {
@@ -44,6 +45,7 @@ export default function AlertSettingsClient() {
         setError(data.error ?? "Failed to save")
         return
       }
+      setSaved(true)
     } catch {
       setError("Failed to save")
     } finally {
@@ -68,7 +70,7 @@ export default function AlertSettingsClient() {
       )}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <label className="flex items-center justify-between gap-3 cursor-pointer" data-testid="sports-alert-toggle-injury">
           <span className="text-sm font-medium text-white">Player injury alerts</span>
           <input
             type="checkbox"
@@ -77,7 +79,7 @@ export default function AlertSettingsClient() {
             className="h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
           />
         </label>
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <label className="flex items-center justify-between gap-3 cursor-pointer" data-testid="sports-alert-toggle-performance">
           <span className="text-sm font-medium text-white">Game performance alerts</span>
           <input
             type="checkbox"
@@ -86,7 +88,7 @@ export default function AlertSettingsClient() {
             className="h-4 w-4 rounded border-white/20 bg-black/30 text-cyan-500 focus:ring-cyan-500"
           />
         </label>
-        <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <label className="flex items-center justify-between gap-3 cursor-pointer" data-testid="sports-alert-toggle-lineup">
           <span className="text-sm font-medium text-white">Starting lineup alerts</span>
           <input
             type="checkbox"
@@ -101,10 +103,17 @@ export default function AlertSettingsClient() {
         type="button"
         onClick={save}
         disabled={saving}
+        data-testid="sports-alert-save-button"
         className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-50"
       >
         {saving ? "Saving..." : "Save preferences"}
       </button>
+
+      {saved && (
+        <p className="text-xs text-emerald-300" data-testid="sports-alert-save-success">
+          Preferences saved.
+        </p>
+      )}
 
       <p className="text-xs text-white/40">
         Alerts appear in the notification bell and link to the relevant player or league page when you tap them.

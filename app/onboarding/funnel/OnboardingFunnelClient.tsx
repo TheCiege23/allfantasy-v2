@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -79,29 +79,50 @@ interface OnboardingFunnelClientProps {
   initialStep: OnboardingStepId
   sportOptions: { value: string; label: string }[]
   preferredSportsInitial: string[]
+  redirectOnComplete?: boolean
 }
 
 export default function OnboardingFunnelClient({
   initialStep,
   sportOptions,
   preferredSportsInitial,
+  redirectOnComplete = true,
 }: OnboardingFunnelClientProps) {
   const router = useRouter()
   const [step, setStep] = useState<OnboardingStepId>(initialStep)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [selectedSports, setSelectedSports] = useState<string[]>(preferredSportsInitial)
+  const selectedSportsRef = useRef<string[]>(preferredSportsInitial)
 
   useEffect(() => {
     setStep(initialStep)
   }, [initialStep])
 
   useEffect(() => {
-    if (step === "completed") {
+    selectedSportsRef.current = selectedSports
+  }, [selectedSports])
+
+  useEffect(() => {
+    if (step === "completed" && redirectOnComplete) {
       router.replace("/dashboard")
       return
     }
-  }, [step, router])
+  }, [step, router, redirectOnComplete])
+
+  async function recordMilestone(
+    milestone: "onboarding_sport_selection" | "onboarding_tool_visit",
+    meta?: Record<string, unknown>
+  ) {
+    try {
+      await fetch("/api/onboarding/checklist", {
+        method: "POST",
+        keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ milestone, meta }),
+      })
+    } catch {}
+  }
 
   async function advance(completeFunnel = false) {
     setLoading(true)
@@ -111,8 +132,8 @@ export default function OnboardingFunnelClient({
         step,
         ...(completeFunnel && { completeFunnel: true }),
       }
-      if (step === "sport_selection" && selectedSports.length > 0) {
-        body.preferredSports = selectedSports
+      if (step === "sport_selection") {
+        body.preferredSports = selectedSportsRef.current
       }
       const res = await fetch("/api/onboarding/funnel", {
         method: "POST",
@@ -133,9 +154,12 @@ export default function OnboardingFunnelClient({
   }
 
   function toggleSport(value: string) {
-    setSelectedSports((prev) =>
-      prev.includes(value) ? prev.filter((s) => s !== value) : [...prev, value]
-    )
+    const current = selectedSportsRef.current
+    const next = current.includes(value)
+      ? current.filter((s) => s !== value)
+      : [...current, value]
+    selectedSportsRef.current = next
+    setSelectedSports(next)
   }
 
   const stepIndex = STEP_ORDER.indexOf(step)
@@ -159,7 +183,7 @@ export default function OnboardingFunnelClient({
 
       {/* Welcome */}
       {step === "welcome" && (
-        <div className="space-y-6">
+        <div data-testid="onboarding-step-welcome" className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Welcome to AllFantasy</h2>
           <p className="text-white/80">
             We&apos;ll walk you through the app, your favorite sports, AI features, and how to find or create a league. Takes about a minute—or skip and explore on your own.
@@ -168,6 +192,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(false)}
+              data-testid="onboarding-next-welcome"
               disabled={loading}
               className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
@@ -176,6 +201,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(true)}
+              data-testid="onboarding-skip-welcome"
               disabled={loading}
               className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
@@ -187,7 +213,7 @@ export default function OnboardingFunnelClient({
 
       {/* App walkthrough */}
       {step === "app_walkthrough" && (
-        <div className="space-y-6">
+        <div data-testid="onboarding-step-app-walkthrough" className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Quick app tour</h2>
           <p className="text-white/80">
             Here&apos;s what you&apos;ll find inside AllFantasy:
@@ -212,6 +238,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(false)}
+              data-testid="onboarding-next-app-walkthrough"
               disabled={loading}
               className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
@@ -220,6 +247,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(true)}
+              data-testid="onboarding-skip-app-walkthrough"
               disabled={loading}
               className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
@@ -231,7 +259,7 @@ export default function OnboardingFunnelClient({
 
       {/* Sport selection */}
       {step === "sport_selection" && (
-        <div className="space-y-6">
+        <div data-testid="onboarding-step-sport-selection" className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Pick your favorite sports</h2>
           <p className="text-white/80">
             We&apos;ll use this to suggest leagues and personalize your experience.
@@ -242,6 +270,7 @@ export default function OnboardingFunnelClient({
                 key={opt.value}
                 type="button"
                 onClick={() => toggleSport(opt.value)}
+                data-testid={`onboarding-sport-option-${opt.value}`}
                 className={`min-h-[44px] rounded-lg border px-3 py-2 text-sm touch-manipulation ${
                   selectedSports.includes(opt.value)
                     ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
@@ -256,6 +285,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(false)}
+              data-testid="onboarding-next-sport-selection"
               disabled={loading}
               className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
@@ -264,6 +294,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(true)}
+              data-testid="onboarding-skip-sport-selection"
               disabled={loading}
               className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
@@ -275,7 +306,7 @@ export default function OnboardingFunnelClient({
 
       {/* AI features */}
       {step === "tool_suggestions" && (
-        <div className="space-y-6">
+        <div data-testid="onboarding-step-tool-suggestions" className="space-y-6">
           <h2 className="text-xl font-semibold text-white flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-cyan-400" />
             AI features to try
@@ -288,6 +319,16 @@ export default function OnboardingFunnelClient({
               <Link
                 key={href}
                 href={href}
+                data-testid={`onboarding-tool-link-${title.toLowerCase().replace(/\s+/g, "-")}`}
+                onClick={async (event) => {
+                  event.preventDefault()
+                  await recordMilestone("onboarding_tool_visit", {
+                    tool: title,
+                    href,
+                    source: "onboarding_funnel",
+                  })
+                  router.push(href)
+                }}
                 className="flex flex-col rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 hover:border-cyan-400/30 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-2">
@@ -307,6 +348,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(false)}
+              data-testid="onboarding-next-tool-suggestions"
               disabled={loading}
               className="min-h-[44px] rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 disabled:opacity-50 touch-manipulation"
             >
@@ -315,6 +357,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(true)}
+              data-testid="onboarding-skip-tool-suggestions"
               disabled={loading}
               className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >
@@ -326,7 +369,7 @@ export default function OnboardingFunnelClient({
 
       {/* League suggest */}
       {step === "league_prompt" && (
-        <div className="space-y-6">
+        <div data-testid="onboarding-step-league-prompt" className="space-y-6">
           <h2 className="text-xl font-semibold text-white">Create or join a league</h2>
           <p className="text-white/80">
             You&apos;re all set. Create your own league, discover leagues we suggest based on your sports, or join one with a code.
@@ -334,12 +377,14 @@ export default function OnboardingFunnelClient({
           <div className="flex flex-col gap-3">
             <Link
               href="/create-league"
+              data-testid="onboarding-league-create-link"
               className="min-h-[44px] inline-flex items-center justify-center rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-600 text-center touch-manipulation"
             >
               Create league
             </Link>
             <Link
               href="/app/discover"
+              data-testid="onboarding-league-discover-link"
               className="min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/50 px-4 py-2.5 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20 text-center touch-manipulation"
             >
               <Sparkles className="h-4 w-4" />
@@ -347,6 +392,7 @@ export default function OnboardingFunnelClient({
             </Link>
             <Link
               href="/brackets/leagues/new"
+              data-testid="onboarding-league-create-bracket-link"
               className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/20 px-4 py-2.5 text-sm font-medium text-white/90 hover:bg-white/10 text-center touch-manipulation"
             >
               Create bracket pool
@@ -356,6 +402,7 @@ export default function OnboardingFunnelClient({
             <button
               type="button"
               onClick={() => advance(true)}
+              data-testid="onboarding-skip-league-prompt"
               disabled={loading}
               className="min-h-[44px] rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
             >

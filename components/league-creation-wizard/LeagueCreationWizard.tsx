@@ -86,7 +86,7 @@ const SportSummaryCard = dynamic(
 
 function StepPanelSkeleton() {
   return (
-    <div className="min-h-[140px] flex items-center justify-center text-white/50 text-sm" aria-hidden>
+    <div className="min-h-[140px] flex items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/60 text-sm" aria-hidden>
       Loading…
     </div>
   )
@@ -758,8 +758,8 @@ export function LeagueCreationWizard({
   }, [creationPreset?.defaultLeagueSettings, state.sport, state.leagueVariant, state.scoringPreset])
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6 min-h-0 flex flex-col">
-      <div className="rounded-xl border border-white/10 bg-black/20 p-4 sm:p-5 flex flex-col min-h-0">
+    <div className="mx-auto max-w-lg px-0 py-1 min-h-0 flex flex-col">
+      <div className="rounded-[28px] border border-cyan-400/25 bg-[#050f29]/75 p-4 sm:p-5 shadow-[0_0_0_1px_rgba(0,255,220,0.06)_inset] backdrop-blur-sm flex flex-col min-h-0">
         <WizardStepContainer
           stepNumber={currentStepNumber}
           totalSteps={totalSteps}

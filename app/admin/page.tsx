@@ -84,6 +84,7 @@ function parseTab(tab?: string | string[]): AdminTab {
     "audit",
     "features",
     "system",
+    "providers",
   ];
   return allowed.includes(t as AdminTab) ? (t as AdminTab) : "overview";
 }

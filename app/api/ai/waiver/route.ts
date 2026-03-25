@@ -20,6 +20,7 @@ import { getInsightBundle } from '@/lib/ai-simulation-integration';
 import { assertLeagueMember } from '@/lib/league-access';
 import { getOpenAIConfig, openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client';
 import { logAiOutput } from '@/lib/ai/output-logger';
+import { isAIAssistantEnabled, isToolWaiverAIEnabled } from '@/lib/feature-toggle';
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string().optional(),
@@ -61,6 +62,13 @@ async function getLegacyContext(sleeperUsername: string) {
 
 export const POST = withApiUsage({ endpoint: "/api/ai/waiver", tool: "AiWaiver" })(async (request: NextRequest) => {
   try {
+    if (!(await isAIAssistantEnabled()) || !(await isToolWaiverAIEnabled())) {
+      return NextResponse.json(
+        { error: 'Waiver AI is temporarily disabled by platform configuration.' },
+        { status: 503 }
+      )
+    }
+
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

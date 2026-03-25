@@ -7,8 +7,7 @@ import {
   type SportSlug,
 } from '@/lib/seo-landing/config'
 import SportLandingClient from './SportLandingClient'
-
-const BASE = 'https://allfantasy.ai'
+import { buildMetadata } from '@/lib/seo'
 
 export async function generateStaticParams() {
   return SPORT_SLUGS.map((sport) => ({ sport }))
@@ -21,28 +20,21 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { sport } = await params
   const config = SPORT_CONFIG[sport as SportSlug]
-  if (!config) return { title: 'AllFantasy – Fantasy Sports Tools' }
+  if (!config) {
+    return buildMetadata({
+      title: 'AllFantasy – Fantasy Sports Tools',
+      description: 'AI-powered fantasy sports tools and league management.',
+      canonical: 'https://allfantasy.ai/tools-hub',
+    })
+  }
 
   const canonical = getSportCanonical(config.slug)
-  return {
+  return buildMetadata({
     title: config.title,
     description: config.description,
     keywords: config.keywords,
-    alternates: { canonical },
-    openGraph: {
-      title: config.title,
-      description: config.description,
-      url: canonical,
-      siteName: 'AllFantasy',
-      type: 'website',
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: config.title,
-      description: config.description,
-    },
-    robots: { index: true, follow: true },
-  }
+    canonical,
+  })
 }
 
 export default async function SportPage({

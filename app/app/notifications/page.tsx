@@ -40,6 +40,10 @@ function getIcon(type: string) {
   return TYPE_ICONS[type] ?? Bell
 }
 
+function toSafeTestId(raw: string) {
+  return raw.replace(/[^a-zA-Z0-9_-]/g, "-")
+}
+
 function formatTime(
   iso: string,
   formatTimeInTimezone: (date: Date | string | number) => string,
@@ -83,6 +87,7 @@ export default function NotificationsPage() {
           <button
             type="button"
             onClick={() => markAllAsRead()}
+            data-testid="notification-mark-all-read"
             className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors hover:bg-black/5"
             style={{ borderColor: "var(--border)", color: "var(--accent-cyan-strong)" }}
           >
@@ -147,6 +152,7 @@ export default function NotificationsPage() {
                     {items.map((n) => {
                       const Icon = getIcon(n.type)
                       const destination = getNotificationDestination(n)
+                      const safeId = toSafeTestId(n.id)
                       const rowClassName = "flex items-start gap-3 px-4 py-3 transition-colors hover:bg-black/5"
                       const rowStyle = {
                         background: n.read ? "transparent" : "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
@@ -179,11 +185,20 @@ export default function NotificationsPage() {
                               {!n.read ? (
                                 <button
                                   type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                  }}
+                                  onPointerDown={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                  }}
                                   onClick={(event) => {
                                     event.preventDefault()
                                     event.stopPropagation()
                                     void markAsRead(n.id)
                                   }}
+                                  data-testid={`notification-dismiss-${safeId}`}
                                   className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium"
                                   style={{ color: "var(--accent-cyan-strong)" }}
                                 >
@@ -207,9 +222,14 @@ export default function NotificationsPage() {
                         </>
                       )
                       return (
-                        <li key={n.id}>
+                        <li key={n.id} data-testid={`notification-item-${safeId}`}>
                           {destination ? (
-                            <Link href={destination.href} className={rowClassName} style={rowStyle}>
+                            <Link
+                              href={destination.href}
+                              className={rowClassName}
+                              style={rowStyle}
+                              data-testid={`notification-link-${safeId}`}
+                            >
                               {inner}
                             </Link>
                           ) : (

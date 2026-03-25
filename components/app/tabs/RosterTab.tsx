@@ -84,7 +84,8 @@ export default function RosterTab({ leagueId }: LeagueTabProps) {
   return (
     <TabDataState title="Roster" loading={loading} error={error} onReload={() => void reload()}>
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
+        <RosterBoard leagueId={leagueId} />
+        <div className="hidden sm:grid gap-3 sm:grid-cols-3">
           <MetricCard label="Total Players" value={totalPlayers} />
           <MetricCard label="FAAB" value={faabRemaining} />
           <MetricCard
@@ -93,10 +94,9 @@ export default function RosterTab({ leagueId }: LeagueTabProps) {
             hint="Lower is earlier in rolling waivers."
           />
         </div>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-          <RosterBoard leagueId={leagueId} />
+        <div className="hidden md:grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div className="space-y-3">
-            <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-3 text-[11px] text-cyan-100">
+            <div className="rounded-2xl border border-cyan-300/25 bg-[#031027]/75 p-3 text-[11px] text-cyan-100">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold">Roster strategy widget</p>
                 <div className="flex items-center gap-2">
@@ -149,7 +149,9 @@ export default function RosterTab({ leagueId }: LeagueTabProps) {
                 View strategy details
               </Link>
             </div>
-            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+          </div>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-amber-300/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
               <p className="font-semibold text-xs">Flexible roster enforcement</p>
               <p className="mt-1">
                 This lineup view lets you organize starters, bench, IR, taxi, and devy locally. Platform

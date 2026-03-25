@@ -55,9 +55,9 @@ export function LeagueCreationSportSelector({
 }: LeagueCreationSportSelectorProps) {
   const selectedMedia = SPORT_MEDIA[value];
   return (
-    <div className="space-y-3">
-      <Label>Sport</Label>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="space-y-4">
+      <Label className="text-cyan-300">Sport</Label>
+      <div className="grid gap-3 sm:grid-cols-2">
         {LEAGUE_SPORTS.map((s) => (
           <button
             key={s}
@@ -65,22 +65,22 @@ export function LeagueCreationSportSelector({
             onClick={() => onChange(s)}
             disabled={disabled}
             data-testid={`league-creation-sport-${s.toLowerCase()}`}
-            className={`group relative overflow-hidden rounded-xl border text-left transition ${
+            className={`group relative overflow-hidden rounded-2xl border text-left transition ${
               value === s
-                ? 'border-cyan-400/40 bg-cyan-400/10'
+                ? 'border-cyan-300 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(0,255,220,0.22)_inset]'
                 : 'border-white/15 bg-black/25 hover:bg-white/[0.05]'
             } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             <img
               src={SPORT_MEDIA[s].image}
               alt={`${SPORT_LABELS[s]} thumbnail`}
-              className="h-20 w-full object-cover opacity-75"
+              className="h-24 w-full object-cover opacity-75"
               onError={(event) => {
                 event.currentTarget.src = SPORT_MEDIA[s].thumbFallback;
               }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-2">
+            <div className="absolute inset-x-0 bottom-0 p-3">
               <p className="text-xs uppercase tracking-[0.14em] text-white/75">{SPORT_EMOJI[s]} {s}</p>
               <p className="text-sm font-semibold text-white">{SPORT_LABELS[s]}</p>
             </div>
@@ -88,12 +88,12 @@ export function LeagueCreationSportSelector({
         ))}
       </div>
 
-      <div className="rounded-xl border border-white/15 bg-black/30 p-3">
-        <p className="text-xs uppercase tracking-[0.14em] text-white/65">Selected sport preview</p>
+      <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected sport preview</p>
         <p className="mt-1 text-sm text-white/85">{SPORT_LABELS[value]}</p>
         <video
           key={selectedMedia.video}
-          className="mt-3 h-44 w-full rounded-lg border border-white/10 bg-black object-cover"
+          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
           src={selectedMedia.video}
           poster={selectedMedia.image}
           autoPlay
@@ -111,7 +111,7 @@ export function LeagueCreationSportSelector({
       </div>
 
       {showHelper && (
-        <p className="text-white/50 text-xs mt-1">
+        <p className="text-white/55 text-xs mt-1">
           <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring. <strong className="text-white/70">IDP</strong> is an NFL preset — choose NFL, then pick a preset below such as Standard, PPR, Superflex, IDP, or Dynasty IDP. Selecting a preset updates roster and scoring automatically.
         </p>
       )}

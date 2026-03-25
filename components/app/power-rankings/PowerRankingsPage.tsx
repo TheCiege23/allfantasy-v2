@@ -58,7 +58,11 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
       onReload={() => void load()}
     >
       {data && (
-        <div className="space-y-4" data-audit="power-rankings-content">
+        <div
+          className="space-y-4"
+          data-audit="rankings-tab-content"
+          data-testid="power-rankings-content"
+        >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-white">
               Week {data.week} Power Rankings

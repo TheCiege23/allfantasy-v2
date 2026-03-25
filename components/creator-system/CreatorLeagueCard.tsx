@@ -48,6 +48,7 @@ export function CreatorLeagueCard({ league, onShare, showJoinButton = true }: Cr
       <div className="flex items-center gap-2 shrink-0">
         <Link
           href={leagueHref}
+          data-testid={`creator-league-view-${league.id}`}
           className="rounded-lg border px-3 py-2 text-sm font-medium"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >
@@ -56,6 +57,7 @@ export function CreatorLeagueCard({ league, onShare, showJoinButton = true }: Cr
         {showJoinButton && !league.isMember && (
           <Link
             href={joinHref}
+            data-testid={`creator-league-join-${league.id}`}
             className="rounded-lg px-3 py-2 text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'var(--bg)' }}
           >
@@ -70,6 +72,7 @@ export function CreatorLeagueCard({ league, onShare, showJoinButton = true }: Cr
         <button
           type="button"
           onClick={handleShare}
+          data-testid={`creator-league-share-${league.id}`}
           className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >

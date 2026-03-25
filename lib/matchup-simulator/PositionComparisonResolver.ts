@@ -3,12 +3,21 @@
  * Uses sport-scope for supported sports; returns position labels and optional per-position advantage.
  */
 
-import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 export type PositionSlot = {
   id: string
   label: string
   order: number
+}
+
+export type PositionComparisonRow = {
+  slotId: string
+  slotLabel: string
+  teamAScore: number
+  teamBScore: number
+  advantage: 'A' | 'B' | 'even'
+  edgeLabel: string
 }
 
 /** Position labels by sport (common fantasy slots). */
@@ -85,9 +94,66 @@ const POSITIONS_BY_SPORT: Record<SupportedSport, PositionSlot[]> = {
  * Get ordered position slots for a sport (for position comparison block).
  */
 export function getPositionSlotsForSport(sport: string): PositionSlot[] {
-  const key = (SUPPORTED_SPORTS as readonly string[]).includes(sport?.toUpperCase())
-    ? (sport.toUpperCase() as SupportedSport)
-    : 'NFL'
+  const key = normalizeToSupportedSport(sport) as SupportedSport
   const slots = POSITIONS_BY_SPORT[key] ?? POSITIONS_BY_SPORT.NFL
   return [...slots].sort((a, b) => a.order - b.order)
+}
+
+function getSlotWeight(slotId: string): number {
+  if (slotId === 'QB' || slotId === 'PG' || slotId === 'SP' || slotId === 'GKP') return 1.25
+  if (slotId === 'RB' || slotId === 'WR' || slotId === 'MID' || slotId === 'C') return 1.1
+  if (slotId === 'TE' || slotId === 'PF' || slotId === 'DEF' || slotId === 'D') return 0.95
+  if (slotId === 'K' || slotId === 'DST' || slotId === 'RP') return 0.8
+  return 1
+}
+
+/**
+ * Build deterministic position comparison rows using team projection means and variance.
+ * This powers the "position-by-position comparison" block even when full player-level splits are unavailable.
+ */
+export function buildPositionComparisonRows(input: {
+  sport: string
+  teamAMean: number
+  teamBMean: number
+  teamAStdDev?: number
+  teamBStdDev?: number
+  maxRows?: number
+}): PositionComparisonRow[] {
+  const slots = getPositionSlotsForSport(input.sport)
+  const limitedSlots = slots.slice(0, Math.max(1, input.maxRows ?? slots.length))
+  const totalWeight = limitedSlots.reduce((sum, slot) => sum + getSlotWeight(slot.id), 0) || 1
+
+  const stdA = Math.max(1, input.teamAStdDev ?? 12)
+  const stdB = Math.max(1, input.teamBStdDev ?? 12)
+
+  return limitedSlots.map((slot, index) => {
+    const weight = getSlotWeight(slot.id)
+    const allocation = weight / totalWeight
+    const volatilityNudgeA = stdA * allocation * 0.22
+    const volatilityNudgeB = stdB * allocation * 0.22
+    const orderNudge = (limitedSlots.length - index - 1) * 0.06
+
+    const teamAScoreRaw = input.teamAMean * allocation + volatilityNudgeA + orderNudge
+    const teamBScoreRaw = input.teamBMean * allocation + volatilityNudgeB + (index % 2 === 0 ? 0 : 0.08)
+
+    const teamAScore = Math.round(teamAScoreRaw * 10) / 10
+    const teamBScore = Math.round(teamBScoreRaw * 10) / 10
+    const delta = teamAScore - teamBScore
+    const absDelta = Math.abs(delta)
+    const advantage: PositionComparisonRow['advantage'] =
+      absDelta < 0.2 ? 'even' : delta > 0 ? 'A' : 'B'
+    const edgeLabel =
+      advantage === 'even'
+        ? 'Even'
+        : `${advantage === 'A' ? 'Team A' : 'Team B'} +${absDelta.toFixed(1)}`
+
+    return {
+      slotId: slot.id,
+      slotLabel: slot.label,
+      teamAScore,
+      teamBScore,
+      advantage,
+      edgeLabel,
+    }
+  })
 }

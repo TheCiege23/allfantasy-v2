@@ -4,7 +4,11 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { openaiChatText } from '@/lib/openai-client'
 import { prisma } from '@/lib/prisma'
-import { buildDisputeContext } from '@/lib/ai-commissioner'
+import {
+  buildDisputeContext,
+  explainTradeFairnessInsight,
+  getTradeFairnessByTradeId,
+} from '@/lib/ai-commissioner'
 import { buildAIPrestigeContext } from '@/lib/prestige-governance/AIPrestigeContextResolver'
 import { getUnifiedManagerSummary } from '@/lib/prestige-governance/UnifiedPrestigeQueryService'
 
@@ -26,9 +30,47 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = (await req.json().catch(() => ({}))) as Partial<{ alertId: string }>
+  const body = (await req.json().catch(() => ({}))) as Partial<{ alertId: string; tradeId: string }>
   const alertId = String(body.alertId ?? '').trim()
-  if (!alertId) return NextResponse.json({ error: 'alertId is required' }, { status: 400 })
+  const tradeId = String(body.tradeId ?? '').trim()
+  if (!alertId && !tradeId) {
+    return NextResponse.json({ error: 'alertId or tradeId is required' }, { status: 400 })
+  }
+
+  if (tradeId && !alertId) {
+    const tradeInsight = await getTradeFairnessByTradeId({ leagueId, tradeId })
+    if (!tradeInsight) return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
+
+    const fallback = explainTradeFairnessInsight(tradeInsight)
+    const ai = await openaiChatText({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an AI fantasy commissioner assistant. Explain trade fairness in 3-5 concise sentences with league-safe guidance. Include why the fairness score matters and what commissioner follow-up is appropriate.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            leagueId,
+            tradeFairness: tradeInsight,
+          }),
+        },
+      ],
+      temperature: 0.3,
+      maxTokens: 280,
+    }).catch(() => null)
+
+    return NextResponse.json({
+      narrative: ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback,
+      source: ai?.ok && ai.text?.trim() ? 'ai' : 'template',
+      context: {
+        leagueId,
+        type: 'trade_fairness',
+        tradeFairness: tradeInsight,
+      },
+    })
+  }
 
   const alert = await prisma.aiCommissionerAlert.findFirst({
     where: { alertId, leagueId },

@@ -35,7 +35,7 @@ export function Leaderboard({ tournamentId, leagueId }: { tournamentId: string; 
   }, [standings])
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 backdrop-blur p-4">
+    <div className="rounded-2xl border border-white/10 bg-black/20 backdrop-blur p-4" data-testid="bracket-leaderboard-panel">
       <div className="flex items-center justify-between">
         <div className="text-lg font-semibold text-white">Leaderboard</div>
         <div className="text-xs text-gray-300">Live</div>

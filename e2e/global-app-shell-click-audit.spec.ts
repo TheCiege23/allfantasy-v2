@@ -5,6 +5,12 @@ test.describe("@db @shell global app shell click audit", () => {
   test.describe.configure({ timeout: 180_000, mode: "serial" })
 
   test("audits global shell interactions across desktop and mobile", async ({ page }) => {
+    const runAuthedShellE2E = process.env.PLAYWRIGHT_ENABLE_AUTH_DB_E2E === "1"
+    test.skip(
+      !runAuthedShellE2E,
+      "Set PLAYWRIGHT_ENABLE_AUTH_DB_E2E=1 in a DB-configured environment to run authenticated shell/routing E2E."
+    )
+
     await registerAndLogin(page)
 
     const profileState: Record<string, unknown> = {

@@ -6,14 +6,20 @@
 export {
   getBracketViewState,
   getBracketProgressDisplay,
+  getBracketLockStateMessage,
   type BracketViewState,
   type BracketProgressDisplay,
 } from './BracketChallengeViewService'
 
 export {
   DEFAULT_REGION_ORDER,
+  CLASSIC_REGION_SET,
   getRoundLabel,
   getRoundShortLabel,
+  getAdaptiveRoundLabel,
+  getAdaptiveRoundShortLabel,
+  getBracketRoundList,
+  isClassicRegionalBoard,
   getBracketCellKey,
 } from './BracketBoardRenderer'
 
@@ -49,5 +55,11 @@ export {
   getSignUpNextForCreate,
   getLoginNextForJoin,
 } from './BracketNavigationController'
+
+export {
+  resolveBracketSportUI,
+  resolveBracketChallengeLabel,
+  type BracketSportUI,
+} from './BracketSportUIResolver'
 
 export type { BracketNodeLike } from './types'

@@ -3,18 +3,15 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import {
-  DraftRoomShell,
-  DraftTopBar,
-  DraftManagerStrip,
-  DraftBoard,
-  SportAwareDraftRoom,
-  QueuePanel,
-  DraftChatPanel,
-  DraftHelperPanel,
-  type MobileDraftTab,
-  type PlayerEntry,
-} from '@/components/app/draft-room'
+import { DraftRoomShell, type MobileDraftTab } from '@/components/app/draft-room/DraftRoomShell'
+import { DraftTopBar } from '@/components/app/draft-room/DraftTopBar'
+import { DraftManagerStrip } from '@/components/app/draft-room/DraftManagerStrip'
+import { DraftBoard } from '@/components/app/draft-room/DraftBoard'
+import { SportAwareDraftRoom } from '@/components/app/draft-room/SportAwareDraftRoom'
+import { QueuePanel } from '@/components/app/draft-room/QueuePanel'
+import { DraftChatPanel } from '@/components/app/draft-room/DraftChatPanel'
+import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
+import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
 
 const DraftPickTradePanel = dynamic(
   () => import('@/components/app/draft-room/DraftPickTradePanel').then((m) => ({ default: m.DraftPickTradePanel })),
@@ -40,7 +37,7 @@ import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/t
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
-import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { canAddToQueue, getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
 
 export type DraftRoomPageClientProps = {
@@ -105,6 +102,7 @@ export function DraftRoomPageClient({
   const [recommendationLoading, setRecommendationLoading] = useState(false)
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
   const [runAiPickLoading, setRunAiPickLoading] = useState(false)
+  const [resyncLoading, setResyncLoading] = useState(false)
   const [showCommissionerModal, setShowCommissionerModal] = useState(false)
   const [showTradePanel, setShowTradePanel] = useState(false)
   const [pendingTradesCount, setPendingTradesCount] = useState(0)
@@ -635,12 +633,15 @@ export function DraftRoomPageClient({
   )
 
   const handleResync = useCallback(() => {
-    fetchSession()
-    fetchDraftSettings()
-    fetchQueue()
-    fetchChat()
-    fetchDraftPool()
-    fetchPendingTradesCount()
+    setResyncLoading(true)
+    Promise.all([
+      fetchSession(),
+      fetchDraftSettings(),
+      fetchQueue(),
+      fetchChat(),
+      fetchDraftPool(),
+      fetchPendingTradesCount(),
+    ]).finally(() => setResyncLoading(false))
   }, [fetchSession, fetchDraftSettings, fetchQueue, fetchChat, fetchDraftPool, fetchPendingTradesCount])
 
   const handleRunAiPick = useCallback(async () => {
@@ -839,6 +840,14 @@ export function DraftRoomPageClient({
 
   const handleAddToQueue = useCallback(
     (player: PlayerEntry) => {
+      if (
+        !canAddToQueue(
+          queue.map((entry) => ({ name: entry.playerName, position: entry.position, team: entry.team ?? null })),
+          { name: player.name, position: player.position, team: player.team ?? null }
+        )
+      ) {
+        return
+      }
       const entry: QueueEntry = {
         playerName: player.name,
         position: player.position,
@@ -915,7 +924,7 @@ export function DraftRoomPageClient({
 
   if (loading && !session) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="flex min-h-[50vh] items-center justify-center" data-testid="draft-room-loading-state">
         <p className="text-white/70">Loading draft room…</p>
       </div>
     )
@@ -923,7 +932,7 @@ export function DraftRoomPageClient({
 
   if (!session) {
     return (
-      <div className="container mx-auto max-w-md px-4 py-12 text-center">
+      <div className="container mx-auto max-w-md px-4 py-12 text-center" data-testid="draft-room-empty-state">
         <p className="text-white/80">No draft session for this league.</p>
         <p className="mt-2 text-sm text-white/50">
           Commissioner can create and start a draft from league settings or the draft tab.
@@ -1050,9 +1059,9 @@ export function DraftRoomPageClient({
       topBar={
         <>
           {pickError && (
-            <div className="flex items-center justify-between gap-2 border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          <div className="flex items-center justify-between gap-2 border-b border-red-400/30 bg-red-500/10 px-4 py-2 text-sm text-red-100">
               <span>{pickError}</span>
-              <button type="button" onClick={() => setPickError(null)} className="rounded px-2 py-1 text-red-300 hover:bg-red-500/20" aria-label="Dismiss">×</button>
+              <button type="button" onClick={() => setPickError(null)} className="rounded px-2 py-1 text-red-200 hover:bg-red-500/20" aria-label="Dismiss">×</button>
             </div>
           )}
           <DraftTopBar
@@ -1087,6 +1096,9 @@ export function DraftRoomPageClient({
             }
             onUseQueue={handleAutopickExpired}
             useQueueLoading={autopickExpiredLoading}
+            onResync={handleResync}
+            resyncLoading={resyncLoading}
+            backHref={`/app/league/${leagueId}`}
           />
         </>
       }
@@ -1118,6 +1130,7 @@ export function DraftRoomPageClient({
           keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
           devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
           c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
+          currentOverallPick={currentPick?.overall ?? null}
         />
       }
       playerPanel={
@@ -1199,7 +1212,7 @@ export function DraftRoomPageClient({
       onMobileTabChange={setMobileTab}
     />
     {showCommissionerModal && isCommissioner && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Commissioner control center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Commissioner control center" data-testid="draft-commissioner-overlay">
         <div className="w-full max-w-md max-h-[90vh] overflow-auto">
           <CommissionerControlCenterModal
             leagueId={leagueId}
@@ -1218,7 +1231,7 @@ export function DraftRoomPageClient({
       </div>
     )}
     {showTradePanel && session && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Draft pick trades">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Draft pick trades" data-testid="draft-trade-panel-overlay">
         <div className="w-full max-w-lg max-h-[85vh] overflow-hidden">
           <DraftPickTradePanel
             leagueId={leagueId}
@@ -1237,11 +1250,11 @@ export function DraftRoomPageClient({
       </div>
     )}
     {showBroadcastModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Broadcast to leagues">
-        <div className="w-full max-w-md rounded-xl border border-white/15 bg-gray-900 p-4 shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Broadcast to leagues" data-testid="draft-broadcast-overlay">
+        <div className="w-full max-w-md rounded-xl border border-white/12 bg-[#070f21] p-4 shadow-xl" data-testid="draft-broadcast-modal">
           <h3 className="mb-3 text-sm font-semibold text-white">@everyone Broadcast</h3>
           <p className="mb-2 text-[10px] text-white/60">Select leagues to send the message to.</p>
-          <div className="mb-3 max-h-40 overflow-y-auto rounded border border-white/10 p-2">
+          <div className="mb-3 max-h-40 overflow-y-auto rounded border border-white/12 bg-black/20 p-2">
             {commissionerLeagues.map((l) => (
               <label key={l.id} className="flex cursor-pointer items-center gap-2 py-1 text-xs text-white">
                 <input
@@ -1256,6 +1269,7 @@ export function DraftRoomPageClient({
                     })
                   }}
                   className="rounded border-white/20"
+                  data-testid={`draft-broadcast-league-${l.id}`}
                 />
                 {l.name || l.id}
               </label>
@@ -1265,14 +1279,16 @@ export function DraftRoomPageClient({
             value={broadcastMessage}
             onChange={(e) => setBroadcastMessage(e.target.value)}
             placeholder="Message to send as @everyone"
-            className="mb-3 w-full rounded border border-white/15 bg-black/40 px-2 py-1.5 text-xs text-white placeholder:text-white/40"
+            className="mb-3 w-full rounded border border-white/12 bg-black/30 px-2 py-1.5 text-xs text-white placeholder:text-white/40"
             rows={3}
+            data-testid="draft-broadcast-message-input"
           />
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setShowBroadcastModal(false)}
-              className="rounded border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+              data-testid="draft-broadcast-cancel"
+              className="rounded border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
             >
               Cancel
             </button>
@@ -1280,7 +1296,8 @@ export function DraftRoomPageClient({
               type="button"
               onClick={handleBroadcastSubmit}
               disabled={broadcastSending || broadcastSelectedIds.size === 0 || !broadcastMessage.trim()}
-              className="rounded bg-amber-500/20 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
+              data-testid="draft-broadcast-send"
+              className="rounded border border-amber-400/35 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
             >
               {broadcastSending ? 'Sending…' : 'Send'}
             </button>

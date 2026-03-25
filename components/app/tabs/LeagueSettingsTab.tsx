@@ -6,6 +6,7 @@ import GeneralSettingsPanel from '@/components/app/settings/GeneralSettingsPanel
 import TeamSettingsPanel from '@/components/app/settings/TeamSettingsPanel'
 import RosterSettingsPanel from '@/components/app/settings/RosterSettingsPanel'
 import ScoringSettingsPanel from '@/components/app/settings/ScoringSettingsPanel'
+import TradeSettingsPanel from '@/components/app/settings/TradeSettingsPanel'
 import DraftSettingsPanel from '@/components/app/settings/DraftSettingsPanel'
 import AISettingsPanel from '@/components/app/settings/AISettingsPanel'
 import AutomationSettingsPanel from '@/components/app/settings/AutomationSettingsPanel'
@@ -39,6 +40,7 @@ const SUBTABS_BASE = [
   'Team Settings',
   'Roster Settings',
   'Scoring Settings',
+  'Trade Settings',
   'Dynasty Settings',
   'Draft Settings',
   'AI Settings',
@@ -133,8 +135,9 @@ export default function LeagueSettingsTab({
       {active === 'Templates' && <LeagueTemplatesPanel leagueId={leagueId} />}
       {active === 'Privacy & invites' && <LeaguePrivacyAndInvitesPanel leagueId={leagueId} />}
       {active === 'Team Settings' && <TeamSettingsPanel />}
-      {active === 'Roster Settings' && <RosterSettingsPanel />}
+      {active === 'Roster Settings' && <RosterSettingsPanel leagueId={leagueId} />}
       {active === 'Scoring Settings' && <ScoringSettingsPanel leagueId={leagueId} />}
+      {active === 'Trade Settings' && <TradeSettingsPanel leagueId={leagueId} />}
       {active === 'Dynasty Settings' && (
         <DynastySettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
       )}
@@ -145,7 +148,7 @@ export default function LeagueSettingsTab({
       {active === 'Playoff Settings' && <PlayoffSettingsPanel leagueId={leagueId} />}
       {active === 'Schedule Settings' && <ScheduleSettingsPanel leagueId={leagueId} />}
       {active === 'Division Settings' && <DivisionSettingsPanel />}
-      {active === 'Member Settings' && <MemberSettingsPanel />}
+      {active === 'Member Settings' && <MemberSettingsPanel leagueId={leagueId} />}
       {active === 'Commissioner Controls' && <CommissionerControlsPanel leagueId={leagueId} />}
       {active === 'Behavior Profiles' && <BehaviorProfilesPanel leagueId={leagueId} />}
       {active === 'League Drama' && <LeagueDramaPanel leagueId={leagueId} />}

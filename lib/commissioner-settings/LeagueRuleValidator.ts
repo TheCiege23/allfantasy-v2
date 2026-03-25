@@ -46,10 +46,35 @@ export function validateRosterSettings(patch: LeagueSettingsPatch): ValidationRe
       return { valid: false, error: "League size must be between 2 and 32" }
     }
   }
+  if (patch.benchSize !== undefined && patch.benchSize != null) {
+    const n = Number(patch.benchSize)
+    if (!Number.isInteger(n) || n < 0 || n > 60) {
+      return { valid: false, error: "Bench size must be between 0 and 60" }
+    }
+  }
+  if (patch.rosterPositions !== undefined && patch.rosterPositions != null) {
+    if (!Array.isArray(patch.rosterPositions)) {
+      return { valid: false, error: "Roster positions must be an array" }
+    }
+    if (patch.rosterPositions.length > 30) {
+      return { valid: false, error: "Roster positions can include up to 30 entries" }
+    }
+    const hasInvalid = patch.rosterPositions.some((p) => typeof p !== "string" || p.trim().length === 0 || p.trim().length > 24)
+    if (hasInvalid) {
+      return { valid: false, error: "Each roster position must be a non-empty string up to 24 characters" }
+    }
+  }
   return { valid: true }
 }
 
 export function validateTradeSettings(patch: LeagueSettingsPatch): ValidationResult {
+  if (patch.tradeReviewType !== undefined && patch.tradeReviewType != null) {
+    const normalized = String(patch.tradeReviewType).trim().toLowerCase()
+    const allowed = new Set(["none", "commissioner", "league_vote", "instant"])
+    if (!allowed.has(normalized)) {
+      return { valid: false, error: "Trade review type must be one of: none, commissioner, league_vote, instant" }
+    }
+  }
   if (patch.vetoThreshold !== undefined && patch.vetoThreshold != null) {
     const n = Number(patch.vetoThreshold)
     if (!Number.isInteger(n) || n < 0 || n > 100) {

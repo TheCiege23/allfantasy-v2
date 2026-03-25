@@ -1,10 +1,14 @@
 import Link from 'next/link'
+import { resolveBracketChallengeLabel, resolveBracketSportUI } from '@/lib/bracket-challenge'
 
 type PoolItem = {
   id: string
   name: string
   members: number
   entries: number
+  sport: string
+  challengeType?: string | null
+  bracketType?: string | null
 }
 
 export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
@@ -27,13 +31,34 @@ export default function MyPoolsTab({ pools }: { pools: PoolItem[] }) {
               </tr>
             </thead>
             <tbody>
-              {pools.slice(0, 6).map((p) => (
-                <tr key={p.id} className="border-t border-white/10">
-                  <td className="px-3 py-2"><Link href={`/brackets/leagues/${p.id}`} className="hover:underline">{p.name}</Link></td>
-                  <td className="px-3 py-2">{p.members}</td>
-                  <td className="px-3 py-2">{p.entries}</td>
-                </tr>
-              ))}
+              {pools.slice(0, 6).map((p) => {
+                const sportUI = resolveBracketSportUI(p.sport)
+                const challengeLabel = resolveBracketChallengeLabel({
+                  sport: p.sport,
+                  challengeType: p.challengeType,
+                  bracketType: p.bracketType,
+                })
+                return (
+                  <tr key={p.id} className="border-t border-white/10">
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col gap-1">
+                        <Link href={`/brackets/leagues/${p.id}`} className="hover:underline">
+                          {p.name}
+                        </Link>
+                        <div className="inline-flex items-center gap-1 text-[10px] text-white/60">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-1.5 py-0.5 text-cyan-200/90">
+                            <span className="font-semibold">{sportUI.badge}</span>
+                            <span>{sportUI.shortLabel}</span>
+                          </span>
+                          <span>{challengeLabel}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">{p.members}</td>
+                    <td className="px-3 py-2">{p.entries}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

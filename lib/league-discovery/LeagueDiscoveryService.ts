@@ -320,6 +320,8 @@ export async function discoverLeagues(input: DiscoverLeaguesInput): Promise<Disc
       name: lg.name,
       joinCode: lg.joinCode,
       sport: lg.tournament?.sport ?? "NFL",
+      challengeType: typeof rules.challengeType === "string" ? rules.challengeType : null,
+      bracketType: typeof rules.bracketType === "string" ? rules.bracketType : null,
       season: lg.tournament?.season ?? 0,
       tournamentName: lg.tournament?.name ?? "",
       tournamentId: lg.tournamentId,

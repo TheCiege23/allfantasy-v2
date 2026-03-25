@@ -9,6 +9,7 @@ import { getDefaultOgImagePath } from "./SEOPageResolver"
 
 const BASE = "https://allfantasy.ai"
 const SITE_NAME = "AllFantasy"
+const INSTALL_PATH = "/install"
 
 export interface MetadataInput extends SEOPageConfig {
   imagePath?: string
@@ -18,11 +19,26 @@ export interface MetadataInput extends SEOPageConfig {
 export function buildMetadata(input: MetadataInput): Metadata {
   const imagePath = input.imagePath ?? getDefaultOgImagePath()
   const imageUrl = imagePath.startsWith("http") ? imagePath : `${BASE}${imagePath}`
+  const canonical = input.canonical || `${BASE}${INSTALL_PATH}`
   return {
     title: input.title,
     description: input.description,
+    applicationName: SITE_NAME,
+    category: "sports",
     keywords: input.keywords,
     alternates: input.canonical ? { canonical: input.canonical } : undefined,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: SITE_NAME,
+      statusBarStyle: "black-translucent",
+    },
+    appLinks: {
+      web: {
+        url: canonical,
+        should_fallback: true,
+      },
+    },
     openGraph: {
       title: input.title,
       description: input.description,
@@ -35,6 +51,12 @@ export function buildMetadata(input: MetadataInput): Metadata {
       card: "summary_large_image",
       title: input.title,
       description: input.description,
+      images: [imageUrl],
+    },
+    other: {
+      "mobile-web-app-capable": "yes",
+      "apple-mobile-web-app-capable": "yes",
+      "theme-color": "#020617",
     },
     robots: input.noIndex ? { index: false, follow: true } : { index: true, follow: true },
   }

@@ -29,6 +29,8 @@ const SETTINGS_KEYS = [
   "leagueChatThreadId",
   "tradeReviewType",
   "vetoThreshold",
+  "benchSize",
+  "rosterPositions",
 ] as const
 
 export async function getLeagueConfiguration(leagueId: string): Promise<LeagueConfigurationView | null> {

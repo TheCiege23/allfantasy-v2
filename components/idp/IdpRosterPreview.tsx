@@ -5,7 +5,7 @@
  */
 
 import { useMemo } from 'react'
-import { IDP_POSITION_MODE_LABELS, IDP_ROSTER_PRESET_LABELS } from '@/lib/idp'
+import { IDP_POSITION_MODE_LABELS, IDP_ROSTER_PRESET_LABELS } from '@/lib/idp/IDPScoringPresets'
 
 interface SlotSummary {
   offense: Array<{ slot: string; count: number }>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import AIToolSeoLanding from '@/components/seo/AIToolSeoLanding'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
 import { AI_TOOL_PAGES, getAIToolPageCanonical, getAIToolPageJsonLd } from '@/lib/seo-landing/ai-tool-pages'
 import { buildSeoMeta } from '@/lib/seo'
 
@@ -19,6 +20,11 @@ export default function TradeAnalyzerPage() {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <LandingToolVisitTracker path="/trade-analyzer" toolName="Trade Analyzer" />
+      <EngagementEventTracker
+        eventType="trade_analyzer"
+        oncePerDayKey="tool_trade_analyzer"
+        meta={{ product: "legacy" }}
+      />
       <AIToolSeoLanding config={config} />
     </>
   )

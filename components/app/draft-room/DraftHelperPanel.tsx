@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { Sparkles, RefreshCw, MessageCircle, AlertTriangle } from 'lucide-react'
 import { getDraftAIChatUrl, buildAskChimmyAboutPickPrompt } from '@/lib/draft-room/DraftToAIContextBridge'
+import { DRAFT_WAR_ROOM_LEGACY_URL, getWarRoomPanelDescription, getWarRoomPanelTitle } from '@/lib/draft-room'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -52,6 +54,7 @@ export function DraftHelperPanel({
   onRefresh,
   onPlayerClick,
 }: DraftHelperPanelProps) {
+  const [warRoomOpen, setWarRoomOpen] = useState(false)
   const chimmyPrompt = buildAskChimmyAboutPickPrompt({
     sport,
     round,
@@ -70,8 +73,8 @@ export function DraftHelperPanel({
   })
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/12 bg-black/25">
-      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]">
+      <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-semibold text-white">AI Draft Helper</span>
@@ -80,7 +83,8 @@ export function DraftHelperPanel({
           type="button"
           onClick={onRefresh}
           disabled={loading}
-          className="rounded border border-white/20 p-1.5 text-white/70 hover:bg-white/10 disabled:opacity-50"
+          data-testid="draft-helper-refresh"
+          className="rounded border border-white/15 bg-black/20 p-1.5 text-white/70 hover:bg-white/10 disabled:opacity-50"
           aria-label="Refresh recommendation"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -100,7 +104,7 @@ export function DraftHelperPanel({
               tabIndex={0}
               onClick={() => onPlayerClick?.(recommendation.player)}
               onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(recommendation.player)}
-              className="mb-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-2 text-left"
+            className="mb-2 rounded-lg border border-cyan-300/30 bg-cyan-500/8 px-2.5 py-2 text-left"
             >
               <p className="font-medium text-cyan-200">
                 {recommendation.player.name}
@@ -119,13 +123,13 @@ export function DraftHelperPanel({
             {(reachWarning || valueWarning || scarcityInsight || byeNote) && (
               <div className="mb-2 space-y-1">
                 {reachWarning && (
-                  <p className="flex items-start gap-1 text-[10px] text-amber-400">
+                  <p className="flex items-start gap-1 text-[10px] text-amber-300">
                     <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
                     {reachWarning}
                   </p>
                 )}
                 {valueWarning && (
-                  <p className="flex items-start gap-1 text-[10px] text-emerald-400">
+                  <p className="flex items-start gap-1 text-[10px] text-emerald-300">
                     <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
                     {valueWarning}
                   </p>
@@ -159,7 +163,7 @@ export function DraftHelperPanel({
                       tabIndex={0}
                       onClick={() => onPlayerClick?.(alt.player)}
                       onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(alt.player)}
-                      className="rounded border border-white/10 px-2 py-1 text-[10px] text-white/80 hover:bg-white/5 cursor-pointer"
+                      className="rounded border border-white/10 bg-[#0a1228] px-2 py-1 text-[10px] text-white/80 hover:bg-white/5 cursor-pointer"
                     >
                       {alt.player.name} ({alt.player.position}) — {alt.reason}
                     </li>
@@ -171,7 +175,8 @@ export function DraftHelperPanel({
               href={chimmyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 rounded border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1.5 text-[10px] text-cyan-200 hover:bg-cyan-500/25"
+              data-testid="draft-ai-suggestion-button"
+              className="mt-2 inline-flex items-center gap-1.5 rounded border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] text-cyan-100 hover:bg-cyan-500/20"
             >
               <MessageCircle className="h-3.5 w-3.5" />
               Ask Chimmy about this pick
@@ -183,6 +188,31 @@ export function DraftHelperPanel({
             Add players to the pool and click Refresh for a recommendation.
           </p>
         )}
+        <div className="mt-2 border-t border-white/8 pt-2">
+          <button
+            type="button"
+            data-testid="draft-open-war-room-button"
+            onClick={() => setWarRoomOpen((open) => !open)}
+            className="rounded border border-violet-400/35 bg-violet-500/10 px-2.5 py-1.5 text-[10px] text-violet-100 hover:bg-violet-500/20"
+          >
+            {warRoomOpen ? 'Close war room' : 'Open war room'}
+          </button>
+          {warRoomOpen && (
+            <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/8 px-2.5 py-2 text-[10px]" data-testid="draft-war-room-panel">
+              <p className="font-medium text-violet-100">{getWarRoomPanelTitle('league_draft')}</p>
+              <p className="mt-1 text-violet-200/90">{getWarRoomPanelDescription('league_draft')}</p>
+              <a
+                href={DRAFT_WAR_ROOM_LEGACY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="draft-war-room-link"
+                className="mt-2 inline-flex rounded border border-violet-300/35 px-2 py-1 text-violet-100 hover:bg-violet-500/20"
+              >
+                Launch war room
+              </a>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   )

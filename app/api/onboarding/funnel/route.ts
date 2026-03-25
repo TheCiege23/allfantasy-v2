@@ -2,12 +2,14 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import {
+  ONBOARDING_STEPS,
   getOnboardingState,
   advanceOnboardingStep,
   completeOnboardingFunnel,
   setPreferredSports,
 } from "@/lib/onboarding-funnel"
 import type { OnboardingStepId } from "@/lib/onboarding-funnel"
+import { recordMilestone } from "@/lib/onboarding-retention"
 
 export const dynamic = "force-dynamic"
 
@@ -54,15 +56,7 @@ export async function POST(req: Request) {
   const completeFunnel = !!body.completeFunnel
   const preferredSports = body.preferredSports as string[] | undefined
 
-  const validSteps: OnboardingStepId[] = [
-    "welcome",
-    "app_walkthrough",
-    "sport_selection",
-    "tool_suggestions",
-    "league_prompt",
-    "completed",
-  ]
-  if (!step || !validSteps.includes(step)) {
+  if (!step || !ONBOARDING_STEPS.includes(step)) {
     return NextResponse.json(
       { error: "Invalid step", nextStep: step ?? "welcome" },
       { status: 400 }
@@ -76,6 +70,12 @@ export async function POST(req: Request) {
         { error: saveResult.error ?? "Failed to save preferences" },
         { status: 400 }
       )
+    }
+    if (preferredSports.length > 0) {
+      void recordMilestone(session.user.id, "onboarding_sport_selection", {
+        source: "onboarding_funnel",
+        sportsCount: preferredSports.length,
+      })
     }
   }
 

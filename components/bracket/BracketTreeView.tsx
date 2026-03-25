@@ -3,7 +3,15 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { Trophy, Sparkles, Zap, Info, Check, X, ZoomIn, ZoomOut, Maximize2, Clock, Shield } from "lucide-react"
 import { useBracketLive } from "@/lib/hooks/useBracketLive"
-import { isPickLocked, computeEffectiveTeams, cascadeClearInvalidPicks } from "@/lib/bracket-challenge"
+import {
+  isPickLocked,
+  computeEffectiveTeams,
+  cascadeClearInvalidPicks,
+  getAdaptiveRoundLabel,
+  getAdaptiveRoundShortLabel,
+  getBracketRoundList,
+  isClassicRegionalBoard,
+} from "@/lib/bracket-challenge"
 import { MatchupCardOverlay } from "./MatchupCardOverlay"
 
 type Game = {
@@ -246,6 +254,7 @@ function MiniCell({
           paddingRight: 4,
           gap: 3,
         }}
+        data-testid={`bracket-pick-team-${node.id}-${side}`}
       >
         {seed != null && (
           <span style={{ fontSize: 9, fontWeight: 700, color: seedColor(isSleeper), width: 10, flexShrink: 0 }}>
@@ -315,6 +324,7 @@ function MiniCell({
         cursor: 'pointer',
       }}
       onDoubleClick={() => onMatchupClick?.(node)}
+      data-testid={`bracket-game-cell-${node.id}`}
     >
       <TeamRow name={homeName} seed={homeSeed} isPicked={homePicked} side="home" correct={homeCorrect} busted={homeWrongOrBusted} isUpset={homeIsUpsetPick} />
       <TeamRow name={awayName} seed={awaySeed} isPicked={awayPicked} side="away" correct={awayCorrect} busted={awayWrongOrBusted} isUpset={awayIsUpsetPick} />
@@ -338,6 +348,7 @@ function MiniCell({
             fontSize: 8,
             zIndex: 5,
           }}
+          data-testid={`bracket-insurance-toggle-${node.id}`}
         >
           <Shield style={{ width: 8, height: 8, color: isInsured ? '#34d399' : 'rgba(255,255,255,0.25)' }} />
         </button>
@@ -367,7 +378,7 @@ export function BracketTreeView({
   initialInsuredNodeId,
   insuranceAllowedRounds,
 }: Props) {
-  const { data: live } = useBracketLive({ tournamentId, leagueId, enabled: true, intervalMs: 15000 })
+  const { data: live, refresh } = useBracketLive({ tournamentId, leagueId, enabled: true, intervalMs: 15000 })
 
   const [picks, setPicks] = useState<Record<string, string | null>>(initialPicks)
   const [savingNode, setSavingNode] = useState<string | null>(null)
@@ -398,6 +409,9 @@ export function BracketTreeView({
   }, [nodes, live?.games])
 
   const effective = useMemo(() => computeEffectiveTeams(nodesWithLive, picks), [nodesWithLive, picks])
+  const roundList = useMemo(() => getBracketRoundList(nodesWithLive), [nodesWithLive])
+  const maxRound = roundList.length ? roundList[roundList.length - 1] : 0
+  const classicRegionalBoard = useMemo(() => isClassicRegionalBoard(nodesWithLive), [nodesWithLive])
 
   const sleeperTeams = useMemo(() => {
     const teams = (live as any)?.sleeperTeams as string[] | undefined
@@ -647,6 +661,116 @@ export function BracketTreeView({
     return nodesWithLive.find((n) => n.id === selectedNode) ?? null
   }, [selectedNode, nodesWithLive])
 
+  const roundNodesMap = useMemo(() => {
+    const grouped = new Map<number, Node[]>()
+    for (const round of roundList) grouped.set(round, [])
+    for (const node of nodesWithLive) {
+      if (node.round < 1) continue
+      const bucket = grouped.get(node.round)
+      if (bucket) bucket.push(node)
+    }
+    for (const [, bucket] of grouped) {
+      bucket.sort((a, b) => a.slot.localeCompare(b.slot))
+    }
+    return grouped
+  }, [nodesWithLive, roundList])
+
+  function renderGenericBoard() {
+    return (
+      <div className="rounded-xl border border-white/10 bg-[#0a1228]/85 p-3" data-testid="bracket-generic-board">
+        <div className="mb-2 text-[10px] uppercase tracking-[0.12em]" style={{ color: "rgba(148,163,184,0.9)" }}>
+          Playoff Challenge Board
+        </div>
+        <div className="overflow-x-auto" data-testid="bracket-mobile-navigation">
+          <div className="flex items-start gap-3 min-w-max pr-2">
+            {roundList.map((round) => {
+              const roundNodes = roundNodesMap.get(round) ?? []
+              return (
+                <div
+                  key={`round-${round}`}
+                  className="w-[240px] shrink-0 rounded-lg border border-white/10 bg-[#060b1a]/90 p-2.5"
+                  data-testid={`bracket-round-column-${round}`}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold" style={{ color: "rgba(226,232,240,0.92)" }}>
+                      {getAdaptiveRoundLabel(round, maxRound)}
+                    </span>
+                    <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.85)" }}>
+                      {getAdaptiveRoundShortLabel(round, maxRound)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {roundNodes.map((node) => {
+                      const eff = effective.get(node.id)
+                      const homeName = eff?.home ?? node.homeTeamName
+                      const awayName = eff?.away ?? node.awayTeamName
+                      const picked = picks[node.id] ?? null
+                      const locked = Boolean(readOnly || isPickLocked(node))
+                      const { winner, isComplete } = getGameResult(node)
+
+                      const renderTeamButton = (teamName: string | null, side: "home" | "away") => {
+                        const selected = !!teamName && picked === teamName
+                        const isWinner = !!teamName && isComplete && winner === teamName
+                        const disabled = locked || !teamName
+                        return (
+                          <button
+                            type="button"
+                            key={`${node.id}-${side}`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (!teamName || disabled) return
+                              submitPick(node, teamName)
+                            }}
+                            disabled={disabled}
+                            className="w-full rounded-md px-2 py-1.5 text-left text-[11px] transition disabled:opacity-45"
+                            style={{
+                              border: `1px solid ${selected ? "rgba(56,189,248,0.6)" : "rgba(148,163,184,0.25)"}`,
+                              background: selected ? "rgba(56,189,248,0.14)" : "rgba(15,23,42,0.85)",
+                              color: isWinner ? "#86efac" : "rgba(226,232,240,0.9)",
+                            }}
+                            data-testid={`bracket-pick-team-${node.id}-${side}`}
+                          >
+                            <span className="truncate block">{teamName ?? "TBD"}</span>
+                          </button>
+                        )
+                      }
+
+                      return (
+                        <div
+                          key={node.id}
+                          className="w-full rounded-md border border-white/10 bg-[#040915] p-2 text-left"
+                          onClick={() => setSelectedNode(node.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setSelectedNode(node.id)
+                            }
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          data-testid={`bracket-game-cell-${node.id}`}
+                        >
+                          <div className="mb-1 flex items-center justify-between text-[10px]" style={{ color: "rgba(148,163,184,0.8)" }}>
+                            <span>{node.slot}</span>
+                            {locked ? <span data-testid={`bracket-lock-state-${node.id}`}>Locked</span> : <span>Open</span>}
+                          </div>
+                          <div className="space-y-1">
+                            {renderTeamButton(homeName, "home")}
+                            {renderTeamButton(awayName, "away")}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function renderRegionCells(
     region: string,
     direction: 'ltr' | 'rtl',
@@ -795,9 +919,9 @@ export function BracketTreeView({
       `}} />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-base font-bold">My Bracket</h2>
+          <h2 className="text-base font-bold" data-testid="bracket-board-title">My Bracket</h2>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.15)' }}>
-            <span className="text-xs font-bold" style={{ color: '#fb923c' }}>{totalPicks}</span>
+            <span className="text-xs font-bold" style={{ color: '#fb923c' }} data-testid="bracket-picked-count">{totalPicks}</span>
             <span className="text-xs" style={{ color: 'rgba(255,255,255,0.2)' }}>/</span>
             <span className="text-xs font-bold" style={{ color: 'rgba(255,255,255,0.4)' }}>{totalGames}</span>
           </div>
@@ -813,15 +937,32 @@ export function BracketTreeView({
             background: isSaving ? 'rgba(251,146,60,0.08)' : 'rgba(15,23,42,0.8)',
             border: isSaving ? '1px solid rgba(251,146,60,0.4)' : '1px solid rgba(148,163,184,0.5)',
             color: isSaving ? '#fb923c' : 'rgba(148,163,184,0.9)',
-          }}>
+          }} data-testid="bracket-save-state">
             {isSaving ? 'Saving picks…' : 'All changes saved'}
           </div>
+          <button
+            onClick={() => refresh()}
+            className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: 'rgba(56,189,248,0.1)', color: 'rgba(186,230,253,0.95)', border: '1px solid rgba(56,189,248,0.22)' }}
+            data-testid="bracket-refresh-button"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={() => refresh()}
+            className="flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-all"
+            style={{ background: 'rgba(56,189,248,0.08)', color: 'rgba(186,230,253,0.9)', border: '1px solid rgba(56,189,248,0.16)' }}
+            data-testid="bracket-save-picks-button"
+          >
+            Save picks
+          </button>
           {!readOnly && totalPicks < totalGames && (
             <button
               onClick={autoFill}
               disabled={autoFilling}
               className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
               style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.2)' }}
+              data-testid="bracket-auto-fill-button"
             >
               <Zap className="w-3.5 h-3.5" />
               {autoFilling ? 'Filling...' : 'Auto-Fill'}
@@ -884,7 +1025,8 @@ export function BracketTreeView({
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, background: progressPct === 100 ? '#22c55e' : '#fb923c' }} />
       </div>
 
-      <div>
+      {classicRegionalBoard ? (
+      <div data-testid="bracket-classic-board">
         <div className="flex items-center gap-2 mb-2 justify-between flex-wrap">
           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'rgba(148,163,184,0.9)' }}>
             <span>View:</span>
@@ -1115,6 +1257,9 @@ export function BracketTreeView({
           </div>
         </div>
       </div>
+      ) : (
+        renderGenericBoard()
+      )}
 
       {selectedNodeData && (
         <MatchupCardOverlay

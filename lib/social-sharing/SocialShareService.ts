@@ -57,6 +57,17 @@ export function getFacebookShareUrl(shareUrl: string): string {
 }
 
 /**
+ * Reddit share URL.
+ */
+export function getRedditShareUrl(shareUrl: string, title: string): string {
+  const params = new URLSearchParams({
+    url: shareUrl,
+    title: title.slice(0, 300),
+  });
+  return `https://www.reddit.com/submit?${params.toString()}`;
+}
+
+/**
  * Full payload for copy link (title + URL).
  */
 export function getCopyLinkPayload(shareUrl: string, title: string): string {
@@ -69,7 +80,14 @@ export function getCopyLinkPayload(shareUrl: string, title: string): string {
 export function getAchievementSharePayload(
   type: AchievementShareType,
   context: AchievementShareContext = {}
-): { shareUrl: string; title: string; text: string; twitterUrl: string; facebookUrl: string } {
+): {
+  shareUrl: string;
+  title: string;
+  text: string;
+  twitterUrl: string;
+  facebookUrl: string;
+  redditUrl: string;
+} {
   const shareUrl = getAchievementShareUrl(type, context);
   const content = getShareContent(type, context);
   const text = formatShareText(content);
@@ -79,5 +97,6 @@ export function getAchievementSharePayload(
     text,
     twitterUrl: getTwitterShareUrl(shareUrl, content.text),
     facebookUrl: getFacebookShareUrl(shareUrl),
+    redditUrl: getRedditShareUrl(shareUrl, content.title),
   };
 }

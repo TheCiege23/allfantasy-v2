@@ -49,6 +49,7 @@ export function CreatorLeagueDiscoveryCard({ league }: CreatorLeagueDiscoveryCar
           {creatorHandle ? (
             <Link
               href={`/creators/${encodeURIComponent(creatorHandle)}`}
+              data-testid={`creator-discovery-profile-link-${creatorHandle}`}
               className="font-medium text-sm hover:opacity-90"
               style={{ color: "var(--text)" }}
             >
@@ -156,6 +157,7 @@ export function CreatorLeagueDiscoveryCard({ league }: CreatorLeagueDiscoveryCar
       >
         <Link
           href={league.detailUrl}
+          data-testid={`creator-discovery-view-${league.id}`}
           className="rounded-lg border px-3 py-2.5 min-h-[44px] inline-flex items-center justify-center text-sm font-medium transition-colors hover:bg-white/5 touch-manipulation"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
@@ -164,6 +166,7 @@ export function CreatorLeagueDiscoveryCard({ league }: CreatorLeagueDiscoveryCar
         {!isFull ? (
           <Link
             href={league.joinUrl}
+            data-testid={`creator-discovery-join-${league.id}`}
             onClick={() =>
               trackDiscoveryJoinClick({
                 leagueId: league.id,
@@ -189,6 +192,7 @@ export function CreatorLeagueDiscoveryCard({ league }: CreatorLeagueDiscoveryCar
         {league.creatorSlug && (
           <Link
             href={`/creators/${encodeURIComponent(league.creatorSlug)}`}
+            data-testid={`creator-discovery-footer-profile-link-${league.creatorSlug}`}
             className="text-sm font-medium ml-auto"
             style={{ color: "var(--accent)" }}
           >

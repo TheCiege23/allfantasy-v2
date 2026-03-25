@@ -44,4 +44,5 @@ export interface UserInterests {
   sports: string[]
   leagueIds: string[]
   creatorLeagueIds?: string[]
+  preferredFeedTypes?: FeedItemType[]
 }

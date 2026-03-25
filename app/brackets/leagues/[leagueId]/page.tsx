@@ -8,7 +8,8 @@ import BracketShell from "@/components/bracket/BracketShell"
 import BracketLeagueSummaryCards from "@/components/bracket/BracketLeagueSummaryCards"
 import { LeagueCreatorBadge } from "@/components/creator/LeagueCreatorBadge"
 import { DiscoveryViewTracker } from "@/components/discovery/DiscoveryViewTracker"
-import { Trophy, Settings, ArrowLeft } from "lucide-react"
+import { Settings, ArrowLeft } from "lucide-react"
+import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
 
 export default async function LeagueDetailPage({
   params,
@@ -46,7 +47,7 @@ export default async function LeagueDetailPage({
         <div className="text-center space-y-4">
           <p className="mode-muted">You&apos;re not a member of this pool.</p>
           <Link href="/brackets" className="text-sm hover:underline" style={{ color: "var(--accent)" }}>
-            Back to March Madness
+            Back to Bracket Challenges
           </Link>
         </div>
       </div>
@@ -95,6 +96,12 @@ export default async function LeagueDetailPage({
 
   const rules = (league.scoringRules || {}) as any
   const scoringMode = String(rules.scoringMode || 'standard')
+  const sportUI = resolveBracketSportUI(league.tournament?.sport ?? null)
+  const challengeLabel = resolveBracketChallengeLabel({
+    bracketType: rules?.bracketType,
+    challengeType: rules?.challengeType,
+    sport: league.tournament?.sport,
+  })
 
   return (
     <div className="mode-surface mode-readable min-h-screen">
@@ -111,17 +118,23 @@ export default async function LeagueDetailPage({
               href="/brackets"
               className="inline-flex items-center justify-center w-8 h-8 rounded-full transition"
               style={{ background: "color-mix(in srgb, var(--panel2) 88%, transparent)", color: "var(--muted)" }}
+              data-testid="bracket-league-back-button"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "color-mix(in srgb, var(--accent) 16%, transparent)" }}>
-                <Trophy className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{sportUI.badge}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg sm:text-xl font-bold truncate">
                   {league.name}
                 </h1>
+                <div className="flex items-center gap-1.5 text-[11px] mode-muted">
+                  <span>{challengeLabel}</span>
+                  <span>·</span>
+                  <span>{league.tournament?.season}</span>
+                </div>
                 <LeagueCreatorBadge leagueId={league.id} />
               </div>
             </div>

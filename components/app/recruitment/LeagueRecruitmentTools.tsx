@@ -1,12 +1,18 @@
 "use client"
 
 import { useState, useCallback, useEffect } from "react"
-import { Link2, Copy, RefreshCw, AtSign, Mail, Globe, Loader2, Check } from "lucide-react"
+import { Link2, Copy, RefreshCw, AtSign, Mail, Globe, Loader2, Check, MessageCircle } from "lucide-react"
+import { buildInviteShareUrl } from "@/lib/invite-engine/shareUrls"
 
 export interface LeagueRecruitmentToolsProps {
   leagueId: string
   /** Initial invite from parent (joinUrl, inviteCode). */
-  initialInvite?: { joinUrl: string | null; inviteCode: string | null } | null
+  initialInvite?: {
+    joinUrl: string | null
+    inviteCode: string | null
+    inviteExpiresAt?: string | null
+    inviteExpired?: boolean
+  } | null
   /** Whether current user is commissioner. */
   isCommissioner: boolean
 }
@@ -17,6 +23,7 @@ export function LeagueRecruitmentTools({
   isCommissioner,
 }: LeagueRecruitmentToolsProps) {
   const [invite, setInvite] = useState(initialInvite ?? null)
+  const [invitePanelOpen, setInvitePanelOpen] = useState(true)
   const [loadingInvite, setLoadingInvite] = useState(!initialInvite)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState(false)
@@ -32,6 +39,18 @@ export function LeagueRecruitmentTools({
 
   const base = `/api/commissioner/leagues/${encodeURIComponent(leagueId)}`
   const joinUrl = invite?.joinUrl ?? (invite?.inviteCode ? `${typeof window !== "undefined" ? window.location.origin : ""}/join?code=${encodeURIComponent(invite.inviteCode)}` : null)
+  const inviteExpired =
+    invite?.inviteExpired ?? (invite?.inviteExpiresAt ? new Date(invite.inviteExpiresAt).getTime() < Date.now() : false)
+  const inviteShareMessage = "Join my fantasy league on AllFantasy!"
+  const smsShareUrl = joinUrl ? buildInviteShareUrl(joinUrl, "sms", { message: inviteShareMessage }) : ""
+  const emailShareUrl = joinUrl
+    ? buildInviteShareUrl(joinUrl, "email", {
+        message: inviteShareMessage,
+        subject: "Join my fantasy league on AllFantasy",
+      })
+    : ""
+  const twitterShareUrl = joinUrl ? buildInviteShareUrl(joinUrl, "twitter", { message: inviteShareMessage }) : ""
+  const redditShareUrl = joinUrl ? buildInviteShareUrl(joinUrl, "reddit", { message: inviteShareMessage }) : ""
 
   const fetchInvite = useCallback(async () => {
     setLoadingInvite(true)
@@ -43,7 +62,12 @@ export function LeagueRecruitmentTools({
         setInviteError(typeof data?.error === "string" ? data.error : "Failed to load invite link.")
         return
       }
-      setInvite({ joinUrl: data.joinUrl ?? null, inviteCode: data.inviteCode ?? null })
+      setInvite({
+        joinUrl: data.joinUrl ?? null,
+        inviteCode: data.inviteCode ?? null,
+        inviteExpiresAt: data.inviteExpiresAt ?? null,
+        inviteExpired: !!data.inviteExpired,
+      })
     } finally {
       setLoadingInvite(false)
     }
@@ -77,7 +101,12 @@ export function LeagueRecruitmentTools({
         setInviteError(typeof data?.error === "string" ? data.error : "Failed to regenerate invite link.")
         return
       }
-      setInvite({ joinUrl: data.joinUrl ?? data.inviteLink ?? null, inviteCode: data.inviteCode ?? null })
+      setInvite({
+        joinUrl: data.joinUrl ?? data.inviteLink ?? null,
+        inviteCode: data.inviteCode ?? null,
+        inviteExpiresAt: data.inviteExpiresAt ?? null,
+        inviteExpired: !!data.inviteExpired,
+      })
     } finally {
       setRegenerating(false)
     }
@@ -170,44 +199,129 @@ export function LeagueRecruitmentTools({
 
       {/* Invite link */}
       <div>
-        <h4 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-          Invite link
-        </h4>
-        {loadingInvite ? (
-          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--muted)" }}>
-            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={joinUrl ?? ""}
-                className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
-                style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
-              />
-              <button
-                type="button"
-                onClick={copyLink}
-                disabled={!joinUrl}
-                className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
-                style={{ borderColor: "var(--border)", color: "var(--text)" }}
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {copied ? "Copied" : "Copy link"}
-              </button>
-              <button
-                type="button"
-                onClick={regenerate}
-                disabled={regenerating}
-                className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
-                style={{ borderColor: "var(--border)", color: "var(--text)" }}
-              >
-                {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Regenerate
-              </button>
-            </div>
+        <button
+          type="button"
+          onClick={() => setInvitePanelOpen((prev) => !prev)}
+          data-testid="league-invite-button"
+          className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
+          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          <Link2 className="h-4 w-4" />
+          {invitePanelOpen ? "Hide invite options" : "Invite members"}
+        </button>
+        {invitePanelOpen && (
+          <div className="space-y-2 mt-3">
+            <h4 className="text-xs font-medium uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              Invite link
+            </h4>
+            {loadingInvite ? (
+              <div className="flex items-center gap-2 text-sm" style={{ color: "var(--muted)" }}>
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={joinUrl ?? ""}
+                    className="min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm max-w-md"
+                    style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={copyLink}
+                    disabled={!joinUrl}
+                    data-testid="league-copy-invite-link"
+                    className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
+                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? "Copied" : "Copy link"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={regenerate}
+                    disabled={regenerating}
+                    data-testid="league-regenerate-invite-link"
+                    className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
+                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  >
+                    {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Regenerate
+                  </button>
+                </div>
+                {joinUrl && (
+                  <a
+                    href={joinUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="league-open-join-link"
+                    className="inline-flex items-center gap-1.5 text-xs underline"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Open join link preview
+                  </a>
+                )}
+                {invite?.inviteExpiresAt && (
+                  <p className="text-xs" style={{ color: inviteExpired ? "var(--destructive)" : "var(--muted)" }}>
+                    Invite expires: {new Date(invite.inviteExpiresAt).toLocaleString()}
+                    {inviteExpired ? " (expired)" : ""}
+                  </p>
+                )}
+                {joinUrl && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={smsShareUrl}
+                      data-testid="league-share-sms"
+                      className="rounded-lg border px-2.5 py-1.5 text-xs inline-flex items-center gap-1"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      SMS
+                    </a>
+                    <a
+                      href={emailShareUrl}
+                      data-testid="league-share-email"
+                      className="rounded-lg border px-2.5 py-1.5 text-xs inline-flex items-center gap-1"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      Email
+                    </a>
+                    <a
+                      href={twitterShareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="league-share-twitter"
+                      className="rounded-lg border px-2.5 py-1.5 text-xs"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      Twitter/X
+                    </a>
+                    <a
+                      href={redditShareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="league-share-reddit"
+                      className="rounded-lg border px-2.5 py-1.5 text-xs"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      Reddit
+                    </a>
+                    <button
+                      type="button"
+                      onClick={copyLink}
+                      data-testid="league-share-discord"
+                      className="rounded-lg border px-2.5 py-1.5 text-xs"
+                      style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                    >
+                      Discord (copy link)
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {inviteError && (
               <p className="text-xs" style={{ color: "var(--destructive)" }}>
                 {inviteError}

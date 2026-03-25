@@ -30,7 +30,7 @@ export function StepHelp({ title, children, className }: StepHelpProps) {
           title={title}
           aria-label="Help"
           className={cn(
-            'inline-flex size-5 shrink-0 rounded-full text-white/40 hover:text-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50',
+            'inline-flex size-6 shrink-0 rounded-full border border-white/15 bg-white/5 text-white/55 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/50',
             className
           )}
           onClick={(e) => {
@@ -41,7 +41,7 @@ export function StepHelp({ title, children, className }: StepHelpProps) {
           <Info className="size-3.5" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="max-w-[280px] text-sm text-white/90">
+      <PopoverContent side="top" align="start" className="max-w-[280px] border-cyan-400/25 bg-[#07122d] text-sm text-white/90">
         {children}
       </PopoverContent>
     </Popover>
@@ -63,14 +63,14 @@ export type StepHeaderProps = {
  */
 export function StepHeader({ title, description, help, helpTitle }: StepHeaderProps) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <div className="flex items-start gap-2">
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <h2 className="text-3xl sm:text-4xl font-black tracking-tight leading-[1.05] text-white">{title}</h2>
         {help != null && (
           <StepHelp title={helpTitle}>{help}</StepHelp>
         )}
       </div>
-      <p className="text-sm text-white/70">{description}</p>
+      <p className="text-base sm:text-lg text-white/70">{description}</p>
     </div>
   )
 }

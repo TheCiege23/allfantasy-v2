@@ -3,10 +3,21 @@
  * Uses InviteTokenGenerator and InviteValidationResolver.
  */
 
-import { getInviteTokenForLeague, buildInviteLink } from "./InviteTokenGenerator"
-import { validateInviteCode, normalizeJoinCode, type LeagueInvitePreview } from "./InviteValidationResolver"
+import {
+  getInviteTokenForLeague,
+  getFantasyInviteTokenForLeague,
+  type FantasyInviteTokenResult,
+} from "./InviteTokenGenerator"
+import {
+  validateInviteCode,
+  validateFantasyInviteCode,
+  type LeagueInvitePreview,
+  type FantasyLeagueInvitePreview,
+  type FantasyInviteValidationResult,
+} from "./InviteValidationResolver"
 
 export type { LeagueInvitePreview }
+export type { FantasyLeagueInvitePreview, FantasyInviteValidationResult, FantasyInviteTokenResult }
 
 export interface InviteLinkResult {
   ok: true
@@ -54,7 +65,46 @@ export async function getLeaguePreviewByCode(
   }
 }
 
+/**
+ * Get the invite link and code for a fantasy league.
+ */
+export async function getFantasyInviteLink(
+  leagueId: string,
+  baseUrl?: string
+): Promise<
+  | { ok: true; inviteCode: string; inviteLink: string; inviteExpiresAt: string | null }
+  | { ok: false; error: string }
+> {
+  const result = await getFantasyInviteTokenForLeague(leagueId, baseUrl)
+  if (!result.ok) return { ok: false, error: result.error }
+  return result
+}
+
+/**
+ * Validate fantasy league invite code and return preview or error.
+ */
+export async function getFantasyLeaguePreviewByCode(
+  code: string | null | undefined,
+  options?: { userId?: string | null; password?: string | null }
+): Promise<
+  | { ok: true; preview: FantasyLeagueInvitePreview }
+  | { ok: false; error: string; preview?: FantasyLeagueInvitePreview }
+> {
+  const validation = await validateFantasyInviteCode(code, options)
+  if (validation.valid) return { ok: true, preview: validation.preview }
+  return {
+    ok: false,
+    error: validation.error,
+    preview: validation.preview ?? undefined,
+  }
+}
+
 export { buildInviteShareUrl } from "./buildInviteShareUrl"
 
 export { buildInviteLink } from "./InviteTokenGenerator"
-export { normalizeJoinCode, validateInviteCode } from "./InviteValidationResolver"
+export {
+  normalizeJoinCode,
+  validateInviteCode,
+  normalizeFantasyInviteCode,
+  validateFantasyInviteCode,
+} from "./InviteValidationResolver"

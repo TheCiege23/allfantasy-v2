@@ -17,6 +17,7 @@ export interface LeaguePrivacySettings {
   allowUsernameInvite: boolean
   inviteCode: string | null
   inviteLink: string | null
+  inviteExpiresAt: string | null
 }
 
 const SETTINGS_KEYS = {
@@ -27,6 +28,7 @@ const SETTINGS_KEYS = {
   allowUsernameInvite: 'league_allow_username_invite',
   inviteCode: 'inviteCode',
   inviteLink: 'inviteLink',
+  inviteExpiresAt: 'inviteExpiresAt',
 } as const
 
 const DEFAULT_VISIBILITY: LeagueVisibility = 'private'
@@ -42,6 +44,13 @@ function verifyPassword(password: string, leagueId: string, hash: string): boole
 
 function fromStorage(settings: Record<string, unknown>): LeaguePrivacySettings {
   const visibility = (settings[SETTINGS_KEYS.visibility] as LeagueVisibility) ?? DEFAULT_VISIBILITY
+  const inviteExpiresRaw = settings[SETTINGS_KEYS.inviteExpiresAt]
+  const inviteExpiresDate =
+    inviteExpiresRaw instanceof Date
+      ? inviteExpiresRaw
+      : typeof inviteExpiresRaw === 'string' && inviteExpiresRaw.trim()
+        ? new Date(inviteExpiresRaw)
+        : null
   return {
     visibility: ['public', 'private', 'invite_only', 'password_protected'].includes(visibility) ? visibility : DEFAULT_VISIBILITY,
     passwordHash: (settings[SETTINGS_KEYS.passwordHash] as string) ?? null,
@@ -50,6 +59,10 @@ function fromStorage(settings: Record<string, unknown>): LeaguePrivacySettings {
     allowUsernameInvite: (settings[SETTINGS_KEYS.allowUsernameInvite] as boolean) ?? false,
     inviteCode: (settings[SETTINGS_KEYS.inviteCode] as string) ?? null,
     inviteLink: (settings[SETTINGS_KEYS.inviteLink] as string) ?? null,
+    inviteExpiresAt:
+      inviteExpiresDate && !Number.isNaN(inviteExpiresDate.getTime())
+        ? inviteExpiresDate.toISOString()
+        : null,
   }
 }
 
@@ -97,6 +110,7 @@ export async function updateLeaguePrivacySettings(
   if (patch.allowUsernameInvite !== undefined) next[SETTINGS_KEYS.allowUsernameInvite] = patch.allowUsernameInvite
   if (patch.inviteCode !== undefined) next[SETTINGS_KEYS.inviteCode] = patch.inviteCode
   if (patch.inviteLink !== undefined) next[SETTINGS_KEYS.inviteLink] = patch.inviteLink
+  if (patch.inviteExpiresAt !== undefined) next[SETTINGS_KEYS.inviteExpiresAt] = patch.inviteExpiresAt
 
   await prisma.league.update({
     where: { id: leagueId },
@@ -134,6 +148,12 @@ export async function validateLeagueJoin(
   const settings = fromStorage((league.settings as Record<string, unknown>) ?? {})
   if (settings.visibility === 'private' && !settings.inviteCode) return { valid: false, error: 'League is not accepting joins' }
   if (settings.visibility === 'invite_only' && !settings.allowInviteLink) return { valid: false, error: 'Invite link is disabled' }
+  if (settings.inviteExpiresAt) {
+    const expiresAt = new Date(settings.inviteExpiresAt)
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      return { valid: false, error: 'Invite has expired' }
+    }
+  }
 
   if (league.leagueSize != null) {
     const rosterCount = await prisma.roster.count({
