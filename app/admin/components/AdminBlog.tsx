@@ -132,7 +132,7 @@ export default function AdminBlog() {
           setGeneratedInternalLinks(
             data.internalLinks
               .filter((entry: unknown): entry is GeneratedInternalLink => !!entry && typeof entry === "object")
-              .map((entry) => ({
+              .map((entry: GeneratedInternalLink) => ({
                 anchor: String(entry.anchor ?? ""),
                 href: String(entry.href ?? ""),
                 reason: typeof entry.reason === "string" ? entry.reason : undefined,
