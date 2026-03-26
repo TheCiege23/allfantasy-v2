@@ -1,6 +1,7 @@
 import { buildAIChatHref } from "./AIContextRouter"
 import { resolveSportForAIChat } from "./SportAIChatResolver"
 import type { AIChatContext } from "./types"
+import { getToolContextForChimmy } from "@/lib/chimmy-interface"
 
 type ToolSource =
   | "trade"
@@ -23,23 +24,31 @@ type ToolBridgePayload = {
   week?: number
 }
 
-function getDefaultPromptForTool(source: ToolSource): string {
+function toToolContextSource(source: ToolSource): Parameters<typeof getToolContextForChimmy>[0] {
   switch (source) {
     case "trade":
-      return "Help me evaluate this trade and suggest the best next move."
+      return "trade"
     case "waiver":
-      return "Who should I prioritize on waivers, and what FAAB should I use?"
+      return "waiver"
     case "draft":
-      return "I'm on the clock. What draft move gives me the best edge?"
+      return "draft"
     case "matchup":
-      return "Explain this matchup and tell me the key swing factors."
+      return "matchup"
     case "playoff":
-      return "Explain my playoff outlook and what I should do next."
+      return "league_forecast"
     case "lineup":
-      return "Give me lineup advice for this week with risk notes."
+      return "generic"
     default:
-      return "I need fantasy strategy help for my team."
+      return "generic"
   }
+}
+
+function getDefaultPromptForTool(source: ToolSource, payload: ToolBridgePayload): string {
+  const routed = getToolContextForChimmy(toToolContextSource(source), payload as Record<string, unknown>)
+  if (routed.suggestedPrompt?.trim()) {
+    return routed.suggestedPrompt.trim()
+  }
+  return "I need fantasy strategy help for my team."
 }
 
 function getSourceLabel(source: ToolSource): AIChatContext["source"] {
@@ -61,13 +70,30 @@ function getSourceLabel(source: ToolSource): AIChatContext["source"] {
   }
 }
 
+function getDefaultInsightType(source: ToolSource): AIChatContext["insightType"] {
+  switch (source) {
+    case "trade":
+      return "trade"
+    case "waiver":
+      return "waiver"
+    case "draft":
+      return "draft"
+    case "matchup":
+      return "matchup"
+    case "playoff":
+      return "playoff"
+    default:
+      return undefined
+  }
+}
+
 export function buildToolToAIContext(source: ToolSource, payload: ToolBridgePayload = {}): AIChatContext {
   return {
-    prompt: payload.prompt?.trim() || getDefaultPromptForTool(source),
+    prompt: payload.prompt?.trim() || getDefaultPromptForTool(source, payload),
     leagueId: payload.leagueId,
     leagueName: payload.leagueName,
     sleeperUsername: payload.sleeperUsername,
-    insightType: payload.insightType,
+    insightType: payload.insightType ?? getDefaultInsightType(source),
     teamId: payload.teamId,
     sport: resolveSportForAIChat(payload.sport, null),
     season: payload.season,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { approveForPublish, revokeApproval } from '@/lib/social-clips-grok';
+import { autoPublishApprovedAsset } from '@/lib/social-clips-grok/SocialPublishService';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,5 +22,13 @@ export async function POST(
     : await revokeApproval(assetId, session.user.id);
 
   if (!ok) return NextResponse.json({ error: 'Not found or not allowed' }, { status: 404 });
-  return NextResponse.json({ approved });
+
+  const autoPublishResults = approved
+    ? await autoPublishApprovedAsset(assetId, session.user.id)
+    : [];
+
+  return NextResponse.json({
+    approved,
+    autoPublishResults,
+  });
 }

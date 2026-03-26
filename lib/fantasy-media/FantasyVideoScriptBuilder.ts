@@ -24,6 +24,7 @@ const CONTENT_LABELS: Record<MediaType, string> = {
   playoff_recap: 'Playoff recap',
   championship_recap: 'Championship recap',
   trade_reaction: 'Trade reaction',
+  sport_specific_content: 'Sport-specific fantasy spotlight',
 };
 
 export function buildFantasyVideoScript(options: ScriptBuildOptions = {}): GeneratedVideoScript {
@@ -55,8 +56,18 @@ export function buildFantasyVideoScript(options: ScriptBuildOptions = {}): Gener
   });
 
   sections.push({
-    heading: 'Closing',
-    body: `That's your recap. Lock your lineups and check back next week. Good luck in ${leagueName}.`,
+    heading: 'Trending players',
+    body: `Trend watch for ${sport}: buy momentum only when role and usage both support it. Target players with rising snaps, touches, or route participation over one-week spike performances.`,
+  });
+
+  sections.push({
+    heading: 'League drama and rivalry watch',
+    body: `Rivalry pressure is peaking in ${leagueName}. Lean into matchup leverage and schedule context when setting lineups or trade offers to win the psychological edge.`,
+  });
+
+  sections.push({
+    heading: 'Closing CTA',
+    body: `That's your ${CONTENT_LABELS[contentType]}. Lock lineups, attack waivers, and share this update with your league before kickoff. Good luck in ${leagueName}.`,
   });
 
   const script = sections.map((s) => `${s.heading}. ${s.body}`).join('\n\n');

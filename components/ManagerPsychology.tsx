@@ -165,9 +165,10 @@ export default function ManagerPsychology({
   }
 
   return (
-    <div className="border border-purple-500/20 rounded-xl overflow-hidden">
+    <div className="border border-purple-500/20 rounded-xl overflow-hidden" data-testid="manager-psychology-panel">
       <button
         onClick={fetchProfile}
+        data-testid="manager-psychology-toggle-button"
         className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-purple-500/5 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -188,14 +189,14 @@ export default function ManagerPsychology({
       {isOpen && (
         <div className="px-3 pb-3 border-t border-purple-500/10 pt-3">
           {loading && (
-            <div className="flex items-center justify-center gap-2 py-6">
+            <div className="flex items-center justify-center gap-2 py-6" data-testid="manager-psychology-loading-state">
               <RefreshCw size={14} className="text-purple-400 animate-spin" />
               <span className="text-xs text-purple-300">Analyzing manager behavior...</span>
             </div>
           )}
 
           {error && !loading && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300">
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300" data-testid="manager-psychology-error-state">
               {error}
             </div>
           )}
@@ -218,6 +219,7 @@ export default function ManagerPsychology({
                   type="button"
                   onClick={() => void loadEngineProfile()}
                   disabled={engineLoading}
+                  data-testid="manager-psychology-refresh-profile-button"
                   className="text-[9px] text-white/50 hover:text-white/70 disabled:opacity-50"
                 >
                   {engineLoading ? 'Refreshing...' : 'Refresh profile'}
@@ -225,6 +227,7 @@ export default function ManagerPsychology({
                 {engineProfile.id && (
                   <Link
                     href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/${encodeURIComponent(engineProfile.id)}`}
+                    data-testid="manager-psychology-profile-details-link"
                     className="text-[9px] text-cyan-300 hover:text-cyan-200"
                   >
                     Profile details
@@ -250,13 +253,14 @@ export default function ManagerPsychology({
                     setExplainNarrative('Could not load explanation.')
                   }
                 }}
+                data-testid="manager-psychology-explain-button"
                 className="mt-1.5 flex items-center gap-1 text-[9px] text-purple-300 hover:text-purple-200"
               >
                 <HelpCircle size={10} />
                 {explainNarrative ? 'Hide explanation' : 'Why this profile?'}
               </button>
               {explainNarrative && (
-                <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
+                <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed" data-testid="manager-psychology-explanation-text">{explainNarrative}</p>
               )}
               {engineError && <p className="mt-1.5 text-[10px] text-red-300">{engineError}</p>}
             </div>
@@ -329,6 +333,7 @@ export default function ManagerPsychology({
                       type="button"
                       onClick={() => void loadEngineProfile()}
                       disabled={engineLoading}
+                      data-testid="manager-psychology-refresh-profile-button"
                       className="text-[9px] text-white/50 hover:text-white/70 disabled:opacity-50"
                     >
                       {engineLoading ? 'Refreshing...' : 'Refresh profile'}
@@ -336,6 +341,7 @@ export default function ManagerPsychology({
                     {engineProfile.id && (
                       <Link
                         href={`/app/league/${encodeURIComponent(leagueId)}/psychological-profiles/${encodeURIComponent(engineProfile.id)}`}
+                        data-testid="manager-psychology-profile-details-link"
                         className="text-[9px] text-cyan-300 hover:text-cyan-200"
                       >
                         Profile details
@@ -361,13 +367,14 @@ export default function ManagerPsychology({
                         setExplainNarrative('Could not load explanation.')
                       }
                     }}
+                    data-testid="manager-psychology-explain-button"
                     className="mt-1.5 flex items-center gap-1 text-[9px] text-purple-300 hover:text-purple-200"
                   >
                     <HelpCircle size={10} />
                     {explainNarrative ? 'Hide explanation' : 'Why this profile?'}
                   </button>
                   {explainNarrative && (
-                    <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed">{explainNarrative}</p>
+                    <p className="mt-1.5 text-[10px] text-white/60 leading-relaxed" data-testid="manager-psychology-explanation-text">{explainNarrative}</p>
                   )}
                   {engineError && <p className="mt-1.5 text-[10px] text-red-300">{engineError}</p>}
                 </div>
@@ -377,6 +384,7 @@ export default function ManagerPsychology({
                 <button
                   onClick={regenerate}
                   disabled={loading}
+                  data-testid="manager-psychology-reanalyze-button"
                   className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors disabled:opacity-50"
                 >
                   <RefreshCw size={10} />

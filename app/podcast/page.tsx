@@ -19,10 +19,19 @@ export default async function PodcastPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900">
       <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center gap-3">
-          <Link href="/dashboard" className="text-sm text-white/60 hover:text-white/80 transition">
+          <Link
+            href="/dashboard"
+            className="text-sm text-white/60 hover:text-white/80 transition"
+            data-testid="podcast-dashboard-back-button"
+            data-audit="back-button"
+          >
             ← Dashboard
           </Link>
-          <Link href="/fantasy-media" className="text-sm text-white/60 hover:text-white/80 transition">
+          <Link
+            href="/fantasy-media"
+            className="text-sm text-white/60 hover:text-white/80 transition"
+            data-testid="podcast-video-link-button"
+          >
             Video
           </Link>
         </div>

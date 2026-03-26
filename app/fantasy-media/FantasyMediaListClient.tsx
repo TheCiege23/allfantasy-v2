@@ -30,9 +30,14 @@ const MEDIA_TYPE_LABELS: Record<string, string> = {
   playoff_recap: "Playoff recap",
   championship_recap: "Championship recap",
   trade_reaction: "Trade reaction",
+  sport_specific_content: "Sport-specific content",
 }
 
-export default function FantasyMediaListClient() {
+interface FantasyMediaListClientProps {
+  onEpisodeCreated?: (episodeId: string) => void
+}
+
+export default function FantasyMediaListClient({ onEpisodeCreated }: FantasyMediaListClientProps) {
   const { formatInTimezone } = useUserTimezone()
   const [episodes, setEpisodes] = useState<Episode[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,6 +47,8 @@ export default function FantasyMediaListClient() {
   const [contentType, setContentType] = useState<string>("weekly_recap")
   const [leagueName, setLeagueName] = useState("")
   const [previewScript, setPreviewScript] = useState<string | null>(null)
+  const [editableScript, setEditableScript] = useState("")
+  const [editingScript, setEditingScript] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
 
   const fetchList = async () => {
@@ -88,6 +95,8 @@ export default function FantasyMediaListClient() {
         return
       }
       setPreviewScript(data.script ?? "")
+      setEditableScript(data.script ?? "")
+      setEditingScript(false)
     } catch {
       setError("Failed to generate script")
     } finally {
@@ -107,6 +116,7 @@ export default function FantasyMediaListClient() {
           sport,
           contentType: type,
           leagueName: leagueName || undefined,
+          script: editingScript && editableScript.trim().length > 0 ? editableScript : undefined,
         }),
       })
       const data = await res.json()
@@ -129,7 +139,11 @@ export default function FantasyMediaListClient() {
         },
         ...prev,
       ])
-      window.location.href = `/fantasy-media/${data.id}`
+      if (onEpisodeCreated) {
+        onEpisodeCreated(data.id)
+      } else {
+        window.location.href = `/fantasy-media/${data.id}`
+      }
     } catch {
       setError("Failed to generate video")
     } finally {
@@ -157,6 +171,8 @@ export default function FantasyMediaListClient() {
             value={sport}
             onChange={(e) => setSport(e.target.value)}
             className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
+            data-testid="fantasy-media-sport-selector"
+            data-audit="sport-selector"
           >
             {SUPPORTED_SPORTS.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -167,6 +183,7 @@ export default function FantasyMediaListClient() {
             value={contentType}
             onChange={(e) => setContentType(e.target.value)}
             className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white"
+            data-testid="fantasy-media-content-type-selector"
           >
             {MEDIA_TYPES.map((t) => (
               <option key={t} value={t}>{MEDIA_TYPE_LABELS[t] ?? t}</option>
@@ -179,6 +196,8 @@ export default function FantasyMediaListClient() {
             onChange={(e) => setLeagueName(e.target.value)}
             placeholder="My League"
             className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-white placeholder:text-white/40"
+            data-testid="fantasy-media-league-selector"
+            data-audit="league-selector"
           />
         </div>
         <div className="flex flex-wrap gap-2 pt-2">
@@ -187,20 +206,40 @@ export default function FantasyMediaListClient() {
             onClick={handlePreviewScript}
             disabled={previewLoading}
             className="flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-50"
+            data-testid="fantasy-media-preview-script-button"
+            data-audit="preview-script-button"
           >
             {previewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Preview script
           </button>
           <button
             type="button"
+            onClick={() => {
+              if (previewScript == null) {
+                const seededScript = editableScript || "Intro. Add your custom fantasy recap script here."
+                setPreviewScript(seededScript)
+                setEditableScript(seededScript)
+              }
+              setEditingScript((prev) => !prev)
+            }}
+            className="flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 disabled:opacity-50"
+            data-testid="fantasy-media-edit-script-button"
+            data-audit="edit-script-button"
+          >
+            {editingScript ? "Stop editing script" : "Edit script"}
+          </button>
+          <button
+            type="button"
             onClick={handleGenerateVideo}
             disabled={generating}
             className="flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-50"
+            data-testid="fantasy-media-generate-video-button"
+            data-audit="generate-video-button"
           >
             {generating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Sending to HeyGen…
+                <span data-testid="fantasy-media-generate-loading-state">Sending to HeyGen…</span>
               </>
             ) : (
               <>
@@ -214,6 +253,8 @@ export default function FantasyMediaListClient() {
             onClick={handleGenerateWeeklyRecap}
             disabled={generating}
             className="flex items-center gap-2 rounded-xl border border-cyan-500/50 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+            data-testid="fantasy-media-generate-weekly-recap-button"
+            data-audit="generate-weekly-recap-button"
           >
             Generate weekly recap
           </button>
@@ -222,14 +263,36 @@ export default function FantasyMediaListClient() {
             onClick={handleGenerateWaiverVideo}
             disabled={generating}
             className="flex items-center gap-2 rounded-xl border border-cyan-500/50 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+            data-testid="fantasy-media-generate-waiver-video-button"
+            data-audit="generate-waiver-video-button"
           >
             Generate waiver video
+          </button>
+          <button
+            type="button"
+            onClick={handleGenerateVideo}
+            disabled={generating}
+            className="flex items-center gap-2 rounded-xl border border-cyan-500/50 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/10 disabled:opacity-50"
+            data-testid="fantasy-media-send-to-heygen-button"
+            data-audit="send-to-heygen-button"
+          >
+            Send to HeyGen
           </button>
         </div>
         {previewScript != null && (
           <div className="rounded-xl border border-white/10 bg-black/20 p-4 mt-2">
             <p className="text-xs font-medium text-white/50 uppercase tracking-wider mb-2">Script preview</p>
-            <p className="text-sm text-white/80 whitespace-pre-wrap">{previewScript}</p>
+            {editingScript ? (
+              <textarea
+                value={editableScript}
+                onChange={(e) => setEditableScript(e.target.value)}
+                rows={10}
+                className="w-full rounded-lg border border-white/20 bg-black/40 px-3 py-2 text-sm text-white/90"
+                data-testid="fantasy-media-edit-script-textarea"
+              />
+            ) : (
+              <p className="text-sm text-white/80 whitespace-pre-wrap">{previewScript}</p>
+            )}
           </div>
         )}
       </div>
@@ -242,6 +305,7 @@ export default function FantasyMediaListClient() {
           disabled={loading}
           className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-white/70 hover:text-white disabled:opacity-50"
           aria-label="Refresh list"
+          data-testid="fantasy-media-refresh-list-button"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
@@ -264,6 +328,7 @@ export default function FantasyMediaListClient() {
               <Link
                 href={`/fantasy-media/${ep.id}`}
                 className="block rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+                data-testid={`fantasy-media-episode-row-${ep.id}`}
               >
                 <div className="flex items-center gap-2">
                   <Video className="h-4 w-4 text-white/50" />

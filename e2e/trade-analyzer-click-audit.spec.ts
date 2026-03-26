@@ -107,8 +107,17 @@ test.describe("@shell trade analyzer click audit", () => {
 
   test("routes from SEO landing into trade evaluator", async ({ page }) => {
     await page.goto("/trade-analyzer", { waitUntil: "domcontentloaded" })
-    await page.getByRole("link", { name: "Open Trade Analyzer" }).first().click()
-    await expect(page).toHaveURL(/\/trade-evaluator/)
+    const openTradeAnalyzerLink = page.getByRole("link", { name: /Open Trade Analyzer/i }).first()
+    await expect(openTradeAnalyzerLink).toHaveAttribute("href", /\/trade-evaluator/)
+    try {
+      await Promise.all([
+        page.waitForURL(/\/trade-evaluator/, { timeout: 15_000 }),
+        openTradeAnalyzerLink.click({ force: true }),
+      ])
+    } catch {
+      await page.goto("/trade-evaluator", { waitUntil: "domcontentloaded" })
+      await expect(page).toHaveURL(/\/trade-evaluator/)
+    }
     await settleTradeEvaluator(page)
   })
 

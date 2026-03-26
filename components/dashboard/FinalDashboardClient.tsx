@@ -27,8 +27,7 @@ import { useLeagueList } from '@/hooks/useLeagueList'
 import { ErrorBoundary } from '@/components/error-handling'
 import { RetentionStreakWidget, ReturnPromptCards, WeeklySummaryCard } from '@/components/onboarding-retention'
 import { DailyCheckInCard } from '@/components/daily-checkin/DailyCheckInCard'
-import { buildAIChatHref } from '@/lib/chimmy-chat'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { AIProductLayer } from '@/lib/ai-product-layer'
 
 const QUICK_ACTIONS_BASE = [
   { id: 'start-sit', label: 'Start / Sit', basePath: '/app/coach', icon: LayoutList, iconBg: 'bg-cyan-500/15', iconColor: 'text-cyan-400' },
@@ -82,9 +81,9 @@ export default function FinalDashboardClient() {
   const dynastyOutlookHref = firstLeague?.id
     ? `/leagues/${firstLeague.id}?tab=${encodeURIComponent('Standings/Playoffs')}`
     : '/rankings'
-  const chimmyHref = buildAIChatHref({
+  const chimmyHref = AIProductLayer.chimmy.getChatHref({
     leagueId: firstLeague?.id,
-    sport: normalizeToSupportedSport(firstLeague?.sport ? String(firstLeague.sport) : undefined),
+    sport: firstLeague?.sport ? AIProductLayer.resolveSupportedSport(String(firstLeague.sport)) : undefined,
     source: 'dashboard',
   })
 

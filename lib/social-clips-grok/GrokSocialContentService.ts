@@ -96,6 +96,7 @@ function normalizeGrokOutput(parsed: Record<string, unknown>): GrokSocialOutput 
 
   return {
     shortCaption: str(parsed.shortCaption, 'Fantasy recap from AllFantasy.'),
+    shortScriptOverlay: str(parsed.shortScriptOverlay, 'AllFantasy Game Break'),
     headline: str(parsed.headline, 'Fantasy Recap'),
     ctaText: str(parsed.ctaText, 'Get more at AllFantasy'),
     hashtags: arr(parsed.hashtags),

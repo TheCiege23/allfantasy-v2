@@ -39,7 +39,7 @@ export default function GlobalTopNav({
   mobileMenuOpen = false,
 }: Props) {
   const pathname = usePathname()
-  const chimmyEntry = getPrimaryChimmyEntry()
+  const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
   const primaryItems = getPrimaryNavItems(isAdmin)
   const shortcutLabel = getCommandPaletteShortcut()
   const utilitySpecs = getTopBarUtilities({

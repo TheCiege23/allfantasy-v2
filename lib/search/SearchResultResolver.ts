@@ -18,7 +18,7 @@ export interface SearchResultItem {
 }
 
 /** Static pages and destinations for universal search. */
-const CHIMMY_HREF = getPrimaryChimmyEntry().href
+const CHIMMY_HREF = getPrimaryChimmyEntry({ source: "search" }).href
 
 const STATIC_PAGES: SearchResultItem[] = [
   {

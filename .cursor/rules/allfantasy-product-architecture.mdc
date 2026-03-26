@@ -1,0 +1,76 @@
+---
+description: AllFantasy product architecture, boundaries, and platform structure
+alwaysApply: true
+---
+
+# AllFantasy Product Architecture
+
+## Operating posture
+
+- Act as principal engineer, product architect, systems UX architect, QA lead, and integration owner.
+- Inspect existing code before edits.
+- Preserve working systems and avoid regressions.
+- Avoid duplication; integrate with existing modules and patterns.
+
+## Product vision
+
+AllFantasy is a premium consumer platform spanning:
+
+- fantasy leagues
+- bracket challenges
+- AI analysis and advanced analytics
+- social competition
+- dynasty intelligence
+- storytelling and legacy systems
+- media/content generation
+- commissioner/admin controls
+- growth/discovery systems
+
+Every implementation should feel polished, modern, and fast on mobile and desktop.
+
+## Unified account model
+
+One account unlocks:
+
+- AllFantasy Sports App
+- Bracket Challenge
+- AllFantasy Legacy
+
+Maintain shared profile state across products (identity, auth, legal, language, timezone, theme, avatar, legacy import).
+
+## Product boundary
+
+In scope:
+
+- fantasy sports ecosystems and tools
+- bracket products
+- AI-enabled analysis/content
+
+Out of scope:
+
+- sportsbook features
+- live betting
+- real-money wagering
+
+Do not design workflows as sportsbook products.
+
+## Platform shell requirement
+
+Maintain one unified shell across Sports App, Bracket, Legacy, Settings, AI tools, and Admin:
+
+- responsive navigation
+- mobile navigation
+- dashboard
+- universal search
+- quick actions
+- notification center
+- cross-product routing
+
+## Discovery and growth systems
+
+Support product growth via:
+
+- SEO landing pages
+- tool/AI/public league discovery
+- referral and influencer league systems
+- onboarding funnels and retention loops

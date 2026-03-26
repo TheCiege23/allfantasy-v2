@@ -9,6 +9,16 @@ import { getTemplateShareCopy } from '@/lib/social-sharing/GrokShareCopyService'
 
 export const dynamic = 'force-dynamic';
 
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string');
+}
+
 export async function GET(req: Request) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -22,18 +32,38 @@ export async function GET(req: Request) {
       where: { id: shareId, userId: session.user.id },
     });
     if (!moment) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    const context: AchievementShareContext = (moment.metadata as AchievementShareContext) ?? {};
-    const copy = getTemplateShareCopy(moment.shareType as AchievementShareType, context);
-    copy.caption = moment.summary;
-    copy.headline = moment.title;
+    const metadata = asRecord(moment.metadata);
+    const nestedContext = asRecord(metadata.context);
+    const context = (Object.keys(nestedContext).length > 0 ? nestedContext : metadata) as AchievementShareContext;
+    const fallbackCopy = getTemplateShareCopy(moment.shareType as AchievementShareType, context);
+    const storedCopyRaw = asRecord(metadata.grokCopy);
+    const storedCopy = storedCopyRaw.caption
+      ? {
+          caption: typeof storedCopyRaw.caption === 'string' ? storedCopyRaw.caption : fallbackCopy.caption,
+          headline: typeof storedCopyRaw.headline === 'string' ? storedCopyRaw.headline : fallbackCopy.headline,
+          cta: typeof storedCopyRaw.cta === 'string' ? storedCopyRaw.cta : fallbackCopy.cta,
+          hashtags: toStringArray(storedCopyRaw.hashtags),
+          platformVariants:
+            storedCopyRaw.platformVariants &&
+            typeof storedCopyRaw.platformVariants === 'object' &&
+            !Array.isArray(storedCopyRaw.platformVariants)
+              ? (storedCopyRaw.platformVariants as Record<string, { caption: string; hashtags: string[] }>)
+              : fallbackCopy.platformVariants,
+        }
+      : fallbackCopy;
+    storedCopy.caption = moment.summary || storedCopy.caption;
+    storedCopy.headline = moment.title || storedCopy.headline;
     const payload = resolveSharePreview(
       moment.shareType as AchievementShareType,
       context,
-      copy,
+      storedCopy,
       moment.id,
       origin.startsWith('http') ? origin : `https://${origin}`
     );
-    return NextResponse.json(payload);
+    return NextResponse.json({
+      ...payload,
+      approvedForPublish: !!metadata.approvedForPublish,
+    });
   }
 
   const shareType = searchParams.get('shareType') as AchievementShareType | null;
@@ -43,6 +73,7 @@ export async function GET(req: Request) {
     opponentName: searchParams.get('opponentName') ?? undefined,
     week: searchParams.get('week') ? parseInt(searchParams.get('week')!, 10) : undefined,
     score: searchParams.get('score') ? parseInt(searchParams.get('score')!, 10) : undefined,
+    sport: searchParams.get('sport') ?? undefined,
   };
   const type = shareType && ACHIEVEMENT_SHARE_TYPES.includes(shareType) ? shareType : 'winning_matchup';
   const copy = getTemplateShareCopy(type, context);

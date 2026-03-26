@@ -15,6 +15,28 @@ export const AI_PRODUCT_CONSISTENCY_RULES = [
   'Confidence when justified: show confidence only when data supports it; avoid overstating certainty.',
 ] as const;
 
+const DETERMINISTIC_FIRST_FEATURES = new Set<string>([
+  'trade_analyzer',
+  'trade_evaluator',
+  'waiver_ai',
+  'rankings',
+  'draft_helper',
+  'graph_insight',
+  'simulation',
+  'matchup',
+  'psychological',
+  'psychological_profiles',
+  'legacy_score',
+  'reputation',
+  'rivalries',
+  'awards',
+  'record_book',
+  'career_prestige',
+  'xp_explain',
+  'gm_economy_explain',
+  'bracket_intelligence',
+]);
+
 /**
  * Short preamble for product docs or debug (not for model prompts; use ChimmyPromptStyleResolver / buildDomainGuard for that).
  */
@@ -26,13 +48,9 @@ export function getAIConsistencyPreamble(): string {
  * Whether a feature type should enforce deterministic-first (tool AI that has engine output).
  */
 export function shouldEnforceDeterministicFirst(featureType: string): boolean {
-  const deterministicFirst = [
-    'trade_analyzer',
-    'trade_evaluator',
-    'waiver_ai',
-    'rankings',
-    'draft_helper',
-    'graph_insight',
-  ];
-  return deterministicFirst.includes(featureType);
+  return DETERMINISTIC_FIRST_FEATURES.has(featureType);
+}
+
+export function getDeterministicFirstFeatureTypes(): readonly string[] {
+  return Array.from(DETERMINISTIC_FIRST_FEATURES);
 }

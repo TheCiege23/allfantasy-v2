@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { generateBlogDraft } from "@/lib/automated-blog"
+import { buildBlogSEO, generateBlogDraft, suggestInternalLinks } from "@/lib/automated-blog"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import { BLOG_CATEGORIES } from "@/lib/automated-blog/types"
 
@@ -24,7 +24,21 @@ export async function POST(req: NextRequest) {
     if (!draft) {
       return NextResponse.json({ error: "Generation failed" }, { status: 500 })
     }
-    return NextResponse.json({ draft })
+    const seo = buildBlogSEO({
+      title: draft.title,
+      excerpt: draft.excerpt,
+      body: draft.body,
+      sport: normalizeToSupportedSport(sport),
+      category,
+      slug: draft.slug,
+    })
+    const internalLinks = suggestInternalLinks({
+      sport: normalizeToSupportedSport(sport),
+      category,
+      body: draft.body,
+      maxSuggestions: 10,
+    })
+    return NextResponse.json({ draft, seo, internalLinks })
   } catch (e) {
     console.error("[blog/generate]", e)
     return NextResponse.json({ error: "Generation failed" }, { status: 500 })

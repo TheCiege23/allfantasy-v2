@@ -38,17 +38,23 @@ export default function AIFailureStateRenderer({
   if (!message && !reliability?.dataQualityWarnings?.length && confidence == null) return null
 
   return (
-    <div className={`rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3 ${className}`}>
+    <div
+      className={`rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-3 ${className}`}
+      data-testid="ai-failure-state-renderer"
+    >
       {(message || usedDeterministicFallback) && (
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-amber-200">{message}</p>
+            <p className="text-sm text-amber-200" data-testid="ai-fallback-explanation">
+              {message}
+            </p>
             {onRetry && (
               <button
                 type="button"
                 onClick={onRetry}
                 disabled={retryLoading}
+                data-testid="ai-fallback-retry-button"
                 className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${retryLoading ? 'animate-spin' : ''}`} />
@@ -71,13 +77,17 @@ export default function AIFailureStateRenderer({
           <button
             type="button"
             onClick={() => setDetailsOpen(!detailsOpen)}
+            data-testid="ai-data-quality-toggle-button"
             className="flex items-center gap-1 text-xs text-white/60 hover:text-white/80"
           >
             {detailsOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            {detailsOpen ? 'Hide' : 'Show'} data quality & provider details
+            {detailsOpen ? 'Hide' : 'Show'} data quality info
           </button>
           {detailsOpen && (
-            <div className="rounded-lg bg-black/20 p-3 space-y-2 text-xs text-white/70">
+            <div
+              className="rounded-lg bg-black/20 p-3 space-y-2 text-xs text-white/70"
+              data-testid="ai-data-quality-details"
+            >
               {reliability.providerResults.length > 0 && (
                 <div>
                   <span className="font-medium text-white/80">Providers: </span>

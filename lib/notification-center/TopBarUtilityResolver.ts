@@ -41,7 +41,7 @@ export function getTopBarUtilities(opts: {
       { id: "theme", visible: true, title: "Theme" },
     ]
   }
-  const chimmy = getPrimaryChimmyEntry()
+  const chimmy = getPrimaryChimmyEntry({ source: "top_bar" })
   const list: TopBarUtilitySpec[] = [
     { id: "search", visible: !!hasSearch, title: "Search" },
     { id: "wallet", visible: true, title: "Wallet" },

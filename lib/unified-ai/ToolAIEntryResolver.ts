@@ -59,7 +59,13 @@ const TOOL_ENTRIES: Record<ToolAIEntryKey, Omit<ToolAIEntry, "key">> = {
   psychological_profiles: {
     label: "Psychological Profiles",
     apiPath: "/api/leagues/[leagueId]/psychological-profiles/explain",
-    featureType: "psychological_profiles",
+    featureType: "psychological",
+    typicalIntent: "explain",
+  },
+  psychological: {
+    label: "Psychological Profiles",
+    apiPath: "/api/leagues/[leagueId]/psychological-profiles/explain",
+    featureType: "psychological",
     typicalIntent: "explain",
   },
   legacy_score: {
@@ -142,8 +148,20 @@ const TOOL_ENTRIES: Record<ToolAIEntryKey, Omit<ToolAIEntry, "key">> = {
   },
   content: {
     label: "Content",
-    apiPath: "/api/social-clips/generate",
+    apiPath: "/api/social-clips/ai/generate",
     featureType: "content",
+    typicalIntent: "narrative",
+  },
+  openclaw_dev_assistant: {
+    label: "OpenClaw Dev Assistant",
+    apiPath: "/api/ai/openclaw/dev-assistant",
+    featureType: "openclaw_dev_assistant",
+    typicalIntent: "chat",
+  },
+  openclaw_growth_marketing_assistant: {
+    label: "OpenClaw Growth Assistant",
+    apiPath: "/api/ai/openclaw/growth-marketing-assistant",
+    featureType: "openclaw_growth_marketing_assistant",
     typicalIntent: "narrative",
   },
 }

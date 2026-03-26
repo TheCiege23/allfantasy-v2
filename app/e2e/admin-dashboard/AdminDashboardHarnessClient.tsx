@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import AdminLayout, { type AdminTab } from "@/app/admin/components/AdminLayout"
 import AdminOverview from "@/app/admin/components/AdminOverview"
+import AdminBlog from "@/app/admin/components/AdminBlog"
 import AdminUsers from "@/app/admin/components/AdminUsers"
 import AdminLeagueOverview from "@/app/admin/components/AdminLeagueOverview"
 import AdminModerationPanel from "@/app/admin/components/AdminModerationPanel"
@@ -11,6 +12,7 @@ import AdminSystemPanel from "@/app/admin/components/AdminSystemPanel"
 
 const ALLOWED_TABS: AdminTab[] = [
   "overview",
+  "blog",
   "users",
   "leagues",
   "moderation",
@@ -52,6 +54,7 @@ export function AdminDashboardHarnessClient() {
       activeTab={activeTab}
     >
       {activeTab === "overview" && <AdminOverview />}
+      {activeTab === "blog" && <AdminBlog />}
       {activeTab === "users" && <AdminUsers />}
       {activeTab === "leagues" && <AdminLeagueOverview />}
       {activeTab === "moderation" && <AdminModerationPanel />}

@@ -4,41 +4,96 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { pollHeyGenUntilComplete } from './HeyGenVideoService';
+import { getHeyGenVideoStatus } from './HeyGenVideoService';
 
-export async function trackVideoJob(episodeId: string): Promise<{ playbackUrl: string | null; status: string }> {
-  const episode = await prisma.fantasyMediaEpisode.findUnique({ where: { id: episodeId } });
-  if (!episode?.providerJobId || episode.provider !== 'heygen') {
-    return { playbackUrl: null, status: episode?.status ?? 'failed' };
-  }
+const POLL_INTERVAL_MS = 5000;
+const MAX_ATTEMPTS = 120;
 
-  const result = await pollHeyGenUntilComplete(episode.providerJobId, (status) => {
-    if (status.status === 'processing' || status.status === 'pending') {
-      void prisma.fantasyMediaEpisode
-        .update({
-          where: { id: episodeId },
-          data: { status: 'generating', updatedAt: new Date() },
-        })
-        .catch(() => {});
-    }
-  });
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  const updateStatus = result.status === 'completed' ? 'completed' : 'failed';
-  const playbackUrl = result.status === 'completed' ? result.videoUrl : null;
-
+async function persistJobStatus(episodeId: string, data: {
+  status: 'generating' | 'completed' | 'failed';
+  playbackUrl?: string | null;
+  meta?: Record<string, unknown>;
+}) {
   await prisma.fantasyMediaEpisode.update({
     where: { id: episodeId },
     data: {
-      status: updateStatus,
-      playbackUrl,
-      meta: result.error
-        ? { lastError: result.error.message ?? result.error.detail }
-        : result.duration != null
-          ? { duration: result.duration }
-          : undefined,
+      status: data.status,
+      playbackUrl: data.playbackUrl ?? null,
+      meta: data.meta,
       updatedAt: new Date(),
     },
   });
+}
 
-  return { playbackUrl, status: updateStatus };
+export async function refreshVideoJobStatus(
+  episodeId: string
+): Promise<{ playbackUrl: string | null; status: 'generating' | 'completed' | 'failed' }> {
+  const episode = await prisma.fantasyMediaEpisode.findUnique({ where: { id: episodeId } });
+  if (!episode?.providerJobId || episode.provider !== 'heygen') {
+    return {
+      playbackUrl: episode?.playbackUrl ?? null,
+      status: (episode?.status as 'generating' | 'completed' | 'failed') ?? 'failed',
+    };
+  }
+
+  const status = await getHeyGenVideoStatus(episode.providerJobId);
+  if (!status) {
+    return {
+      playbackUrl: episode.playbackUrl,
+      status: (episode.status as 'generating' | 'completed' | 'failed') ?? 'generating',
+    };
+  }
+
+  if (status.status === 'completed') {
+    const playbackUrl = status.videoUrl ?? null;
+    await persistJobStatus(episodeId, {
+      status: 'completed',
+      playbackUrl,
+      meta: {
+        duration: status.duration ?? null,
+        thumbnailUrl: status.thumbnailUrl ?? null,
+      },
+    });
+    return { playbackUrl, status: 'completed' };
+  }
+
+  if (status.status === 'failed') {
+    await persistJobStatus(episodeId, {
+      status: 'failed',
+      playbackUrl: null,
+      meta: {
+        lastError: status.error?.message ?? status.error?.detail ?? 'HeyGen failed',
+      },
+    });
+    return { playbackUrl: null, status: 'failed' };
+  }
+
+  await persistJobStatus(episodeId, {
+    status: 'generating',
+    playbackUrl: episode.playbackUrl,
+    meta: episode.meta as Record<string, unknown> | undefined,
+  });
+  return { playbackUrl: episode.playbackUrl, status: 'generating' };
+}
+
+export async function trackVideoJob(episodeId: string): Promise<{ playbackUrl: string | null; status: string }> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const result = await refreshVideoJobStatus(episodeId);
+    if (result.status === 'completed' || result.status === 'failed') {
+      return result;
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  await persistJobStatus(episodeId, {
+    status: 'failed',
+    playbackUrl: null,
+    meta: { lastError: 'HeyGen polling timeout' },
+  });
+
+  return { playbackUrl: null, status: 'failed' };
 }

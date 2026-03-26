@@ -6,7 +6,7 @@ import { getPrimaryChimmyEntry, getChimmyChatHrefWithPrompt, AI_HUB_HREF } from 
 
 export default function SharedRightRail() {
   const { data, loading, error } = useRightRailData()
-  const chimmyEntry = getPrimaryChimmyEntry()
+  const chimmyEntry = getPrimaryChimmyEntry({ source: 'right_rail' })
 
   return (
     <aside className="space-y-4">
@@ -39,7 +39,7 @@ export default function SharedRightRail() {
             {data.aiQuickActions.slice(0, 3).map((q) => (
               <li key={q}>
                 <Link
-                  href={getChimmyChatHrefWithPrompt(q)}
+                  href={getChimmyChatHrefWithPrompt(q, { source: 'right_rail' })}
                   className="text-xs mode-muted transition hover:text-white"
                 >
                   {q}

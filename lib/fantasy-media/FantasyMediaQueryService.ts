@@ -44,6 +44,7 @@ export interface CreateEpisodeInput {
   status?: string;
   provider?: string | null;
   providerJobId?: string | null;
+  meta?: object;
 }
 
 export async function createEpisode(input: CreateEpisodeInput) {
@@ -58,6 +59,7 @@ export async function createEpisode(input: CreateEpisodeInput) {
       status: input.status ?? 'draft',
       provider: input.provider ?? null,
       providerJobId: input.providerJobId ?? null,
+      meta: input.meta,
     },
   });
 }

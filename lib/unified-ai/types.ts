@@ -14,6 +14,11 @@ export type OrchestrationMode =
 
 /** Which model(s) to use. */
 export type AIModelRole = "openai" | "deepseek" | "grok"
+/** Assistant routing target (non-core 3-model orchestration surfaces). */
+export type AIAssistantRole =
+  | "chimmy"
+  | "openclaw_dev_assistant"
+  | "openclaw_growth_marketing_assistant"
 
 /**
  * Shared context envelope every AI-enabled feature should pass into the orchestration layer.
@@ -51,6 +56,8 @@ export interface AIContextEnvelope {
   hardConstraints?: string[]
   /** Hints for which model(s) to prefer. */
   modelRoutingHints?: AIModelRole[]
+  /** Optional assistant routing hints (e.g. Chimmy/OpenClaw entry surfaces). */
+  assistantRoutingHints?: AIAssistantRole[]
   /** Raw user message or prompt suffix. */
   userMessage?: string
 }
@@ -87,6 +94,7 @@ export type ToolAIEntryKey =
   | "draft_helper"
   | "chimmy_chat"
   | "graph_insight"
+  | "psychological"
   | "psychological_profiles"
   | "legacy_score"
   | "reputation"
@@ -102,3 +110,5 @@ export type ToolAIEntryKey =
   | "commentary"
   | "story_creator"
   | "content"
+  | "openclaw_dev_assistant"
+  | "openclaw_growth_marketing_assistant"

@@ -3,37 +3,49 @@
  * Single place for AI discovery links so product feels like one intelligence system.
  */
 
-import { getPrimaryChimmyEntry } from './UnifiedChimmyEntryResolver';
-import { ROUTES } from '@/lib/tool-hub';
+import { getChimmyChatHref, getChimmyLandingHref, getPrimaryChimmyEntry } from './UnifiedChimmyEntryResolver';
+import { getAIProductHrefForFeature } from './AIProductRouteResolver';
 import type { AIToolDiscoveryLink } from './types';
+import type { AIProductContext } from './types';
 import type { ToolAIEntryKey } from '@/lib/unified-ai/types';
 
-const PRIMARY_CHIMMY_HREF = getPrimaryChimmyEntry().href;
-
-const LINKS: AIToolDiscoveryLink[] = [
-  { label: 'Ask Chimmy', href: PRIMARY_CHIMMY_HREF, description: 'AI chat', featureKey: 'chimmy_chat', category: 'chat' },
-  { label: 'Trade Analyzer', href: '/af-legacy?tab=trade', description: 'Trade evaluations', featureKey: 'trade_analyzer', category: 'tool' },
-  { label: 'Trade Finder', href: '/af-legacy?tab=finder', description: 'Trade matchmaking', featureKey: 'trade_evaluator', category: 'tool' },
-  { label: 'Waiver AI', href: '/af-legacy?tab=waiver', description: 'Waiver recommendations', featureKey: 'waiver_ai', category: 'tool' },
-  { label: 'Rankings', href: '/af-legacy?tab=rankings', description: 'Power rankings', featureKey: 'rankings', category: 'tool' },
-  { label: 'Draft War Room', href: '/af-legacy?tab=mock-draft', description: 'Draft AI', featureKey: 'draft_helper', category: 'tool' },
-  { label: 'Chimmy', href: ROUTES.chimmy(), description: 'Meet Chimmy', featureKey: 'chimmy_chat', category: 'chat' },
-  { label: 'Social clips', href: '/social-clips', description: 'Grok social generator', featureKey: 'social_clips', category: 'media' },
-  { label: 'Clips', href: '/clips', description: 'Shareable graphics', featureKey: 'clips', category: 'media' },
+const LINKS: Array<Omit<AIToolDiscoveryLink, 'href'> & { featureKey: ToolAIEntryKey | string }> = [
+  { label: 'Ask Chimmy', description: 'Private AI chat', featureKey: 'chimmy_chat', category: 'chat' },
+  { label: 'Trade Analyzer', description: 'Trade evaluations', featureKey: 'trade_analyzer', category: 'tool' },
+  { label: 'Trade Evaluator', description: 'Trade acceptance guidance', featureKey: 'trade_evaluator', category: 'tool' },
+  { label: 'Waiver AI', description: 'Waiver recommendations', featureKey: 'waiver_ai', category: 'tool' },
+  { label: 'Rankings AI', description: 'Power rankings and explanations', featureKey: 'rankings', category: 'tool' },
+  { label: 'Draft Helper', description: 'Draft picks and war room help', featureKey: 'draft_helper', category: 'tool' },
+  { label: 'Psychological Profiles', description: 'Manager behavior and rivalry insights', featureKey: 'psychological_profiles', category: 'governance' },
+  { label: 'Story Creator', description: 'Legacy, rivalry, and prestige narratives', featureKey: 'story_creator', category: 'story' },
+  { label: 'Content Generator', description: 'Social, media, and blog generation', featureKey: 'content', category: 'media' },
+  { label: 'Meet Chimmy', description: 'Chimmy landing page', featureKey: 'chimmy_landing', category: 'chat' },
 ];
+
+function resolveDiscoveryHref(link: (typeof LINKS)[number], context?: AIProductContext): string {
+  if (link.featureKey === 'chimmy_landing') return getChimmyLandingHref();
+  if (link.featureKey === 'chimmy_chat') return getChimmyChatHref(context);
+  return getAIProductHrefForFeature(link.featureKey, context);
+}
 
 /**
  * All AI discovery links (tool hub, search, quick actions).
  */
-export function getAIToolDiscoveryLinks(): AIToolDiscoveryLink[] {
-  return [...LINKS];
+export function getAIToolDiscoveryLinks(context?: AIProductContext): AIToolDiscoveryLink[] {
+  return LINKS.map((link) => ({
+    ...link,
+    href: resolveDiscoveryHref(link, context),
+  }));
 }
 
 /**
  * Links for quick action / top bar "Ask Chimmy" (primary chat entry).
  */
-export function getChimmyQuickActionLink(): AIToolDiscoveryLink {
-  const entry = getPrimaryChimmyEntry();
+export function getChimmyQuickActionLink(context?: AIProductContext): AIToolDiscoveryLink {
+  const entry = getPrimaryChimmyEntry({
+    ...context,
+    source: context?.source ?? 'quick_action',
+  });
   return {
     label: entry.label,
     href: entry.href,
@@ -46,15 +58,22 @@ export function getChimmyQuickActionLink(): AIToolDiscoveryLink {
 /**
  * Links for a given category (tool, chat, story, media, governance).
  */
-export function getAIToolDiscoveryLinksByCategory(category: AIToolDiscoveryLink['category']): AIToolDiscoveryLink[] {
-  return LINKS.filter((l) => l.category === category);
+export function getAIToolDiscoveryLinksByCategory(
+  category: AIToolDiscoveryLink['category'],
+  context?: AIProductContext
+): AIToolDiscoveryLink[] {
+  return getAIToolDiscoveryLinks(context).filter((l) => l.category === category);
 }
 
 /**
  * Resolve href for a tool key (for handoffs and deep links).
  */
-export function getAIDiscoveryHrefForTool(key: ToolAIEntryKey | string): string {
-  if (key === 'chimmy_chat') return getPrimaryChimmyEntry().href;
-  const w = LINKS.find((l) => l.featureKey === key);
-  return w?.href ?? getPrimaryChimmyEntry().href;
+export function getAIDiscoveryHrefForTool(key: ToolAIEntryKey | string, context?: AIProductContext): string {
+  if (key === 'chimmy_landing') return getChimmyLandingHref();
+  if (key === 'chimmy_chat') {
+    return getPrimaryChimmyEntry(context).href;
+  }
+  const matched = LINKS.find((l) => l.featureKey === key);
+  if (matched) return resolveDiscoveryHref(matched, context);
+  return getPrimaryChimmyEntry(context).href;
 }

@@ -3,7 +3,7 @@
  * Covers: mock draft, trade analyzer, waiver advisor, Chimmy, create league, find league, and nav.
  */
 
-import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
+import { getChimmyQuickActionLink } from "@/lib/ai-product-layer"
 
 export interface QuickActionItem {
   id: string
@@ -15,7 +15,7 @@ export interface QuickActionItem {
 }
 
 /** Quick actions shown in search overlay (e.g. when empty or "go to" actions). */
-const CHIMMY_HREF = getPrimaryChimmyEntry().href
+const CHIMMY_HREF = getChimmyQuickActionLink({ source: "quick_action" }).href
 
 export const UNIVERSAL_QUICK_ACTIONS: QuickActionItem[] = [
   {

@@ -9,3 +9,5 @@ export * from './HeyGenVideoService';
 export * from './VideoGenerationJobTracker';
 export * from './MediaPlaybackResolver';
 export * from './FantasyMediaQueryService';
+export * from './FantasyMediaPublishService';
+export * from './publish-providers/destinations';

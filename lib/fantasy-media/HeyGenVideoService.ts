@@ -4,7 +4,9 @@
  */
 
 import { buildHeyGenPayload } from './HeyGenPayloadBuilder';
+import { buildHeyGenPayloadMetadata } from './HeyGenPayloadBuilder';
 import type { HeyGenPayloadInput } from './types';
+import type { HeyGenPayloadMetadata } from './types';
 
 const HEYGEN_BASE = 'https://api.heygen.com';
 const STATUS_POLL_MS = 5000;
@@ -13,6 +15,7 @@ const MAX_POLL_ATTEMPTS = 120;
 export interface HeyGenCreateResult {
   videoId: string;
   status: string;
+  payloadMetadata: HeyGenPayloadMetadata;
 }
 
 export interface HeyGenStatusResult {
@@ -35,8 +38,17 @@ export async function createHeyGenVideo(input: HeyGenPayloadInput): Promise<HeyG
     console.error('[HeyGen] No HEYGEN_API_KEY configured');
     return null;
   }
+  if (!input.script || !input.script.trim()) {
+    console.error('[HeyGen] Missing script content');
+    return null;
+  }
+  if (!input.title || !input.title.trim()) {
+    console.error('[HeyGen] Missing video title');
+    return null;
+  }
 
   const payload = buildHeyGenPayload(input);
+  const payloadMetadata = buildHeyGenPayloadMetadata(input);
 
   const res = await fetch(`${HEYGEN_BASE}/v2/videos`, {
     method: 'POST',
@@ -49,7 +61,10 @@ export async function createHeyGenVideo(input: HeyGenPayloadInput): Promise<HeyG
 
   if (!res.ok) {
     const text = await res.text();
-    console.error('[HeyGen] create failed', res.status, text?.slice(0, 300));
+    console.error('[HeyGen] create failed', {
+      status: res.status,
+      details: text?.slice(0, 300),
+    });
     return null;
   }
 
@@ -60,7 +75,7 @@ export async function createHeyGenVideo(input: HeyGenPayloadInput): Promise<HeyG
     console.error('[HeyGen] No video_id in response');
     return null;
   }
-  return { videoId, status };
+  return { videoId, status, payloadMetadata };
 }
 
 export async function getHeyGenVideoStatus(videoId: string): Promise<HeyGenStatusResult | null> {

@@ -6,6 +6,8 @@ export type ProviderStatus = {
   openai: boolean
   deepseek: boolean
   grok: boolean
+  openclaw: boolean
+  openclawGrowth: boolean
 }
 
 export function useProviderStatus(): {
@@ -34,6 +36,8 @@ export function useProviderStatus(): {
         openai: !!data.openai,
         deepseek: !!data.deepseek,
         grok: !!data.grok,
+        openclaw: !!data.openclaw,
+        openclawGrowth: !!data.openclawGrowth,
       })
     } catch {
       setError(true)
@@ -54,7 +58,7 @@ export function useProviderStatus(): {
   }, [fetchStatus])
 
   const availableCount = status
-    ? [status.openai, status.deepseek, status.grok].filter(Boolean).length
+    ? [status.openai, status.deepseek, status.grok, status.openclaw, status.openclawGrowth].filter(Boolean).length
     : 0
 
   return { status, loading, error, refetch: fetchStatus, availableCount }

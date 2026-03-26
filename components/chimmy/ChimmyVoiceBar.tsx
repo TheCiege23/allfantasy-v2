@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Volume2, VolumeX, Square, Loader2 } from 'lucide-react'
+import { Volume2, VolumeX, Square, Loader2, Mic, MicOff } from 'lucide-react'
 
 export interface ChimmyVoiceBarProps {
   /** Voice replies enabled (toggle in shell) */
@@ -14,6 +14,12 @@ export interface ChimmyVoiceBarProps {
   ttsLoading?: boolean
   /** When true, disable listen (e.g. no speechSynthesis) */
   ttsUnavailable?: boolean
+  /** Speech-to-text availability (web speech recognition). */
+  speechInputUnavailable?: boolean
+  /** Listening state for speech input. */
+  isListening?: boolean
+  /** Toggle speech input (start/stop). */
+  onSpeechInputToggle?: () => void
   /** Container for transcript sync / highlight (future) */
   transcriptRef?: React.RefObject<HTMLDivElement>
   className?: string
@@ -30,17 +36,19 @@ export default function ChimmyVoiceBar({
   onStop,
   ttsLoading = false,
   ttsUnavailable = false,
+  speechInputUnavailable = false,
+  isListening = false,
+  onSpeechInputToggle,
   transcriptRef,
   className = '',
 }: ChimmyVoiceBarProps) {
-  const canListen = typeof window !== 'undefined' && 'speechSynthesis' in window && !ttsUnavailable
-
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <button
         type="button"
         onClick={onVoiceToggle}
         disabled={ttsUnavailable}
+        data-testid="chimmy-voice-toggle-button"
         className="rounded-lg border border-white/20 bg-white/5 p-2 text-white/70 hover:bg-white/10 hover:text-white/90 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px] flex items-center justify-center"
         title={ttsUnavailable ? 'Voice unavailable' : voiceEnabled ? 'Voice on' : 'Voice off'}
         aria-label={ttsUnavailable ? 'Voice unavailable' : voiceEnabled ? 'Turn voice off' : 'Turn voice on'}
@@ -56,10 +64,29 @@ export default function ChimmyVoiceBar({
         <button
           type="button"
           onClick={onStop}
+          data-testid="chimmy-voice-stop-button"
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 flex items-center gap-1.5 min-h-[44px]"
         >
           <Square className="h-3.5 w-3.5" />
           Stop
+        </button>
+      )}
+
+      {onSpeechInputToggle && (
+        <button
+          type="button"
+          onClick={onSpeechInputToggle}
+          disabled={speechInputUnavailable}
+          data-testid="chimmy-voice-input-button"
+          className={`rounded-lg border p-2 text-white/80 transition min-h-[44px] min-w-[44px] flex items-center justify-center ${
+            isListening
+              ? 'border-cyan-500/45 bg-cyan-500/15 text-cyan-200'
+              : 'border-white/20 bg-white/5 hover:bg-white/10'
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          title={speechInputUnavailable ? 'Voice input unavailable' : isListening ? 'Stop voice input' : 'Start voice input'}
+          aria-label={speechInputUnavailable ? 'Voice input unavailable' : isListening ? 'Stop voice input' : 'Start voice input'}
+        >
+          {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </button>
       )}
 
@@ -72,6 +99,9 @@ export default function ChimmyVoiceBar({
 
       {ttsUnavailable && (
         <span className="text-[10px] text-white/40">Voice unavailable</span>
+      )}
+      {speechInputUnavailable && onSpeechInputToggle && (
+        <span className="text-[10px] text-white/40">Mic unavailable</span>
       )}
 
       {transcriptRef && <div ref={transcriptRef} className="sr-only" aria-hidden />}

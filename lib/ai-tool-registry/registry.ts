@@ -78,6 +78,24 @@ const REGISTRY: AIToolRegistration[] = [
     responseSchema: ['evidence', 'aiExplanation', 'actionPlan', 'confidence', 'uncertainty'],
   },
   {
+    toolKey: 'legacy_score',
+    toolName: 'Legacy / Dynasty Explainer',
+    deterministicRequired: true,
+    allowedProviders: ['openai', 'deepseek', 'grok'],
+    supportedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    requiredContextFields: ['score'],
+    responseSchema: ['evidence', 'aiExplanation', 'actionPlan', 'confidence', 'uncertainty'],
+  },
+  {
+    toolKey: 'rivalries',
+    toolName: 'Rivalry Explainer',
+    deterministicRequired: true,
+    allowedProviders: ['openai', 'deepseek', 'grok'],
+    supportedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    requiredContextFields: ['compositeScore'],
+    responseSchema: ['evidence', 'aiExplanation', 'actionPlan', 'confidence', 'uncertainty'],
+  },
+  {
     toolKey: 'story_creator',
     toolName: 'League Story Creator',
     deterministicRequired: true,
@@ -144,6 +162,13 @@ const REGISTRY: AIToolRegistration[] = [
 
 const BY_KEY = new Map<string, AIToolRegistration>()
 REGISTRY.forEach((r) => BY_KEY.set(r.toolKey, r))
+const TOOL_ALIASES: Record<string, string> = {
+  psychology: 'psychological',
+  psychological_profiles: 'psychological',
+  legacy: 'legacy_score',
+  rivalry: 'rivalries',
+  simulation: 'matchup',
+}
 
 /** All registered tools. */
 export function getAIToolRegistry(): AIToolRegistration[] {
@@ -153,7 +178,8 @@ export function getAIToolRegistry(): AIToolRegistration[] {
 /** Get one tool by key. Returns null if unsupported. */
 export function getToolRegistration(toolKey: string): AIToolRegistration | null {
   const key = (toolKey || '').trim().toLowerCase()
-  return BY_KEY.get(key) ?? null
+  const canonicalKey = TOOL_ALIASES[key] ?? key
+  return BY_KEY.get(canonicalKey) ?? null
 }
 
 /** Check if tool is supported. */

@@ -9,7 +9,16 @@ export type PublishAction = "publish" | "schedule" | "unpublish"
 export async function publishArticle(articleId: string): Promise<{ ok: boolean; error?: string }> {
   const article = await prisma.blogArticle.findUnique({ where: { articleId } })
   if (!article) return { ok: false, error: "Article not found" }
-  if (article.publishStatus === "published") return { ok: true }
+  if (article.publishStatus === "published") {
+    await prisma.blogPublishLog.create({
+      data: {
+        articleId,
+        actionType: "publish",
+        status: "already_published",
+      },
+    })
+    return { ok: true }
+  }
 
   await prisma.$transaction([
     prisma.blogArticle.update({
@@ -33,6 +42,12 @@ export async function scheduleArticle(
 ): Promise<{ ok: boolean; error?: string }> {
   const article = await prisma.blogArticle.findUnique({ where: { articleId } })
   if (!article) return { ok: false, error: "Article not found" }
+  if (Number.isNaN(scheduledAt.getTime())) {
+    return { ok: false, error: "Invalid schedule date" }
+  }
+  if (scheduledAt.getTime() <= Date.now()) {
+    return { ok: false, error: "Schedule date must be in the future" }
+  }
 
   await prisma.$transaction([
     prisma.blogArticle.update({
@@ -53,6 +68,7 @@ export async function scheduleArticle(
 export async function unpublishArticle(articleId: string): Promise<{ ok: boolean; error?: string }> {
   const article = await prisma.blogArticle.findUnique({ where: { articleId } })
   if (!article) return { ok: false, error: "Article not found" }
+  if (article.publishStatus === "draft") return { ok: true }
 
   await prisma.blogArticle.update({
     where: { articleId },

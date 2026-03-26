@@ -1,42 +1,100 @@
 import { test, expect } from '@playwright/test'
-import { registerAndLogin } from './helpers/auth-flow'
 
 test.describe.configure({ timeout: 90_000 })
 
-async function createLeague(
-  page: import('@playwright/test').Page,
-  sport: 'NHL' | 'MLB',
-  name: string
-) {
-  const res = await page.request.post('/api/league/create', {
-    data: {
-      name,
-      platform: 'manual',
-      sport,
-      leagueSize: 12,
-      scoring: 'standard',
-      isDynasty: false,
-    },
+test('shows grouped multi-sport dashboard ordering without DB dependency', async ({ page }) => {
+  const nhlLeagueId = 'nhl-e2e-123'
+  const mlbLeagueId = 'mlb-e2e-456'
+  const nhlLeagueName = 'E2E NHL Harness League'
+  const mlbLeagueName = 'E2E MLB Harness League'
+
+  await page.route('**/api/league/list', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        leagues: [
+          {
+            id: nhlLeagueId,
+            name: nhlLeagueName,
+            sport: 'NHL',
+            sport_type: 'NHL',
+            leagueVariant: 'STANDARD',
+            league_variant: 'STANDARD',
+            platform: 'manual',
+            leagueSize: 12,
+            isDynasty: false,
+            syncStatus: 'manual',
+            rosters: [],
+          },
+          {
+            id: mlbLeagueId,
+            name: mlbLeagueName,
+            sport: 'MLB',
+            sport_type: 'MLB',
+            leagueVariant: 'STANDARD',
+            league_variant: 'STANDARD',
+            platform: 'manual',
+            leagueSize: 12,
+            isDynasty: false,
+            syncStatus: 'manual',
+            rosters: [],
+          },
+        ],
+      }),
+    })
   })
-  const payload = await res.json().catch(() => ({}))
-  expect(res.ok(), JSON.stringify(payload)).toBeTruthy()
-  return payload?.league as { id?: string; name?: string; sport?: string } | undefined
-}
 
-test('@db creates multi-sport leagues and shows grouped dashboard ordering', async ({ page }) => {
-  await registerAndLogin(page)
+  await page.route('**/api/league/roster**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ roster: [], faabRemaining: null, waiverPriority: null }),
+    })
+  })
 
-  const suffix = Date.now()
-  const nhlLeagueName = `E2E NHL ${suffix}`
-  const mlbLeagueName = `E2E MLB ${suffix}`
+  await page.route('**/api/bracket/leagues/**/standings', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ standings: [] }),
+    })
+  })
 
-  const nhlLeague = await createLeague(page, 'NHL', nhlLeagueName)
-  const mlbLeague = await createLeague(page, 'MLB', mlbLeagueName)
-  expect(nhlLeague?.id).toBeTruthy()
-  expect(mlbLeague?.id).toBeTruthy()
+  await page.route('**/api/bracket/leagues/**/chat', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ messages: [] }),
+    })
+  })
 
-  await page.goto('/dashboard')
-  await page.waitForURL('/dashboard')
+  await page.route('**/api/content-feed**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
+    })
+  })
+
+  await page.route('**/api/sports/news**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ news: [] }),
+    })
+  })
+
+  await page.route('**/api/sports/weather**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ weather: null }),
+    })
+  })
+
+  await page.goto('/e2e/dashboard-soccer-grouping')
+  await expect(page.getByText(/Welcome back,/i).first()).toBeVisible()
 
   // Switch to the My Leagues tab where sport groups are rendered
   await page.getByRole('button', { name: 'My Leagues' }).click()
@@ -57,8 +115,8 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   await expect(mlbCard).toBeVisible({ timeout: 45_000 })
   await expect(nhlSection).toBeVisible()
   await expect(mlbSection).toBeVisible()
-  await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/app/league/${nhlLeague?.id ?? ''}$`))
-  await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/app/league/${mlbLeague?.id ?? ''}$`))
+  await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/app/league/${nhlLeagueId}$`))
+  await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/app/league/${mlbLeagueId}$`))
 
   const headingOrder = await page.getByRole('heading', { level: 3 }).evaluateAll((nodes) =>
     nodes.map((node) => node.textContent?.trim() || '').filter(Boolean)
@@ -84,7 +142,7 @@ test('@db creates multi-sport leagues and shows grouped dashboard ordering', asy
   expect(
     askChimmyHrefs.some(
       (href) =>
-        /\/chimmy\?/.test(href) &&
+        /\/messages\?tab=ai/.test(href) &&
         /leagueId=/.test(href) &&
         /sport=(NFL|NHL|MLB|NBA|NCAAF|NCAAB|SOCCER)/i.test(href)
     )

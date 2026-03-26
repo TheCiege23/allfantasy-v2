@@ -13,6 +13,9 @@ export interface MediaStoryShape {
   leagueId: string
   sport: string
   storyType: string
+  shortText?: string
+  socialText?: string
+  longText?: string
   createdAt: string
 }
 
@@ -42,6 +45,9 @@ export function storyToMediaShape(
     leagueId: options.leagueId,
     sport: options.sport,
     storyType: options.storyType,
+    shortText: output.shortVersion,
+    socialText: output.socialVersion,
+    longText: output.longVersion,
     createdAt: new Date().toISOString(),
   }
 }

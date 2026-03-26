@@ -13,13 +13,24 @@ import { buildWaiverEnvelope, getWaiverDeterministicEvidence } from "./WaiverAIA
 import { buildRankingsEnvelope, getRankingsDeterministicEvidence } from "./RankingsAIAdapter"
 import { buildDraftEnvelope, getDraftDeterministicEvidence } from "./DraftAIAdapter"
 import { buildPsychologyEnvelope, getPsychologyDeterministicEvidence } from "./PsychologyAIAdapter"
+import { buildMatchupEnvelope, getMatchupDeterministicEvidence } from "./MatchupAIAdapter"
+import { buildLegacyEnvelope, getLegacyDeterministicEvidence } from "./LegacyAIAdapter"
+import { buildRivalryEnvelope, getRivalryDeterministicEvidence } from "./RivalryAIAdapter"
+import {
+  buildStoryCreatorEnvelope,
+  getStoryCreatorDeterministicEvidence,
+} from "./StoryCreatorAIAdapter"
 
 export type ToolContextMap = {
   trade_analyzer: Parameters<typeof buildTradeEnvelope>[0]
   waiver_ai: Parameters<typeof buildWaiverEnvelope>[0]
   rankings: Parameters<typeof buildRankingsEnvelope>[0]
   draft_helper: Parameters<typeof buildDraftEnvelope>[0]
-  psychology: Parameters<typeof buildPsychologyEnvelope>[0]
+  psychological: Parameters<typeof buildPsychologyEnvelope>[0]
+  matchup: Parameters<typeof buildMatchupEnvelope>[0]
+  legacy_score: Parameters<typeof buildLegacyEnvelope>[0]
+  rivalries: Parameters<typeof buildRivalryEnvelope>[0]
+  story_creator: Parameters<typeof buildStoryCreatorEnvelope>[0]
 }
 
 const ENVELOPE_BUILDERS = {
@@ -27,7 +38,11 @@ const ENVELOPE_BUILDERS = {
   waiver_ai: buildWaiverEnvelope,
   rankings: buildRankingsEnvelope,
   draft_helper: buildDraftEnvelope,
-  psychology: buildPsychologyEnvelope,
+  psychological: buildPsychologyEnvelope,
+  matchup: buildMatchupEnvelope,
+  legacy_score: buildLegacyEnvelope,
+  rivalries: buildRivalryEnvelope,
+  story_creator: buildStoryCreatorEnvelope,
 } as const
 
 const EVIDENCE_GETTERS = {
@@ -35,8 +50,44 @@ const EVIDENCE_GETTERS = {
   waiver_ai: getWaiverDeterministicEvidence,
   rankings: getRankingsDeterministicEvidence,
   draft_helper: getDraftDeterministicEvidence,
-  psychology: getPsychologyDeterministicEvidence,
+  psychological: getPsychologyDeterministicEvidence,
+  matchup: getMatchupDeterministicEvidence,
+  legacy_score: getLegacyDeterministicEvidence,
+  rivalries: getRivalryDeterministicEvidence,
+  story_creator: getStoryCreatorDeterministicEvidence,
 } as const
+
+const ENVELOPE_BUILDER_ALIASES: Record<string, keyof ToolContextMap> = {
+  trade_analyzer: "trade_analyzer",
+  waiver_ai: "waiver_ai",
+  rankings: "rankings",
+  draft_helper: "draft_helper",
+  psychological: "psychological",
+  psychology: "psychological",
+  psychological_profiles: "psychological",
+  matchup: "matchup",
+  simulation: "matchup",
+  legacy_score: "legacy_score",
+  legacy: "legacy_score",
+  rivalries: "rivalries",
+  rivalry: "rivalries",
+  drama: "rivalries",
+  story_creator: "story_creator",
+}
+
+const TOOL_KEY_ALIASES: Record<string, ToolKey> = {
+  ...ENVELOPE_BUILDER_ALIASES,
+}
+
+export function resolveEnvelopeBuilderToolKey(toolKey: string): keyof ToolContextMap | null {
+  const normalized = (toolKey ?? "").trim().toLowerCase()
+  return ENVELOPE_BUILDER_ALIASES[normalized] ?? null
+}
+
+export function resolveToolKeyAlias(toolKey: string): ToolKey | null {
+  const normalized = (toolKey ?? "").trim().toLowerCase()
+  return TOOL_KEY_ALIASES[normalized] ?? null
+}
 
 /**
  * Build envelope for a tool. Use before calling deterministic engine and model APIs.
@@ -56,7 +107,8 @@ export function getDeterministicEvidenceForTool(
   toolKey: ToolKey,
   deterministicPayload: Record<string, unknown> | null
 ): string[] {
-  const fn = EVIDENCE_GETTERS[toolKey as keyof typeof EVIDENCE_GETTERS]
+  const normalized = resolveToolKeyAlias(toolKey) ?? toolKey
+  const fn = EVIDENCE_GETTERS[normalized as keyof typeof EVIDENCE_GETTERS]
   return fn ? fn(deterministicPayload) : []
 }
 

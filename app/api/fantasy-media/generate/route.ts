@@ -38,6 +38,12 @@ export async function POST(req: Request) {
     sport,
     contentType: contentType as MediaType,
     script,
+    sections: built.sections,
+    language: body.language,
+    durationTargetSeconds: body.durationTargetSeconds,
+    toneStyle: body.toneStyle,
+    brandingInstructions: body.brandingInstructions,
+    ctaEnding: body.ctaEnding,
   }
   const createResult = await createHeyGenVideo(heygenInput)
   if (!createResult) {
@@ -54,6 +60,13 @@ export async function POST(req: Request) {
     status: "generating",
     provider: "heygen",
     providerJobId: createResult.videoId,
+    meta: {
+      heygen: createResult.payloadMetadata,
+      requested: {
+        language: body.language ?? null,
+        durationTargetSeconds: body.durationTargetSeconds ?? null,
+      },
+    },
   })
 
   // Run job tracker in background (poll until complete and update episode)

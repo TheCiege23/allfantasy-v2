@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Send, Image as ImageIcon, Loader2, X, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface'
+import type { ChimmyVoicePreset } from '@/lib/chimmy-interface'
 import {
   getAIThreadStorageKey,
   loadAIThreadMessages,
@@ -66,6 +67,10 @@ export interface ChimmyChatShellProps {
   toolContext?: ChimmyToolContextValue | null
   /** Optional: open provider comparison (e.g. modal or route) */
   onOpenCompare?: () => void
+  /** Voice profile preset (default calm). */
+  voicePreset?: ChimmyVoicePreset
+  /** Enable speech input control (default true). */
+  enableSpeechInput?: boolean
   className?: string
 }
 
@@ -92,6 +97,8 @@ export default function ChimmyChatShell({
   onClose,
   toolContext,
   onOpenCompare,
+  voicePreset = 'calm',
+  enableSpeechInput = true,
   className = '',
 }: ChimmyChatShellProps) {
   const [messages, setMessages] = useState<ChimmyChatMessage[]>([
@@ -105,6 +112,9 @@ export default function ChimmyChatShell({
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [lastMeta, setLastMeta] = useState<Record<string, string> | null>(null)
   const [ttsUnavailable, setTtsUnavailable] = useState(false)
+  const [speechInputUnavailable, setSpeechInputUnavailable] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [inlineError, setInlineError] = useState<string | null>(null)
   const [retryLoading, setRetryLoading] = useState(false)
 
   const transcriptRef = useRef<HTMLDivElement>(null)
@@ -144,8 +154,13 @@ export default function ChimmyChatShell({
   const canCompare = lastMeta && Object.keys(lastMeta).length > 1
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !('speechSynthesis' in window)) {
+    if (typeof window === 'undefined') return
+    if (!('speechSynthesis' in window)) {
       setTtsUnavailable(true)
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      setSpeechInputUnavailable(true)
     }
   }, [])
 
@@ -184,6 +199,7 @@ export default function ChimmyChatShell({
   }, [isVoicePlaying])
 
   useEffect(() => {
+    if (!enableSpeechInput) return
     if (typeof window === 'undefined') return
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) return
@@ -191,28 +207,37 @@ export default function ChimmyChatShell({
     recognition.lang = 'en-US'
     recognition.interimResults = false
     recognition.continuous = false
-    recognition.onstart = () => {}
-    recognition.onend = () => {}
-    recognition.onerror = () => toast.error('Voice input failed. Try again.')
+    recognition.onstart = () => {
+      setIsListening(true)
+      setInlineError(null)
+    }
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => {
+      setIsListening(false)
+      toast.error('Voice input failed. Try again.')
+    }
     recognition.onresult = (e: any) => {
       const t = e?.results?.[0]?.[0]?.transcript?.trim() || ''
-      if (t) setInput(t)
+      if (t) {
+        setInput((prev) => (prev.trim().length > 0 ? `${prev.trim()} ${t}` : t))
+      }
     }
     recognitionRef.current = recognition
     return () => {
       try {
         recognition.stop()
       } catch {}
+      recognitionRef.current = null
     }
-  }, [])
+  }, [enableSpeechInput])
 
   const speak = useCallback(
     (text: string) => {
       if (!voiceEnabled || ttsUnavailable || !text?.trim()) return
       setIsVoicePlaying(true)
-      speakChimmy(text, 'calm', { onEnd: () => setIsVoicePlaying(false) })
+      speakChimmy(text, voicePreset, { onEnd: () => setIsVoicePlaying(false) })
     },
-    [voiceEnabled, ttsUnavailable]
+    [voiceEnabled, ttsUnavailable, voicePreset]
   )
 
   const handleStopVoice = useCallback(() => {
@@ -222,7 +247,30 @@ export default function ChimmyChatShell({
 
   const handleFollowUp = useCallback((prompt: string) => {
     setInput(prompt)
+    setInlineError(null)
   }, [])
+
+  const handleSpeechInputToggle = useCallback(() => {
+    if (!enableSpeechInput) return
+    if (speechInputUnavailable) {
+      toast.error('Voice input is unavailable on this browser.')
+      return
+    }
+    const recognition = recognitionRef.current
+    if (!recognition) {
+      toast.error('Voice input is unavailable on this browser.')
+      return
+    }
+    try {
+      if (isListening) {
+        recognition.stop()
+      } else {
+        recognition.start()
+      }
+    } catch {
+      toast.error('Could not start voice input.')
+    }
+  }, [enableSpeechInput, isListening, speechInputUnavailable])
 
   const handleListenToLast = useCallback(() => {
     const last = [...messages].reverse().find((m) => m.role === 'assistant')
@@ -249,7 +297,10 @@ export default function ChimmyChatShell({
       })
 
       if (!result.ok && result.error) {
+        setInlineError(result.error)
         toast.error(result.error)
+      } else {
+        setInlineError(null)
       }
 
       const reply = result.response || "I couldn't complete that. Please try again or rephrase."
@@ -298,10 +349,12 @@ export default function ChimmyChatShell({
     setImageFile(null)
     setIsTyping(true)
     setLastMeta(null)
+    setInlineError(null)
 
     try {
       await runSend(outgoingText, outImage, messages)
     } catch {
+      setInlineError('Failed to send. Please try again.')
       toast.error('Failed to send. Please try again.')
       setMessages((prev) => [
         ...prev,
@@ -323,12 +376,14 @@ export default function ChimmyChatShell({
     setRetryLoading(true)
     setIsTyping(true)
     setLastMeta(null)
+    setInlineError(null)
 
     try {
       await runSend(lastUserMsg.content, null, messages.slice(0, lastUserIdx), {
         replaceLastAssistant: true,
       })
     } catch {
+      setInlineError('Retry failed. Please try again.')
       toast.error('Retry failed. Please try again.')
       setMessages((prev) => [
         ...prev,
@@ -358,7 +413,11 @@ export default function ChimmyChatShell({
     if (last?.content && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(last.content)
       toast.success('Copied to clipboard.')
+      setInlineError(null)
+      return
     }
+    setInlineError('Clipboard is unavailable in this browser.')
+    toast.error('Clipboard is unavailable.')
   }, [messages])
 
   const lastIsAssistant = messages.length > 0 && messages[messages.length - 1]?.role === 'assistant'
@@ -367,6 +426,7 @@ export default function ChimmyChatShell({
   return (
     <div
       className={`flex flex-col rounded-2xl border border-white/10 bg-black/30 overflow-hidden touch-scroll ${compact ? 'min-h-[400px]' : 'h-fill-dynamic min-h-[420px]'} ${className}`}
+      data-testid="chimmy-chat-shell"
     >
       <header className="flex items-center justify-between gap-3 p-3 sm:p-4 border-b border-white/10 bg-white/[0.03]">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -383,6 +443,7 @@ export default function ChimmyChatShell({
             <button
               type="button"
               onClick={onClose}
+              data-testid="chimmy-close-button"
               className="ml-auto shrink-0 rounded-lg border border-white/20 bg-white/5 p-2 text-white/70 hover:bg-white/10 min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Close panel"
             >
@@ -402,6 +463,9 @@ export default function ChimmyChatShell({
             isPlaying={isVoicePlaying}
             onStop={handleStopVoice}
             ttsUnavailable={ttsUnavailable}
+            onSpeechInputToggle={enableSpeechInput ? handleSpeechInputToggle : undefined}
+            speechInputUnavailable={speechInputUnavailable}
+            isListening={isListening}
             transcriptRef={transcriptRef}
           />
         </div>
@@ -431,10 +495,21 @@ export default function ChimmyChatShell({
           onFollowUpClick={handleFollowUp}
           onListenToLast={handleListenToLast}
           isVoicePlaying={isVoicePlaying}
+          className="chimmy-conversation-thread"
         />
       </div>
 
       <div className="p-3 sm:p-4 border-t border-white/10 bg-white/[0.03] space-y-2">
+        {isTyping && (
+          <p className="text-[11px] text-white/55" data-testid="chimmy-loading-state">
+            Chimmy is preparing a response...
+          </p>
+        )}
+        {inlineError && (
+          <p className="text-[11px] text-amber-300" data-testid="chimmy-inline-error">
+            {inlineError}
+          </p>
+        )}
         {imagePreview && (
           <div className="flex items-center gap-2 p-2 rounded-xl bg-white/5">
             <img src={imagePreview} alt="Preview" className="w-14 h-14 object-cover rounded-lg" />
@@ -454,7 +529,13 @@ export default function ChimmyChatShell({
         <div className="flex gap-2">
           <label className="flex-shrink-0 w-11 h-11 rounded-xl border border-white/20 bg-white/5 flex items-center justify-center cursor-pointer hover:bg-white/10 min-h-[44px]">
             <ImageIcon className="h-5 w-5 text-cyan-400/80" />
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              data-testid="chimmy-image-upload-input"
+              className="hidden"
+            />
           </label>
 
           <input
@@ -471,12 +552,14 @@ export default function ChimmyChatShell({
             className="flex-1 min-w-0 rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-cyan-500/40 focus:outline-none disabled:opacity-50"
             disabled={isTyping}
             aria-label="Message"
+            data-testid="chimmy-message-input"
           />
 
           <button
             type="button"
             onClick={sendMessage}
             disabled={isTyping || (!input.trim() && !imageFile)}
+            data-testid="chimmy-send-button"
             className="flex-shrink-0 w-11 h-11 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50 min-h-[44px]"
             aria-label="Send message"
           >
@@ -489,6 +572,7 @@ export default function ChimmyChatShell({
             <button
               type="button"
               onClick={handleCopyResponse}
+              data-testid="chimmy-copy-response-button"
               className="hover:text-white/60"
               aria-label="Copy response"
             >
@@ -499,6 +583,7 @@ export default function ChimmyChatShell({
                 type="button"
                 onClick={handleRetry}
                 disabled={retryLoading}
+                data-testid="chimmy-retry-button"
                 className="inline-flex items-center gap-1 hover:text-white/60 disabled:opacity-50"
                 aria-label="Retry"
               >
@@ -508,7 +593,12 @@ export default function ChimmyChatShell({
             )}
           </div>
           {onSaveConversation && (
-            <button type="button" onClick={onSaveConversation} className="hover:text-white/60">
+            <button
+              type="button"
+              onClick={onSaveConversation}
+              data-testid="chimmy-save-conversation-button"
+              className="hover:text-white/60"
+            >
               Save conversation
             </button>
           )}

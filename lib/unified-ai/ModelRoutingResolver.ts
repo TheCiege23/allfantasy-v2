@@ -24,6 +24,16 @@ export const MODEL_RESPONSIBILITIES: Record<
   },
 }
 
+/** Assistant responsibilities outside core 3-model execution. */
+export const ASSISTANT_RESPONSIBILITIES = {
+  chimmy:
+    "Calm, natural chat surface for private fantasy guidance using unified orchestration context.",
+  openclaw_dev_assistant:
+    "Workflow assistant endpoint for engineering and platform operations support.",
+  openclaw_growth_marketing_assistant:
+    "Workflow assistant endpoint for growth and marketing execution support.",
+} as const
+
 /**
  * Resolve orchestration mode from envelope or default.
  */

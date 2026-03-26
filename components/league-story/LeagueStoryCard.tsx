@@ -15,12 +15,14 @@ export const LEAGUE_STORY_CARD_ID = 'league-story-card-capture'
 export interface LeagueStoryCardProps {
   payload: LeagueStoryPayload
   captureId?: string
+  dataTestId?: string
   className?: string
 }
 
 export function LeagueStoryCard({
   payload,
   captureId = LEAGUE_STORY_CARD_ID,
+  dataTestId,
   className = '',
 }: LeagueStoryCardProps) {
   const { title, narrative, leagueName, week, sport, highlight } = payload
@@ -28,12 +30,13 @@ export function LeagueStoryCard({
   return (
     <div
       id={captureId}
+      data-testid={dataTestId}
       className={`rounded-xl overflow-hidden text-white ${className}`}
       style={{
         width: CARD_WIDTH,
         height: CARD_HEIGHT,
-        background: '#0f172a',
-        border: `2px solid ${ACCENT}40`,
+        background: 'linear-gradient(180deg, #040915 0%, #0a1228 100%)',
+        border: `1px solid ${ACCENT}35`,
         boxSizing: 'border-box',
       }}
     >

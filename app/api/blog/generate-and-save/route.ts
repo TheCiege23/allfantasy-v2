@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateAndSaveDraft } from "@/lib/automated-blog"
+import { prisma } from "@/lib/prisma"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import { BLOG_CATEGORIES } from "@/lib/automated-blog/types"
 
@@ -24,7 +25,22 @@ export async function POST(req: NextRequest) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error ?? "Failed" }, { status: 400 })
     }
-    return NextResponse.json({ articleId: result.articleId, slug: result.slug })
+    const article =
+      result.articleId
+        ? await prisma.blogArticle.findUnique({ where: { articleId: result.articleId } })
+        : null
+    return NextResponse.json({
+      articleId: result.articleId,
+      slug: result.slug,
+      article: article
+        ? {
+            articleId: article.articleId,
+            slug: article.slug,
+            publishStatus: article.publishStatus,
+            updatedAt: article.updatedAt.toISOString(),
+          }
+        : null,
+    })
   } catch (e) {
     console.error("[blog/generate-and-save]", e)
     return NextResponse.json({ error: "Failed to generate and save" }, { status: 500 })

@@ -1,3 +1,5 @@
+'use client'
+
 export { LeagueStoryCard, LEAGUE_STORY_CARD_ID } from './LeagueStoryCard'
 export type { LeagueStoryCardProps } from './LeagueStoryCard'
 export { LeagueStoryShareBar } from './LeagueStoryShareBar'

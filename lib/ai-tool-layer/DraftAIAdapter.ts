@@ -10,12 +10,14 @@ import type { AIContextEnvelope } from "@/lib/unified-ai/types"
 export interface DraftAdapterContext {
   sport?: string | null
   leagueId?: string | null
+  userId?: string | null
   /** From draft engine: board, scarcity, roster needs, suggested pick. */
   deterministicPayload?: Record<string, unknown> | null
   userMessage?: string
 }
 
 export function buildDraftEnvelope(ctx: DraftAdapterContext): AIContextEnvelope {
+  const sport = normalizeToSupportedSport(ctx.sport ?? undefined)
   const det = ctx.deterministicPayload ?? {}
   const hardConstraints = [
     "Recommend only from the provided board or position list.",
@@ -24,8 +26,9 @@ export function buildDraftEnvelope(ctx: DraftAdapterContext): AIContextEnvelope 
   ]
   return buildAIContextEnvelope({
     featureType: "draft_helper",
-    sport: ctx.sport ?? undefined,
+    sport,
     leagueId: ctx.leagueId ?? null,
+    userId: ctx.userId ?? null,
     deterministicPayload: det,
     promptIntent: "recommend",
     uiSurface: "inline",

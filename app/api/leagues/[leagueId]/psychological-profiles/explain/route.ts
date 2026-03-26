@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server'
 import { getProfileById } from '@/lib/psychological-profiles/ManagerBehaviorQueryService'
 import { prisma } from '@/lib/prisma'
-import { openaiChatText } from '@/lib/openai-client'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration'
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer'
 
 export const dynamic = 'force-dynamic'
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 /**
  * POST /api/leagues/[leagueId]/psychological-profiles/explain
@@ -51,44 +69,77 @@ export async function POST(
       value: e.value,
       sourceReference: e.sourceReference,
     }))
-    const aiNarrative = await openaiChatText({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a concise fantasy behavior analyst. Explain manager style using only provided evidence. Give 2-4 sentences with one actionable takeaway for opponents.',
+    const envelope = buildEnvelopeForTool('psychological', {
+      sport: profile.sport,
+      leagueId,
+      deterministicPayload: {
+        profile: {
+          profileId,
+          managerId: profile.managerId,
+          labels: profile.profileLabels,
+          aggressionScore: profile.aggressionScore,
+          activityScore: profile.activityScore,
+          tradeFrequencyScore: profile.tradeFrequencyScore,
+          waiverFocusScore: profile.waiverFocusScore,
+          riskToleranceScore: profile.riskToleranceScore,
         },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            leagueId,
-            profileId,
-            managerId: profile.managerId,
-            sport: profile.sportLabel,
-            labels: profile.profileLabels,
-            scores: {
-              aggression: profile.aggressionScore,
-              activity: profile.activityScore,
-              tradeFrequency: profile.tradeFrequencyScore,
-              waiverFocus: profile.waiverFocusScore,
-              riskTolerance: profile.riskToleranceScore,
-            },
-            evidencePreview,
-          }),
-        },
-      ],
-      temperature: 0.35,
-      maxTokens: 230,
-    }).catch(() => null)
-    const narrative =
-      aiNarrative?.ok && aiNarrative.text?.trim()
-        ? aiNarrative.text.trim()
-        : fallbackNarrative
+        evidence: evidencePreview,
+        evidenceCount: profile.evidenceCount ?? evidencePreview.length,
+      },
+      behaviorPayload: {
+        profileLabels: profile.profileLabels,
+      },
+      userMessage:
+        'Explain this manager style in 2-4 sentences with one actionable takeaway. Stay deterministic-first and confidence-aware.',
+    })
+
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: 'consensus',
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let narrative = fallbackNarrative
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: 'psychological',
+        primaryAnswer: orchestration.response.primaryAnswer || fallbackNarrative,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallbackNarrative
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
 
     return NextResponse.json({
       profileId,
       leagueId,
       narrative,
+      verdict,
+      sections,
+      factGuardWarnings,
       profileLabels: profile.profileLabels,
       evidencePreview: evidencePreview.slice(0, 5),
     })

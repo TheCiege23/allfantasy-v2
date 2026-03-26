@@ -9,7 +9,7 @@ const QUICK_ACTIONS = [
   {
     id: 'ask-chimmy',
     label: 'Ask Chimmy',
-    href: () => getChimmyChatHref(),
+    href: () => getChimmyChatHref({ source: 'quick_action' }),
     icon: MessageCircle,
   },
   {
@@ -33,7 +33,7 @@ const QUICK_ACTIONS = [
   {
     id: 'explain-matchup',
     label: 'Explain Matchup',
-    href: () => getChimmyChatHrefWithPrompt('Explain my matchup'),
+    href: () => getChimmyChatHrefWithPrompt('Explain my matchup', { source: 'quick_action' }),
     icon: Zap,
   },
 ]
@@ -58,6 +58,7 @@ export default function AIQuickActionBar({ className = '' }: AIQuickActionBarPro
             key={action.id}
             href={href}
             data-quick-action={action.id}
+            data-testid={`ai-quick-action-${action.id}`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/10 hover:text-white"
           >
             <Icon className="h-3.5 w-3.5" />

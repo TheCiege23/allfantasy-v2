@@ -30,6 +30,7 @@ export async function POST(req: Request) {
     playerName: body.playerName,
     rank: body.rank,
     tier: body.tier,
+    sport,
   };
   const content = getShareContent(shareType as AchievementShareType, context);
 
@@ -40,7 +41,11 @@ export async function POST(req: Request) {
       shareType,
       title: content.title,
       summary: content.text,
-      metadata: context as object,
+      metadata: {
+        context,
+        sport,
+        approvedForPublish: false,
+      },
     },
   });
 

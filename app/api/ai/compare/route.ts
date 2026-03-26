@@ -12,10 +12,27 @@ import {
   requestContractToUnified,
   unifiedResponseToContract,
   type AIToolRequestContract,
+  type AIToolResponseContract,
 } from '@/lib/ai-tool-registry'
+import { formatToolResult, resolveToolKeyAlias, validateToolOutput } from '@/lib/ai-tool-layer'
 
 function isRequestContract(body: Record<string, unknown>): boolean {
   return typeof body.tool === 'string' && typeof body.sport === 'string'
+}
+
+function getStructuredCandidate(response: { modelOutputs?: Array<{ model?: string; structured?: unknown }> }): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
 }
 
 export async function POST(req: Request) {
@@ -90,6 +107,54 @@ export async function POST(req: Request) {
     )
   }
 
-  const responseContract = unifiedResponseToContract(result.response)
+  let responseContract: AIToolResponseContract = unifiedResponseToContract(result.response)
+  const toolLayerKey = resolveToolKeyAlias(contract.tool)
+  if (toolLayerKey) {
+    const formatted = formatToolResult({
+      toolKey: toolLayerKey,
+      primaryAnswer: responseContract.aiExplanation || result.response.primaryAnswer,
+      structured: getStructuredCandidate(result.response),
+      envelope: compareRequest.envelope,
+      factGuardWarnings: result.response.factGuardWarnings ?? undefined,
+    })
+    const toolFactGuard = validateToolOutput(formatted.output, compareRequest.envelope)
+    const outputConfidence =
+      typeof formatted.output.confidence === 'number'
+        ? formatted.output.confidence
+        : formatted.output.confidence.pct ?? null
+    const factGuardWarnings = Array.from(
+      new Set([
+        ...(responseContract.factGuardWarnings ?? []),
+        ...formatted.factGuardWarnings,
+        ...toolFactGuard.warnings,
+        ...toolFactGuard.errors.map((err) => `Fact guard: ${err}`),
+      ])
+    )
+
+    responseContract = {
+      ...responseContract,
+      aiExplanation: formatted.output.narrative ?? responseContract.aiExplanation,
+      evidence: responseContract.evidence.length ? responseContract.evidence : formatted.output.keyEvidence,
+      confidence: responseContract.confidence ?? outputConfidence,
+      uncertainty:
+        responseContract.uncertainty ??
+        formatted.output.risksCaveats[0] ??
+        (toolFactGuard.errors.length ? 'Some claims could not be fully validated against deterministic context.' : null),
+      verdict: formatted.output.verdict,
+      risksCaveats: formatted.output.risksCaveats,
+      suggestedNextAction: formatted.output.suggestedNextAction,
+      alternatePath: formatted.output.alternatePath ?? null,
+      sections: formatted.sections,
+      outputShape: {
+        verdict: formatted.output.verdict,
+        keyEvidence: formatted.output.keyEvidence,
+        confidence: formatted.output.confidence,
+        risksCaveats: formatted.output.risksCaveats,
+        suggestedNextAction: formatted.output.suggestedNextAction,
+        alternatePath: formatted.output.alternatePath,
+      },
+      factGuardWarnings,
+    }
+  }
   return NextResponse.json(responseContract)
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { Server, Database, RefreshCw, CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react"
+import AdminSocialPublishStatusPanel from "./AdminSocialPublishStatusPanel"
 
 type ApiStatus = { status: string; latency?: number; lastCheck: string }
 type SportsAlertLatencyType = {
@@ -335,6 +336,8 @@ export default function AdminSystemPanel() {
           </div>
         )}
       </section>
+
+      <AdminSocialPublishStatusPanel />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 /**
  * Tool registry — default mode, allowed modes, featureType and quality gate per tool.
- * Supports: trade-analyzer, waiver, draft-helper, matchup, rankings, story, content, chimmy-chat.
+ * Supports: trade, waiver, draft, matchup, rankings, psychological, legacy, rivalry, story, content, chimmy chat.
  */
 
 import type { OrchestrationMode } from '@/lib/unified-ai/types'
@@ -42,6 +42,27 @@ const REGISTRY: Record<OrchestrationToolType, ToolRegistryEntry> = {
     defaultMode: 'specialist',
     allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
     minConfidenceForRecommendation: 45,
+  },
+  psychological: {
+    key: 'psychological',
+    featureType: 'psychological',
+    defaultMode: 'specialist',
+    allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 45,
+  },
+  legacy_score: {
+    key: 'legacy_score',
+    featureType: 'legacy_score',
+    defaultMode: 'consensus',
+    allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 40,
+  },
+  rivalries: {
+    key: 'rivalries',
+    featureType: 'rivalries',
+    defaultMode: 'consensus',
+    allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 40,
   },
   story_creator: {
     key: 'story_creator',

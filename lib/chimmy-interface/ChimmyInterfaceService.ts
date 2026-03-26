@@ -3,7 +3,11 @@
  */
 
 import { getChimmyVoiceStyleProfile } from './ChimmyVoiceStyleProfile'
-import { getToolContextForChimmy } from './ToolContextToChimmyRouter'
+import {
+  getToolContextForChimmy,
+  getChimmyToolDisplayName,
+  mapAIContextSourceToToolContextSource,
+} from './ToolContextToChimmyRouter'
 import type { ChimmySuggestedChip, ChimmyVoicePreset } from './types'
 import type { ToolContextSource } from './ToolContextToChimmyRouter'
 
@@ -41,6 +45,43 @@ export function getDefaultChimmyChips(options?: {
  */
 export function getChimmyVoiceConfig(preset?: ChimmyVoicePreset) {
   return getChimmyVoiceStyleProfile(preset ?? 'calm')
+}
+
+export interface ChimmyToolDisplayContext {
+  toolName?: string
+  summary?: string
+  leagueName?: string | null
+  sport?: string | null
+}
+
+/**
+ * Build a lightweight tool context banner for Chimmy chat shells from AI URL context.
+ */
+export function buildChimmyToolDisplayContext(input: {
+  source?: string | null
+  leagueName?: string | null
+  sport?: string | null
+  contextHint?: string | null
+}): ChimmyToolDisplayContext | null {
+  const mappedSource = mapAIContextSourceToToolContextSource(input.source)
+  if (!mappedSource) return null
+
+  const routed = getToolContextForChimmy(mappedSource, {
+    leagueName: input.leagueName ?? undefined,
+    sport: input.sport ?? undefined,
+    contextHint: input.contextHint ?? undefined,
+  })
+
+  const fallbackSummary =
+    routed.contextHint ??
+    routed.suggestedPrompt.replace(/\s+/g, ' ').trim().slice(0, 140)
+
+  return {
+    toolName: getChimmyToolDisplayName(routed.toolId),
+    summary: input.contextHint?.trim() || fallbackSummary,
+    leagueName: input.leagueName ?? null,
+    sport: input.sport ?? null,
+  }
 }
 
 /**

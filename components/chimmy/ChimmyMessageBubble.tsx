@@ -2,6 +2,11 @@
 
 import React from 'react'
 import { SuggestedActionRenderer } from '@/lib/chimmy-chat/SuggestedActionRenderer'
+import {
+  getConfidenceDisplayText,
+  getConfidenceFromApiResponse,
+  shouldShowConfidence,
+} from '@/lib/chimmy-interface'
 
 export interface ChimmyMessageMeta {
   confidencePct?: number
@@ -65,6 +70,12 @@ export default function ChimmyMessageBubble({
   isListening,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
+  const confidenceDisplay = !isUser
+    ? getConfidenceFromApiResponse({
+        confidencePct: meta?.confidencePct,
+        quantData: meta?.quantData as { confidencePct?: number } | undefined,
+      })
+    : null
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -86,9 +97,9 @@ export default function ChimmyMessageBubble({
 
         {!isUser && meta && (
           <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">
-            {meta.confidencePct != null && (
+            {confidenceDisplay && shouldShowConfidence(confidenceDisplay) && (
               <span className="text-[10px] uppercase tracking-wider text-white/50">
-                Confidence {meta.confidencePct}%
+                {getConfidenceDisplayText(confidenceDisplay)}
               </span>
             )}
             {meta.dataSources && meta.dataSources.length > 0 && (
@@ -106,6 +117,7 @@ export default function ChimmyMessageBubble({
               type="button"
               onClick={onListen}
               disabled={isListening}
+              data-testid="chimmy-listen-response-button"
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50 min-h-[36px]"
               aria-label="Listen to response"
             >
@@ -128,6 +140,7 @@ export default function ChimmyMessageBubble({
                 key={chip.prompt}
                 type="button"
                 onClick={() => onFollowUpClick(chip.prompt)}
+                data-testid={`chimmy-follow-up-chip-${chip.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                 className="rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/80 hover:bg-white/10 transition min-h-[36px]"
               >
                 {chip.label}

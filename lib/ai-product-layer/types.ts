@@ -3,6 +3,7 @@
  */
 
 import type { ToolAIEntryKey } from '@/lib/unified-ai/types';
+import type { AIChatContext } from '@/lib/chimmy-chat';
 import type { LeagueSport } from '@prisma/client';
 
 /** Canonical Chimmy entry: chat surface with optional prefill. */
@@ -39,5 +40,26 @@ export interface AIToolDiscoveryLink {
   featureKey: ToolAIEntryKey | string;
   category: 'tool' | 'chat' | 'story' | 'media' | 'governance';
 }
+
+/** Shared product-level context for cross-surface AI routing. */
+export type AIProductContext = Partial<
+  Pick<
+    AIChatContext,
+    | 'prompt'
+    | 'leagueId'
+    | 'leagueName'
+    | 'sleeperUsername'
+    | 'insightType'
+    | 'teamId'
+    | 'sport'
+    | 'season'
+    | 'week'
+    | 'source'
+  >
+> & {
+  leagueVariant?: string | null;
+};
+
+export type AIDashboardSurface = 'app' | 'league' | 'dashboard';
 
 export type SupportedSport = LeagueSport;

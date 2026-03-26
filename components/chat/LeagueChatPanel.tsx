@@ -71,6 +71,7 @@ import {
 } from "@/lib/rich-message"
 import type { AttachmentPreview, GifSearchResult } from "@/lib/rich-message"
 import { readAIContextFromSearchParams } from "@/lib/chimmy-chat"
+import { buildChimmyToolDisplayContext } from "@/lib/chimmy-interface"
 
 type Props = {
   leagueId: string
@@ -143,6 +144,15 @@ export default function LeagueChatPanel({
   }, [resolvedLeagueThreadId, threads])
 
   const aiContext = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const chimmyToolContext = useMemo(
+    () =>
+      buildChimmyToolDisplayContext({
+        source: aiContext.source ?? null,
+        leagueName: aiContext.leagueName ?? leagueName,
+        sport: aiContext.sport ?? resolvedSport ?? null,
+      }),
+    [aiContext.leagueName, aiContext.source, aiContext.sport, leagueName, resolvedSport]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -1097,6 +1107,7 @@ export default function LeagueChatPanel({
             sport={aiContext.sport ?? resolvedSport ?? null}
             season={aiContext.season ?? null}
             week={aiContext.week ?? null}
+            toolContext={chimmyToolContext}
             compact
             className="min-h-[360px] h-full"
           />

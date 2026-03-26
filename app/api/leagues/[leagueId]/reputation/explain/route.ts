@@ -1,11 +1,29 @@
 import { NextResponse } from 'next/server'
-import { openaiChatText } from '@/lib/openai-client'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration'
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer'
 import {
   getReputationByLeagueAndManager,
   listEvidenceForManager,
 } from '@/lib/reputation-engine/ManagerTrustQueryService'
 
 export const dynamic = 'force-dynamic'
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 /**
  * POST /api/leagues/[leagueId]/reputation/explain
@@ -66,52 +84,88 @@ export async function POST(
     }
     const fallback = parts.join(' ')
 
-    const ai = await openaiChatText({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a fantasy league trust analyst. Explain this manager reputation in 3-5 concise sentences. Mention strongest strengths, biggest risk, and one practical commissioner action. Keep the explanation grounded in the provided metrics and evidence.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            leagueId,
-            managerId,
-            reputation: {
-              tier: reputation.tier,
-              overallScore: reputation.overallScore,
-              reliabilityScore: reputation.reliabilityScore,
-              activityScore: reputation.activityScore,
-              tradeFairnessScore: reputation.tradeFairnessScore,
-              sportsmanshipScore: reputation.sportsmanshipScore,
-              commissionerTrustScore: reputation.commissionerTrustScore,
-              toxicityRiskScore: reputation.toxicityRiskScore,
-              participationQualityScore: reputation.participationQualityScore,
-              responsivenessScore: reputation.responsivenessScore,
-              sport: reputation.sport,
-              season: reputation.season,
-            },
-            evidence: evidence.slice(0, 10).map((row) => ({
-              evidenceType: row.evidenceType,
-              value: row.value,
-              sourceReference: row.sourceReference,
-              createdAt: row.createdAt,
-            })),
-          }),
-        },
-      ],
-      temperature: 0.35,
-      maxTokens: 300,
-    }).catch(() => null)
+    const evidencePreview = evidence.slice(0, 10).map((row) => ({
+      evidenceType: row.evidenceType,
+      value: row.value,
+      sourceReference: row.sourceReference,
+      createdAt: row.createdAt,
+    }))
+    const envelope = buildEnvelopeForTool('psychological', {
+      sport: reputation.sport,
+      leagueId,
+      deterministicPayload: {
+        managerId,
+        tier: reputation.tier,
+        overallScore: reputation.overallScore,
+        reliabilityScore: reputation.reliabilityScore,
+        activityScore: reputation.activityScore,
+        tradeFairnessScore: reputation.tradeFairnessScore,
+        sportsmanshipScore: reputation.sportsmanshipScore,
+        commissionerTrustScore: reputation.commissionerTrustScore,
+        toxicityRiskScore: reputation.toxicityRiskScore,
+        participationQualityScore: reputation.participationQualityScore,
+        responsivenessScore: reputation.responsivenessScore,
+        sport: reputation.sport,
+        season: reputation.season,
+        evidenceCount: evidence.length,
+        evidence: evidencePreview,
+      },
+      behaviorPayload: {
+        profileLabels: [reputation.tier],
+      },
+      userMessage:
+        'Explain this manager reputation in 3-5 concise sentences. Highlight strongest strengths, biggest risk, and one practical commissioner action.',
+    })
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: 'consensus',
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
 
-    const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
+    let narrative = fallback
+    let source: 'ai' | 'reputation_engine' = 'reputation_engine'
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: 'psychological',
+        primaryAnswer: orchestration.response.primaryAnswer || fallback,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+      source = 'ai'
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
 
     return NextResponse.json({
       leagueId,
       managerId,
       narrative,
-      source: ai?.ok && ai.text?.trim() ? 'ai' : 'reputation_engine',
+      source,
+      verdict,
+      sections,
+      factGuardWarnings,
       tier: reputation.tier,
       overallScore: reputation.overallScore,
     })

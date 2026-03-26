@@ -358,7 +358,11 @@ test.describe('@simulation full click audit', () => {
     })
 
     await page.goto('/app/matchup-simulation')
-    await page.getByRole('button', { name: 'Sim My Matchup' }).click()
+    const openSimulatorButton = page.getByTestId('matchup-open-simulator')
+    if (await openSimulatorButton.isVisible().catch(() => false)) {
+      await openSimulatorButton.click()
+    }
+    await page.getByTestId('matchup-compare-button').click()
     await expect(page.locator('[data-audit="win-probability-meter"]')).toBeVisible()
     const matchupExplainLink = page.getByRole('link', { name: /Ask Chimmy to explain this matchup/i })
     await expect(matchupExplainLink).toBeVisible()

@@ -1,0 +1,58 @@
+---
+description: Mandatory UI click-audit and QA verification standards
+alwaysApply: true
+---
+
+# AllFantasy Click Audit and QA Standards
+
+## Mandatory click audit
+
+Audit every affected interactive element:
+
+- buttons
+- links
+- dropdowns
+- toggles
+- tabs
+- modals
+- step transitions
+- form submits
+- filters
+- cards
+- preview states
+- success/error states
+- mobile actions
+- desktop actions
+
+For each interaction verify:
+
+1. component exists
+2. handler exists
+3. state updates correctly
+4. backend/API wiring exists
+5. persisted data reloads correctly
+6. routing works correctly
+
+Never ship dead buttons.
+
+## UX execution standard
+
+Interfaces should be sleek, premium, modern, mobile-first, and intuitive with:
+
+- strong visual hierarchy
+- responsive layouts
+- clean card systems
+- clear calls to action
+- polished loading/empty/error states
+- obvious next actions
+
+When doing UI visual work, also follow `sleeper-hybrid-visual-direction.mdc`.
+
+## Engineering QA expectations
+
+- Inspect existing code paths before changing behavior.
+- Preserve working systems.
+- Fully wire frontend and backend behavior.
+- Validate both mobile and desktop interactions.
+- Keep secrets server-side.
+- Implement graceful provider fallbacks when external integrations are missing.

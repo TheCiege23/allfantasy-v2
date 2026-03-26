@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { assertLeagueMember } from '@/lib/league-access'
 import { buildStoryPayload } from '@/lib/league-story-engine'
 import type { LeagueStoryContext, LeagueStoryType } from '@/lib/league-story-engine/types'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,9 +62,14 @@ export async function POST(req: Request) {
   if (!league) {
     return NextResponse.json({ error: 'League not found' }, { status: 404 })
   }
+  try {
+    await assertLeagueMember(leagueId, session.user.id)
+  } catch {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const leagueName = league.name?.trim() || `League ${leagueId}`
-  const leagueSport = sport ?? league.sport ?? 'NFL'
+  const leagueSport = normalizeToSupportedSport(sport ?? league.sport ?? 'NFL')
 
   const ctx: LeagueStoryContext = {
     leagueId,

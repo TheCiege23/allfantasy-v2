@@ -2,8 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { runMatchupSimulation } from '@/lib/simulation-engine/MatchupSimulator';
 import { getMatchupSimulationInsight } from '@/lib/simulation-engine/MatchupSimulationInsightAI';
 import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration';
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer';
 
 export const dynamic = 'force-dynamic';
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 export async function POST(req: NextRequest) {
   let body: {
@@ -39,18 +58,79 @@ export async function POST(req: NextRequest) {
       teamB: { mean: meanB, stdDev: body.teamB?.stdDev },
       iterations: body.iterations,
     });
-    const insight = await getMatchupSimulationInsight(out, teamAName, teamBName);
-    return NextResponse.json({
-      simulation: {
-        winProbabilityA: out.winProbabilityA,
-        winProbabilityB: out.winProbabilityB,
-        expectedScoreA: out.expectedScoreA,
-        expectedScoreB: out.expectedScoreB,
-        upsideScenario: out.upsideScenario,
-        downsideScenario: out.downsideScenario,
-        iterations: out.iterations,
+    const simulationSummary = {
+      winProbabilityA: out.winProbabilityA,
+      winProbabilityB: out.winProbabilityB,
+      expectedScoreA: out.expectedScoreA,
+      expectedScoreB: out.expectedScoreB,
+      upsideScenario: out.upsideScenario,
+      downsideScenario: out.downsideScenario,
+      iterations: out.iterations,
+    }
+
+    const envelope = buildEnvelopeForTool('matchup', {
+      sport,
+      deterministicPayload: {
+        matchupSummary: {
+          teamAName,
+          teamBName,
+          projectedMargin: Number(out.expectedScoreA) - Number(out.expectedScoreB),
+          winProbabilityA: out.winProbabilityA,
+          winProbabilityB: out.winProbabilityB,
+        },
+        projections: simulationSummary,
       },
+      simulationPayload: simulationSummary,
+      userMessage:
+        `Explain this matchup between ${teamAName} and ${teamBName} with deterministic evidence, caveats, and one next action.`,
+    })
+
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: 'specialist',
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let insight = await getMatchupSimulationInsight(out, teamAName, teamBName).catch(() => '')
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: 'matchup',
+        primaryAnswer: orchestration.response.primaryAnswer || insight || '',
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      insight = formatted.output.narrative || orchestration.response.primaryAnswer || insight
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
+
+    return NextResponse.json({
+      simulation: simulationSummary,
       insight,
+      verdict,
+      sections,
+      factGuardWarnings,
     });
   } catch (e) {
     console.error('[simulation/matchup/insight]', e);

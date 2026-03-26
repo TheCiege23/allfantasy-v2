@@ -4,7 +4,7 @@
  */
 
 import type { ToolChimmyContext } from './types'
-import { isSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export type ToolContextSource =
   | 'matchup'
@@ -17,6 +17,47 @@ export type ToolContextSource =
   | 'c2c'
   | 'generic'
 
+const AI_SOURCE_TO_TOOL_CONTEXT: Record<string, ToolContextSource> = {
+  trade_analyzer: 'trade',
+  waiver_tool: 'waiver',
+  draft_tool: 'draft',
+  matchup_tool: 'matchup',
+  league_forecast: 'league_forecast',
+  lineup_tool: 'generic',
+  dashboard: 'generic',
+  dashboard_widget: 'generic',
+  tool_hub: 'generic',
+  ai_hub: 'generic',
+  quick_action: 'generic',
+  top_bar: 'generic',
+  right_rail: 'generic',
+  search: 'generic',
+  fallback: 'generic',
+  unknown: 'generic',
+}
+
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  matchup_simulator: 'Matchup Simulator',
+  mock_draft: 'Draft Helper',
+  trade_analyzer: 'Trade Analyzer',
+  waiver_ai: 'Waiver AI',
+  league_forecast: 'League Forecast',
+  rankings: 'Rankings',
+  devy_league: 'Devy',
+  c2c_league: 'College-to-Canton',
+  generic: 'Chimmy',
+}
+
+export function mapAIContextSourceToToolContextSource(source: string | null | undefined): ToolContextSource | null {
+  if (!source) return null
+  return AI_SOURCE_TO_TOOL_CONTEXT[source] ?? null
+}
+
+export function getChimmyToolDisplayName(toolId: string | null | undefined): string {
+  if (!toolId) return 'Chimmy'
+  return TOOL_DISPLAY_NAMES[toolId] ?? toolId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 /**
  * Build tool context for Chimmy: suggested prompt and optional context hint.
  */
@@ -28,7 +69,7 @@ export function getToolContextForChimmy(
     case 'matchup': {
       const teamAName = String(payload.teamAName ?? 'Team A')
       const teamBName = String(payload.teamBName ?? 'Team B')
-      const sport = isSupportedSport(payload.sport as string) ? (payload.sport as string) : 'NFL'
+      const sport = normalizeToSupportedSport(payload.sport as string | null | undefined)
       let prompt = `Explain this matchup: ${teamAName} vs ${teamBName}.`
       if (payload.projectedScoreA != null && payload.projectedScoreB != null) {
         prompt += ` Projected score: ${Number(payload.projectedScoreA).toFixed(1)} – ${Number(payload.projectedScoreB).toFixed(1)}.`

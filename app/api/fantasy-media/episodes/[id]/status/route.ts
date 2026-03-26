@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getEpisode } from "@/lib/fantasy-media/FantasyMediaQueryService"
-import { trackVideoJob } from "@/lib/fantasy-media/VideoGenerationJobTracker"
+import { refreshVideoJobStatus } from "@/lib/fantasy-media/VideoGenerationJobTracker"
 import { resolvePlaybackUrl } from "@/lib/fantasy-media/MediaPlaybackResolver"
 
 export const dynamic = "force-dynamic"
@@ -23,7 +23,7 @@ export async function GET(
   if (!episode) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
   if (episode.status === "generating" && episode.providerJobId) {
-    const result = await trackVideoJob(id)
+    const result = await refreshVideoJobStatus(id)
     const updated = await getEpisode(id, session.user.id)
     return NextResponse.json({
       status: result.status,

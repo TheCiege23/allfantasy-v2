@@ -10,6 +10,7 @@ import type { AIContextEnvelope } from "@/lib/unified-ai/types"
 export interface PsychologyAdapterContext {
   sport?: string | null
   leagueId?: string | null
+  userId?: string | null
   /** From profile engine: scores, labels, evidence count. */
   deterministicPayload?: Record<string, unknown> | null
   behaviorPayload?: Record<string, unknown> | null
@@ -17,6 +18,7 @@ export interface PsychologyAdapterContext {
 }
 
 export function buildPsychologyEnvelope(ctx: PsychologyAdapterContext): AIContextEnvelope {
+  const sport = normalizeToSupportedSport(ctx.sport ?? undefined)
   const det = ctx.deterministicPayload ?? {}
   const hardConstraints = [
     "Explain only using the provided profile scores and evidence.",
@@ -24,9 +26,10 @@ export function buildPsychologyEnvelope(ctx: PsychologyAdapterContext): AIContex
     "If evidence is limited, say so.",
   ]
   return buildAIContextEnvelope({
-    featureType: "psychological_profiles",
-    sport: ctx.sport ?? undefined,
+    featureType: "psychological",
+    sport,
     leagueId: ctx.leagueId ?? null,
+    userId: ctx.userId ?? null,
     deterministicPayload: det,
     behaviorPayload: ctx.behaviorPayload ?? null,
     promptIntent: "explain",

@@ -1,0 +1,27 @@
+---
+description: Master AllFantasy product, AI, UX, and QA system context
+alwaysApply: true
+---
+
+# AllFantasy Master Project Context
+
+This file is the umbrella rule. Detailed directives are split into focused always-on rules:
+
+- `allfantasy-product-architecture.mdc`
+- `allfantasy-ai-strategy.mdc`
+- `allfantasy-auth-settings.mdc`
+- `allfantasy-click-audit-qa.mdc`
+- `allfantasy-prompt-contract.mdc`
+
+Also enforce existing always-on companion rules:
+
+- `sport-scope.mdc` for mandatory 7-sport support and sport source-of-truth usage
+- `sleeper-hybrid-visual-direction.mdc` for product UI direction
+
+## Non-Negotiables
+
+- Preserve working systems and avoid regressions.
+- Inspect existing code before implementing.
+- Keep AllFantasy as a premium consumer product experience.
+- Never ship dead buttons or unhandled provider fallbacks.
+

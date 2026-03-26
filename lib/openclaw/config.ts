@@ -53,6 +53,15 @@ export function getOpenClawConfig(): OpenClawConfig {
   return getAssistantConfig('dev-assistant')
 }
 
+export function isOpenClawConfigured(): boolean {
+  try {
+    getOpenClawConfig()
+    return true
+  } catch {
+    return false
+  }
+}
+
 function getAssistantConfig(assistant: OpenClawAssistant): OpenClawConfig {
   const isGrowth = assistant === 'growth-marketing-assistant'
 
@@ -105,6 +114,15 @@ export function getOpenClawPublicMeta(): { webUiUrl: string; gatewayUrl: string 
 
 export function getOpenClawGrowthConfig(): OpenClawConfig {
   return getAssistantConfig('growth-marketing-assistant')
+}
+
+export function isOpenClawGrowthConfigured(): boolean {
+  try {
+    getOpenClawGrowthConfig()
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function buildOpenClawGrowthTargetUrl(path = ''): string {

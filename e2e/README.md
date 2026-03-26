@@ -59,7 +59,7 @@ $env:DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_e2e"
 
 ## Click Audit Grouped Suite
 
-Run all click-audit specs (including Prompt 117 player comparison lab, Prompt 118 fantasy news aggregator, Prompt 119 league power rankings, Prompt 120 fantasy coach mode, and Prompt 121 viral social sharing) via grep tag:
+Run all click-audit specs (including Prompt 115 fantasy podcast + HeyGen video, Prompt 116 Grok social clip generator + optional auto-posting, admin social publish status drill-down, Prompt 117 player comparison lab, Prompt 118 fantasy news aggregator, Prompt 119 league power rankings, Prompt 120 fantasy coach mode, Prompt 121 viral social sharing, Prompt 122 automated blog engine + SEO, Prompt 123 unified AI interface architecture, Prompt 124 trade/waiver/rankings/draft/psychology tool layer audit, Prompt 125 league story creator / narrative AI / one-brain merge audit, Prompt 126 Chimmy AI chat interface + calm voice click audit, and Prompt 127 AI reliability / confidence / provider-failure click audit) via grep tag:
 
 ```bash
 npm run test:e2e:click-audits

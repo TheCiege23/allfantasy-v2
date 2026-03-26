@@ -67,6 +67,8 @@ export default function SocialClipsPage() {
   const [selectedType, setSelectedType] = useState<SocialAssetType>('weekly_league_winners');
   const [leagueName, setLeagueName] = useState('');
   const [week, setWeek] = useState<number | ''>('');
+  const [tone, setTone] = useState('energetic and fun');
+  const [brandingHint, setBrandingHint] = useState('AllFantasy — fantasy sports insights');
   const [aiInputType, setAiInputType] = useState<ClipInputType>('matchup_result');
   const [aiOutputType, setAiOutputType] = useState<ClipOutputType>('short_post');
   const [aiFactsSummary, setAiFactsSummary] = useState('');
@@ -103,6 +105,8 @@ export default function SocialClipsPage() {
         assetType: selectedType,
         leagueName: leagueName.trim() || undefined,
         week: typeof week === 'number' ? week : undefined,
+        tone: tone.trim() || undefined,
+        brandingHint: brandingHint.trim() || undefined,
       }),
     })
       .then((r) => r.json())
@@ -154,6 +158,8 @@ export default function SocialClipsPage() {
         <Link
           href="/app"
           className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
+          data-testid="social-clips-back-button"
+          data-audit="back-button"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
@@ -205,6 +211,8 @@ export default function SocialClipsPage() {
               value={sport}
               onChange={(e) => setSport(e.target.value)}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+                data-testid="social-clip-grok-sport-selector"
+                data-audit="sport-selector"
             >
               {SUPPORTED_SPORTS.map((s) => (
                 <option key={s} value={s}>{s}</option>
@@ -263,6 +271,8 @@ export default function SocialClipsPage() {
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as SocialAssetType)}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+              data-testid="social-clip-type-selector"
+              data-audit="clip-type-selector"
             >
               {(SOCIAL_ASSET_TYPES as readonly string[]).map((t) => (
                 <option key={t} value={t}>
@@ -282,6 +292,28 @@ export default function SocialClipsPage() {
             />
           </div>
           <div>
+            <label className="mb-2 block text-sm text-zinc-400">Tone</label>
+            <input
+              type="text"
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              placeholder="energetic and fun"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-zinc-500"
+              data-testid="social-clip-tone-input"
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-zinc-400">Branding hint</label>
+            <input
+              type="text"
+              value={brandingHint}
+              onChange={(e) => setBrandingHint(e.target.value)}
+              placeholder="AllFantasy — fantasy sports insights"
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-zinc-500"
+              data-testid="social-clip-branding-input"
+            />
+          </div>
+          <div>
             <label className="mb-2 block text-sm text-zinc-400">Week (optional)</label>
             <input
               type="number"
@@ -296,6 +328,8 @@ export default function SocialClipsPage() {
             onClick={handleGenerate}
             disabled={generating}
             className="w-full gap-2"
+            data-testid="social-clip-generate-button"
+            data-audit="generate-social-clip-button"
           >
             {generating ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -320,6 +354,7 @@ export default function SocialClipsPage() {
                 <Link
                   href={`/social-clips/${a.id}`}
                   className="block rounded-lg border border-white/10 bg-white/5 p-3 text-white hover:bg-white/10"
+                  data-testid={`social-clip-preview-card-${a.id}`}
                 >
                   <span className="font-medium">{a.title}</span>
                   <span className="ml-2 text-xs text-zinc-500">

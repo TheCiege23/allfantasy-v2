@@ -40,6 +40,7 @@ Context:
 
 Output valid JSON only, with these exact keys:
 - shortCaption: string (1-2 sentences, under 200 chars, for feed post)
+- shortScriptOverlay: string (under 90 chars, punchy overlay line for short clips)
 - headline: string (under 80 chars)
 - ctaText: string (under 50 chars, call-to-action)
 - hashtags: array of 3-6 hashtag strings

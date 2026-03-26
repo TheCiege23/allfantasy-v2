@@ -47,7 +47,7 @@ export default function AISystemExplainerPage() {
               OpenAI, DeepSeek, and xAI (Grok)
             </h2>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-              AllFantasy can use multiple AI providers: OpenAI (e.g. GPT-4), DeepSeek, and xAI (Grok). Each is wired through a single orchestration layer. The app chooses which provider to call based on availability, your request, and optional routing hints. If one provider is unavailable or rate-limited, the system can fall back to another. You don’t have to pick a provider yourself—the system handles it. All providers receive the same deterministic context and rules so behavior stays consistent no matter which model answers.
+              AllFantasy can use multiple AI providers: OpenAI (e.g. GPT-4), DeepSeek, and xAI (Grok), plus OpenClaw assistant routing for workflow-focused assistant surfaces. Each is wired through a single orchestration layer. The app chooses which provider to call based on availability, your request, and optional routing hints. If one provider is unavailable or rate-limited, the system can fall back to another. You don’t have to pick a provider yourself—the system handles it. All providers receive the same deterministic context and rules so behavior stays consistent no matter which model answers.
             </p>
           </section>
 
@@ -58,6 +58,7 @@ export default function AISystemExplainerPage() {
             </p>
             <Link
               href="/ai/tools"
+              data-testid="ai-system-try-tools-button"
               className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
             >
               <Sparkles className="h-5 w-5 shrink-0" />

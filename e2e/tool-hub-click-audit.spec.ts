@@ -52,6 +52,12 @@ test.describe("@toolhub tool hub click audit", () => {
 
     // AI "best tool for me" entry point
     await page.goto("/tools-hub", { waitUntil: "domcontentloaded" })
+    const chimmyLink = page.getByTestId("tools-hub-chimmy-link")
+    await expect(chimmyLink).toHaveAttribute("href", /\/messages\?tab=ai/)
+    await chimmyLink.click()
+    await expect(page).toHaveURL(/\/messages\?tab=ai/, { timeout: 20_000 })
+
+    await page.goto("/tools-hub", { waitUntil: "domcontentloaded" })
     await page.getByTestId("tools-hub-best-tool-link").click()
     await expect(page).toHaveURL(/\/messages\?tab=ai/, { timeout: 20_000 })
 

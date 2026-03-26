@@ -37,6 +37,7 @@ export default function ChimmyQuickPrompts({
           key={chip.id}
           type="button"
           onClick={() => onSelect(chip.prompt)}
+          data-testid={`chimmy-quick-prompt-${chip.id}`}
           className="px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-sm text-white/80 hover:bg-white/10 hover:border-white/30 transition min-h-[44px]"
           data-chimmy-quick-prompt={chip.id}
         >

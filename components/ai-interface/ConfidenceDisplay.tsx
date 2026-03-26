@@ -49,6 +49,7 @@ export default function ConfidenceDisplay({
           <button
             type="button"
             onClick={() => setShowReason(!showReason)}
+            data-testid="ai-confidence-info-button"
             className="rounded p-1 text-white/50 hover:text-white/80 hover:bg-white/10"
             aria-label="Why this confidence?"
           >
@@ -57,7 +58,9 @@ export default function ConfidenceDisplay({
         )}
       </div>
       {showReason && reason && (
-        <p className="text-xs text-white/60 max-w-xs">{reason}</p>
+        <p className="text-xs text-white/60 max-w-xs" data-testid="ai-confidence-reason-text">
+          {reason}
+        </p>
       )}
     </div>
   )

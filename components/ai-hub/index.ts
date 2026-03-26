@@ -10,6 +10,7 @@ export { default as AIQuickActionBar } from './AIQuickActionBar'
 export type { AIQuickActionBarProps } from './AIQuickActionBar'
 
 export { default as AIHubPage } from './AIHubPage'
+export { default as UnifiedAIWorkbench } from './UnifiedAIWorkbench'
 
 export {
   AIResultCard,

@@ -5,16 +5,17 @@
  */
 
 import { assembleNarrativeContext } from "./NarrativeContextAssembler"
-import { composeOneBrainStory } from "./OneBrainNarrativeComposer"
+import { buildDeterministicStoryFallback, composeOneBrainStory } from "./OneBrainNarrativeComposer"
 import { validateStoryOutput } from "./StoryFactGuard"
 import { formatStoryToSections, getStoryVariant } from "./NarrativeOutputFormatter"
-import type { NarrativeContextPackage, StoryOutput, StoryType } from "./types"
+import type { NarrativeContextPackage, StoryOutput, StoryStyle, StoryType } from "./types"
 
 export interface CreateStoryInput {
   leagueId: string
   sport: string
   season?: number | null
   storyType: StoryType
+  style?: StoryStyle
 }
 
 export interface CreateStoryResult {
@@ -39,12 +40,29 @@ export async function createLeagueStory(input: CreateStoryInput): Promise<Create
       storyType: input.storyType,
     })
 
-    const story = await composeOneBrainStory(context)
-    if (!story) {
-      return { ok: false, error: "Story generation failed", context }
+    let story =
+      (await composeOneBrainStory(context, {
+        preferredStyle: input.style,
+      })) ?? buildDeterministicStoryFallback(context, input.style ?? "neutral")
+
+    let guard = validateStoryOutput(story, context)
+    if (guard.errors.length > 0) {
+      const fallbackStory = buildDeterministicStoryFallback(context, input.style ?? "neutral")
+      const fallbackGuard = validateStoryOutput(fallbackStory, context)
+      story = fallbackStory
+      guard = {
+        passed: fallbackGuard.passed,
+        errors: fallbackGuard.errors,
+        warnings: Array.from(
+          new Set([
+            ...guard.warnings,
+            ...guard.errors.map((error) => `Initial draft blocked: ${error}`),
+            ...fallbackGuard.warnings,
+          ])
+        ),
+      }
     }
 
-    const guard = validateStoryOutput(story, context)
     const sections = formatStoryToSections(story)
 
     return {

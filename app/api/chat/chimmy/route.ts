@@ -163,7 +163,7 @@ RESPONSE FORMAT (strict JSON):
 
 TONE EXAMPLE:
 Instead of: "The expected value change is 4.3 points."
-Say: "This move gives you about a 4-point weekly edge. In tight matchups, that's the difference between playoffs and regret."
+Say: "This move gives you about a 4-point weekly edge. In close matchups, that can matter."
 
 Always lead with the most important insight. Keep answers under 300 words unless deep analysis is requested.`
 }
@@ -370,10 +370,6 @@ function buildChimmyVoiceAnswer(
     if (trendAlerts.length > 0) {
       answer += '\n\n' + trendAlerts.join('\n')
     }
-  }
-
-  if (quantResult?.confidencePct != null) {
-    answer += `\n\n_Confidence: ${quantResult.confidencePct}%_`
   }
 
   return answer
@@ -733,7 +729,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const domainInput = [message, ...conversation.map(c => c.content)].join(' ')
   if (!hasSportsContent(domainInput, !!imageFile)) {
     const offTopicResponse: ChimmyResponse = {
-      answer: "Hey! I'm Chimmy — your fantasy sports co-manager. I'm built for fantasy leagues, trades, waivers, and all things sports. What's on your roster today?",
+      answer:
+        "I'm Chimmy, your fantasy sports assistant. I can help with trades, waivers, matchups, and lineup strategy. Share your league question and I'll keep it clear and evidence-based.",
       recommendedTool: 'none',
       reason: 'Off-topic query',
       providers: { openai: 'skipped', grok: 'skipped', deepseek: 'skipped' },
@@ -1063,7 +1060,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     response: finalAnswer,
     meta: {
       assistant: 'Chimmy',
-      persona: 'feminine-friendly-direct',
+      persona: 'calm-natural-analyst',
+      responseStyle: 'evidence_first_confidence_aware',
+      voiceStyle: 'calm_default',
       providerStatus: providers,
       recommendedTool: consensus.recommendedTool,
       confidencePct: consensus.confidencePct,

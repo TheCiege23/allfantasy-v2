@@ -18,6 +18,7 @@ export interface WaiverAdapterContext {
 }
 
 export function buildWaiverEnvelope(ctx: WaiverAdapterContext): AIContextEnvelope {
+  const sport = normalizeToSupportedSport(ctx.sport ?? undefined)
   const det = ctx.deterministicPayload ?? {}
   const hardConstraints = [
     "Recommend only players or claims present in the provided context.",
@@ -26,7 +27,7 @@ export function buildWaiverEnvelope(ctx: WaiverAdapterContext): AIContextEnvelop
   ]
   return buildAIContextEnvelope({
     featureType: "waiver_ai",
-    sport: ctx.sport ?? undefined,
+    sport,
     leagueId: ctx.leagueId ?? null,
     userId: ctx.userId ?? null,
     deterministicPayload: det,

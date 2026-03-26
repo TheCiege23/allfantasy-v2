@@ -11,6 +11,14 @@ export type AIContextSource =
   | "league_forecast"
   | "lineup_tool"
   | "dashboard"
+  | "dashboard_widget"
+  | "tool_hub"
+  | "ai_hub"
+  | "quick_action"
+  | "top_bar"
+  | "right_rail"
+  | "search"
+  | "fallback"
   | "unknown"
 
 export type AIChatContext = {

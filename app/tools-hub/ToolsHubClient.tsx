@@ -22,6 +22,7 @@ import {
   getToolsHubPathWithFilters,
   type ToolCategoryId,
 } from '@/lib/tool-hub'
+import { AIProductLayer } from '@/lib/ai-product-layer'
 import type { SportSlug, ToolSlug } from '@/lib/seo-landing/config'
 
 interface ToolsHubClientProps {
@@ -116,6 +117,13 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
 
   const quickLaunchCards = useMemo(() => filteredTools.slice(0, 6), [filteredTools])
   const bestToolHref = useMemo(() => getBestToolForMeHref(), [])
+  const chimmyHref = useMemo(
+    () =>
+      AIProductLayer.chimmy.getChatHref({
+        source: 'tool_hub',
+      }),
+    []
+  )
 
   return (
     <main
@@ -428,7 +436,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
 
           <section className="mt-10">
             <Link
-              href={ROUTES.chimmy()}
+              href={chimmyHref}
               className="flex items-center gap-3 rounded-xl border border-purple-400/30 bg-purple-500/10 p-4 hover:bg-purple-500/20"
               data-testid="tools-hub-chimmy-link"
             >

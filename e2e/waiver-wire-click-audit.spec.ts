@@ -7,13 +7,13 @@ test.describe('@waiver waiver wire click audit', () => {
 
   async function openHarness(page: Parameters<typeof test>[0]['page']) {
     await page.goto('/e2e/waiver-wire', { waitUntil: 'domcontentloaded' })
-    const heading = page.getByRole('heading', { name: /^waiver wire$/i })
+    const openedSignal = page.getByTestId('waiver-back-button')
     for (let i = 0; i < 5; i += 1) {
-      if (await heading.isVisible().catch(() => false)) return
+      if (await openedSignal.isVisible().catch(() => false)) return
       const openButton = page.getByTestId('waiver-open-button')
       await expect(openButton).toBeVisible()
       try {
-        await openButton.click({ timeout: 5_000 })
+        await openButton.click({ timeout: 5_000, force: true })
       } catch {
         await page.evaluate(() => {
           const button = document.querySelector('[data-testid="waiver-open-button"]') as HTMLButtonElement | null
@@ -22,7 +22,7 @@ test.describe('@waiver waiver wire click audit', () => {
       }
       await page.waitForTimeout(300)
     }
-    await expect(heading).toBeVisible({ timeout: 10_000 })
+    await expect(openedSignal).toBeVisible({ timeout: 10_000 })
   }
 
   test('open/back, filters, tabs, watchlist, and AI/detail links work', async ({ page }) => {

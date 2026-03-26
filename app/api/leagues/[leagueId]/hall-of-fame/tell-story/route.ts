@@ -4,7 +4,6 @@
  * Returns narrative for "Tell me why this matters" button.
  */
 import { NextResponse } from "next/server"
-import { openaiChatText } from "@/lib/openai-client"
 import {
   getEntryByIdScoped,
   getMomentByIdScoped,
@@ -14,8 +13,27 @@ import {
   momentToNarrativeContext,
   buildWhyInductedPromptContext,
 } from "@/lib/hall-of-fame-engine/AIHallOfFameNarrativeAdapter"
+import { runUnifiedOrchestration } from "@/lib/ai-orchestration"
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from "@/lib/ai-tool-layer"
 
 export const dynamic = "force-dynamic"
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === "openai" && item.structured && typeof item.structured === "object"
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === "object") {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === "object"
+  )?.structured
+  return anyStructured && typeof anyStructured === "object"
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 export async function POST(
   req: Request,
@@ -50,27 +68,63 @@ export async function POST(
       ]
         .filter(Boolean)
         .join(" ")
-      const ai = await openaiChatText({
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a fantasy sports historian. In 3-5 concise sentences, explain why this Hall of Fame induction matters, referencing category, historical context, and evidence from the payload.",
-          },
-          {
-            role: "user",
-            content: JSON.stringify({
-              leagueId,
-              type: "entry",
-              promptContext: prompt,
-              narrativeContext: context,
-            }),
-          },
-        ],
-        temperature: 0.35,
-        maxTokens: 260,
-      }).catch(() => null)
-      const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
+      const envelope = buildEnvelopeForTool("legacy_score", {
+        sport: context.sport,
+        leagueId,
+        deterministicPayload: {
+          type: "entry",
+          entryId: entry.id,
+          headline: entry.title,
+          category: entry.category,
+          score: context.score,
+          context,
+          promptContext: prompt,
+        },
+        userMessage:
+          "In 3-5 concise sentences, explain why this Hall of Fame induction matters and which deterministic evidence most supports it.",
+      })
+      const orchestration = await runUnifiedOrchestration({
+        envelope,
+        mode: "consensus",
+        options: { timeoutMs: 20_000, maxRetries: 1 },
+      })
+
+      let narrative = fallback
+      let source: "ai" | "template" = "template"
+      let verdict: string | null = null
+      let sections:
+        | Array<{
+            id: string
+            title: string
+            content: string
+            type: "verdict" | "evidence" | "confidence" | "risks" | "next_action" | "alternate" | "narrative"
+          }>
+        | undefined
+      let factGuardWarnings: string[] | undefined
+
+      if (orchestration.ok) {
+        const formatted = formatToolResult({
+          toolKey: "legacy_score",
+          primaryAnswer: orchestration.response.primaryAnswer || fallback,
+          structured: getStructuredCandidate(orchestration.response),
+          envelope,
+          factGuardWarnings: orchestration.response.factGuardWarnings,
+        })
+        const factGuard = validateToolOutput(formatted.output, envelope)
+        const warnings = Array.from(
+          new Set([
+            ...formatted.factGuardWarnings,
+            ...factGuard.warnings,
+            ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+          ])
+        )
+        narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+        source = "ai"
+        verdict = formatted.output.verdict
+        sections = formatted.sections
+        factGuardWarnings = warnings.length ? warnings : undefined
+      }
+
       return NextResponse.json({
         type: "entry",
         id: entry.id,
@@ -80,7 +134,10 @@ export async function POST(
         category: entry.category,
         score: entry.score,
         whyInductedPrompt: prompt,
-        source: ai?.ok && ai.text?.trim() ? "ai" : "template",
+        source,
+        verdict,
+        sections,
+        factGuardWarnings,
       })
     }
 
@@ -98,27 +155,64 @@ export async function POST(
     ]
       .filter(Boolean)
       .join(" ")
-    const ai = await openaiChatText({
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a fantasy sports historian. In 3-5 concise sentences, explain why this Hall of Fame moment matters, highlighting significance, season context, and long-term impact.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            leagueId,
-            type: "moment",
-            promptContext: prompt,
-            narrativeContext: context,
-          }),
-        },
-      ],
-      temperature: 0.35,
-      maxTokens: 260,
-    }).catch(() => null)
-    const narrative = ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback
+    const envelope = buildEnvelopeForTool("legacy_score", {
+      sport: context.sport,
+      leagueId,
+      deterministicPayload: {
+        type: "moment",
+        momentId: moment.id,
+        headline: moment.headline,
+        season: moment.season,
+        score: context.score,
+        significanceScore: moment.significanceScore,
+        context,
+        promptContext: prompt,
+      },
+      userMessage:
+        "In 3-5 concise sentences, explain why this Hall of Fame moment matters and its long-term impact, grounded in deterministic context.",
+    })
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: "consensus",
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let narrative = fallback
+    let source: "ai" | "template" = "template"
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: "verdict" | "evidence" | "confidence" | "risks" | "next_action" | "alternate" | "narrative"
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: "legacy_score",
+        primaryAnswer: orchestration.response.primaryAnswer || fallback,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+      source = "ai"
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
+
     return NextResponse.json({
       type: "moment",
       id: moment.id,
@@ -128,7 +222,10 @@ export async function POST(
       season: moment.season,
       significanceScore: moment.significanceScore,
       whyInductedPrompt: prompt,
-      source: ai?.ok && ai.text?.trim() ? "ai" : "template",
+      source,
+      verdict,
+      sections,
+      factGuardWarnings,
     })
   } catch (e) {
     console.error("[hall-of-fame/tell-story POST]", e instanceof Error ? e.message : e)

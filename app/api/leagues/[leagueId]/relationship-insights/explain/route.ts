@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server'
-import { openaiChatText } from '@/lib/openai-client'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration'
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer'
 import { buildAIRelationshipContext } from '@/lib/relationship-insights'
 import { normalizeOptionalSportForRelationship } from '@/lib/relationship-insights/SportRelationshipResolver'
 
 export const dynamic = 'force-dynamic'
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 export async function POST(
   req: Request,
@@ -48,26 +66,72 @@ export async function POST(
       }
       return `Relationship and storyline signals are synchronized for this ${sportLabel} league, with rivalry, behavior, graph, and drama data aligned for downstream AI explanation.`
     })()
+    const payload = context.payload as Record<string, unknown>
 
-    const ai = await openaiChatText({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a fantasy league relationship analyst. Write a concise 3-5 sentence explanation that blends graph structure, rivalry intensity, manager behavior profile context, and drama timeline signals. Keep it factual and specific.',
-        },
-        {
-          role: 'user',
-          content: context.promptContext,
-        },
-      ],
-      temperature: 0.45,
-      maxTokens: 320,
-    }).catch(() => null)
+    const envelope = buildEnvelopeForTool('rivalries', {
+      sport,
+      leagueId,
+      deterministicPayload: {
+        ...payload,
+        promptContext: context.promptContext,
+        focusManagerId:
+          typeof body?.focusManagerId === 'string' ? body.focusManagerId.trim() : undefined,
+        focusRivalryId:
+          typeof body?.focusRivalryId === 'string' ? body.focusRivalryId.trim() : undefined,
+        focusDramaEventId:
+          typeof body?.focusDramaEventId === 'string' ? body.focusDramaEventId.trim() : undefined,
+      },
+      userMessage:
+        'Explain the top relationship storyline in 3-5 concise sentences using graph intensity, rivalry context, behavior profile cues, and drama timeline evidence only.',
+    })
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: 'consensus',
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let narrative = fallback
+    let source: 'ai' | 'template' = 'template'
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: 'rivalries',
+        primaryAnswer: orchestration.response.primaryAnswer || fallback,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+      source = 'ai'
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
 
     return NextResponse.json({
-      narrative: ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback,
-      source: ai?.ok && ai.text?.trim() ? 'ai' : 'template',
+      narrative,
+      source,
+      verdict,
+      sections,
+      factGuardWarnings,
       context: context.payload,
     })
   } catch (e) {

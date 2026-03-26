@@ -22,6 +22,8 @@ import { generateTraceId, logOrchestrationResult } from './tracing'
 import type { ProviderResultMeta } from '@/lib/ai-reliability/types'
 import { recordProviderFailure, recordProviderFallback, recordProviderLatency } from '@/lib/provider-diagnostics'
 import type { ProviderId } from '@/lib/provider-diagnostics'
+import { getToolRegistration } from '@/lib/ai-tool-registry'
+import type { DeterministicSource } from '@/lib/unified-ai/DeterministicToAIContextBridge'
 
 function getDefaultTimeoutMs(): number {
   const v = process.env.AI_ORCHESTRATION_TIMEOUT_MS
@@ -39,10 +41,17 @@ function getDefaultMaxRetries(): number {
 
 function buildMessages(envelope: AIContextEnvelope): Array<{ role: 'system' | 'user'; content: string }> {
   const systemParts: string[] = [
-    'You are a helpful fantasy sports analyst. Be concise. Base your answer only on the data provided; do not invent numbers or override hard rules.',
+    'You are a helpful fantasy sports analyst. Be concise, calm, and explicit about uncertainty.',
+    'Deterministic-first: never override hard engine outputs.',
+    'Never invent player values, rankings, injuries, roster needs, team context, probabilities, or simulations.',
+    'Always respect sport, league format, scoring settings, and roster settings in the provided context.',
   ]
   if (envelope.hardConstraints?.length) {
     systemParts.push('Hard constraints: ' + envelope.hardConstraints.join('; '))
+  }
+  systemParts.push(`Sport context: ${envelope.sport}.`)
+  if (envelope.leagueId) {
+    systemParts.push(`League context id: ${envelope.leagueId}.`)
   }
   const userParts: string[] = []
   if (envelope.deterministicPayload && typeof envelope.deterministicPayload === 'object') {
@@ -90,6 +99,34 @@ function toProviderResultMeta(role: AIModelRole, result: ProviderChatResult, sta
     status,
     error: result.error,
     latencyMs: Date.now() - startMs,
+  }
+}
+
+function resolveDeterministicSource(featureType: string): DeterministicSource | undefined {
+  switch ((featureType ?? '').toLowerCase()) {
+    case 'trade_analyzer':
+    case 'trade_evaluator':
+      return 'trade_engine'
+    case 'waiver_ai':
+      return 'waiver_engine'
+    case 'rankings':
+      return 'rankings_engine'
+    case 'draft_helper':
+      return 'draft_board'
+    case 'matchup':
+    case 'simulation':
+      return 'simulation'
+    case 'psychological':
+    case 'psychological_profiles':
+      return 'psychological'
+    case 'legacy_score':
+    case 'reputation':
+      return 'legacy_score'
+    case 'rivalries':
+    case 'graph_insight':
+      return 'graph'
+    default:
+      return undefined
   }
 }
 
@@ -145,6 +182,15 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
     envelope = await enrichEnvelopeWithSportsData(envelope)
   } catch (_e) {
     // Non-blocking: proceed with unenriched envelope
+  }
+
+  const registration = getToolRegistration(envelope.featureType)
+  if (registration?.deterministicRequired && !envelope.deterministicPayload) {
+    const error = toUnifiedAIError('envelope_validation_failed', {
+      message: `Tool "${registration.toolName}" requires deterministic context before AI orchestration.`,
+      traceId,
+    })
+    return { ok: false, error, status: toHttpStatus(error.code) }
   }
 
   const modeOverride = req.mode
@@ -209,11 +255,13 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
       envelope,
       modelOutputs,
       mode: effectiveMode,
+      deterministicSource: resolveDeterministicSource(envelope.featureType),
     })
 
     const response = normalizeToUnifiedResponse({
       result: orchestrationResult,
       providerResults,
+      envelope,
       traceId,
       cached: false,
     })

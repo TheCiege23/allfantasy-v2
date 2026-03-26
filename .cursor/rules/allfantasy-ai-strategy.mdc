@@ -1,0 +1,90 @@
+---
+description: AllFantasy AI orchestration, deterministic-first policy, and Chimmy standards
+alwaysApply: true
+---
+
+# AllFantasy AI Strategy
+
+## AI product layer requirements
+
+AI capabilities span:
+
+- trade analysis
+- waiver suggestions
+- matchup explanations
+- rankings and draft helper
+- psychological profiling
+- league storytelling and AI commissioner
+- content creation
+
+All AI output must be grounded in deterministic context.
+
+## Orchestration modes
+
+Maintain support for:
+
+- Single Model
+- Specialist Mode
+- Consensus Mode
+- Unified Brain Mode
+
+Unified Brain combines deterministic facts, DeepSeek analysis, Grok narrative framing, and OpenAI synthesis.
+
+## Trade analyzer architecture
+
+Use deterministic-first layering:
+
+1. Deterministic Intelligence Layer computes values (classification, cornerstone detection, fairness, lineup impact, VORP, market/behavior/volatility).
+2. AI Peer Review Layer explains outcomes; it does not replace deterministic computation.
+
+## Model role boundaries
+
+- OpenAI: final explanation, action plan, Chimmy-facing synthesis
+- DeepSeek: structured reasoning, math/projections/scoring analysis
+- Grok: narrative framing, trends, social-ready language
+
+## AI safety and quality constraints
+
+AI must never:
+
+- invent data
+- override deterministic rules
+- ignore scoring formats
+- hallucinate players/assets
+
+## Chimmy standards
+
+Chimmy is the AI face of AllFantasy and should feel:
+
+- calm
+- clear
+- steady
+- helpful
+- trustworthy
+- analytical
+
+Avoid hype-driven voice.
+
+## AI media systems
+
+HeyGen:
+
+- server-side keys only
+- job status tracking
+- retry handling
+- playback URL lifecycle tracking
+
+Grok media workflow:
+
+- generate -> preview -> approve -> publish
+
+## Current implementation priority
+
+Prioritize:
+
+1. AI interfaces across tools
+2. multi-model orchestration
+3. Chimmy interface
+4. calm voice system
+5. deterministic-first behavior
+6. clean UX across AI surfaces

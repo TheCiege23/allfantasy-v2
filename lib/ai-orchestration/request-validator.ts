@@ -25,11 +25,18 @@ const KNOWN_FEATURE_ALIASES: Record<string, string> = {
   story_creator: 'story_creator',
   content: 'content',
   chimmy_chat: 'chimmy_chat',
-  graph_insight: 'rankings',
-  psychological_profiles: 'rankings',
-  legacy_score: 'rankings',
-  reputation: 'rankings',
+  graph_insight: 'rivalries',
+  psychological_profiles: 'psychological',
+  psychology: 'psychological',
+  psychological: 'psychological',
+  legacy: 'legacy_score',
+  legacy_score: 'legacy_score',
+  reputation: 'legacy_score',
+  rivalry: 'rivalries',
+  rivalries: 'rivalries',
   commentary: 'content',
+  openclaw_dev_assistant: 'chimmy_chat',
+  openclaw_growth_marketing_assistant: 'content',
 }
 
 /**

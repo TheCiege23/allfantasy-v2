@@ -1,0 +1,66 @@
+---
+description: AllFantasy unified auth, profile, and settings requirements
+alwaysApply: true
+---
+
+# AllFantasy Auth and Settings Standards
+
+## Sign In requirements
+
+Support:
+
+- username login
+- email login
+- mobile login
+- password auth
+- forgot password via email code
+- forgot password via SMS code
+- Google and Apple login
+- Facebook, Instagram, X, and TikTok login
+
+If providers are unavailable or unconfigured, implement graceful fallbacks. Never leave dead provider buttons.
+
+## Sign Up requirements
+
+Support:
+
+- unique username with profanity filtering
+- unique user ID
+- password + confirm password
+- timezone and language selection
+- avatar upload or avatar picker
+- optional no-avatar flow
+- phone + SMS verification
+- age verification (18+)
+- optional driver's license verification
+- legacy import support
+
+Legacy import targets:
+
+- Sleeper
+- Yahoo
+- ESPN
+- MFL
+- Fleaflicker
+- Fantrax
+
+## Unified profile and settings
+
+Maintain universal settings across Sports App, Bracket, Legacy, AI tools, and admin flows.
+
+Required settings sections:
+
+- Profile
+- Preferences
+- Security
+- Notifications
+- Connected Accounts
+- Legacy Import
+- Legal Agreements
+- Account Danger Zone
+
+Required universal preferences:
+
+- language (English and Spanish)
+- theme (Light, Dark, AF Legacy)
+- timezone (US, Canada, Mexico)

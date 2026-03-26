@@ -1,3 +1,5 @@
+import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
+
 export type FallbackIntent =
   | "dashboard"
   | "home"
@@ -15,6 +17,7 @@ export interface FallbackRouteSpec {
 }
 
 export function resolveFallbackRoute(intent: FallbackIntent): FallbackRouteSpec {
+  const chimmyFallbackHref = getPrimaryChimmyEntry({ source: "fallback" }).href
   switch (intent) {
     case "dashboard":
       return { href: "/dashboard", label: "Go to dashboard" }
@@ -29,7 +32,7 @@ export function resolveFallbackRoute(intent: FallbackIntent): FallbackRouteSpec 
     case "connect_provider":
       return { href: "/settings?tab=connected", label: "Connect provider" }
     case "ask_chimmy":
-      return { href: "/chimmy", label: "Ask Chimmy" }
+      return { href: chimmyFallbackHref, label: "Ask Chimmy" }
     case "explore_tools":
       return { href: "/tools-hub", label: "Explore tools" }
     case "settings":

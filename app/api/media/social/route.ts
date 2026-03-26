@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         provider: 'grok',
         metadata: {
           shortCaption: result.output.shortCaption,
+          shortScriptOverlay: result.output.shortScriptOverlay,
           headline: result.output.headline,
           ctaText: result.output.ctaText,
           hashtags: result.output.hashtags,

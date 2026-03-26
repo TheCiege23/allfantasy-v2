@@ -22,6 +22,7 @@ export type EnvelopeInput = {
   dataQualityMetadata?: AIContextEnvelope["dataQualityMetadata"]
   hardConstraints?: string[]
   modelRoutingHints?: AIContextEnvelope["modelRoutingHints"]
+  assistantRoutingHints?: AIContextEnvelope["assistantRoutingHints"]
   userMessage?: string
 }
 
@@ -43,6 +44,7 @@ export function buildAIContextEnvelope(input: EnvelopeInput): AIContextEnvelope 
     dataQualityMetadata: input.dataQualityMetadata ?? null,
     hardConstraints: input.hardConstraints ?? [],
     modelRoutingHints: input.modelRoutingHints,
+    assistantRoutingHints: input.assistantRoutingHints,
     userMessage: input.userMessage,
   }
 }

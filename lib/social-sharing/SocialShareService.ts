@@ -29,6 +29,7 @@ export function getAchievementShareUrl(
   if (context.opponentName) params.set('opponent', context.opponentName);
   if (context.week != null) params.set('week', String(context.week));
   if (context.teamName) params.set('team', context.teamName);
+  if (context.sport) params.set('sport', String(context.sport));
   const qs = params.toString();
   return `${base}${ACHIEVEMENT_PATH}${qs ? `?${qs}` : ''}`;
 }

@@ -25,6 +25,7 @@ export type SocialPlatform = (typeof SUPPORTED_PLATFORMS)[number];
 
 export interface GrokSocialOutput {
   shortCaption: string;
+  shortScriptOverlay: string;
   headline: string;
   ctaText: string;
   hashtags: string[];

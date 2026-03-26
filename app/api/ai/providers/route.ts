@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkProviderAvailability } from '@/lib/ai-orchestration'
+import { isOpenClawConfigured, isOpenClawGrowthConfigured } from '@/lib/openclaw/config'
 
 export async function GET() {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -15,10 +16,21 @@ export async function GET() {
   }
 
   const availability = checkProviderAvailability()
+  const openclaw = isOpenClawConfigured()
+  const openclawGrowth = isOpenClawGrowthConfigured()
   const providers = [
     { id: 'openai', name: 'OpenAI', available: availability.openai, role: 'Sport-aware user explanations, draft/waiver advice, roster suggestions, matchup summaries' },
     { id: 'deepseek', name: 'DeepSeek', available: availability.deepseek, role: 'Sport-aware statistical modeling, projections, and matchup scoring context' },
     { id: 'grok', name: 'Grok', available: availability.grok, role: 'Sport-aware trend detection, narrative context, and storyline framing' },
+    { id: 'openclaw', name: 'OpenClaw Dev Assistant', available: openclaw, role: 'Workflow assistant routing for development and AI operations support' },
+    { id: 'openclaw-growth', name: 'OpenClaw Growth Assistant', available: openclawGrowth, role: 'Growth and engagement workflow assistant routing for campaign support' },
   ]
-  return NextResponse.json({ providers, availability })
+  return NextResponse.json({
+    providers,
+    availability: {
+      ...availability,
+      openclaw,
+      openclawGrowth,
+    },
+  })
 }

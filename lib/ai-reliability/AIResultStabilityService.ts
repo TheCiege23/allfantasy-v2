@@ -47,10 +47,21 @@ export function buildStableFallbackResponse(ctx: TradeDecisionContextV1): {
   deterministicFallback: DeterministicFallbackPayload;
   fallbackExplanation: string;
   reliability: ReliabilityMetadata;
+}
+export function buildStableFallbackResponse(
+  ctx: TradeDecisionContextV1,
+  providerResults?: ProviderResultMeta[]
+): {
+  deterministicFallback: DeterministicFallbackPayload;
+  fallbackExplanation: string;
+  reliability: ReliabilityMetadata;
 } {
   const { payload, explanation } = buildDeterministicFallback(ctx);
   const reliability = buildReliabilityMetadata({
-    providerResults: [{ provider: 'openai', status: 'failed' }, { provider: 'grok', status: 'failed' }],
+    providerResults:
+      providerResults && providerResults.length > 0
+        ? providerResults
+        : [{ provider: 'openai', status: 'failed' }, { provider: 'grok', status: 'failed' }],
     confidence: payload.confidence,
     usedDeterministicFallback: true,
     fallbackExplanation: explanation,

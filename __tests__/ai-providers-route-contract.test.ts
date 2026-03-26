@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getServerSessionMock = vi.fn()
 const checkProviderAvailabilityMock = vi.fn()
+const isOpenClawConfiguredMock = vi.fn()
+const isOpenClawGrowthConfiguredMock = vi.fn()
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -15,9 +17,16 @@ vi.mock('@/lib/ai-orchestration', () => ({
   checkProviderAvailability: checkProviderAvailabilityMock,
 }))
 
+vi.mock('@/lib/openclaw/config', () => ({
+  isOpenClawConfigured: isOpenClawConfiguredMock,
+  isOpenClawGrowthConfigured: isOpenClawGrowthConfiguredMock,
+}))
+
 describe('GET /api/ai/providers contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    isOpenClawConfiguredMock.mockReturnValue(false)
+    isOpenClawGrowthConfiguredMock.mockReturnValue(false)
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -37,6 +46,8 @@ describe('GET /api/ai/providers contract', () => {
       deepseek: false,
       grok: true,
     })
+    isOpenClawConfiguredMock.mockReturnValue(true)
+    isOpenClawGrowthConfiguredMock.mockReturnValue(false)
 
     const { GET } = await import('@/app/api/ai/providers/route')
     const res = await GET()
@@ -48,6 +59,8 @@ describe('GET /api/ai/providers contract', () => {
           "deepseek": false,
           "grok": true,
           "openai": true,
+          "openclaw": true,
+          "openclawGrowth": false,
         },
         "providers": [
           {
@@ -67,6 +80,18 @@ describe('GET /api/ai/providers contract', () => {
             "id": "grok",
             "name": "Grok",
             "role": "Sport-aware trend detection, narrative context, and storyline framing",
+          },
+          {
+            "available": true,
+            "id": "openclaw",
+            "name": "OpenClaw Dev Assistant",
+            "role": "Workflow assistant routing for development and AI operations support",
+          },
+          {
+            "available": false,
+            "id": "openclaw-growth",
+            "name": "OpenClaw Growth Assistant",
+            "role": "Growth and engagement workflow assistant routing for campaign support",
           },
         ],
       }

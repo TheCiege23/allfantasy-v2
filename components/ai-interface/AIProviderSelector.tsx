@@ -46,6 +46,7 @@ export default function AIProviderSelector({
         <button
           type="button"
           onClick={() => refetch()}
+          data-testid="ai-provider-status-retry-button"
           className="min-h-[28px] inline-flex items-center gap-1 rounded border border-white/20 bg-white/5 px-2 text-xs text-white/70 hover:bg-white/10"
           aria-label="Retry loading provider status"
         >
@@ -62,6 +63,8 @@ export default function AIProviderSelector({
   if (status.openai) labels.push('OpenAI')
   if (status.deepseek) labels.push('DeepSeek')
   if (status.grok) labels.push('Grok')
+  if (status.openclaw) labels.push('OpenClaw')
+  if (status.openclawGrowth) labels.push('OpenClaw Growth')
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className}`}>
@@ -73,6 +76,7 @@ export default function AIProviderSelector({
         <button
           type="button"
           onClick={onCompareClick}
+          data-testid="ai-provider-compare-button"
           className="min-h-[36px] rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10"
         >
           Compare

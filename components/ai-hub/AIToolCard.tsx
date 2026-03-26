@@ -32,6 +32,7 @@ export default function AIToolCard({
     <Link
       href={href}
       data-tool-id={id}
+      data-testid={`ai-tool-card-${id}`}
       className={`group flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 transition hover:border-white/20 hover:bg-white/[0.06] ${className}`}
     >
       <div

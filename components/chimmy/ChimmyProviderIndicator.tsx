@@ -33,6 +33,8 @@ export default function ChimmyProviderIndicator({
           { name: 'OpenAI', ok: status.openai },
           { name: 'DeepSeek', ok: status.deepseek },
           { name: 'Grok', ok: status.grok },
+          { name: 'OpenClaw', ok: status.openclaw },
+          { name: 'OpenClaw Growth', ok: status.openclawGrowth },
         ]
       : []
 
@@ -56,6 +58,7 @@ export default function ChimmyProviderIndicator({
         <button
           type="button"
           onClick={onOpenCompare}
+          data-testid="chimmy-open-provider-compare-button"
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-[10px] font-medium text-white/70 hover:bg-white/10 hover:text-white/90 min-h-[36px]"
           aria-label="Open provider comparison"
         >

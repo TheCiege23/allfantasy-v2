@@ -14,6 +14,9 @@ export type StoryType =
   | "bracket_challenge"
   | "platform_sport"
 
+export type StoryStyle = "announcer" | "recap" | "neutral"
+export type StoryVariant = "short" | "social" | "long"
+
 /** Structured narrative sections for every story. */
 export interface StoryOutput {
   headline: string
@@ -26,7 +29,7 @@ export interface StoryOutput {
   socialVersion?: string
   longVersion?: string
   /** Optional style: announcer, recap, etc. */
-  style?: "announcer" | "recap" | "neutral"
+  style?: StoryStyle
 }
 
 /** Assembled context passed to one-brain composer (facts only). */
@@ -37,7 +40,15 @@ export interface NarrativeContextPackage {
   season: number | null
   storyType: StoryType
   /** Drama events (headline, summary, score, type). */
-  dramaEvents: Array<{ id: string; headline: string; summary: string | null; dramaType: string; dramaScore: number; relatedManagerIds: string[] }>
+  dramaEvents: Array<{
+    id: string
+    headline: string
+    summary: string | null
+    dramaType: string
+    dramaScore: number
+    relatedManagerIds: string[]
+    relatedTeamIds?: string[]
+  }>
   /** Top rivalries (nodeA, nodeB, intensity). */
   rivalries: Array<{ nodeA: string; nodeB: string; intensityScore?: number }>
   /** Graph summary (influence, clusters, transitions). */

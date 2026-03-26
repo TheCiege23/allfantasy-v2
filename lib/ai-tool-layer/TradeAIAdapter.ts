@@ -19,6 +19,7 @@ export interface TradeAdapterContext {
 }
 
 export function buildTradeEnvelope(ctx: TradeAdapterContext): AIContextEnvelope {
+  const sport = normalizeToSupportedSport(ctx.sport ?? undefined)
   const det = ctx.deterministicPayload ?? {}
   const hardConstraints = [
     "Do not override or contradict the fairness score, accept probability, or VORP/lineup deltas.",
@@ -27,7 +28,7 @@ export function buildTradeEnvelope(ctx: TradeAdapterContext): AIContextEnvelope 
   ]
   return buildAIContextEnvelope({
     featureType: "trade_analyzer",
-    sport: ctx.sport ?? undefined,
+    sport,
     leagueId: ctx.leagueId ?? null,
     userId: ctx.userId ?? null,
     deterministicPayload: det,

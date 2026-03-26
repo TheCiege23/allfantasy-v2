@@ -85,6 +85,8 @@ export default function PodcastListClient() {
         onClick={handleGenerate}
         disabled={generating}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white hover:bg-cyan-600 disabled:opacity-50"
+        data-testid="podcast-generate-video-button"
+        data-audit="generate-video-button"
       >
         {generating ? (
           <>
@@ -111,6 +113,7 @@ export default function PodcastListClient() {
             <Link
               href={`/podcast/${ep.id}`}
               className="block rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+              data-testid={`podcast-episode-row-${ep.id}`}
             >
               <p className="font-medium text-white">{ep.title}</p>
               <p className="text-xs text-white/50 mt-0.5">

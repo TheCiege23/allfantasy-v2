@@ -91,6 +91,7 @@ import {
 import { useUserTimezone } from "@/hooks/useUserTimezone"
 import { ChimmyChatShell } from "@/components/chimmy"
 import { readAIContextFromSearchParams, resolveMessagesTab } from "@/lib/chimmy-chat"
+import { buildChimmyToolDisplayContext } from "@/lib/chimmy-interface"
 
 const TABS = [
   { id: "dm" as const, label: "Private DMs" },
@@ -106,6 +107,15 @@ export default function MessagesContent() {
   const messageIdFromUrl = searchParams.get("message")
   const startUsernameFromUrl = searchParams.get("start")
   const aiContext = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const chimmyToolContext = useMemo(
+    () =>
+      buildChimmyToolDisplayContext({
+        source: aiContext.source ?? null,
+        leagueName: aiContext.leagueName ?? null,
+        sport: aiContext.sport ?? null,
+      }),
+    [aiContext.leagueName, aiContext.source, aiContext.sport]
+  )
 
   const [threads, setThreads] = useState<PlatformChatThread[]>([])
   const [loadingThreads, setLoadingThreads] = useState(true)
@@ -742,6 +752,7 @@ export default function MessagesContent() {
             sport={aiContext.sport ?? null}
             season={aiContext.season ?? null}
             week={aiContext.week ?? null}
+            toolContext={chimmyToolContext}
             className="min-h-[520px]"
           />
         </section>

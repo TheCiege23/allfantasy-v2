@@ -60,7 +60,28 @@ export async function PATCH(
     if (!ok) {
       return NextResponse.json({ error: "Article not found or not a draft" }, { status: 400 })
     }
-    return NextResponse.json({ ok: true })
+    const article = await prisma.blogArticle.findUnique({ where: { articleId } })
+    return NextResponse.json({
+      ok: true,
+      article: article
+        ? {
+            articleId: article.articleId,
+            title: article.title,
+            slug: article.slug,
+            sport: article.sport,
+            category: article.category,
+            excerpt: article.excerpt,
+            body: article.body,
+            seoTitle: article.seoTitle,
+            seoDescription: article.seoDescription,
+            tags: Array.isArray(article.tags) ? article.tags : [],
+            publishStatus: article.publishStatus,
+            publishedAt: article.publishedAt?.toISOString() ?? null,
+            createdAt: article.createdAt.toISOString(),
+            updatedAt: article.updatedAt.toISOString(),
+          }
+        : null,
+    })
   } catch (e) {
     console.error("[blog PATCH]", e)
     return NextResponse.json({ error: "Failed to update" }, { status: 500 })

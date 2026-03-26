@@ -26,10 +26,17 @@ export type ToolKey =
   | "waiver_ai"
   | "rankings"
   | "draft_helper"
+  | "psychological"
   | "psychology"
+  | "psychological_profiles"
   | "matchup"
+  | "simulation"
+  | "legacy_score"
   | "legacy"
+  | "rivalries"
   | "rivalry"
+  | "story_creator"
+  | "drama"
 
 /** Model routing hint per tool: deterministic → deepseek → grok → openai (final). */
 export const TOOL_MODEL_FLOW: Record<
@@ -60,11 +67,23 @@ export const TOOL_MODEL_FLOW: Record<
     grok: "Concise draft room insight phrasing",
     openai: "Recommendation and contingency plan",
   },
+  psychological: {
+    deterministicFirst: "Evidence and profile engine first",
+    deepseek: "Review evidence consistency",
+    grok: "Profile framing and behavioral summary",
+    openai: "Explain profile carefully and clearly",
+  },
   psychology: {
     deterministicFirst: "Evidence and profile engine first",
     deepseek: "Review evidence consistency",
     grok: "Profile framing and behavioral summary",
     openai: "Explain profile clearly",
+  },
+  psychological_profiles: {
+    deterministicFirst: "Evidence and profile engine first",
+    deepseek: "Review evidence consistency",
+    grok: "Profile framing and behavioral summary",
+    openai: "Explain profile carefully and clearly",
   },
   matchup: {
     deterministicFirst: "Simulation/projection output first",
@@ -72,16 +91,46 @@ export const TOOL_MODEL_FLOW: Record<
     grok: "Narrative framing",
     openai: "Matchup explanation and recommendation",
   },
+  simulation: {
+    deterministicFirst: "Simulation/projection output first",
+    deepseek: "Interpret probabilities and scenarios",
+    grok: "Narrative framing",
+    openai: "Matchup explanation and recommendation",
+  },
+  legacy_score: {
+    deterministicFirst: "Legacy score / evidence engine first",
+    deepseek: "Interpret score components",
+    grok: "Story framing",
+    openai: "Clear explanation",
+  },
   legacy: {
     deterministicFirst: "Legacy score / evidence engine first",
     deepseek: "Interpret score components",
     grok: "Story framing",
     openai: "Clear explanation",
   },
+  rivalries: {
+    deterministicFirst: "Graph/rivalry scores first",
+    deepseek: "Interpret intensity and history",
+    grok: "Rivalry narrative",
+    openai: "Explanation",
+  },
   rivalry: {
     deterministicFirst: "Graph/rivalry scores first",
     deepseek: "Interpret intensity and history",
     grok: "Rivalry narrative",
     openai: "Explanation",
+  },
+  story_creator: {
+    deterministicFirst: "League facts and deterministic storyline cues first",
+    deepseek: "Validate structure and consistency of factual cues",
+    grok: "Narrative framing and rivalry/drama expression",
+    openai: "Final polished user-facing story summary",
+  },
+  drama: {
+    deterministicFirst: "League facts and deterministic narrative signals first",
+    deepseek: "Check consistency with events and scoring context",
+    grok: "League drama and rivalry framing",
+    openai: "Final concise explanation",
   },
 }

@@ -17,4 +17,3 @@ export {
 export type { GrokShareCopyOutput } from './GrokShareCopyService';
 export { resolveSharePreview } from './SharePreviewResolver';
 export type { SharePreviewPayload } from './SharePreviewResolver';
-export { publishShareToPlatform, getSharePublishLogs } from './SharePublishService';

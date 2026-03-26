@@ -41,7 +41,7 @@ import {
   type SupportedSport,
 } from "@/lib/sport-scope"
 import { resolveFallbackRoute, resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
-import { buildAIChatHref } from "@/lib/chimmy-chat"
+import { AIProductLayer } from "@/lib/ai-product-layer"
 
 interface DashboardProps {
   onboardingComplete?: boolean
@@ -366,17 +366,23 @@ export default function DashboardContent({
   const leagueSummaryHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}` : "/leagues"
   const matchupsHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Matchups` : "/matchup-simulator"
   const teamHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Roster` : "/player-comparison"
-  const draftHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}/draft` : "/mock-draft"
-  const intelligenceHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}?tab=Intelligence` : buildLeagueContextHref("/chimmy")
-  const chimmyHref = buildAIChatHref({
+  const resolvedLeagueSport = selectedLeagueContext?.sport
+    ? AIProductLayer.resolveSupportedSport(String(selectedLeagueContext.sport))
+    : undefined
+  const aiProductContext = {
     leagueId: selectedLeagueContext?.id,
-    sport: normalizeToSupportedSport(selectedLeagueContext?.sport),
+    sport: resolvedLeagueSport,
     source: "dashboard",
-  })
-  const tradeAnalyzerHref = buildLeagueContextHref("/trade-analyzer")
+  } as const
+  const draftHref = selectedLeagueContext ? `/app/league/${selectedLeagueContext.id}/draft` : "/mock-draft"
+  const intelligenceHref = selectedLeagueContext
+    ? `/app/league/${selectedLeagueContext.id}?tab=Intelligence`
+    : AIProductLayer.chimmy.getChatHref(aiProductContext)
+  const chimmyHref = AIProductLayer.chimmy.getChatHref(aiProductContext)
+  const tradeAnalyzerHref = AIProductLayer.routes.getHrefForFeature("trade_analyzer", aiProductContext)
   const tradeFinderHref = buildLeagueContextHref("/trade-finder")
-  const waiverAiHref = buildLeagueContextHref("/waiver-ai")
-  const tradeEvaluatorHref = buildLeagueContextHref("/trade-evaluator")
+  const waiverAiHref = AIProductLayer.routes.getHrefForFeature("waiver_ai", aiProductContext)
+  const tradeEvaluatorHref = AIProductLayer.routes.getHrefForFeature("trade_evaluator", aiProductContext)
   const coachHref = buildLeagueContextHref("/app/coach")
 
   const compactChecklist = useMemo(

@@ -35,6 +35,7 @@ export function SEOFields({
           disabled={disabled}
           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder-zinc-500 disabled:opacity-50"
           placeholder="SEO title"
+          data-testid="blog-seo-title-input"
         />
         <p className="text-xs text-zinc-500 mt-0.5">{seoTitle.length}/{TITLE_MAX}</p>
       </div>
@@ -48,6 +49,7 @@ export function SEOFields({
           disabled={disabled}
           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder-zinc-500 disabled:opacity-50"
           placeholder="Meta description"
+          data-testid="blog-seo-description-input"
         />
         <p className="text-xs text-zinc-500 mt-0.5">{seoDescription.length}/{DESC_MAX}</p>
       </div>
@@ -63,6 +65,7 @@ export function SEOFields({
           disabled={disabled}
           className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder-zinc-500 disabled:opacity-50"
           placeholder="tag1, tag2, tag3"
+          data-testid="blog-seo-tags-input"
         />
       </div>
     </div>

@@ -36,6 +36,7 @@ export function LeagueStoryShareBar({
   className = '',
 }: LeagueStoryShareBarProps) {
   const [copied, setCopied] = useState<LeagueStoryShareChannel | null>(null)
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   const shareOptions = {
     title: payload.title,
@@ -67,19 +68,26 @@ export function LeagueStoryShareBar({
   const copyForChannel = useCallback(
     (channel: LeagueStoryShareChannel) => {
       const text = getLeagueStoryShareCopyText(channel, shareOptions)
-      void navigator.clipboard.writeText(text).then(() => {
-        setCopied(channel)
-        onCopy?.(channel)
-        setTimeout(() => setCopied(null), 2000)
-      })
+      setCopyError(null)
+      void navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          setCopied(channel)
+          onCopy?.(channel)
+          setTimeout(() => setCopied(null), 2000)
+        })
+        .catch(() => {
+          setCopyError('Unable to copy automatically in this browser context.')
+        })
     },
     [shareOptions, onCopy]
   )
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+    <div data-testid="league-story-share-bar" className={`flex flex-wrap items-center gap-3 ${className}`}>
       <button
         type="button"
+        data-testid="league-story-download-image-button"
         onClick={captureAndDownload}
         className="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-600 transition"
       >
@@ -91,6 +99,7 @@ export function LeagueStoryShareBar({
           return (
             <a
               key={id}
+              data-testid={`league-story-share-${id}-button`}
               href={intentUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -104,6 +113,7 @@ export function LeagueStoryShareBar({
           <button
             key={id}
             type="button"
+            data-testid={`league-story-share-${id}-button`}
             onClick={() => copyForChannel(id)}
             className="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-600 transition"
           >
@@ -111,6 +121,11 @@ export function LeagueStoryShareBar({
           </button>
         )
       })}
+      {copyError && (
+        <p data-testid="league-story-share-copy-error" className="w-full text-xs text-amber-200">
+          {copyError}
+        </p>
+      )}
     </div>
   )
 }

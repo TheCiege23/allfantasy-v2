@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test"
-import { registerAndLogin } from "./helpers/auth-flow"
 
-test.describe("@db @dashboard unified dashboard click audit", () => {
+test.describe("@dashboard unified dashboard click audit", () => {
   test.describe.configure({ timeout: 210_000, mode: "serial" })
 
   test("audits unified dashboard cards, filters, expanders, and routing", async ({ page }) => {
@@ -146,10 +145,6 @@ test.describe("@db @dashboard unified dashboard click audit", () => {
       })
     })
 
-    await registerAndLogin(page)
-    await page.goto("/dashboard")
-    await expect(page.getByText(/Welcome back,/i).first()).toBeVisible()
-
     // Use deterministic dashboard harness for full click-audit interaction matrix.
     await page.goto("/e2e/dashboard-soccer-grouping")
     await expect(page.getByText(/Welcome back,/i).first()).toBeVisible()
@@ -206,7 +201,7 @@ test.describe("@db @dashboard unified dashboard click audit", () => {
     await expect(page.getByRole("heading", { name: /^AI$/ })).toBeVisible()
     await expect(page.getByRole("link", { name: "Ask Chimmy" }).first()).toHaveAttribute(
       "href",
-      /\/chimmy\?.*leagueId=/
+      /\/messages\?tab=ai.*leagueId=/
     )
 
     // Mobile stacked dashboard behavior

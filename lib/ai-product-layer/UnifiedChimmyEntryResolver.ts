@@ -4,17 +4,34 @@
  */
 
 import type { ChimmyEntry } from './types';
-import { buildAIChatHref } from '@/lib/chimmy-chat';
+import type { AIProductContext } from './types';
+import { buildAIChatHref, resolveSportForAIChat } from '@/lib/chimmy-chat';
 
-const CHAT_BASE = buildAIChatHref();
 const CHIMMY_LANDING = '/chimmy';
-const LEGACY_CHAT = '/legacy?tab=chat';
+const LEGACY_CHAT = '/af-legacy?tab=chat';
+
+function normalizeChimmyContext(context?: AIProductContext) {
+  if (!context) return undefined;
+  const prompt = context.prompt?.trim();
+  return {
+    prompt: prompt && prompt.length > 0 ? prompt.slice(0, 500) : undefined,
+    leagueId: context.leagueId ?? undefined,
+    leagueName: context.leagueName ?? undefined,
+    sleeperUsername: context.sleeperUsername ?? undefined,
+    insightType: context.insightType ?? undefined,
+    teamId: context.teamId ?? undefined,
+    sport: resolveSportForAIChat(context.sport, null),
+    season: typeof context.season === 'number' ? context.season : undefined,
+    week: typeof context.week === 'number' ? context.week : undefined,
+    source: context.source ?? undefined,
+  };
+}
 
 /**
- * Base href for opening AI chat (primary surface: af-legacy chat tab).
+ * Base href for opening private AI chat in Messages AI tab.
  */
-export function getChimmyChatHref(): string {
-  return CHAT_BASE;
+export function getChimmyChatHref(context?: AIProductContext): string {
+  return buildAIChatHref(normalizeChimmyContext(context));
 }
 
 /**
@@ -26,19 +43,24 @@ export function getChimmyLandingHref(): string {
 
 /**
  * Chat with optional prompt prefill (for tool-to-Chimmy routing).
- * Uses af-legacy so prompt param is read and prefilled.
  */
-export function getChimmyChatHrefWithPrompt(prompt: string): string {
-  if (!prompt?.trim()) return CHAT_BASE;
-  return buildAIChatHref({ prompt });
+export function getChimmyChatHrefWithPrompt(
+  prompt: string,
+  context: Omit<AIProductContext, 'prompt'> = {}
+): string {
+  return getChimmyChatHref({
+    ...context,
+    prompt,
+  });
 }
 
 /**
  * All canonical Chimmy entries for nav, quick actions, and dashboard.
  */
-export function getUnifiedChimmyEntries(): ChimmyEntry[] {
+export function getUnifiedChimmyEntries(context?: AIProductContext): ChimmyEntry[] {
+  const chatHref = getChimmyChatHref(context);
   return [
-    { href: CHAT_BASE, label: 'AI Chat' },
+    { href: chatHref, label: 'AI Chat' },
     { href: CHIMMY_LANDING, label: 'Meet Chimmy' },
     { href: LEGACY_CHAT, label: 'Legacy AI Chat' },
   ];
@@ -47,6 +69,6 @@ export function getUnifiedChimmyEntries(): ChimmyEntry[] {
 /**
  * Primary entry for "Ask Chimmy" / "Open AI Chat" (used in top bar, right rail, tool hub).
  */
-export function getPrimaryChimmyEntry(): ChimmyEntry {
-  return { href: CHAT_BASE, label: 'Ask Chimmy' };
+export function getPrimaryChimmyEntry(context?: AIProductContext): ChimmyEntry {
+  return { href: getChimmyChatHref(context), label: 'Ask Chimmy' };
 }

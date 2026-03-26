@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { checkProviderAvailability } from '@/lib/ai-orchestration'
+import { isOpenClawConfigured, isOpenClawGrowthConfigured } from '@/lib/openclaw/config'
 
 export async function GET() {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -15,5 +16,9 @@ export async function GET() {
   }
 
   const availability = checkProviderAvailability()
-  return NextResponse.json(availability)
+  return NextResponse.json({
+    ...availability,
+    openclaw: isOpenClawConfigured(),
+    openclawGrowth: isOpenClawGrowthConfigured(),
+  })
 }

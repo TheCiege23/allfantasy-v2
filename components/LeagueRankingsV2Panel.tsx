@@ -769,7 +769,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
             ? 'This league may be from a previous season or hasn\'t started yet. Rankings require active roster and matchup data.'
             : error}
         </p>
-        <button onClick={fetchRankings} className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">Retry</button>
+        <button onClick={fetchRankings} data-testid="rankings-v2-retry-button" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors px-4 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">Retry</button>
       </div>
     )
   }
@@ -780,7 +780,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
   const coachLoading = userTeam ? loadingCoach === userTeam.rosterId : false
 
   return (
-    <div className="max-w-[1280px] mx-auto space-y-8">
+    <div className="max-w-[1280px] mx-auto space-y-8" data-testid="rankings-v2-panel">
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 min-h-[64px]">
         <div>
@@ -840,6 +840,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
               <button
                 key={t.id}
                 onClick={() => setRankingView(t.id)}
+                data-testid={`rankings-v2-view-tab-${t.id}`}
                 className={cx(
                   'px-3 py-1.5 text-[11px] font-medium transition-all',
                   rankingView === t.id ? 'bg-gradient-to-b from-cyan-500/20 to-purple-500/20 text-white' : 'text-white/30 hover:text-white/60',
@@ -1008,6 +1009,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
               )}>
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : team.rosterId)}
+                  data-testid={`rankings-v2-team-toggle-desktop-${team.rosterId}`}
                   className="w-full hidden md:grid grid-cols-[40px_1fr_60px_140px_60px_24px] items-center gap-2 px-3 py-3 text-left hover:bg-white/[0.03] transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
@@ -1088,6 +1090,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
 
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : team.rosterId)}
+                  data-testid={`rankings-v2-team-toggle-mobile-${team.rosterId}`}
                   className="w-full md:hidden flex items-center gap-3 px-3 py-3 text-left hover:bg-white/[0.03] transition-colors"
                 >
                   <div className={cx(
@@ -1163,7 +1166,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
                 </button>
 
                 {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-white/[0.05] pt-4 space-y-4">
+                  <div className="px-4 pb-4 border-t border-white/[0.05] pt-4 space-y-4" data-testid={`rankings-v2-team-expanded-${team.rosterId}`}>
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <span className="text-[10px] font-semibold text-white/40 uppercase tracking-wider">Rank Explanation</span>
                       <div className="flex items-center gap-2">
@@ -1444,6 +1447,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
                 <p className="text-xs text-white/40">Get personalized coaching based on your team's performance, strengths, and opportunities.</p>
                 <button
                   onClick={() => requestCoach(userTeam)}
+                  data-testid="rankings-v2-coach-insight-button"
                   className="w-full py-2.5 text-xs font-semibold bg-gradient-to-r from-cyan-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 text-white rounded-lg transition-all"
                 >
                   Get My Coaching Insight
@@ -1489,6 +1493,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
             {userTeam && !yearPlan && !yearPlanLoading && (
               <button
                 onClick={() => requestYearPlan(userTeam)}
+                data-testid="rankings-v2-generate-year-plan-button"
                 className="w-full mt-4 py-2 text-[11px] font-medium border border-white/10 text-white/40 hover:text-white/70 hover:border-white/20 rounded-lg transition-all"
               >
                 Generate 3–5 Year Plan
@@ -1572,6 +1577,7 @@ export default function LeagueRankingsV2Panel({ leagueId, leagueName, username }
 
                 <button
                   onClick={() => { setYearPlan(null); setYearPlanError('') }}
+                  data-testid="rankings-v2-regenerate-year-plan-button"
                   className="w-full py-1.5 text-[10px] text-white/30 hover:text-white/50 transition-colors"
                 >
                   Regenerate Plan

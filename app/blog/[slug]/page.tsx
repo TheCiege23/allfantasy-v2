@@ -71,7 +71,7 @@ export default async function BlogArticlePage({ params, searchParams }: Props) {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <article className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
-        <Link href="/blog" className="text-sm text-gray-400 hover:text-white">
+        <Link href="/blog" className="text-sm text-gray-400 hover:text-white" data-testid="blog-article-back-button">
           ← Back to Blog
         </Link>
         <header className="mt-6">
@@ -89,6 +89,7 @@ export default async function BlogArticlePage({ params, searchParams }: Props) {
         <div
           className="blog-body mt-8 prose prose-invert max-w-none"
           dangerouslySetInnerHTML={{ __html: bodyHtml }}
+          data-testid="blog-article-body"
         />
       </article>
     </main>

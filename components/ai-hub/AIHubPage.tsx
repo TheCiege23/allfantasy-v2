@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Sparkles, MessageCircle, BarChart3, ClipboardList, Target, Trophy, FileText, Bot, LayoutGrid, ChevronRight, Share2 } from 'lucide-react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
-import { getChimmyChatHref, getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
+import { AIProductLayer } from '@/lib/ai-product-layer'
 import AIToolCard from './AIToolCard'
 import AIQuickActionBar from './AIQuickActionBar'
 
@@ -20,14 +20,14 @@ const SPORT_LABELS: Record<string, string> = {
 }
 
 const AI_TOOL_CARDS = [
-  { id: 'trade', title: 'Trade Analyzer', description: 'Context-aware trade evaluations', href: '/af-legacy?tab=trade', icon: BarChart3, accent: 'from-red-500/20 to-orange-500/10 border-red-500/20' },
-  { id: 'waiver', title: 'Waiver AI', description: 'One-move waiver recommendations', href: '/af-legacy?tab=waiver', icon: ClipboardList, accent: 'from-purple-500/20 to-violet-500/10 border-purple-500/20' },
-  { id: 'draft', title: 'Draft Helper', description: 'Real-time draft and pick advice', href: '/af-legacy?tab=mock-draft', icon: Target, accent: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/20' },
-  { id: 'matchup', title: 'Matchup AI', description: 'Matchup analysis and advice', href: getChimmyChatHrefWithPrompt('Explain my matchup'), icon: BarChart3, accent: 'from-amber-500/20 to-orange-500/10 border-amber-500/20' },
-  { id: 'rankings', title: 'Rankings AI', description: 'Power rankings and explanations', href: '/af-legacy?tab=rankings', icon: Trophy, accent: 'from-cyan-500/20 to-blue-500/10 border-cyan-500/20' },
-  { id: 'story', title: 'Story Creator', description: 'Narratives and Hall of Fame', href: '/af-legacy?tab=overview', icon: FileText, accent: 'from-amber-500/20 to-yellow-500/10 border-amber-500/20' },
-  { id: 'coach', title: 'Fantasy Coach', description: 'Ask Chimmy for strategy', href: getChimmyChatHref(), icon: MessageCircle, accent: 'from-violet-500/20 to-purple-500/10 border-violet-500/20' },
-  { id: 'content', title: 'Content Generator', description: 'Social clips and share copy', href: '/social-clips', icon: Share2, accent: 'from-pink-500/20 to-rose-500/10 border-pink-500/20' },
+  { id: 'trade', title: 'Trade Analyzer', description: 'Context-aware trade evaluations', href: AIProductLayer.routes.getHrefForFeature('trade_analyzer', { source: 'ai_hub' }), icon: BarChart3, accent: 'from-red-500/20 to-orange-500/10 border-red-500/20' },
+  { id: 'waiver', title: 'Waiver AI', description: 'One-move waiver recommendations', href: AIProductLayer.routes.getHrefForFeature('waiver_ai', { source: 'ai_hub' }), icon: ClipboardList, accent: 'from-purple-500/20 to-violet-500/10 border-purple-500/20' },
+  { id: 'draft', title: 'Draft Helper', description: 'Real-time draft and pick advice', href: AIProductLayer.routes.getHrefForFeature('draft_helper', { source: 'ai_hub' }), icon: Target, accent: 'from-emerald-500/20 to-teal-500/10 border-emerald-500/20' },
+  { id: 'matchup', title: 'Matchup AI', description: 'Matchup analysis and advice', href: AIProductLayer.chimmy.getChatHrefWithPrompt('Explain my matchup', { source: 'ai_hub', insightType: 'matchup' }), icon: BarChart3, accent: 'from-amber-500/20 to-orange-500/10 border-amber-500/20' },
+  { id: 'rankings', title: 'Rankings AI', description: 'Power rankings and explanations', href: AIProductLayer.routes.getHrefForFeature('rankings', { source: 'ai_hub' }), icon: Trophy, accent: 'from-cyan-500/20 to-blue-500/10 border-cyan-500/20' },
+  { id: 'story', title: 'Story Creator', description: 'Narratives and Hall of Fame', href: AIProductLayer.routes.getHrefForFeature('story_creator', { source: 'ai_hub' }), icon: FileText, accent: 'from-amber-500/20 to-yellow-500/10 border-amber-500/20' },
+  { id: 'coach', title: 'Fantasy Coach', description: 'Ask Chimmy for strategy', href: AIProductLayer.chimmy.getChatHref({ source: 'ai_hub' }), icon: MessageCircle, accent: 'from-violet-500/20 to-purple-500/10 border-violet-500/20' },
+  { id: 'content', title: 'Content Generator', description: 'Social clips and share copy', href: AIProductLayer.routes.getHrefForFeature('content', { source: 'ai_hub' }), icon: Share2, accent: 'from-pink-500/20 to-rose-500/10 border-pink-500/20' },
 ]
 
 export default function AIHubPage() {
@@ -63,7 +63,8 @@ export default function AIHubPage() {
 
         <section className="mb-8">
           <Link
-            href={getChimmyChatHref()}
+            href={AIProductLayer.chimmy.getChatHref({ source: 'ai_hub' })}
+            data-testid="ai-hub-chat-with-chimmy-link"
             className="flex items-center justify-between rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 transition hover:bg-purple-500/15 hover:border-purple-500/40"
           >
             <div className="flex items-center gap-3">
@@ -82,7 +83,7 @@ export default function AIHubPage() {
         <section className="mb-6">
           <div className="flex items-center justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-white/50">AI Tools</h2>
-            <Link href="/ai/tools" className="text-xs text-white/50 hover:text-white/70">
+            <Link href="/ai/tools" data-testid="ai-hub-view-all-tools-link" className="text-xs text-white/50 hover:text-white/70">
               View all tools
             </Link>
           </div>
@@ -106,6 +107,7 @@ export default function AIHubPage() {
           <p className="text-sm text-white/50">Open saved results from any AI tool.</p>
           <Link
             href="/ai/history"
+            data-testid="ai-hub-history-link"
             className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white/90"
           >
             <LayoutGrid className="h-4 w-4" />

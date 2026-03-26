@@ -9,10 +9,9 @@ import {
   normalizeSportForGraph,
 } from "@/lib/league-intelligence-graph";
 import { buildAIPrestigeContext } from "@/lib/prestige-governance/AIPrestigeContextResolver";
-import { deepseekChat } from "@/lib/deepseek-client";
-import { openaiChatText } from "@/lib/openai-client";
-import { grokEnrich } from "@/lib/ai-external/grok";
 import { buildAIRelationshipContext } from "@/lib/relationship-insights";
+import { runUnifiedOrchestration } from "@/lib/ai-orchestration";
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from "@/lib/ai-tool-layer";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +45,31 @@ function profileToSummaryLines(profile: {
     lines.push(`Power transitions: ${profile.dynastyPowerTransitions.length} dynasty-era shifts.`);
   }
   return lines.join(" ");
+}
+
+function getProviderRaw(
+  modelOutputs: Array<{ model?: string; raw?: string; skipped?: boolean; error?: string }>,
+  provider: "openai" | "deepseek" | "grok"
+): string {
+  const hit = modelOutputs.find((item) => item.model === provider && !item.skipped && !item.error && item.raw?.trim())
+  return hit?.raw?.trim() ?? ""
+}
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === "openai" && item.structured && typeof item.structured === "object"
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === "object") {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === "object"
+  )?.structured
+  return anyStructured && typeof anyStructured === "object"
+    ? (anyStructured as Record<string, unknown>)
+    : null
 }
 
 export async function POST(
@@ -86,66 +110,92 @@ export async function POST(
     const summaryForAI = profileToSummaryLines(profile);
     const topRival = profile.strongestRivalries[0];
     const topInfluence = profile.influenceLeaders[0];
-    const contextBlob = JSON.stringify({
-      leagueId,
-      season: profile.season,
-      sport,
-      summary: summaryForAI,
-      topRival: topRival
-        ? { nodeA: topRival.nodeA, nodeB: topRival.nodeB, intensityScore: topRival.intensityScore }
-        : null,
-      topInfluence: topInfluence
-        ? { entityId: topInfluence.entityId, compositeScore: topInfluence.compositeScore }
-        : null,
-      transitionCount: profile.dynastyPowerTransitions.length,
-      focusEntityId: body.focusEntityId ?? null,
-      prestigeHint: prestigeContext?.combinedHint ?? null,
-      unifiedContext: unifiedContext?.payload ?? null,
-    });
-
-    let metricsInterpretation = "";
-    let momentumStoryline = "";
-    let readableSummary = "";
     const focusNote =
       type === "summary"
         ? "Provide a league-wide overview."
         : `Focus on ${type} with target: ${body.focusEntityId ?? "none"}.`;
 
-    const [deepSeekResult, grokResult, openaiResult] = await Promise.all([
-      deepseekChat({
-        prompt: `League graph metrics (${sport ?? "all sports"}). ${summaryForAI}. ${focusNote} In 1-2 sentences, interpret what these metrics say about this league's relationships and power structure. Be factual and concise.`,
-        systemPrompt: "You are a fantasy sports graph analyst. Output only the interpretation, no preamble.",
-        temperature: 0.3,
-        maxTokens: 200,
-      }).then((r) => (r.error ? "" : r.content?.trim() ?? "")),
-      grokEnrich({
-        kind: "trade_narrative",
-        context: { scope: "league_graph", type, leagueId },
-        payload: { graphSummary: summaryForAI, focus: body.focusEntityId ?? null },
-      }).then((r) => {
-        if (!r.ok || !r.narrative?.length) return "";
-        return Array.isArray(r.narrative) ? r.narrative.join(" ") : String(r.narrative);
-      }),
-      openaiChatText({
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a fantasy league analyst. In 2-4 short sentences, explain what this league's relationship graph shows: key rivalries, who trades with whom, who is central or isolated, and how power has shifted over time if applicable. If prestigeHint is provided, you may briefly connect to trust, legacy, or Hall of Fame where relevant. Be clear and engaging. No bullet lists.",
-          },
-          {
-            role: "user",
-            content: `League Intelligence Graph data:\n${contextBlob}\n\n${focusNote}\nWrite a brief readable summary for the league owner.`,
-          },
-        ],
-        temperature: 0.5,
-        maxTokens: 400,
-      }).then((r) => (r.ok ? r.text.trim() : "")),
-    ]);
+    const envelope = buildEnvelopeForTool("rivalries", {
+      sport: sport ?? undefined,
+      leagueId,
+      deterministicPayload: {
+        graphSummary: summaryForAI,
+        focusType: type,
+        focusEntityId: body.focusEntityId ?? null,
+        profile,
+        topRival: topRival
+          ? { nodeA: topRival.nodeA, nodeB: topRival.nodeB, intensityScore: topRival.intensityScore }
+          : null,
+        topInfluence: topInfluence
+          ? { entityId: topInfluence.entityId, compositeScore: topInfluence.compositeScore }
+          : null,
+        compositeScore:
+          Number(
+            topRival?.intensityScore ??
+              topInfluence?.compositeScore ??
+              profile?.strongestRivalries?.[0]?.intensityScore ??
+              0
+          ) || 0,
+        transitionCount: profile.dynastyPowerTransitions.length,
+        prestigeHint: prestigeContext?.combinedHint ?? null,
+        unifiedContext: unifiedContext?.payload ?? null,
+      },
+      userMessage:
+        `League graph insight request. ${focusNote} Explain key rivalries, relationship clusters, and power shifts with deterministic evidence only.`,
+    })
 
-    metricsInterpretation = deepSeekResult;
-    momentumStoryline = grokResult;
-    readableSummary = openaiResult;
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: "consensus",
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let metricsInterpretation = "";
+    let momentumStoryline = "";
+    let readableSummary = "";
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: "verdict" | "evidence" | "confidence" | "risks" | "next_action" | "alternate" | "narrative"
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: "rivalries",
+        primaryAnswer:
+          orchestration.response.primaryAnswer ||
+          `League graph summary: ${summaryForAI || "Relationship context is limited."}`,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      const providerOutputs = orchestration.response.modelOutputs ?? []
+      metricsInterpretation = getProviderRaw(providerOutputs, "deepseek")
+      momentumStoryline = getProviderRaw(providerOutputs, "grok")
+      readableSummary =
+        getProviderRaw(providerOutputs, "openai") ||
+        formatted.output.narrative ||
+        orchestration.response.primaryAnswer ||
+        ""
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    } else {
+      readableSummary = `League graph summary: ${summaryForAI || "Relationship context is limited."}`
+    }
 
     return NextResponse.json({
       leagueId,
@@ -154,6 +204,9 @@ export async function POST(
       metricsInterpretation: metricsInterpretation || null,
       momentumStoryline: momentumStoryline || null,
       readableSummary: readableSummary || null,
+      verdict,
+      sections,
+      factGuardWarnings,
       generatedAt: new Date().toISOString(),
       unifiedStorylineCount:
         Array.isArray((unifiedContext?.payload as { storylines?: unknown[] } | undefined)?.storylines)

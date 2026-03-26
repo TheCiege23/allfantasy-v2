@@ -17,6 +17,7 @@ export interface RankingsAdapterContext {
 }
 
 export function buildRankingsEnvelope(ctx: RankingsAdapterContext): AIContextEnvelope {
+  const sport = normalizeToSupportedSport(ctx.sport ?? undefined)
   const det = ctx.deterministicPayload ?? {}
   const hardConstraints = [
     "Do not invent rankings or movement not in the provided data.",
@@ -25,7 +26,7 @@ export function buildRankingsEnvelope(ctx: RankingsAdapterContext): AIContextEnv
   ]
   return buildAIContextEnvelope({
     featureType: "rankings",
-    sport: ctx.sport ?? undefined,
+    sport,
     leagueId: ctx.leagueId ?? null,
     userId: ctx.userId ?? null,
     deterministicPayload: det,

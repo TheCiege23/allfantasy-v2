@@ -42,6 +42,7 @@ export default function ShareAchievementsLandingPage() {
   const opponent = searchParams?.get('opponent');
   const week = searchParams?.get('week');
   const team = searchParams?.get('team');
+  const sport = searchParams?.get('sport');
 
   const validType = ACHIEVEMENT_SHARE_TYPES.includes(type) ? type : 'winning_matchup';
   const content = getShareContent(validType, {
@@ -50,6 +51,7 @@ export default function ShareAchievementsLandingPage() {
     opponentName: opponent ?? undefined,
     week: week != null ? Number(week) : undefined,
     teamName: team ?? undefined,
+    sport: sport ?? undefined,
   });
 
   const Icon = TYPE_ICONS[validType];

@@ -22,6 +22,7 @@ import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface AssetMeta {
   shortCaption?: string;
+  shortScriptOverlay?: string;
   headline?: string;
   ctaText?: string;
   hashtags?: string[];
@@ -47,6 +48,7 @@ interface Target {
   accountIdentifier: string | null;
   autoPostingEnabled: boolean;
   connected: boolean;
+  providerConfigured: boolean;
 }
 
 interface LogEntry {
@@ -66,9 +68,12 @@ export default function SocialClipDetailPage() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('x');
   const [editMode, setEditMode] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editShortCaption, setEditShortCaption] = useState('');
+  const [editShortScriptOverlay, setEditShortScriptOverlay] = useState('');
   const [editHeadline, setEditHeadline] = useState('');
   const [editCtaText, setEditCtaText] = useState('');
   const [editSocialCardCopy, setEditSocialCardCopy] = useState('');
@@ -112,6 +117,7 @@ export default function SocialClipDetailPage() {
       setEditTitle(asset.title);
       const m = asset.metadata ?? {};
       setEditShortCaption(m.shortCaption ?? '');
+      setEditShortScriptOverlay(m.shortScriptOverlay ?? '');
       setEditHeadline(m.headline ?? '');
       setEditCtaText(m.ctaText ?? '');
       setEditSocialCardCopy(m.socialCardCopy ?? '');
@@ -133,8 +139,16 @@ export default function SocialClipDetailPage() {
       body: JSON.stringify({ approved }),
     })
       .then((r) => r.json())
-      .then(() => {
+      .then((data) => {
         fetchAsset();
+        fetchLogs();
+        if (approved) {
+          const autoCount = Array.isArray(data?.autoPublishResults) ? data.autoPublishResults.length : 0;
+          if (autoCount > 0) {
+            toast.success(`Approved. Auto-post triggered for ${autoCount} platform${autoCount === 1 ? '' : 's'}.`);
+            return;
+          }
+        }
         toast.success(approved ? 'Approved for publish' : 'Approval revoked');
       })
       .catch(() => toast.error('Failed'))
@@ -146,6 +160,7 @@ export default function SocialClipDetailPage() {
   };
 
   const handlePublish = (platform: string) => {
+    if (actionLoading !== null) return;
     setActionLoading(`publish-${platform}`);
     fetch(`/api/social-clips/${assetId}/publish`, {
       method: 'POST',
@@ -164,6 +179,7 @@ export default function SocialClipDetailPage() {
   };
 
   const handleRetry = (logId: string) => {
+    if (actionLoading !== null) return;
     setActionLoading(`retry-${logId}`);
     fetch(`/api/social-clips/retry/${logId}`, { method: 'POST' })
       .then((r) => r.json())
@@ -181,7 +197,7 @@ export default function SocialClipDetailPage() {
     fetch('/api/share/targets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, autoPostingEnabled: enabled }),
+      body: JSON.stringify({ platform, action: 'toggle_auto_post', autoPostingEnabled: enabled }),
     })
       .then((r) => r.json())
       .then((data) => (data?.targets ? setTargets(data.targets) : null))
@@ -190,11 +206,49 @@ export default function SocialClipDetailPage() {
       .finally(() => setActionLoading(null));
   };
 
+  const handleConnectAccount = (platform: string) => {
+    if (actionLoading !== null) return;
+    setActionLoading(`connect-${platform}`);
+    fetch('/api/share/targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, action: 'connect' }),
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          throw new Error(data?.error ?? 'Connect failed');
+        }
+        if (data?.targets) setTargets(data.targets);
+        toast.success(`Connected ${platform}`);
+      })
+      .catch((error) => toast.error(error instanceof Error ? error.message : 'Connect failed'))
+      .finally(() => setActionLoading(null));
+  };
+
+  const handleDisconnectAccount = (platform: string) => {
+    if (actionLoading !== null) return;
+    setActionLoading(`disconnect-${platform}`);
+    fetch('/api/share/targets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ platform, action: 'disconnect' }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.targets) setTargets(data.targets);
+        toast.success(`Disconnected ${platform}`);
+      })
+      .catch(() => toast.error('Disconnect failed'))
+      .finally(() => setActionLoading(null));
+  };
+
   const handleSaveEdit = () => {
     setSaving(true);
     const metadata = {
       ...(asset?.metadata ?? {}),
       shortCaption: editShortCaption,
+      shortScriptOverlay: editShortScriptOverlay,
       headline: editHeadline,
       ctaText: editCtaText,
       socialCardCopy: editSocialCardCopy,
@@ -232,10 +286,66 @@ export default function SocialClipDetailPage() {
       .catch(() => setActionLoading(null));
   };
 
+  const handleShareAsset = async () => {
+    try {
+      const url = `${window.location.origin}/social-clips/${assetId}`;
+      const title = asset?.title ?? 'AllFantasy Social Clip';
+      if (navigator.share && navigator.canShare?.({ title, url })) {
+        await navigator.share({ title, url, text: title });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success('Share link copied');
+    } catch {
+      toast.error('Share failed');
+    }
+  };
+
+  const handleDownloadAsset = () => {
+    const payload = {
+      id: asset?.id,
+      sport: asset?.sport,
+      assetType: asset?.assetType,
+      title: asset?.title,
+      metadata: asset?.metadata ?? {},
+      createdAt: asset?.createdAt,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `allfantasy-social-clip-${assetId}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleMobileQuickPublish = () => {
+    if (!asset?.approvedForPublish) {
+      toast.error('Approve this clip before publishing');
+      return;
+    }
+    const prioritized =
+      targets.find((target) => target.connected && target.autoPostingEnabled) ??
+      targets.find((target) => target.connected);
+    if (!prioritized) {
+      toast.error('Connect a platform first');
+      return;
+    }
+    void handlePublish(prioritized.platform);
+  };
+
   const meta = asset?.metadata ?? {};
-  const caption = editMode ? editShortCaption : (meta.shortCaption ?? '');
+  const variant = meta.platformVariants?.[selectedPlatform];
+  const selectedHashtags = Array.isArray(variant?.hashtags)
+    ? variant.hashtags
+    : Array.isArray(meta.hashtags)
+      ? meta.hashtags
+      : [];
+  const caption = editMode ? editShortCaption : (variant?.caption ?? meta.shortCaption ?? '');
   const headline = editMode ? editHeadline : (meta.headline ?? '');
-  const hashtags = (meta.hashtags ?? []).join(' ');
+  const hashtags = selectedHashtags.join(' ');
   const fullCaption = [caption, hashtags].filter(Boolean).join('\n');
 
   if (loading && !asset) {
@@ -265,9 +375,31 @@ export default function SocialClipDetailPage() {
         <Link
           href="/social-clips"
           className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
+          data-testid="social-clip-back-button"
+          data-audit="back-button"
         >
           <ArrowLeft className="h-4 w-4" /> Back to social clips
         </Link>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-zinc-500">Platform preview</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {SUPPORTED_PLATFORMS.map((platform) => (
+            <Button
+              key={platform}
+              size="sm"
+              variant={selectedPlatform === platform ? 'default' : 'outline'}
+              onClick={() => setSelectedPlatform(platform)}
+              data-testid={`social-clip-platform-selection-button-${platform}`}
+              data-audit="platform-selection-button"
+            >
+              {platform}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-white/5 p-4">
@@ -281,6 +413,16 @@ export default function SocialClipDetailPage() {
       <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-400">{editMode ? 'Edit' : 'Preview'}</h2>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowPreview((current) => !current)}
+            disabled={editMode}
+            data-testid="social-clip-preview-content-button"
+            data-audit="preview-content-button"
+          >
+            {showPreview ? 'Hide preview' : 'Show preview'}
+          </Button>
           {editMode ? (
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setEditMode(false)}>Cancel</Button>
@@ -302,6 +444,14 @@ export default function SocialClipDetailPage() {
               <input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500">Script overlay</label>
+              <input
+                value={editShortScriptOverlay}
+                onChange={(e) => setEditShortScriptOverlay(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
               />
             </div>
@@ -347,13 +497,18 @@ export default function SocialClipDetailPage() {
               />
             </div>
           </div>
-        ) : (
+        ) : showPreview ? (
           <>
             {headline && <p className="text-white font-medium">{headline}</p>}
+            {meta.shortScriptOverlay && (
+              <p className="text-xs uppercase tracking-wide text-cyan-300">{meta.shortScriptOverlay}</p>
+            )}
             <p className="text-sm text-zinc-300 whitespace-pre-wrap">{caption}</p>
             {meta.ctaText && <p className="text-sm text-cyan-400">{meta.ctaText}</p>}
             {hashtags && <p className="text-xs text-zinc-500">{hashtags}</p>}
           </>
+        ) : (
+          <p className="text-sm text-zinc-500">Preview hidden</p>
         )}
       </div>
 
@@ -364,6 +519,8 @@ export default function SocialClipDetailPage() {
           size="sm"
           onClick={() => copyText(fullCaption, 'Caption')}
           className="gap-1"
+          data-testid="social-clip-copy-caption-button"
+          data-audit="copy-caption-button"
         >
           <Copy className="h-4 w-4" /> Copy caption
         </Button>
@@ -372,8 +529,30 @@ export default function SocialClipDetailPage() {
           size="sm"
           onClick={() => copyText(caption, 'Text')}
           className="gap-1"
+          data-testid="social-clip-copy-text-button"
+          data-audit="copy-text-button"
         >
           <Copy className="h-4 w-4" /> Copy text
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleShareAsset()}
+          className="gap-1"
+          data-testid="social-clip-share-asset-button"
+          data-audit="share-asset-button"
+        >
+          <Send className="h-4 w-4" /> Share asset
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadAsset}
+          className="gap-1"
+          data-testid="social-clip-download-asset-button"
+          data-audit="download-asset-button"
+        >
+          <Save className="h-4 w-4" /> Download asset
         </Button>
       </div>
 
@@ -387,6 +566,8 @@ export default function SocialClipDetailPage() {
             onClick={() => handleApprove(false)}
             disabled={actionLoading === 'approve'}
             className="gap-1"
+            data-testid="social-clip-approve-for-publish-button"
+            data-audit="approve-for-publish-button"
           >
             {actionLoading === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
             Revoke
@@ -397,6 +578,8 @@ export default function SocialClipDetailPage() {
             onClick={() => handleApprove(true)}
             disabled={actionLoading === 'approve'}
             className="gap-1"
+            data-testid="social-clip-approve-for-publish-button"
+            data-audit="approve-for-publish-button"
           >
             {actionLoading === 'approve' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Approve
@@ -420,7 +603,25 @@ export default function SocialClipDetailPage() {
                 <span className="text-sm text-white capitalize">{platform}</span>
                 <div className="flex items-center gap-2">
                   {!connected ? (
-                    <span className="text-xs text-zinc-500">Not connected</span>
+                    <>
+                      <span className="text-xs text-zinc-500">
+                        {t?.providerConfigured === false ? 'Provider unavailable' : 'Not connected'}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleConnectAccount(platform)}
+                        disabled={actionLoading !== null}
+                        data-testid={`social-clip-connect-social-account-button-${platform}`}
+                        data-audit="connect-social-account-button"
+                      >
+                        {actionLoading === `connect-${platform}` ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Connect'
+                        )}
+                      </Button>
+                    </>
                   ) : (
                     <>
                       <label className="flex items-center gap-1 text-xs text-zinc-400">
@@ -429,14 +630,31 @@ export default function SocialClipDetailPage() {
                           checked={autoOn}
                           onChange={(e) => handleAutoPostToggle(platform, e.target.checked)}
                           disabled={!!actionLoading}
+                          data-testid={`social-clip-auto-post-toggle-${platform}`}
+                          data-audit="auto-post-toggle"
                         />
                         Auto-post
                       </label>
                       <Button
                         size="sm"
                         variant="outline"
+                        onClick={() => handleDisconnectAccount(platform)}
+                        disabled={actionLoading !== null}
+                        data-testid={`social-clip-disconnect-social-account-button-${platform}`}
+                      >
+                        {actionLoading === `disconnect-${platform}` ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Disconnect'
+                        )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
                         onClick={() => handlePublish(platform)}
                         disabled={!asset.approvedForPublish || actionLoading !== null}
+                        data-testid={`social-clip-publish-now-button-${platform}`}
+                        data-audit="publish-now-button"
                       >
                         {actionLoading === `publish-${platform}` ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -458,7 +676,14 @@ export default function SocialClipDetailPage() {
       <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-400">Publish status</h2>
-          <Button variant="ghost" size="sm" onClick={fetchLogs} className="gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchLogs}
+            className="gap-1"
+            data-testid="social-clip-status-refresh-button"
+            data-audit="status-refresh-button"
+          >
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
         </div>
@@ -479,6 +704,8 @@ export default function SocialClipDetailPage() {
                     variant="outline"
                     onClick={() => handleRetry(log.id)}
                     disabled={actionLoading !== null}
+                    data-testid={`social-clip-retry-failed-publish-button-${log.id}`}
+                    data-audit="retry-failed-publish-button"
                   >
                     {actionLoading === `retry-${log.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Retry'}
                   </Button>
@@ -490,10 +717,38 @@ export default function SocialClipDetailPage() {
       </div>
 
       {/* Regenerate */}
-      <Button variant="outline" onClick={handleRegenerate} disabled={actionLoading !== null} className="gap-2">
+      <Button
+        variant="outline"
+        onClick={handleRegenerate}
+        disabled={actionLoading !== null}
+        className="gap-2"
+        data-testid="social-clip-regenerate-content-button"
+        data-audit="regenerate-content-button"
+      >
         {actionLoading === 'regenerate' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
         Regenerate new clip
       </Button>
+
+      <div className="fixed bottom-4 left-0 right-0 z-20 px-4 sm:hidden">
+        <div className="mx-auto flex max-w-xl items-center gap-2 rounded-xl border border-white/10 bg-black/70 p-2 backdrop-blur">
+          <Button
+            className="flex-1"
+            variant="outline"
+            onClick={() => setShowPreview((current) => !current)}
+            data-testid="social-clip-mobile-preview-action-button"
+          >
+            {showPreview ? 'Hide preview' : 'Show preview'}
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleMobileQuickPublish}
+            disabled={actionLoading !== null}
+            data-testid="social-clip-mobile-publish-action-button"
+          >
+            Publish
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

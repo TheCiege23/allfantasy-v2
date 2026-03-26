@@ -1,0 +1,56 @@
+---
+description: AllFantasy landing, social, tool UX, and admin/commissioner experience requirements
+alwaysApply: true
+---
+
+# AllFantasy Product Experience Requirements
+
+## Landing page direction
+
+Landing should be simple, high-conversion, mobile-first, and SEO/ASO aware.
+Support:
+
+- Light theme
+- Dark theme
+- AF Legacy theme
+- English and Spanish toggle
+
+Primary entry points:
+
+1. Bracket Challenge
+2. AF Fantasy Sports App
+3. Legacy
+
+Landing must include logo/crest, sign in, sign up, admin entry, and feature previews.
+All CTA routing must be verified.
+
+## Chat and social layer
+
+Messaging should support:
+
+- league chat
+- direct messages
+- group messages
+- AI chat
+- emojis, GIFs, attachments
+- mentions, reactions, pins, polls
+
+Moderation controls should support report, block, mute, suspension, and bans.
+
+## Major tool experience
+
+Maintain premium UX for:
+
+- Trade Analyzer
+- Waiver Wire
+- Matchup Simulator
+- Draft Room
+- Bracket Challenge
+- Tool Hub
+
+Every major tool should include AI integration, sport awareness, mobile responsiveness, quick actions, and clean UI states.
+
+## Admin and commissioner systems
+
+Admin should cover users, leagues, moderation, analytics, feature toggles, and system health.
+Commissioner controls should cover scoring, rosters, waivers, trades, draft settings, and announcements.

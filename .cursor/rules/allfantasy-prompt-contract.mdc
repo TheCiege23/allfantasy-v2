@@ -1,0 +1,20 @@
+---
+description: Prompt output contract for development prompts in this repository
+alwaysApply: true
+---
+
+# AllFantasy Prompt Contract
+
+When the user asks for development prompts, output must follow this contract:
+
+- copy-paste ready
+- one prompt per fenced code block
+- production prompt style
+- clearly structured instructions
+- include mandatory supported sports requirements
+- include mandatory UI click-audit requirements
+- include QA requirements
+
+Do not output half-structured prompts.
+
+If multiple prompts are requested, provide multiple fenced blocks, one prompt per block.

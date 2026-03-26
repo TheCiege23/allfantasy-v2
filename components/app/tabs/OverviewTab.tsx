@@ -9,7 +9,7 @@ import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
 import { MetricCard, SmartDataView } from '@/components/app/league/SmartDataView'
 import { LeagueDramaWidget } from '@/components/app/league/LeagueDramaWidget'
 import { ShareLeagueLinkCard } from '@/components/social/ShareLeagueLinkCard'
-import { LeagueStoryModal } from '@/components/league-story'
+import { LeagueStoryModal } from '@/components/league-story/LeagueStoryModal'
 import { GuillotineHome } from '@/components/guillotine/GuillotineHome'
 import { SalaryCapHome } from '@/components/salary-cap/SalaryCapHome'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
@@ -44,6 +44,7 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
   const faab = typeof data?.faabRemaining === 'number' ? data.faabRemaining : '-'
   const sport = (data as { sport?: string })?.sport
   const season = (data as { season?: number })?.season
+  const week = (data as { week?: number })?.week
   const leagueName = (data as { leagueName?: string })?.leagueName ?? 'League'
 
   if (isGuillotine) {
@@ -116,6 +117,7 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
         <ShareLeagueLinkCard leagueId={leagueId} />
         <button
           type="button"
+          data-testid="league-story-open-button"
           onClick={() => setStoryModalOpen(true)}
           className="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-950/30 px-4 py-2.5 text-sm font-medium text-purple-300 hover:bg-purple-950/50 w-full sm:w-auto"
         >
@@ -125,7 +127,7 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
           <LeagueStoryModal
             leagueId={leagueId}
             leagueName={leagueName}
-            week={typeof season === 'number' ? undefined : undefined}
+            week={typeof week === 'number' ? week : undefined}
             season={typeof season === 'number' ? String(season) : undefined}
             sport={sport}
             onClose={() => setStoryModalOpen(false)}

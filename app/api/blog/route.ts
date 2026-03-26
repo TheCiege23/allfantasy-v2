@@ -74,7 +74,20 @@ export async function POST(req: NextRequest) {
     if (!result) {
       return NextResponse.json({ error: "Failed to create draft" }, { status: 400 })
     }
-    return NextResponse.json({ articleId: result.articleId, slug: result.slug })
+    const article = await prisma.blogArticle.findUnique({ where: { articleId: result.articleId } })
+    return NextResponse.json({
+      articleId: result.articleId,
+      slug: result.slug,
+      article: article
+        ? {
+            articleId: article.articleId,
+            title: article.title,
+            slug: article.slug,
+            publishStatus: article.publishStatus,
+            updatedAt: article.updatedAt.toISOString(),
+          }
+        : null,
+    })
   } catch (e) {
     console.error("[blog POST]", e)
     return NextResponse.json({ error: "Failed to create draft" }, { status: 500 })

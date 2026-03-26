@@ -41,6 +41,7 @@ export async function generateSocialClip(
   const title = output.clipTitle || output.headline || 'Social clip';
   const contentBody = JSON.stringify({
     shortCaption: output.shortCaption,
+    shortScriptOverlay: output.shortScriptOverlay,
     headline: output.headline,
     ctaText: output.ctaText,
     hashtags: output.hashtags,

@@ -3,8 +3,17 @@
  */
 
 import type { AchievementShareType, AchievementShareContext, ShareContent } from './types';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 
-const DEFAULT_HASHTAGS = ['AllFantasy', 'FantasyFootball'];
+const SPORT_HASHTAG_MAP: Record<string, string[]> = {
+  NFL: ['AllFantasy', 'FantasyFootball'],
+  NHL: ['AllFantasy', 'FantasyHockey'],
+  NBA: ['AllFantasy', 'FantasyBasketball'],
+  MLB: ['AllFantasy', 'FantasyBaseball'],
+  NCAAF: ['AllFantasy', 'CollegeFantasyFootball'],
+  NCAAB: ['AllFantasy', 'CollegeFantasyBasketball'],
+  SOCCER: ['AllFantasy', 'FantasySoccer'],
+};
 
 export function getShareContent(
   type: AchievementShareType,
@@ -12,6 +21,8 @@ export function getShareContent(
 ): ShareContent {
   const league = context.leagueName ?? 'My League';
   const team = context.teamName ?? 'My team';
+  const sport = normalizeToSupportedSport(context.sport);
+  const DEFAULT_HASHTAGS = SPORT_HASHTAG_MAP[sport] ?? SPORT_HASHTAG_MAP.NFL;
 
   switch (type) {
     case 'winning_matchup': {
@@ -104,7 +115,7 @@ export function getShareContent(
     default: {
       return {
         title: 'Check out my fantasy achievement on AllFantasy',
-        text: `I'm sharing my fantasy football achievement on AllFantasy. ${league}.`,
+        text: `I'm sharing my ${sport} fantasy achievement on AllFantasy. ${league}.`,
         hashtags: DEFAULT_HASHTAGS,
       };
     }

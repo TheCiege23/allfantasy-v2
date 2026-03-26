@@ -3,6 +3,7 @@
 import React from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import AIFailureStateRenderer from '@/components/ai-reliability/AIFailureStateRenderer'
+import type { ReliabilityMetadata } from '@/lib/ai-reliability/types'
 
 export interface AIErrorFallbackProps {
   /** User-facing message */
@@ -15,6 +16,10 @@ export interface AIErrorFallbackProps {
   usedDeterministicFallback?: boolean
   /** Optional: show "View data only" when deterministic result exists */
   onShowDataOnly?: () => void
+  /** Optional reliability metadata for Prompt 127 failure rendering. */
+  reliability?: ReliabilityMetadata | null
+  /** Optional confidence number to display in reliability renderer. */
+  confidence?: number
   className?: string
 }
 
@@ -28,15 +33,19 @@ export default function AIErrorFallback({
   retryLoading = false,
   usedDeterministicFallback = false,
   onShowDataOnly,
+  reliability,
+  confidence,
   className = '',
 }: AIErrorFallbackProps) {
-  if (usedDeterministicFallback && onRetry) {
+  if (usedDeterministicFallback || reliability) {
     return (
       <AIFailureStateRenderer
-        usedDeterministicFallback
+        usedDeterministicFallback={usedDeterministicFallback}
         fallbackExplanation={message}
         onRetry={onRetry}
         retryLoading={retryLoading}
+        reliability={reliability}
+        confidence={confidence}
         className={className}
       />
     )
@@ -54,6 +63,7 @@ export default function AIErrorFallback({
                 type="button"
                 onClick={onRetry}
                 disabled={retryLoading}
+                data-testid="ai-error-retry-button"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${retryLoading ? 'animate-spin' : ''}`} />

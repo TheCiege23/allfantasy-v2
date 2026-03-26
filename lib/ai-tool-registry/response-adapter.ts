@@ -19,9 +19,30 @@ export function unifiedResponseToContract(response: UnifiedAIResponse): AIToolRe
     aiExplanation: response.primaryAnswer ?? '',
     actionPlan: response.actionPlan ?? response.suggestedNextAction ?? null,
     confidence: response.confidenceScore ?? response.confidencePct ?? null,
+    confidenceLabel: response.confidenceLabel ?? null,
+    confidenceReason: response.confidenceReason ?? null,
     uncertainty: response.uncertaintyExplanation ?? (response.risksCaveats?.[0] ?? null),
     providerResults,
     usedDeterministicFallback: response.reliability?.usedDeterministicFallback ?? false,
+    reliability: response.reliability
+      ? {
+          usedDeterministicFallback: response.reliability.usedDeterministicFallback,
+          message: response.reliability.message,
+          fallbackExplanation: response.reliability.fallbackExplanation,
+          dataQualityWarnings: response.reliability.dataQualityWarnings,
+          hardViolation: response.reliability.hardViolation,
+          confidence: response.reliability.confidence,
+          confidenceSource: response.reliability.confidenceSource,
+          partialProviderFailure: response.reliability.partialProviderFailure,
+          disagreement: response.reliability.disagreement,
+          providerStatus: response.reliability.providerStatus,
+        }
+      : null,
+    alternateOutputs: response.alternateOutputs ?? [],
     traceId: response.traceId ?? null,
+    verdict: response.verdict ?? response.valueVerdict ?? null,
+    risksCaveats: response.risksCaveats ?? [],
+    suggestedNextAction: response.suggestedNextAction ?? response.actionPlan ?? null,
+    factGuardWarnings: response.factGuardWarnings ?? [],
   }
 }

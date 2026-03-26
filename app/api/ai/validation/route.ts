@@ -7,6 +7,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { checkProviderAvailability } from "@/lib/ai-orchestration"
+import { isOpenClawConfigured, isOpenClawGrowthConfigured } from "@/lib/openclaw/config"
 
 export const dynamic = "force-dynamic"
 
@@ -69,7 +70,9 @@ export async function GET() {
   }
 
   const providers = checkProviderAvailability()
-  const atLeastOne = Object.values(providers).some(Boolean)
+  const openclaw = isOpenClawConfigured()
+  const openclawGrowth = isOpenClawGrowthConfigured()
+  const atLeastOne = [...Object.values(providers), openclaw, openclawGrowth].some(Boolean)
 
   return NextResponse.json({
     ok: atLeastOne,
@@ -78,9 +81,13 @@ export async function GET() {
       description: a.description,
       endpoints: a.endpoints,
     })),
-    providers,
+    providers: {
+      ...providers,
+      openclaw,
+      openclawGrowth,
+    },
     message: atLeastOne
       ? "At least one AI provider is available; areas may have additional provider requirements."
-      : "No AI providers configured; set OPENAI_API_KEY, DEEPSEEK_API_KEY, or XAI_API_KEY.",
+      : "No AI providers configured; set OPENAI_API_KEY, DEEPSEEK_API_KEY, XAI_API_KEY, or OpenClaw tokens.",
   })
 }

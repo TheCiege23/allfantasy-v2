@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
-import { openaiChatText } from '@/lib/openai-client'
 import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import {
   buildDisputeContext,
   explainTradeFairnessInsight,
@@ -11,8 +11,27 @@ import {
 } from '@/lib/ai-commissioner'
 import { buildAIPrestigeContext } from '@/lib/prestige-governance/AIPrestigeContextResolver'
 import { getUnifiedManagerSummary } from '@/lib/prestige-governance/UnifiedPrestigeQueryService'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration'
+import { buildEnvelopeForTool, formatToolResult, validateToolOutput } from '@/lib/ai-tool-layer'
 
 export const dynamic = 'force-dynamic'
+
+function getStructuredCandidate(response: {
+  modelOutputs?: Array<{ model?: string; structured?: unknown }>
+}): Record<string, unknown> | null {
+  const openaiStructured = response.modelOutputs?.find(
+    (item) => item.model === 'openai' && item.structured && typeof item.structured === 'object'
+  )?.structured
+  if (openaiStructured && typeof openaiStructured === 'object') {
+    return openaiStructured as Record<string, unknown>
+  }
+  const anyStructured = response.modelOutputs?.find(
+    (item) => item.structured && typeof item.structured === 'object'
+  )?.structured
+  return anyStructured && typeof anyStructured === 'object'
+    ? (anyStructured as Record<string, unknown>)
+    : null
+}
 
 export async function POST(
   req: Request,
@@ -42,28 +61,69 @@ export async function POST(
     if (!tradeInsight) return NextResponse.json({ error: 'Trade not found' }, { status: 404 })
 
     const fallback = explainTradeFairnessInsight(tradeInsight)
-    const ai = await openaiChatText({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are an AI fantasy commissioner assistant. Explain trade fairness in 3-5 concise sentences with league-safe guidance. Include why the fairness score matters and what commissioner follow-up is appropriate.',
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            leagueId,
-            tradeFairness: tradeInsight,
-          }),
-        },
-      ],
-      temperature: 0.3,
-      maxTokens: 280,
-    }).catch(() => null)
+    const tradeSport =
+      typeof (tradeInsight as { sport?: string | null }).sport === 'string'
+        ? (tradeInsight as { sport?: string | null }).sport
+        : undefined
+    const envelope = buildEnvelopeForTool('trade_analyzer', {
+      sport: tradeSport,
+      leagueId,
+      userId,
+      deterministicPayload: {
+        leagueId,
+        ...tradeInsight,
+      },
+      userMessage:
+        'Explain trade fairness in 3-5 concise sentences with league-safe guidance. Include why the fairness score matters and what commissioner follow-up is appropriate.',
+    })
+    const orchestration = await runUnifiedOrchestration({
+      envelope,
+      mode: 'consensus',
+      options: { timeoutMs: 20_000, maxRetries: 1 },
+    })
+
+    let narrative = fallback
+    let source: 'ai' | 'template' = 'template'
+    let verdict: string | null = null
+    let sections:
+      | Array<{
+          id: string
+          title: string
+          content: string
+          type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+        }>
+      | undefined
+    let factGuardWarnings: string[] | undefined
+
+    if (orchestration.ok) {
+      const formatted = formatToolResult({
+        toolKey: 'trade_analyzer',
+        primaryAnswer: orchestration.response.primaryAnswer || fallback,
+        structured: getStructuredCandidate(orchestration.response),
+        envelope,
+        factGuardWarnings: orchestration.response.factGuardWarnings,
+      })
+      const factGuard = validateToolOutput(formatted.output, envelope)
+      const warnings = Array.from(
+        new Set([
+          ...formatted.factGuardWarnings,
+          ...factGuard.warnings,
+          ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+        ])
+      )
+      narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+      source = 'ai'
+      verdict = formatted.output.verdict
+      sections = formatted.sections
+      factGuardWarnings = warnings.length ? warnings : undefined
+    }
 
     return NextResponse.json({
-      narrative: ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback,
-      source: ai?.ok && ai.text?.trim() ? 'ai' : 'template',
+      narrative,
+      source,
+      verdict,
+      sections,
+      factGuardWarnings,
       context: {
         leagueId,
         type: 'trade_fairness',
@@ -77,7 +137,7 @@ export async function POST(
   })
   if (!alert) return NextResponse.json({ error: 'Alert not found' }, { status: 404 })
 
-  const sport = String(alert.sport)
+  const sport = normalizeToSupportedSport(String(alert.sport))
   const relatedManagerIds = Array.isArray(alert.relatedManagerIds) ? alert.relatedManagerIds : []
   const [disputeContext, prestigeContext, relatedManagerSummaries] = await Promise.all([
     buildDisputeContext({
@@ -115,25 +175,75 @@ export async function POST(
   }
 
   const fallback = `${alert.headline}: ${alert.summary} ${disputeContext.summary}`.trim()
-  const ai = await openaiChatText({
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are an AI fantasy league commissioner assistant. Provide a concise explanation (3-5 sentences) of why this governance alert matters, what evidence it uses, and what safe commissioner action to take next. When relevant, connect commissioner trust, legacy, and Hall of Fame context. Do not imply automatic rule override.',
-      },
-      {
-        role: 'user',
-        content: JSON.stringify(payload),
-      },
-    ],
-    temperature: 0.35,
-    maxTokens: 320,
-  }).catch(() => null)
+  const severityToIntensity: Record<string, number> = {
+    low: 35,
+    medium: 55,
+    high: 75,
+    critical: 85,
+  }
+  const envelope = buildEnvelopeForTool('rivalries', {
+    sport,
+    leagueId,
+    userId,
+    deterministicPayload: {
+      ...payload,
+      intensityScore: severityToIntensity[String(alert.severity).toLowerCase()] ?? 50,
+      compositeScore: severityToIntensity[String(alert.severity).toLowerCase()] ?? 50,
+      relatedManagerCount: relatedManagerIds.length,
+      relatedTradeId: alert.relatedTradeId,
+      relatedMatchupId: alert.relatedMatchupId,
+    },
+    userMessage:
+      'Explain in 3-5 concise sentences why this governance alert matters, what evidence supports it, and the safest commissioner next action without implying automatic rule overrides.',
+  })
+  const orchestration = await runUnifiedOrchestration({
+    envelope,
+    mode: 'consensus',
+    options: { timeoutMs: 20_000, maxRetries: 1 },
+  })
+
+  let narrative = fallback
+  let source: 'ai' | 'template' = 'template'
+  let verdict: string | null = null
+  let sections:
+    | Array<{
+        id: string
+        title: string
+        content: string
+        type: 'verdict' | 'evidence' | 'confidence' | 'risks' | 'next_action' | 'alternate' | 'narrative'
+      }>
+    | undefined
+  let factGuardWarnings: string[] | undefined
+
+  if (orchestration.ok) {
+    const formatted = formatToolResult({
+      toolKey: 'rivalries',
+      primaryAnswer: orchestration.response.primaryAnswer || fallback,
+      structured: getStructuredCandidate(orchestration.response),
+      envelope,
+      factGuardWarnings: orchestration.response.factGuardWarnings,
+    })
+    const factGuard = validateToolOutput(formatted.output, envelope)
+    const warnings = Array.from(
+      new Set([
+        ...formatted.factGuardWarnings,
+        ...factGuard.warnings,
+        ...factGuard.errors.map((error) => `Fact guard: ${error}`),
+      ])
+    )
+    narrative = formatted.output.narrative || orchestration.response.primaryAnswer || fallback
+    source = 'ai'
+    verdict = formatted.output.verdict
+    sections = formatted.sections
+    factGuardWarnings = warnings.length ? warnings : undefined
+  }
 
   return NextResponse.json({
-    narrative: ai?.ok && ai.text?.trim() ? ai.text.trim() : fallback,
-    source: ai?.ok && ai.text?.trim() ? 'ai' : 'template',
+    narrative,
+    source,
+    verdict,
+    sections,
+    factGuardWarnings,
     context: payload,
   })
 }

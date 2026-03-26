@@ -61,6 +61,7 @@ export async function PATCH(
     updates.metadata = merged as object;
     updates.contentBody = JSON.stringify({
       shortCaption: merged.shortCaption,
+      shortScriptOverlay: merged.shortScriptOverlay,
       headline: merged.headline,
       ctaText: merged.ctaText,
       hashtags: merged.hashtags,

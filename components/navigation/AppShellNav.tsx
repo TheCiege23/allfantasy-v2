@@ -43,7 +43,7 @@ export default function AppShellNav({
   balanceLabel = "$0.00",
   winningsLabel = "$0.00",
 }: AppShellNavProps) {
-  const chimmyEntry = getPrimaryChimmyEntry()
+  const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
   const pathname = usePathname()
 
   return (

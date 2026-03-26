@@ -14,7 +14,7 @@ export function InternalLinkSuggestionPanel({ articleId, className = "" }: Inter
   const [suggestions, setSuggestions] = useState<InternalLinkSuggestion[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadSuggestions = () => {
     if (!articleId) return;
     setLoading(true);
     fetch(`/api/blog/${encodeURIComponent(articleId)}/internal-links`)
@@ -22,11 +22,25 @@ export function InternalLinkSuggestionPanel({ articleId, className = "" }: Inter
       .then((data) => (data.suggestions ? setSuggestions(data.suggestions) : []))
       .catch(() => setSuggestions([]))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadSuggestions();
   }, [articleId]);
 
   return (
-    <div className={`rounded-xl border border-white/10 bg-white/5 p-4 ${className}`}>
-      <h3 className="text-sm font-medium text-zinc-400 mb-2">Suggested internal links</h3>
+    <div className={`rounded-xl border border-white/10 bg-white/5 p-4 ${className}`} data-testid="blog-internal-link-panel">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-zinc-400">Suggested internal links</h3>
+        <button
+          type="button"
+          onClick={loadSuggestions}
+          className="rounded border border-white/10 px-2 py-1 text-[11px] text-zinc-300 hover:bg-white/10"
+          data-testid="blog-internal-link-refresh-button"
+        >
+          Refresh
+        </button>
+      </div>
       {loading ? (
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -42,6 +56,7 @@ export function InternalLinkSuggestionPanel({ articleId, className = "" }: Inter
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm text-cyan-400 hover:text-cyan-300"
+                data-testid={`blog-internal-link-item-${i}`}
               >
                 <span>{s.anchor}</span>
                 <ExternalLink className="h-3.5 w-3.5" />

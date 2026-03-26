@@ -93,7 +93,7 @@ export default function ChimmyLandingClient() {
           <section className="mt-10">
             <h2 className="text-xl font-semibold mb-4">Use Chimmy inside AllFantasy</h2>
             <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-              Open the Legacy experience and switch to the AI Chat tab to start a conversation.
+              Open Messages AI chat to continue league-aware conversations, or launch from AI Hub and tools.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link

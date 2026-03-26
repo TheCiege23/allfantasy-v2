@@ -97,7 +97,12 @@ export default function PodcastPlayerClient({
 
   return (
     <div className="space-y-6">
-      <Link href="/podcast" className="text-sm text-white/60 hover:text-white/80 transition">
+      <Link
+        href="/podcast"
+        className="text-sm text-white/60 hover:text-white/80 transition"
+        data-testid="podcast-back-button"
+        data-audit="back-button"
+      >
         ← All episodes
       </Link>
 
@@ -123,6 +128,7 @@ export default function PodcastPlayerClient({
           data-testid="podcast-share-button"
           className="flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/10 transition"
           aria-label="Share podcast"
+          data-audit="copy-share-button"
         >
           <Share2 className="h-4 w-4" />
           {shareDone ? "Copied!" : "Share"}

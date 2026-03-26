@@ -14,6 +14,7 @@ export const MEDIA_TYPES = [
   'playoff_recap',
   'championship_recap',
   'trade_reaction',
+  'sport_specific_content',
 ] as const;
 
 export type MediaType = (typeof MEDIA_TYPES)[number];
@@ -38,10 +39,14 @@ export interface HeyGenPayloadInput {
   sport: string;
   contentType: MediaType;
   script: string;
+  sections?: VideoScriptSection[];
   language?: string;
   durationTargetSeconds?: number;
   avatarId?: string;
   voiceId?: string;
+  toneStyle?: string;
+  ctaEnding?: string;
+  brandingInstructions?: string;
 }
 
 export interface HeyGenCreatePayload {
@@ -51,6 +56,29 @@ export interface HeyGenCreatePayload {
   avatar_id?: string;
   resolution?: '1080p' | '720p';
   aspect_ratio?: '16:9' | '9:16';
+}
+
+export interface HeyGenPayloadMetadata {
+  videoTitle: string;
+  sportContext: string;
+  contentType: MediaType;
+  narrationScript: string;
+  presenterConfig: {
+    avatarId: string;
+    voiceId: string;
+  };
+  sceneSections: VideoScriptSection[];
+  brandingInstructions: string;
+  toneStyleInstructions: string;
+  ctaEnding: string;
+  language: string;
+  durationTargetSeconds: number;
+  outputMetadata: {
+    provider: 'heygen';
+    resolution: '1080p' | '720p';
+    aspectRatio: '16:9' | '9:16';
+    sceneCount: number;
+  };
 }
 
 export const EPISODE_STATUS = [

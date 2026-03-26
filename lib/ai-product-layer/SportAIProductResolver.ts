@@ -3,7 +3,7 @@
  * Ensures NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer are supported everywhere.
  */
 
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
+import { DEFAULT_SPORT, SUPPORTED_SPORTS, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope';
 import type { SupportedSport } from './types';
 
 /**
@@ -17,8 +17,7 @@ export function getSupportedSportsForAI(): readonly SupportedSport[] {
  * Whether the given sport is supported by AI surfaces.
  */
 export function isSportSupportedForAI(sport: string | null | undefined): boolean {
-  if (!sport) return false;
-  return (SUPPORTED_SPORTS as readonly string[]).includes(sport.toString().toUpperCase());
+  return isSupportedSport(sport);
 }
 
 /**
@@ -46,4 +45,11 @@ export function getSportOptionsForAI(): { value: SupportedSport; label: string }
     value: s,
     label: getSportLabelForAI(s),
   }));
+}
+
+/**
+ * Resolve sport to supported value with platform default fallback.
+ */
+export function resolveSportForAIProduct(sport: string | null | undefined): SupportedSport {
+  return normalizeToSupportedSport(sport) ?? DEFAULT_SPORT;
 }

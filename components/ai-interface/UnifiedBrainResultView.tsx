@@ -88,6 +88,7 @@ export default function UnifiedBrainResultView({
               <button
                 type="button"
                 onClick={() => setSourcesExpanded(!sourcesExpanded)}
+                data-testid="ai-sources-toggle-button"
                 className="flex w-full items-center justify-between gap-2 p-3 text-left hover:bg-white/[0.04] min-h-[44px]"
                 aria-expanded={sourcesExpanded}
               >

@@ -63,7 +63,12 @@ export type GrokChatResponse = {
   };
 };
 
-export type GrokEnrichmentKind = "trade_message" | "trade_narrative" | "waiver_narrative" | "id_mapping_hint";
+export type GrokEnrichmentKind =
+  | "trade_message"
+  | "trade_narrative"
+  | "waiver_narrative"
+  | "league_story"
+  | "id_mapping_hint";
 
 export type GrokEnrichmentRequest = {
   kind: GrokEnrichmentKind;

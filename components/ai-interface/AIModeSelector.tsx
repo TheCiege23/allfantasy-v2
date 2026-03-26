@@ -42,6 +42,7 @@ export default function AIModeSelector({
         value={value}
         onChange={(e) => onChange(e.target.value as AIMode)}
         disabled={disabled}
+        data-testid="ai-mode-selector"
         className="min-h-[44px] rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 disabled:opacity-50"
         aria-label="AI mode"
       >

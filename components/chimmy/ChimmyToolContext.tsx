@@ -30,6 +30,7 @@ export default function ChimmyToolContext({
     <div
       className={`rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm ${className}`}
       data-chimmy-tool-context
+      data-testid="chimmy-tool-context"
     >
       <div className="flex items-start gap-2">
         <FileText className="h-4 w-4 text-white/40 shrink-0 mt-0.5" aria-hidden />

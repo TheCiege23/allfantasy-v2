@@ -12,6 +12,9 @@ export const ORCHESTRATION_TOOL_TYPES = [
   'draft_helper',
   'matchup',
   'rankings',
+  'psychological',
+  'legacy_score',
+  'rivalries',
   'story_creator',
   'content',
   'chimmy_chat',
@@ -67,7 +70,22 @@ export interface UnifiedAIResponse {
     usedDeterministicFallback: boolean
     providerStatus: ProviderStatusEntry[]
     message?: string
+    fallbackExplanation?: string
+    dataQualityWarnings?: string[]
+    hardViolation?: boolean
+    confidence?: number
+    confidenceSource?: 'deterministic' | 'llm' | 'capped'
+    disagreement?: {
+      hasDisagreement: boolean
+      explanation: string
+      primaryVerdict: string
+      primaryConfidence: number
+      alternateVerdicts: { verdict: string; confidence: number; provider: string }[]
+    }
+    partialProviderFailure?: boolean
   }
+  confidenceReason?: string
+  alternateOutputs?: Array<{ provider: string; text: string }>
   factGuardWarnings?: string[]
   traceId?: string
   cached?: boolean
