@@ -6,37 +6,13 @@ import type { AIContextEnvelope } from '@/lib/unified-ai/types'
 import type { UnifiedAIRequest } from './types'
 import type { AIErrorCode } from './types'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeOrchestrationToolKey } from './tool-key-normalizer'
 
 export interface ValidationResult {
   valid: boolean
   envelope?: AIContextEnvelope
   errorCode?: AIErrorCode
   errorMessage?: string
-}
-
-const KNOWN_FEATURE_ALIASES: Record<string, string> = {
-  trade_analyzer: 'trade_analyzer',
-  trade_evaluator: 'trade_analyzer',
-  waiver_ai: 'waiver_ai',
-  draft_helper: 'draft_helper',
-  matchup: 'matchup',
-  simulation: 'matchup',
-  rankings: 'rankings',
-  story_creator: 'story_creator',
-  content: 'content',
-  chimmy_chat: 'chimmy_chat',
-  graph_insight: 'rivalries',
-  psychological_profiles: 'psychological',
-  psychology: 'psychological',
-  psychological: 'psychological',
-  legacy: 'legacy_score',
-  legacy_score: 'legacy_score',
-  reputation: 'legacy_score',
-  rivalry: 'rivalries',
-  rivalries: 'rivalries',
-  commentary: 'content',
-  openclaw_dev_assistant: 'chimmy_chat',
-  openclaw_growth_marketing_assistant: 'content',
 }
 
 /**
@@ -66,8 +42,15 @@ export function validateAIRequest(req: unknown): ValidationResult {
 
   const normalized: AIContextEnvelope = {
     ...envelope,
-    featureType: KNOWN_FEATURE_ALIASES[featureType] ?? featureType,
+    featureType: normalizeOrchestrationToolKey(featureType),
     sport,
+    deterministicContextEnvelope:
+      envelope.deterministicContextEnvelope && typeof envelope.deterministicContextEnvelope === 'object'
+        ? {
+            ...envelope.deterministicContextEnvelope,
+            sport,
+          }
+        : envelope.deterministicContextEnvelope,
   }
 
   const mode = body.mode as string | undefined
@@ -98,6 +81,14 @@ export function validateEnvelope(envelope: unknown): ValidationResult {
 
   return {
     valid: true,
-    envelope: { ...e, featureType, sport },
+    envelope: {
+      ...e,
+      featureType: normalizeOrchestrationToolKey(featureType),
+      sport,
+      deterministicContextEnvelope:
+        e.deterministicContextEnvelope && typeof e.deterministicContextEnvelope === 'object'
+          ? { ...e.deterministicContextEnvelope, sport }
+          : e.deterministicContextEnvelope,
+    },
   }
 }

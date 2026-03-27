@@ -2,13 +2,9 @@
  * OpenAI: fantasy impact explanation and confidence (Prompt 131).
  */
 
-import OpenAI from 'openai';
 import type { NewsFeedItem, ConfidenceLevel } from './types';
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+import { openaiChatText } from '@/lib/openai-client';
+import { isOpenAIAvailable } from '@/lib/provider-config';
 
 export interface FantasyImpactResult {
   text: string | null;
@@ -23,11 +19,12 @@ export async function explainFantasyImpact(
   const body = [item.title, summaryOrDescription ?? item.description].filter(Boolean).join('\n').slice(0, 600);
   if (!body.trim()) return { text: null, confidence: 'low' };
 
-  if (!openai.apiKey) return { text: null, confidence: 'low' };
+  if (!isOpenAIAvailable()) return { text: null, confidence: 'low' };
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await openaiChatText({
+      temperature: 0.3,
+      maxTokens: 170,
       messages: [
         {
           role: 'system',
@@ -38,9 +35,10 @@ export async function explainFantasyImpact(
           content: body,
         },
       ],
-      max_tokens: 150,
     });
-    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!completion.ok) return { text: null, confidence: 'low' };
+
+    const raw = completion.text.trim();
     if (!raw) return { text: null, confidence: 'medium' };
     const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
     const last = lines[lines.length - 1]?.toLowerCase();

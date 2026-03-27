@@ -163,6 +163,47 @@ const REGISTRY: AIToolRegistration[] = [
 const BY_KEY = new Map<string, AIToolRegistration>()
 REGISTRY.forEach((r) => BY_KEY.set(r.toolKey, r))
 const TOOL_ALIASES: Record<string, string> = {
+  'trade-analyzer': 'trade_analyzer',
+  tradeanalyzer: 'trade_analyzer',
+  trade_analyzer: 'trade_analyzer',
+  'trade analyzer': 'trade_analyzer',
+  'waiver-wire': 'waiver_ai',
+  'waiver-wire-ai': 'waiver_ai',
+  'waiver wire ai': 'waiver_ai',
+  waiver: 'waiver_ai',
+  waiver_ai: 'waiver_ai',
+  'draft-helper': 'draft_helper',
+  'draft helper': 'draft_helper',
+  draft_helper: 'draft_helper',
+  'matchup-explainer': 'matchup',
+  'matchup explainer': 'matchup',
+  matchup_explainer: 'matchup',
+  'league-rankings-explainer': 'rankings',
+  'league rankings explainer': 'rankings',
+  league_rankings_explainer: 'rankings',
+  'psychological-system': 'psychological',
+  'psychological system': 'psychological',
+  story: 'story_creator',
+  'league-story-creator': 'story_creator',
+  'league story creator': 'story_creator',
+  story_creator: 'story_creator',
+  'ai-commissioner': 'ai_commissioner',
+  'ai commissioner': 'ai_commissioner',
+  ai_commissioner: 'ai_commissioner',
+  'fantasy-coach': 'fantasy_coach',
+  'fantasy-coach-mode': 'fantasy_coach',
+  'fantasy coach mode': 'fantasy_coach',
+  fantasy_coach: 'fantasy_coach',
+  'content-generator': 'content',
+  'content generator': 'content',
+  content_generator: 'content',
+  'blog-generator': 'blog_generator',
+  'blog generator': 'blog_generator',
+  'social-clip-generator': 'social_clip_generator',
+  'social clip generator': 'social_clip_generator',
+  'chimmy-chat': 'chimmy_chat',
+  'chimmy chat': 'chimmy_chat',
+  chimmy_chat: 'chimmy_chat',
   psychology: 'psychological',
   psychological_profiles: 'psychological',
   legacy: 'legacy_score',
@@ -178,7 +219,8 @@ export function getAIToolRegistry(): AIToolRegistration[] {
 /** Get one tool by key. Returns null if unsupported. */
 export function getToolRegistration(toolKey: string): AIToolRegistration | null {
   const key = (toolKey || '').trim().toLowerCase()
-  const canonicalKey = TOOL_ALIASES[key] ?? key
+  const underscored = key.replace(/[\s-]+/g, '_')
+  const canonicalKey = TOOL_ALIASES[key] ?? TOOL_ALIASES[underscored] ?? underscored
   return BY_KEY.get(canonicalKey) ?? null
 }
 
@@ -190,7 +232,11 @@ export function isToolSupported(toolKey: string): boolean {
 /** Validate request: tool must be registered; if deterministicRequired, deterministicContext must have required fields. */
 export function validateToolRequest(
   toolKey: string,
-  deterministicContext?: Record<string, unknown> | null
+  deterministicContext?: Record<string, unknown> | null,
+  options?: {
+    leagueSettings?: Record<string, unknown> | null
+    sport?: string | null
+  }
 ): { valid: boolean; error?: string } {
   const reg = getToolRegistration(toolKey)
   if (!reg) {
@@ -200,7 +246,17 @@ export function validateToolRequest(
   if (!deterministicContext || typeof deterministicContext !== 'object') {
     return { valid: false, error: `Tool "${reg.toolName}" requires deterministicContext.` }
   }
-  const missing = reg.requiredContextFields.filter((f) => deterministicContext[f] === undefined || deterministicContext[f] === null)
+  const missing = reg.requiredContextFields.filter((field) => {
+    const deterministicValue = deterministicContext[field]
+    if (deterministicValue !== undefined && deterministicValue !== null) return false
+    if (field === 'leagueSettings' && options?.leagueSettings && typeof options.leagueSettings === 'object') {
+      return false
+    }
+    if (field === 'sport' && typeof options?.sport === 'string' && options.sport.trim().length > 0) {
+      return false
+    }
+    return true
+  })
   if (missing.length > 0) {
     return { valid: false, error: `Missing required context fields: ${missing.join(', ')}.` }
   }

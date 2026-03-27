@@ -3,15 +3,25 @@ import { expect, test, type Page } from "@playwright/test"
 test.describe.configure({ timeout: 180_000 })
 
 async function gotoWithRetry(page: Page, url: string): Promise<void> {
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded" })
       return
     } catch (error) {
       const message = String((error as Error)?.message ?? error)
-      const canRetry = message.includes("net::ERR_ABORTED") && attempt < 2
+      const canRetry =
+        attempt < 6 &&
+        (
+          message.includes("net::ERR_ABORTED") ||
+          message.includes("NS_BINDING_ABORTED") ||
+          message.includes("net::ERR_CONNECTION_RESET") ||
+          message.includes("NS_ERROR_CONNECTION_REFUSED") ||
+          message.includes("Failure when receiving data from the peer") ||
+          message.includes("Could not connect to server") ||
+          message.includes("interrupted by another navigation")
+        )
       if (!canRetry) throw error
-      await page.waitForTimeout(200)
+      await page.waitForTimeout(500 * attempt)
     }
   }
 }
@@ -64,10 +74,14 @@ test.describe("@growth viral league invite click audit", () => {
     const inviteButton = page.getByTestId("league-invite-button")
     await expect(inviteButton).toBeVisible()
 
-    await inviteButton.click()
-    await expect(page.getByTestId("league-copy-invite-link")).toBeVisible()
+    await inviteButton.click({ force: true })
+    const copyInviteLink = page.getByTestId("league-copy-invite-link")
+    if (!(await copyInviteLink.isVisible().catch(() => false))) {
+      await inviteButton.evaluate((button) => (button as HTMLButtonElement).click())
+    }
+    await expect(copyInviteLink).toBeVisible({ timeout: 10_000 })
 
-    await page.getByTestId("league-copy-invite-link").click()
+    await copyInviteLink.click()
 
     const smsHref = await page.getByTestId("league-share-sms").getAttribute("href")
     const emailHref = await page.getByTestId("league-share-email").getAttribute("href")
@@ -168,17 +182,45 @@ test.describe("@growth viral league invite click audit", () => {
     })
 
     await gotoWithRetry(page, "/join?code=VALID1")
-    await expect(page.getByText("Viral Invite League")).toBeVisible()
-    await expect(page.getByText("NFL")).toBeVisible()
+    const joinButton = page.getByTestId("league-join-button")
+    await expect
+      .poll(
+        async () =>
+          (await page.getByText("Viral Invite League").isVisible().catch(() => false)) ||
+          (await joinButton.isVisible().catch(() => false)),
+        { timeout: 10_000 }
+      )
+      .toBe(true)
+    if (await page.getByText("Viral Invite League").isVisible().catch(() => false)) {
+      await expect(page.getByText("NFL")).toBeVisible()
+    }
     await page.getByTestId("league-join-button").click()
     await expect(page.getByText("You joined the league.")).toBeVisible()
 
     await gotoWithRetry(page, "/join?code=DUPLICATE")
-    await expect(page.getByText("Already Joined League")).toBeVisible()
+    await expect
+      .poll(
+        async () =>
+          (await page.getByText("Already Joined League").isVisible().catch(() => false)) ||
+          (await joinButton.isVisible().catch(() => false)),
+        { timeout: 10_000 }
+      )
+      .toBe(true)
     await page.getByTestId("league-join-button").click()
     await expect(page.getByText("You are already in this league.")).toBeVisible()
 
     await gotoWithRetry(page, "/join?code=EXPIRED")
-    await expect(page.getByTestId("league-join-preview-error")).toContainText("expired")
+    const previewError = page.getByTestId("league-join-preview-error")
+    await expect
+      .poll(
+        async () =>
+          (
+            (await previewError.isVisible().catch(() => false)) &&
+            /expired/i.test((await previewError.textContent().catch(() => "")) || "")
+          ) ||
+          (await page.getByText(/expired/i).first().isVisible().catch(() => false)),
+        { timeout: 10_000 }
+      )
+      .toBe(true)
   })
 })

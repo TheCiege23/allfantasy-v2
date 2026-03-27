@@ -16,7 +16,11 @@ export const ORCHESTRATION_TOOL_TYPES = [
   'legacy_score',
   'rivalries',
   'story_creator',
+  'ai_commissioner',
+  'fantasy_coach',
   'content',
+  'blog_generator',
+  'social_clip_generator',
   'chimmy_chat',
 ] as const
 
@@ -97,6 +101,15 @@ export interface ProviderStatusEntry {
   status: 'ok' | 'failed' | 'timeout' | 'invalid_response'
   error?: string
   latencyMs?: number
+}
+
+export interface ProviderHealthEntry {
+  provider: AIModelRole
+  configured: boolean
+  healthy: boolean
+  checkedAt: string
+  latencyMs?: number
+  error?: string
 }
 
 /** Shared error code for AI layer. */

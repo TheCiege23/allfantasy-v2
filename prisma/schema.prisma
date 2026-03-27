@@ -2460,7 +2460,9 @@ model CreatorProfile {
   handle     String    @unique
   slug       String    @unique @db.VarChar(128)
   displayName String?  @db.VarChar(128)
+  creatorType String?  @db.VarChar(32)
   bio        String?   @db.Text
+  communitySummary String? @db.Text
   avatarUrl  String?   @db.VarChar(512)
   bannerUrl  String?   @db.VarChar(512)
   websiteUrl String?   @db.VarChar(512)
@@ -2468,7 +2470,10 @@ model CreatorProfile {
   verifiedAt DateTime?
   verificationBadge String? @db.VarChar(32) // e.g. "verified" | "partner"
   visibility String   @default("public") @db.VarChar(16) // public | unlisted | private
+  communityVisibility String @default("public") @db.VarChar(16) // public | unlisted | private
   branding   Json?    // CreatorBranding: logoUrl, primaryColor, accentColor
+  featuredRank Int?
+  featuredAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -2479,6 +2484,7 @@ model CreatorProfile {
   @@index([handle])
   @@index([slug])
   @@index([visibility])
+  @@index([featuredRank])
   @@map("creator_profiles")
 }
 
@@ -2497,6 +2503,11 @@ model CreatorLeague {
   maxMembers    Int      @default(100)
   memberCount   Int      @default(0)
   joinDeadline  DateTime?
+  coverImageUrl String?  @db.VarChar(512)
+  communitySummary String? @db.Text
+  latestRecapTitle String? @db.VarChar(160)
+  latestRecapSummary String? @db.Text
+  latestCommentary String? @db.Text
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -2520,6 +2531,7 @@ model CreatorInvite {
   expiresAt       DateTime?
   maxUses         Int      @default(0) // 0 = unlimited
   useCount        Int      @default(0)
+  metadata        Json?
   createdAt       DateTime @default(now())
 
   creator CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
@@ -2527,6 +2539,7 @@ model CreatorInvite {
 
   @@index([creatorId])
   @@index([code])
+  @@index([creatorLeagueId, createdAt])
   @@map("creator_invites")
 }
 
@@ -2541,6 +2554,7 @@ model CreatorLeagueMember {
 
   @@unique([creatorLeagueId, userId])
   @@index([userId])
+  @@index([creatorLeagueId, joinedAt])
   @@map("creator_league_members")
 }
 
@@ -2554,6 +2568,7 @@ model CreatorAnalyticsEvent {
   createdAt DateTime @default(now())
 
   @@index([creatorId, createdAt])
+  @@index([creatorId, eventType, createdAt])
   @@index([eventType])
   @@map("creator_analytics_events")
 }

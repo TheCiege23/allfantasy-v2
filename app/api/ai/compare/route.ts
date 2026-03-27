@@ -15,6 +15,12 @@ import {
   type AIToolResponseContract,
 } from '@/lib/ai-tool-registry'
 import { formatToolResult, resolveToolKeyAlias, validateToolOutput } from '@/lib/ai-tool-layer'
+import {
+  normalizeToContract,
+  toClientDeterministicEnvelope,
+  type DeterministicContextEnvelope,
+} from '@/lib/ai-context-envelope'
+import type { AIContextEnvelope } from '@/lib/unified-ai/types'
 
 function isRequestContract(body: Record<string, unknown>): boolean {
   return typeof body.tool === 'string' && typeof body.sport === 'string'
@@ -33,6 +39,86 @@ function getStructuredCandidate(response: { modelOutputs?: Array<{ model?: strin
   return anyStructured && typeof anyStructured === 'object'
     ? (anyStructured as Record<string, unknown>)
     : null
+}
+
+function resolveProviderUsed(response: AIToolResponseContract): string | undefined {
+  const winning = response.providerResults.find((provider) => !provider.skipped && !provider.error)
+  return winning?.provider
+}
+
+function toEvidenceStringsFromNormalized(normalizedOutput: NonNullable<AIToolResponseContract['normalizedOutput']>): string[] {
+  if (Array.isArray(normalizedOutput.keyEvidence) && normalizedOutput.keyEvidence.length > 0) {
+    return normalizedOutput.keyEvidence
+  }
+  if (Array.isArray(normalizedOutput.evidence) && normalizedOutput.evidence.length > 0) {
+    return normalizedOutput.evidence.map((item) =>
+      `${item.label}: ${item.value}${item.unit ? ` ${item.unit}` : ''}`
+    )
+  }
+  return []
+}
+
+function attachDeterministicPresentation(
+  responseContract: AIToolResponseContract,
+  envelope: AIContextEnvelope
+): AIToolResponseContract {
+  const deterministicEnvelope = (envelope.deterministicContextEnvelope ?? null) as DeterministicContextEnvelope | null
+  const providerUsed = resolveProviderUsed(responseContract)
+  if (!deterministicEnvelope) {
+    return {
+      ...responseContract,
+      deterministicEnvelope: null,
+      normalizedOutput: null,
+      debugTrace: {
+        traceId: responseContract.traceId ?? null,
+        providerUsed,
+      },
+    }
+  }
+
+  const normalizedOutput = normalizeToContract(
+    {
+      primaryAnswer: responseContract.aiExplanation,
+      verdict: responseContract.verdict ?? undefined,
+      keyEvidence: responseContract.evidence,
+      confidencePct: typeof responseContract.confidence === 'number' ? responseContract.confidence : undefined,
+      confidenceLabel: responseContract.confidenceLabel ?? undefined,
+      confidenceReason: responseContract.confidenceReason ?? undefined,
+      risksCaveats: responseContract.risksCaveats ?? [],
+      suggestedNextAction: responseContract.suggestedNextAction ?? responseContract.actionPlan ?? undefined,
+      alternatePath: responseContract.alternatePath ?? undefined,
+    },
+    deterministicEnvelope,
+    {
+      includeTrace: true,
+      traceProvider: providerUsed,
+    }
+  )
+  const normalizedEvidence = toEvidenceStringsFromNormalized(normalizedOutput)
+
+  return {
+    ...responseContract,
+    evidence: responseContract.evidence.length > 0 ? responseContract.evidence : normalizedEvidence,
+    confidence: responseContract.confidence ?? normalizedOutput.confidence?.scorePct ?? null,
+    confidenceLabel: responseContract.confidenceLabel ?? normalizedOutput.confidence?.label ?? null,
+    confidenceReason: responseContract.confidenceReason ?? normalizedOutput.confidence?.reason ?? null,
+    uncertainty:
+      responseContract.uncertainty ??
+      normalizedOutput.uncertainty?.[0]?.what ??
+      (normalizedOutput.caveats?.[0] ?? null),
+    deterministicEnvelope: toClientDeterministicEnvelope(deterministicEnvelope, { includePayload: false }),
+    normalizedOutput,
+    debugTrace: {
+      traceId: responseContract.traceId ?? null,
+      toolId: deterministicEnvelope.toolId,
+      envelopeId: deterministicEnvelope.envelopeId,
+      providerUsed,
+      dataQualitySummary: deterministicEnvelope.dataQualitySummary,
+      confidenceCapped: Boolean(normalizedOutput.confidence?.cappedByData),
+      uncertaintyCount: normalizedOutput.uncertainty?.length ?? 0,
+      missingDataCount: normalizedOutput.missingData?.length ?? 0,
+    },
+  }
 }
 
 export async function POST(req: Request) {
@@ -71,7 +157,10 @@ export async function POST(req: Request) {
   }
 
   const contract = body as unknown as AIToolRequestContract
-  const validation = validateToolRequest(contract.tool, contract.deterministicContext ?? undefined)
+  const validation = validateToolRequest(contract.tool, contract.deterministicContext ?? undefined, {
+    leagueSettings: contract.leagueSettings ?? null,
+    sport: contract.sport ?? null,
+  })
   if (!validation.valid) {
     return NextResponse.json(
       {
@@ -156,5 +245,5 @@ export async function POST(req: Request) {
       factGuardWarnings,
     }
   }
-  return NextResponse.json(responseContract)
+  return NextResponse.json(attachDeterministicPresentation(responseContract, compareRequest.envelope))
 }

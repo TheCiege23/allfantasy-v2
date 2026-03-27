@@ -7,7 +7,7 @@ import { PowerRankingsPage } from "@/components/app/power-rankings/PowerRankings
 const HARNESS_TABS: LeagueShellTab[] = ["Overview", "Rankings"]
 
 export default function PowerRankingsHarnessClient() {
-  const [tab, setTab] = useState<LeagueShellTab>("Overview")
+  const [tab, setTab] = useState<LeagueShellTab>("Rankings")
   const [hydrated, setHydrated] = useState(false)
   const leagueId = "league_rankings_1"
 

@@ -43,6 +43,15 @@ export function unifiedResponseToContract(response: UnifiedAIResponse): AIToolRe
     verdict: response.verdict ?? response.valueVerdict ?? null,
     risksCaveats: response.risksCaveats ?? [],
     suggestedNextAction: response.suggestedNextAction ?? response.actionPlan ?? null,
+    deterministicEnvelope: null,
+    normalizedOutput: null,
+    debugTrace: {
+      traceId: response.traceId ?? null,
+      providerUsed: response.modelOutputs?.find((output) => !output.skipped && !output.error)?.model,
+      confidenceCapped: response.reliability?.confidenceSource === 'capped',
+      uncertaintyCount: (response.uncertaintyExplanation?.trim() ? 1 : 0),
+      missingDataCount: response.reliability?.dataQualityWarnings?.length ?? 0,
+    },
     factGuardWarnings: response.factGuardWarnings ?? [],
   }
 }

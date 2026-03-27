@@ -3,37 +3,37 @@
 import React from 'react'
 import Link from 'next/link'
 import { MessageCircle, ArrowLeftRight, ClipboardList, Target, Zap } from 'lucide-react'
-import { getChimmyChatHref, getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
+import { AIProductLayer } from '@/lib/ai-product-layer'
 
 const QUICK_ACTIONS = [
   {
     id: 'ask-chimmy',
     label: 'Ask Chimmy',
-    href: () => getChimmyChatHref({ source: 'quick_action' }),
+    href: () => AIProductLayer.chimmy.getChatHref({ source: 'quick_action' }),
     icon: MessageCircle,
   },
   {
     id: 'compare-trade',
     label: 'Compare Trade',
-    href: () => '/af-legacy?tab=trade',
+    href: () => AIProductLayer.routes.getHrefForFeature('trade_analyzer', { source: 'quick_action' }),
     icon: ArrowLeftRight,
   },
   {
     id: 'waiver-targets',
     label: 'Find Waiver Targets',
-    href: () => '/af-legacy?tab=waiver',
+    href: () => AIProductLayer.routes.getHrefForFeature('waiver_ai', { source: 'quick_action' }),
     icon: ClipboardList,
   },
   {
     id: 'draft-advice',
     label: 'Draft Advice',
-    href: () => '/af-legacy?tab=mock-draft',
+    href: () => AIProductLayer.routes.getHrefForFeature('draft_helper', { source: 'quick_action' }),
     icon: Target,
   },
   {
     id: 'explain-matchup',
     label: 'Explain Matchup',
-    href: () => getChimmyChatHrefWithPrompt('Explain my matchup', { source: 'quick_action' }),
+    href: () => AIProductLayer.chimmy.getChatHrefWithPrompt('Explain my matchup', { source: 'quick_action', insightType: 'matchup' }),
     icon: Zap,
   },
 ]

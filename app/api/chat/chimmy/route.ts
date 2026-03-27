@@ -68,12 +68,21 @@ interface GrokResult {
   error?: string
 }
 
+interface ChimmyResponseStructure {
+  shortAnswer: string
+  whatDataSays?: string
+  whatItMeans?: string
+  recommendedAction?: string
+  caveats?: string[]
+}
+
 interface ChimmyResponse {
   answer: string
   recommendedTool: ToolKey
   reason: string
   quantData?: QuantResult
   trendData?: GrokResult
+  responseStructure?: ChimmyResponseStructure
   confidencePct?: number
   strategyNote?: string
   providers: {
@@ -155,6 +164,11 @@ ${getChimmyPromptStyleBlock()}
 RESPONSE FORMAT (strict JSON):
 {
   "answer": "Your full response in Chimmy's voice",
+  "shortAnswer": "1-2 calm sentences with the direct recommendation",
+  "whatDataSays": "Evidence and numbers from provided data only",
+  "whatItMeans": "Interpretation in plain language",
+  "recommendedAction": "Clear next move",
+  "caveats": ["uncertainty or missing data caveat"],
   "recommendedTool": "trade_analyzer|trade_finder|waiver_ai|rankings|mock_draft|none",
   "reason": "Why you recommended that tool (or 'none' if no tool needed)",
   "confidencePct": 0-100,
@@ -315,6 +329,79 @@ function parseJsonResponse(raw: string): Record<string, any> | null {
   }
 }
 
+function toOptionalTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function toCaveatList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 4)
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value
+      .split(/\n|;+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 4)
+  }
+  return []
+}
+
+function buildResponseStructureFromOpenAIJson(
+  openaiJson: Record<string, any> | null
+): ChimmyResponseStructure | undefined {
+  if (!openaiJson) return undefined
+  const shortAnswer = toOptionalTrimmedString(openaiJson.shortAnswer ?? openaiJson.answer)
+  if (!shortAnswer) return undefined
+  const caveats = toCaveatList(openaiJson.caveats)
+  return {
+    shortAnswer,
+    whatDataSays: toOptionalTrimmedString(openaiJson.whatDataSays),
+    whatItMeans: toOptionalTrimmedString(openaiJson.whatItMeans),
+    recommendedAction: toOptionalTrimmedString(openaiJson.recommendedAction),
+    caveats: caveats.length > 0 ? caveats : undefined,
+  }
+}
+
+function buildFallbackResponseStructure(
+  answer: string,
+  reason: string,
+  quantResult: QuantResult | null,
+  grokResult: GrokResult | null
+): ChimmyResponseStructure | undefined {
+  const shortAnswer = answer.trim().slice(0, 220)
+  if (!shortAnswer) return undefined
+
+  const dataLineParts: string[] = []
+  if (quantResult?.fairnessScore != null) dataLineParts.push(`Fairness ${quantResult.fairnessScore}/100`)
+  if (quantResult?.expectedWeeklyGain != null) dataLineParts.push(`Weekly edge ${quantResult.expectedWeeklyGain.toFixed(1)} pts`)
+  if (quantResult?.playoffOdds != null) dataLineParts.push(`Playoff odds ${quantResult.playoffOdds}%`)
+  if (grokResult?.injuryAlerts?.length) dataLineParts.push(`Injury signal: ${grokResult.injuryAlerts[0]}`)
+  if (grokResult?.snapShareChanges?.length) dataLineParts.push(`Usage change: ${grokResult.snapShareChanges[0]}`)
+
+  const caveats: string[] = []
+  if (!quantResult || quantResult.error) {
+    caveats.push('Quant model context is limited for this answer.')
+  }
+  if (!grokResult || grokResult.error) {
+    caveats.push('Real-time trend context is limited right now.')
+  }
+
+  return {
+    shortAnswer,
+    whatDataSays: dataLineParts.length > 0 ? dataLineParts.join(' | ') : undefined,
+    whatItMeans: reason.trim().length > 0 ? reason.trim() : undefined,
+    recommendedAction: reason.trim().length > 0 ? reason.trim() : undefined,
+    caveats: caveats.length > 0 ? caveats : undefined,
+  }
+}
+
 function buildChimmyVoiceAnswer(
   openaiAnswer: string,
   grokResult: GrokResult | null,
@@ -379,6 +466,7 @@ interface ConsensusResult {
   answer: string
   recommendedTool: ToolKey
   reason: string
+  responseStructure?: ChimmyResponseStructure
   confidencePct?: number
   strategyNote?: string
   quantData?: QuantResult
@@ -410,6 +498,7 @@ function buildConsensus(
   let primaryAnswer: string
   let recommendedTool: ToolKey
   let reason: string
+  let responseStructure: ChimmyResponseStructure | undefined
   let strategyNote: string | undefined
   let confidencePct: number | undefined
 
@@ -417,6 +506,7 @@ function buildConsensus(
     primaryAnswer = openaiJson.answer
     recommendedTool = normalizeToolKey(openaiJson.recommendedTool)
     reason = openaiJson.reason ?? ''
+    responseStructure = buildResponseStructureFromOpenAIJson(openaiJson)
     confidencePct = openaiJson.confidencePct ?? deepseekResult?.confidencePct
     strategyNote = openaiJson.strategyNote
   } else if (openaiRaw && openaiRaw.trim().length > 10) {
@@ -442,11 +532,15 @@ function buildConsensus(
   }
 
   const answer = buildChimmyVoiceAnswer(primaryAnswer, grokResult, deepseekResult)
+  if (!responseStructure) {
+    responseStructure = buildFallbackResponseStructure(answer, reason, deepseekResult, grokResult)
+  }
 
   return {
     answer,
     recommendedTool,
     reason,
+    responseStructure,
     confidencePct,
     strategyNote,
     quantData: deepseekResult ?? undefined,
@@ -731,6 +825,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const offTopicResponse: ChimmyResponse = {
       answer:
         "I'm Chimmy, your fantasy sports assistant. I can help with trades, waivers, matchups, and lineup strategy. Share your league question and I'll keep it clear and evidence-based.",
+      responseStructure: {
+        shortAnswer: 'I can help with fantasy sports questions only.',
+        whatDataSays: 'No fantasy-specific context was provided in this request.',
+        whatItMeans: 'I need a league, roster, trade, waiver, or matchup question to give useful analysis.',
+        recommendedAction: 'Share your fantasy question and any relevant league context.',
+        caveats: ['Off-topic requests are intentionally redirected to fantasy guidance.'],
+      },
       recommendedTool: 'none',
       reason: 'Off-topic query',
       providers: { openai: 'skipped', grok: 'skipped', deepseek: 'skipped' },
@@ -1002,6 +1103,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           processingMs: Date.now() - startMs,
           confidencePct: 0,
           timeout: true,
+          responseStructure: {
+            shortAnswer: "I couldn't finish that request in time.",
+            recommendedAction: 'Try a shorter question or retry in a moment.',
+            caveats: ['Provider timeout while generating analysis.'],
+          },
         },
       })
     }
@@ -1022,6 +1128,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         processingMs: Date.now() - startMs,
         confidencePct: 0,
         providerStatus: providers,
+        responseStructure: {
+          shortAnswer: "I couldn't complete that analysis right now.",
+          recommendedAction: 'Please retry with league or roster details for better grounding.',
+          caveats: ['Primary providers were unavailable for this request.'],
+        },
       },
     })
   }
@@ -1069,6 +1180,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       strategyNote: consensus.strategyNote,
       quantData: consensus.quantData,
       trendData: consensus.trendData,
+      responseStructure: consensus.responseStructure,
       providerSignalAudit,
       hasImage: !!screenshotContext,
       privateMode,

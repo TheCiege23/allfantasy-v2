@@ -8,7 +8,7 @@ import {
   getDynastyIntelligenceSupportedSports,
 } from '@/lib/dynasty-intelligence'
 import { getDynastyAIInsight } from '@/lib/dynasty-intelligence/DynastyIntelligenceAI'
-import { isSupportedSport } from '@/lib/sport-scope'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
     const baseValueParam = searchParams.get('baseValue')
     const baseValue = baseValueParam != null ? parseFloat(baseValueParam) : undefined
     const playerId = searchParams.get('playerId')?.trim() ?? undefined
+    const isSuperFlex =
+      searchParams.get('isSuperFlex') === '1' || searchParams.get('isSuperFlex') === 'true'
+    const isTightEndPremium =
+      searchParams.get('isTightEndPremium') === '1' ||
+      searchParams.get('isTightEndPremium') === 'true'
     const includeAI = searchParams.get('ai') === '1' || searchParams.get('ai') === 'true'
 
     if (!sport || !isSupportedSport(sport)) {
@@ -33,11 +38,13 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await getPlayerDynastyIntelligence({
-      sport,
+      sport: normalizeToSupportedSport(sport),
       position,
       age: Number.isFinite(age) ? age! : undefined,
       baseValue: Number.isFinite(baseValue) ? baseValue! : undefined,
       playerId,
+      isSuperFlex,
+      isTightEndPremium,
     })
 
     if (includeAI) {

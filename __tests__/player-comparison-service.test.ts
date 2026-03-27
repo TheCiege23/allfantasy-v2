@@ -43,6 +43,19 @@ function buildPlayer(
       team: "TEAM",
       volatility: 12,
     },
+    internalAdp: 24.5,
+    sleeperAdp: 23.8,
+    internalProjectionPoints: values.totalFantasyPoints,
+    injury: { status: "Active", source: "espn", riskScore: 15, note: null },
+    scheduleDifficultyScore: 50,
+    sourceFlags: {
+      fantasyCalc: true,
+      sleeper: true,
+      espnInjuryFeed: true,
+      internalAdp: true,
+      internalProjections: true,
+      leagueScoringSettings: true,
+    },
   }
 }
 

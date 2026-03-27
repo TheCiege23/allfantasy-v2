@@ -1,99 +1,161 @@
 /**
- * AI layer for coach evaluation (Prompt 134): DeepSeek (roster math), OpenAI (strategy + coach recommendations).
+ * AI layer for coach evaluation.
+ * DeepSeek: roster math evaluation.
+ * Grok: strategy framing.
+ * OpenAI: coach-style recommendation.
+ * Deterministic fallbacks keep the dashboard usable if providers are unavailable.
  */
 
-import { deepseekChat } from '@/lib/deepseek-client';
 import OpenAI from 'openai';
-import type { CoachEvaluationResult } from './types';
+import { deepseekChat } from '@/lib/deepseek-client';
+import type { CoachEvaluationResult, CoachProviderInsights } from './types';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  return new OpenAI({
+    apiKey,
+    baseURL:
+      process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
+      process.env.OPENAI_BASE_URL ||
+      'https://api.openai.com/v1',
+  });
+}
+
+function getGrokClient(): OpenAI | null {
+  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY;
+  if (!apiKey) return null;
+
+  return new OpenAI({
+    apiKey,
+    baseURL:
+      process.env.GROK_BASE_URL || process.env.XAI_BASE_URL || 'https://api.x.ai/v1',
+  });
+}
 
 function buildEvalContext(evalResult: CoachEvaluationResult): string {
-  const parts = [
+  const metrics = evalResult.evaluationMetrics
+    .map((metric) => `${metric.label}: ${metric.score}/100 (${metric.summary})`)
+    .join(' ');
+
+  return [
     `Sport: ${evalResult.sport}.`,
-    `Strengths: ${evalResult.rosterStrengths.join('; ') || 'None'}.`,
-    `Weaknesses: ${evalResult.rosterWeaknesses.join('; ') || 'None'}.`,
-    `Waiver opportunities: ${evalResult.waiverOpportunities.length}.`,
-    `Trade suggestions: ${evalResult.tradeSuggestions.length}.`,
-    `Lineup improvements: ${evalResult.lineupImprovements.join('; ') || 'None'}.`,
-  ];
-  return parts.join(' ');
+    `Team: ${evalResult.teamSnapshot.teamName}.`,
+    `Week: ${evalResult.teamSnapshot.week}.`,
+    `Adjusted projection: ${evalResult.teamSnapshot.adjustedProjection.toFixed(1)}.`,
+    `Range: ${evalResult.teamSnapshot.adjustedFloor.toFixed(1)}-${evalResult.teamSnapshot.adjustedCeiling.toFixed(1)}.`,
+    `Schedule adjustment: ${evalResult.teamSnapshot.scheduleAdjustment >= 0 ? '+' : ''}${evalResult.teamSnapshot.scheduleAdjustment.toFixed(1)}.`,
+    `Strongest slot: ${evalResult.teamSnapshot.strongestSlot}. Weakest slot: ${evalResult.teamSnapshot.weakestSlot}. Swing slot: ${evalResult.teamSnapshot.swingSlot}.`,
+    `Strengths: ${evalResult.rosterStrengths.join(' ')}`,
+    `Weaknesses: ${evalResult.rosterWeaknesses.join(' ')}`,
+    `Lineup improvements: ${evalResult.lineupImprovements.join(' ')}`,
+    `Waiver opportunities: ${evalResult.waiverOpportunities.map((item) => `${item.playerName} (${item.position ?? 'UTIL'}) - ${item.reason}`).join(' ')}`,
+    `Trade suggestions: ${evalResult.tradeSuggestions.map((item) => `${item.summary} ${item.targetHint ?? ''}`).join(' ')}`,
+    `Metrics: ${metrics}`,
+    `Summary: ${evalResult.teamSummary}`,
+  ].join(' ');
 }
 
-/** DeepSeek: roster math evaluation. */
-export async function evaluateRosterMath(evalResult: CoachEvaluationResult): Promise<string | null> {
+async function maybeCallOpenAI(system: string, user: string): Promise<string | null> {
+  const client = getOpenAIClient();
+  if (!client) return null;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: process.env.OPENAI_COACH_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      max_tokens: 180,
+      temperature: 0.45,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    console.error('[CoachEvaluationAI] openai', error);
+    return null;
+  }
+}
+
+async function maybeCallGrok(system: string, user: string): Promise<string | null> {
+  const client = getGrokClient();
+  if (!client) return null;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: process.env.XAI_MODEL || process.env.GROK_MODEL || 'grok-2-latest',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      max_tokens: 130,
+      temperature: 0.5,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() || null;
+  } catch (error) {
+    console.error('[CoachEvaluationAI] grok', error);
+    return null;
+  }
+}
+
+export async function evaluateRosterMath(
+  evalResult: CoachEvaluationResult
+): Promise<string | null> {
   const context = buildEvalContext(evalResult);
   const result = await deepseekChat({
-    systemPrompt: 'You are a fantasy sports analyst. In one short paragraph, interpret the roster evaluation in terms of numbers: position strength, depth, value distribution. Be concise.',
+    systemPrompt:
+      'You interpret fantasy roster math. In 2 concise sentences, explain the projection band, strongest edge, weakest slot, and how the numbers shape roster management.',
     prompt: context,
-    temperature: 0.2,
-    maxTokens: 200,
+    temperature: 0.15,
+    maxTokens: 180,
   });
-  if (result.error || !result.content?.trim()) return null;
-  return result.content.trim();
+
+  return result.content?.trim() || null;
 }
 
-/** OpenAI: strategy insight (Grok role). */
-export async function buildStrategyInsight(evalResult: CoachEvaluationResult): Promise<string | null> {
-  if (!openai.apiKey) return null;
+export async function buildStrategyInsight(
+  evalResult: CoachEvaluationResult
+): Promise<string | null> {
   const context = buildEvalContext(evalResult);
-  try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a fantasy coach. In 1-2 sentences, give one strategic insight (e.g. sell high, buy low, prioritize waivers). No bullets.',
-        },
-        { role: 'user', content: context },
-      ],
-      max_tokens: 120,
-    });
-    return completion.choices[0]?.message?.content?.trim() || null;
-  } catch (e) {
-    console.error('[CoachEvaluationAI] strategy', e);
-    return null;
-  }
+  return maybeCallGrok(
+    'You are Grok writing one sharp fantasy strategy framing paragraph. Keep it grounded in the provided deterministic roster context and focus on storyline plus actionable strategy.',
+    context
+  );
 }
 
-/** OpenAI: coach-style weekly advice. */
-export async function buildWeeklyAdvice(evalResult: CoachEvaluationResult): Promise<string | null> {
-  if (!openai.apiKey) return null;
+export async function buildWeeklyAdvice(
+  evalResult: CoachEvaluationResult
+): Promise<string | null> {
   const context = buildEvalContext(evalResult);
-  try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are the AllFantasy AI Coach. Give one short, actionable piece of weekly advice (1-2 sentences). Motivational but specific.',
-        },
-        { role: 'user', content: context },
-      ],
-      max_tokens: 100,
-    });
-    return completion.choices[0]?.message?.content?.trim() || null;
-  } catch (e) {
-    console.error('[CoachEvaluationAI] weekly', e);
-    return null;
-  }
+  return maybeCallOpenAI(
+    'You are the AllFantasy AI Coach. Give one short coach-style recommendation in 2-3 sentences. Be direct, practical, and specific about the next move.',
+    context
+  );
 }
 
 export async function enrichCoachEvaluationWithAI(
   evalResult: CoachEvaluationResult
 ): Promise<CoachEvaluationResult> {
-  const [rosterMathSummary, strategyInsight, weeklyAdvice] = await Promise.all([
+  const [deepseek, grok, openai] = await Promise.all([
     evaluateRosterMath(evalResult),
     buildStrategyInsight(evalResult),
     buildWeeklyAdvice(evalResult),
   ]);
+
+  const providerInsights: CoachProviderInsights = {
+    deepseek: deepseek ?? evalResult.providerInsights.deepseek,
+    grok: grok ?? evalResult.providerInsights.grok,
+    openai: openai ?? evalResult.providerInsights.openai,
+  };
+
   return {
     ...evalResult,
-    rosterMathSummary: rosterMathSummary ?? null,
-    strategyInsight: strategyInsight ?? null,
-    weeklyAdvice: weeklyAdvice ?? null,
+    providerInsights,
+    rosterMathSummary: providerInsights.deepseek,
+    strategyInsight: providerInsights.grok,
+    weeklyAdvice: providerInsights.openai,
   };
 }

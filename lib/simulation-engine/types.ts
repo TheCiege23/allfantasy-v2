@@ -31,9 +31,10 @@ export interface MatchupSimulationInput {
   sport: string
   leagueId?: string
   weekOrPeriod: number
-  teamA: { mean: number; stdDev?: number; teamId?: string }
-  teamB: { mean: number; stdDev?: number; teamId?: string }
+  teamA: MatchupSimulationTeamInput
+  teamB: MatchupSimulationTeamInput
   iterations?: number
+  deterministicSeed?: string
 }
 
 /** Upside/downside scenario (Prompt 133). */
@@ -42,6 +43,80 @@ export interface ScenarioScore {
   teamB: number
   /** e.g. 90 = upside, 10 = downside */
   percentile: number
+}
+
+export interface MatchupScheduleFactorsInput {
+  /** -1 = strong road drag, 0 = neutral, 1 = strong home/venue edge */
+  venue?: number
+  /** -1 = poor rest / congested schedule, 0 = neutral, 1 = extra rest */
+  rest?: number
+  /** -1 = difficult matchup, 0 = neutral, 1 = favorable matchup */
+  matchup?: number
+  /** -1 = low-event environment, 0 = neutral, 1 = high-event environment */
+  tempo?: number
+}
+
+export interface MatchupLineupSlotInput {
+  slotId: string
+  slotLabel?: string
+  playerName?: string
+  projection: number
+  floor?: number
+  ceiling?: number
+  /** 1 = baseline slot volatility; >1 widens range, <1 tightens it. */
+  volatility?: number
+}
+
+export interface MatchupSimulationTeamInput {
+  mean?: number
+  stdDev?: number
+  teamId?: string
+  teamName?: string
+  lineup?: MatchupLineupSlotInput[]
+  scheduleFactors?: MatchupScheduleFactorsInput
+}
+
+export interface MatchupLineupSlotSummary {
+  slotId: string
+  slotLabel: string
+  playerName: string
+  projection: number
+  adjustedProjection: number
+  floor: number
+  ceiling: number
+  sampleStdDev: number
+  volatility: number
+  scheduleImpact: number
+}
+
+export interface MatchupSimulationTeamSummary {
+  baselineMean: number
+  adjustedMean: number
+  adjustedFloor: number
+  adjustedCeiling: number
+  derivedStdDev: number
+  scheduleAdjustment: number
+  scheduleMultiplier: number
+  scheduleFactors: Required<MatchupScheduleFactorsInput>
+  lineup: MatchupLineupSlotSummary[]
+}
+
+export interface MatchupSlotComparisonRow {
+  slotId: string
+  slotLabel: string
+  teamAPlayerName: string
+  teamBPlayerName: string
+  teamAScore: number
+  teamBScore: number
+  edge: number
+  advantage: 'A' | 'B' | 'even'
+  edgeLabel: string
+}
+
+export interface MatchupProviderInsights {
+  deepseek: string
+  grok: string
+  openai: string
 }
 
 export interface MatchupSimulationOutput {
@@ -65,6 +140,13 @@ export interface MatchupSimulationOutput {
   upsideScenario?: ScenarioScore
   /** Downside scenario (e.g. 10th percentile scores). */
   downsideScenario?: ScenarioScore
+  scoreRangeA?: [number, number]
+  scoreRangeB?: [number, number]
+  teamSummaryA?: MatchupSimulationTeamSummary
+  teamSummaryB?: MatchupSimulationTeamSummary
+  slotComparisons?: MatchupSlotComparisonRow[]
+  deterministicSeed?: number
+  providerInsights?: MatchupProviderInsights
 }
 
 export interface SeasonSimulationInput {

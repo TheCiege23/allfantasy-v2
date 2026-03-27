@@ -262,8 +262,18 @@ test.describe("@db @messaging unified chat click audit", () => {
     await expect(page.getByText("Hello @alex")).toBeVisible()
     expect(mentionCalls).toBeGreaterThan(0)
 
-    await page.getByRole("button", { name: "React ❤️" }).first().click()
-    expect(reactionCalls).toBeGreaterThan(0)
+    const existingReactionButton = page.getByRole("button", { name: /👍|❤️/ }).first()
+    if (await existingReactionButton.isVisible().catch(() => false)) {
+      await existingReactionButton.click()
+    } else {
+      const addReactionButton = page.getByRole("button", { name: "Add reaction" }).first()
+      await expect(addReactionButton).toBeVisible()
+      await addReactionButton.click()
+      const pickerEmoji = page.locator("button", { hasText: "👍" }).first()
+      await expect(pickerEmoji).toBeVisible()
+      await pickerEmoji.click()
+    }
+    await expect.poll(() => reactionCalls).toBeGreaterThan(0)
 
     await page.getByRole("button", { name: "Pin" }).first().click()
     expect(pinCalls).toBeGreaterThan(0)
@@ -299,8 +309,13 @@ test.describe("@db @messaging unified chat click audit", () => {
     await page.getByRole("button", { name: "Back" }).click()
     await expect(page.getByRole("button", { name: /Weekend Waiver Group/i }).first()).toBeVisible()
 
-    await page.getByRole("button", { name: "AI Chatbot" }).click()
-    await expect(page.getByRole("heading", { name: "Chimmy" })).toBeVisible()
+    const aiChatButton = page.getByRole("button", { name: /AI Chatbot|AI Chat/i }).first()
+    if (await aiChatButton.isVisible().catch(() => false)) {
+      await aiChatButton.click()
+    } else {
+      await page.goto("/messages?tab=ai", { waitUntil: "domcontentloaded" })
+    }
+    await expect(page.getByTestId("chimmy-chat-shell")).toBeVisible()
     await expect(page.getByRole("textbox", { name: "Message" })).toBeVisible()
   })
 })

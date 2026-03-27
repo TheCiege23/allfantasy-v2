@@ -10,6 +10,8 @@ export default function FantasyNewsHarnessClient() {
   const [query, setQuery] = useState("")
   const [aiSummary, setAiSummary] = useState(true)
   const [loaded, setLoaded] = useState(false)
+  const [refreshCount, setRefreshCount] = useState(0)
+  const [shareCount, setShareCount] = useState(0)
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
@@ -20,6 +22,22 @@ export default function FantasyNewsHarnessClient() {
     () => (feedType === "player" ? "about:blank#player-article" : "about:blank#team-article"),
     [feedType]
   )
+  const playerName = query || (feedType === "player" ? "Josh Allen" : "KC")
+  const playerLink = `/af-legacy?tab=players&q=${encodeURIComponent(playerName)}`
+
+  const handleShare = async () => {
+    const payload = {
+      title: "Fantasy News Harness Story",
+      text: `${playerName} update`,
+      url: articleUrl,
+    }
+    if (navigator.share) {
+      await navigator.share(payload)
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload.url)
+    }
+    setShareCount((prev) => prev + 1)
+  }
 
   return (
     <div className="min-h-screen bg-[#040915] p-6 text-white">
@@ -68,6 +86,20 @@ export default function FantasyNewsHarnessClient() {
           <Button type="button" onClick={() => setLoaded(true)} data-testid="fantasy-news-load-button">
             {feedType === "player" ? "Load player news" : "Load team news"}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setRefreshCount((prev) => prev + 1)}
+            data-testid="fantasy-news-refresh-button"
+          >
+            Refresh
+          </Button>
+          <p className="text-xs text-white/60" data-testid="fantasy-news-refresh-count">
+            Refresh count: {refreshCount}
+          </p>
+          <p className="text-xs text-white/60" data-testid="fantasy-news-share-count">
+            Share count: {shareCount}
+          </p>
         </div>
 
         {loaded && (
@@ -83,7 +115,7 @@ export default function FantasyNewsHarnessClient() {
               <h2 className="font-semibold">
                 {aiSummary ? "AI summary: Startable volume spike expected" : "Starter volume is trending up"}
               </h2>
-              <p className="text-sm text-white/70">{query || (feedType === "player" ? "Josh Allen" : "KC")} update.</p>
+              <p className="text-sm text-white/70">{playerName} update.</p>
             </a>
             <a
               href={articleUrl}
@@ -95,6 +127,23 @@ export default function FantasyNewsHarnessClient() {
             >
               Source link
             </a>
+            <div className="mt-2 flex items-center gap-3">
+              <a
+                href={playerLink}
+                data-testid="fantasy-news-player-link-news-1"
+                className="text-sm text-cyan-300 hover:underline"
+              >
+                {playerName}
+              </a>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void handleShare()}
+                data-testid="fantasy-news-share-button-news-1"
+              >
+                Share
+              </Button>
+            </div>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@
  */
 
 import { z } from 'zod'
+import { isSupportedSport } from '@/lib/sport-scope'
 
 /** Supported tool identifiers that require deterministic grounding. */
 export const AI_TOOL_IDS = [
@@ -116,7 +117,9 @@ export const DeterministicContextEnvelopeSchema = z.object({
   /** Tool this envelope is for. */
   toolId: z.string(),
   /** Sport (NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER). */
-  sport: z.string(),
+  sport: z.string().refine((sport) => isSupportedSport(sport), {
+    message: 'Unsupported sport. Use NFL, NHL, NBA, MLB, NCAAB, NCAAF, or SOCCER.',
+  }),
   /** League id when in league context. */
   leagueId: z.string().nullable().optional(),
   /** User id when known. */

@@ -8,6 +8,7 @@ import type { AIProductContext } from './types';
 import { buildAIChatHref, resolveSportForAIChat } from '@/lib/chimmy-chat';
 
 const CHIMMY_LANDING = '/chimmy';
+const CHIMMY_CHAT_ROUTE = '/chimmy/chat';
 const LEGACY_CHAT = '/af-legacy?tab=chat';
 
 function normalizeChimmyContext(context?: AIProductContext) {
@@ -42,6 +43,13 @@ export function getChimmyLandingHref(): string {
 }
 
 /**
+ * Standalone Chimmy route (non-messages shell).
+ */
+export function getChimmyStandaloneChatHref(): string {
+  return CHIMMY_CHAT_ROUTE;
+}
+
+/**
  * Chat with optional prompt prefill (for tool-to-Chimmy routing).
  */
 export function getChimmyChatHrefWithPrompt(
@@ -61,6 +69,7 @@ export function getUnifiedChimmyEntries(context?: AIProductContext): ChimmyEntry
   const chatHref = getChimmyChatHref(context);
   return [
     { href: chatHref, label: 'AI Chat' },
+    { href: CHIMMY_CHAT_ROUTE, label: 'Chimmy Chat Route' },
     { href: CHIMMY_LANDING, label: 'Meet Chimmy' },
     { href: LEGACY_CHAT, label: 'Legacy AI Chat' },
   ];

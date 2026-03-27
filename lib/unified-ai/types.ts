@@ -4,6 +4,7 @@
  */
 
 import type { LeagueSport } from "@prisma/client"
+import type { DeterministicContextEnvelope } from '@/lib/ai-context-envelope/schema'
 
 /** Orchestration mode for AI execution. */
 export type OrchestrationMode =
@@ -60,6 +61,11 @@ export interface AIContextEnvelope {
   assistantRoutingHints?: AIAssistantRole[]
   /** Raw user message or prompt suffix. */
   userMessage?: string
+  /**
+   * Optional deterministic envelope used by grounded tools (trade/waiver/draft/matchup/rankings/story/content).
+   * When present, providers must use this as the fact source and surface uncertainty/missing-data explicitly.
+   */
+  deterministicContextEnvelope?: DeterministicContextEnvelope | null
 }
 
 /** Result shape from a single model. */

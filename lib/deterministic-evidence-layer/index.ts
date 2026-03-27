@@ -31,13 +31,11 @@ export {
 
 export {
   type ProviderInputContract,
+  type ProviderOutputContract,
   getMandatorySystemPromptSuffix,
+  toProviderInputContract,
   normalizeToContract,
   buildEnvelopeFromTool,
+  toClientDeterministicEnvelope,
   type ProviderRawOutput,
 } from '@/lib/ai-context-envelope/contracts'
-
-import type { NormalizedToolOutput } from '@/lib/ai-context-envelope/schema'
-
-/** Provider output contract: normalized tool output (evidence, confidence, uncertainty, missingData). */
-export type ProviderOutputContract = NormalizedToolOutput

@@ -1,13 +1,34 @@
 'use client';
 
-import { ArrowRight, UserPlus, ArrowLeftRight, LayoutList } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeftRight, ArrowRight, LayoutList, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { ActionRecommendation, WaiverOpportunity, TradeSuggestion } from '@/lib/fantasy-coach/types';
+import type {
+  ActionRecommendation,
+  TradeSuggestion,
+  WaiverOpportunity,
+} from '@/lib/fantasy-coach/types';
 
 export interface ActionRecommendationCardsProps {
   actionRecommendations: ActionRecommendation[];
   waiverOpportunities: WaiverOpportunity[];
   tradeSuggestions: TradeSuggestion[];
+}
+
+function PriorityPill({ priority }: { priority?: 'high' | 'medium' }) {
+  if (!priority) return null;
+
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide ${
+        priority === 'high'
+          ? 'bg-rose-500/15 text-rose-200'
+          : 'bg-white/10 text-white/60'
+      }`}
+    >
+      {priority}
+    </span>
+  );
 }
 
 export function ActionRecommendationCards({
@@ -19,27 +40,31 @@ export function ActionRecommendationCards({
     <div className="space-y-4" data-audit="action-recommendation-cards">
       <Card className="border-white/10 bg-white/5">
         <CardHeader>
-          <CardTitle className="text-lg text-white">Actions</CardTitle>
+          <CardTitle className="text-lg text-white">Action recommendations</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {actionRecommendations.map((action) => (
-            <a
+            <Link
               key={action.id}
               href={action.toolHref}
               className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/10"
               data-audit="recommendation-opens-tool"
+              data-testid={`coach-action-link-${action.id}`}
             >
               <div className="flex items-center gap-3">
                 {action.type === 'waiver' && <UserPlus className="h-5 w-5 text-cyan-400" />}
                 {action.type === 'trade' && <ArrowLeftRight className="h-5 w-5 text-amber-400" />}
                 {action.type === 'lineup' && <LayoutList className="h-5 w-5 text-emerald-400" />}
                 <div>
-                  <p className="font-medium text-white">{action.label}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-white">{action.label}</p>
+                    <PriorityPill priority={action.priority} />
+                  </div>
                   <p className="text-sm text-white/60">{action.summary}</p>
                 </div>
               </div>
               <ArrowRight className="h-4 w-4 text-white/50" />
-            </a>
+            </Link>
           ))}
         </CardContent>
       </Card>
@@ -50,19 +75,25 @@ export function ActionRecommendationCards({
             <CardTitle className="text-lg text-white">Waiver opportunities</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {waiverOpportunities.map((w, i) => (
-              <a
-                key={i}
-                href={w.playerHref}
+            {waiverOpportunities.map((waiverOpportunity, index) => (
+              <Link
+                key={`${waiverOpportunity.playerName}-${index}`}
+                href={waiverOpportunity.playerHref}
                 className="block rounded-lg border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/10"
                 data-audit="waiver-target-opens-player-page"
+                data-testid={`coach-waiver-link-${index}`}
               >
-                <p className="font-medium text-white">
-                  {w.playerName}
-                  {w.position && <span className="ml-2 text-white/50">({w.position})</span>}
-                </p>
-                <p className="text-sm text-white/60">{w.reason}</p>
-              </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white">
+                    {waiverOpportunity.playerName}
+                    {waiverOpportunity.position && (
+                      <span className="ml-2 text-white/50">({waiverOpportunity.position})</span>
+                    )}
+                  </p>
+                  <PriorityPill priority={waiverOpportunity.priority} />
+                </div>
+                <p className="text-sm text-white/60">{waiverOpportunity.reason}</p>
+              </Link>
             ))}
           </CardContent>
         </Card>
@@ -74,16 +105,22 @@ export function ActionRecommendationCards({
             <CardTitle className="text-lg text-white">Trade suggestions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {tradeSuggestions.map((t, i) => (
-              <a
-                key={i}
-                href={t.tradeAnalyzerHref}
+            {tradeSuggestions.map((tradeSuggestion, index) => (
+              <Link
+                key={`${tradeSuggestion.summary}-${index}`}
+                href={tradeSuggestion.tradeAnalyzerHref}
                 className="block rounded-lg border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/10"
                 data-audit="trade-suggestion-opens-trade-analyzer"
+                data-testid={`coach-trade-link-${index}`}
               >
-                <p className="font-medium text-white">{t.summary}</p>
-                {t.targetHint && <p className="text-sm text-white/60">{t.targetHint}</p>}
-              </a>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white">{tradeSuggestion.summary}</p>
+                  <PriorityPill priority={tradeSuggestion.priority} />
+                </div>
+                {tradeSuggestion.targetHint && (
+                  <p className="text-sm text-white/60">{tradeSuggestion.targetHint}</p>
+                )}
+              </Link>
             ))}
           </CardContent>
         </Card>

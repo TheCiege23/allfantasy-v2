@@ -11,6 +11,9 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(Number(searchParams.get('limit')) || 24, 48)
     const sort = searchParams.get('sort') as 'members' | 'leagues' | null
     const cursor = searchParams.get('cursor') || undefined
+    const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000'
+    const proto = req.headers.get('x-forwarded-proto') || 'http'
+    const baseUrl = `${proto}://${host}`
 
     if (sort === 'members' || sort === 'leagues') {
       const creators = await getCreatorsLeaderboard({
@@ -20,7 +23,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, creators })
     }
 
-    const result = await getCreators({ visibility, sport, limit, cursor })
+    const result = await getCreators({ visibility, sport, limit, cursor, baseUrl })
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[api/creators]', e)

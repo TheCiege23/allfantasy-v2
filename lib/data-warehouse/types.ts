@@ -119,3 +119,74 @@ export interface SeasonStandingFactInput {
 }
 
 export type TransactionType = 'add' | 'drop' | 'trade' | 'waiver_add' | 'waiver_drop' | 'free_agent'
+
+export type WarehouseDataset =
+  | 'player_stats'
+  | 'team_stats'
+  | 'roster_snapshots'
+  | 'league_matchups'
+  | 'season_standings'
+  | 'draft_logs'
+  | 'trade_logs'
+  | 'matchup_simulations'
+  | 'season_simulations'
+
+export interface WarehouseDatasetCounts {
+  playerStats: number
+  teamStats: number
+  rosterSnapshots: number
+  leagueMatchups: number
+  seasonStandings: number
+  draftLogs: number
+  tradeLogs: number
+  matchupSimulations: number
+  seasonSimulations: number
+}
+
+export interface WarehouseDatasetLatest {
+  playerStats: string | null
+  teamStats: string | null
+  rosterSnapshots: string | null
+  leagueMatchups: string | null
+  seasonStandings: string | null
+  draftLogs: string | null
+  tradeLogs: string | null
+  matchupSimulations: string | null
+  seasonSimulations: string | null
+}
+
+export interface WarehouseOverview {
+  leagueId?: string | null
+  sport?: WarehouseSport | null
+  season?: number
+  totalRecords: number
+  coveragePct: number
+  latestActivityAt: string | null
+  counts: WarehouseDatasetCounts
+  latestByDataset: WarehouseDatasetLatest
+}
+
+export interface WarehouseActivityEntry {
+  dataset: WarehouseDataset
+  recordId: string
+  occurredAt: string
+  title: string
+  detail: string
+  leagueId?: string | null
+  sport?: string | null
+  season?: number | null
+  weekOrPeriod?: number | null
+  teamId?: string | null
+  playerId?: string | null
+}
+
+export interface WarehouseSimulationAnalytics {
+  matchupSimulationCount: number
+  seasonSimulationCount: number
+  averageExpectedScoreA: number | null
+  averageExpectedScoreB: number | null
+  averageWinProbabilityA: number | null
+  averagePlayoffProbability: number | null
+  averageChampionshipProbability: number | null
+  bestPlayoffOddsTeamId: string | null
+}

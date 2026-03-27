@@ -1,66 +1,81 @@
 'use client'
 
 import Link from 'next/link'
-import { Users, Trophy, Share2 } from 'lucide-react'
+import { ArrowUpRight, Share2, Trophy, Users } from 'lucide-react'
 import { VerifiedCreatorBadge } from '@/components/creator/VerifiedCreatorBadge'
 import type { CreatorProfileDto } from '@/lib/creator-system/types'
 
 export interface CreatorCardProps {
   creator: CreatorProfileDto
-  onFollow?: (creatorId: string) => void
-  onShare?: (creatorId: string, url: string) => void
+  onFollow?: (creator: CreatorProfileDto) => void
+  onUnfollow?: (creator: CreatorProfileDto) => void
+  onShare?: (creator: CreatorProfileDto, url: string) => void
   isFollowing?: boolean
   followLoading?: boolean
-  showJoinLeague?: boolean
-  leagueHref?: string
 }
 
 export function CreatorCard({
   creator,
   onFollow,
+  onUnfollow,
   onShare,
   isFollowing,
   followLoading,
-  showJoinLeague,
-  leagueHref,
 }: CreatorCardProps) {
-  const profileHref = `/creators/${encodeURIComponent(creator.slug)}`
   const displayName = creator.displayName || creator.handle
+  const profileHref = `/creators/${encodeURIComponent(creator.slug)}`
+  const shareUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}${profileHref}` : profileHref
+  const featuredLeague = creator.featuredLeague
+  const primaryColor = creator.branding?.primaryColor || 'var(--accent)'
+  const accentColor = creator.branding?.accentColor || 'var(--panel2)'
 
   const handleShare = () => {
     if (onShare) {
-      const url = typeof window !== 'undefined' ? `${window.location.origin}${profileHref}` : profileHref
-      onShare(creator.id, url)
-    } else {
-      const url = typeof window !== 'undefined' ? `${window.location.origin}${profileHref}` : profileHref
-      navigator.clipboard?.writeText(url).catch(() => {})
+      onShare(creator, shareUrl)
+      return
     }
+    navigator.clipboard?.writeText(shareUrl).catch(() => {})
+  }
+
+  const handleFollowClick = () => {
+    if (isFollowing) onUnfollow?.(creator)
+    else onFollow?.(creator)
   }
 
   return (
     <article
-      className="rounded-2xl border p-4 sm:p-5 transition hover:opacity-95"
-      style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 60%, transparent)' }}
+      data-testid={`creator-profile-card-${creator.slug}`}
+      className="overflow-hidden rounded-[28px] border shadow-sm"
+      style={{
+        borderColor: 'var(--border)',
+        background: `linear-gradient(135deg, color-mix(in srgb, ${primaryColor} 16%, var(--panel)) 0%, color-mix(in srgb, ${accentColor} 14%, var(--panel)) 100%)`,
+      }}
     >
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-        <Link href={profileHref} className="flex items-center gap-3 shrink-0">
+      <div className="border-b px-5 py-4" style={{ borderColor: 'color-mix(in srgb, var(--border) 70%, transparent)' }}>
+        <div className="flex items-start gap-4">
           <div
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-            style={{ background: 'var(--panel2)' }}
+            className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+            style={{ background: 'color-mix(in srgb, var(--panel2) 75%, transparent)' }}
           >
             {creator.avatarUrl ? (
-              <img src={creator.avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img src={creator.avatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <span className="text-xl font-bold" style={{ color: 'var(--muted)' }}>
+              <span className="text-lg font-bold" style={{ color: 'var(--text)' }}>
                 {displayName.slice(0, 2).toUpperCase()}
               </span>
             )}
           </div>
-          <div className="min-w-0 sm:hidden">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold truncate" style={{ color: 'var(--text)' }}>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={profileHref}
+                data-testid={`creator-profile-link-${creator.slug}`}
+                className="truncate text-lg font-semibold hover:opacity-90"
+                style={{ color: 'var(--text)' }}
+              >
                 {displayName}
-              </span>
+              </Link>
               {creator.isVerified && (
                 <VerifiedCreatorBadge
                   handle={creator.handle}
@@ -71,93 +86,107 @@ export function CreatorCard({
                 />
               )}
             </div>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+            <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
               @{creator.handle}
+              {creator.creatorType ? ` • ${creator.creatorType}` : ''}
             </p>
-          </div>
-        </Link>
-        <div className="min-w-0 flex-1">
-          <div className="hidden sm:block">
-            <Link href={profileHref} className="inline-flex items-center gap-2 flex-wrap hover:opacity-90">
-              <span className="font-semibold truncate" style={{ color: 'var(--text)' }}>
-                {displayName}
-              </span>
-              {creator.isVerified && (
-                <VerifiedCreatorBadge
-                  handle={creator.handle}
-                  badge={creator.verificationBadge}
-                  showLabel={false}
-                  linkToProfile={false}
-                  size="sm"
-                />
-              )}
-            </Link>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-              @{creator.handle}
-            </p>
-          </div>
-          {creator.bio && (
-            <p className="text-sm mt-2 line-clamp-2" style={{ color: 'var(--muted)' }}>
-              {creator.bio}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-3 mt-3 text-xs" style={{ color: 'var(--muted)' }}>
-            <span className="inline-flex items-center gap-1">
-              <Trophy className="h-3.5 w-3.5" />
-              {(creator.leagueCount ?? 0)} league{(creator.leagueCount ?? 0) !== 1 ? 's' : ''}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Users className="h-3.5 w-3.5" />
-              {(creator.followerCount ?? 0)} followers
-            </span>
+            {creator.branding?.tagline && (
+              <p className="mt-2 text-sm font-medium" style={{ color: 'var(--text)' }}>
+                {creator.branding.tagline}
+              </p>
+            )}
+            {creator.bio && (
+              <p className="mt-2 line-clamp-3 text-sm" style={{ color: 'var(--muted)' }}>
+                {creator.bio}
+              </p>
+            )}
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-        <Link
-          href={profileHref}
-          data-testid={`creator-profile-link-${creator.slug}`}
-          className="rounded-lg border px-3 py-2 text-sm font-medium"
-          style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-        >
-          View profile
-        </Link>
-        {onFollow && (
-          <button
-            type="button"
-            disabled={followLoading}
-            onClick={() => onFollow(creator.id)}
-            data-testid={`creator-follow-button-${creator.slug}`}
-            className="rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60"
+
+      <div className="space-y-4 px-5 py-4">
+        <div className="flex flex-wrap gap-2 text-xs" style={{ color: 'var(--muted)' }}>
+          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+            <Trophy className="h-3.5 w-3.5" />
+            {creator.leagueCount ?? 0} leagues
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+            <Users className="h-3.5 w-3.5" />
+            {creator.followerCount ?? 0} followers
+          </span>
+          {creator.totalLeagueMembers !== undefined && (
+            <span className="rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+              {creator.totalLeagueMembers} community members
+            </span>
+          )}
+          {creator.topSports?.length ? (
+            <span className="rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+              {creator.topSports.join(' / ')}
+            </span>
+          ) : null}
+        </div>
+
+        {featuredLeague && (
+          <div
+            className="rounded-2xl border p-3"
             style={{
-              background: isFollowing ? 'var(--panel2)' : 'var(--accent)',
-              color: isFollowing ? 'var(--muted)' : 'var(--bg)',
-              border: '1px solid var(--border)',
+              borderColor: 'var(--border)',
+              background: 'color-mix(in srgb, var(--panel) 70%, transparent)',
             }}
           >
-            {followLoading ? '…' : isFollowing ? 'Following' : 'Follow'}
-          </button>
+            <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--muted)' }}>
+              Featured League
+            </p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  {featuredLeague.name}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>
+                  {featuredLeague.sport}
+                </p>
+              </div>
+              <Link
+                href={featuredLeague.inviteUrl}
+                data-testid={`creator-join-league-link-${creator.slug}`}
+                className="inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+                style={{ background: primaryColor, color: 'white' }}
+              >
+                Join league
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+          </div>
         )}
-        {showJoinLeague && leagueHref && (
-          <Link
-            href={leagueHref}
-            data-testid={`creator-join-league-link-${creator.slug}`}
-            className="rounded-lg px-3 py-2 text-sm font-medium"
-            style={{ background: 'var(--accent)', color: 'var(--bg)' }}
+
+        <div className="flex flex-wrap gap-2">
+          {(onFollow || onUnfollow) && (
+            <button
+              type="button"
+              disabled={followLoading}
+              onClick={handleFollowClick}
+              data-testid={`creator-follow-button-${creator.slug}`}
+              className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60"
+              style={{
+                background: isFollowing ? 'var(--panel2)' : primaryColor,
+                color: isFollowing ? 'var(--text)' : 'white',
+                border: '1px solid var(--border)',
+              }}
+            >
+              {followLoading ? 'Saving...' : isFollowing ? 'Following' : 'Follow'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleShare}
+            data-testid={`creator-share-button-${creator.slug}`}
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
-            Join league
-          </Link>
-        )}
-        <button
-          type="button"
-          onClick={handleShare}
-          data-testid={`creator-share-button-${creator.slug}`}
-          className="rounded-lg border px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
-          style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-        >
-          <Share2 className="h-3.5 w-3.5" />
-          Share
-        </button>
+            <Share2 className="h-4 w-4" />
+            Share profile
+          </button>
+        </div>
       </div>
     </article>
   )

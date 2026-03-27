@@ -1,84 +1,141 @@
 /**
- * Dynasty Intelligence Engine (PROMPT 137) – types.
- * Age curve, market value trend, career trajectory.
+ * Dynasty Intelligence Engine (PROMPT 137) - types.
+ * Age curve, market value trend, career trajectory, and AI-ready summaries.
  */
 
-/** Single point on an age curve (age -> dynasty multiplier). */
+export type DynastyLifecycleStage =
+  | 'Prospect'
+  | 'Ascendant'
+  | 'Prime'
+  | 'Plateau'
+  | 'Decline'
+  | 'Cliff Risk'
+
+export type DynastyMarketDirection = 'Hot' | 'Rising' | 'Stable' | 'Falling' | 'Cold'
+export type DynastyTrajectoryLabel = 'Ascending' | 'Stable' | 'Declining' | 'Cliff Risk'
+export type DynastyValuationBand =
+  | 'Untouchable'
+  | 'Core Asset'
+  | 'Starter'
+  | 'Fragile'
+  | 'Depth'
+export type DynastyRecommendation = 'Buy' | 'Hold' | 'Sell' | 'Monitor'
+
+export interface DynastyOverviewCard {
+  id: string
+  label: string
+  value: string
+  detail: string
+  tone: 'positive' | 'neutral' | 'negative'
+}
+
 export interface AgeCurvePoint {
   age: number
   multiplier: number
-  /** Optional label e.g. "Peak" | "Cliff" */
-  label?: string
+  label?: string | null
+  stage?: DynastyLifecycleStage
 }
 
-/** Age curve for a position/sport (for charts and comparison). */
 export interface AgeCurveResult {
   sport: string
   position: string
   points: AgeCurvePoint[]
-  /** Peak age range (approximate). */
   peakAgeStart: number
   peakAgeEnd: number
+  cliffAge: number
+  currentAge: number | null
+  currentMultiplier: number | null
+  lifecycleStage: DynastyLifecycleStage
+  yearsToPeakStart: number | null
+  yearsToPeakEnd: number | null
+  yearsToCliff: number | null
+  riskBand: 'Low' | 'Moderate' | 'High'
 }
 
-/** Market value trend from platform signals (e.g. PlayerMetaTrend). */
+export interface MarketTrendFactor {
+  label: string
+  value: number
+  displayValue: string
+}
+
 export interface MarketValueTrend {
-  direction: 'Rising' | 'Hot' | 'Stable' | 'Falling' | 'Cold'
+  direction: string
+  canonicalDirection: DynastyMarketDirection
   trendScore: number
-  /** Current minus previous period score. */
   scoreDelta: number | null
-  /** Add rate - drop rate (usage). */
   usageChange: number
+  demandScore: number
+  liquidityScore: number
+  volatilityScore: number
+  confidence: number
+  signalLabel: string
+  signals: string[]
+  factors: MarketTrendFactor[]
   updatedAt: string
 }
 
-/** Projected value at a future year (career trajectory). */
 export interface CareerTrajectoryPoint {
   yearOffset: number
-  /** 0 = current, 1 = next year, etc. */
+  age: number
   projectedValue: number
-  /** Multiplier applied to base value. */
   ageMultiplier: number
-  /** Expected remaining window (years) at this point. */
   windowYears: number
+  retentionRate: number
+  note?: string
 }
 
-/** Career trajectory for a player/profile. */
 export interface CareerTrajectoryResult {
   sport: string
   position: string
   age: number
   baseValue: number
   points: CareerTrajectoryPoint[]
-  /** Expected premium window (years of peak-ish value). */
   expectedWindowYears: number
+  peakProjectedValue: number
+  peakYearOffset: number
+  valueChangePctYear3: number | null
+  valueChangePctYear5: number | null
+  trajectoryLabel: DynastyTrajectoryLabel
+  cliffYearOffset: number | null
+  retentionScore: number
 }
 
-/** Full dynasty intelligence for a player or a position profile. */
+export interface DynastyValuationBreakdown {
+  dynastyScore: number
+  positionMultiplier: number
+  ageMultiplier: number
+  windowMultiplier: number
+  liquidityMultiplier: number
+  marketPulse: number
+  careerArc: number
+  riskScore: number
+}
+
 export interface PlayerDynastyIntelligence {
   playerId?: string
   displayName?: string | null
   sport: string
   position: string
+  team?: string | null
   age: number | null
-  /** Current market/dynasty value (e.g. from FantasyCalc or internal). */
   currentValue: number
   ageCurve: AgeCurveResult
   marketValueTrend: MarketValueTrend | null
   careerTrajectory: CareerTrajectoryResult | null
+  lifecycleStage: DynastyLifecycleStage
+  valuationBand: DynastyValuationBand
+  marketRecommendation: DynastyRecommendation
+  valuationBreakdown: DynastyValuationBreakdown | null
+  overviewCards: DynastyOverviewCard[]
   generatedAt: string
 }
 
 export interface DynastyIntelligenceOptions {
   sport: string
   position?: string
-  /** For trajectory: age in years. */
   age?: number | null
-  /** For trajectory: base dynasty value. */
   baseValue?: number
-  /** Player id for market trend lookup. */
   playerId?: string
-  /** SuperFlex / TEP for value scaling (optional). */
   isSuperFlex?: boolean
   isTightEndPremium?: boolean
 }

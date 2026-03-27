@@ -33,6 +33,7 @@ export default function ChimmyInterfaceHarnessClient() {
   const [toolContext, setToolContext] = useState<ChimmyToolContextValue | null>(defaultToolRoutePreset.toolContext)
   const [compareCount, setCompareCount] = useState(0)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [splitOpen, setSplitOpen] = useState(false)
 
   const shellProps = useMemo(
     () => ({
@@ -152,6 +153,14 @@ export default function ChimmyInterfaceHarnessClient() {
           >
             Open mobile drawer
           </button>
+          <button
+            type="button"
+            data-testid="chimmy-harness-open-split-button"
+            onClick={() => setSplitOpen(true)}
+            className="rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/80"
+          >
+            Open desktop split
+          </button>
         </div>
         <p className="mt-2 text-xs text-white/55" data-testid="chimmy-harness-compare-count">
           Compare opened: {compareCount}
@@ -179,6 +188,33 @@ export default function ChimmyInterfaceHarnessClient() {
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
           />
+        </section>
+      )}
+
+      {splitOpen && (
+        <section className="mt-4 hidden md:block" data-testid="chimmy-harness-split">
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              data-testid="chimmy-harness-close-split-button"
+              onClick={() => setSplitOpen(false)}
+              className="rounded-lg border border-white/20 bg-[#050b1b] px-2.5 py-1.5 text-xs text-white/90"
+            >
+              Close split
+            </button>
+          </div>
+          <div className="flex min-h-[560px] overflow-hidden rounded-xl border border-white/10">
+            <div className="flex-1 p-4 text-xs text-white/60">
+              Primary surface placeholder
+            </div>
+            <ChimmyChatPanel
+              {...shellProps}
+              key={`split-${shellKey}`}
+              variant="split"
+              open={splitOpen}
+              onClose={() => setSplitOpen(false)}
+            />
+          </div>
         </section>
       )}
     </main>

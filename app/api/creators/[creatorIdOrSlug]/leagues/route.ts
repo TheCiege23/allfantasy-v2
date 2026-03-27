@@ -17,11 +17,14 @@ export async function GET(
 ) {
   try {
     const { creatorIdOrSlug } = await params
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     const viewerUserId = session?.user?.id ?? null
+    const viewerEmail = session?.user?.email ?? null
     const baseUrl = getBaseUrl(req)
 
-    const leagues = await getCreatorLeagues(creatorIdOrSlug, viewerUserId, baseUrl)
+    const leagues = await getCreatorLeagues(creatorIdOrSlug, viewerUserId, baseUrl, viewerEmail)
     return NextResponse.json(leagues)
   } catch (e) {
     console.error('[api/creators/.../leagues]', e)

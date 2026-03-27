@@ -18,6 +18,7 @@ describe("PowerRankingEngine", () => {
       season: "2026",
       week: 6,
       computedAt: 1710000000,
+      weeklyPointsDistribution: [{ rosterId: 7, weeklyPoints: [120, 130, 140, 150] }],
       teams: [
         {
           rosterId: 7,
@@ -30,6 +31,10 @@ describe("PowerRankingEngine", () => {
           record: { wins: 6, losses: 0, ties: 0 },
           pointsFor: 812.4,
           pointsAgainst: 690.2,
+          strengthOfSchedule: 0.57,
+          expectedWins: 5.8,
+          marketValueScore: 90,
+          totalRosterValue: 10300,
           composite: 94.8,
           powerScore: 95,
         },
@@ -40,6 +45,12 @@ describe("PowerRankingEngine", () => {
     expect(result).not.toBeNull()
     expect(result?.leagueId).toBe("league-1")
     expect(result?.week).toBe(6)
+    expect(result?.formula).toMatchObject({
+      recordWeight: 0.35,
+      recentPerformanceWeight: 0.25,
+      rosterStrengthWeight: 0.25,
+      projectionStrengthWeight: 0.15,
+    })
     expect(result?.teams).toHaveLength(1)
     expect(result?.teams[0]).toMatchObject({
       rosterId: 7,
@@ -48,8 +59,17 @@ describe("PowerRankingEngine", () => {
       rankDelta: 2,
       pointsFor: 812.4,
       composite: 94.8,
-      powerScore: 95,
+      strengthOfSchedule: 0.57,
+      expectedWins: 5.8,
+      rosterValue: 10300,
+      powerScoreBreakdown: expect.objectContaining({
+        record: expect.any(Number),
+        recentPerformance: expect.any(Number),
+        rosterStrength: expect.any(Number),
+        projectionStrength: expect.any(Number),
+      }),
     })
+    expect(result?.teams[0]?.powerScore).toBeGreaterThan(0)
   })
 
   it("returns null when no teams are available", async () => {
@@ -59,6 +79,7 @@ describe("PowerRankingEngine", () => {
       season: "2026",
       week: 6,
       computedAt: 1710000000,
+      weeklyPointsDistribution: [],
       teams: [],
     })
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
@@ -16,6 +16,11 @@ import type { AIMode } from '@/components/ai-interface'
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
 import AIFailureStateRenderer from '@/components/ai-reliability/AIFailureStateRenderer'
 import type { ReliabilityMetadata } from '@/lib/ai-reliability/types'
+import type { DeterministicContextEnvelope, NormalizedToolOutput } from '@/lib/ai-context-envelope'
+import { useProviderStatus } from '@/hooks/useProviderStatus'
+import type { AIProvider } from '@/lib/ai-tool-registry'
+
+const REQUEST_LOCK_MIN_MS = 120
 
 type ProviderResult = {
   provider: string
@@ -71,6 +76,18 @@ type UnifiedRunResponse = {
   reliability?: ReliabilityMeta | null
   factGuardWarnings?: string[]
   alternateOutputs?: AlternateOutput[]
+  deterministicEnvelope?: DeterministicContextEnvelope | null
+  normalizedOutput?: NormalizedToolOutput | null
+  debugTrace?: {
+    traceId?: string | null
+    toolId?: string
+    envelopeId?: string
+    providerUsed?: string
+    dataQualitySummary?: string
+    confidenceCapped?: boolean
+    uncertaintyCount?: number
+    missingDataCount?: number
+  } | null
 }
 
 const SPORT_LABELS: Record<string, string> = {
@@ -189,10 +206,41 @@ export default function UnifiedAIWorkbench() {
   const [mobileResultOpen, setMobileResultOpen] = useState(false)
   const [lastAction, setLastAction] = useState<'run' | 'compare'>('run')
   const [selectedAlternateProvider, setSelectedAlternateProvider] = useState<string | null>(null)
+  const [providerSelection, setProviderSelection] = useState<'auto' | AIProvider>('auto')
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedResultId, setSavedResultId] = useState<string | null>(null)
+  const requestInFlightRef = useRef(false)
+  const requestLockUntilRef = useRef(0)
+  const saveInFlightRef = useRef(false)
+  const { status: providerStatus } = useProviderStatus()
 
   const selectedToolRegistration =
     registry.find((tool) => tool.toolKey === selectedTool) ?? registry[0] ?? null
   const allowedModes = selectedToolRegistration?.supportedModes ?? ['unified_brain']
+  const allowedProviders = selectedToolRegistration?.allowedProviders ?? ['openai', 'deepseek', 'grok']
+  const availableProviderCount = providerStatus
+    ? [providerStatus.openai, providerStatus.deepseek, providerStatus.grok].filter(Boolean).length
+    : 0
+  const selectedProviderUnavailable =
+    providerSelection !== 'auto' &&
+    providerStatus != null &&
+    (
+      (providerSelection === 'openai' && !providerStatus.openai) ||
+      (providerSelection === 'deepseek' && !providerStatus.deepseek) ||
+      (providerSelection === 'grok' && !providerStatus.grok)
+    )
+
+  useEffect(() => {
+    if (providerSelection === 'auto') return
+    if (!allowedProviders.includes(providerSelection)) {
+      setProviderSelection('auto')
+      return
+    }
+    if (selectedProviderUnavailable) {
+      setProviderSelection('auto')
+    }
+  }, [allowedProviders, providerSelection, selectedProviderUnavailable])
   const modelOutputs = result?.providerResults?.map((item) => ({
     model: item.provider as 'openai' | 'deepseek' | 'grok',
     raw: item.raw,
@@ -225,24 +273,32 @@ export default function UnifiedAIWorkbench() {
   }, [result])
 
   const runRequest = async (action: 'run' | 'compare') => {
-    setLoading(true)
-    setError(null)
-    setLastAction(action)
-    setSelectedAlternateProvider(null)
+    const now = Date.now()
+    if (requestInFlightRef.current || now < requestLockUntilRef.current) return
     if (!prompt.trim()) {
-      setLoading(false)
       setError('Enter a prompt before running AI.')
       return
     }
+    requestInFlightRef.current = true
+    requestLockUntilRef.current = now + REQUEST_LOCK_MIN_MS
+    setLoading(true)
+    setError(null)
+    setSaveError(null)
+    setSavedResultId(null)
+    setLastAction(action)
+    setSelectedAlternateProvider(null)
 
     const endpoint = action === 'compare' ? '/api/ai/compare' : '/api/ai/run'
+    const forceSingleProvider = providerSelection !== 'auto'
+    const requestMode = action === 'compare' ? 'consensus' : (forceSingleProvider ? 'single_model' : mode)
     const body = {
       tool: selectedTool,
       sport,
       leagueId: 'ai-workbench-league',
       leagueSettings: buildLeagueSettings(sport),
       deterministicContext: getDeterministicContext(selectedTool, sport),
-      aiMode: action === 'compare' ? 'consensus' : mode,
+      aiMode: requestMode,
+      provider: forceSingleProvider ? providerSelection : null,
       userMessage: prompt.trim(),
     }
 
@@ -296,6 +352,18 @@ export default function UnifiedAIWorkbench() {
                 typeof (item as AlternateOutput).text === 'string'
             )
           : [],
+        deterministicEnvelope:
+          data?.deterministicEnvelope && typeof data.deterministicEnvelope === 'object'
+            ? (data.deterministicEnvelope as DeterministicContextEnvelope)
+            : null,
+        normalizedOutput:
+          data?.normalizedOutput && typeof data.normalizedOutput === 'object'
+            ? (data.normalizedOutput as NormalizedToolOutput)
+            : null,
+        debugTrace:
+          data?.debugTrace && typeof data.debugTrace === 'object'
+            ? (data.debugTrace as UnifiedRunResponse['debugTrace'])
+            : null,
       }
 
       setResult(parsed)
@@ -307,6 +375,72 @@ export default function UnifiedAIWorkbench() {
       setResult(null)
     } finally {
       setLoading(false)
+      const unlock = () => {
+        requestInFlightRef.current = false
+      }
+      const remainingLockMs = requestLockUntilRef.current - Date.now()
+      if (remainingLockMs > 0 && typeof window !== 'undefined') {
+        window.setTimeout(unlock, remainingLockMs)
+      } else {
+        unlock()
+      }
+    }
+  }
+
+  const handleSaveResult = async () => {
+    if (!result || saveInFlightRef.current) return
+    saveInFlightRef.current = true
+    setSaveLoading(true)
+    setSaveError(null)
+    try {
+      const response = await fetch('/api/ai/history', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          tool: selectedTool,
+          sport,
+          aiMode: providerSelection === 'auto' ? mode : 'single_model',
+          provider: providerSelection === 'auto' ? null : providerSelection,
+          prompt: prompt.trim(),
+          output: {
+            evidence: result.evidence,
+            aiExplanation: result.aiExplanation,
+            actionPlan: result.actionPlan,
+            confidence: result.confidence,
+            confidenceLabel: result.confidenceLabel,
+            confidenceReason: result.confidenceReason,
+            uncertainty: result.uncertainty,
+            providerResults: result.providerResults,
+            usedDeterministicFallback: result.usedDeterministicFallback,
+            reliability: result.reliability,
+            factGuardWarnings: result.factGuardWarnings,
+            alternateOutputs: result.alternateOutputs,
+            normalizedOutput: result.normalizedOutput,
+            debugTrace: result.debugTrace,
+          },
+        }),
+      })
+      const data = (await response.json().catch(() => null)) as
+        | { id?: string; userMessage?: string; message?: string }
+        | null
+      if (!response.ok) {
+        const message =
+          data?.userMessage ??
+          data?.message ??
+          'Unable to save this AI result right now.'
+        setSaveError(message)
+        toast.error(message)
+        return
+      }
+      setSavedResultId(typeof data?.id === 'string' ? data.id : 'saved')
+      toast.success('AI result saved to history.')
+    } catch {
+      const message = 'Network error while saving this AI result.'
+      setSaveError(message)
+      toast.error(message)
+    } finally {
+      setSaveLoading(false)
+      saveInFlightRef.current = false
     }
   }
 
@@ -415,6 +549,49 @@ export default function UnifiedAIWorkbench() {
         </label>
       </div>
 
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-xs text-white/60">
+          Provider
+          <select
+            value={providerSelection}
+            onChange={(event) => setProviderSelection(event.target.value as 'auto' | AIProvider)}
+            data-testid="unified-ai-provider-selector"
+            className="mt-1 min-h-[40px] w-full rounded-lg border border-white/20 bg-white/[0.04] px-3 py-2 text-sm text-white"
+          >
+            <option value="auto">Auto (orchestration)</option>
+            {allowedProviders.includes('openai') && (
+              <option
+                value="openai"
+                disabled={providerStatus ? !providerStatus.openai : false}
+              >
+                OpenAI{providerStatus && !providerStatus.openai ? ' (unavailable)' : ''}
+              </option>
+            )}
+            {allowedProviders.includes('deepseek') && (
+              <option
+                value="deepseek"
+                disabled={providerStatus ? !providerStatus.deepseek : false}
+              >
+                DeepSeek{providerStatus && !providerStatus.deepseek ? ' (unavailable)' : ''}
+              </option>
+            )}
+            {allowedProviders.includes('grok') && (
+              <option
+                value="grok"
+                disabled={providerStatus ? !providerStatus.grok : false}
+              >
+                Grok{providerStatus && !providerStatus.grok ? ' (unavailable)' : ''}
+              </option>
+            )}
+          </select>
+        </label>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/60">
+          {providerSelection === 'auto'
+            ? `Auto mode uses available providers (${availableProviderCount || 0} online).`
+            : `Pinned provider: ${providerSelection}. Run requests will use single-model mode.`}
+        </div>
+      </div>
+
       <div className="mt-3">
         <AIModeSelector
           value={mode}
@@ -467,7 +644,7 @@ export default function UnifiedAIWorkbench() {
           type="button"
           onClick={() => void runRequest('compare')}
           data-testid="unified-ai-compare-button"
-          disabled={loading}
+          disabled={loading || availableProviderCount < 2}
           className="rounded-lg border border-white/20 bg-white/[0.03] px-3 py-2 text-sm text-white/85 hover:bg-white/10 disabled:opacity-60"
         >
           Compare providers
@@ -492,10 +669,21 @@ export default function UnifiedAIWorkbench() {
         </button>
         <button
           type="button"
+          onClick={() => void handleSaveResult()}
+          data-testid="unified-ai-save-result-button"
+          disabled={loading || saveLoading || !result}
+          className="rounded-lg border border-white/20 bg-white/[0.03] px-3 py-2 text-sm text-white/75 hover:bg-white/10 disabled:opacity-50"
+        >
+          {saveLoading ? 'Saving…' : 'Save result'}
+        </button>
+        <button
+          type="button"
           onClick={() => {
             setPrompt('')
             setResult(null)
             setError(null)
+            setSaveError(null)
+            setSavedResultId(null)
             setSelectedAlternateProvider(null)
           }}
           data-testid="unified-ai-back-button"
@@ -503,7 +691,25 @@ export default function UnifiedAIWorkbench() {
         >
           Back
         </button>
+        <Link
+          href="/ai/history"
+          data-testid="unified-ai-open-history-link"
+          className="rounded-lg border border-white/20 bg-white/[0.03] px-3 py-2 text-sm text-white/75 hover:bg-white/10"
+        >
+          Saved history
+        </Link>
       </div>
+
+      {saveError && (
+        <p className="mt-2 text-xs text-amber-300" data-testid="unified-ai-save-error-text">
+          {saveError}
+        </p>
+      )}
+      {savedResultId && !saveError && (
+        <p className="mt-2 text-xs text-emerald-300" data-testid="unified-ai-save-success-text">
+          Saved to history.
+        </p>
+      )}
 
       <AIProviderSelector
         className="mt-3"
@@ -558,6 +764,19 @@ export default function UnifiedAIWorkbench() {
                 retryLoading={loading}
               />
             )}
+            <UnifiedBrainResultView
+              primaryAnswer={activeExplanation || result.aiExplanation}
+              keyEvidence={result.evidence}
+              suggestedNextAction={result.actionPlan ?? undefined}
+              confidencePct={result.confidence ?? undefined}
+              confidenceLabel={result.confidenceLabel ?? undefined}
+              confidenceReason={result.confidenceReason ?? undefined}
+              risksCaveats={result.uncertainty ? [result.uncertainty] : undefined}
+              modelOutputs={modelOutputs}
+              factGuardWarnings={result.factGuardWarnings}
+              normalizedOutput={result.normalizedOutput}
+              debugTrace={result.debugTrace}
+            />
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-white/70">AI explanation</span>
@@ -619,18 +838,6 @@ export default function UnifiedAIWorkbench() {
                 </p>
               )}
             </div>
-
-            <UnifiedBrainResultView
-              primaryAnswer={activeExplanation || result.aiExplanation}
-              keyEvidence={result.evidence}
-              suggestedNextAction={result.actionPlan ?? undefined}
-              confidencePct={result.confidence ?? undefined}
-              confidenceLabel={result.confidenceLabel ?? undefined}
-              confidenceReason={result.confidenceReason ?? undefined}
-              risksCaveats={result.uncertainty ? [result.uncertainty] : undefined}
-              modelOutputs={modelOutputs}
-              factGuardWarnings={result.factGuardWarnings}
-            />
           </div>
         )}
       </div>
@@ -707,6 +914,8 @@ export default function UnifiedAIWorkbench() {
                 risksCaveats={result.uncertainty ? [result.uncertainty] : undefined}
                 modelOutputs={modelOutputs}
                 factGuardWarnings={result.factGuardWarnings}
+                normalizedOutput={result.normalizedOutput}
+                debugTrace={result.debugTrace}
               />
             </div>
           ) : (

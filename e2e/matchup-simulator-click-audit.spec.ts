@@ -10,15 +10,23 @@ async function pickSelectOption(page: Page, testId: string, label: string) {
 test.describe('@matchup-simulator click audit', () => {
   test('standalone matchup simulator flow is fully wired', async ({ page }) => {
     const simulationRequests: Array<Record<string, unknown>> = []
+    const deriveMean = (team: { mean?: number; lineup?: Array<{ projection?: number }> }, fallback: number) => {
+      const lineupMean = Array.isArray(team.lineup)
+        ? team.lineup.reduce((sum, slot) => sum + Number(slot.projection ?? 0), 0)
+        : 0
+      const explicitMean = Number(team.mean ?? NaN)
+      if (Number.isFinite(explicitMean)) return explicitMean
+      return lineupMean > 0 ? Number(lineupMean.toFixed(1)) : fallback
+    }
 
     await page.route('**/api/simulation/matchup', async (route) => {
       const body = route.request().postDataJSON() as Record<string, unknown>
       simulationRequests.push(body)
 
-      const teamA = (body.teamA ?? {}) as { mean?: number }
-      const teamB = (body.teamB ?? {}) as { mean?: number }
-      const meanA = Number(teamA.mean ?? 100)
-      const meanB = Number(teamB.mean ?? 95)
+      const teamA = (body.teamA ?? {}) as { mean?: number; lineup?: Array<{ projection?: number }> }
+      const teamB = (body.teamB ?? {}) as { mean?: number; lineup?: Array<{ projection?: number }> }
+      const meanA = deriveMean(teamA, 100)
+      const meanB = deriveMean(teamB, 95)
       const winA = meanA / Math.max(1, meanA + meanB)
 
       await route.fulfill({
@@ -37,10 +45,16 @@ test.describe('@matchup-simulator click audit', () => {
           upsetChance: 18.4,
           volatilityTag: 'medium',
           iterations: 1500,
+          deterministicSeed: 782331,
           upsideScenario: { teamA: meanA + 10, teamB: meanB + 9, percentile: 90 },
           downsideScenario: { teamA: Math.max(0, meanA - 10), teamB: Math.max(0, meanB - 9), percentile: 10 },
           scoreDistributionA: Array.from({ length: 50 }, (_, i) => meanA - 10 + i * 0.45),
           scoreDistributionB: Array.from({ length: 50 }, (_, i) => meanB - 10 + i * 0.45),
+          providerInsights: {
+            deepseek: 'Distribution overlap is narrow enough for the favorite to hold most outcomes, but the underdog still has one live swing lane.',
+            grok: 'This projects as a favorite with enough chaos to stay dramatic.',
+            openai: 'The favorite is ahead because the adjusted lineup total is stronger, but the underdog can still flip it with one upside slot.',
+          },
         }),
       })
     })
@@ -82,9 +96,21 @@ test.describe('@matchup-simulator click audit', () => {
     const aiLink = page.getByTestId('matchup-ai-explanation-button')
     await expect(aiLink).toHaveAttribute('href', /insightType=matchup/)
     await expect(aiLink).toHaveAttribute('href', /sport=SOCCER/)
+    await expect(page.getByText('DeepSeek Distribution Read')).toBeVisible()
+
+    await page.getByTestId('matchup-team-a-lineup-GKP-projection-input').fill('14')
+    await expect
+      .poll(() => simulationRequests.length, { timeout: 10_000 })
+      .toBe(2)
+    const lineupChangeRequest = simulationRequests.at(-1) as {
+      teamA?: { lineup?: Array<{ slotId?: string; projection?: number }> }
+    }
+    expect(
+      lineupChangeRequest.teamA?.lineup?.find((slot) => slot.slotId === 'GKP')?.projection
+    ).toBe(14)
 
     await page.getByTestId('matchup-rerun-button').click()
-    expect(simulationRequests.length).toBeGreaterThan(1)
+    expect(simulationRequests.length).toBeGreaterThan(2)
     expect(simulationRequests.some((req) => req.sport === 'SOCCER' && req.weekOrPeriod === 4)).toBe(true)
 
     await page.getByTestId('matchup-clear-button').click()
@@ -177,7 +203,7 @@ test.describe('@matchup-simulator click audit', () => {
     await page.goto('/e2e/matchups?leagueId=league_sim_ux_1')
     await expect(page.getByText('E2E Matchups Harness')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Refresh' }).click()
+    await page.getByTestId('tab-refresh-button').first().click()
     await page.getByTestId('matchups-next-period').click()
     await page.getByTestId('matchups-prev-period').click()
 

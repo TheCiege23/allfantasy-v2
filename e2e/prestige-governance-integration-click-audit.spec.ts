@@ -2,6 +2,22 @@ import { expect, test } from '@playwright/test'
 
 test.describe.configure({ timeout: 180_000 })
 
+async function gotoWithRetry(page: Parameters<typeof test>[0]['page'], url: string): Promise<void> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded' })
+      return
+    } catch (error) {
+      const message = String((error as Error)?.message ?? error)
+      const canRetry =
+        attempt < 2 &&
+        (message.includes('net::ERR_ABORTED') || message.includes('interrupted by another navigation'))
+      if (!canRetry) throw error
+      await page.waitForTimeout(200)
+    }
+  }
+}
+
 test.describe('@prestige Prompt43 integration click audit', () => {
   test('audits commissioner trust/legacy integration links', async ({ page }) => {
     const leagueId = `e2e-prestige-commissioner-${Date.now()}`
@@ -143,7 +159,7 @@ test.describe('@prestige Prompt43 integration click audit', () => {
       })
     })
 
-    await page.goto(`/e2e/commissioner?leagueId=${leagueId}`)
+    await gotoWithRetry(page, `/e2e/commissioner?leagueId=${leagueId}`)
     await expect(page.getByRole('heading', { name: /e2e commissioner harness/i })).toBeVisible()
     await expect(page.getByText(/coverage: reputation 2, legacy 2, hall of fame 3/i)).toBeVisible()
 
@@ -234,7 +250,7 @@ test.describe('@prestige Prompt43 integration click audit', () => {
       })
     })
 
-    await page.goto(`/e2e/reputation?leagueId=${leagueId}`)
+    await gotoWithRetry(page, `/e2e/reputation?leagueId=${leagueId}`)
     await expect(page.getByRole('heading', { name: /e2e reputation harness/i })).toBeVisible()
     await expect(page.getByText(/unified prestige context for ai/i)).toBeVisible()
     await expect(page.getByTestId('reputation-legacy-breakdown-link')).toHaveAttribute(
@@ -274,7 +290,7 @@ test.describe('@prestige Prompt43 integration click audit', () => {
         }),
       })
     })
-    await page.goto(`/app/league/${leagueId}/hall-of-fame/entries/entry-1`)
+    await gotoWithRetry(page, `/app/league/${leagueId}/hall-of-fame/entries/entry-1`)
     await expect(page.getByText(/legacy context/i)).toBeVisible()
     await expect(page.getByRole('link', { name: /view legacy score/i })).toHaveAttribute(
       'href',
@@ -314,7 +330,7 @@ test.describe('@prestige Prompt43 integration click audit', () => {
         }),
       })
     })
-    await page.goto(`/app/league/${leagueId}/hall-of-fame/moments/moment-1`)
+    await gotoWithRetry(page, `/app/league/${leagueId}/hall-of-fame/moments/moment-1`)
     await expect(page.getByRole('link', { name: /mgr_alpha — legacy/i })).toHaveAttribute(
       'href',
       new RegExp(`/legacy/breakdown\\?entityType=MANAGER&entityId=mgr_alpha&sport=NFL`)

@@ -43,6 +43,7 @@ export function BreakingNewsBanner({ items }: BreakingNewsBannerProps) {
                 rel={item.sourceUrl ? 'noopener noreferrer' : undefined}
                 className="block rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white hover:bg-white/10 transition"
                 data-audit="news-card-opens-full-article"
+                data-testid={`fantasy-news-breaking-card-${item.id}`}
               >
                 <span className="font-medium">{item.headline || item.title}</span>
                 {item.publishedAt && (
@@ -58,6 +59,7 @@ export function BreakingNewsBanner({ items }: BreakingNewsBannerProps) {
                       onClick={(e) => e.stopPropagation()}
                       className="text-xs text-cyan-400 hover:underline"
                       data-audit="player-link-opens-player-page"
+                      data-testid={`fantasy-news-breaking-player-link-${item.id}-${name.replace(/\s+/g, '-').toLowerCase()}`}
                     >
                       {name}
                     </a>

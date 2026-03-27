@@ -23,28 +23,25 @@ export function NewsFeedPage() {
   const [feedType, setFeedType] = useState<FeedType>('player');
   const [query, setQuery] = useState('');
   const [useAiSummaries, setUseAiSummaries] = useState(true);
+  const [lastSharedHeadline, setLastSharedHeadline] = useState<string | null>(null);
   const [items, setItems] = useState<EnrichedNewsItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchNews = useCallback(async (refresh = false) => {
     const cleanQuery = query.trim();
-    if (!cleanQuery) {
-      setError(feedType === 'team' ? 'Enter a team abbreviation (e.g. KC).' : 'Enter a player name.');
-      setItems([]);
-      return;
-    }
-
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
         sport,
-        type: feedType,
-        query: cleanQuery,
         limit: '25',
-        summarize: String(useAiSummaries),
+        enrich: String(useAiSummaries),
       });
+      if (cleanQuery) {
+        params.set('type', feedType);
+        params.set('query', cleanQuery);
+      }
       if (refresh) params.set('refresh', 'true');
       const res = await fetch(`/api/fantasy-news/feed?${params}`);
       const data = await res.json();
@@ -128,7 +125,7 @@ export function NewsFeedPage() {
         <div>
           <label className="mb-1 block text-sm text-white/70">Sport</label>
           <Select value={sport} onValueChange={(v) => { setSport(v); setItems([]); setError(null); }}>
-            <SelectTrigger className="w-[160px] border-white/10 bg-black/30 text-white">
+            <SelectTrigger className="w-[160px] border-white/10 bg-black/30 text-white" data-testid="fantasy-news-sport-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -165,6 +162,7 @@ export function NewsFeedPage() {
             disabled={loading}
             className="gap-2 border-white/20"
             data-audit="refresh-news-button-works"
+            data-testid="fantasy-news-refresh-button"
           >
             <RefreshCw className="h-4 w-4" />
             Refresh
@@ -173,6 +171,11 @@ export function NewsFeedPage() {
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
+      {lastSharedHeadline && (
+        <p className="text-xs text-cyan-300" data-testid="fantasy-news-last-shared">
+          Shared: {lastSharedHeadline}
+        </p>
+      )}
 
       {items.length > 0 && (
         <>
@@ -180,6 +183,9 @@ export function NewsFeedPage() {
           <PlayerNewsPanel
             items={rest.length > 0 ? rest : items}
             title={feedType === 'team' ? 'Team feed' : 'Player feed'}
+            onShare={(item) => {
+              setLastSharedHeadline(item.headline || item.title);
+            }}
           />
         </>
       )}

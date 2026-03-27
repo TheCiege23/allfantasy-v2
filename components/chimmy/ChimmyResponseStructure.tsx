@@ -39,9 +39,12 @@ export default function ChimmyResponseStructure({
   if (!hasStructure) return null
 
   return (
-    <div className={`space-y-3 text-sm ${className}`}>
+    <div className={`space-y-3 text-sm ${className}`} data-testid="chimmy-response-structure">
       {quickAnswer && (
-        <p className="text-white/95 leading-relaxed">{quickAnswer}</p>
+        <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+          <p className="font-medium text-white/60 text-xs uppercase tracking-wider mb-1">Short answer</p>
+          <p className="text-white/95 leading-relaxed">{quickAnswer}</p>
+        </div>
       )}
 
       {whatDataSays && (
@@ -52,6 +55,7 @@ export default function ChimmyResponseStructure({
                 type="button"
                 onClick={() => setDataExpanded(!dataExpanded)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-white/80 hover:bg-white/[0.04]"
+                data-testid="chimmy-structure-toggle-data"
               >
                 <span className="font-medium">What the data says</span>
                 {dataExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -75,6 +79,7 @@ export default function ChimmyResponseStructure({
                 type="button"
                 onClick={() => setMeaningExpanded(!meaningExpanded)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-white/80 hover:bg-white/[0.04]"
+                data-testid="chimmy-structure-toggle-meaning"
               >
                 <span className="font-medium">What it means</span>
                 {meaningExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -92,7 +97,7 @@ export default function ChimmyResponseStructure({
 
       {actionPlan && (
         <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
-          <p className="font-medium text-cyan-200/90 text-xs uppercase tracking-wider mb-1">Suggested action</p>
+          <p className="font-medium text-cyan-200/90 text-xs uppercase tracking-wider mb-1">Recommended action</p>
           <p className="text-cyan-100/90">{actionPlan}</p>
         </div>
       )}

@@ -95,6 +95,7 @@ export function PlayerNewsPanel({ items, title = 'News', onShare }: PlayerNewsPa
                         href={getPlayerPageHref(name)}
                         className="text-xs text-cyan-400 hover:underline"
                         data-audit="player-link-opens-player-page"
+                        data-testid={`fantasy-news-player-link-${item.id}-${name.replace(/\s+/g, '-').toLowerCase()}`}
                       >
                         {name}
                       </a>
@@ -122,10 +123,11 @@ export function PlayerNewsPanel({ items, title = 'News', onShare }: PlayerNewsPa
                     className="h-8 gap-1 text-xs"
                     onClick={async (e) => {
                       e.preventDefault();
-                      await handleShare(item);
+                      await handleShare(item).catch(() => null);
                       onShare?.(item);
                     }}
                     data-audit="share-button-works"
+                    data-testid={`fantasy-news-share-button-${item.id}`}
                   >
                     <Share2 className="h-3.5 w-3.5" />
                     Share

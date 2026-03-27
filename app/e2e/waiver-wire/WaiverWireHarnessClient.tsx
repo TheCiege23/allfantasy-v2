@@ -24,7 +24,7 @@ const MOCK_TX: Tx[] = [
 ]
 
 export function WaiverWireHarnessClient() {
-  const [wireOpen, setWireOpen] = useState(false)
+  const [wireOpen, setWireOpen] = useState(true)
   const [players] = useState<Player[]>(MOCK_PLAYERS)
   const [claims, setClaims] = useState<Claim[]>([
     {

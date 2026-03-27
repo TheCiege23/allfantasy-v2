@@ -1,24 +1,24 @@
 import type { Metadata } from 'next'
-import AISystemExplainerPage from '@/components/ai-hub/AISystemExplainerPage'
+import AIHubPage from '@/components/ai-hub/AIHubPage'
 import { buildSeoMeta } from '@/lib/seo'
 import { getWebPageSchema } from '@/lib/seo'
 import { PageJsonLd } from '@/components/seo/JsonLd'
 
 export const metadata: Metadata = buildSeoMeta({
-  title: 'How AllFantasy AI Works – Chimmy, Deterministic AI & Providers | AllFantasy',
+  title: 'AllFantasy AI Hub – Tools, Chimmy, and Saved Analyses',
   description:
-    'Learn how the AllFantasy AI system works: Chimmy assistant, deterministic-first context, OpenAI/DeepSeek/xAI (Grok), and OpenClaw assistant routing. Reliable numbers, then clear explanations.',
+    'Access all AllFantasy AI tools in one premium hub: Trade Analyzer, Waiver AI, Draft Helper, Matchup AI, Rankings AI, Story Creator, Fantasy Coach, Content Generator, and Chimmy.',
   canonicalPath: '/ai',
-  openGraphTitle: 'How AllFantasy AI Works | AllFantasy',
+  openGraphTitle: 'AllFantasy AI Hub',
   openGraphDescription:
-    'Chimmy overview, deterministic AI, OpenAI / DeepSeek / xAI roles, and OpenClaw assistant routing.',
-  twitterTitle: 'How AllFantasy AI Works | AllFantasy',
-  twitterDescription: 'Chimmy, deterministic-first AI, OpenAI/DeepSeek/Grok, and OpenClaw routing.',
+    'Unified AI hub for fantasy sports tools, quick actions, provider/mode controls, and saved analysis history.',
+  twitterTitle: 'AllFantasy AI Hub',
+  twitterDescription: 'One place for Chimmy, AI tools, and saved analysis history.',
 })
 
 const AI_PAGE_SCHEMA = getWebPageSchema({
-  name: 'How AllFantasy AI Works',
-  description: 'Chimmy overview, deterministic-first AI, OpenAI / DeepSeek / xAI (Grok), and OpenClaw assistant routing.',
+  name: 'AllFantasy AI Hub',
+  description: 'Unified AI hub for AllFantasy tools, quick actions, Chimmy, and saved analysis history.',
   url: '/ai',
 })
 
@@ -26,7 +26,7 @@ export default function AIPage() {
   return (
     <>
       <PageJsonLd schemas={[AI_PAGE_SCHEMA]} />
-      <AISystemExplainerPage />
+      <AIHubPage />
     </>
   )
 }

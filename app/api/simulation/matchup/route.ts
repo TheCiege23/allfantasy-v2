@@ -1,32 +1,57 @@
 /**
- * Matchup simulation API — returns win probability, margin, upset chance, volatility.
- * Uses simulation engine (Monte Carlo, sport-aware stdDev). Optional persist when sport + leagueId + weekOrPeriod provided.
+ * Matchup simulation API — deterministic, lineup-aware simulation output with optional AI overlays.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { runMatchupSimulation } from '@/lib/simulation-engine/MatchupSimulator'
 import { getDefaultScoreStdDev } from '@/lib/simulation-engine/SportSimulationResolver'
 import { percentiles } from '@/lib/simulation-engine/ScoreDistributionModel'
+import { getMatchupSimulationInsight } from '@/lib/simulation-engine/MatchupSimulationInsightAI'
+import type {
+  MatchupLineupSlotInput,
+  MatchupScheduleFactorsInput,
+} from '@/lib/simulation-engine/types'
+
+type MatchupRequestBody = {
+  teamA?: {
+    mean?: number
+    stdDev?: number
+    teamId?: string
+    lineup?: MatchupLineupSlotInput[]
+    scheduleFactors?: MatchupScheduleFactorsInput
+  }
+  teamB?: {
+    mean?: number
+    stdDev?: number
+    teamId?: string
+    lineup?: MatchupLineupSlotInput[]
+    scheduleFactors?: MatchupScheduleFactorsInput
+  }
+  teamAName?: string
+  teamBName?: string
+  iterations?: number
+  sport?: string
+  leagueId?: string
+  weekOrPeriod?: number
+  persist?: boolean
+  includeInsights?: boolean
+  deterministicSeed?: string
+}
 
 export async function POST(req: NextRequest) {
-  let body: {
-    teamA?: { mean: number; stdDev?: number; teamId?: string }
-    teamB?: { mean: number; stdDev?: number; teamId?: string }
-    iterations?: number
-    sport?: string
-    leagueId?: string
-    weekOrPeriod?: number
-    persist?: boolean
-  } = {}
+  let body: MatchupRequestBody = {}
   try {
     body = await req.json().catch(() => ({}))
   } catch {}
 
-  const meanA = Number(body.teamA?.mean ?? 0)
-  const meanB = Number(body.teamB?.mean ?? 0)
-  if (!Number.isFinite(meanA) || !Number.isFinite(meanB)) {
+  const hasLineupA = Array.isArray(body.teamA?.lineup) && body.teamA!.lineup!.length > 0
+  const hasLineupB = Array.isArray(body.teamB?.lineup) && body.teamB!.lineup!.length > 0
+  const meanA = Number(body.teamA?.mean ?? NaN)
+  const meanB = Number(body.teamB?.mean ?? NaN)
+
+  if ((!Number.isFinite(meanA) && !hasLineupA) || (!Number.isFinite(meanB) && !hasLineupB)) {
     return NextResponse.json(
-      { error: 'teamA.mean and teamB.mean are required' },
+      { error: 'teamA/teamB must include a mean or lineup slots' },
       { status: 400 }
     )
   }
@@ -34,6 +59,8 @@ export async function POST(req: NextRequest) {
   const sport = body.sport ?? 'NFL'
   const weekOrPeriod = Number(body.weekOrPeriod) || 1
   const persist = Boolean(body.persist && body.leagueId)
+  const teamAName = String(body.teamAName ?? body.teamA?.teamId ?? 'Team A')
+  const teamBName = String(body.teamBName ?? body.teamB?.teamId ?? 'Team B')
 
   try {
     const out = await runMatchupSimulation(
@@ -41,14 +68,28 @@ export async function POST(req: NextRequest) {
         sport,
         leagueId: body.leagueId,
         weekOrPeriod,
-        teamA: { mean: meanA, stdDev: body.teamA?.stdDev, teamId: body.teamA?.teamId },
-        teamB: { mean: meanB, stdDev: body.teamB?.stdDev, teamId: body.teamB?.teamId },
+        deterministicSeed: body.deterministicSeed,
+        teamA: {
+          mean: Number.isFinite(meanA) ? meanA : undefined,
+          stdDev: body.teamA?.stdDev,
+          teamId: body.teamA?.teamId,
+          lineup: body.teamA?.lineup,
+          scheduleFactors: body.teamA?.scheduleFactors,
+        },
+        teamB: {
+          mean: Number.isFinite(meanB) ? meanB : undefined,
+          stdDev: body.teamB?.stdDev,
+          teamId: body.teamB?.teamId,
+          lineup: body.teamB?.lineup,
+          scheduleFactors: body.teamB?.scheduleFactors,
+        },
         iterations: body.iterations,
       },
       { persist }
     )
-    const sortedA = [...(out.scoreDistributionA ?? [])].sort((a, b) => a - b)
-    const sortedB = [...(out.scoreDistributionB ?? [])].sort((a, b) => a - b)
+
+    const sortedA = [...(out.scoreDistributionA ?? [])].sort((scoreA, scoreB) => scoreA - scoreB)
+    const sortedB = [...(out.scoreDistributionB ?? [])].sort((scoreA, scoreB) => scoreA - scoreB)
     const [a10, a90] = sortedA.length
       ? percentiles(sortedA, [10, 90])
       : [
@@ -61,7 +102,8 @@ export async function POST(req: NextRequest) {
           Math.max(0, out.expectedScoreB - getDefaultScoreStdDev(sport)),
           out.expectedScoreB + getDefaultScoreStdDev(sport),
         ]
-    return NextResponse.json({
+
+    const responseBody: Record<string, unknown> = {
       simulationId: out.simulationId ?? null,
       createdAt: out.createdAt ?? null,
       winProbabilityA: out.winProbabilityA,
@@ -79,11 +121,33 @@ export async function POST(req: NextRequest) {
       downsideScenario: out.downsideScenario ?? null,
       scoreDistributionA: out.scoreDistributionA ?? null,
       scoreDistributionB: out.scoreDistributionB ?? null,
-    })
-  } catch (e) {
-    console.error('[simulation/matchup]', e)
+      teamSummaryA: out.teamSummaryA ?? null,
+      teamSummaryB: out.teamSummaryB ?? null,
+      slotComparisons: out.slotComparisons ?? null,
+      deterministicSeed: out.deterministicSeed ?? null,
+    }
+
+    if (body.includeInsights) {
+      const providerInsights = await getMatchupSimulationInsight(
+        {
+          ...out,
+          scoreRangeA: responseBody.scoreRangeA as [number, number],
+          scoreRangeB: responseBody.scoreRangeB as [number, number],
+        },
+        teamAName,
+        teamBName
+      ).catch(() => null)
+
+      if (providerInsights) {
+        responseBody.providerInsights = providerInsights
+      }
+    }
+
+    return NextResponse.json(responseBody)
+  } catch (error) {
+    console.error('[simulation/matchup]', error)
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Simulation failed' },
+      { error: error instanceof Error ? error.message : 'Simulation failed' },
       { status: 500 }
     )
   }

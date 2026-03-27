@@ -1,72 +1,94 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { CreatorLeagueCard, CreatorInvitePanel } from '@/components/creator-system'
+import { useParams, useSearchParams } from 'next/navigation'
+import { MessageSquareText } from 'lucide-react'
+import { CreatorInvitePanel, CreatorLeagueCard } from '@/components/creator-system'
 import { DiscoveryViewTracker } from '@/components/discovery/DiscoveryViewTracker'
 import type { CreatorLeagueDto } from '@/lib/creator-system/types'
 
 export default function CreatorLeagueLandingPage() {
   const params = useParams()
   const searchParams = useSearchParams()
-  const leagueId = params?.leagueId as string
-  const joinCode = searchParams?.get('join') || searchParams?.get('code')
+  const leagueId = String(params?.leagueId || '')
+  const joinCode = searchParams?.get('join') || searchParams?.get('code') || ''
 
   const [league, setLeague] = useState<CreatorLeagueDto | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [joinResult, setJoinResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   const fetchLeague = useCallback(() => {
     if (!leagueId) return
     setLoading(true)
-    setError(null)
-    fetch(`/api/creator/leagues/${encodeURIComponent(leagueId)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error('League not found')
-        return res.json()
+    fetch(`/api/creator/leagues/${encodeURIComponent(leagueId)}${joinCode ? `?join=${encodeURIComponent(joinCode)}` : ''}`)
+      .then((response) => {
+        if (!response.ok) throw new Error('not_found')
+        return response.json()
       })
-      .then(setLeague)
-      .catch(() => setError('League not found'))
+      .then((payload) => {
+        setLeague(payload)
+        setError(null)
+      })
+      .catch(() => {
+        setError('League not found')
+        setLeague(null)
+      })
       .finally(() => setLoading(false))
-  }, [leagueId])
+  }, [joinCode, leagueId])
 
   useEffect(() => {
     fetchLeague()
   }, [fetchLeague])
 
   useEffect(() => {
-    if (!joinCode || !league || joinResult !== null) return
+    if (!joinCode || !league || joinResult) return
     fetch('/api/creator-invites/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: joinCode }),
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setJoinResult({ success: data.success ?? false, error: data.error })
-        if (data.success) fetchLeague()
+      .then((response) => response.json())
+      .then((payload) => {
+        setJoinResult({ success: payload.success ?? false, error: payload.error })
+        if (payload.success) fetchLeague()
       })
-      .catch(() => setJoinResult({ success: false, error: 'Failed to join' }))
-  }, [joinCode, league?.id, joinResult, fetchLeague])
+      .catch(() => setJoinResult({ success: false, error: 'Failed to join league' }))
+  }, [fetchLeague, joinCode, joinResult, league])
 
-  if (loading && !league) {
+  const handleShareInvite = async () => {
+    if (!league) return
+    try {
+      const response = await fetch(`/api/creator/leagues/${encodeURIComponent(league.id)}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'direct' }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      setStatusMessage(payload.url ? 'Invite copied' : 'Unable to copy invite')
+    } catch {
+      setStatusMessage('Unable to copy invite')
+    }
+  }
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--muted)' }}>
-        Loading…
+      <div className="flex min-h-screen items-center justify-center" style={{ color: 'var(--muted)' }}>
+        Loading creator league...
       </div>
     )
   }
 
-  if (error || !league) {
+  if (!league || error) {
     return (
       <div className="min-h-screen mode-surface mode-readable">
-        <div className="max-w-xl mx-auto px-4 py-12 text-center">
-          <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+        <div className="mx-auto max-w-xl px-4 py-16 text-center sm:px-6">
+          <p className="text-sm" style={{ color: 'var(--muted)' }}>
             {error || 'League not found'}
           </p>
-          <Link href="/creators" className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
+          <Link href="/creators" className="mt-4 inline-block text-sm font-semibold" style={{ color: 'var(--accent)' }}>
             Browse creators
           </Link>
         </div>
@@ -75,8 +97,9 @@ export default function CreatorLeagueLandingPage() {
   }
 
   const creatorSlug = league.creator?.slug ?? league.creatorId
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
-  const inviteUrl = league.inviteUrl || `${baseUrl}/creator/leagues/${league.id}?join=${league.inviteCode}`
+  const inviteUrl =
+    league.inviteUrl ||
+    `${typeof window !== 'undefined' ? window.location.origin : ''}/creator/leagues/${league.id}?join=${league.inviteCode}`
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
@@ -86,45 +109,95 @@ export default function CreatorLeagueLandingPage() {
         leagueName={league.name}
         sport={league.sport ?? undefined}
       />
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <Link
           href={`/creators/${encodeURIComponent(creatorSlug)}`}
           data-testid="creator-league-back-to-profile"
-          className="text-sm font-medium mb-6 inline-block"
+          className="mb-5 inline-block text-sm font-semibold"
           style={{ color: 'var(--muted)' }}
         >
-          ← Back to creator
+          Back to creator
         </Link>
 
         {joinResult && (
           <div
             data-testid="creator-league-join-result"
-            className="rounded-xl border p-4 mb-6"
+            className="mb-5 rounded-2xl border px-4 py-3 text-sm"
             style={{
               borderColor: joinResult.success ? 'var(--accent)' : 'var(--destructive)',
-              background: joinResult.success ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+              color: joinResult.success ? 'var(--text)' : 'var(--destructive)',
+              background: joinResult.success
+                ? 'color-mix(in srgb, var(--accent) 12%, transparent)'
+                : 'color-mix(in srgb, var(--destructive) 10%, transparent)',
             }}
           >
-            {joinResult.success ? (
-              <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                You joined this league.
-              </p>
-            ) : (
-              <p className="text-sm" style={{ color: 'var(--destructive)' }}>
-                {joinResult.error || 'Could not join'}
-              </p>
-            )}
+            {joinResult.success ? 'You joined this league.' : joinResult.error || 'Could not join this league.'}
           </div>
         )}
 
-        <CreatorLeagueCard league={league} showJoinButton={!league.isMember} />
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
+            <CreatorLeagueCard league={league} showJoinButton={!league.isMember} />
 
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>
-            Invite others
-          </h2>
-          <CreatorInvitePanel inviteUrl={inviteUrl} inviteCode={league.inviteCode} />
-        </section>
+            <section
+              className="rounded-[28px] border p-5"
+              style={{
+                borderColor: 'var(--border)',
+                background: 'color-mix(in srgb, var(--panel) 75%, transparent)',
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4" style={{ color: 'var(--muted)' }} />
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+                  Creator commentary
+                </h2>
+              </div>
+              <p className="mt-3 text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                {league.latestRecapTitle}
+              </p>
+              <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+                {league.latestRecapSummary}
+              </p>
+              {league.latestCommentary && (
+                <p className="mt-3 text-sm" style={{ color: 'var(--text)' }}>
+                  {league.latestCommentary}
+                </p>
+              )}
+            </section>
+          </div>
+
+          <div className="space-y-6">
+            <CreatorInvitePanel
+              inviteUrl={inviteUrl}
+              inviteCode={league.inviteCode}
+              onCopy={() => setStatusMessage('Invite copied')}
+              onShare={handleShareInvite}
+            />
+
+            <section
+              className="rounded-[28px] border p-5"
+              style={{
+                borderColor: 'var(--border)',
+                background: 'color-mix(in srgb, var(--panel) 75%, transparent)',
+              }}
+            >
+              <h3 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+                Landing page notes
+              </h3>
+              <div className="mt-4 space-y-3 text-sm" style={{ color: 'var(--muted)' }}>
+                <p>Visibility: {league.isPublic ? 'Public branded community' : 'Invite-only room'}</p>
+                <p>Members: {league.memberCount}{league.maxMembers > 0 ? ` / ${league.maxMembers}` : ''}</p>
+                <p>Share URL: {league.shareUrl}</p>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        {statusMessage && (
+          <p className="mt-4 text-sm" style={{ color: 'var(--muted)' }}>
+            {statusMessage}
+          </p>
+        )}
       </div>
     </div>
   )

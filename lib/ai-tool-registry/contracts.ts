@@ -3,6 +3,8 @@
  * Supported sports: NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER.
  */
 
+import type { DeterministicContextEnvelope, NormalizedToolOutput } from '@/lib/ai-context-envelope'
+
 export type AIMode = 'single_model' | 'specialist' | 'consensus' | 'unified_brain'
 export type AIProvider = 'openai' | 'deepseek' | 'grok'
 
@@ -121,6 +123,21 @@ export interface AIToolResponseContract {
   sections?: AIToolResultSection[]
   /** Optional normalized output object for detail tabs/cards. */
   outputShape?: AIToolStructuredOutput | null
+  /** Deterministic envelope used to ground this response (frontend-safe payload). */
+  deterministicEnvelope?: DeterministicContextEnvelope | null
+  /** Normalized deterministic evidence/uncertainty/missing-data output for renderer components. */
+  normalizedOutput?: NormalizedToolOutput | null
+  /** Optional debug trace for admin/support UI. */
+  debugTrace?: {
+    traceId?: string | null
+    toolId?: string
+    envelopeId?: string
+    providerUsed?: string
+    dataQualitySummary?: string
+    confidenceCapped?: boolean
+    uncertaintyCount?: number
+    missingDataCount?: number
+  } | null
   /** Fact guard warnings surfaced from orchestration/tool validation. */
   factGuardWarnings?: string[]
 }

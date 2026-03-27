@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { comparePlayers, comparePlayersMulti, type ScoringFormat } from '@/lib/player-comparison-lab';
+import type { LeagueScoringSettings } from '@/lib/player-comparison-lab/types';
 
 export async function GET(req: NextRequest) {
   const playerA = req.nextUrl.searchParams.get('playerA')?.trim();
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
     players?: string[];
     sport?: string | null;
     scoringFormat?: string | null;
+    leagueScoringSettings?: LeagueScoringSettings | null;
   };
   try {
     body = await req.json();
@@ -57,11 +59,17 @@ export async function POST(req: NextRequest) {
   const scoringFormat = body.scoringFormat != null && SCORING_FORMATS.includes(body.scoringFormat as ScoringFormat)
     ? (body.scoringFormat as ScoringFormat)
     : 'ppr';
+  const leagueScoringSettings =
+    body.leagueScoringSettings &&
+    typeof body.leagueScoringSettings === 'object'
+      ? body.leagueScoringSettings
+      : null;
 
   try {
     const result = await comparePlayersMulti(players, {
       sport: sport ?? undefined,
       scoringFormat,
+      leagueScoringSettings,
     });
     if (!result) {
       return NextResponse.json(

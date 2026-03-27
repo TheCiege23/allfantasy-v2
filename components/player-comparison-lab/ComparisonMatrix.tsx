@@ -25,7 +25,7 @@ export function ComparisonMatrix({ matrix, players }: ComparisonMatrixProps) {
   const names = players.map((p) => p.name);
 
   return (
-    <Card className="border-white/10 bg-white/5" data-audit="comparison-matrix">
+    <Card className="border-white/10 bg-white/5" data-audit="comparison-matrix" data-testid="comparison-matrix">
       <CardHeader>
         <CardTitle className="text-lg text-white">Comparison matrix</CardTitle>
       </CardHeader>

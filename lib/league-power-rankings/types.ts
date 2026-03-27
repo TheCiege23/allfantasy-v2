@@ -13,8 +13,21 @@ export interface PowerRankingTeam {
   record: { wins: number; losses: number; ties: number };
   pointsFor: number;
   pointsAgainst: number;
+  strengthOfSchedule: number;
+  recentPerformanceScore: number;
+  rosterStrengthScore: number;
+  projectionStrengthScore: number;
+  rosterValue: number;
+  expectedWins: number;
   composite: number;
   powerScore: number;
+  powerScoreBreakdown: {
+    record: number;
+    recentPerformance: number;
+    rosterStrength: number;
+    projectionStrength: number;
+    weightedScore: number;
+  };
 }
 
 export interface PowerRankingsOutput {
@@ -24,6 +37,12 @@ export interface PowerRankingsOutput {
   week: number;
   teams: PowerRankingTeam[];
   computedAt: number;
+  formula: {
+    recordWeight: number;
+    recentPerformanceWeight: number;
+    rosterStrengthWeight: number;
+    projectionStrengthWeight: number;
+  };
 }
 
 export interface RankHistoryEntry {

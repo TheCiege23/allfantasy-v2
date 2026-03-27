@@ -104,9 +104,19 @@ export async function POST(req: NextRequest) {
     let factGuardWarnings: string[] | undefined
 
     if (orchestration.ok) {
+      const getStringAnswer = (val: unknown) => {
+        if (typeof val === 'string') return val
+        if (val && typeof val === 'object' && 'matchupExplanation' in val && typeof val.matchupExplanation === 'string') {
+          return val.matchupExplanation
+        }
+        return ''
+      }
       const formatted = formatToolResult({
         toolKey: 'matchup',
-        primaryAnswer: orchestration.response.primaryAnswer || insight || '',
+        primaryAnswer:
+          getStringAnswer(orchestration.response.primaryAnswer) ||
+          getStringAnswer(insight) ||
+          '',
         structured: getStructuredCandidate(orchestration.response),
         envelope,
         factGuardWarnings: orchestration.response.factGuardWarnings,

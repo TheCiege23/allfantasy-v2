@@ -87,6 +87,7 @@ export interface TeamScore {
   record: { wins: number; losses: number; ties: number }
   pointsFor: number
   pointsAgainst: number
+  strengthOfSchedule: number
   expectedWins: number
   streak: number
   luckDelta: number
@@ -3178,6 +3179,7 @@ export async function computeLeagueRankingsV2(
       record: { wins: rWins, losses: rLosses, ties: rTies },
       pointsFor: ptsFor,
       pointsAgainst: ptsAgainst,
+      strengthOfSchedule: sos,
       expectedWins,
       luckDelta: Math.round(luckDelta * 10) / 10,
       shouldBeRecord: { wins: shouldBeWins, losses: shouldBeLosses },

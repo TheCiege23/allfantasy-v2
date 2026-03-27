@@ -1,14 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-const { mockFindMany, mockGetPlayerValuesForNames } = vi.hoisted(() => ({
+const {
+  mockFindMany,
+  mockGetPlayerValuesForNames,
+  mockAiAdpFindMany,
+  mockCareerProjectionFindFirst,
+  mockSportsInjuryFindMany,
+  mockIdentityFindFirst,
+  mockSportsPlayerFindFirst,
+  mockSportsGameFindMany,
+  mockTeamSeasonStatsFindMany,
+} = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockGetPlayerValuesForNames: vi.fn(),
+  mockAiAdpFindMany: vi.fn(),
+  mockCareerProjectionFindFirst: vi.fn(),
+  mockSportsInjuryFindMany: vi.fn(),
+  mockIdentityFindFirst: vi.fn(),
+  mockSportsPlayerFindFirst: vi.fn(),
+  mockSportsGameFindMany: vi.fn(),
+  mockTeamSeasonStatsFindMany: vi.fn(),
 }))
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     playerSeasonStats: {
       findMany: mockFindMany,
+      findFirst: vi.fn(),
+    },
+    aiAdpSnapshot: {
+      findMany: mockAiAdpFindMany,
+    },
+    playerCareerProjection: {
+      findFirst: mockCareerProjectionFindFirst,
+    },
+    sportsInjury: {
+      findMany: mockSportsInjuryFindMany,
+    },
+    playerIdentityMap: {
+      findFirst: mockIdentityFindFirst,
+    },
+    sportsPlayer: {
+      findFirst: mockSportsPlayerFindFirst,
+    },
+    sportsGame: {
+      findMany: mockSportsGameFindMany,
+    },
+    teamSeasonStats: {
+      findMany: mockTeamSeasonStatsFindMany,
     },
   },
 }))
@@ -22,6 +61,13 @@ import { resolvePlayerStats } from "@/lib/player-comparison-lab/PlayerStatsResol
 describe("PlayerStatsResolver", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAiAdpFindMany.mockResolvedValue([])
+    mockCareerProjectionFindFirst.mockResolvedValue(null)
+    mockSportsInjuryFindMany.mockResolvedValue([])
+    mockIdentityFindFirst.mockResolvedValue(null)
+    mockSportsPlayerFindFirst.mockResolvedValue(null)
+    mockSportsGameFindMany.mockResolvedValue([])
+    mockTeamSeasonStatsFindMany.mockResolvedValue([])
   })
 
   it("resolves historical and projection data with sport normalization", async () => {

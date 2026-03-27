@@ -1,5 +1,5 @@
 /**
- * Fantasy Coach Mode — types (Prompt 120 + Prompt 134).
+ * Fantasy Coach Mode types.
  */
 
 export type AdviceType = 'lineup' | 'trade' | 'waiver';
@@ -29,21 +29,49 @@ export interface CoachAdviceResult {
   tone: 'motivational' | 'cautious' | 'celebration' | 'neutral';
 }
 
-// ——— Prompt 134: Coach Dashboard evaluation ———
+export interface CoachProviderInsights {
+  deepseek: string;
+  grok: string;
+  openai: string;
+}
+
+export interface CoachEvaluationMetric {
+  id: string;
+  label: string;
+  score: number;
+  trend: 'up' | 'steady' | 'down';
+  summary: string;
+}
+
+export interface CoachTeamSnapshot {
+  presetId: string;
+  presetName: string;
+  teamName: string;
+  week: number;
+  adjustedProjection: number;
+  adjustedFloor: number;
+  adjustedCeiling: number;
+  scheduleAdjustment: number;
+  strongestSlot: string;
+  weakestSlot: string;
+  swingSlot: string;
+}
 
 export interface WaiverOpportunity {
   playerName: string;
   position?: string;
   reason: string;
-  /** Opens player page (e.g. /af-legacy?tab=players&q=...) */
+  priority?: 'high' | 'medium';
+  /** Opens player page (for example /player-comparison?player=...). */
   playerHref: string;
 }
 
 export interface TradeSuggestion {
   summary: string;
-  /** Opens trade analyzer (e.g. /af-legacy?tab=trade) */
+  /** Opens trade analyzer tool. */
   tradeAnalyzerHref: string;
   targetHint?: string;
+  priority?: 'high' | 'medium';
 }
 
 export interface ActionRecommendation {
@@ -51,7 +79,8 @@ export interface ActionRecommendation {
   type: 'lineup' | 'trade' | 'waiver' | 'tool';
   label: string;
   summary: string;
-  /** Opens the relevant tool (waiver, trade, rankings, etc.) */
+  priority?: 'high' | 'medium';
+  /** Opens the relevant tool (waiver, trade, rankings, etc.). */
   toolHref: string;
 }
 
@@ -63,7 +92,13 @@ export interface CoachEvaluationResult {
   tradeSuggestions: TradeSuggestion[];
   lineupImprovements: string[];
   actionRecommendations: ActionRecommendation[];
+  evaluationMetrics: CoachEvaluationMetric[];
+  teamSummary: string;
+  teamSnapshot: CoachTeamSnapshot;
+  providerInsights: CoachProviderInsights;
   rosterMathSummary: string | null;
   strategyInsight: string | null;
   weeklyAdvice: string | null;
+  deterministicSeed: number;
+  lastEvaluatedAt: string;
 }

@@ -5,6 +5,7 @@
 
 export * from './types'
 export {
+  buildUnifiedGlobalFantasyInsights,
   getGlobalFantasyInsights,
   getGlobalFantasyInsightsSupportedSports,
 } from './GlobalFantasyIntelligenceEngine'

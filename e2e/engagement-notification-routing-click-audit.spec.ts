@@ -1,8 +1,24 @@
 import { expect, test } from "@playwright/test"
 
+async function gotoWithRetry(page: Parameters<typeof test>[0]["page"], url: string): Promise<void> {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded" })
+      return
+    } catch (error) {
+      const message = String((error as Error)?.message ?? error)
+      const canRetry =
+        attempt < 2 &&
+        (message.includes("net::ERR_ABORTED") || message.includes("interrupted by another navigation"))
+      if (!canRetry) throw error
+      await page.waitForTimeout(200)
+    }
+  }
+}
+
 test.describe("@retention engagement notification routing click audit", () => {
   test("notification links and deep links resolve safely for engagement types", async ({ page }) => {
-    await page.goto("/e2e/engagement-notification-routing", { waitUntil: "domcontentloaded" })
+    await gotoWithRetry(page, "/e2e/engagement-notification-routing")
 
     await expect(
       page.getByRole("heading", { name: "Engagement Notification Routing Harness" })
@@ -24,11 +40,11 @@ test.describe("@retention engagement notification routing click audit", () => {
     await dailyLink.click()
     await expect(page).toHaveURL(/\/trade-analyzer/)
 
-    await page.goto("/e2e/engagement-notification-routing", { waitUntil: "domcontentloaded" })
+    await gotoWithRetry(page, "/e2e/engagement-notification-routing")
     await page.getByRole("link", { name: /AI insight unlocked/i }).click()
     await expect(page).toHaveURL(/\/chimmy/)
 
-    await page.goto("/e2e/engagement-notification-routing", { waitUntil: "domcontentloaded" })
+    await gotoWithRetry(page, "/e2e/engagement-notification-routing")
     await page.getByRole("link", { name: /Weekly recap summary/i }).click()
     await expect(page).toHaveURL(/\/tools-hub/)
   })

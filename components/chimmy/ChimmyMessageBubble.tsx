@@ -7,6 +7,15 @@ import {
   getConfidenceFromApiResponse,
   shouldShowConfidence,
 } from '@/lib/chimmy-interface'
+import ChimmyResponseStructure from './ChimmyResponseStructure'
+
+interface ChimmyResponseStructureMeta {
+  shortAnswer: string
+  whatDataSays?: string
+  whatItMeans?: string
+  recommendedAction?: string
+  caveats?: string[]
+}
 
 export interface ChimmyMessageMeta {
   confidencePct?: number
@@ -15,6 +24,7 @@ export interface ChimmyMessageMeta {
   dataSources?: string[]
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
+  responseStructure?: ChimmyResponseStructureMeta
 }
 
 export interface ChimmyMessageBubbleProps {
@@ -70,6 +80,13 @@ export default function ChimmyMessageBubble({
   isListening,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
+  const responseStructure = !isUser ? meta?.responseStructure : undefined
+  const hasResponseStructure = Boolean(responseStructure?.shortAnswer?.trim())
+  const hasInlineLinks = /\[[^\]]+\]\(([^)]+)\)/.test(content)
+  const shouldRenderRawContent =
+    !hasResponseStructure ||
+    hasInlineLinks ||
+    (content.trim().length > (responseStructure?.shortAnswer?.trim().length ?? 0) + 90)
   const confidenceDisplay = !isUser
     ? getConfidenceFromApiResponse({
         confidencePct: meta?.confidencePct,
@@ -93,7 +110,20 @@ export default function ChimmyMessageBubble({
             className="max-w-full max-h-48 rounded-lg mb-2 object-cover"
           />
         )}
-        <div className="text-sm leading-relaxed">{renderContentWithLinks(content)}</div>
+        {hasResponseStructure && responseStructure && (
+          <ChimmyResponseStructure
+            quickAnswer={responseStructure.shortAnswer}
+            whatDataSays={responseStructure.whatDataSays}
+            whatItMeans={responseStructure.whatItMeans}
+            actionPlan={responseStructure.recommendedAction}
+            caveats={responseStructure.caveats}
+            collapsible
+            className="mb-2"
+          />
+        )}
+        {shouldRenderRawContent && (
+          <div className="text-sm leading-relaxed">{renderContentWithLinks(content)}</div>
+        )}
 
         {!isUser && meta && (
           <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap items-center gap-2">

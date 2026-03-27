@@ -24,6 +24,16 @@ function toConversationPayload(conversation: ChimmyThreadMessage[] = []) {
 function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
   if (!rawMeta || typeof rawMeta !== "object" || Array.isArray(rawMeta)) return undefined
   const meta = rawMeta as Record<string, unknown>
+  const responseStructureRaw =
+    meta.responseStructure && typeof meta.responseStructure === "object" && !Array.isArray(meta.responseStructure)
+      ? (meta.responseStructure as Record<string, unknown>)
+      : null
+  const shortAnswer =
+    typeof responseStructureRaw?.shortAnswer === "string" ? responseStructureRaw.shortAnswer.trim() : ""
+  const caveats = Array.isArray(responseStructureRaw?.caveats)
+    ? responseStructureRaw.caveats.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : []
+
   return {
     confidencePct: typeof meta.confidencePct === "number" ? meta.confidencePct : undefined,
     providerStatus:
@@ -34,6 +44,21 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
     dataSources: Array.isArray(meta.dataSources) ? meta.dataSources.filter((x): x is string => typeof x === "string") : undefined,
     quantData: meta.quantData && typeof meta.quantData === "object" ? (meta.quantData as Record<string, unknown>) : undefined,
     trendData: meta.trendData && typeof meta.trendData === "object" ? (meta.trendData as Record<string, unknown>) : undefined,
+    responseStructure:
+      shortAnswer.length > 0
+        ? {
+            shortAnswer,
+            whatDataSays:
+              typeof responseStructureRaw?.whatDataSays === "string" ? responseStructureRaw.whatDataSays : undefined,
+            whatItMeans:
+              typeof responseStructureRaw?.whatItMeans === "string" ? responseStructureRaw.whatItMeans : undefined,
+            recommendedAction:
+              typeof responseStructureRaw?.recommendedAction === "string"
+                ? responseStructureRaw.recommendedAction
+                : undefined,
+            caveats,
+          }
+        : undefined,
   }
 }
 

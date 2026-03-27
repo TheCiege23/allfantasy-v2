@@ -24,5 +24,19 @@ export async function GET() {
     requiredContextFields: t.requiredContextFields,
     responseSchema: t.responseSchema,
   }))
-  return NextResponse.json({ tools })
+  return NextResponse.json({
+    tools,
+    endpoints: {
+      run: '/api/ai/run',
+      compare: '/api/ai/compare',
+      providers: '/api/ai/providers',
+      chimmy: '/api/ai/chimmy',
+    },
+    clickAuditSupport: {
+      runAnalysis: true,
+      compareProviders: true,
+      openInChimmy: true,
+      retryAnalysis: true,
+    },
+  })
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Trophy, Loader2 } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { CreatorCard } from '@/components/creator-system'
 import type { CreatorProfileDto } from '@/lib/creator-system/types'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
@@ -13,17 +13,18 @@ export default function CreatorsDiscoveryClient() {
   const [loading, setLoading] = useState(true)
   const [sport, setSport] = useState<string>('')
   const [followLoading, setFollowLoading] = useState<string | null>(null)
-  const [following, setFollowing] = useState<Set<string>>(new Set())
+  const [status, setStatus] = useState<string | null>(null)
 
   const fetchCreators = useCallback(() => {
     setLoading(true)
-    const q = new URLSearchParams()
-    q.set('limit', '24')
-    if (sport) q.set('sport', sport)
-    fetch(`/api/creators?${q.toString()}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.creators)) setCreators(data.creators)
+    const query = new URLSearchParams()
+    query.set('limit', '24')
+    if (sport) query.set('sport', sport)
+
+    fetch(`/api/creators?${query.toString()}`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (Array.isArray(payload.creators)) setCreators(payload.creators)
         else setCreators([])
       })
       .catch(() => setCreators([]))
@@ -34,25 +35,52 @@ export default function CreatorsDiscoveryClient() {
     fetchCreators()
   }, [fetchCreators])
 
-  const handleFollow = useCallback((creatorId: string) => {
-    const creator = creators.find((c) => c.id === creatorId)
-    if (!creator) return
-    setFollowLoading(creatorId)
-    const slug = creator.slug
-    fetch(`/api/creators/${encodeURIComponent(slug)}/follow`, { method: 'POST' })
-      .then((res) => {
-        if (res.ok) setFollowing((prev) => new Set(prev).add(creatorId))
-      })
-      .finally(() => setFollowLoading(null))
-  }, [creators])
+  const toggleFollow = async (creator: CreatorProfileDto, shouldFollow: boolean) => {
+    setFollowLoading(creator.id)
+    setStatus(null)
+    try {
+      const response = await fetch(
+        `/api/creators/${encodeURIComponent(creator.slug)}/${shouldFollow ? 'follow' : 'unfollow'}`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        setStatus(payload.error || 'Unable to update follow state')
+        return
+      }
 
-  const handleShare = useCallback((creatorId: string, url: string) => {
-    fetch(`/api/creators/${encodeURIComponent(creatorId)}/share`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    }).catch(() => {})
-    navigator.clipboard?.writeText(url).then(() => {})
+      setCreators((current) =>
+        current.map((entry) =>
+          entry.id === creator.id
+            ? {
+                ...entry,
+                isFollowing: shouldFollow,
+                followerCount: Math.max(0, (entry.followerCount ?? 0) + (shouldFollow ? 1 : -1)),
+              }
+            : entry
+        )
+      )
+      setStatus(shouldFollow ? `Following ${creator.displayName || creator.handle}` : `Unfollowed ${creator.displayName || creator.handle}`)
+    } catch {
+      setStatus('Network error while updating follow state')
+    } finally {
+      setFollowLoading(null)
+    }
+  }
+
+  const handleShare = useCallback(async (creator: CreatorProfileDto, url: string) => {
+    try {
+      const response = await fetch(`/api/creators/${encodeURIComponent(creator.slug)}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'discovery_card', channel: 'direct' }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      await navigator.clipboard?.writeText(payload.url || url)
+      setStatus(`Share link copied for ${creator.displayName || creator.handle}`)
+    } catch {
+      setStatus('Unable to copy creator share link')
+    }
   }, [])
 
   if (loading) {
@@ -66,69 +94,76 @@ export default function CreatorsDiscoveryClient() {
   if (creators.length === 0) {
     return (
       <div
-        className="rounded-2xl border p-12 text-center"
-        style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 30%, transparent)' }}
+        className="rounded-[28px] border p-12 text-center"
+        style={{
+          borderColor: 'var(--border)',
+          background: 'color-mix(in srgb, var(--panel) 72%, transparent)',
+        }}
       >
-        <Trophy className="h-12 w-12 mx-auto mb-3" style={{ color: 'var(--muted)' }} />
-        <p className="font-medium" style={{ color: 'var(--text)' }}>
-          No creators yet
+        <Sparkles className="mx-auto h-12 w-12" style={{ color: 'var(--muted)' }} />
+        <p className="mt-3 font-medium" style={{ color: 'var(--text)' }}>
+          No creators matched this filter
         </p>
         <p className="mt-1 text-sm" style={{ color: 'var(--muted)' }}>
-          Creator leagues will appear here when they’re available.
+          Try a different sport filter or come back after more creators launch leagues.
         </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm" style={{ color: 'var(--muted)' }}>
-          Sport:
-        </span>
         <button
           type="button"
           onClick={() => setSport('')}
           data-testid="creator-sport-filter-all"
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${!sport ? 'opacity-100' : 'opacity-60'}`}
+          className="rounded-full px-4 py-2 text-sm font-semibold"
           style={{
             background: !sport ? 'var(--accent)' : 'var(--panel)',
             color: !sport ? 'var(--bg)' : 'var(--text)',
             border: '1px solid var(--border)',
           }}
         >
-          All
+          All sports
         </button>
-        {SPORTS.map((s) => (
+        {SPORTS.map((sportOption) => (
           <button
-            key={s}
+            key={sportOption}
             type="button"
-            onClick={() => setSport(s)}
-            data-testid={`creator-sport-filter-${s}`}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${sport === s ? 'opacity-100' : 'opacity-60'}`}
+            onClick={() => setSport(sportOption)}
+            data-testid={`creator-sport-filter-${sportOption}`}
+            className="rounded-full px-4 py-2 text-sm font-semibold"
             style={{
-              background: sport === s ? 'var(--accent)' : 'var(--panel)',
-              color: sport === s ? 'var(--bg)' : 'var(--text)',
+              background: sport === sportOption ? 'var(--accent)' : 'var(--panel)',
+              color: sport === sportOption ? 'var(--bg)' : 'var(--text)',
               border: '1px solid var(--border)',
             }}
           >
-            {s}
+            {sportOption}
           </button>
         ))}
       </div>
-      <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-        {creators.map((c) => (
-          <li key={c.id}>
-            <CreatorCard
-              creator={c}
-              onFollow={handleFollow}
-              onShare={handleShare}
-              isFollowing={following.has(c.id) ?? c.isFollowing}
-              followLoading={followLoading === c.id}
-            />
-          </li>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {creators.map((creator) => (
+          <CreatorCard
+            key={creator.id}
+            creator={creator}
+            onFollow={(entry) => toggleFollow(entry, true)}
+            onUnfollow={(entry) => toggleFollow(entry, false)}
+            onShare={handleShare}
+            isFollowing={creator.isFollowing}
+            followLoading={followLoading === creator.id}
+          />
         ))}
-      </ul>
+      </div>
+
+      {status && (
+        <p className="text-sm" style={{ color: status.includes('error') ? 'var(--destructive)' : 'var(--muted)' }}>
+          {status}
+        </p>
+      )}
     </div>
   )
 }

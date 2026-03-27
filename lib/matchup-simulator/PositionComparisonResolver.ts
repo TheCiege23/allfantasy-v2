@@ -99,7 +99,7 @@ export function getPositionSlotsForSport(sport: string): PositionSlot[] {
   return [...slots].sort((a, b) => a.order - b.order)
 }
 
-function getSlotWeight(slotId: string): number {
+export function getPositionSlotWeight(slotId: string): number {
   if (slotId === 'QB' || slotId === 'PG' || slotId === 'SP' || slotId === 'GKP') return 1.25
   if (slotId === 'RB' || slotId === 'WR' || slotId === 'MID' || slotId === 'C') return 1.1
   if (slotId === 'TE' || slotId === 'PF' || slotId === 'DEF' || slotId === 'D') return 0.95
@@ -121,13 +121,13 @@ export function buildPositionComparisonRows(input: {
 }): PositionComparisonRow[] {
   const slots = getPositionSlotsForSport(input.sport)
   const limitedSlots = slots.slice(0, Math.max(1, input.maxRows ?? slots.length))
-  const totalWeight = limitedSlots.reduce((sum, slot) => sum + getSlotWeight(slot.id), 0) || 1
+  const totalWeight = limitedSlots.reduce((sum, slot) => sum + getPositionSlotWeight(slot.id), 0) || 1
 
   const stdA = Math.max(1, input.teamAStdDev ?? 12)
   const stdB = Math.max(1, input.teamBStdDev ?? 12)
 
   return limitedSlots.map((slot, index) => {
-    const weight = getSlotWeight(slot.id)
+    const weight = getPositionSlotWeight(slot.id)
     const allocation = weight / totalWeight
     const volatilityNudgeA = stdA * allocation * 0.22
     const volatilityNudgeB = stdB * allocation * 0.22

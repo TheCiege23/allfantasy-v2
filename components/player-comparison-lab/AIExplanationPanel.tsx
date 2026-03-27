@@ -5,23 +5,24 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver';
+import type { ComparisonAIInsight } from '@/lib/player-comparison-lab/types';
 
 export interface AIExplanationPanelProps {
   playerNames: string[];
   summaryLines: string[];
   /** Callback to trigger AI analysis (e.g. POST /api/player-comparison/insight). */
-  onRetryAnalysis: () => Promise<string | null>;
+  onRetryAnalysis: () => Promise<ComparisonAIInsight | null>;
   /** Initial recommendation if already loaded. */
-  initialRecommendation?: string | null;
+  initialInsight?: ComparisonAIInsight | null;
 }
 
 export function AIExplanationPanel({
   playerNames,
   summaryLines,
   onRetryAnalysis,
-  initialRecommendation = null,
+  initialInsight = null,
 }: AIExplanationPanelProps) {
-  const [recommendation, setRecommendation] = useState<string | null>(initialRecommendation ?? null);
+  const [insight, setInsight] = useState<ComparisonAIInsight | null>(initialInsight ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,8 +30,8 @@ export function AIExplanationPanel({
     setError(null);
     setLoading(true);
     try {
-      const text = await onRetryAnalysis();
-      setRecommendation(text);
+      const nextInsight = await onRetryAnalysis();
+      setInsight(nextInsight);
     } catch {
       setError('Failed to load AI analysis');
     } finally {
@@ -54,6 +55,7 @@ export function AIExplanationPanel({
             disabled={loading}
             className="gap-2 border-white/20"
             data-audit="retry-analysis-button"
+            data-testid="retry-analysis-button"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -63,13 +65,13 @@ export function AIExplanationPanel({
             Retry analysis
           </Button>
           <Button variant="outline" className="gap-2 border-white/20" asChild>
-            <a href={chimmyHref} data-audit="open-in-chimmy-link">
+            <a href={chimmyHref} data-audit="open-in-chimmy-link" data-testid="open-in-chimmy-link">
               <ExternalLink className="h-4 w-4" />
               Open in Chimmy
             </a>
           </Button>
         </div>
-        {!recommendation && !loading && (
+        {!insight?.finalRecommendation && !loading && (
           <Button
             onClick={handleRetry}
             disabled={loading}
@@ -86,9 +88,24 @@ export function AIExplanationPanel({
           </Button>
         )}
         {error && <p className="text-sm text-red-400">{error}</p>}
-        {recommendation && (
-          <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-white/90">
-            {recommendation}
+        {insight?.finalRecommendation && (
+          <div className="space-y-3" data-testid="comparison-ai-insight-output">
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-white/90">
+              <p className="mb-1 text-xs uppercase tracking-wide text-cyan-300">Final recommendation (OpenAI)</p>
+              <p data-testid="comparison-ai-final-recommendation">{insight.finalRecommendation}</p>
+            </div>
+            {insight.deepseekAnalysis && (
+              <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-white/80">
+                <p className="mb-1 text-xs uppercase tracking-wide text-emerald-300">DeepSeek math edge</p>
+                <p data-testid="comparison-ai-deepseek-analysis">{insight.deepseekAnalysis}</p>
+              </div>
+            )}
+            {insight.grokNarrative && (
+              <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-white/80">
+                <p className="mb-1 text-xs uppercase tracking-wide text-amber-300">Grok narrative context</p>
+                <p data-testid="comparison-ai-grok-narrative">{insight.grokNarrative}</p>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

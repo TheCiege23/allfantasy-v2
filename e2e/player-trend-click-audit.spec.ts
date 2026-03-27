@@ -25,11 +25,41 @@ function buildFeedRows(sport: string) {
       playerId: `${sport}-player-hot`,
       sport,
       displayName: `${sport} Hot Player`,
+      position: sport === 'NBA' ? 'SG' : 'FLEX',
+      team: `${sport} Team A`,
       signals: {
         performanceDelta: 6,
         usageChange: 0.24,
         minutesOrSnapShare: 0.72,
         efficiencyScore: 81,
+        volumeChange: 0.08,
+        efficiencyDelta: 4,
+        confidence: 0.82,
+        signalStrength: 74,
+      },
+      snapshot: {
+        dataSource: 'game_stats',
+        recentGamesSample: 4,
+        priorGamesSample: 4,
+        recentFantasyPointsAvg: 27,
+        priorFantasyPointsAvg: 21,
+        recentUsageValue: 0.68,
+        priorUsageValue: 0.44,
+        recentMinutesOrShare: 0.72,
+        priorMinutesOrShare: 0.64,
+        recentEfficiency: 81,
+        priorEfficiency: 77,
+        expectedFantasyPointsPerGame: 22,
+        seasonFantasyPointsPerGame: 23,
+        expectedGap: 5,
+        weeklyVolatility: 3.2,
+        breakoutRating: 0.59,
+        currentAdpTrend: -3,
+      },
+      summary: {
+        headline: `${sport} Hot Player is sustaining a real heater.`,
+        rationale: 'Recent fantasy output, usage, and efficiency are all pointed up.',
+        recommendation: 'Keep this player active while the role stays intact.',
       },
       trendScore: 81,
       direction: 'Hot',
@@ -40,11 +70,41 @@ function buildFeedRows(sport: string) {
       playerId: `${sport}-player-breakout`,
       sport,
       displayName: `${sport} Breakout`,
+      position: sport === 'NBA' ? 'PG' : 'FLEX',
+      team: `${sport} Team B`,
       signals: {
         performanceDelta: 3,
         usageChange: 0.18,
         minutesOrSnapShare: 0.61,
         efficiencyScore: 74,
+        volumeChange: 0.05,
+        efficiencyDelta: 2,
+        confidence: 0.78,
+        signalStrength: 68,
+      },
+      snapshot: {
+        dataSource: 'analytics_snapshot',
+        recentGamesSample: 0,
+        priorGamesSample: 0,
+        recentFantasyPointsAvg: 18,
+        priorFantasyPointsAvg: 15,
+        recentUsageValue: 0.49,
+        priorUsageValue: 0.31,
+        recentMinutesOrShare: 0.61,
+        priorMinutesOrShare: 0.55,
+        recentEfficiency: 74,
+        priorEfficiency: 72,
+        expectedFantasyPointsPerGame: 16,
+        seasonFantasyPointsPerGame: 17,
+        expectedGap: 2,
+        weeklyVolatility: 2.9,
+        breakoutRating: 0.72,
+        currentAdpTrend: -5,
+      },
+      summary: {
+        headline: `${sport} Breakout has breakout ingredients in place.`,
+        rationale: 'Usage and role are expanding together.',
+        recommendation: 'Stay ahead of the price jump.',
       },
       trendScore: 74,
       direction: 'Rising',
@@ -180,12 +240,12 @@ test.describe('@player-trend full click audit', () => {
     await expect(page.getByRole('combobox', { name: 'Sport' })).toHaveValue('NBA')
     await expect(page.getByRole('combobox', { name: 'Timeframe' })).toHaveValue('30d')
     await page.getByRole('button', { name: 'Get AI insight' }).first().click()
-    await expect(page.getByText('Math:')).toBeVisible()
-    await expect(page.getByText('Action:')).toBeVisible()
+    await expect(page.getByText('DeepSeek math validation')).toBeVisible()
+    await expect(page.getByText('OpenAI explanation')).toBeVisible()
     await page.getByRole('combobox', { name: 'Sport' }).selectOption('SOCCER')
     await page.getByRole('combobox', { name: 'Timeframe' }).selectOption('24h')
     await page.getByRole('button', { name: 'Refresh' }).click()
-    await expect(page.getByRole('link', { name: '← App home' })).toHaveAttribute('href', '/app/home')
+    await expect(page.getByRole('link', { name: 'Back to app home' })).toHaveAttribute('href', '/app/home')
 
     await page.goto('/waiver-ai')
     await expect(page.getByRole('link', { name: 'Meta insights' })).toHaveAttribute(
@@ -193,9 +253,9 @@ test.describe('@player-trend full click audit', () => {
       /\/app\/meta-insights\?sport=/
     )
 
-    expect(trendListRequests.some((r) => r.sport === 'NCAAF' && r.timeframe === '30d' && r.list === 'hottest')).toBe(true)
-    expect(trendFeedRequests.some((r) => r.sport === 'NBA' && r.timeframe === '30d')).toBe(true)
-    expect(trendFeedRequests.some((r) => r.sport === 'SOCCER' && r.timeframe === '24h')).toBe(true)
-    expect(insightRequests.some((r) => r.sport === 'NBA')).toBe(true)
+    expect(trendListRequests.some((request) => request.sport === 'NCAAF' && request.timeframe === '30d' && request.list === 'hottest')).toBe(true)
+    expect(trendFeedRequests.some((request) => request.sport === 'NBA' && request.timeframe === '30d')).toBe(true)
+    expect(trendFeedRequests.some((request) => request.sport === 'SOCCER' && request.timeframe === '24h')).toBe(true)
+    expect(insightRequests.some((request) => request.sport === 'NBA')).toBe(true)
   })
 })

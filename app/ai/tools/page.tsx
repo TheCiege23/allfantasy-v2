@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { ChevronLeft, BarChart3, ClipboardList, Target, Trophy, FileText, MessageCircle, Share2 } from 'lucide-react'
-import { AIToolCard, UnifiedAIWorkbench } from '@/components/ai-hub'
+import { AIToolCard, AIQuickActionBar, UnifiedAIWorkbench } from '@/components/ai-hub'
 import { AIProductLayer } from '@/lib/ai-product-layer'
 
 const AI_TOOL_CARDS = [
@@ -30,6 +30,18 @@ export default function AIToolsPage() {
           Back to AI
         </Link>
         <h1 className="mb-6 text-2xl font-bold tracking-tight text-white">AI Tools</h1>
+        <div className="mb-6">
+          <AIQuickActionBar />
+        </div>
+        <div className="mb-4">
+          <Link
+            href="/ai/history"
+            data-testid="ai-tools-open-history-link"
+            className="inline-flex items-center rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 hover:bg-white/10"
+          >
+            Open saved history
+          </Link>
+        </div>
         <UnifiedAIWorkbench />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {AI_TOOL_CARDS.map((card) => (

@@ -32,6 +32,10 @@ function getApiKey(): string | null {
   return key?.trim() || null;
 }
 
+export function isHeyGenConfigured(): boolean {
+  return !!getApiKey();
+}
+
 export async function createHeyGenVideo(input: HeyGenPayloadInput): Promise<HeyGenCreateResult | null> {
   const apiKey = getApiKey();
   if (!apiKey) {

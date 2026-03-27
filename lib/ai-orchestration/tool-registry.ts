@@ -6,6 +6,7 @@
 import type { OrchestrationMode } from '@/lib/unified-ai/types'
 import type { OrchestrationToolType, ToolRegistryEntry } from './types'
 import { ORCHESTRATION_TOOL_TYPES } from './types'
+import { normalizeOrchestrationToolKey } from './tool-key-normalizer'
 
 const REGISTRY: Record<OrchestrationToolType, ToolRegistryEntry> = {
   trade_analyzer: {
@@ -71,12 +72,40 @@ const REGISTRY: Record<OrchestrationToolType, ToolRegistryEntry> = {
     allowedModes: ['single_model', 'consensus', 'unified_brain'],
     minConfidenceForRecommendation: 35,
   },
+  ai_commissioner: {
+    key: 'ai_commissioner',
+    featureType: 'ai_commissioner',
+    defaultMode: 'unified_brain',
+    allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 45,
+  },
+  fantasy_coach: {
+    key: 'fantasy_coach',
+    featureType: 'fantasy_coach',
+    defaultMode: 'unified_brain',
+    allowedModes: ['single_model', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 40,
+  },
   content: {
     key: 'content',
     featureType: 'content',
     defaultMode: 'unified_brain',
     allowedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
     minConfidenceForRecommendation: 40,
+  },
+  blog_generator: {
+    key: 'blog_generator',
+    featureType: 'blog_generator',
+    defaultMode: 'unified_brain',
+    allowedModes: ['single_model', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 35,
+  },
+  social_clip_generator: {
+    key: 'social_clip_generator',
+    featureType: 'social_clip_generator',
+    defaultMode: 'unified_brain',
+    allowedModes: ['single_model', 'consensus', 'unified_brain'],
+    minConfidenceForRecommendation: 35,
   },
   chimmy_chat: {
     key: 'chimmy_chat',
@@ -90,7 +119,7 @@ const REGISTRY: Record<OrchestrationToolType, ToolRegistryEntry> = {
  * Resolve featureType to tool registry entry. Accepts featureType string from envelope.
  */
 export function getToolEntry(featureType: string): ToolRegistryEntry | null {
-  const key = featureType as OrchestrationToolType
+  const key = normalizeOrchestrationToolKey(featureType) as OrchestrationToolType
   if (REGISTRY[key]) return REGISTRY[key]
   return null
 }

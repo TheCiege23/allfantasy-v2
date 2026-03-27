@@ -317,6 +317,7 @@ export default function ChimmyChatShell({
           dataSources: result.meta?.dataSources,
           quantData: result.meta?.quantData,
           trendData: result.meta?.trendData,
+          responseStructure: result.meta?.responseStructure,
         },
       }
 
@@ -373,6 +374,7 @@ export default function ChimmyChatShell({
     if (!lastUserMsg) return
     if (sendingRef.current || retryLoading) return
 
+    sendingRef.current = true
     setRetryLoading(true)
     setIsTyping(true)
     setLastMeta(null)
@@ -392,6 +394,7 @@ export default function ChimmyChatShell({
     } finally {
       setIsTyping(false)
       setRetryLoading(false)
+      sendingRef.current = false
     }
   }, [messages, runSend, retryLoading])
 
@@ -410,8 +413,22 @@ export default function ChimmyChatShell({
 
   const handleCopyResponse = useCallback(() => {
     const last = [...messages].reverse().find((m) => m.role === 'assistant')
-    if (last?.content && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(last.content)
+    const structure = last?.meta?.responseStructure
+    const structuredText = structure
+      ? [
+          `Short Answer: ${structure.shortAnswer}`,
+          structure.whatDataSays ? `What the Data Says: ${structure.whatDataSays}` : '',
+          structure.whatItMeans ? `What It Means: ${structure.whatItMeans}` : '',
+          structure.recommendedAction ? `Recommended Action: ${structure.recommendedAction}` : '',
+          structure.caveats && structure.caveats.length > 0 ? `Caveats: ${structure.caveats.join(' | ')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : ''
+    const textToCopy = structuredText || last?.content
+
+    if (textToCopy && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy)
       toast.success('Copied to clipboard.')
       setInlineError(null)
       return

@@ -82,3 +82,23 @@ Chromium list only:
 ```bash
 npm run test:e2e:click-audits:list:chromium
 ```
+
+## Core Non-DB Click Audit Batch
+
+Run the stabilized core non-DB click-audit matrix (Prompt 123/124/125/126/127 surfaces plus Prompt 128 media workflow audit) as one fixed batch command:
+
+```bash
+npm run test:e2e:click-audits:core
+```
+
+Chromium-only:
+
+```bash
+npm run test:e2e:click-audits:core:chromium
+```
+
+List included specs:
+
+```bash
+npm run test:e2e:click-audits:core:list
+```

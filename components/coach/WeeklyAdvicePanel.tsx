@@ -1,20 +1,35 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GraduationCap } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { CoachProviderInsights } from '@/lib/fantasy-coach/types';
 
 export interface WeeklyAdvicePanelProps {
   weeklyAdvice: string | null;
   strategyInsight: string | null;
   rosterMathSummary: string | null;
+  providerInsights?: CoachProviderInsights | null;
+  teamSummary?: string | null;
 }
 
 export function WeeklyAdvicePanel({
   weeklyAdvice,
   strategyInsight,
   rosterMathSummary,
+  providerInsights,
+  teamSummary,
 }: WeeklyAdvicePanelProps) {
-  const hasAny = weeklyAdvice || strategyInsight || rosterMathSummary;
+  const resolvedInsights = providerInsights ?? {
+    deepseek: rosterMathSummary ?? '',
+    grok: strategyInsight ?? '',
+    openai: weeklyAdvice ?? '',
+  };
+
+  const hasAny =
+    teamSummary ||
+    resolvedInsights.deepseek ||
+    resolvedInsights.grok ||
+    resolvedInsights.openai;
 
   if (!hasAny) return null;
 
@@ -27,24 +42,37 @@ export function WeeklyAdvicePanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {weeklyAdvice && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-amber-400/90">This week</p>
-            <p className="mt-1 text-white/90">{weeklyAdvice}</p>
+        {teamSummary && (
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-amber-300/90">
+              Team pulse
+            </p>
+            <p className="mt-2 text-sm text-white/85">{teamSummary}</p>
           </div>
         )}
-        {strategyInsight && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-amber-400/90">Strategy</p>
-            <p className="mt-1 text-white/80">{strategyInsight}</p>
+
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-cyan-200">
+              DeepSeek roster math
+            </p>
+            <p className="mt-2 text-sm text-cyan-50/90">{resolvedInsights.deepseek}</p>
           </div>
-        )}
-        {rosterMathSummary && (
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-amber-400/90">Roster math</p>
-            <p className="mt-1 text-white/80">{rosterMathSummary}</p>
+
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-amber-200">
+              Grok strategy framing
+            </p>
+            <p className="mt-2 text-sm text-amber-50/90">{resolvedInsights.grok}</p>
           </div>
-        )}
+
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-emerald-200">
+              OpenAI coach recommendation
+            </p>
+            <p className="mt-2 text-sm text-emerald-50/90">{resolvedInsights.openai}</p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

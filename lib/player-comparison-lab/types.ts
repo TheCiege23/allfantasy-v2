@@ -26,12 +26,41 @@ export interface ProjectionRow {
   volatility?: number | null;
 }
 
+export interface DeterministicSourceFlags {
+  fantasyCalc: boolean;
+  sleeper: boolean;
+  espnInjuryFeed: boolean;
+  internalAdp: boolean;
+  internalProjections: boolean;
+  leagueScoringSettings: boolean;
+}
+
+export interface InjurySignal {
+  status: string | null;
+  source: 'espn' | 'none';
+  riskScore: number | null;
+  note: string | null;
+}
+
+export interface LeagueScoringSettings {
+  ppr?: number | null;
+  tePremium?: number | null;
+  superflex?: boolean | null;
+  passTdPoints?: number | null;
+}
+
 export interface ResolvedPlayerStats {
   name: string;
   position: string | null;
   team: string | null;
   historical: HistoricalSeasonRow[];
   projection: ProjectionRow | null;
+  internalAdp: number | null;
+  sleeperAdp: number | null;
+  internalProjectionPoints: number | null;
+  injury: InjurySignal;
+  scheduleDifficultyScore: number | null;
+  sourceFlags: DeterministicSourceFlags;
 }
 
 export type ChartMode = 'historical' | 'projections' | 'both';
@@ -98,12 +127,26 @@ export interface PlayerComparisonScores {
 export interface MultiPlayerComparisonResult {
   sport: string;
   scoringFormat: ScoringFormat;
+  leagueScoringSettings?: LeagueScoringSettings | null;
   players: ResolvedPlayerStats[];
   /** Rows = dimensions, columns = players. */
   matrix: ComparisonMatrixRow[];
   categoryWinners: CategoryWinnerHighlight[];
   playerScores: PlayerComparisonScores[];
   summaryLines: string[];
+  sourceCoverage: DeterministicSourceFlags;
   /** For charts: same shape as before but with N players. */
   chartSeries?: ComparisonChartSeries[];
+}
+
+export interface ComparisonAIInsight {
+  finalRecommendation: string;
+  deepseekAnalysis: string | null;
+  grokNarrative: string | null;
+  openaiSummary: string | null;
+  providerStatus: {
+    deepseek: boolean;
+    grok: boolean;
+    openai: boolean;
+  };
 }

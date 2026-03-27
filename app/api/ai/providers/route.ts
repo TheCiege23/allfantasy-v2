@@ -4,18 +4,21 @@
  */
 
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { checkProviderAvailability } from '@/lib/ai-orchestration'
+import { checkProviderAvailability, checkProviderHealth } from '@/lib/ai-orchestration'
 import { isOpenClawConfigured, isOpenClawGrowthConfigured } from '@/lib/openclaw/config'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const includeHealth = req.nextUrl.searchParams.get('includeHealth') === '1'
   const availability = checkProviderAvailability()
+  const health = includeHealth ? await checkProviderHealth() : null
   const openclaw = isOpenClawConfigured()
   const openclawGrowth = isOpenClawGrowthConfigured()
   const providers = [
@@ -31,6 +34,11 @@ export async function GET() {
       ...availability,
       openclaw,
       openclawGrowth,
+    },
+    health,
+    endpoints: {
+      status: '/api/ai/providers/status',
+      health: '/api/ai/providers/health',
     },
   })
 }

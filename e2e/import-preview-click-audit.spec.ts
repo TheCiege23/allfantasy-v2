@@ -2,6 +2,30 @@ import { expect, test, type Page } from '@playwright/test'
 
 test.describe.configure({ timeout: 180_000 })
 
+async function gotoWithRetry(page: Page, url: string): Promise<void> {
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded' })
+      return
+    } catch (error) {
+      const message = String((error as Error)?.message ?? error)
+      const canRetry =
+        attempt < 6 &&
+        (
+          message.includes('net::ERR_ABORTED') ||
+          message.includes('NS_BINDING_ABORTED') ||
+          message.includes('net::ERR_CONNECTION_RESET') ||
+          message.includes('NS_ERROR_CONNECTION_REFUSED') ||
+          message.includes('Failure when receiving data from the peer') ||
+          message.includes('Could not connect to server') ||
+          message.includes('interrupted by another navigation')
+        )
+      if (!canRetry) throw error
+      await page.waitForTimeout(500 * attempt)
+    }
+  }
+}
+
 function buildPreviewPayload(provider: string) {
   return {
     dataQuality: {
@@ -117,9 +141,84 @@ function buildPreviewPayload(provider: string) {
 }
 
 async function switchToImportMode(page: Page) {
-  await page.getByRole('combobox', { name: /league creation mode/i }).click()
-  await page.getByRole('option', { name: /import existing league/i }).click()
-  await expect(page.locator('#import-source-input')).toBeVisible()
+  const sourceInput = page.locator('#import-source-input')
+  const creationModeSelect = page.getByTestId('league-creation-mode-select').first()
+  const importCardButton = page.getByRole('button', { name: /Import Existing League/i }).first()
+
+  const importModeSelected = async () => {
+    const text = ((await creationModeSelect.textContent().catch(() => '')) ?? '').toLowerCase()
+    return text.includes('import existing league')
+  }
+
+  const forceImportModeViaDom = async () => {
+    await page
+      .evaluate(() => {
+        const importCard = Array.from(document.querySelectorAll('button')).find((button) => {
+          const text = button.textContent?.toLowerCase() ?? ''
+          return text.includes('import existing league') && text.includes('sleeper')
+        })
+        if (importCard instanceof HTMLElement) {
+          importCard.click()
+        }
+
+        const importOption = Array.from(document.querySelectorAll('[role="option"]')).find((option) => {
+          const text = option.textContent?.toLowerCase() ?? ''
+          return text.includes('import existing league')
+        })
+        if (importOption instanceof HTMLElement) {
+          importOption.click()
+        }
+      })
+      .catch(() => null)
+  }
+
+  const selectImportViaDropdown = async () => {
+    if (!(await creationModeSelect.isVisible().catch(() => false))) return
+    await creationModeSelect.click({ force: true, timeout: 1_500 }).catch(() => null)
+    const importOption = page.getByRole('option', { name: /import existing league/i }).first()
+    if (await importOption.isVisible().catch(() => false)) {
+      await importOption.click({ force: true, timeout: 1_500 }).catch(() => null)
+    }
+    await page.keyboard.press('Escape').catch(() => null)
+  }
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (await sourceInput.isVisible().catch(() => false)) return
+
+    if (await importCardButton.isVisible().catch(() => false)) {
+      await importCardButton.click({ force: true, timeout: 1_500 }).catch(() => null)
+      await importCardButton.evaluate((button) => (button as HTMLButtonElement).click()).catch(() => null)
+    }
+
+    await forceImportModeViaDom()
+    if (!(await importModeSelected())) {
+      await selectImportViaDropdown()
+    }
+
+    await expect
+      .poll(async () => sourceInput.isVisible().catch(() => false), {
+        timeout: 2_500,
+        intervals: [150, 250, 400, 600, 800],
+      })
+      .toBe(true)
+      .catch(() => null)
+  }
+
+  for (let refreshAttempt = 0; refreshAttempt < 1; refreshAttempt += 1) {
+    if (await sourceInput.isVisible().catch(() => false)) return
+    await gotoWithRetry(page, '/create-league?e2eAuth=1')
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (await sourceInput.isVisible().catch(() => false)) return
+      if (await importCardButton.isVisible().catch(() => false)) {
+        await importCardButton.click({ force: true, timeout: 1_500 }).catch(() => null)
+      }
+      await selectImportViaDropdown()
+      await forceImportModeViaDom()
+      await page.waitForTimeout(200)
+    }
+  }
+
+  await expect(sourceInput).toBeVisible({ timeout: 10_000 })
 }
 
 test.describe('@import import preview click audit', () => {
@@ -127,6 +226,84 @@ test.describe('@import import preview click audit', () => {
     const previewRequests: Array<{ provider?: string; sourceId?: string }> = []
     const sleeperCreateRequests: Array<Record<string, unknown>> = []
     const commitRequests: Array<Record<string, unknown>> = []
+
+    await page.route('**/api/sport-defaults**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          sport: 'NFL',
+          metadata: {
+            display_name: 'National Football League',
+            short_name: 'NFL',
+            icon: 'football',
+            logo_strategy: 'team_logo',
+          },
+          league: {
+            default_league_name_pattern: 'NFL League',
+            default_team_count: 12,
+            default_playoff_team_count: 6,
+            default_regular_season_length: 14,
+            default_matchup_unit: 'week',
+            default_trade_deadline_logic: 'week_11',
+          },
+          roster: {
+            starter_slots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DST: 1, K: 1 },
+            bench_slots: 8,
+            IR_slots: 2,
+            flex_definitions: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
+          },
+          scoring: { scoring_template_id: 'nfl-ppr', scoring_format: 'PPR', category_type: 'points' },
+          draft: {
+            draft_type: 'snake',
+            rounds_default: 16,
+            timer_seconds_default: 60,
+            pick_order_rules: 'snake',
+          },
+          waiver: {
+            waiver_type: 'faab',
+            processing_days: [2, 4],
+            FAAB_budget_default: 100,
+            processing_time_utc: '08:00',
+            faab_enabled: true,
+            claim_priority_behavior: 'faab_highest',
+            continuous_waivers_behavior: false,
+            free_agent_unlock_behavior: 'after_waiver_run',
+            game_lock_behavior: 'game_time',
+            max_claims_per_period: null,
+          },
+          rosterTemplate: {
+            templateId: 'nfl-default',
+            name: 'NFL Default',
+            formatType: 'NFL',
+            slots: [
+              {
+                slotName: 'QB',
+                allowedPositions: ['QB'],
+                starterCount: 1,
+                benchCount: 0,
+                isFlexibleSlot: false,
+                slotOrder: 1,
+              },
+            ],
+          },
+          scoringTemplate: {
+            templateId: 'nfl-ppr',
+            name: 'NFL PPR',
+            formatType: 'PPR',
+            rules: [],
+          },
+          defaultLeagueSettings: {
+            playoff_team_count: 6,
+            playoff_weeks: 3,
+            regular_season_length: 14,
+            schedule_unit: 'week',
+            matchup_frequency: 'weekly',
+            trade_review_mode: 'commissioner',
+          },
+        }),
+      })
+    })
 
     await page.route('**/api/leagues/templates', async (route) => {
       await route.fulfill({
@@ -208,7 +385,7 @@ test.describe('@import import preview click audit', () => {
       })
     })
 
-    await page.goto('/create-league?e2eAuth=1')
+    await gotoWithRetry(page, '/create-league?e2eAuth=1')
     await switchToImportMode(page)
 
     // Preview error path.
@@ -241,7 +418,7 @@ test.describe('@import import preview click audit', () => {
     await expect(page).toHaveURL(/\/app\/league\/imported-sleeper-league$/)
 
     // Non-sleeper create path should use /api/leagues/import/commit.
-    await page.goto('/create-league?e2eAuth=1')
+    await gotoWithRetry(page, '/create-league?e2eAuth=1')
     await switchToImportMode(page)
     await page.getByRole('combobox', { name: /import provider/i }).click()
     await page.getByRole('option', { name: /^ESPN$/i }).click()

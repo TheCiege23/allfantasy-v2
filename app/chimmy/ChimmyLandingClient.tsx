@@ -104,6 +104,13 @@ export default function ChimmyLandingClient() {
                 {t('home.chimmy.cta')}
               </Link>
               <Link
+                href="/chimmy/chat"
+                className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              >
+                Open Chimmy Chat Route
+              </Link>
+              <Link
                 href="/ai"
                 className="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium"
                 style={{ borderColor: 'var(--border)', color: 'var(--text)' }}

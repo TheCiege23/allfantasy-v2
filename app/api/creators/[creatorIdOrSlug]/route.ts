@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getCreatorBySlugOrId } from '@/lib/creator-system'
+import { getCreatorBySlugOrId, logAnalytics, upsertCreatorProfile } from '@/lib/creator-system'
+import type { UpsertCreatorProfileInput } from '@/lib/creator-system/types'
 import { prisma } from '@/lib/prisma'
+import { isAdminEmailAllowed } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
+
+function getBaseUrl(req: Request): string {
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000'
+  const proto = req.headers.get('x-forwarded-proto') || 'http'
+  return `${proto}://${host}`
+}
 
 export async function GET(
   req: NextRequest,
@@ -12,21 +20,25 @@ export async function GET(
 ) {
   try {
     const { creatorIdOrSlug } = await params
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     const viewerUserId = session?.user?.id ?? null
+    const viewerEmail = session?.user?.email ?? null
 
-    const creator = await getCreatorBySlugOrId(creatorIdOrSlug, viewerUserId)
+    const creator = await getCreatorBySlugOrId(
+      creatorIdOrSlug,
+      viewerUserId,
+      viewerEmail,
+      getBaseUrl(req)
+    )
     if (!creator) return NextResponse.json({ error: 'Creator not found' }, { status: 404 })
 
-    if (viewerUserId) {
-      const { logAnalytics } = await import('@/lib/creator-system')
-      await logAnalytics(creator.id, 'profile_view', null, { source: 'profile_page' })
-    }
-
+    await logAnalytics(creator.id, 'profile_view', null, { source: 'profile_page' })
     const isOwner = !!viewerUserId && creator.userId === viewerUserId
     return NextResponse.json({ ...creator, isOwner })
-  } catch (e) {
-    console.error('[api/creators/[creatorIdOrSlug]]', e)
+  } catch (error) {
+    console.error('[api/creators/[creatorIdOrSlug]]', error)
     return NextResponse.json({ error: 'Failed to load creator' }, { status: 500 })
   }
 }
@@ -36,43 +48,31 @@ export async function PATCH(
   { params }: { params: Promise<{ creatorIdOrSlug: string }> }
 ) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     const userId = session?.user?.id
+    const viewerEmail = session?.user?.email ?? null
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { creatorIdOrSlug } = await params
-    const profile = await prisma.creatorProfile.findFirst({
+    const creator = await prisma.creatorProfile.findFirst({
       where: {
         OR: [{ id: creatorIdOrSlug }, { slug: creatorIdOrSlug }],
-        userId,
       },
+      select: { userId: true },
     })
-    if (!profile) return NextResponse.json({ error: 'Creator not found or access denied' }, { status: 404 })
-
-    const body = await req.json().catch(() => ({}))
-    const allowed = [
-      'displayName',
-      'bio',
-      'avatarUrl',
-      'bannerUrl',
-      'websiteUrl',
-      'socialHandles',
-      'visibility',
-      'branding',
-    ] as const
-    const data: Record<string, unknown> = {}
-    for (const key of allowed) {
-      if (body[key] !== undefined) data[key] = body[key]
+    if (!creator || (creator.userId !== userId && !isAdminEmailAllowed(viewerEmail))) {
+      return NextResponse.json({ error: 'Creator not found or access denied' }, { status: 404 })
     }
-    if (Object.keys(data).length === 0) return NextResponse.json(profile)
 
-    const updated = await prisma.creatorProfile.update({
-      where: { id: profile.id },
-      data: data as object,
-    })
+    const body = (await req.json().catch(() => ({}))) as UpsertCreatorProfileInput
+    const updated = await upsertCreatorProfile(creator.userId, viewerEmail, body)
+    if (!updated) return NextResponse.json({ error: 'Failed to update creator' }, { status: 400 })
+
     return NextResponse.json(updated)
-  } catch (e) {
-    console.error('[api/creators/[creatorIdOrSlug]] PATCH', e)
+  } catch (error) {
+    console.error('[api/creators/[creatorIdOrSlug]] PATCH', error)
     return NextResponse.json({ error: 'Failed to update creator' }, { status: 500 })
   }
 }

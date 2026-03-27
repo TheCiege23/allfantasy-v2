@@ -36,6 +36,14 @@ export type AIChatContext = {
 
 export type ChimmyProviderStatus = Record<string, string> | undefined
 
+export type ChimmyResponseStructure = {
+  shortAnswer: string
+  whatDataSays?: string
+  whatItMeans?: string
+  recommendedAction?: string
+  caveats?: string[]
+}
+
 export type ChimmyMessageMeta = {
   confidencePct?: number
   providerStatus?: ChimmyProviderStatus
@@ -43,6 +51,7 @@ export type ChimmyMessageMeta = {
   dataSources?: string[]
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
+  responseStructure?: ChimmyResponseStructure
 }
 
 export type ChimmyThreadMessage = {

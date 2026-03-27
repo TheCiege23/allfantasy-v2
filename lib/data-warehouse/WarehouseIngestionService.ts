@@ -1,25 +1,38 @@
 /**
- * WarehouseIngestionService — writes fact records into the data warehouse.
- * Used by pipelines and HistoricalFactGenerator.
+ * WarehouseIngestionService writes fact records into the fantasy data warehouse.
+ * It can run against the root Prisma client or a transaction-scoped client.
  */
 
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type {
-  PlayerGameFactInput,
-  TeamGameFactInput,
-  RosterSnapshotInput,
-  MatchupFactInput,
   DraftFactInput,
-  TransactionFactInput,
+  MatchupFactInput,
+  PlayerGameFactInput,
+  RosterSnapshotInput,
   SeasonStandingFactInput,
+  TeamGameFactInput,
+  TransactionFactInput,
 } from './types'
 import { normalizeSportForWarehouse } from './types'
 
+export type WarehouseIngestionWriteClient = Pick<
+  typeof prisma,
+  | 'playerGameFact'
+  | 'teamGameFact'
+  | 'rosterSnapshot'
+  | 'matchupFact'
+  | 'draftFact'
+  | 'transactionFact'
+  | 'seasonStandingFact'
+>
+
 export class WarehouseIngestionService {
+  constructor(private readonly db: WarehouseIngestionWriteClient = prisma) {}
+
   async ingestPlayerGameFact(input: PlayerGameFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.playerGameFact.create({
+    const row = await this.db.playerGameFact.create({
       data: {
         playerId: input.playerId,
         sport,
@@ -39,7 +52,7 @@ export class WarehouseIngestionService {
 
   async ingestTeamGameFact(input: TeamGameFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.teamGameFact.create({
+    const row = await this.db.teamGameFact.create({
       data: {
         teamId: input.teamId,
         sport,
@@ -56,7 +69,7 @@ export class WarehouseIngestionService {
 
   async ingestRosterSnapshot(input: RosterSnapshotInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.rosterSnapshot.create({
+    const row = await this.db.rosterSnapshot.create({
       data: {
         leagueId: input.leagueId,
         teamId: input.teamId,
@@ -73,7 +86,7 @@ export class WarehouseIngestionService {
 
   async ingestMatchupFact(input: MatchupFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.matchupFact.create({
+    const row = await this.db.matchupFact.create({
       data: {
         leagueId: input.leagueId,
         sport,
@@ -91,7 +104,7 @@ export class WarehouseIngestionService {
 
   async ingestDraftFact(input: DraftFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.draftFact.create({
+    const row = await this.db.draftFact.create({
       data: {
         leagueId: input.leagueId,
         sport,
@@ -107,7 +120,7 @@ export class WarehouseIngestionService {
 
   async ingestTransactionFact(input: TransactionFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.transactionFact.create({
+    const row = await this.db.transactionFact.create({
       data: {
         leagueId: input.leagueId,
         sport,
@@ -125,7 +138,7 @@ export class WarehouseIngestionService {
 
   async ingestSeasonStandingFact(input: SeasonStandingFactInput): Promise<string> {
     const sport = normalizeSportForWarehouse(input.sport)
-    const row = await prisma.seasonStandingFact.upsert({
+    const row = await this.db.seasonStandingFact.upsert({
       where: {
         uniq_dw_standing_league_season_team: {
           leagueId: input.leagueId,

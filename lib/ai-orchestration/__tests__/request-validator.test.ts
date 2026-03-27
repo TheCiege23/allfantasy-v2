@@ -31,6 +31,24 @@ describe('validateAIRequest', () => {
     expect(r.envelope?.featureType).toBe('trade_analyzer')
   })
 
+  it('normalizes hyphenated tool keys', () => {
+    const r = validateAIRequest({
+      envelope: { featureType: 'trade-analyzer', sport: 'nba' },
+    })
+    expect(r.valid).toBe(true)
+    expect(r.envelope?.sport).toBe('NBA')
+    expect(r.envelope?.featureType).toBe('trade_analyzer')
+  })
+
+  it('normalizes waiver alias to waiver_ai', () => {
+    const r = validateAIRequest({
+      envelope: { featureType: 'waiver', sport: 'mlb' },
+    })
+    expect(r.valid).toBe(true)
+    expect(r.envelope?.featureType).toBe('waiver_ai')
+    expect(r.envelope?.sport).toBe('MLB')
+  })
+
   it('rejects invalid mode', () => {
     const r = validateAIRequest({
       envelope: { featureType: 'trade_analyzer', sport: 'NFL' },

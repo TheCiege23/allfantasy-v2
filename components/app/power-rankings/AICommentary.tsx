@@ -18,6 +18,11 @@ export interface AICommentaryProps {
     formulaExplanation: string | null;
     narrativeExplanation: string | null;
     rankingSummary: string | null;
+    providerStatus?: {
+      deepseek: boolean;
+      grok: boolean;
+      openai: boolean;
+    };
   } | null;
 }
 
@@ -62,7 +67,7 @@ export function AICommentary({
       </CardHeader>
       <CardContent className="space-y-4">
         {!commentary && !loading && (
-          <Button onClick={fetchCommentary} className="gap-2" size="sm">
+          <Button onClick={fetchCommentary} className="gap-2" size="sm" data-testid="power-rankings-generate-commentary">
             Generate commentary
           </Button>
         )}
@@ -84,6 +89,11 @@ export function AICommentary({
             {commentary.formulaExplanation && (
               <p><strong>Formula:</strong> {commentary.formulaExplanation}</p>
             )}
+            {commentary.providerStatus && (
+              <p className="text-xs text-white/60" data-testid="power-rankings-provider-status">
+                Providers - DeepSeek: {commentary.providerStatus.deepseek ? 'on' : 'off'}, Grok: {commentary.providerStatus.grok ? 'on' : 'off'}, OpenAI: {commentary.providerStatus.openai ? 'on' : 'off'}
+              </p>
+            )}
           </div>
         )}
         <Button
@@ -92,7 +102,11 @@ export function AICommentary({
           className="gap-2 border-white/20"
           asChild
         >
-          <a href={chimmyHref} data-audit="chimmy-explanation-opens">
+          <a
+            href={chimmyHref}
+            data-audit="chimmy-explanation-opens"
+            data-testid="power-rankings-chimmy-explanation-link"
+          >
             <MessageCircle className="h-4 w-4" />
             Chimmy explanation
           </a>

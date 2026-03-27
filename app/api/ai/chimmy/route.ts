@@ -45,7 +45,15 @@ export async function POST(req: Request) {
     userMessage: (typeof body.userMessage === 'string' ? body.userMessage : typeof body.message === 'string' ? body.message : '') as string,
     userId: session.user.id,
   }
-  const validation = validateToolRequest(contract.tool, (contract as { deterministicContext?: Record<string, unknown> }).deterministicContext ?? undefined)
+  const validation = validateToolRequest(
+    contract.tool,
+    (contract as { deterministicContext?: Record<string, unknown> }).deterministicContext ?? undefined,
+    {
+      leagueSettings:
+        (contract as { leagueSettings?: Record<string, unknown> | null }).leagueSettings ?? null,
+      sport: (contract as { sport?: string | null }).sport ?? null,
+    }
+  )
   if (!validation.valid) {
     return NextResponse.json(
       {

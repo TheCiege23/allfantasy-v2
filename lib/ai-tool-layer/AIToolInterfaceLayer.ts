@@ -58,9 +58,13 @@ const EVIDENCE_GETTERS = {
 } as const
 
 const ENVELOPE_BUILDER_ALIASES: Record<string, keyof ToolContextMap> = {
+  "trade-analyzer": "trade_analyzer",
   trade_analyzer: "trade_analyzer",
+  waiver: "waiver_ai",
+  "waiver-wire": "waiver_ai",
   waiver_ai: "waiver_ai",
   rankings: "rankings",
+  "draft-helper": "draft_helper",
   draft_helper: "draft_helper",
   psychological: "psychological",
   psychology: "psychological",
@@ -72,6 +76,7 @@ const ENVELOPE_BUILDER_ALIASES: Record<string, keyof ToolContextMap> = {
   rivalries: "rivalries",
   rivalry: "rivalries",
   drama: "rivalries",
+  story: "story_creator",
   story_creator: "story_creator",
 }
 
@@ -81,12 +86,14 @@ const TOOL_KEY_ALIASES: Record<string, ToolKey> = {
 
 export function resolveEnvelopeBuilderToolKey(toolKey: string): keyof ToolContextMap | null {
   const normalized = (toolKey ?? "").trim().toLowerCase()
-  return ENVELOPE_BUILDER_ALIASES[normalized] ?? null
+  const underscored = normalized.replace(/[\s-]+/g, "_")
+  return ENVELOPE_BUILDER_ALIASES[normalized] ?? ENVELOPE_BUILDER_ALIASES[underscored] ?? null
 }
 
 export function resolveToolKeyAlias(toolKey: string): ToolKey | null {
   const normalized = (toolKey ?? "").trim().toLowerCase()
-  return TOOL_KEY_ALIASES[normalized] ?? null
+  const underscored = normalized.replace(/[\s-]+/g, "_")
+  return TOOL_KEY_ALIASES[normalized] ?? TOOL_KEY_ALIASES[underscored] ?? null
 }
 
 /**

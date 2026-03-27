@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { MediaType } from '@/lib/media-generation/types'
 import type { MediaGenerateResponse } from '@/lib/media-generation/types'
+import type { MediaWorkflowAction } from '@/lib/media-generation/types'
 import MediaPreviewPlayer from './MediaPreviewPlayer'
 import MediaActionBar from './MediaActionBar'
 import PublishConfirmationModal from './PublishConfirmationModal'
@@ -38,42 +39,85 @@ export default function MediaGenerationPanel({
   const [result, setResult] = useState<MediaGenerateResponse | null>(null)
   const [generating, setGenerating] = useState(false)
   const [retryLoading, setRetryLoading] = useState(false)
+  const [approveLoading, setApproveLoading] = useState(false)
+  const [approved, setApproved] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const [publishLoading, setPublishLoading] = useState(false)
+  const [publishStatusLabel, setPublishStatusLabel] = useState<string | null>(null)
+
+  const runWorkflowAction = useCallback(
+    async (
+      action: MediaWorkflowAction,
+      payload?: Record<string, unknown>,
+      options?: { includeInitialPayload?: boolean }
+    ) => {
+      const body =
+        options?.includeInitialPayload === false
+          ? { action, ...(payload ?? {}) }
+          : { ...initialPayload, action, ...(payload ?? {}) }
+
+      const res = await fetch(MEDIA_ENDPOINTS[type], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = (await res.json().catch(() => ({}))) as MediaGenerateResponse & { error?: string }
+      if (!res.ok) {
+        throw new Error(data.error ?? 'Request failed')
+      }
+      return data
+    },
+    [type, initialPayload]
+  )
 
   const generate = useCallback(
     async (isRetry = false) => {
       const setLoad = isRetry ? setRetryLoading : setGenerating
       setLoad(true)
       setResult(null)
+      setApproved(false)
+      setPublishStatusLabel(null)
       try {
-        const res = await fetch(MEDIA_ENDPOINTS[type], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(initialPayload),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          toast.error(data.error ?? 'Generation failed')
-          setLoad(false)
-          return
-        }
+        const data = await runWorkflowAction('generate')
         setResult(data)
+        setApproved(Boolean(data.approved))
         if (data.status === 'completed' || data.status === 'draft') {
           toast.success('Generated.')
         }
-      } catch {
-        toast.error('Request failed')
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Request failed')
       } finally {
         setLoad(false)
       }
     },
-    [type, initialPayload]
+    [runWorkflowAction]
   )
 
   const handleRetry = useCallback(() => {
     generate(true)
   }, [generate])
+
+  const handleApprove = useCallback(async () => {
+    if (!result?.id) {
+      toast.error('Nothing to approve yet.')
+      return
+    }
+    setApproveLoading(true)
+    try {
+      const data = await runWorkflowAction(
+        'approve',
+        { id: result.id },
+        { includeInitialPayload: false }
+      )
+      setResult((current) => (current ? { ...current, ...data } : data))
+      setApproved(Boolean(data.approved) || true)
+      toast.success('Approved for publish.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Approve failed')
+    } finally {
+      setApproveLoading(false)
+    }
+  }, [result?.id, runWorkflowAction])
 
   const handleDownload = useCallback(() => {
     const url = result?.playbackUrl ?? result?.previewUrl
@@ -90,16 +134,21 @@ export default function MediaGenerationPanel({
   }, [result])
 
   const handleShare = useCallback(() => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const shareUrl =
-      type === 'video'
-        ? `${typeof window !== 'undefined' ? window.location.origin : ''}/fantasy-media/${result?.id}`
-        : type === 'podcast'
-          ? `${typeof window !== 'undefined' ? window.location.origin : ''}/podcast/${result?.id}`
-          : type === 'social'
-            ? `${typeof window !== 'undefined' ? window.location.origin : ''}/social-clips/${result?.id}`
-            : result?.articleSlug
-              ? `${typeof window !== 'undefined' ? window.location.origin : ''}/blog/${result.articleSlug}`
-              : ''
+      result?.shareUrl && result.shareUrl.startsWith('http')
+        ? result.shareUrl
+        : result?.shareUrl
+          ? `${origin}${result.shareUrl.startsWith('/') ? result.shareUrl : `/${result.shareUrl}`}`
+          : type === 'video'
+            ? `${origin}/fantasy-media/${result?.id}`
+            : type === 'podcast'
+              ? `${origin}/podcast/${result?.id}`
+              : type === 'social'
+                ? `${origin}/social-clips/${result?.id}`
+                : result?.articleSlug
+                  ? `${origin}/blog/${result.articleSlug}`
+                  : ''
     if (shareUrl && typeof navigator !== 'undefined') {
       if (navigator.share) {
         navigator.share({ title: result?.title ?? 'Content', url: shareUrl }).catch(() => {
@@ -114,40 +163,43 @@ export default function MediaGenerationPanel({
   }, [type, result])
 
   const handlePublishClick = useCallback(() => {
+    if (!approved) {
+      toast.info('Approve content before publishing.')
+      return
+    }
     setPublishOpen(true)
-  }, [])
+  }, [approved])
 
   const handlePublishConfirm = useCallback(async () => {
+    if (!result?.id) {
+      toast.error('Nothing to publish yet.')
+      return
+    }
     setPublishLoading(true)
     try {
-      if (type === 'social' && result?.id) {
-        const res = await fetch(`/api/social-clips/${result.id}/publish`, { method: 'POST' })
-        if (res.ok) {
-          toast.success('Published.')
-          setPublishOpen(false)
-          onPublished?.()
-        } else {
-          toast.error('Publish failed')
-        }
-      } else if (type === 'blog' && result?.id) {
-        const res = await fetch(`/api/blog/${result.id}/publish`, { method: 'POST' })
-        if (res.ok) {
-          toast.success('Published.')
-          setPublishOpen(false)
-          onPublished?.()
-        } else {
-          toast.error('Publish failed')
-        }
+      const data = await runWorkflowAction(
+        'publish',
+        { id: result.id, platform: 'x', destinationType: 'x' },
+        { includeInitialPayload: false }
+      )
+      setResult((current) => (current ? { ...current, ...data } : data))
+      const label = data.publishStatus
+        ? `${data.publishStatus}: ${data.publishMessage ?? 'Publish requested'}`
+        : data.publishMessage ?? 'Published.'
+      setPublishStatusLabel(label)
+      if (data.publishStatus && data.publishStatus !== 'success') {
+        toast.error(data.publishMessage ?? 'Publish failed')
       } else {
-        toast.info('Publish from the content page.')
-        setPublishOpen(false)
+        toast.success(data.publishMessage ?? 'Published.')
       }
-    } catch {
-      toast.error('Publish failed')
+      setPublishOpen(false)
+      onPublished?.()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Publish failed')
     } finally {
       setPublishLoading(false)
     }
-  }, [type, result?.id, onPublished])
+  }, [result?.id, runWorkflowAction, onPublished])
 
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(result?.playbackUrl ?? result?.previewUrl ?? null)
   const [status, setStatus] = useState(result?.status ?? null)
@@ -155,23 +207,31 @@ export default function MediaGenerationPanel({
   useEffect(() => {
     setPlaybackUrl(result?.playbackUrl ?? result?.previewUrl ?? null)
     setStatus(result?.status ?? null)
+    setApproved(Boolean(result?.approved))
   }, [result])
 
-  // Poll for video when status is generating (HeyGen)
+  // Poll for HeyGen media while generating.
   useEffect(() => {
-    if (type !== 'video' || !result?.id || result.status !== 'generating') return
+    if (!result?.id || result.status !== 'generating') return
+    if (type !== 'video' && type !== 'podcast') return
+
     const t = setInterval(async () => {
       try {
-        const res = await fetch(`/api/fantasy-media/episodes/${result.id}/status`)
-        const data = await res.json()
+        const data = await runWorkflowAction(
+          'preview',
+          { id: result.id },
+          { includeInitialPayload: false }
+        )
         if (data.status) setStatus(data.status)
-        if (data.playbackUrl) setPlaybackUrl(data.playbackUrl)
+        setPlaybackUrl(data.playbackUrl ?? data.previewUrl ?? null)
+        setApproved(Boolean(data.approved))
+        setResult((current) => (current ? { ...current, ...data } : data))
       } catch {
         // ignore
       }
     }, 5000)
     return () => clearInterval(t)
-  }, [type, result?.id, result?.status])
+  }, [type, result?.id, result?.status, runWorkflowAction])
 
   const displayPlaybackUrl = playbackUrl ?? result?.playbackUrl ?? result?.previewUrl ?? null
   const displayStatus = status ?? result?.status ?? null
@@ -182,6 +242,7 @@ export default function MediaGenerationPanel({
         <button
           type="button"
           onClick={() => generate(false)}
+          data-testid="media-generate-button"
           className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-200 hover:bg-cyan-500/20"
         >
           Generate {type}
@@ -189,7 +250,10 @@ export default function MediaGenerationPanel({
       )}
 
       {generating && (
-        <div className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
+        <div
+          className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200"
+          data-testid="media-generating-state"
+        >
           <Loader2 className="h-4 w-4 animate-spin" />
           Generating…
         </div>
@@ -197,19 +261,40 @@ export default function MediaGenerationPanel({
 
       {result && (
         <>
+          <div
+            className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-xs text-white/70"
+            data-testid="media-provider-status"
+          >
+            <p>
+              Provider: <span className="font-medium text-white/90">{result.provider ?? 'internal'}</span>
+            </p>
+            <p className="mt-1" data-testid="media-approval-status">
+              Approval: <span className="font-medium text-white/90">{approved ? 'approved' : 'pending'}</span>
+            </p>
+            {publishStatusLabel && (
+              <p className="mt-1 text-cyan-200" data-testid="media-publish-status-label">
+                {publishStatusLabel}
+              </p>
+            )}
+          </div>
           <MediaPreviewPlayer
             type={type}
+            provider={result.provider}
             playbackUrl={displayPlaybackUrl}
             title={result.title}
-            copy={type === 'social' ? undefined : result.title}
+            copy={result.previewText ?? result.title}
             status={displayStatus ?? undefined}
           />
           <MediaActionBar
             onRetry={handleRetry}
             retryLoading={retryLoading}
+            onApprove={handleApprove}
+            approveLoading={approveLoading}
+            approved={approved}
             onDownload={type === 'video' || type === 'podcast' ? handleDownload : undefined}
             onShare={handleShare}
             onPublish={handlePublishClick}
+            publishDisabled={!approved}
           />
         </>
       )}

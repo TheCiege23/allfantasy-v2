@@ -4,7 +4,11 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { SideBySideChart } from "@/components/player-comparison-lab/SideBySideChart"
 import { AIExplanationPanel } from "@/components/player-comparison-lab/AIExplanationPanel"
-import type { ComparisonMatrixRow, ResolvedPlayerStats } from "@/lib/player-comparison-lab/types"
+import type {
+  ComparisonAIInsight,
+  ComparisonMatrixRow,
+  ResolvedPlayerStats,
+} from "@/lib/player-comparison-lab/types"
 
 export default function PlayerComparisonLabHarnessClient() {
   const [compared, setCompared] = useState(false)
@@ -27,6 +31,19 @@ export default function PlayerComparisonLabHarnessClient() {
           team: "BUF",
           volatility: 13,
         },
+        internalAdp: 15.4,
+        sleeperAdp: 14.8,
+        internalProjectionPoints: 365,
+        injury: { status: "Active", source: "espn", riskScore: 15, note: null },
+        scheduleDifficultyScore: 49,
+        sourceFlags: {
+          fantasyCalc: true,
+          sleeper: true,
+          espnInjuryFeed: true,
+          internalAdp: true,
+          internalProjections: true,
+          leagueScoringSettings: true,
+        },
       },
       {
         name: "Jalen Hurts",
@@ -43,6 +60,19 @@ export default function PlayerComparisonLabHarnessClient() {
           position: "QB",
           team: "PHI",
           volatility: 17,
+        },
+        internalAdp: 22.1,
+        sleeperAdp: 21.7,
+        internalProjectionPoints: 344,
+        injury: { status: "Questionable", source: "espn", riskScore: 55, note: "knee" },
+        scheduleDifficultyScore: 57,
+        sourceFlags: {
+          fantasyCalc: true,
+          sleeper: true,
+          espnInjuryFeed: true,
+          internalAdp: true,
+          internalProjections: true,
+          leagueScoringSettings: true,
         },
       },
     ],
@@ -88,9 +118,17 @@ export default function PlayerComparisonLabHarnessClient() {
             <AIExplanationPanel
               playerNames={players.map((p) => p.name)}
               summaryLines={summaryLines}
-              onRetryAnalysis={async () =>
-                "Josh Allen has the stronger blend of historical production and projection value. In redraft and dynasty, Allen holds the edge due to better trend momentum and lower volatility."
-              }
+              onRetryAnalysis={async (): Promise<ComparisonAIInsight> => ({
+                finalRecommendation:
+                  "Josh Allen has the stronger blend of historical production and projection value. In redraft and dynasty, Allen holds the edge due to better trend momentum and lower volatility.",
+                deepseekAnalysis:
+                  "Allen leads core quantitative categories and shows stronger projection-relative value.",
+                grokNarrative:
+                  "Market momentum supports Allen while Hurts carries a bit more hype-adjusted risk.",
+                openaiSummary:
+                  "Choose Allen for the cleaner floor/ceiling blend unless roster build specifically needs Hurts archetype.",
+                providerStatus: { deepseek: true, grok: true, openai: true },
+              })}
             />
           </div>
         )}

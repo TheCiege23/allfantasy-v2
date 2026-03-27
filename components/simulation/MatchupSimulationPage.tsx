@@ -1,206 +1,629 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Play, RefreshCw, Loader2, Share2, Check } from 'lucide-react';
-import { MatchupShareModal } from '@/components/matchup-sharing';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Bot, Check, Loader2, Play, RefreshCw, Share2, Sparkles } from 'lucide-react'
+import { MatchupShareModal } from '@/components/matchup-sharing'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { DEFAULT_SPORT } from '@/lib/sport-scope';
+} from '@/components/ui/select'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import {
+  buildLineupForSimulationPreset,
   buildMatchupSummaryForAI,
-  buildPositionComparisonRows,
   formatScoreRangeLabel,
+  getDefaultScheduleFactorsForPreset,
   getMatchupAIChatUrl,
-  getSportOptionsForSimulation,
+  getScheduleFactorDefinitionsForSport,
   getSimulationTeamPresets,
+  getSportOptionsForSimulation,
   MATCHUP_SIMULATOR_MESSAGES,
   resolveComparisonSummary,
-} from '@/lib/matchup-simulator';
-import { WinProbabilityMeter } from './WinProbabilityMeter';
-import { SimulationChart } from './SimulationChart';
-import { UpsideDownsideCards } from './UpsideDownsideCards';
+} from '@/lib/matchup-simulator'
+import {
+  buildMatchupSlotComparisons,
+  summarizeMatchupTeamInput,
+} from '@/lib/simulation-engine/DeterministicMatchupEngine'
+import type {
+  MatchupLineupSlotInput,
+  MatchupProviderInsights,
+  MatchupScheduleFactorsInput,
+  MatchupSimulationTeamSummary,
+  MatchupSlotComparisonRow,
+} from '@/lib/simulation-engine/types'
+import { SimulationChart } from './SimulationChart'
+import { UpsideDownsideCards } from './UpsideDownsideCards'
+import { WinProbabilityMeter } from './WinProbabilityMeter'
 
-export type MatchupResult = {
-  winProbabilityA: number;
-  winProbabilityB: number;
-  marginMean: number;
-  marginStdDev: number;
-  projectedScoreA: number;
-  projectedScoreB: number;
-  scoreRangeA: [number, number];
-  scoreRangeB: [number, number];
-  upsetChance: number;
-  volatilityTag: 'low' | 'medium' | 'high';
-  iterations: number;
-  upsideScenario?: { teamA: number; teamB: number; percentile: number } | null;
-  downsideScenario?: { teamA: number; teamB: number; percentile: number } | null;
-  scoreDistributionA?: number[] | null;
-  scoreDistributionB?: number[] | null;
-};
+type MatchupResult = {
+  winProbabilityA: number
+  winProbabilityB: number
+  marginMean: number
+  marginStdDev: number
+  projectedScoreA: number
+  projectedScoreB: number
+  scoreRangeA: [number, number]
+  scoreRangeB: [number, number]
+  upsetChance: number
+  volatilityTag: 'low' | 'medium' | 'high'
+  iterations: number
+  upsideScenario?: { teamA: number; teamB: number; percentile: number } | null
+  downsideScenario?: { teamA: number; teamB: number; percentile: number } | null
+  scoreDistributionA?: number[] | null
+  scoreDistributionB?: number[] | null
+  teamSummaryA?: MatchupSimulationTeamSummary | null
+  teamSummaryB?: MatchupSimulationTeamSummary | null
+  slotComparisons?: MatchupSlotComparisonRow[] | null
+  providerInsights?: MatchupProviderInsights | null
+  deterministicSeed?: number | null
+}
 
 export interface MatchupSimulationPageProps {
-  teamAName?: string;
-  teamBName?: string;
-  leagueId?: string;
-  /** Initial lineup (projections). When these change, simulation re-runs. */
-  initialTeamA?: { mean: number; stdDev?: number };
-  initialTeamB?: { mean: number; stdDev?: number };
+  teamAName?: string
+  teamBName?: string
+  leagueId?: string
+  initialTeamA?: { mean: number; stdDev?: number }
+  initialTeamB?: { mean: number; stdDev?: number }
+}
+
+const AI_PROVIDER_LABELS: Array<{
+  id: keyof MatchupProviderInsights
+  title: string
+  subtitle: string
+  accent: string
+}> = [
+  {
+    id: 'deepseek',
+    title: 'DeepSeek Distribution Read',
+    subtitle: 'Interpret the deterministic distribution and swing lanes.',
+    accent: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100',
+  },
+  {
+    id: 'grok',
+    title: 'Grok Storyline Framing',
+    subtitle: 'Package the sim into one sharp storyline.',
+    accent: 'border-amber-500/30 bg-amber-500/10 text-amber-100',
+  },
+  {
+    id: 'openai',
+    title: 'OpenAI Matchup Explanation',
+    subtitle: 'Translate the numbers into a clear manager read.',
+    accent: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100',
+  },
+]
+
+function roundToTenth(value: number) {
+  return Math.round(value * 10) / 10
+}
+
+function cloneLineup(lineup: MatchupLineupSlotInput[]) {
+  return lineup.map((slot) => ({ ...slot }))
+}
+
+function buildPayloadSignature(payload: unknown) {
+  return JSON.stringify(payload)
+}
+
+function sanitizeNumericInput(value: string) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function updateLineupField(
+  lineup: MatchupLineupSlotInput[],
+  slotId: string,
+  field: 'playerName' | 'projection' | 'floor' | 'ceiling',
+  nextValue: string
+) {
+  return lineup.map((slot) => {
+    if (slot.slotId !== slotId) return slot
+    if (field === 'playerName') return { ...slot, playerName: nextValue }
+
+    const numericValue = Math.max(0, sanitizeNumericInput(nextValue))
+    const projection = slot.projection
+    const floor = slot.floor ?? Math.max(0, projection - 3)
+    const ceiling = slot.ceiling ?? projection + 3
+
+    if (field === 'projection') {
+      return {
+        ...slot,
+        projection: roundToTenth(numericValue),
+        floor: roundToTenth(Math.min(floor, numericValue)),
+        ceiling: roundToTenth(Math.max(ceiling, numericValue)),
+      }
+    }
+
+    if (field === 'floor') {
+      return { ...slot, floor: roundToTenth(Math.min(numericValue, projection)) }
+    }
+
+    return { ...slot, ceiling: roundToTenth(Math.max(numericValue, projection)) }
+  })
+}
+
+function TeamSummaryCards({
+  label,
+  teamSummary,
+  teamColor,
+  derivedTotalTestId,
+}: {
+  label: string
+  teamSummary: MatchupSimulationTeamSummary
+  teamColor: string
+  derivedTotalTestId: string
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+        <p className="text-[11px] uppercase tracking-wider text-white/50">Derived total</p>
+        <p className={`mt-1 text-xl font-semibold ${teamColor}`} data-testid={derivedTotalTestId}>
+          {teamSummary.adjustedMean.toFixed(1)}
+        </p>
+        <p className="text-[11px] text-white/45">{label} adjusted lineup projection</p>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+        <p className="text-[11px] uppercase tracking-wider text-white/50">Likely band</p>
+        <p className="mt-1 text-lg font-semibold text-white">
+          {formatScoreRangeLabel([teamSummary.adjustedFloor, teamSummary.adjustedCeiling])}
+        </p>
+        <p className="text-[11px] text-white/45">Slot floors and ceilings combined</p>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+        <p className="text-[11px] uppercase tracking-wider text-white/50">Schedule impact</p>
+        <p className="mt-1 text-lg font-semibold text-white">
+          {teamSummary.scheduleAdjustment >= 0 ? '+' : ''}
+          {teamSummary.scheduleAdjustment.toFixed(1)}
+        </p>
+        <p className="text-[11px] text-white/45">
+          Multiplier {teamSummary.scheduleMultiplier.toFixed(3)}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function LineupEditor({
+  teamKey,
+  title,
+  accentClass,
+  teamName,
+  onTeamNameChange,
+  presetId,
+  onPresetChange,
+  presetOptions,
+  lineup,
+  onLineupChange,
+  teamSummary,
+  scheduleFactors,
+  onScheduleFactorChange,
+  scheduleFactorDefinitions,
+}: {
+  teamKey: 'A' | 'B'
+  title: string
+  accentClass: string
+  teamName: string
+  onTeamNameChange: (value: string) => void
+  presetId: string
+  onPresetChange: (value: string) => void
+  presetOptions: Array<{ id: string; name: string }>
+  lineup: MatchupLineupSlotInput[]
+  onLineupChange: (updater: (current: MatchupLineupSlotInput[]) => MatchupLineupSlotInput[]) => void
+  teamSummary: MatchupSimulationTeamSummary
+  scheduleFactors: Required<MatchupScheduleFactorsInput>
+  onScheduleFactorChange: (factorId: keyof MatchupScheduleFactorsInput, value: number) => void
+  scheduleFactorDefinitions: ReturnType<typeof getScheduleFactorDefinitionsForSport>
+}) {
+  const teamKeyLower = teamKey.toLowerCase()
+
+  return (
+    <div className={`rounded-2xl border ${accentClass} p-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.24em] text-white/45">{title}</p>
+          <input
+            type="text"
+            value={teamName}
+            onChange={(event) => onTeamNameChange(event.target.value)}
+            data-testid={`matchup-team-${teamKeyLower}-name-input`}
+            className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-lg font-semibold text-white"
+          />
+        </div>
+        <div className="min-w-[180px]">
+          <label className="text-xs uppercase tracking-wider text-white/45">Preset lineup</label>
+          <Select value={presetId} onValueChange={onPresetChange}>
+            <SelectTrigger
+              className="mt-2 w-full border-white/15 bg-black/30 text-white"
+              data-testid={`matchup-team-${teamKeyLower}-selector`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {presetOptions.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <TeamSummaryCards
+          label={teamName}
+          teamSummary={teamSummary}
+          teamColor={teamKey === 'A' ? 'text-cyan-300' : 'text-amber-300'}
+          derivedTotalTestId={`matchup-team-${teamKeyLower}-derived-total`}
+        />
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-white/55">Schedule factors</p>
+          <p className="text-[11px] text-white/45">
+            Control venue, rest, opponent quality, and game environment.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {scheduleFactorDefinitions.map((definition) => (
+            <label key={definition.id} className="rounded-xl border border-white/10 bg-black/25 p-3">
+              <span className="block text-xs font-medium text-white/80">{definition.label}</span>
+              <span className="mt-1 block text-[11px] text-white/45">{definition.description}</span>
+              <select
+                value={String(scheduleFactors[definition.id] ?? 0)}
+                onChange={(event) => onScheduleFactorChange(definition.id, Number(event.target.value))}
+                data-testid={`matchup-team-${teamKeyLower}-schedule-${definition.id}`}
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              >
+                {definition.options.map((option) => (
+                  <option key={`${definition.id}-${option.value}`} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <div className="grid grid-cols-[58px_1.1fr_86px_86px_86px] gap-2 px-1 text-[11px] uppercase tracking-wider text-white/40">
+          <span>Slot</span>
+          <span>Player</span>
+          <span>Proj</span>
+          <span>Floor</span>
+          <span>Ceiling</span>
+        </div>
+        <div className="space-y-2">
+          {lineup.map((slot) => (
+            <div
+              key={`${teamKey}-${slot.slotId}`}
+              className="grid grid-cols-[58px_1.1fr_86px_86px_86px] gap-2 rounded-xl border border-white/10 bg-black/25 p-2"
+            >
+              <div className="flex items-center rounded-lg bg-white/5 px-2 text-xs font-semibold text-white/80">
+                {slot.slotLabel ?? slot.slotId}
+              </div>
+              <input
+                type="text"
+                value={slot.playerName ?? ''}
+                onChange={(event) =>
+                  onLineupChange((current) =>
+                    updateLineupField(current, slot.slotId, 'playerName', event.target.value)
+                  )
+                }
+                data-testid={`matchup-team-${teamKeyLower}-lineup-${slot.slotId}-player-input`}
+                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="number"
+                value={slot.projection}
+                onChange={(event) =>
+                  onLineupChange((current) =>
+                    updateLineupField(current, slot.slotId, 'projection', event.target.value)
+                  )
+                }
+                data-testid={`matchup-team-${teamKeyLower}-lineup-${slot.slotId}-projection-input`}
+                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="number"
+                value={slot.floor ?? 0}
+                onChange={(event) =>
+                  onLineupChange((current) =>
+                    updateLineupField(current, slot.slotId, 'floor', event.target.value)
+                  )
+                }
+                data-testid={`matchup-team-${teamKeyLower}-lineup-${slot.slotId}-floor-input`}
+                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+              <input
+                type="number"
+                value={slot.ceiling ?? 0}
+                onChange={(event) =>
+                  onLineupChange((current) =>
+                    updateLineupField(current, slot.slotId, 'ceiling', event.target.value)
+                  )
+                }
+                data-testid={`matchup-team-${teamKeyLower}-lineup-${slot.slotId}-ceiling-input`}
+                className="rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function MatchupSimulationPage({
   teamAName: initialTeamAName = 'Team A',
   teamBName: initialTeamBName = 'Team B',
   leagueId,
-  initialTeamA,
-  initialTeamB,
 }: MatchupSimulationPageProps) {
-  const [sport, setSport] = useState(DEFAULT_SPORT);
-  const [simulatorOpen, setSimulatorOpen] = useState(false);
-  const sportOptions = useMemo(() => getSportOptionsForSimulation(), []);
-  const sportPresets = useMemo(() => getSimulationTeamPresets(sport), [sport]);
-  const defaultPresetA = sportPresets[0];
-  const defaultPresetB = sportPresets[1] ?? sportPresets[0];
-  const [selectedPresetA, setSelectedPresetA] = useState<string>(defaultPresetA?.id ?? 'custom-a');
-  const [selectedPresetB, setSelectedPresetB] = useState<string>(defaultPresetB?.id ?? 'custom-b');
-  const [teamAName, setTeamAName] = useState(initialTeamAName);
-  const [teamBName, setTeamBName] = useState(initialTeamBName);
-  const [weekOrPeriod, setWeekOrPeriod] = useState(1);
-  const [teamA, setTeamA] = useState({ mean: initialTeamA?.mean ?? 100, stdDev: initialTeamA?.stdDev ?? 15 });
-  const [teamB, setTeamB] = useState({ mean: initialTeamB?.mean ?? 95, stdDev: initialTeamB?.stdDev ?? 15 });
-  const [result, setResult] = useState<MatchupResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [chartMode, setChartMode] = useState<'distribution' | 'scoreRanges'>('distribution');
-  const [positionTab, setPositionTab] = useState<'all' | 'edges'>('all');
+  const [sport, setSport] = useState(DEFAULT_SPORT)
+  const [simulatorOpen, setSimulatorOpen] = useState(false)
+  const sportOptions = useMemo(() => getSportOptionsForSimulation(), [])
+  const sportPresets = useMemo(() => getSimulationTeamPresets(sport), [sport])
+  const scheduleFactorDefinitions = useMemo(
+    () => getScheduleFactorDefinitionsForSport(sport),
+    [sport]
+  )
+  const defaultPresetA = sportPresets[0]
+  const defaultPresetB = sportPresets[1] ?? sportPresets[0]
+
+  const [selectedPresetA, setSelectedPresetA] = useState<string>(defaultPresetA?.id ?? 'custom-a')
+  const [selectedPresetB, setSelectedPresetB] = useState<string>(defaultPresetB?.id ?? 'custom-b')
+  const [teamAName, setTeamAName] = useState(initialTeamAName)
+  const [teamBName, setTeamBName] = useState(initialTeamBName)
+  const [weekOrPeriod, setWeekOrPeriod] = useState(1)
+  const [lineupA, setLineupA] = useState<MatchupLineupSlotInput[]>(
+    defaultPresetA ? cloneLineup(buildLineupForSimulationPreset(DEFAULT_SPORT, defaultPresetA)) : []
+  )
+  const [lineupB, setLineupB] = useState<MatchupLineupSlotInput[]>(
+    defaultPresetB ? cloneLineup(buildLineupForSimulationPreset(DEFAULT_SPORT, defaultPresetB)) : []
+  )
+  const [scheduleFactorsA, setScheduleFactorsA] =
+    useState<Required<MatchupScheduleFactorsInput>>(
+      getDefaultScheduleFactorsForPreset(defaultPresetA)
+    )
+  const [scheduleFactorsB, setScheduleFactorsB] =
+    useState<Required<MatchupScheduleFactorsInput>>(
+      getDefaultScheduleFactorsForPreset(defaultPresetB)
+    )
+  const [result, setResult] = useState<MatchupResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [chartMode, setChartMode] = useState<'distribution' | 'scoreRanges'>('distribution')
+  const [positionTab, setPositionTab] = useState<'all' | 'edges'>('all')
+  const [lastRequestedSignature, setLastRequestedSignature] = useState<string | null>(null)
+  const [lastSimulatedSignature, setLastSimulatedSignature] = useState<string | null>(null)
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
-    const presetA = sportPresets[0];
-    const presetB = sportPresets[1] ?? sportPresets[0];
-    if (!presetA || !presetB) return;
-    setSelectedPresetA(presetA.id);
-    setSelectedPresetB(presetB.id);
-    setTeamAName(presetA.name);
-    setTeamBName(presetB.name);
-    setTeamA({ mean: presetA.mean, stdDev: presetA.stdDev });
-    setTeamB({ mean: presetB.mean, stdDev: presetB.stdDev });
-    setResult(null);
-    setError(null);
-  }, [sport, sportPresets]);
+    if (!defaultPresetA || !defaultPresetB) return
+    setSelectedPresetA(defaultPresetA.id)
+    setSelectedPresetB(defaultPresetB.id)
+    setTeamAName(defaultPresetA.name)
+    setTeamBName(defaultPresetB.name)
+    setLineupA(cloneLineup(buildLineupForSimulationPreset(sport, defaultPresetA)))
+    setLineupB(cloneLineup(buildLineupForSimulationPreset(sport, defaultPresetB)))
+    setScheduleFactorsA(getDefaultScheduleFactorsForPreset(defaultPresetA))
+    setScheduleFactorsB(getDefaultScheduleFactorsForPreset(defaultPresetB))
+    setWeekOrPeriod(1)
+    setChartMode('distribution')
+    setPositionTab('all')
+    setResult(null)
+    setError(null)
+    setLastRequestedSignature(null)
+    setLastSimulatedSignature(null)
+  }, [defaultPresetA, defaultPresetB, sport])
+
+  const previewTeamSummaryA = useMemo(
+    () =>
+      summarizeMatchupTeamInput(
+        { teamName: teamAName, lineup: lineupA, scheduleFactors: scheduleFactorsA },
+        sport
+      ),
+    [lineupA, scheduleFactorsA, sport, teamAName]
+  )
+  const previewTeamSummaryB = useMemo(
+    () =>
+      summarizeMatchupTeamInput(
+        { teamName: teamBName, lineup: lineupB, scheduleFactors: scheduleFactorsB },
+        sport
+      ),
+    [lineupB, scheduleFactorsB, sport, teamBName]
+  )
+
+  const simulationPayload = useMemo(
+    () => ({
+      sport,
+      weekOrPeriod,
+      iterations: 1500,
+      includeInsights: true,
+      teamAName,
+      teamBName,
+      teamA: {
+        mean: previewTeamSummaryA.adjustedMean,
+        stdDev: previewTeamSummaryA.derivedStdDev,
+        lineup: lineupA,
+        scheduleFactors: scheduleFactorsA,
+      },
+      teamB: {
+        mean: previewTeamSummaryB.adjustedMean,
+        stdDev: previewTeamSummaryB.derivedStdDev,
+        lineup: lineupB,
+        scheduleFactors: scheduleFactorsB,
+      },
+    }),
+    [
+      lineupA,
+      lineupB,
+      previewTeamSummaryA.adjustedMean,
+      previewTeamSummaryA.derivedStdDev,
+      previewTeamSummaryB.adjustedMean,
+      previewTeamSummaryB.derivedStdDev,
+      scheduleFactorsA,
+      scheduleFactorsB,
+      sport,
+      teamAName,
+      teamBName,
+      weekOrPeriod,
+    ]
+  )
+
+  const inputSignature = useMemo(
+    () =>
+      buildPayloadSignature({
+        sport,
+        weekOrPeriod,
+        teamAName,
+        teamBName,
+        lineupA: lineupA.map((slot) => [
+          slot.slotId,
+          slot.playerName,
+          slot.projection,
+          slot.floor,
+          slot.ceiling,
+        ]),
+        lineupB: lineupB.map((slot) => [
+          slot.slotId,
+          slot.playerName,
+          slot.projection,
+          slot.floor,
+          slot.ceiling,
+        ]),
+        scheduleFactorsA,
+        scheduleFactorsB,
+      }),
+    [lineupA, lineupB, scheduleFactorsA, scheduleFactorsB, sport, teamAName, teamBName, weekOrPeriod]
+  )
 
   const applyPreset = useCallback(
     (team: 'A' | 'B', presetId: string) => {
-      const selected = sportPresets.find((preset) => preset.id === presetId);
-      if (!selected) return;
+      const selected = sportPresets.find((preset) => preset.id === presetId)
+      if (!selected) return
       if (team === 'A') {
-        setSelectedPresetA(presetId);
-        setTeamAName(selected.name);
-        setTeamA({ mean: selected.mean, stdDev: selected.stdDev });
+        setSelectedPresetA(presetId)
+        setTeamAName(selected.name)
+        setLineupA(cloneLineup(buildLineupForSimulationPreset(sport, selected)))
+        setScheduleFactorsA(getDefaultScheduleFactorsForPreset(selected))
       } else {
-        setSelectedPresetB(presetId);
-        setTeamBName(selected.name);
-        setTeamB({ mean: selected.mean, stdDev: selected.stdDev });
+        setSelectedPresetB(presetId)
+        setTeamBName(selected.name)
+        setLineupB(cloneLineup(buildLineupForSimulationPreset(sport, selected)))
+        setScheduleFactorsB(getDefaultScheduleFactorsForPreset(selected))
       }
-      setResult(null);
-      setError(null);
+      setError(null)
     },
-    [sportPresets]
-  );
+    [sport, sportPresets]
+  )
 
   const clearSimulation = useCallback(() => {
-    setResult(null);
-    setError(null);
-  }, []);
+    setResult(null)
+    setError(null)
+    setLastRequestedSignature(null)
+    setLastSimulatedSignature(null)
+  }, [])
 
   const resetSimulator = useCallback(() => {
-    const presetA = sportPresets[0];
-    const presetB = sportPresets[1] ?? sportPresets[0];
-    if (!presetA || !presetB) return;
-    setSelectedPresetA(presetA.id);
-    setSelectedPresetB(presetB.id);
-    setTeamAName(presetA.name);
-    setTeamBName(presetB.name);
-    setTeamA({ mean: presetA.mean, stdDev: presetA.stdDev });
-    setTeamB({ mean: presetB.mean, stdDev: presetB.stdDev });
-    setWeekOrPeriod(1);
-    setChartMode('distribution');
-    setPositionTab('all');
-    setResult(null);
-    setError(null);
-  }, [sportPresets]);
+    if (!defaultPresetA || !defaultPresetB) return
+    setSelectedPresetA(defaultPresetA.id)
+    setSelectedPresetB(defaultPresetB.id)
+    setTeamAName(defaultPresetA.name)
+    setTeamBName(defaultPresetB.name)
+    setLineupA(cloneLineup(buildLineupForSimulationPreset(sport, defaultPresetA)))
+    setLineupB(cloneLineup(buildLineupForSimulationPreset(sport, defaultPresetB)))
+    setScheduleFactorsA(getDefaultScheduleFactorsForPreset(defaultPresetA))
+    setScheduleFactorsB(getDefaultScheduleFactorsForPreset(defaultPresetB))
+    setWeekOrPeriod(1)
+    setChartMode('distribution')
+    setPositionTab('all')
+    setResult(null)
+    setError(null)
+    setLastRequestedSignature(null)
+    setLastSimulatedSignature(null)
+  }, [defaultPresetA, defaultPresetB, sport])
 
-  const runSimulation = useCallback(() => {
-    setError(null);
-    setLoading(true);
-    fetch('/api/simulation/matchup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sport,
-        weekOrPeriod,
-        teamA: { mean: teamA.mean, stdDev: teamA.stdDev },
-        teamB: { mean: teamB.mean, stdDev: teamB.stdDev },
-        iterations: 1500,
-      }),
-    })
-      .then((r) => {
-        if (!r.ok) return r.json().then((d) => { throw new Error(d?.error ?? 'Simulation failed'); });
-        return r.json();
+  const runSimulation = useCallback(async () => {
+    const signature = inputSignature
+    const requestId = ++requestIdRef.current
+    setError(null)
+    setLoading(true)
+    setLastRequestedSignature(signature)
+
+    try {
+      const response = await fetch('/api/simulation/matchup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(simulationPayload),
       })
-      .then((data) => {
-        setResult({
-          winProbabilityA: data.winProbabilityA,
-          winProbabilityB: data.winProbabilityB,
-          marginMean: data.marginMean ?? 0,
-          marginStdDev: data.marginStdDev ?? 0,
-          projectedScoreA: data.projectedScoreA,
-          projectedScoreB: data.projectedScoreB,
-          scoreRangeA: data.scoreRangeA,
-          scoreRangeB: data.scoreRangeB,
-          upsetChance: data.upsetChance,
-          volatilityTag: data.volatilityTag,
-          iterations: data.iterations,
-          upsideScenario: data.upsideScenario ?? null,
-          downsideScenario: data.downsideScenario ?? null,
-          scoreDistributionA: data.scoreDistributionA ?? null,
-          scoreDistributionB: data.scoreDistributionB ?? null,
-        });
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error ?? 'Simulation failed')
+      if (requestId !== requestIdRef.current) return
+
+      setResult({
+        winProbabilityA: data.winProbabilityA,
+        winProbabilityB: data.winProbabilityB,
+        marginMean: data.marginMean ?? 0,
+        marginStdDev: data.marginStdDev ?? 0,
+        projectedScoreA: data.projectedScoreA,
+        projectedScoreB: data.projectedScoreB,
+        scoreRangeA: data.scoreRangeA,
+        scoreRangeB: data.scoreRangeB,
+        upsetChance: data.upsetChance,
+        volatilityTag: data.volatilityTag,
+        iterations: data.iterations,
+        upsideScenario: data.upsideScenario ?? null,
+        downsideScenario: data.downsideScenario ?? null,
+        scoreDistributionA: data.scoreDistributionA ?? null,
+        scoreDistributionB: data.scoreDistributionB ?? null,
+        teamSummaryA: data.teamSummaryA ?? null,
+        teamSummaryB: data.teamSummaryB ?? null,
+        slotComparisons: data.slotComparisons ?? null,
+        providerInsights: data.providerInsights ?? null,
+        deterministicSeed: data.deterministicSeed ?? null,
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed'))
-      .finally(() => setLoading(false));
-  }, [sport, teamA.mean, teamA.stdDev, teamB.mean, teamB.stdDev, weekOrPeriod]);
+      setLastSimulatedSignature(signature)
+    } catch (simulationError) {
+      if (requestId !== requestIdRef.current) return
+      setError(simulationError instanceof Error ? simulationError.message : 'Failed to run simulation')
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }, [inputSignature, simulationPayload])
 
-  // Lineup change updates simulation when user clicks Simulate or Rerun (same handler).
+  useEffect(() => {
+    if (!result || loading) return
+    if (inputSignature === lastRequestedSignature) return
+    const timeout = window.setTimeout(() => {
+      void runSimulation()
+    }, 350)
+    return () => window.clearTimeout(timeout)
+  }, [inputSignature, lastRequestedSignature, loading, result, runSimulation])
 
+  const currentTeamSummaryA = result?.teamSummaryA ?? previewTeamSummaryA
+  const currentTeamSummaryB = result?.teamSummaryB ?? previewTeamSummaryB
   const comparisonSummary = useMemo(
     () => (result ? resolveComparisonSummary(teamAName, teamBName, result) : null),
     [result, teamAName, teamBName]
-  );
-
-  const positionRows = useMemo(() => {
-    if (!result) return [];
-    return buildPositionComparisonRows({
-      sport,
-      teamAMean: result.projectedScoreA,
-      teamBMean: result.projectedScoreB,
-      teamAStdDev: teamA.stdDev,
-      teamBStdDev: teamB.stdDev,
-      maxRows: 8,
-    });
-  }, [result, sport, teamA.stdDev, teamB.stdDev]);
-
+  )
+  const positionRows = useMemo(
+    () =>
+      result?.slotComparisons && result.slotComparisons.length > 0
+        ? result.slotComparisons
+        : buildMatchupSlotComparisons(currentTeamSummaryA, currentTeamSummaryB),
+    [currentTeamSummaryA, currentTeamSummaryB, result?.slotComparisons]
+  )
   const visiblePositionRows =
-    positionTab === 'edges'
-      ? positionRows.filter((row) => row.advantage !== 'even')
-      : positionRows;
+    positionTab === 'edges' ? positionRows.filter((row) => row.advantage !== 'even') : positionRows
 
   const chimmyUrl = result
     ? getMatchupAIChatUrl(
@@ -224,24 +647,19 @@ export function MatchupSimulationPage({
             .map((row) => `${row.slotLabel}: ${row.edgeLabel}`)
             .join(', '),
         }),
-        {
-          leagueId,
-          insightType: 'matchup',
-          sport,
-          week: weekOrPeriod,
-        }
+        { leagueId, insightType: 'matchup', sport, week: weekOrPeriod }
       )
     : getMatchupAIChatUrl(undefined, {
         leagueId,
         insightType: 'matchup',
         sport,
         week: weekOrPeriod,
-      });
+      })
 
   const shareMatchupResult = useCallback(async () => {
-    if (!result) return;
+    if (!result) return
     try {
-      const res = await fetch('/api/share/generate-copy', {
+      const response = await fetch('/api/share/generate-copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -252,53 +670,57 @@ export function MatchupSimulationPage({
           score: Math.round(result.projectedScoreA),
           week: weekOrPeriod,
         }),
-      });
-      const data = await res.json().catch(() => ({}));
-      const caption = data.caption || data.headline || `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability for ${teamAName}. Simulated on AllFantasy.`;
-      await navigator.clipboard.writeText(caption);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
+      })
+      const data = await response.json().catch(() => ({}))
+      const caption =
+        data.caption ||
+        data.headline ||
+        `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability for ${teamAName}. Simulated on AllFantasy.`
+      await navigator.clipboard.writeText(caption)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
     } catch {
-      const fallback = `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability. Simulated on AllFantasy.`;
-      await navigator.clipboard.writeText(fallback);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2000);
+      const fallback = `${teamAName} vs ${teamBName}: ${(result.winProbabilityA * 100).toFixed(0)}% win probability. Simulated on AllFantasy.`
+      await navigator.clipboard.writeText(fallback)
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2000)
     }
-  }, [result, sport, teamAName, teamBName, weekOrPeriod]);
+  }, [result, sport, teamAName, teamBName, weekOrPeriod])
+
+  const isOutOfSync =
+    result != null && lastSimulatedSignature != null && inputSignature !== lastSimulatedSignature
 
   if (!simulatorOpen) {
     return (
-      <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-        <Card className="border-white/10 bg-white/5">
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+        <Card className="overflow-hidden border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.2),_transparent_45%),linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]">
           <CardHeader>
-            <CardTitle className="text-lg text-white">Matchup Simulator</CardTitle>
+            <CardTitle className="text-lg text-white">Matchup Simulation Insight Engine</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-white/70">
-              Compare two teams, run Monte Carlo outcomes, inspect score ranges, and jump straight into AI matchup explanation.
+              Deterministic 1,500-sim matchup engine with lineup slots, variance ranges,
+              schedule factors, and AI overlays from DeepSeek, Grok, and OpenAI.
             </p>
-            <Button
-              onClick={() => setSimulatorOpen(true)}
-              data-testid="matchup-open-simulator"
-              className="gap-2"
-            >
+            <Button onClick={() => setSimulatorOpen(true)} data-testid="matchup-open-simulator" className="gap-2">
               <Play className="h-4 w-4" />
               Open simulator
             </Button>
           </CardContent>
         </Card>
       </main>
-    );
+    )
   }
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-        <h1 className="text-2xl font-semibold text-white">Matchup simulation</h1>
-        <p className="text-sm text-white/60 mt-1">
-            Deterministic 1,000+ sims with projections and variance. Win probability, score ranges, position edges, and AI-ready context.
-        </p>
+          <h1 className="text-3xl font-semibold text-white">Matchup simulation</h1>
+          <p className="mt-1 max-w-3xl text-sm text-white/60">
+            Deterministic 1,000+ sims driven by lineup slots, schedule context, and variance bands.
+            Any movement you see comes from actual lineup or factor changes.
+          </p>
         </div>
         <Button
           variant="outline"
@@ -311,131 +733,98 @@ export function MatchupSimulationPage({
       </div>
 
       <Card className="border-white/10 bg-white/5">
-        <CardHeader>
-          <CardTitle className="text-lg text-white">Team comparison setup</CardTitle>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-[180px]">
+              <label className="text-xs uppercase tracking-wider text-white/45">Sport</label>
+              <Select value={sport} onValueChange={(value) => setSport(value as typeof sport)}>
+                <SelectTrigger
+                  className="mt-2 w-full border-white/10 bg-black/30 text-white"
+                  data-testid="matchup-sport-selector"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {sportOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[140px]">
+              <label className="text-xs uppercase tracking-wider text-white/45">Week / period</label>
+              <input
+                type="number"
+                min={1}
+                value={weekOrPeriod}
+                onChange={(event) => setWeekOrPeriod(Math.max(1, Number(event.target.value) || 1))}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white"
+                data-testid="matchup-week-period-input"
+              />
+            </div>
+            <div className="flex-1 rounded-xl border border-white/10 bg-black/25 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wider text-white/45">Current matchup detection</p>
+              <p className="mt-1 text-sm font-medium text-white/85" data-testid="matchup-current-detection">
+                {teamAName} vs {teamBName}
+              </p>
+              <p className="text-[11px] text-white/45">
+                {lineupA.length} lineup slots vs {lineupB.length} lineup slots, plus schedule context on both sides.
+              </p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm text-white/70">Sport</label>
-            <Select value={sport} onValueChange={(v) => setSport(v as typeof sport)}>
-              <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30 text-white" data-testid="matchup-sport-selector">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sportOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="text-sm text-white/70">Week / period</label>
-            <input
-              type="number"
-              min={1}
-              value={weekOrPeriod}
-              onChange={(e) => setWeekOrPeriod(Math.max(1, Number(e.target.value) || 1))}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-              data-testid="matchup-week-period-input"
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <LineupEditor
+              teamKey="A"
+              title="Team A"
+              accentClass="border-cyan-500/25 bg-cyan-500/5"
+              teamName={teamAName}
+              onTeamNameChange={setTeamAName}
+              presetId={selectedPresetA}
+              onPresetChange={(value) => applyPreset('A', value)}
+              presetOptions={sportPresets}
+              lineup={lineupA}
+              onLineupChange={(updater) => setLineupA((current) => updater(current))}
+              teamSummary={previewTeamSummaryA}
+              scheduleFactors={scheduleFactorsA}
+              onScheduleFactorChange={(factorId, value) => setScheduleFactorsA((current) => ({ ...current, [factorId]: value }))}
+              scheduleFactorDefinitions={scheduleFactorDefinitions}
+            />
+            <LineupEditor
+              teamKey="B"
+              title="Team B"
+              accentClass="border-amber-500/25 bg-amber-500/5"
+              teamName={teamBName}
+              onTeamNameChange={setTeamBName}
+              presetId={selectedPresetB}
+              onPresetChange={(value) => applyPreset('B', value)}
+              presetOptions={sportPresets}
+              lineup={lineupB}
+              onLineupChange={(updater) => setLineupB((current) => updater(current))}
+              teamSummary={previewTeamSummaryB}
+              scheduleFactors={scheduleFactorsB}
+              onScheduleFactorChange={(factorId, value) => setScheduleFactorsB((current) => ({ ...current, [factorId]: value }))}
+              scheduleFactorDefinitions={scheduleFactorDefinitions}
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-sm text-white/70">Team A selector</label>
-              <Select value={selectedPresetA} onValueChange={(value) => applyPreset('A', value)}>
-                <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30 text-white" data-testid="matchup-team-a-selector">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {sportPresets.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label className="text-sm text-white/70">Team A name</label>
-              <input
-                type="text"
-                value={teamAName}
-                onChange={(e) => setTeamAName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-a-name-input"
-              />
-              <label className="mt-2 block text-sm text-white/70">Projected points (mean)</label>
-              <input
-                type="number"
-                value={teamA.mean}
-                onChange={(e) => setTeamA((p) => ({ ...p, mean: Number(e.target.value) || 0 }))}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-a-mean-input"
-              />
-              <label className="mt-2 block text-sm text-white/70">Std dev (variance)</label>
-              <input
-                type="number"
-                value={teamA.stdDev ?? 15}
-                onChange={(e) => setTeamA((p) => ({ ...p, stdDev: Number(e.target.value) || (p.stdDev ?? 15) }))}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-a-stddev-input"
-              />
-            </div>
-            <div>
-              <label className="text-sm text-white/70">Team B selector</label>
-              <Select value={selectedPresetB} onValueChange={(value) => applyPreset('B', value)}>
-                <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30 text-white" data-testid="matchup-team-b-selector">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {sportPresets.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id}>
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <label className="text-sm text-white/70">Team B name</label>
-              <input
-                type="text"
-                value={teamBName}
-                onChange={(e) => setTeamBName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-b-name-input"
-              />
-              <label className="mt-2 block text-sm text-white/70">Projected points (mean)</label>
-              <input
-                type="number"
-                value={teamB.mean}
-                onChange={(e) => setTeamB((p) => ({ ...p, mean: Number(e.target.value) || 0 }))}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-b-mean-input"
-              />
-              <label className="mt-2 block text-sm text-white/70">Std dev (variance)</label>
-              <input
-                type="number"
-                value={teamB.stdDev ?? 15}
-                onChange={(e) => setTeamB((p) => ({ ...p, stdDev: Number(e.target.value) || (p.stdDev ?? 15) }))}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
-                data-testid="matchup-team-b-stddev-input"
-              />
-            </div>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/65" data-testid="matchup-current-detection">
-            Current matchup detection: {teamAName} vs {teamBName}
-          </div>
-          <div className="flex gap-2">
+
+          <div className="flex flex-wrap gap-2">
             <Button
-              onClick={runSimulation}
+              onClick={() => void runSimulation()}
               disabled={loading}
               className="gap-2"
               data-audit="simulate-button-works"
               data-testid="matchup-compare-button"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Compare teams
+              Simulate matchup
             </Button>
             <Button
               variant="outline"
-              onClick={runSimulation}
+              onClick={() => void runSimulation()}
               disabled={loading}
               className="gap-2 border-white/20"
               data-audit="rerun-simulation-works"
@@ -444,45 +833,88 @@ export function MatchupSimulationPage({
               <RefreshCw className="h-4 w-4" />
               Rerun simulation
             </Button>
-            <Button
-              variant="outline"
-              onClick={resetSimulator}
-              className="border-white/20"
-              data-testid="matchup-reset-button"
-            >
+            <Button variant="outline" onClick={resetSimulator} className="border-white/20" data-testid="matchup-reset-button">
               Reset
             </Button>
-            <Button
-              variant="outline"
-              onClick={clearSimulation}
-              className="border-white/20"
-              data-testid="matchup-clear-button"
-            >
+            <Button variant="outline" onClick={clearSimulation} className="border-white/20" data-testid="matchup-clear-button">
               Clear
             </Button>
           </div>
-          {!result && !loading && !error && (
-            <p className="text-sm text-white/55">{MATCHUP_SIMULATOR_MESSAGES.empty}</p>
-          )}
+
+          {!result && !loading && !error && <p className="text-sm text-white/55">{MATCHUP_SIMULATOR_MESSAGES.empty}</p>}
           {error && <p className="text-sm text-red-400">{error}</p>}
+          {isOutOfSync && !loading && (
+            <p className="text-sm text-cyan-300" data-audit="lineup-change-updates-simulation">
+              Lineup or schedule context changed. Refreshing the deterministic sim now.
+            </p>
+          )}
         </CardContent>
       </Card>
-
       {result && (
         <>
-          <Card className="border-white/10 bg-white/5">
-            <CardHeader>
-              <CardTitle className="text-lg text-white">Win probability</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <WinProbabilityMeter
-                winProbabilityA={result.winProbabilityA}
-                winProbabilityB={result.winProbabilityB}
-                teamAName={teamAName}
-                teamBName={teamBName}
-              />
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]">
+            <Card className="border-white/10 bg-white/5">
+              <CardHeader>
+                <CardTitle className="text-lg text-white">Win probability</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <WinProbabilityMeter
+                  winProbabilityA={result.winProbabilityA}
+                  winProbabilityB={result.winProbabilityB}
+                  teamAName={teamAName}
+                  teamBName={teamBName}
+                />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-white/45">Expected score</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {result.projectedScoreA.toFixed(1)} - {result.projectedScoreB.toFixed(1)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-white/45">Margin mean</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {result.marginMean >= 0 ? '+' : ''}
+                      {result.marginMean.toFixed(1)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                    <p className="text-[11px] uppercase tracking-wider text-white/45">Deterministic seed</p>
+                    <p className="mt-1 text-lg font-semibold text-white">
+                      {result.deterministicSeed ?? 'n/a'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {result.providerInsights && (
+              <Card className="border-white/10 bg-white/5">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg text-white">
+                    <Sparkles className="h-4 w-4 text-cyan-300" />
+                    AI insight overlays
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {AI_PROVIDER_LABELS.map((provider) => (
+                    <div key={provider.id} className={`rounded-xl border p-3 ${provider.accent}`}>
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4" />
+                        <div>
+                          <p className="text-sm font-semibold">{provider.title}</p>
+                          <p className="text-[11px] opacity-70">{provider.subtitle}</p>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-white/90">
+                        {result.providerInsights?.[provider.id]}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           <Card className="border-white/10 bg-white/5">
             <CardHeader>
@@ -573,10 +1005,9 @@ export function MatchupSimulationPage({
             teamAName={teamAName}
             teamBName={teamBName}
           />
-
           <Card className="border-white/10 bg-white/5">
             <CardHeader>
-              <CardTitle className="text-lg text-white">Position-by-position comparison</CardTitle>
+              <CardTitle className="text-lg text-white">Lineup slot comparison</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
@@ -590,7 +1021,7 @@ export function MatchupSimulationPage({
                       : 'border border-white/20 text-white/70 hover:bg-white/10'
                   }`}
                 >
-                  All positions
+                  All slots
                 </button>
                 <button
                   type="button"
@@ -610,11 +1041,15 @@ export function MatchupSimulationPage({
                   {visiblePositionRows.map((row) => (
                     <div
                       key={row.slotId}
-                      className="grid grid-cols-[56px_1fr_1fr_88px] items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-xs"
+                      className="grid grid-cols-[66px_1.15fr_1.15fr_88px] items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2 py-2 text-xs"
                     >
                       <span className="text-white/60">{row.slotLabel}</span>
-                      <span className="text-cyan-200">{teamAName}: {row.teamAScore.toFixed(1)}</span>
-                      <span className="text-amber-200">{teamBName}: {row.teamBScore.toFixed(1)}</span>
+                      <span className="text-cyan-200">
+                        {row.teamAPlayerName}: {row.teamAScore.toFixed(1)}
+                      </span>
+                      <span className="text-amber-200">
+                        {row.teamBPlayerName}: {row.teamBScore.toFixed(1)}
+                      </span>
                       <span
                         className={
                           row.advantage === 'even'
@@ -630,13 +1065,13 @@ export function MatchupSimulationPage({
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-white/55">No clear position edge at current projection spread.</p>
+                <p className="text-sm text-white/55">No clear slot edge at current projection spread.</p>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-white/10 bg-white/5">
-            <CardContent className="pt-4 space-y-3">
+            <CardContent className="space-y-3 pt-4">
               <a
                 href={chimmyUrl}
                 target="_blank"
@@ -644,7 +1079,7 @@ export function MatchupSimulationPage({
                 data-testid="matchup-ai-explanation-button"
                 className="text-sm text-cyan-400 hover:underline"
               >
-                Ask Chimmy to explain this matchup →
+                Ask Chimmy to explain this matchup {'->'}
               </a>
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -667,10 +1102,14 @@ export function MatchupSimulationPage({
                 </button>
               </div>
               {result.iterations > 0 && (
-                <p className="text-xs text-white/40">{result.iterations.toLocaleString()} simulations</p>
+                <p className="text-xs text-white/40">
+                  {result.iterations.toLocaleString()} simulations
+                  {result.deterministicSeed != null ? ` - seed ${result.deterministicSeed}` : ''}
+                </p>
               )}
             </CardContent>
           </Card>
+
           {shareModalOpen && result && (
             <MatchupShareModal
               team1Name={teamAName}
@@ -686,5 +1125,6 @@ export function MatchupSimulationPage({
         </>
       )}
     </main>
-  );
+  )
 }
+

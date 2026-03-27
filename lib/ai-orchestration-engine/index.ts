@@ -4,8 +4,40 @@
  * All provider keys server-side only; no keys exposed to frontend.
  */
 
-import type { AIModelRole, AIContextEnvelope, OrchestrationMode, ModelOutput, OrchestrationResult } from '@/lib/unified-ai/types'
-import type { UnifiedAIRequest, UnifiedAIResponse, UnifiedAIError, ProviderChatRequest, ProviderChatResult } from '@/lib/ai-orchestration/types'
+import type { AIModelRole, OrchestrationMode, ModelOutput, OrchestrationResult } from '@/lib/unified-ai/types'
+import type { UnifiedAIRequest, ProviderChatRequest, ProviderChatResult } from '@/lib/ai-orchestration/types'
+import {
+  getProvider,
+  getAvailableProviders,
+  getAvailableFromRequested,
+  checkProviderAvailability,
+  checkProviderHealth,
+} from '@/lib/ai-orchestration/provider-registry'
+import {
+  getToolEntry,
+  getDefaultModeForTool,
+  isModeAllowed,
+  resolveEffectiveMode,
+  getAllToolTypes,
+} from '@/lib/ai-orchestration/tool-registry'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration/orchestration-service'
+import { evaluateConsensus, mergeStructuredConsensus } from '@/lib/unified-ai/ConsensusEvaluator'
+import { composeUnifiedBrain } from '@/lib/unified-ai/UnifiedBrainComposer'
+import { runQualityGate, applyQualityGateToAnswer } from '@/lib/ai-orchestration/quality-gate'
+import { resolveConfidence, formatConfidenceLine } from '@/lib/unified-ai/AIConfidenceResolver'
+import { normalizeToUnifiedResponse } from '@/lib/ai-orchestration/response-normalizer'
+import { toUnifiedAIError, toHttpStatus, fromThrown, toAIErrorCode } from '@/lib/ai-orchestration/error-handler'
+import { buildAIContextEnvelope } from '@/lib/unified-ai/AIContextEnvelopeBuilder'
+import { getProviderAvailability, runProviderHealthCheck } from './provider-health-check'
+import {
+  FALLBACK_PRIMARY_ORDER,
+  FALLBACK_ANALYSIS_ORDER,
+  FALLBACK_NARRATIVE_ORDER,
+  resolvePrimaryProvider,
+  getFallbackOrderForRole,
+  shouldUseDeterministicOnly,
+  DEFAULT_FALLBACK_CONFIG,
+} from './fallback-policy'
 
 // --- AIProviderInterface (provider adapters) ---
 export type { IProviderClient } from '@/lib/ai-orchestration/provider-interface'
@@ -19,22 +51,11 @@ export { createDeepSeekProvider, createDeepSeekAdapter } from '@/lib/ai-orchestr
 export { createGrokProvider, createXAIAdapter, createXAIAdapter as createGrokAdapter } from '@/lib/ai-orchestration/providers/grok-provider'
 
 // --- AIProviderRegistry ---
-export {
-  getProvider,
-  getAvailableProviders,
-  getAvailableFromRequested,
-  checkProviderAvailability,
-} from '@/lib/ai-orchestration/provider-registry'
+export { getProvider, getAvailableProviders, getAvailableFromRequested, checkProviderAvailability } from '@/lib/ai-orchestration/provider-registry'
 export type { AIModelRole }
 
 // --- AIToolRegistry ---
-export {
-  getToolEntry,
-  getDefaultModeForTool,
-  isModeAllowed,
-  resolveEffectiveMode,
-  getAllToolTypes,
-} from '@/lib/ai-orchestration/tool-registry'
+export { getToolEntry, getDefaultModeForTool, isModeAllowed, resolveEffectiveMode, getAllToolTypes } from '@/lib/ai-orchestration/tool-registry'
 export type { ToolRegistryEntry, OrchestrationToolType } from '@/lib/ai-orchestration/types'
 
 // --- AIOrchestratorService ---
@@ -89,6 +110,76 @@ export type { FallbackPolicyConfig } from './fallback-policy'
 
 // --- Deterministic rules ---
 export { DETERMINISTIC_RULES, getDeterministicRulesPromptBlock } from './deterministic-rules'
+
+// --- Explicit named architecture exports (PROMPT 123) ---
+export const AIProviderRegistry = {
+  getProvider,
+  getAvailableProviders,
+  getAvailableFromRequested,
+  checkProviderAvailability,
+  checkProviderHealth,
+} as const
+
+export const AIToolRegistry = {
+  getToolEntry,
+  getDefaultModeForTool,
+  isModeAllowed,
+  resolveEffectiveMode,
+  getAllToolTypes,
+} as const
+
+export const AIOrchestratorService = {
+  runUnifiedOrchestration,
+} as const
+
+export const AIConsensusEngine = {
+  evaluateConsensus,
+  mergeStructuredConsensus,
+} as const
+
+export const AIUnifiedBrainEngine = {
+  composeUnifiedBrain,
+} as const
+
+export const AIQualityGate = {
+  runQualityGate,
+  applyQualityGateToAnswer,
+} as const
+
+export const AIConfidenceCalculator = {
+  resolveConfidence,
+  formatConfidenceLine,
+} as const
+
+export const DeterministicContextEnvelope = {
+  buildAIContextEnvelope,
+} as const
+
+export const ResponseNormalizer = {
+  normalizeToUnifiedResponse,
+} as const
+
+export const ErrorHandler = {
+  toUnifiedAIError,
+  toHttpStatus,
+  fromThrown,
+  toAIErrorCode,
+} as const
+
+export const ProviderHealthCheck = {
+  getProviderAvailability,
+  runProviderHealthCheck,
+} as const
+
+export const FallbackPolicy = {
+  FALLBACK_PRIMARY_ORDER,
+  FALLBACK_ANALYSIS_ORDER,
+  FALLBACK_NARRATIVE_ORDER,
+  resolvePrimaryProvider,
+  getFallbackOrderForRole,
+  shouldUseDeterministicOnly,
+  DEFAULT_FALLBACK_CONFIG,
+} as const
 
 // --- Re-exports for request/response ---
 export type { UnifiedAIRequest, OrchestrationMode }

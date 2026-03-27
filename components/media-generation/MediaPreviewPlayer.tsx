@@ -5,6 +5,7 @@ import type { MediaType } from '@/lib/media-generation/types'
 
 export interface MediaPreviewPlayerProps {
   type: MediaType
+  provider?: string
   /** Video or audio URL for playback. */
   playbackUrl?: string | null
   /** For blog: title or excerpt to show. */
@@ -22,41 +23,46 @@ export interface MediaPreviewPlayerProps {
  */
 export default function MediaPreviewPlayer({
   type,
+  provider,
   playbackUrl,
   title,
   copy,
   status,
   className = '',
 }: MediaPreviewPlayerProps) {
-  const canPlay = (type === 'video' || type === 'podcast') && playbackUrl
+  const renderPodcastAsVideo = type === 'podcast' && provider === 'heygen'
+  const canPlayVideo = (type === 'video' || renderPodcastAsVideo) && playbackUrl
+  const canPlayAudio = type === 'podcast' && !renderPodcastAsVideo && playbackUrl
 
   return (
     <div
       className={`rounded-xl border border-white/10 bg-black/30 overflow-hidden ${className}`}
       data-media-type={type}
+      data-testid="media-preview-player"
     >
-      {canPlay && (
+      {(canPlayVideo || canPlayAudio) && (
         <>
-          {type === 'video' && (
+          {canPlayVideo && (
             <video
               src={playbackUrl}
               controls
               playsInline
               className="w-full aspect-video"
               preload="metadata"
+              data-testid="media-preview-video"
             >
               Your browser does not support video playback.
             </video>
           )}
-          {type === 'podcast' && (
-            <audio src={playbackUrl} controls className="w-full" preload="metadata">
+          {canPlayAudio && (
+            <audio src={playbackUrl} controls className="w-full" preload="metadata" data-testid="media-preview-audio">
               Your browser does not support audio playback.
             </audio>
           )}
         </>
       )}
 
-      {!canPlay && status && (
+      {!canPlayVideo && !canPlayAudio && status && (
         <div className="p-4 text-center text-sm text-white/60">
           {status === 'generating' && 'Generating…'}
           {status === 'failed' && 'Generation failed.'}

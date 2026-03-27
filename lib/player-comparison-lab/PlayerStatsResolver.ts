@@ -1,54 +1,229 @@
 /**
- * Resolves historical and projection stats for a player (Prompt 117 + 130).
- * Uses PlayerSeasonStats for historical, FantasyCalc for projections.
+ * Resolves deterministic player stats from multiple sources (Prompt 130):
+ * - FantasyCalc
+ * - Sleeper-linked identity / ADP
+ * - ESPN injury feed cache (sports_injuries)
+ * - Internal ADP snapshot
+ * - Internal player projections
+ * - League scoring settings
  */
 
 import { prisma } from '@/lib/prisma';
+import { findMultiADP } from '@/lib/multi-platform-adp';
+import { normalizePlayerName } from '@/lib/team-abbrev';
 import {
   getPlayerValuesForNames,
-  type PlayerValueLookup,
   type FantasyCalcSettings,
 } from '@/lib/fantasycalc';
-import type { ResolvedPlayerStats, HistoricalSeasonRow, ProjectionRow, ScoringFormat } from './types';
-import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import type {
+  ResolvedPlayerStats,
+  HistoricalSeasonRow,
+  ProjectionRow,
+  ScoringFormat,
+  LeagueScoringSettings,
+  InjurySignal,
+} from './types';
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope';
 
 const HISTORICAL_SEASONS_LIMIT = 5;
 
-function scoringToFantasyCalc(scoringFormat?: ScoringFormat): FantasyCalcSettings {
-  const ppr = scoringFormat === 'non_ppr' ? 0 : scoringFormat === 'half_ppr' ? 0.5 : 1;
-  return { isDynasty: true, numQbs: 2, numTeams: 12, ppr };
+type HistoricalResolved = {
+  rows: HistoricalSeasonRow[];
+  rollingInsightsPlayerId: string | null;
+  team: string | null;
+  position: string | null;
+};
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function scoringToFantasyCalc(
+  scoringFormat?: ScoringFormat,
+  leagueScoringSettings?: LeagueScoringSettings | null
+): FantasyCalcSettings {
+  const pprFromFormat =
+    scoringFormat === 'non_ppr' ? 0 : scoringFormat === 'half_ppr' ? 0.5 : 1;
+  const ppr =
+    typeof leagueScoringSettings?.ppr === 'number'
+      ? leagueScoringSettings.ppr
+      : pprFromFormat;
+  return {
+    isDynasty: true,
+    numQbs: leagueScoringSettings?.superflex ? 2 : 1,
+    numTeams: 12,
+    ppr,
+  };
+}
+
+function inferTrendFromHistorical(historical: HistoricalSeasonRow[]): number {
+  if (historical.length < 2) return 0;
+  const points = [...historical]
+    .reverse()
+    .map((row) =>
+      row.fantasyPointsPerGame ??
+      (row.gamesPlayed && row.fantasyPoints ? row.fantasyPoints / row.gamesPlayed : null)
+    )
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  if (points.length < 2) return 0;
+  const delta = points[points.length - 1] - points[0];
+  return Math.round(delta * 10) / 10;
+}
+
+function scoreInjuryRisk(status: string | null, note: string | null): number | null {
+  const raw = `${status ?? ''} ${note ?? ''}`.toLowerCase();
+  if (!raw.trim()) return null;
+  if (raw.includes('out') || raw.includes('ir') || raw.includes('pup')) return 90;
+  if (raw.includes('doubtful')) return 75;
+  if (raw.includes('questionable')) return 55;
+  if (raw.includes('limited') || raw.includes('probable') || raw.includes('day-to-day')) return 35;
+  if (raw.includes('healthy') || raw.includes('active')) return 15;
+  return 45;
+}
+
+function applyScoringAdjustment(
+  basePoints: number | null,
+  position: string | null,
+  historical: HistoricalSeasonRow[],
+  leagueScoringSettings?: LeagueScoringSettings | null
+): number | null {
+  if (basePoints == null || !Number.isFinite(basePoints)) return null;
+  if (!leagueScoringSettings) return basePoints;
+
+  const ppr = typeof leagueScoringSettings.ppr === 'number' ? leagueScoringSettings.ppr : null;
+  const tePremium =
+    typeof leagueScoringSettings.tePremium === 'number'
+      ? leagueScoringSettings.tePremium
+      : null;
+  const passTdPoints =
+    typeof leagueScoringSettings.passTdPoints === 'number'
+      ? leagueScoringSettings.passTdPoints
+      : null;
+
+  const latest = historical[0];
+  const receptions = latest?.receptions ?? 0;
+  let adjusted = basePoints;
+
+  if (ppr != null) {
+    // Baseline projections are approximately PPR=1 in this flow.
+    adjusted += (ppr - 1) * receptions;
+  }
+  if (position === 'TE' && tePremium != null && tePremium > 0) {
+    adjusted += tePremium * receptions;
+  }
+  if (position === 'QB' && passTdPoints != null) {
+    const passTdsFromYards =
+      latest?.passingYards != null ? Math.max(0, latest.passingYards / 150) : 0;
+    adjusted += (passTdPoints - 4) * passTdsFromYards;
+  }
+  return Math.round(adjusted * 10) / 10;
 }
 
 export async function resolvePlayerStats(
   playerName: string,
-  options?: { sport?: string | null; scoringFormat?: import('./types').ScoringFormat }
+  options?: {
+    sport?: string | null;
+    scoringFormat?: ScoringFormat;
+    leagueScoringSettings?: LeagueScoringSettings | null;
+  }
 ): Promise<ResolvedPlayerStats | null> {
   const name = playerName.trim();
   if (!name) return null;
 
-  const settings = scoringToFantasyCalc(options?.scoringFormat);
-  const sport = options?.sport ? normalizeToSupportedSport(options.sport) : 'NFL';
+  const sport = normalizeToSupportedSport(options?.sport ?? DEFAULT_SPORT);
+  const settings = scoringToFantasyCalc(
+    options?.scoringFormat,
+    options?.leagueScoringSettings
+  );
 
-  const [historical, projection] = await Promise.all([
-    resolveHistorical(name, sport),
-    resolveProjection(name, settings),
-  ]);
+  const historicalResolved = await resolveHistorical(name, sport);
+  const [projection, internalAdp, internalProjectionPoints, injury, sleeperSignal, scheduleDifficultyScore] =
+    await Promise.all([
+      resolveProjection(name, settings, historicalResolved.rows, sport),
+      resolveInternalAdp(name, sport, options?.scoringFormat),
+      resolveInternalProjectionPoints(name, sport, historicalResolved.rollingInsightsPlayerId),
+      resolveInjurySignal(name, sport),
+      resolveSleeperSignal(name, sport),
+      resolveScheduleDifficultyScore(
+        sport,
+        historicalResolved.team ??
+          (findMultiADP(name, historicalResolved.position ?? undefined)?.team ?? null)
+      ),
+    ]);
 
-  const position = projection?.position ?? null;
-  const team = projection?.team ?? null;
+  const fallbackPosition =
+    historicalResolved.position ??
+    projection?.position ??
+    (findMultiADP(name)?.position ?? null);
+  const fallbackTeam =
+    historicalResolved.team ??
+    projection?.team ??
+    (findMultiADP(name)?.team ?? null);
+
+  const adjustedProjection = applyScoringAdjustment(
+    projection?.redraftValue ?? internalProjectionPoints,
+    fallbackPosition,
+    historicalResolved.rows,
+    options?.leagueScoringSettings
+  );
+
+  const mergedProjection: ProjectionRow | null = projection
+    ? {
+        ...projection,
+        redraftValue: adjustedProjection ?? projection.redraftValue,
+      }
+    : internalProjectionPoints != null
+      ? {
+          value: Math.round(internalProjectionPoints * 25),
+          rank: 999,
+          positionRank: 999,
+          trend30Day: inferTrendFromHistorical(historicalResolved.rows),
+          redraftValue: adjustedProjection ?? internalProjectionPoints,
+          source: 'internal_projection',
+          position: fallbackPosition,
+          team: fallbackTeam,
+          volatility: null,
+        }
+      : null;
 
   return {
     name,
-    position,
-    team,
-    historical: historical ?? [],
-    projection: projection ?? null,
+    position: fallbackPosition,
+    team: fallbackTeam,
+    historical: historicalResolved.rows,
+    projection: mergedProjection,
+    internalAdp,
+    sleeperAdp: sleeperSignal.sleeperAdp,
+    internalProjectionPoints:
+      adjustedProjection ?? internalProjectionPoints ?? mergedProjection?.redraftValue ?? null,
+    injury,
+    scheduleDifficultyScore,
+    sourceFlags: {
+      fantasyCalc: projection != null,
+      sleeper: sleeperSignal.available,
+      espnInjuryFeed: injury.source === 'espn',
+      internalAdp: internalAdp != null,
+      internalProjections: internalProjectionPoints != null,
+      leagueScoringSettings:
+        options?.leagueScoringSettings != null &&
+        Object.keys(options.leagueScoringSettings).length > 0,
+    },
   };
 }
 
-async function resolveHistorical(playerName: string, sport: string = 'NFL'): Promise<HistoricalSeasonRow[] | null> {
+async function resolveHistorical(
+  playerName: string,
+  sport: string
+): Promise<HistoricalResolved> {
   const normalized = playerName.trim();
-  if (!normalized) return null;
+  if (!normalized) {
+    return {
+      rows: [],
+      rollingInsightsPlayerId: null,
+      team: null,
+      position: null,
+    };
+  }
 
   const rows = await prisma.playerSeasonStats.findMany({
     where: {
@@ -59,32 +234,46 @@ async function resolveHistorical(playerName: string, sport: string = 'NFL'): Pro
     orderBy: { season: 'desc' },
     take: HISTORICAL_SEASONS_LIMIT,
     select: {
+      playerId: true,
       season: true,
       gamesPlayed: true,
       fantasyPoints: true,
       fantasyPointsPerGame: true,
+      position: true,
+      team: true,
       stats: true,
     },
   });
 
-  return rows.map((r) => {
-    const stats = (r.stats as Record<string, number | null>) ?? {};
-    return {
-      season: r.season,
-      gamesPlayed: r.gamesPlayed ?? null,
-      fantasyPoints: r.fantasyPoints ?? null,
-      fantasyPointsPerGame: r.fantasyPointsPerGame ?? (r.fantasyPoints && r.gamesPlayed ? r.fantasyPoints / r.gamesPlayed : null),
-      passingYards: stats.passing_yards ?? stats.passingYards ?? null,
-      rushingYards: stats.rushing_yards ?? stats.rushingYards ?? null,
-      receivingYards: stats.receiving_yards ?? stats.receivingYards ?? null,
-      receptions: stats.receptions ?? null,
-    };
-  });
+  return {
+    rows: rows.map((row) => {
+      const stats = (row.stats as Record<string, number | null>) ?? {};
+      return {
+        season: row.season,
+        gamesPlayed: row.gamesPlayed ?? null,
+        fantasyPoints: row.fantasyPoints ?? null,
+        fantasyPointsPerGame:
+          row.fantasyPointsPerGame ??
+          (row.fantasyPoints && row.gamesPlayed
+            ? row.fantasyPoints / row.gamesPlayed
+            : null),
+        passingYards: stats.passing_yards ?? stats.passingYards ?? null,
+        rushingYards: stats.rushing_yards ?? stats.rushingYards ?? null,
+        receivingYards: stats.receiving_yards ?? stats.receivingYards ?? null,
+        receptions: stats.receptions ?? null,
+      };
+    }),
+    rollingInsightsPlayerId: rows[0]?.playerId ?? null,
+    team: rows[0]?.team ?? null,
+    position: rows[0]?.position ?? null,
+  };
 }
 
 async function resolveProjection(
   playerName: string,
-  settings: FantasyCalcSettings
+  settings: FantasyCalcSettings,
+  historical: HistoricalSeasonRow[],
+  sport: string
 ): Promise<ProjectionRow | null> {
   const normalized = playerName.trim();
   if (!normalized) return null;
@@ -94,15 +283,215 @@ async function resolveProjection(
   const lookup = map.get(key) ?? map.get(playerName) ?? null;
   if (!lookup) return null;
 
+  const trendFallback = inferTrendFromHistorical(historical);
+  const normalizedSport = normalizeToSupportedSport(sport);
+  const adp = normalizedSport === 'NFL'
+    ? findMultiADP(normalized, lookup.position ?? undefined, lookup.team ?? undefined)
+    : null;
+
   return {
     value: lookup.value,
     rank: lookup.rank,
     positionRank: lookup.positionRank,
-    trend30Day: lookup.trend30Day,
+    trend30Day: lookup.trend30Day ?? trendFallback,
     redraftValue: lookup.redraftValue ?? null,
     source: 'fantasycalc',
     position: lookup.position ?? null,
-    team: lookup.team ?? null,
+    team: lookup.team ?? adp?.team ?? null,
     volatility: lookup.volatility ?? null,
   };
+}
+
+async function resolveInternalProjectionPoints(
+  playerName: string,
+  sport: string,
+  rollingInsightsPlayerId: string | null
+): Promise<number | null> {
+  let playerId = rollingInsightsPlayerId;
+  if (!playerId) {
+    const latest = await prisma.playerSeasonStats.findFirst({
+      where: {
+        sport,
+        source: 'rolling_insights',
+        playerName: { equals: playerName, mode: 'insensitive' },
+      },
+      orderBy: { season: 'desc' },
+      select: { playerId: true },
+    });
+    playerId = latest?.playerId ?? null;
+  }
+  if (!playerId) return null;
+
+  const projection = await prisma.playerCareerProjection.findFirst({
+    where: { sport, playerId },
+    orderBy: { season: 'desc' },
+    select: { projectedPointsYear1: true },
+  });
+  return projection?.projectedPointsYear1 ?? null;
+}
+
+async function resolveInternalAdp(
+  playerName: string,
+  sport: string,
+  scoringFormat?: ScoringFormat
+): Promise<number | null> {
+  const formatCandidates = new Set<string>(['default', scoringFormat ?? 'ppr', 'ppr']);
+  const snapshots = await prisma.aiAdpSnapshot.findMany({
+    where: {
+      sport,
+      leagueType: 'redraft',
+      formatKey: { in: Array.from(formatCandidates) },
+    },
+    orderBy: { computedAt: 'desc' },
+    take: 4,
+    select: { snapshotData: true },
+  });
+  const normalized = normalizePlayerName(playerName);
+  for (const row of snapshots) {
+    const data = Array.isArray(row.snapshotData)
+      ? (row.snapshotData as Array<Record<string, unknown>>)
+      : [];
+    for (const item of data) {
+      const candidateName = typeof item.playerName === 'string' ? item.playerName : '';
+      if (!candidateName) continue;
+      if (normalizePlayerName(candidateName) !== normalized) continue;
+      const adp = typeof item.adp === 'number' ? item.adp : Number(item.adp);
+      if (Number.isFinite(adp)) return adp;
+    }
+  }
+  return null;
+}
+
+async function resolveInjurySignal(
+  playerName: string,
+  sport: string
+): Promise<InjurySignal> {
+  const injuries = await prisma.sportsInjury.findMany({
+    where: {
+      sport,
+      source: 'espn',
+      playerName: { contains: playerName, mode: 'insensitive' },
+    },
+    orderBy: [{ date: 'desc' }, { updatedAt: 'desc' }],
+    take: 12,
+    select: {
+      playerName: true,
+      status: true,
+      description: true,
+      type: true,
+    },
+  });
+
+  const normalized = normalizePlayerName(playerName);
+  const match =
+    injuries.find((item) => normalizePlayerName(item.playerName) === normalized) ??
+    injuries[0] ??
+    null;
+
+  if (!match) {
+    return { status: null, source: 'none', riskScore: null, note: null };
+  }
+
+  const note = match.description ?? match.type ?? null;
+  return {
+    status: match.status ?? null,
+    source: 'espn',
+    riskScore: scoreInjuryRisk(match.status ?? null, note),
+    note,
+  };
+}
+
+async function resolveSleeperSignal(
+  playerName: string,
+  sport: string
+): Promise<{ available: boolean; sleeperAdp: number | null }> {
+  const normalized = normalizePlayerName(playerName);
+  const identity = await prisma.playerIdentityMap.findFirst({
+    where: {
+      normalizedName: normalized,
+      sport,
+    },
+    select: { sleeperId: true },
+  });
+
+  const adp = sport === 'NFL' ? findMultiADP(playerName)?.redraft?.sleeper ?? null : null;
+  if (identity?.sleeperId || adp != null) {
+    return { available: true, sleeperAdp: adp };
+  }
+
+  const sleeperRow = await prisma.sportsPlayer.findFirst({
+    where: {
+      sport,
+      source: 'sleeper',
+      name: { equals: playerName, mode: 'insensitive' },
+    },
+    select: { id: true },
+  });
+  return {
+    available: Boolean(sleeperRow),
+    sleeperAdp: adp,
+  };
+}
+
+async function resolveScheduleDifficultyScore(
+  sport: string,
+  team: string | null
+): Promise<number | null> {
+  if (!team) return null;
+
+  const upcomingGames = await prisma.sportsGame.findMany({
+    where: {
+      sport,
+      OR: [{ homeTeam: team }, { awayTeam: team }],
+      startTime: { gte: new Date() },
+    },
+    orderBy: { startTime: 'asc' },
+    take: 6,
+    select: {
+      homeTeam: true,
+      awayTeam: true,
+    },
+  });
+
+  if (upcomingGames.length === 0) return null;
+  const opponents = upcomingGames
+    .map((g) => (g.homeTeam === team ? g.awayTeam : g.homeTeam))
+    .filter((o): o is string => Boolean(o));
+  if (opponents.length === 0) return null;
+
+  const teamStats = await prisma.teamSeasonStats.findMany({
+    where: {
+      sport,
+      team: { in: opponents },
+      gamesPlayed: { gt: 0 },
+    },
+    orderBy: { season: 'desc' },
+    select: {
+      team: true,
+      pointsAgainst: true,
+      gamesPlayed: true,
+    },
+  });
+
+  if (teamStats.length === 0) return null;
+  const latestByTeam = new Map<string, { pointsAgainst: number; gamesPlayed: number }>();
+  for (const row of teamStats) {
+    if (latestByTeam.has(row.team)) continue;
+    if (row.pointsAgainst == null || row.gamesPlayed == null || row.gamesPlayed <= 0) continue;
+    latestByTeam.set(row.team, {
+      pointsAgainst: row.pointsAgainst,
+      gamesPlayed: row.gamesPlayed,
+    });
+  }
+
+  const values = opponents
+    .map((opp) => latestByTeam.get(opp))
+    .filter((v): v is { pointsAgainst: number; gamesPlayed: number } => Boolean(v))
+    .map((v) => v.pointsAgainst / v.gamesPlayed);
+
+  if (values.length === 0) return null;
+  const avgPointsAllowed = values.reduce((sum, value) => sum + value, 0) / values.length;
+  // Lower opponent points allowed means tougher schedule (higher difficulty score).
+  const score = clamp(50 + (22 - avgPointsAllowed) * 4, 5, 95);
+  return Math.round(score * 10) / 10;
 }

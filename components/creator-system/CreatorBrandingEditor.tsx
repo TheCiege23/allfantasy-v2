@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CreatorBranding } from '@/lib/creator-system/types'
 
 export interface CreatorBrandingEditorProps {
@@ -14,119 +14,228 @@ export function CreatorBrandingEditor({
   creatorIdOrSlug,
   onSaved,
 }: CreatorBrandingEditorProps) {
-  const [logoUrl, setLogoUrl] = useState(initialBranding?.logoUrl ?? '')
-  const [primaryColor, setPrimaryColor] = useState(initialBranding?.primaryColor ?? '')
-  const [accentColor, setAccentColor] = useState(initialBranding?.accentColor ?? '')
+  const [branding, setBranding] = useState<CreatorBranding>({
+    logoUrl: initialBranding?.logoUrl ?? '',
+    coverImageUrl: initialBranding?.coverImageUrl ?? '',
+    primaryColor: initialBranding?.primaryColor ?? '#2F6FED',
+    accentColor: initialBranding?.accentColor ?? '#FF7A18',
+    backgroundColor: initialBranding?.backgroundColor ?? '#0D1526',
+    tagline: initialBranding?.tagline ?? '',
+    communityName: initialBranding?.communityName ?? '',
+    fontFamily: initialBranding?.fontFamily ?? '',
+    inviteHeadline: initialBranding?.inviteHeadline ?? '',
+    cardStyle: initialBranding?.cardStyle ?? 'bold',
+  })
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    setBranding({
+      logoUrl: initialBranding?.logoUrl ?? '',
+      coverImageUrl: initialBranding?.coverImageUrl ?? '',
+      primaryColor: initialBranding?.primaryColor ?? '#2F6FED',
+      accentColor: initialBranding?.accentColor ?? '#FF7A18',
+      backgroundColor: initialBranding?.backgroundColor ?? '#0D1526',
+      tagline: initialBranding?.tagline ?? '',
+      communityName: initialBranding?.communityName ?? '',
+      fontFamily: initialBranding?.fontFamily ?? '',
+      inviteHeadline: initialBranding?.inviteHeadline ?? '',
+      cardStyle: initialBranding?.cardStyle ?? 'bold',
+    })
+  }, [initialBranding])
+
+  const updateField = <K extends keyof CreatorBranding>(key: K, value: CreatorBranding[K]) => {
+    setBranding((current) => ({ ...current, [key]: value }))
+  }
 
   const handleSave = async () => {
     setSaving(true)
-    setError(null)
+    setStatus(null)
     try {
-      const res = await fetch(`/api/creators/${encodeURIComponent(creatorIdOrSlug)}/branding`, {
+      const response = await fetch(`/api/creators/${encodeURIComponent(creatorIdOrSlug)}/branding`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          logoUrl: logoUrl || undefined,
-          primaryColor: primaryColor || undefined,
-          accentColor: accentColor || undefined,
-        }),
+        body: JSON.stringify(branding),
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Failed to save')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setStatus(payload.error || 'Unable to save branding')
         return
       }
-      onSaved?.({ logoUrl: logoUrl || undefined, primaryColor: primaryColor || undefined, accentColor: accentColor || undefined })
-    } catch (e) {
-      setError('Network error')
+      setStatus('Branding saved')
+      onSaved?.(branding)
+    } catch {
+      setStatus('Network error while saving branding')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div
-      className="rounded-xl border p-4"
-      style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
+    <section
+      data-testid="creator-branding-editor"
+      className="space-y-5 rounded-[28px] border p-5"
+      style={{
+        borderColor: 'var(--border)',
+        background: 'color-mix(in srgb, var(--panel) 78%, transparent)',
+      }}
     >
-      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
-        Branding
-      </h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>
-            Logo URL
-          </label>
+      <div>
+        <h3 className="text-lg font-semibold" style={{ color: 'var(--text)' }}>
+          Creator branding
+        </h3>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          Customize the creator card, invite look, and community presentation.
+        </p>
+      </div>
+
+      <div
+        className="rounded-[28px] border p-5"
+        style={{
+          borderColor: 'var(--border)',
+          background: `linear-gradient(135deg, color-mix(in srgb, ${branding.primaryColor || '#2F6FED'} 28%, ${branding.backgroundColor || '#0D1526'}) 0%, color-mix(in srgb, ${branding.accentColor || '#FF7A18'} 26%, ${branding.backgroundColor || '#0D1526'}) 100%)`,
+        }}
+      >
+        <p className="text-xs uppercase tracking-[0.22em]" style={{ color: 'rgba(255,255,255,0.72)' }}>
+          Preview
+        </p>
+        <p className="mt-3 text-xl font-semibold" style={{ color: 'white' }}>
+          {branding.communityName || 'Creator community'}
+        </p>
+        <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.82)' }}>
+          {branding.tagline || 'Bold creator-led fantasy competition with branded invite links and weekly recaps.'}
+        </p>
+        <p className="mt-3 text-xs" style={{ color: 'rgba(255,255,255,0.74)' }}>
+          {branding.inviteHeadline || 'Join the branded room and compete with the community.'}
+        </p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Community name</span>
           <input
-            type="url"
-            value={logoUrl}
-            onChange={(e) => setLogoUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full rounded-lg border px-3 py-2 text-sm bg-transparent"
+            data-testid="creator-branding-community-name"
+            type="text"
+            value={branding.communityName ?? ''}
+            onChange={(event) => updateField('communityName', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>
-            Primary color
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={primaryColor || '#22c55e'}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-              className="w-10 h-10 rounded border cursor-pointer"
-              style={{ borderColor: 'var(--border)' }}
-            />
-            <input
-              type="text"
-              value={primaryColor}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-              placeholder="#22c55e"
-              className="flex-1 rounded-lg border px-3 py-2 text-sm bg-transparent font-mono"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>
-            Accent color
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={accentColor || '#3b82f6'}
-              onChange={(e) => setAccentColor(e.target.value)}
-              className="w-10 h-10 rounded border cursor-pointer"
-              style={{ borderColor: 'var(--border)' }}
-            />
-            <input
-              type="text"
-              value={accentColor}
-              onChange={(e) => setAccentColor(e.target.value)}
-              placeholder="#3b82f6"
-              className="flex-1 rounded-lg border px-3 py-2 text-sm bg-transparent font-mono"
-              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-            />
-          </div>
-        </div>
-        {error && (
-          <p className="text-sm" style={{ color: 'var(--destructive)' }}>
-            {error}
-          </p>
-        )}
-        <button
-          type="button"
-          disabled={saving}
-          onClick={handleSave}
-          className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60"
-          style={{ background: 'var(--accent)', color: 'var(--bg)' }}
-        >
-          {saving ? 'Saving…' : 'Save branding'}
-        </button>
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Tagline</span>
+          <input
+            data-testid="creator-branding-tagline"
+            type="text"
+            value={branding.tagline ?? ''}
+            onChange={(event) => updateField('tagline', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          />
+        </label>
+
+        <label className="block lg:col-span-2">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Invite headline</span>
+          <input
+            data-testid="creator-branding-invite-headline"
+            type="text"
+            value={branding.inviteHeadline ?? ''}
+            onChange={(event) => updateField('inviteHeadline', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Logo URL</span>
+          <input
+            data-testid="creator-branding-logo-url"
+            type="url"
+            value={branding.logoUrl ?? ''}
+            onChange={(event) => updateField('logoUrl', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Cover image URL</span>
+          <input
+            data-testid="creator-branding-cover-url"
+            type="url"
+            value={branding.coverImageUrl ?? ''}
+            onChange={(event) => updateField('coverImageUrl', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Primary color</span>
+          <input
+            data-testid="creator-branding-primary-color"
+            type="color"
+            value={branding.primaryColor || '#2F6FED'}
+            onChange={(event) => updateField('primaryColor', event.target.value)}
+            className="h-12 w-full rounded-2xl border p-1"
+            style={{ borderColor: 'var(--border)', background: 'transparent' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Accent color</span>
+          <input
+            data-testid="creator-branding-accent-color"
+            type="color"
+            value={branding.accentColor || '#FF7A18'}
+            onChange={(event) => updateField('accentColor', event.target.value)}
+            className="h-12 w-full rounded-2xl border p-1"
+            style={{ borderColor: 'var(--border)', background: 'transparent' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Background color</span>
+          <input
+            data-testid="creator-branding-background-color"
+            type="color"
+            value={branding.backgroundColor || '#0D1526'}
+            onChange={(event) => updateField('backgroundColor', event.target.value)}
+            className="h-12 w-full rounded-2xl border p-1"
+            style={{ borderColor: 'var(--border)', background: 'transparent' }}
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium" style={{ color: 'var(--muted)' }}>Font family hint</span>
+          <input
+            data-testid="creator-branding-font-family"
+            type="text"
+            value={branding.fontFamily ?? ''}
+            onChange={(event) => updateField('fontFamily', event.target.value)}
+            className="w-full rounded-2xl border px-4 py-3 text-sm bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+          />
+        </label>
       </div>
-    </div>
+
+      {status && (
+        <p className="text-sm" style={{ color: status === 'Branding saved' ? 'var(--text)' : 'var(--destructive)' }}>
+          {status}
+        </p>
+      )}
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={handleSave}
+        data-testid="creator-branding-save-button"
+        className="rounded-2xl px-4 py-3 text-sm font-semibold disabled:opacity-60"
+        style={{ background: 'var(--accent)', color: 'var(--bg)' }}
+      >
+        {saving ? 'Saving...' : 'Save branding'}
+      </button>
+    </section>
   )
 }

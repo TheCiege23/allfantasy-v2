@@ -23,6 +23,7 @@ export {
 
 export {
   getPositionSlotsForSport,
+  getPositionSlotWeight,
   buildPositionComparisonRows,
   type PositionSlot,
   type PositionComparisonRow,
@@ -40,6 +41,10 @@ export {
   getDefaultStdDevForSport,
   getVolatilityLabel,
   getSimulationTeamPresets,
+  getScheduleFactorDefinitionsForSport,
+  getDefaultScheduleFactorsForPreset,
+  buildLineupForSimulationPreset,
   type SportOption,
   type SimulationTeamPreset,
+  type SimulationScheduleFactorDefinition,
 } from './SportSimulationUIResolver'

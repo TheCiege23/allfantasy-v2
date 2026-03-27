@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { FlaskConical, Search, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +12,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
-import type { MultiPlayerComparisonResult, ScoringFormat } from '@/lib/player-comparison-lab/types';
+import type {
+  MultiPlayerComparisonResult,
+  ScoringFormat,
+  ComparisonAIInsight,
+  LeagueScoringSettings,
+} from '@/lib/player-comparison-lab/types';
 import { ComparisonMatrix } from './ComparisonMatrix';
 import { PlayerStatCards } from './PlayerStatCards';
 import { CategoryWinnerHighlights } from './CategoryWinnerHighlights';
@@ -41,6 +46,16 @@ export function PlayerComparisonPage() {
   const [comparison, setComparison] = useState<MultiPlayerComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const leagueScoringSettings = useMemo<LeagueScoringSettings>(() => {
+    const ppr = scoringFormat === 'non_ppr' ? 0 : scoringFormat === 'half_ppr' ? 0.5 : 1;
+    return {
+      ppr,
+      tePremium: scoringFormat === 'ppr' ? 0.25 : 0,
+      superflex: false,
+      passTdPoints: 4,
+    };
+  }, [scoringFormat]);
 
   const searchPlayers = useCallback(async (query: string, slotIndex: number) => {
     if (query.length < 2) {
@@ -116,7 +131,12 @@ export function PlayerComparisonPage() {
       const res = await fetch('/api/player-comparison', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ players: names, sport, scoringFormat }),
+        body: JSON.stringify({
+          players: names,
+          sport,
+          scoringFormat,
+          leagueScoringSettings,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -130,9 +150,9 @@ export function PlayerComparisonPage() {
     } finally {
       setLoading(false);
     }
-  }, [playerSlots, sport, scoringFormat]);
+  }, [playerSlots, sport, scoringFormat, leagueScoringSettings]);
 
-  const fetchAiInsight = useCallback(async (): Promise<string | null> => {
+  const fetchAiInsight = useCallback(async (): Promise<ComparisonAIInsight | null> => {
     if (!comparison) return null;
     const res = await fetch('/api/player-comparison/insight', {
       method: 'POST',
@@ -140,10 +160,29 @@ export function PlayerComparisonPage() {
       body: JSON.stringify({
         players: comparison.players.map((p) => p.name),
         summaryLines: comparison.summaryLines,
+        matrix: comparison.matrix,
+        categoryWinners: comparison.categoryWinners,
+        playerScores: comparison.playerScores,
+        sport: comparison.sport,
+        scoringFormat: comparison.scoringFormat,
       }),
     });
     const data = await res.json();
-    return data.recommendation ?? data.error ?? null;
+    if (!res.ok) return null;
+    return {
+      finalRecommendation:
+        data.finalRecommendation ??
+        data.recommendation ??
+        'Deterministic recommendation available in matrix.',
+      deepseekAnalysis: data.providerAnalyses?.deepseek ?? null,
+      grokNarrative: data.providerAnalyses?.grok ?? null,
+      openaiSummary: data.providerAnalyses?.openai ?? null,
+      providerStatus: {
+        deepseek: Boolean(data.providerStatus?.deepseek),
+        grok: Boolean(data.providerStatus?.grok),
+        openai: Boolean(data.providerStatus?.openai),
+      },
+    };
   }, [comparison]);
 
   const playerNames = comparison?.players.map((p) => p.name) ?? [];
@@ -153,7 +192,7 @@ export function PlayerComparisonPage() {
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-6">
       <div className="flex items-center gap-2">
         <FlaskConical className="h-6 w-6 text-violet-400" />
-        <h1 className="text-2xl font-semibold text-white">Player Comparison Lab</h1>
+        <h1 className="text-2xl font-semibold text-white" data-testid="player-comparison-lab-heading">Player Comparison Lab</h1>
       </div>
       <p className="text-sm text-white/60">
         Compare 2–6 players using market value, projections, consistency, and AI insights.
@@ -168,7 +207,7 @@ export function PlayerComparisonPage() {
             <div>
               <label className="mb-1 block text-sm text-white/70">Sport</label>
               <Select value={sport} onValueChange={(v) => { setSport(v); setComparison(null); }}>
-                <SelectTrigger className="w-[140px] border-white/10 bg-black/30 text-white">
+                <SelectTrigger className="w-[140px] border-white/10 bg-black/30 text-white" data-testid="sport-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -186,7 +225,11 @@ export function PlayerComparisonPage() {
                 value={scoringFormat}
                 onValueChange={(v) => { setScoringFormat(v as ScoringFormat); setComparison(null); }}
               >
-                <SelectTrigger className="w-[140px] border-white/10 bg-black/30 text-white" data-audit="scoring-format-select">
+                <SelectTrigger
+                  className="w-[140px] border-white/10 bg-black/30 text-white"
+                  data-audit="scoring-format-select"
+                  data-testid="scoring-format-select"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -202,7 +245,7 @@ export function PlayerComparisonPage() {
 
           <div className="space-y-3">
             {playerSlots.map((slot, index) => (
-              <div key={index} className="flex flex-wrap items-end gap-2">
+              <div key={index} className="flex flex-wrap items-end gap-2" data-testid={`player-slot-${index}`}>
                 <div className="min-w-[200px] flex-1">
                   <label className="mb-1 block text-sm text-white/70">Player {index + 1}</label>
                   <input
@@ -220,15 +263,17 @@ export function PlayerComparisonPage() {
                     onFocus={() => searchPlayers(slot.query, index)}
                     placeholder="Search by name..."
                     className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white placeholder:text-white/40"
+                    data-testid={`player-input-${index}`}
                   />
                   {searchResults.get(index) && searchResults.get(index)!.length > 0 && (
                     <ul className="mt-1 max-h-32 overflow-auto rounded border border-white/10 bg-black/40">
-                      {searchResults.get(index)!.slice(0, 6).map((p) => (
+                      {searchResults.get(index)!.slice(0, 6).map((p, resultIndex) => (
                         <li key={p.name}>
                           <button
                             type="button"
                             onClick={() => setSlot(index, p.name, p)}
                             className="w-full px-3 py-1.5 text-left text-sm text-white hover:bg-white/10"
+                            data-testid={`player-search-result-${index}-${resultIndex}`}
                           >
                             {p.name}
                             {(p.position || p.team) && (
@@ -252,6 +297,7 @@ export function PlayerComparisonPage() {
                     onClick={() => moveSlot(index, 'up')}
                     disabled={index === 0}
                     data-audit="swap-order-up"
+                    data-testid={`swap-player-up-${index}`}
                     aria-label="Move up"
                   >
                     <ArrowUp className="h-4 w-4" />
@@ -264,6 +310,7 @@ export function PlayerComparisonPage() {
                     onClick={() => moveSlot(index, 'down')}
                     disabled={index === playerSlots.length - 1}
                     data-audit="swap-order-down"
+                    data-testid={`swap-player-down-${index}`}
                     aria-label="Move down"
                   >
                     <ArrowDown className="h-4 w-4" />
@@ -276,6 +323,7 @@ export function PlayerComparisonPage() {
                     onClick={() => removePlayer(index)}
                     disabled={playerSlots.length <= MIN_PLAYERS}
                     data-audit="remove-player-button"
+                    data-testid={`remove-player-button-${index}`}
                     aria-label="Remove player"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -292,6 +340,7 @@ export function PlayerComparisonPage() {
               onClick={addPlayer}
               className="gap-2 border-white/20"
               data-audit="add-player-button"
+              data-testid="add-player-button"
             >
               <Plus className="h-4 w-4" />
               Add player
@@ -319,6 +368,19 @@ export function PlayerComparisonPage() {
 
       {comparison && (
         <>
+          <Card className="border-white/10 bg-white/5" data-testid="comparison-source-coverage">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-white">Deterministic data sources</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 text-xs text-white/70 sm:grid-cols-2 lg:grid-cols-3">
+              <p>FantasyCalc: {comparison.sourceCoverage.fantasyCalc ? 'yes' : 'no'}</p>
+              <p>Sleeper: {comparison.sourceCoverage.sleeper ? 'yes' : 'no'}</p>
+              <p>ESPN injuries: {comparison.sourceCoverage.espnInjuryFeed ? 'yes' : 'no'}</p>
+              <p>Internal ADP: {comparison.sourceCoverage.internalAdp ? 'yes' : 'no'}</p>
+              <p>Internal projections: {comparison.sourceCoverage.internalProjections ? 'yes' : 'no'}</p>
+              <p>League scoring settings: {comparison.sourceCoverage.leagueScoringSettings ? 'yes' : 'no'}</p>
+            </CardContent>
+          </Card>
           <SideBySideChart matrix={comparison.matrix} players={comparison.players} />
           <ComparisonMatrix matrix={comparison.matrix} players={comparison.players} />
           <CategoryWinnerHighlights highlights={comparison.categoryWinners} />

@@ -11,10 +11,12 @@ export interface RankingTableProps {
 }
 
 export function RankingTable({ leagueId, teams }: RankingTableProps) {
-  const rosterHref = getLeagueRosterTabHref(leagueId);
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]" data-audit="ranking-table">
+    <div
+      className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]"
+      data-audit="ranking-table"
+      data-testid="power-rankings-table"
+    >
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-white/10">
@@ -23,6 +25,10 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
             <th className="p-3 font-medium text-white/80">Record</th>
             <th className="p-3 font-medium text-white/80">PF</th>
             <th className="p-3 font-medium text-white/80">PA</th>
+            <th className="p-3 font-medium text-white/80">SOS</th>
+            <th className="p-3 font-medium text-white/80">Recent</th>
+            <th className="p-3 font-medium text-white/80">Roster</th>
+            <th className="p-3 font-medium text-white/80">Projection</th>
             <th className="p-3 font-medium text-white/80">Power</th>
             <th className="p-3 font-medium text-white/80">Movement</th>
           </tr>
@@ -31,6 +37,7 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
           {teams.map((team) => {
             const name = team.displayName || team.username || `Team ${team.rosterId}`;
             const r = team.record;
+            const rosterHref = getLeagueRosterTabHref(leagueId, team.rosterId);
             return (
               <tr
                 key={team.rosterId}
@@ -57,6 +64,10 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
                 </td>
                 <td className="p-3 text-white/80">{team.pointsFor.toFixed(1)}</td>
                 <td className="p-3 text-white/80">{team.pointsAgainst.toFixed(1)}</td>
+                <td className="p-3 text-white/80">{(team.strengthOfSchedule * 100).toFixed(0)}</td>
+                <td className="p-3 text-white/80">{team.recentPerformanceScore.toFixed(0)}</td>
+                <td className="p-3 text-white/80">{team.rosterStrengthScore.toFixed(0)}</td>
+                <td className="p-3 text-white/80">{team.projectionStrengthScore.toFixed(0)}</td>
                 <td className="p-3 text-cyan-300">{team.powerScore.toFixed(0)}</td>
                 <td className="p-3">
                   <MovementIndicators team={team} />

@@ -1,36 +1,50 @@
 /**
- * AI commentary for power rankings (Prompt 132): DeepSeek (math), Grok/narrative (OpenAI), OpenAI (summary).
+ * AI commentary for power rankings (Prompt 132):
+ * - DeepSeek: interpret ranking math
+ * - Grok/xAI: narrative explanations
+ * - OpenAI: clear ranking summary
  */
 
 import { deepseekChat } from '@/lib/deepseek-client';
-import OpenAI from 'openai';
+import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client';
+import { openaiChatText } from '@/lib/openai-client';
+import { isDeepSeekAvailable, isOpenAIAvailable, isXaiAvailable } from '@/lib/provider-config';
 import type { PowerRankingsOutput, PowerRankingTeam } from './types';
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
 
 export interface PowerRankingsCommentary {
   formulaExplanation: string | null;
   narrativeExplanation: string | null;
   rankingSummary: string | null;
+  providerStatus: {
+    deepseek: boolean;
+    grok: boolean;
+    openai: boolean;
+  };
 }
 
 function buildContext(data: PowerRankingsOutput): string {
   const top = data.teams.slice(0, 5).map((t, i) => {
     const r = t.record;
-    return `${i + 1}. ${t.displayName || t.username || `Team ${t.rosterId}`}: ${r.wins}-${r.losses}${r.ties > 0 ? `-${r.ties}` : ''}, PF ${t.pointsFor.toFixed(0)}, PA ${t.pointsAgainst.toFixed(0)}, PowerScore ${t.powerScore.toFixed(0)}, Composite ${t.composite.toFixed(0)}${t.rankDelta != null ? ` (${t.rankDelta > 0 ? '+' : ''}${t.rankDelta} vs last week)` : ''}`;
+    return `${i + 1}. ${t.displayName || t.username || `Team ${t.rosterId}`}: ${r.wins}-${r.losses}${r.ties > 0 ? `-${r.ties}` : ''}, PF ${t.pointsFor.toFixed(1)}, PA ${t.pointsAgainst.toFixed(1)}, SOS ${(t.strengthOfSchedule * 100).toFixed(0)}, Recent ${t.recentPerformanceScore.toFixed(0)}, Roster ${t.rosterStrengthScore.toFixed(0)}, Projection ${t.projectionStrengthScore.toFixed(0)}, PowerScore ${t.powerScore.toFixed(1)}${t.rankDelta != null ? ` (${t.rankDelta > 0 ? '+' : ''}${t.rankDelta} vs last week)` : ''}`;
   });
-  return `League: ${data.leagueName}, Season ${data.season}, Week ${data.week}. Top 5:\n${top.join('\n')}`;
+  return `League: ${data.leagueName}, Season ${data.season}, Week ${data.week}.
+Formula weights:
+- record ${Math.round(data.formula.recordWeight * 100)}%
+- recent performance ${Math.round(data.formula.recentPerformanceWeight * 100)}%
+- roster strength ${Math.round(data.formula.rosterStrengthWeight * 100)}%
+- projection strength ${Math.round(data.formula.projectionStrengthWeight * 100)}%
+
+Top 5:
+${top.join('\n')}`;
 }
 
 /** DeepSeek: interpret ranking math / formula. */
 export async function interpretRankingMath(data: PowerRankingsOutput): Promise<string | null> {
+  if (!isDeepSeekAvailable()) return null;
   const context = buildContext(data);
   const result = await deepseekChat({
-    systemPrompt: 'You explain fantasy league power ranking formulas in one short paragraph. Focus on how record, points for/against, roster strength (power score), and recent performance combine. Be concise.',
-    prompt: `Given these power ranking results, explain in 2-3 sentences how the ranking math likely works (record weight, recent performance, roster strength, projection).\n\n${context}`,
+    systemPrompt: 'You explain fantasy league ranking math clearly. Focus on deterministic weighting and the biggest score drivers.',
+    prompt: `Explain this ranking math in 2-3 concise sentences. Mention how record, recent performance, roster strength, and projection strength drive the final PowerScore.\n\n${context}`,
     temperature: 0.2,
     maxTokens: 280,
   });
@@ -38,23 +52,29 @@ export async function interpretRankingMath(data: PowerRankingsOutput): Promise<s
   return result.content.trim();
 }
 
-/** Narrative explanation (Grok role — using OpenAI with narrative tone). */
+/** Narrative explanation (Grok role). */
 export async function summarizeNarrative(data: PowerRankingsOutput): Promise<string | null> {
-  if (!openai.apiKey) return null;
+  if (!isXaiAvailable()) return null;
   const context = buildContext(data);
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await xaiChatJson({
+      model: process.env.XAI_MODEL || process.env.GROK_MODEL || 'grok-2-latest',
+      temperature: 0.4,
+      maxTokens: 220,
       messages: [
         {
           role: 'system',
-          content: 'You write brief narrative explanations for fantasy league power rankings. Highlight storylines: who is rising, who is underperforming vs roster strength, tight races. No bullet points. 2-3 sentences.',
+          content:
+            'You are Grok writing fantasy league storyline blurbs. Highlight momentum, surprises, and context in 2-3 sentences. No bullets.',
         },
-        { role: 'user', content: context },
+        {
+          role: 'user',
+          content: `Write the narrative storyline for these rankings:\n\n${context}`,
+        },
       ],
-      max_tokens: 200,
     });
-    const text = completion.choices[0]?.message?.content?.trim();
+    if (!completion.ok) return null;
+    const text = parseTextFromXaiChatCompletion(completion.json)?.trim();
     return text || null;
   } catch (e) {
     console.error('[PowerRankingsCommentaryAI] narrative', e);
@@ -64,21 +84,23 @@ export async function summarizeNarrative(data: PowerRankingsOutput): Promise<str
 
 /** OpenAI: clear ranking summary for users. */
 export async function buildRankingSummary(data: PowerRankingsOutput): Promise<string | null> {
-  if (!openai.apiKey) return null;
+  if (!isOpenAIAvailable()) return null;
   const context = buildContext(data);
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await openaiChatText({
+      temperature: 0.3,
+      maxTokens: 200,
       messages: [
         {
           role: 'system',
-          content: 'You write a short, clear summary of fantasy league power rankings for the user. State who is #1 and one or two notable moves or takeaways. One paragraph, friendly tone.',
+          content:
+            'You write a clear fantasy power rankings summary. State #1 team and the most important movement/takeaway in one concise paragraph.',
         },
         { role: 'user', content: context },
       ],
-      max_tokens: 180,
     });
-    const text = completion.choices[0]?.message?.content?.trim();
+    if (!completion.ok) return null;
+    const text = completion.text.trim();
     return text || null;
   } catch (e) {
     console.error('[PowerRankingsCommentaryAI] summary', e);
@@ -88,14 +110,22 @@ export async function buildRankingSummary(data: PowerRankingsOutput): Promise<st
 
 /** Full commentary pipeline. */
 export async function getPowerRankingsCommentary(data: PowerRankingsOutput): Promise<PowerRankingsCommentary> {
+  const providerStatus = {
+    deepseek: isDeepSeekAvailable(),
+    grok: isXaiAvailable(),
+    openai: isOpenAIAvailable(),
+  };
+
   const [formulaExplanation, narrativeExplanation, rankingSummary] = await Promise.all([
     interpretRankingMath(data),
     summarizeNarrative(data),
     buildRankingSummary(data),
   ]);
+
   return {
     formulaExplanation,
     narrativeExplanation,
     rankingSummary,
+    providerStatus,
   };
 }

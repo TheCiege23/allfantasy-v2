@@ -3,6 +3,7 @@
  * and must produce (or be normalized to) the same output shape.
  */
 
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type {
   DeterministicContextEnvelope,
   EvidenceBlock,
@@ -11,6 +12,10 @@ import type {
   UncertaintyBlock,
   MissingDataBlock,
   NormalizedToolOutput,
+} from './schema'
+import {
+  DeterministicContextEnvelopeSchema,
+  NormalizedToolOutputSchema,
 } from './schema'
 
 /** Provider input contract: what every AI provider receives for tools that require deterministic context. */
@@ -61,6 +66,13 @@ export interface ProviderRawOutput {
   [key: string]: unknown
 }
 
+/** Provider output contract: all providers normalize to this shape before UI rendering. */
+export type ProviderOutputContract = NormalizedToolOutput
+
+function clampScore(score: number): number {
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
 /**
  * Output normalization contract: normalize any provider output to NormalizedToolOutput
  * so that evidence block always renders if available, uncertainty when confidence limited,
@@ -74,30 +86,45 @@ export function normalizeToContract(
   const primaryAnswer = raw.primaryAnswer ?? raw.verdict ?? ''
   const verdict = raw.verdict ?? primaryAnswer.split('\n')[0]?.trim() ?? 'See analysis.'
 
+  const envelopeEvidence: EvidenceItem[] = envelope.evidence?.items ?? []
+  const hasEnvelopeEvidence = envelopeEvidence.length > 0
   const evidence: EvidenceItem[] =
-    raw.evidence && Array.isArray(raw.evidence)
+    hasEnvelopeEvidence
+      ? envelopeEvidence
+      : raw.evidence && Array.isArray(raw.evidence)
       ? raw.evidence
-      : envelope.evidence?.items ?? []
+      : []
 
   const keyEvidence: string[] =
-    raw.keyEvidence && Array.isArray(raw.keyEvidence)
+    !hasEnvelopeEvidence && raw.keyEvidence && Array.isArray(raw.keyEvidence)
       ? raw.keyEvidence
       : evidence.map((e) => (e.unit ? `${e.label}: ${e.value} ${e.unit}` : `${e.label}: ${e.value}`))
+
+  const uncertainty = envelope.uncertainty?.items ?? []
+  const missingData = envelope.missingData?.items ?? []
+  const hasDataLimitations = uncertainty.length > 0 || missingData.length > 0
 
   const envConf: Confidence | undefined = envelope.confidence
   const confidence: Confidence | undefined =
     envConf ?? (raw.confidencePct != null || raw.confidenceLabel
       ? {
-          scorePct: typeof raw.confidencePct === 'number' ? raw.confidencePct : 50,
+          scorePct: typeof raw.confidencePct === 'number' ? clampScore(raw.confidencePct) : 50,
           label: raw.confidenceLabel ?? 'medium',
           reason: raw.confidenceReason,
           cappedByData: undefined,
           capReason: undefined,
         }
-      : undefined)
-
-  const uncertainty = envelope.uncertainty?.items ?? []
-  const missingData = envelope.missingData?.items ?? []
+      : {
+          scorePct: hasDataLimitations ? 45 : 60,
+          label: hasDataLimitations ? 'low' : 'medium',
+          reason: hasDataLimitations
+            ? 'Confidence is capped because deterministic data is incomplete.'
+            : 'No deterministic confidence score was provided.',
+          cappedByData: hasDataLimitations || undefined,
+          capReason: hasDataLimitations
+            ? `Missing/uncertain data: ${missingData.length} missing, ${uncertainty.length} uncertain.`
+            : undefined,
+        })
 
   const caveats: string[] = []
   if (Array.isArray(raw.risksCaveats)) caveats.push(...raw.risksCaveats)
@@ -120,7 +147,7 @@ export function normalizeToContract(
         }
       : undefined
 
-  return {
+  const normalized: NormalizedToolOutput = {
     primaryAnswer,
     verdict,
     evidence: evidence.length > 0 ? evidence : undefined,
@@ -133,6 +160,8 @@ export function normalizeToContract(
     alternatePath: raw.alternatePath,
     trace,
   }
+  const parsed = NormalizedToolOutputSchema.safeParse(normalized)
+  return parsed.success ? parsed.data : normalized
 }
 
 /**
@@ -155,9 +184,9 @@ export function buildEnvelopeFromTool(
     dataQualitySummary?: string
   }
 ): DeterministicContextEnvelope {
-  return {
+  const envelope: DeterministicContextEnvelope = {
     toolId,
-    sport,
+    sport: normalizeToSupportedSport(sport),
     leagueId: opts.leagueId ?? null,
     userId: opts.userId ?? null,
     evidence: opts.evidence,
@@ -168,5 +197,38 @@ export function buildEnvelopeFromTool(
     hardConstraints: opts.hardConstraints ?? [],
     envelopeId: opts.envelopeId,
     dataQualitySummary: opts.dataQualitySummary,
+  }
+  const parsed = DeterministicContextEnvelopeSchema.safeParse(envelope)
+  return parsed.success ? parsed.data : envelope
+}
+
+/**
+ * Build and validate provider input contract from deterministic envelope.
+ */
+export function toProviderInputContract(input: {
+  envelope: DeterministicContextEnvelope
+  userMessage?: string
+  intent?: string
+}): ProviderInputContract {
+  const parsed = DeterministicContextEnvelopeSchema.safeParse(input.envelope)
+  const envelope = parsed.success ? parsed.data : input.envelope
+  return {
+    envelope,
+    userMessage: input.userMessage,
+    intent: input.intent,
+    systemPromptSuffix: getMandatorySystemPromptSuffix(envelope),
+  }
+}
+
+/**
+ * Safe frontend/debug envelope (omit raw deterministicPayload by default).
+ */
+export function toClientDeterministicEnvelope(
+  envelope: DeterministicContextEnvelope,
+  options?: { includePayload?: boolean }
+): DeterministicContextEnvelope {
+  return {
+    ...envelope,
+    deterministicPayload: options?.includePayload ? envelope.deterministicPayload : null,
   }
 }

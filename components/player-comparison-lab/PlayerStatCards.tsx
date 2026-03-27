@@ -39,6 +39,10 @@ export function PlayerStatCards({ players, scores }: PlayerStatCardsProps) {
                 <span className="text-white">{formatVal(p.projection?.value ?? null)}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-white/60">Internal ADP</span>
+                <span className="text-white">{formatVal(p.internalAdp)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-white/60">Rank</span>
                 <span className="text-white">{p.projection?.rank ?? '—'}</span>
               </div>
@@ -47,7 +51,7 @@ export function PlayerStatCards({ players, scores }: PlayerStatCardsProps) {
                 <span className="text-white">{formatVal(s?.vorpDifference ?? null)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-white/60">Projection</span>
+                <span className="text-white/60">Projection delta</span>
                 <span className="text-white">{formatVal(s?.projectionDelta ?? null)}</span>
               </div>
               <div className="flex justify-between">
@@ -57,6 +61,14 @@ export function PlayerStatCards({ players, scores }: PlayerStatCardsProps) {
               <div className="flex justify-between">
                 <span className="text-white/60">Volatility</span>
                 <span className="text-white">{formatVal(s?.volatilityScore ?? null)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Schedule difficulty</span>
+                <span className="text-white">{formatVal(p.scheduleDifficultyScore)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Injury risk</span>
+                <span className="text-white">{formatVal(p.injury.riskScore)}</span>
               </div>
               {last && (
                 <div className="flex justify-between border-t border-white/10 pt-2">
