@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import type { LeagueSport } from "@prisma/client"
 import { extractLeagueCareerTier } from "@/lib/ranking/tier-visibility"
 import { isSupportedSport, normalizeToSupportedSport } from "@/lib/sport-scope"
 import type { DiscoveryCard, DiscoveryLeagueStyle } from "./types"
@@ -105,10 +106,10 @@ function buildFillPct(memberCount: number, maxMembers: number): number {
   return Math.max(0, Math.min(100, Math.round((memberCount / maxMembers) * 100)))
 }
 
-function normalizeSportFilter(sport: string | null): string | null {
+function normalizeSportFilter(sport: string | null): LeagueSport | null {
   if (!sport) return null
   if (!isSupportedSport(sport)) return null
-  return normalizeToSupportedSport(sport)
+  return normalizeToSupportedSport(sport) as LeagueSport
 }
 
 export async function queryPublicFantasyLeagueCards(options: {

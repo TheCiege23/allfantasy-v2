@@ -1,11 +1,10 @@
 /**
- * AllFantasy Social Share Engine — types (PROMPT 145).
- * Shareable kinds, destinations, and safe public payloads (no sensitive league data).
+ * AllFantasy Social Share Engine types.
+ * Public-safe payloads only: no member lists, emails, or private league details.
  */
 
 import type { LeagueSport } from "@prisma/client";
 
-/** Supported shareable object types. */
 export const SHAREABLE_KINDS = [
   "league_invite",
   "bracket_invite",
@@ -19,7 +18,6 @@ export const SHAREABLE_KINDS = [
 
 export type ShareableKind = (typeof SHAREABLE_KINDS)[number];
 
-/** Share destinations. */
 export const SHARE_DESTINATIONS = [
   "copy_link",
   "x",
@@ -27,57 +25,88 @@ export const SHARE_DESTINATIONS = [
   "reddit",
   "email",
   "sms",
+  "native_share",
 ] as const;
 
 export type ShareDestination = (typeof SHARE_DESTINATIONS)[number];
 
-/**
- * Safe public payload for sharing. Only fields that are safe to expose in URLs and OG.
- * No member lists, emails, or private league details.
- */
+export const SHARE_VISIBILITY = ["public", "invite_only", "private"] as const;
+
+export type ShareVisibility = (typeof SHARE_VISIBILITY)[number];
+
+export const SHARE_TRACK_EVENTS = [
+  "share_modal_opened",
+  "share_attempt",
+  "share_complete",
+  "share_fallback",
+] as const;
+
+export type ShareTrackEvent = (typeof SHARE_TRACK_EVENTS)[number];
+
+export type ShareTargetAction = "copy" | "external" | "manual_copy";
+
 export interface SharePayload {
-  /** Shareable kind. */
   kind: ShareableKind;
-  /** Public share URL (invite link, /share/[id], or public discovery URL). */
   url: string;
-  /** Title for preview and copy (e.g. "Join my league", "Week 7 matchup result"). */
   title: string;
-  /** Short description for preview and social text. */
   description?: string;
-  /** Optional image URL for OG / cards (public only). */
   imageUrl?: string;
-  /** Sport for theming; aligns with LeagueSport. */
   sport?: LeagueSport | string;
-  /** Optional shareId when content is stored (e.g. ShareableMoment.id). */
   shareId?: string;
-  /** Optional public league name (only if league is discoverable/public). */
   leagueName?: string;
-  /** Optional public bracket/tournament name. */
   bracketName?: string;
-  /** Optional week/round label (e.g. "Week 7", "Round 2"). */
   weekOrRound?: string;
-  /** Optional hashtags for X/social. */
   hashtags?: string[];
-  /** Extra safe key-value for platform-specific copy (e.g. CTA). */
   cta?: string;
+  creatorName?: string;
+  eyebrow?: string;
+  chips?: string[];
+  helperText?: string;
+  visibility?: ShareVisibility;
+  safeForPublic?: boolean;
 }
 
-/** Options when opening share modal (e.g. from league vs from bracket). */
+export interface SharePayloadRequest {
+  kind: ShareableKind;
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  sport?: LeagueSport | string | null;
+  shareId?: string | null;
+  leagueName?: string | null;
+  bracketName?: string | null;
+  weekOrRound?: string | null;
+  hashtags?: string[] | null;
+  cta?: string | null;
+  creatorName?: string | null;
+  visibility?: ShareVisibility | null;
+  safeForPublic?: boolean | null;
+}
+
+export interface ShareTargetDescriptor {
+  destination: ShareDestination;
+  label: string;
+  href: string | null;
+  action: ShareTargetAction;
+  helperText: string;
+  opensExternal: boolean;
+}
+
 export interface ShareModalOptions {
   payload: SharePayload;
-  /** Callback when share completes (e.g. track success). */
   onShareComplete?: (destination: ShareDestination) => void;
-  /** Prefer native share on mobile when available. */
   preferNativeOnMobile?: boolean;
 }
 
-/** Event meta for share analytics (safe fields only). */
 export interface ShareTrackMeta {
   shareType: ShareableKind;
-  destination: ShareDestination;
+  destination?: ShareDestination;
   shareId?: string;
-  /** Only include if league is public / share context allows. */
-  leagueId?: string;
   sport?: string;
   path?: string;
+  surface?: string;
+  shareUrl?: string;
+  visibility?: ShareVisibility;
+  usedFallback?: boolean;
 }

@@ -3,5 +3,6 @@
  */
 
 export * from "./types";
+export * from "./SharePayloadBuilder";
 export * from "./shareUrls";
 export * from "./ShareTrackingService";

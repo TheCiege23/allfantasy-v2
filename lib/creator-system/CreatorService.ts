@@ -1688,7 +1688,7 @@ export async function getCreatorLeagueById(
     {
       inviteOverride:
         !!inviteCode && inviteCode.trim().toUpperCase() === league.inviteCode.trim().toUpperCase(),
-      visibilityBypass: manageAccess,
+      visibilityBypass: !!manageAccess,
     }
   )
 

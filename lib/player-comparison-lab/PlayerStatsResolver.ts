@@ -42,12 +42,18 @@ function scoringToFantasyCalc(
   scoringFormat?: ScoringFormat,
   leagueScoringSettings?: LeagueScoringSettings | null
 ): FantasyCalcSettings {
+  const toFantasyCalcPpr = (value: number): 0 | 0.5 | 1 => {
+    if (value >= 0.75) return 1;
+    if (value >= 0.25) return 0.5;
+    return 0;
+  };
   const pprFromFormat =
     scoringFormat === 'non_ppr' ? 0 : scoringFormat === 'half_ppr' ? 0.5 : 1;
-  const ppr =
+  const pprRaw =
     typeof leagueScoringSettings?.ppr === 'number'
       ? leagueScoringSettings.ppr
       : pprFromFormat;
+  const ppr = toFantasyCalcPpr(pprRaw);
   return {
     isDynasty: true,
     numQbs: leagueScoringSettings?.superflex ? 2 : 1,

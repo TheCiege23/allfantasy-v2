@@ -3,7 +3,6 @@
 import type { SharePayload } from "@/lib/share-engine/types";
 import { cn } from "@/lib/utils";
 
-/** Sport-aware accent colors for share card (optional theming). */
 const SPORT_ACCENT: Record<string, string> = {
   NFL: "from-amber-500/20 to-orange-600/10 border-amber-500/30",
   NBA: "from-orange-500/20 to-red-600/10 border-orange-500/30",
@@ -25,15 +24,12 @@ export function SharePreviewCard({ payload, className }: SharePreviewCardProps) 
 
   return (
     <div
-      className={cn(
-        "rounded-xl border bg-gradient-to-br p-4 text-left",
-        accent,
-        className
-      )}
+      className={cn("rounded-2xl border bg-gradient-to-br p-4 text-left", accent, className)}
       data-sport={sport}
+      data-testid="share-preview-card"
     >
       {payload.imageUrl ? (
-        <div className="mb-3 aspect-video w-full overflow-hidden rounded-lg bg-black/20">
+        <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl bg-black/20">
           <img
             src={payload.imageUrl}
             alt=""
@@ -41,17 +37,41 @@ export function SharePreviewCard({ payload, className }: SharePreviewCardProps) 
           />
         </div>
       ) : null}
-      <h3 className="font-semibold text-foreground">{payload.title}</h3>
+
+      {payload.eyebrow ? (
+        <p
+          className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground"
+          data-testid="share-preview-eyebrow"
+        >
+          {payload.eyebrow}
+        </p>
+      ) : null}
+
+      <h3 className="mt-2 font-semibold text-foreground" data-testid="share-preview-title">
+        {payload.title}
+      </h3>
+
       {payload.description ? (
-        <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+        <p className="mt-1 text-sm text-muted-foreground" data-testid="share-preview-description">
           {payload.description}
         </p>
       ) : null}
-      {payload.weekOrRound ? (
-        <p className="mt-1 text-xs text-muted-foreground">{payload.weekOrRound}</p>
+
+      {payload.chips?.length ? (
+        <div className="mt-3 flex flex-wrap gap-2" data-testid="share-preview-chips">
+          {payload.chips.map((chip) => (
+            <span
+              key={chip}
+              className="rounded-full border border-white/15 bg-black/10 px-2.5 py-1 text-[11px] font-medium text-foreground/90"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
       ) : null}
+
       {payload.cta ? (
-        <p className="mt-2 text-xs font-medium text-muted-foreground">
+        <p className="mt-3 text-xs font-medium text-muted-foreground" data-testid="share-preview-cta">
           {payload.cta}
         </p>
       ) : null}

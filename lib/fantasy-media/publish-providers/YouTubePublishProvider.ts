@@ -131,7 +131,7 @@ export class YouTubePublishProvider implements FantasyMediaPublishProvider {
   private async retryUploadWithRefreshedToken(
     initialAttempt: UploadResult,
     sessionUrl: string,
-    source: SourceVideoResult,
+    source: SourceVideoSuccess,
     input: FantasyMediaPublishProviderRequest
   ): Promise<UploadResult> {
     if (initialAttempt.status !== 401) return initialAttempt
@@ -149,7 +149,7 @@ export class YouTubePublishProvider implements FantasyMediaPublishProvider {
   private async createResumableSession(
     accessToken: string,
     input: FantasyMediaPublishProviderRequest,
-    source: SourceVideoResult
+    source: SourceVideoSuccess
   ): Promise<ResumableSessionResult> {
     const apiBase = (process.env[YOUTUBE_API_BASE_ENV] ?? YOUTUBE_DEFAULT_API_BASE).replace(/\/+$/, "")
     const response = await fetchWithTimeout(
@@ -196,7 +196,7 @@ export class YouTubePublishProvider implements FantasyMediaPublishProvider {
   private async uploadVideoBytes(
     accessToken: string,
     sessionUrl: string,
-    source: SourceVideoResult
+    source: SourceVideoSuccess
   ): Promise<UploadResult> {
     const response = await fetchWithTimeout(sessionUrl, {
       method: "PUT",
@@ -236,6 +236,8 @@ type SourceVideoResult =
       reason: string
       message: string
     }
+
+type SourceVideoSuccess = Extract<SourceVideoResult, { ok: true }>
 
 type ResumableSessionResult =
   | {

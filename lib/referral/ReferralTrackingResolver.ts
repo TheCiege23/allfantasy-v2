@@ -3,6 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
+import { getReferrerIdByCode, recordClick } from "./ReferralService"
 
 
 const REFERRAL_COOKIE = "af_ref"

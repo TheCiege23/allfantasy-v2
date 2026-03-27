@@ -1253,16 +1253,13 @@ async function getPositionValueChanges(args: {
     filteredTradeRows.filter((row) => row.createdAt < recentSince)
   )
 
-  const positionMetaByKey = new Map(
-    positionMetaRows
-      .map((row) => {
-        const sport = safeNormalizeSport(row.sport) ?? null
-        const position = sport ? normalizePosition(sport, row.position) : null
-        if (!sport || !position) return null
-        return [`${sport}:${position}`, row] as const
-      })
-      .filter((entry): entry is readonly [string, (typeof positionMetaRows)[number]] => Boolean(entry))
-  )
+  const positionMetaByKey = new Map<string, (typeof positionMetaRows)[number]>()
+  for (const row of positionMetaRows) {
+    const sport = safeNormalizeSport(row.sport) ?? null
+    const position = sport ? normalizePosition(sport, row.position) : null
+    if (!sport || !position) continue
+    positionMetaByKey.set(`${sport}:${position}`, row)
+  }
 
   const keys = new Set<string>([
     ...positionMetaByKey.keys(),

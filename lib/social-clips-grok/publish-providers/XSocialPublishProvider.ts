@@ -62,9 +62,13 @@ export class XSocialPublishProvider implements SocialPublishProvider {
         }
       }
       const data = body?.data
+      const dataRecord =
+        data && typeof data === "object" && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : null
       const tweetId =
-        data && typeof data === "object" && !Array.isArray(data) && typeof data.id === "string"
-          ? data.id
+        dataRecord && typeof dataRecord.id === "string"
+          ? dataRecord.id
           : null
       return {
         status: "success",

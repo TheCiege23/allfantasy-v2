@@ -1,21 +1,23 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { SharePayload, ShareDestination } from "@/lib/share-engine/types";
-import { trackShareAttempt } from "@/lib/share-engine/ShareTrackingService";
+import type { SharePayload } from "@/lib/share-engine/types";
+import { trackShareModalOpened } from "@/lib/share-engine/ShareTrackingService";
 
 export function useShareModal() {
   const [open, setOpen] = useState(false);
   const [payload, setPayload] = useState<SharePayload | null>(null);
 
-  const openShare = useCallback((p: SharePayload) => {
-    setPayload(p);
+  const openShare = useCallback((nextPayload: SharePayload, options?: { surface?: string }) => {
+    setPayload(nextPayload);
     setOpen(true);
-    trackShareAttempt({
-      shareType: p.kind,
-      destination: "copy_link",
-      shareId: p.shareId,
-      sport: p.sport,
+    trackShareModalOpened({
+      shareType: nextPayload.kind,
+      shareId: nextPayload.shareId,
+      sport: nextPayload.sport?.toString(),
+      shareUrl: nextPayload.url,
+      visibility: nextPayload.visibility,
+      surface: options?.surface ?? "share_modal",
     });
   }, []);
 

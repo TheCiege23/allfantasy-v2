@@ -1,12 +1,13 @@
 "use client";
 
+import { ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { SharePayload, ShareDestination } from "@/lib/share-engine/types";
+import type { ShareDestination, SharePayload } from "@/lib/share-engine/types";
 import { SharePreviewCard } from "./SharePreviewCard";
 import { CopyLinkAction } from "./CopyLinkAction";
 import { NativeShareAction } from "./NativeShareAction";
@@ -17,7 +18,6 @@ export interface ShareModalProps {
   onOpenChange: (open: boolean) => void;
   payload: SharePayload;
   onShareComplete?: (destination: ShareDestination) => void;
-  /** Show native share button (mobile); when clicked and not supported, keep modal open. */
   preferNativeOnMobile?: boolean;
 }
 
@@ -28,22 +28,38 @@ export function ShareModal({
   onShareComplete,
   preferNativeOnMobile = true,
 }: ShareModalProps) {
-  const isMobile =
-    typeof navigator !== "undefined" &&
-    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const canNativeShare =
+    typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const showNativeAction = preferNativeOnMobile && canNativeShare;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="gap-4 sm:max-w-md"
+        className="gap-5 sm:max-w-md"
         style={{ color: "var(--text)" }}
+        data-testid="share-modal"
       >
         <DialogHeader>
           <DialogTitle>Share</DialogTitle>
         </DialogHeader>
+
         <SharePreviewCard payload={payload} />
+
+        {payload.helperText ? (
+          <div
+            className="flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+            data-testid="share-privacy-note"
+          >
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{payload.helperText}</span>
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
+          <div
+            className="flex items-center justify-between gap-2"
+            data-testid="share-copy-row"
+          >
             <span className="text-sm text-muted-foreground">Copy link</span>
             <CopyLinkAction
               payload={payload}
@@ -51,26 +67,32 @@ export function ShareModal({
               className="rounded-lg border border-border bg-muted/50 p-2 hover:bg-muted"
             />
           </div>
-          {preferNativeOnMobile && isMobile && (
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm text-muted-foreground">Share via...</span>
+
+          {showNativeAction ? (
+            <div
+              className="flex items-center justify-between gap-2"
+              data-testid="share-native-row"
+            >
+              <span className="text-sm text-muted-foreground">Use your device</span>
               <NativeShareAction
                 payload={payload}
-                onShare={() => onOpenChange(false)}
+                onShare={() => {
+                  onShareComplete?.("native_share");
+                  onOpenChange(false);
+                }}
                 fallback={() => {}}
                 className="rounded-lg border border-border bg-muted/50 p-2 hover:bg-muted"
               />
             </div>
-          )}
-          <div className="flex flex-col gap-2">
-            <span className="text-sm text-muted-foreground">
-              Share to
-            </span>
+          ) : null}
+
+          <div className="flex flex-col gap-2" data-testid="share-platform-section">
+            <span className="text-sm text-muted-foreground">Share to</span>
             <PlatformShareActions
               payload={payload}
-              onShareComplete={(dest) => {
-                onShareComplete?.(dest);
-                if (dest !== "copy_link" && dest !== "discord") {
+              onShareComplete={(destination) => {
+                onShareComplete?.(destination);
+                if (destination !== "discord") {
                   onOpenChange(false);
                 }
               }}

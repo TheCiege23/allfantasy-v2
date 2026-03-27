@@ -3,6 +3,8 @@
  * Events are stored via AnalyticsEvent (POST /api/analytics/track or server-side).
  */
 
+import type { DiscoverySource } from "@/lib/public-discovery/types"
+
 export const DISCOVERY_EVENTS = {
   LEAGUE_VIEW: "discovery_league_view",
   JOIN_CLICK: "discovery_join_click",

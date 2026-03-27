@@ -1,23 +1,30 @@
 /**
- * Share tracking endpoint (PROMPT 145). Validates share events and records to analytics.
- * Client can use this or POST /api/analytics/track with event share_attempt / share_complete.
+ * Share tracking endpoint. Records modal opens, attempts, completes, and fallbacks.
  */
 
-import { withApiUsage } from "@/lib/telemetry/usage";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { withApiUsage } from "@/lib/telemetry/usage";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   SHAREABLE_KINDS,
   SHARE_DESTINATIONS,
+  SHARE_TRACK_EVENTS,
+  SHARE_VISIBILITY,
 } from "@/lib/share-engine/types";
 
-function safeStr(v: unknown, max = 500): string | null {
-  const s = typeof v === "string" ? v : "";
-  const out = s.length > max ? s.slice(0, max) : s;
-  return out || null;
+function safeString(value: unknown, maxLength = 500): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, maxLength);
 }
 
-const VALID_EVENTS = new Set(["share_attempt", "share_complete"]);
+function safeBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  return undefined;
+}
 
 export const POST = withApiUsage({
   endpoint: "/api/share/track",
@@ -25,53 +32,54 @@ export const POST = withApiUsage({
 })(async (req: Request) => {
   try {
     const body = await req.json().catch(() => null);
-    const event = safeStr(body?.event, 64);
-    if (!event || !VALID_EVENTS.has(event)) {
-      return NextResponse.json(
-        { ok: false, error: "Invalid or missing event" },
-        { status: 400 }
-      );
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+    const event = safeString(body?.event, 64);
+
+    if (!event || !SHARE_TRACK_EVENTS.includes(event as (typeof SHARE_TRACK_EVENTS)[number])) {
+      return NextResponse.json({ ok: false, error: "Invalid or missing event" }, { status: 400 });
     }
 
-    const sessionId = safeStr(body?.sessionId, 128) || null;
-    const path = safeStr(body?.path, 500) || null;
-    const referrer = safeStr(body?.referrer, 500) || null;
-    const userAgent = safeStr(req.headers.get("user-agent"), 500) || null;
-
     const metaRaw = body?.meta && typeof body.meta === "object" ? body.meta : {};
-    const shareType = safeStr(metaRaw.shareType, 64);
-    const destination = safeStr(metaRaw.destination, 32);
+    const shareType = safeString((metaRaw as Record<string, unknown>).shareType, 64);
+    const destination = safeString((metaRaw as Record<string, unknown>).destination, 32);
+    const visibility = safeString((metaRaw as Record<string, unknown>).visibility, 16);
+
     const meta = {
-      ...metaRaw,
       shareType:
-        shareType && SHAREABLE_KINDS.includes(shareType as any)
+        shareType && SHAREABLE_KINDS.includes(shareType as (typeof SHAREABLE_KINDS)[number])
           ? shareType
           : "league_invite",
       destination:
-        destination && SHARE_DESTINATIONS.includes(destination as any)
+        destination && SHARE_DESTINATIONS.includes(destination as (typeof SHARE_DESTINATIONS)[number])
           ? destination
-          : "copy_link",
+          : null,
+      shareId: safeString((metaRaw as Record<string, unknown>).shareId, 128),
+      sport: safeString((metaRaw as Record<string, unknown>).sport, 32),
+      path: safeString((metaRaw as Record<string, unknown>).path, 500),
+      surface: safeString((metaRaw as Record<string, unknown>).surface, 64),
+      shareUrl: safeString((metaRaw as Record<string, unknown>).shareUrl, 1000),
+      visibility:
+        visibility && SHARE_VISIBILITY.includes(visibility as (typeof SHARE_VISIBILITY)[number])
+          ? visibility
+          : null,
+      usedFallback: safeBoolean((metaRaw as Record<string, unknown>).usedFallback) ?? false,
     };
-    const metaStr =
-      typeof meta === "object"
-        ? JSON.stringify(meta).slice(0, 10_000)
-        : "{}";
-    const metaJson = JSON.parse(metaStr);
 
     await prisma.analyticsEvent.create({
       data: {
         event,
-        sessionId,
-        path,
-        referrer,
-        userAgent,
+        sessionId: safeString(body?.sessionId, 128),
+        path: safeString(body?.path, 500),
+        referrer: safeString(body?.referrer, 500),
+        userAgent: safeString(req.headers.get("user-agent"), 500),
+        userId: session?.user?.id ?? null,
         toolKey: "ShareEngine",
-        meta: metaJson,
+        meta,
       },
     });
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ ok: true });
   }
 });

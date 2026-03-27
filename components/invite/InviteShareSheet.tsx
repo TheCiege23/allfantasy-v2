@@ -6,13 +6,17 @@ import { buildInviteShareTargets } from '@/lib/invite-engine/shareUrls'
 import type { InviteShareChannel, InviteShareTargetDto } from '@/lib/invite-engine/types'
 import { ShareModal } from '@/components/share'
 import { useShareModal } from '@/hooks/useShareModal'
-import type { ShareableKind } from '@/lib/share-engine/types'
+import type { ShareDestination, ShareableKind, ShareVisibility } from '@/lib/share-engine/types'
 
 export interface InviteShareSheetProps {
   inviteUrl: string
   inviteLinkId?: string
   token?: string
   message?: string
+  title?: string
+  sport?: string
+  weekOrRound?: string
+  visibility?: ShareVisibility
   onShare?: (channel: InviteShareChannel) => void
   shareKind?: ShareableKind
   testIdPrefix?: string
@@ -57,6 +61,10 @@ export function InviteShareSheet({
   inviteLinkId,
   token,
   message = 'Join me on AllFantasy!',
+  title = 'Join me on AllFantasy!',
+  sport,
+  weekOrRound,
+  visibility = 'invite_only',
   onShare,
   shareKind = 'league_invite',
   testIdPrefix = 'invite-share',
@@ -89,6 +97,27 @@ export function InviteShareSheet({
     }).catch(() => {})
   }
 
+  const mapDestinationToInviteChannel = (destination: ShareDestination): InviteShareChannel | null => {
+    switch (destination) {
+      case 'copy_link':
+        return 'copy_link'
+      case 'x':
+        return 'twitter'
+      case 'discord':
+        return 'discord'
+      case 'reddit':
+        return 'reddit'
+      case 'email':
+        return 'email'
+      case 'sms':
+        return 'sms'
+      case 'native_share':
+        return 'copy_link'
+      default:
+        return null
+    }
+  }
+
   const handleCopyTarget = async (target: InviteShareTargetDto) => {
     const copied = await copyToClipboard(inviteUrl)
     const successLabel = target.channel === 'discord' ? 'Copied for Discord' : 'Copied!'
@@ -100,9 +129,17 @@ export function InviteShareSheet({
     shareModal.openShare({
       kind: shareKind,
       url: inviteUrl,
-      title: 'Join me on AllFantasy!',
+      title,
       description: message,
+      sport,
+      weekOrRound,
       cta: 'Copy the link or share it to your favorite app',
+      visibility,
+      safeForPublic: visibility === 'public',
+      helperText:
+        visibility === 'public'
+          ? 'Only public-safe invite details are shown in this preview.'
+          : 'This preview keeps private league details hidden until the invite link is opened.',
     })
   }
 
@@ -179,6 +216,10 @@ export function InviteShareSheet({
           open={shareModal.open}
           onOpenChange={shareModal.onOpenChange}
           payload={shareModal.payload}
+          onShareComplete={(destination) => {
+            const channel = mapDestinationToInviteChannel(destination)
+            if (channel) logShare(channel)
+          }}
         />
       )}
     </div>

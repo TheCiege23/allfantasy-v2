@@ -20,7 +20,7 @@ export function isAdminEmailAllowed(email?: string | null) {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  return e && allow.includes(e);
+  return Boolean(e) && allow.includes(e);
 }
 
 export function isAdminRole(role?: string | null) {

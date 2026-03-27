@@ -751,7 +751,7 @@ function buildRecommendation(args: {
     args.lifecycleStage === 'Cliff Risk' ||
     args.trajectoryLabel === 'Cliff Risk' ||
     ((args.marketDirection === 'Falling' || args.marketDirection === 'Cold') &&
-      (args.lifecycleStage === 'Decline' || args.lifecycleStage === 'Cliff Risk'))
+      args.lifecycleStage === 'Decline')
   ) {
     return 'Sell'
   }

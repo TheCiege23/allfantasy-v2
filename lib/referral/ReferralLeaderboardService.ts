@@ -18,7 +18,7 @@ export function getTierForSignups(
   signups: number,
   _audience?: ReferralAudience
 ): { id: string; label: string } {
-  let matched = REFERRAL_TIERS[0]
+  let matched: (typeof REFERRAL_TIERS)[number] = REFERRAL_TIERS[0]
   for (const tier of REFERRAL_TIERS) {
     if (signups >= tier.minSignups) matched = tier
   }
