@@ -939,7 +939,7 @@ export async function getCreatorLeagues(
           })
         : null
       const tierWindow = resolveCreatorLeagueTierWindow(safeViewerTier, tierMap.get(league.id) ?? 1, {
-        visibilityBypass: manageAccess,
+        visibilityBypass: !!manageAccess,
       })
       return {
         ...league,
