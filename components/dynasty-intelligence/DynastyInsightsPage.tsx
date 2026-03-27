@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import type { LeagueSport } from '@prisma/client'
 import type { PlayerDynastyIntelligence } from '@/lib/dynasty-intelligence'
 import type { DynastyAIInsight } from '@/lib/dynasty-intelligence/DynastyIntelligenceAI'
 
@@ -228,8 +229,8 @@ export default function DynastyInsightsPage() {
             <select
               value={sport}
               onChange={(event) => {
-                setSport(event.target.value)
-                setPosition(getPositionsForSport(event.target.value)[0] ?? 'WR')
+                setSport(event.target.value as LeagueSport)
+                setPosition(getPositionsForSport(event.target.value as LeagueSport)[0] ?? 'WR')
               }}
               aria-label="Dynasty insights sport filter"
               className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900"

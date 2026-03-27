@@ -1,6 +1,6 @@
 /**
  * In-memory TTL cache for discovery league results (PROMPT 226).
- * Reduces DB load and speeds up pagination by reusing cached bracket/creator lists.
+ * Reduces DB load and speeds up pagination by reusing cached bracket/creator/fantasy lists.
  */
 
 import type { DiscoveryCard } from "./types"
@@ -14,6 +14,7 @@ interface CacheEntry<T> {
 
 const bracketCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
 const creatorCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
+const fantasyCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
 
 function now() {
   return Date.now()
@@ -40,6 +41,11 @@ export function getBracketCacheKey(baseUrl: string, sport: string | null, query:
 /** Cache key for creator leagues: baseUrl + sport (query is applied in-memory after). */
 export function getCreatorCacheKey(baseUrl: string, sport: string | null): string {
   return `creator:${baseUrl}:${sport ?? "all"}`
+}
+
+/** Cache key for public fantasy leagues: baseUrl + sport + query (query changes DB filter). */
+export function getFantasyCacheKey(baseUrl: string, sport: string | null, query: string | null): string {
+  return `fantasy:${baseUrl}:${sport ?? "all"}:${(query ?? "").slice(0, 80)}`
 }
 
 export function getCachedBracketCards(
@@ -77,8 +83,29 @@ export function setCachedCreatorCards(
   })
 }
 
+export function getCachedFantasyCards(
+  baseUrl: string,
+  sport: string | null,
+  query: string | null
+): DiscoveryCard[] | null {
+  return getCached(fantasyCache, getFantasyCacheKey(baseUrl, sport, query))
+}
+
+export function setCachedFantasyCards(
+  baseUrl: string,
+  sport: string | null,
+  query: string | null,
+  cards: DiscoveryCard[]
+): void {
+  fantasyCache.set(getFantasyCacheKey(baseUrl, sport, query), {
+    data: cards,
+    expiresAt: now() + TTL_MS,
+  })
+}
+
 /** Optional: clear caches (e.g. after league create/update in admin). */
 export function clearDiscoveryCache(): void {
   bracketCache.clear()
   creatorCache.clear()
+  fantasyCache.clear()
 }

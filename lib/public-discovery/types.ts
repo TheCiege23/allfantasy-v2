@@ -3,13 +3,22 @@
  * Safe public data only; supports NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER.
  */
 
-export type DiscoverySource = "bracket" | "creator"
+export type DiscoverySource = "fantasy" | "bracket" | "creator"
 
 export type DiscoverySort = "popularity" | "newest" | "filling_fast"
 
-export type DiscoveryFormat = "all" | "bracket" | "creator"
+export type DiscoveryFormat = "all" | "fantasy" | "bracket" | "creator"
 
 export type EntryFeeFilter = "all" | "free" | "paid"
+export type DiscoveryLeagueStyle =
+  | "redraft"
+  | "dynasty"
+  | "best_ball"
+  | "keeper"
+  | "survivor"
+  | "bracket"
+  | "community"
+export type LeagueStyleFilter = "all" | DiscoveryLeagueStyle
 
 export type DraftTypeFilter = "all" | "snake" | "linear" | "auction"
 export type DraftStatusFilter = "all" | "pre_draft" | "in_progress" | "completed"
@@ -36,8 +45,10 @@ export interface DiscoveryCard {
   isPrivate: boolean
   createdAt: string
   fillPct: number
-  /** League type for display (bracket | creator). */
+  /** League type for display (fantasy | bracket | creator). */
   leagueType: DiscoverySource
+  /** League style for discovery filtering (dynasty, redraft, best_ball, etc.). */
+  leagueStyle?: DiscoveryLeagueStyle | null
   /** Draft type when available (snake | linear | auction). */
   draftType: string | null
   /** Team/slot count (same as maxMembers). */
@@ -56,12 +67,15 @@ export interface DiscoveryCard {
   leagueTier?: number | null
   /** True when league is outside viewer tier range and shown only for admin/owner contexts. */
   inviteOnlyByTier?: boolean
+  /** Whether the current viewer can join directly without an invite override. */
+  canJoinByRanking?: boolean
 }
 
 export interface DiscoverLeaguesInput {
   query?: string | null
   sport?: string | null
   format?: DiscoveryFormat
+  style?: LeagueStyleFilter
   sort?: DiscoverySort
   entryFee?: EntryFeeFilter
   page?: number
@@ -80,4 +94,8 @@ export interface DiscoverLeaguesResult {
   page: number
   limit: number
   totalPages: number
+  hasMore?: boolean
+  viewerTier?: number
+  viewerTierName?: string
+  hiddenByTierPolicy?: number
 }

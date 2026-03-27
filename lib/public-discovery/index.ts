@@ -1,9 +1,13 @@
 export * from "./types"
+export * from "./discovery-sports"
+export * from "./DiscoveryQueryLayer"
 export {
   discoverPublicLeagues,
+  calculateDiscoveryTrendingScore,
+  calculateDiscoveryFillingFastScore,
+  matchesDiscoveryLeagueStyle,
   getTrendingLeagues,
   getRecommendedLeagues,
-  getDiscoverySports,
   getDiscoverableLeaguesPool,
   clearDiscoveryCache,
 } from "./PublicDiscoveryService"

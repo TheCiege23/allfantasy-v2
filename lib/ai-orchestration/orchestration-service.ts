@@ -242,9 +242,15 @@ function resolveDeterministicContextEnvelope(
   const confidence = envelope.confidenceMetadata?.score != null
     ? {
         scorePct: Math.max(0, Math.min(100, envelope.confidenceMetadata.score)),
-        label: envelope.confidenceMetadata.label === 'high' || envelope.confidenceMetadata.label === 'low'
-          ? envelope.confidenceMetadata.label
-          : 'medium',
+        label: toConfidenceLabel(
+          envelope.confidenceMetadata.label === 'high' ||
+          envelope.confidenceMetadata.label === 'medium' ||
+          envelope.confidenceMetadata.label === 'low'
+            ? envelope.confidenceMetadata.label === 'high' ? 80
+              : envelope.confidenceMetadata.label === 'medium' ? 60
+              : 40
+            : envelope.confidenceMetadata.score
+        ),
         reason: envelope.confidenceMetadata.reason,
         cappedByData: Boolean(envelope.dataQualityMetadata?.missing?.length),
         capReason: envelope.dataQualityMetadata?.missing?.length

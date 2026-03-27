@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getChecklistState, recordMilestone } from "@/lib/onboarding-retention"
 import type { OnboardingMilestoneEventType } from "@/lib/onboarding-retention"
+import { recordReferralOnboardingStep } from "@/lib/referral"
 
 export const dynamic = "force-dynamic"
 
@@ -56,6 +57,8 @@ export async function POST(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error ?? "Failed to record" }, { status: 400 })
   }
+
+  await recordReferralOnboardingStep(session.user.id, milestone, meta).catch(() => null)
 
   const state = await getChecklistState(session.user.id)
   return NextResponse.json(state)

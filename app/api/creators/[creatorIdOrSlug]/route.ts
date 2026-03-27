@@ -5,6 +5,7 @@ import { getCreatorBySlugOrId, logAnalytics, upsertCreatorProfile } from '@/lib/
 import type { UpsertCreatorProfileInput } from '@/lib/creator-system/types'
 import { prisma } from '@/lib/prisma'
 import { isAdminEmailAllowed } from '@/lib/adminAuth'
+import { resolveUserCareerTier } from '@/lib/ranking/tier-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,12 +26,14 @@ export async function GET(
     } | null
     const viewerUserId = session?.user?.id ?? null
     const viewerEmail = session?.user?.email ?? null
+    const viewerTier = await resolveUserCareerTier(prisma as any, viewerUserId, 1)
 
     const creator = await getCreatorBySlugOrId(
       creatorIdOrSlug,
       viewerUserId,
       viewerEmail,
-      getBaseUrl(req)
+      getBaseUrl(req),
+      viewerTier
     )
     if (!creator) return NextResponse.json({ error: 'Creator not found' }, { status: 404 })
 

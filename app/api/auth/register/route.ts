@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
-import { attributeSignup, grantRewardForSignup } from "@/lib/referral"
+import { attributeSignup } from "@/lib/referral"
 import { recordAttribution } from "@/lib/viral-loop"
 import { validateLeagueJoin } from "@/lib/league-privacy"
 import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard"
@@ -21,6 +21,7 @@ import {
   parseAvatarDataUrl,
   persistProfileImageBytes,
 } from "@/lib/avatar/ProfileImageUploadStorageService"
+import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
 
 export const runtime = "nodejs"
 
@@ -273,6 +274,17 @@ export async function POST(req: Request) {
         },
       })
 
+      await tx.managerXPProfile.upsert({
+        where: { managerId: created.id },
+        create: {
+          managerId: created.id,
+          totalXP: 0,
+          currentTier: getTierFromXP(0),
+          xpToNextTier: getXPRemainingToNextTier(0),
+        },
+        update: {},
+      })
+
       return created
     }).catch((err) => {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -304,7 +316,6 @@ export async function POST(req: Request) {
         if (referralCode) {
           const attribution = await attributeSignup(user.id, referralCode)
           if (attribution?.referrerId) {
-            await grantRewardForSignup(attribution.referrerId)
             await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
             growthAttributionRecorded = true
           }

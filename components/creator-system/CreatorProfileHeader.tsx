@@ -115,6 +115,16 @@ export function CreatorProfileHeader({
               {creator.totalLeagueMembers} community members
             </span>
           )}
+          {creator.viewerTier ? (
+            <span className="rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+              Tier {creator.viewerTier} viewer window
+            </span>
+          ) : null}
+          {(creator.hiddenLeagueCount ?? 0) > 0 ? (
+            <span className="rounded-full border px-3 py-1" style={{ borderColor: 'rgba(251, 146, 60, 0.35)', color: 'rgb(251, 146, 60)' }}>
+              {creator.hiddenLeagueCount} leagues need an invite
+            </span>
+          ) : null}
         </div>
 
         {creator.bio && (

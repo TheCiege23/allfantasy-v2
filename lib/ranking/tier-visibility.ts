@@ -1,6 +1,18 @@
+import { TIERS, XP_PER_LEVEL, tierFromLevel } from "@/lib/ranking/config"
+import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
+
+export interface ResolvedCareerTierProfile {
+  userId: string | null
+  careerTier: number
+  tierName: string
+  totalXP: number
+  source: "xp_profile" | "legacy_cache" | "seeded_default" | "fallback"
+  seededProfile: boolean
+}
+
 export function clampCareerTier(value: unknown, fallback = 1): number {
   const n = Number(value)
-  if (!Number.isFinite(n)) return fallback
+  if (!Number.isFinite(n)) return Math.max(1, Math.floor(fallback))
   return Math.max(1, Math.floor(n))
 }
 
@@ -29,27 +41,126 @@ export function isLeagueVisibleForCareerTier(userTier: number, leagueTier: numbe
   return Math.abs(safeUserTier - safeLeagueTier) <= Math.max(0, Math.floor(distance))
 }
 
-export async function resolveUserCareerTier(prismaLike: any, userId: string | null | undefined, fallback = 1): Promise<number> {
-  if (!userId) return clampCareerTier(fallback)
+export function getCareerTierFromTotalXP(totalXP: number): number {
+  const safeXP = Math.max(0, Math.floor(Number.isFinite(totalXP) ? totalXP : 0))
+  const level = Math.floor(safeXP / XP_PER_LEVEL)
+  return clampCareerTier(tierFromLevel(level).tier, 1)
+}
+
+export function getCareerTierName(tier: number): string {
+  const safeTier = clampCareerTier(tier, 1)
+  return TIERS.find((entry) => entry.tier === safeTier)?.name ?? TIERS[0]?.name ?? "Practice Squad"
+}
+
+export function getMinimumXPForCareerTier(tier: number): number {
+  const safeTier = clampCareerTier(tier, 1)
+  const config = TIERS.find((entry) => entry.tier === safeTier) ?? TIERS[0]
+  return Math.max(0, Math.floor((config?.minLevel ?? 0) * XP_PER_LEVEL))
+}
+
+export async function ensureUserCareerTier(
+  prismaLike: any,
+  userId: string | null | undefined,
+  fallback = 1
+): Promise<ResolvedCareerTierProfile> {
+  const safeFallback = clampCareerTier(fallback, 1)
+  if (!userId) {
+    return {
+      userId: null,
+      careerTier: safeFallback,
+      tierName: getCareerTierName(safeFallback),
+      totalXP: getMinimumXPForCareerTier(safeFallback),
+      source: "fallback",
+      seededProfile: false,
+    }
+  }
 
   try {
-    const row = await prismaLike.appUser.findUnique({
-      where: { id: userId },
-      select: {
-        legacyUser: {
-          select: {
-            rankCache: {
-              select: {
-                careerTier: true,
+    const [appUser, xpProfile] = await Promise.all([
+      prismaLike.appUser.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          legacyUser: {
+            select: {
+              rankCache: {
+                select: {
+                  careerTier: true,
+                },
               },
             },
           },
         },
-      },
-    })
+      }),
+      prismaLike.managerXPProfile.findUnique({
+        where: { managerId: userId },
+        select: {
+          totalXP: true,
+        },
+      }),
+    ])
 
-    return clampCareerTier(row?.legacyUser?.rankCache?.careerTier, fallback)
+    if (xpProfile) {
+      const totalXP = Math.max(0, Number(xpProfile.totalXP ?? 0))
+      const careerTier = getCareerTierFromTotalXP(totalXP)
+      return {
+        userId,
+        careerTier,
+        tierName: getCareerTierName(careerTier),
+        totalXP,
+        source: "xp_profile",
+        seededProfile: false,
+      }
+    }
+
+    const legacyTier = clampCareerTier(appUser?.legacyUser?.rankCache?.careerTier, safeFallback)
+    const seedTier = legacyTier
+    const seedXP = getMinimumXPForCareerTier(seedTier)
+    const seededCurrentTier = getTierFromXP(seedXP)
+    const seededXpToNextTier = getXPRemainingToNextTier(seedXP)
+
+    if (appUser?.id) {
+      await prismaLike.managerXPProfile.upsert({
+        where: { managerId: userId },
+        create: {
+          managerId: userId,
+          totalXP: seedXP,
+          currentTier: seededCurrentTier,
+          xpToNextTier: seededXpToNextTier,
+        },
+        update: {
+          totalXP: seedXP,
+          currentTier: seededCurrentTier,
+          xpToNextTier: seededXpToNextTier,
+        },
+      })
+    }
+
+    return {
+      userId,
+      careerTier: seedTier,
+      tierName: getCareerTierName(seedTier),
+      totalXP: seedXP,
+      source: appUser?.legacyUser?.rankCache?.careerTier != null ? "legacy_cache" : "seeded_default",
+      seededProfile: !!appUser?.id,
+    }
   } catch {
-    return clampCareerTier(fallback)
+    return {
+      userId,
+      careerTier: safeFallback,
+      tierName: getCareerTierName(safeFallback),
+      totalXP: getMinimumXPForCareerTier(safeFallback),
+      source: "fallback",
+      seededProfile: false,
+    }
   }
+}
+
+export async function resolveUserCareerTier(
+  prismaLike: any,
+  userId: string | null | undefined,
+  fallback = 1
+): Promise<number> {
+  const resolved = await ensureUserCareerTier(prismaLike, userId, fallback)
+  return clampCareerTier(resolved.careerTier, fallback)
 }

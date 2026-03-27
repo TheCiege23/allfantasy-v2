@@ -144,17 +144,27 @@ export function CreatorCard({
                 </p>
                 <p className="text-xs" style={{ color: 'var(--muted)' }}>
                   {featuredLeague.sport}
+                  {featuredLeague.leagueTier ? ` | Tier ${featuredLeague.leagueTier}` : ''}
                 </p>
               </div>
-              <Link
-                href={featuredLeague.inviteUrl}
-                data-testid={`creator-join-league-link-${creator.slug}`}
-                className="inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-                style={{ background: primaryColor, color: 'white' }}
-              >
-                Join league
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
+              {featuredLeague.canJoinByRanking !== false ? (
+                <Link
+                  href={featuredLeague.inviteUrl}
+                  data-testid={`creator-join-league-link-${creator.slug}`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+                  style={{ background: primaryColor, color: 'white' }}
+                >
+                  Join league
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
+              ) : (
+                <span
+                  className="inline-flex shrink-0 items-center rounded-xl border px-3 py-2 text-xs font-semibold"
+                  style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+                >
+                  Invite required
+                </span>
+              )}
             </div>
           </div>
         )}

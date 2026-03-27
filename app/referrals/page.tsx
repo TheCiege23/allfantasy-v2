@@ -2,7 +2,8 @@
 
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
-import { ReferralDashboard, InviteManagementPanel } from '@/components/invite'
+import { InviteManagementPanel } from '@/components/invite'
+import { ReferralDashboard } from '@/components/referral/ReferralDashboard'
 
 export default function ReferralsPage() {
   const { data: session, status } = useSession()
@@ -10,7 +11,7 @@ export default function ReferralsPage() {
   if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--muted)' }}>
-        Loading…
+        Loading...
       </div>
     )
   }
@@ -20,10 +21,10 @@ export default function ReferralsPage() {
       <div className="min-h-screen mode-surface mode-readable">
         <div className="max-w-xl mx-auto px-4 py-12">
           <h1 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>
-            Invite & referral dashboard
+            Invites & referrals
           </h1>
           <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-            Sign in to create invite links and view your referral stats.
+            Sign in to generate referral links, invite friends, and manage your growth loops.
           </p>
           <Link
             href="/login"
@@ -39,17 +40,14 @@ export default function ReferralsPage() {
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <Link href="/" className="text-sm font-medium mb-6 inline-block" style={{ color: 'var(--muted)' }}>
           ← Home
         </Link>
-        <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text)' }}>
-          Invites & referrals
-        </h1>
         <ReferralDashboard />
         <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text)' }}>
-            Your invite links
+          <h2 className="mb-3 text-lg font-semibold" style={{ color: 'var(--text)' }}>
+            Invite management
           </h2>
           <InviteManagementPanel />
         </div>

@@ -2,10 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { ReferralSection } from "@/components/settings/ReferralSection"
-import { ReferralProgressWidget } from "@/components/referral/ReferralProgressWidget"
-import { ReferralLeaderboard } from "@/components/referral/ReferralLeaderboard"
-import { ReferralCTACard } from "@/components/referral/ReferralCTACard"
+import { ReferralDashboard } from "@/components/referral/ReferralDashboard"
 
 export default function ReferralDashboardPage() {
   const { data: session, status } = useSession()
@@ -13,7 +10,7 @@ export default function ReferralDashboardPage() {
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ color: "var(--muted)" }}>
-        Loading…
+        Loading...
       </div>
     )
   }
@@ -26,7 +23,7 @@ export default function ReferralDashboardPage() {
             Referral program
           </h1>
           <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-            Sign in to get your referral code, track progress, and earn rewards.
+            Sign in to unlock your referral code, creator tiers, onboarding tracking, and reward claims.
           </p>
           <Link
             href="/login"
@@ -42,33 +39,11 @@ export default function ReferralDashboardPage() {
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <Link href="/" className="text-sm font-medium mb-6 inline-block" style={{ color: "var(--muted)" }}>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        <Link href="/" className="mb-6 inline-block text-sm font-medium" style={{ color: "var(--muted)" }}>
           ← Home
         </Link>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-          Referral program
-        </h1>
-        <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-          Share your link. When friends sign up, you earn rewards and climb the leaderboard.
-        </p>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <ReferralSection />
-            <ReferralLeaderboard />
-          </div>
-          <div className="space-y-6">
-            <ReferralProgressWidget />
-            <ReferralCTACard
-              title="Invite friends to leagues"
-              description="Create invite links for brackets and creator leagues."
-              ctaLabel="Invite links"
-              ctaHref="/referrals"
-              variant="leaderboard"
-            />
-          </div>
-        </div>
+        <ReferralDashboard />
       </div>
     </div>
   )

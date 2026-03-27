@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Copy, Mail, MessageCircle, Share2 } from 'lucide-react'
-import { buildInviteShareUrl, type InviteShareChannel } from '@/lib/invite-engine/shareUrls'
+import { useMemo, useState } from 'react'
+import { Check, Copy, Mail, MessageCircle, Share2 } from 'lucide-react'
+import { buildInviteShareTargets } from '@/lib/invite-engine/shareUrls'
+import type { InviteShareChannel, InviteShareTargetDto } from '@/lib/invite-engine/types'
 import { ShareModal } from '@/components/share'
 import { useShareModal } from '@/hooks/useShareModal'
 import type { ShareableKind } from '@/lib/share-engine/types'
@@ -13,19 +14,43 @@ export interface InviteShareSheetProps {
   token?: string
   message?: string
   onShare?: (channel: InviteShareChannel) => void
-  /** Share kind for the premium share modal (e.g. league_invite, bracket_invite). */
   shareKind?: ShareableKind
+  testIdPrefix?: string
 }
 
-const CHANNELS: { key: InviteShareChannel; label: string; icon: typeof Copy }[] = [
-  { key: 'copy_link', label: 'Copy link', icon: Copy },
-  { key: 'sms', label: 'SMS', icon: MessageCircle },
-  { key: 'email', label: 'Email', icon: Mail },
-  { key: 'twitter', label: 'X (Twitter)', icon: Share2 },
-  { key: 'discord', label: 'Discord', icon: MessageCircle },
-  { key: 'reddit', label: 'Reddit', icon: Share2 },
-  { key: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
-]
+const ICONS: Record<InviteShareChannel, typeof Copy> = {
+  copy_link: Copy,
+  sms: MessageCircle,
+  email: Mail,
+  twitter: Share2,
+  discord: MessageCircle,
+  reddit: Share2,
+  whatsapp: MessageCircle,
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {}
+
+  try {
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'absolute'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const successful = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return successful
+  } catch {
+    return false
+  }
+}
 
 export function InviteShareSheet({
   inviteUrl,
@@ -34,36 +59,41 @@ export function InviteShareSheet({
   message = 'Join me on AllFantasy!',
   onShare,
   shareKind = 'league_invite',
+  testIdPrefix = 'invite-share',
 }: InviteShareSheetProps) {
-  const [copied, setCopied] = useState(false)
   const shareModal = useShareModal()
+  const [feedbackByChannel, setFeedbackByChannel] = useState<Record<string, string>>({})
 
-  const handleShare = (channel: InviteShareChannel) => {
-    if (channel === 'copy_link') {
-      navigator.clipboard.writeText(inviteUrl).then(() => {
-        setCopied(true)
-        onShare?.('copy_link')
-        fetch('/api/invite/share', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ inviteLinkId, token, channel: 'copy_link' }),
-        }).catch(() => {})
-        setTimeout(() => setCopied(false), 2000)
+  const targets = useMemo(
+    () => buildInviteShareTargets(inviteUrl, { message, subject: 'Join me on AllFantasy' }),
+    [inviteUrl, message]
+  )
+
+  const setFeedback = (channel: InviteShareChannel, messageText: string) => {
+    setFeedbackByChannel((current) => ({ ...current, [channel]: messageText }))
+    window.setTimeout(() => {
+      setFeedbackByChannel((current) => {
+        const next = { ...current }
+        delete next[channel]
+        return next
       })
-      return
-    }
-    const url = buildInviteShareUrl(inviteUrl, channel, { message })
+    }, 2000)
+  }
+
+  const logShare = (channel: InviteShareChannel) => {
     onShare?.(channel)
     fetch('/api/invite/share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inviteLinkId, token, channel }),
     }).catch(() => {})
-    if (channel === 'email' || channel === 'sms') {
-      window.location.href = url
-    } else if (channel === 'twitter' || channel === 'x' || channel === 'reddit' || channel === 'whatsapp') {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    }
+  }
+
+  const handleCopyTarget = async (target: InviteShareTargetDto) => {
+    const copied = await copyToClipboard(inviteUrl)
+    const successLabel = target.channel === 'discord' ? 'Copied for Discord' : 'Copied!'
+    setFeedback(target.channel, copied ? successLabel : 'Copy failed')
+    logShare(target.channel)
   }
 
   const openPremiumShare = () => {
@@ -72,7 +102,7 @@ export function InviteShareSheet({
       url: inviteUrl,
       title: 'Join me on AllFantasy!',
       description: message,
-      cta: 'Copy link or share to your favorite app',
+      cta: 'Copy the link or share it to your favorite app',
     })
   }
 
@@ -81,31 +111,69 @@ export function InviteShareSheet({
       className="rounded-xl border p-4"
       style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 40%, transparent)' }}
     >
-      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text)' }}>
-        Share invite
-      </h3>
-      <div className="flex flex-wrap gap-2">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+          Share invite
+        </h3>
         <button
           type="button"
           onClick={openPremiumShare}
+          data-testid={`${testIdPrefix}-preview`}
           className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
         >
           <Share2 className="h-4 w-4" />
-          Share (preview)
+          Share preview
         </button>
-        {CHANNELS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => handleShare(key)}
-            className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
-            style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
-          >
-            <Icon className="h-4 w-4" />
-            {key === 'copy_link' && copied ? 'Copied!' : label}
-          </button>
-        ))}
       </div>
+
+      <div className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
+        {inviteUrl}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {targets.map((target) => {
+          const Icon = ICONS[target.channel]
+          const feedback = feedbackByChannel[target.channel]
+          const label = feedback || target.label
+
+          if (target.action === 'copy' || target.action === 'manual_copy') {
+            return (
+              <button
+                key={target.channel}
+                type="button"
+                onClick={() => handleCopyTarget(target)}
+                data-testid={`${testIdPrefix}-${target.channel}`}
+                className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+                style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+              >
+                {feedback ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                {label}
+              </button>
+            )
+          }
+
+          return (
+            <a
+              key={target.channel}
+              href={target.href ?? inviteUrl}
+              target={target.channel === 'email' || target.channel === 'sms' ? undefined : '_blank'}
+              rel={target.channel === 'email' || target.channel === 'sms' ? undefined : 'noreferrer'}
+              onClick={() => logShare(target.channel)}
+              data-testid={`${testIdPrefix}-${target.channel}`}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </a>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>
+        Discord uses a manual copy fallback so there are no dead share buttons.
+      </p>
+
       {shareModal.hasPayload && (
         <ShareModal
           open={shareModal.open}

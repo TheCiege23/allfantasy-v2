@@ -3,8 +3,8 @@
  * Supports NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER.
  */
 
-/** XP event types (sources of XP). */
-export const XP_EVENT_TYPES = [
+/** XP event types generated from season history and platform actions. */
+export const GENERATED_XP_EVENT_TYPES = [
   'win_matchup',
   'make_playoffs',
   'championship',
@@ -15,7 +15,20 @@ export const XP_EVENT_TYPES = [
   'commissioner_service',
 ] as const
 
+/** XP events that are granted directly from platform systems such as referrals. */
+export const MANUAL_XP_EVENT_TYPES = [
+  'referral_bonus',
+  'creator_referral_bonus',
+] as const
+
+/** XP event types (sources of XP). */
+export const XP_EVENT_TYPES = [
+  ...GENERATED_XP_EVENT_TYPES,
+  ...MANUAL_XP_EVENT_TYPES,
+] as const
+
 export type XPEventType = (typeof XP_EVENT_TYPES)[number]
+export type GeneratedXPEventType = (typeof GENERATED_XP_EVENT_TYPES)[number]
 
 /** XP values per event type (prompt examples + extensions). */
 export const XP_VALUES: Record<XPEventType, number> = {
@@ -27,6 +40,8 @@ export const XP_VALUES: Record<XPEventType, number> = {
   draft_accuracy: 15,
   league_participation: 5,
   commissioner_service: 25,
+  referral_bonus: 50,
+  creator_referral_bonus: 100,
 }
 
 /** Tiers (Bronze → Legendary). */

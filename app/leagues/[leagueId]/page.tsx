@@ -447,9 +447,9 @@ export default function LeagueHomeShellPage() {
                 {rosterData?.roster ? (
                   <div className="mode-panel-soft rounded-xl p-3">
                     {/* Render player list with clickable names */}
-                    {Array.isArray(rosterData.roster.players) ? (
+                    {Array.isArray((rosterData.roster as { players?: any[] })?.players) ? (
                       <ul className="divide-y divide-white/10">
-                        {rosterData.roster.players.map((player: any) => (
+                        {(rosterData.roster as { players: any[] }).players.map((player: any) => (
                           <li key={player.playerId || player.id} className="flex items-center gap-3 py-2">
                             <button
                               className="text-cyan-300 hover:underline text-left font-semibold"

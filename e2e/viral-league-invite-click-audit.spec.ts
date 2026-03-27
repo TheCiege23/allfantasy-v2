@@ -1,226 +1,344 @@
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Page, type Route } from '@playwright/test'
 
 test.describe.configure({ timeout: 180_000 })
 
-async function gotoWithRetry(page: Page, url: string): Promise<void> {
-  for (let attempt = 1; attempt <= 6; attempt++) {
-    try {
-      await page.goto(url, { waitUntil: "domcontentloaded" })
-      return
-    } catch (error) {
-      const message = String((error as Error)?.message ?? error)
-      const canRetry =
-        attempt < 6 &&
-        (
-          message.includes("net::ERR_ABORTED") ||
-          message.includes("NS_BINDING_ABORTED") ||
-          message.includes("net::ERR_CONNECTION_RESET") ||
-          message.includes("NS_ERROR_CONNECTION_REFUSED") ||
-          message.includes("Failure when receiving data from the peer") ||
-          message.includes("Could not connect to server") ||
-          message.includes("interrupted by another navigation")
-        )
-      if (!canRetry) throw error
-      await page.waitForTimeout(500 * attempt)
-    }
-  }
+async function fulfillInviteStats(route: Route, fetchCount: number) {
+  const statsByFetch = [
+    {
+      ok: true,
+      stats: {
+        totalCreated: 1,
+        totalAccepted: 1,
+        totalViews: 3,
+        totalShares: 0,
+        activeLinks: 1,
+        expiredLinks: 0,
+        revokedLinks: 0,
+        maxUsedLinks: 0,
+        conversionRate: 0.333,
+        byType: { league: 1 },
+        byChannel: {},
+        recentEvents: [],
+        topInvites: [],
+        referredSignups: 1,
+      },
+    },
+    {
+      ok: true,
+      stats: {
+        totalCreated: 2,
+        totalAccepted: 1,
+        totalViews: 3,
+        totalShares: 0,
+        activeLinks: 2,
+        expiredLinks: 0,
+        revokedLinks: 0,
+        maxUsedLinks: 0,
+        conversionRate: 0.333,
+        byType: { league: 2 },
+        byChannel: {},
+        recentEvents: [],
+        topInvites: [],
+        referredSignups: 1,
+      },
+    },
+    {
+      ok: true,
+      stats: {
+        totalCreated: 2,
+        totalAccepted: 1,
+        totalViews: 4,
+        totalShares: 1,
+        activeLinks: 2,
+        expiredLinks: 0,
+        revokedLinks: 0,
+        maxUsedLinks: 0,
+        conversionRate: 0.25,
+        byType: { league: 2 },
+        byChannel: { copy_link: 1 },
+        recentEvents: [
+          {
+            eventType: 'shared',
+            channel: 'copy_link',
+            type: 'league',
+            createdAt: '2026-03-27T12:00:00.000Z',
+          },
+        ],
+        topInvites: [
+          {
+            inviteLinkId: 'invite-created',
+            token: 'VALID142',
+            type: 'league',
+            inviteUrl: 'http://127.0.0.1:3000/invite/accept?code=VALID142',
+            destinationHref: '/leagues/league-a',
+            viewCount: 4,
+            shareCount: 1,
+            acceptedCount: 1,
+            conversionRate: 0.25,
+          },
+        ],
+        referredSignups: 1,
+      },
+    },
+  ]
+
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify(statsByFetch[Math.min(fetchCount, statsByFetch.length - 1)]),
+  })
 }
 
-test.describe("@growth viral league invite click audit", () => {
-  test("invite button, copy link, and share buttons are wired", async ({ page }) => {
-    const leagueId = `e2e-viral-${Date.now()}`
-    let currentCode = "VIRAL105"
-
-    await page.route(`**/api/commissioner/leagues/${leagueId}/settings`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ settings: { orphanSeeking: false } }),
-      })
+async function mockAuthSession(page: Page) {
+  await page.route('**/api/auth/session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: {
+          id: 'user-e2e',
+          name: 'Invite Auditor',
+          email: 'auditor@example.com',
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      }),
     })
+  })
+}
 
-    await page.route(`**/api/commissioner/leagues/${leagueId}/invite`, async (route) => {
-      if (route.request().method() === "POST") {
-        currentCode = "VIRAL106"
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            status: "ok",
-            inviteCode: currentCode,
-            inviteLink: `http://localhost:3000/join?code=${currentCode}`,
-            joinUrl: `http://localhost:3000/join?code=${currentCode}`,
-            inviteExpiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
-            inviteExpired: false,
-          }),
-        })
-        return
-      }
+test.describe('@growth viral invite engine click audit', () => {
+  test('generate, copy, share actions, preview link, and referral stat refresh are wired', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    let statsFetchCount = 0
+    const shareChannels: string[] = []
+
+    await mockAuthSession(page)
+
+    await page.route('**/api/referral/link', async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: "application/json",
+        contentType: 'application/json',
         body: JSON.stringify({
-          inviteCode: currentCode,
-          inviteLink: `http://localhost:3000/join?code=${currentCode}`,
-          joinUrl: `http://localhost:3000/join?code=${currentCode}`,
-          inviteExpiresAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
-          inviteExpired: false,
+          ok: true,
+          code: 'REF142',
+          link: 'http://127.0.0.1:3000/?ref=REF142',
         }),
       })
     })
 
-    await page.goto(`/e2e/viral-league-invite?leagueId=${leagueId}`, { waitUntil: "domcontentloaded" })
+    await page.route('**/api/referral/referred', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          referred: [
+            {
+              referredUserId: 'referred-1',
+              displayName: 'League Friend',
+              createdAt: '2026-03-27T10:00:00.000Z',
+            },
+          ],
+        }),
+      })
+    })
 
-    const inviteButton = page.getByTestId("league-invite-button")
-    await expect(inviteButton).toBeVisible()
+    await page.route('**/api/invite/stats', async (route) => {
+      await fulfillInviteStats(route, statsFetchCount)
+      statsFetchCount += 1
+    })
 
-    await inviteButton.click({ force: true })
-    const copyInviteLink = page.getByTestId("league-copy-invite-link")
-    if (!(await copyInviteLink.isVisible().catch(() => false))) {
-      await inviteButton.evaluate((button) => (button as HTMLButtonElement).click())
-    }
-    await expect(copyInviteLink).toBeVisible({ timeout: 10_000 })
+    await page.route('**/api/invite/list**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          links: [
+            {
+              id: 'existing-invite',
+              type: 'league',
+              token: 'PREVIEW142',
+              targetId: 'league-a',
+              status: 'active',
+              useCount: 1,
+              maxUses: 0,
+              expiresAt: '2026-04-01T12:00:00.000Z',
+              createdAt: '2026-03-27T09:00:00.000Z',
+              inviteUrl: 'http://127.0.0.1:3000/invite/accept?code=PREVIEW142',
+              destinationHref: '/leagues/league-a',
+              destinationLabel: 'Open league',
+              viewCount: 8,
+              shareCount: 2,
+              acceptedCount: 1,
+            },
+          ],
+        }),
+      })
+    })
 
-    await copyInviteLink.click()
+    await page.route('**/api/invite/generate', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      expect(body.type).toBe('league')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          inviteLink: {
+            id: 'invite-created',
+            token: 'VALID142',
+            inviteUrl: 'http://127.0.0.1:3000/invite/accept?code=VALID142',
+            previewUrl: 'http://127.0.0.1:3000/invite/accept?code=VALID142',
+            deepLinkUrl: 'allfantasy://invite/accept?code=VALID142',
+            destinationHref: '/leagues/league-a',
+          },
+        }),
+      })
+    })
 
-    const smsHref = await page.getByTestId("league-share-sms").getAttribute("href")
-    const emailHref = await page.getByTestId("league-share-email").getAttribute("href")
-    const xHref = await page.getByTestId("league-share-twitter").getAttribute("href")
-    const redditHref = await page.getByTestId("league-share-reddit").getAttribute("href")
+    await page.route('**/api/invite/share', async (route) => {
+      const body = route.request().postDataJSON() as { channel?: string }
+      shareChannels.push(body.channel ?? 'unknown')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      })
+    })
 
-    expect(smsHref ?? "").toContain("sms:?body=")
-    expect(emailHref ?? "").toContain("mailto:?subject=")
-    expect(xHref ?? "").toContain("twitter.com/intent/tweet")
-    expect(redditHref ?? "").toContain("reddit.com/submit")
+    await page.goto('/e2e/viral-league-invite?leagueId=league-a', { waitUntil: 'domcontentloaded' })
 
-    await page.getByTestId("league-share-discord").click()
+    await expect(page.getByTestId('referral-total-created')).toHaveText('1')
+    await expect(page.getByTestId('open-invite-modal')).toBeVisible()
+
+    await page.getByTestId('open-invite-modal').click()
+    await expect(page.getByTestId('invite-modal-generate')).toBeVisible()
+    await page.getByTestId('invite-modal-generate').click()
+
+    await expect(page.getByTestId('referral-total-created')).toHaveText('2')
+    await expect(page.getByTestId('invite-share-copy_link')).toBeVisible()
+
+    await page.getByTestId('invite-share-copy_link').click()
+    await expect(page.getByTestId('referral-total-shares')).toHaveText('1')
+
+    const smsHref = await page.getByTestId('invite-share-sms').getAttribute('href')
+    const emailHref = await page.getByTestId('invite-share-email').getAttribute('href')
+    const xHref = await page.getByTestId('invite-share-twitter').getAttribute('href')
+    const redditHref = await page.getByTestId('invite-share-reddit').getAttribute('href')
+    const whatsappHref = await page.getByTestId('invite-share-whatsapp').getAttribute('href')
+
+    expect(smsHref ?? '').toContain('sms:?body=')
+    expect(emailHref ?? '').toContain('mailto:?subject=')
+    expect(xHref ?? '').toContain('twitter.com/intent/tweet')
+    expect(redditHref ?? '').toContain('reddit.com/submit')
+    expect(whatsappHref ?? '').toContain('wa.me')
+
+    await page.getByTestId('invite-share-discord').click()
+    await expect(page.getByTestId('last-share-channel')).toContainText('discord')
+    expect(shareChannels).toEqual(expect.arrayContaining(['copy_link', 'discord']))
+
+    await expect(page.getByTestId('invite-management-preview-existing-invite')).toBeVisible()
   })
 
-  test("invite link context, join flow, expired invites, and duplicate join prevention", async ({ page }) => {
-    await page.route("**/api/leagues/join/preview**", async (route) => {
+  test('preview loads, accept works, and expired invites show a safe state', async ({ page }) => {
+    await mockAuthSession(page)
+
+    await page.route('**/api/invite/preview**', async (route) => {
       const url = new URL(route.request().url())
-      const code = (url.searchParams.get("code") || "").trim().toUpperCase()
+      const code = url.searchParams.get('code')
 
-      if (code === "VALID1") {
+      if (code === 'VALID142') {
         await route.fulfill({
           status: 200,
-          contentType: "application/json",
+          contentType: 'application/json',
           body: JSON.stringify({
-            leagueId: "league-valid-1",
-            name: "Viral Invite League",
-            sport: "NFL",
-            requiresPassword: false,
-          }),
-        })
-        return
-      }
-
-      if (code === "DUPLICATE") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            leagueId: "league-dup-1",
-            name: "Already Joined League",
-            sport: "NBA",
-            requiresPassword: false,
-          }),
-        })
-        return
-      }
-
-      if (code === "EXPIRED") {
-        await route.fulfill({
-          status: 410,
-          contentType: "application/json",
-          body: JSON.stringify({
-            error: "This invite has expired",
-            errorCode: "EXPIRED",
-            leagueId: "league-expired-1",
-            name: "Expired League",
-            sport: "MLB",
-            requiresPassword: false,
+            ok: true,
+            preview: {
+              inviteType: 'league',
+              token: 'VALID142',
+              title: 'Invite Audit League',
+              description: 'Join the audited league on AllFantasy.',
+              targetId: 'league-a',
+              targetName: 'Invite Audit League',
+              sport: 'NFL',
+              memberCount: 7,
+              maxMembers: 12,
+              isFull: false,
+              expired: false,
+              expiresAt: '2026-04-01T12:00:00.000Z',
+              status: 'valid',
+              statusReason: 'Shared by Invite Auditor.',
+              destinationHref: '/e2e/viral-league-invite?joined=1',
+              destinationLabel: 'Open league',
+              createdByLabel: 'Invite Auditor',
+            },
           }),
         })
         return
       }
 
       await route.fulfill({
-        status: 404,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "Invalid invite code", errorCode: "INVALID_CODE" }),
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          preview: {
+            inviteType: 'league',
+            token: 'EXPIRED142',
+            title: 'Expired Invite Audit League',
+            description: 'This invite expired.',
+            targetId: 'league-b',
+            targetName: 'Expired Invite Audit League',
+            sport: 'NFL',
+            memberCount: 12,
+            maxMembers: 12,
+            isFull: true,
+            expired: true,
+            expiresAt: '2026-03-01T12:00:00.000Z',
+            status: 'expired',
+            statusReason: 'This invite has expired.',
+            destinationHref: '/leagues/league-b',
+            destinationLabel: 'Open league',
+            createdByLabel: 'Invite Auditor',
+          },
+        }),
       })
     })
 
-    await page.route("**/api/leagues/join", async (route) => {
-      const payload = route.request().postDataJSON() as { code?: string }
-      const code = String(payload?.code || "").trim().toUpperCase()
-
-      if (code === "VALID1") {
+    await page.route('**/api/invite/accept', async (route) => {
+      const body = route.request().postDataJSON() as { code?: string }
+      if (body.code === 'VALID142') {
         await route.fulfill({
           status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ success: true, leagueId: "league-valid-1", alreadyMember: false }),
-        })
-        return
-      }
-
-      if (code === "DUPLICATE") {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ success: true, leagueId: "league-dup-1", alreadyMember: true }),
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            inviteType: 'league',
+            targetId: 'league-a',
+            alreadyMember: false,
+            destinationHref: '/e2e/viral-league-invite?joined=1',
+          }),
         })
         return
       }
 
       await route.fulfill({
         status: 410,
-        contentType: "application/json",
-        body: JSON.stringify({ error: "Invite expired" }),
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Invite expired' }),
       })
     })
 
-    await gotoWithRetry(page, "/join?code=VALID1")
-    const joinButton = page.getByTestId("league-join-button")
-    await expect
-      .poll(
-        async () =>
-          (await page.getByText("Viral Invite League").isVisible().catch(() => false)) ||
-          (await joinButton.isVisible().catch(() => false)),
-        { timeout: 10_000 }
-      )
-      .toBe(true)
-    if (await page.getByText("Viral Invite League").isVisible().catch(() => false)) {
-      await expect(page.getByText("NFL")).toBeVisible()
-    }
-    await page.getByTestId("league-join-button").click()
-    await expect(page.getByText("You joined the league.")).toBeVisible()
+    await page.goto('/invite/accept?code=VALID142', { waitUntil: 'domcontentloaded' })
+    await expect(page.getByTestId('invite-preview-card')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Invite Audit League' })).toBeVisible()
+    await page.getByTestId('invite-accept-button').click()
+    await expect(page).toHaveURL(/joined=1/)
 
-    await gotoWithRetry(page, "/join?code=DUPLICATE")
-    await expect
-      .poll(
-        async () =>
-          (await page.getByText("Already Joined League").isVisible().catch(() => false)) ||
-          (await joinButton.isVisible().catch(() => false)),
-        { timeout: 10_000 }
-      )
-      .toBe(true)
-    await page.getByTestId("league-join-button").click()
-    await expect(page.getByText("You are already in this league.")).toBeVisible()
-
-    await gotoWithRetry(page, "/join?code=EXPIRED")
-    const previewError = page.getByTestId("league-join-preview-error")
-    await expect
-      .poll(
-        async () =>
-          (
-            (await previewError.isVisible().catch(() => false)) &&
-            /expired/i.test((await previewError.textContent().catch(() => "")) || "")
-          ) ||
-          (await page.getByText(/expired/i).first().isVisible().catch(() => false)),
-        { timeout: 10_000 }
-      )
-      .toBe(true)
+    await page.goto('/invite/accept?code=EXPIRED142', { waitUntil: 'domcontentloaded' })
+    await expect(page.getByTestId('invite-preview-card')).toBeVisible()
+    await expect(page.getByTestId('invite-expired-state')).toContainText(/expired/i)
   })
 })

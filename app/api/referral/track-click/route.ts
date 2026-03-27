@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   if (!referrerId) return NextResponse.json({ ok: false, error: "Invalid ref" }, { status: 400 })
 
   await recordClick(referrerId, {
+    referralCode: code,
     userAgent: req.headers.get("user-agent") ?? undefined,
   })
 

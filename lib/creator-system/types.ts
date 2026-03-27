@@ -46,6 +46,9 @@ export interface CreatorLeaguePreviewDto {
   name: string
   sport: string
   inviteUrl: string
+  leagueTier?: number | null
+  canJoinByRanking?: boolean
+  inviteOnlyByTier?: boolean
 }
 
 export interface CreatorProfileDto {
@@ -74,6 +77,9 @@ export interface CreatorProfileDto {
   isFollowing?: boolean
   topSports?: string[]
   featuredLeague?: CreatorLeaguePreviewDto | null
+  viewerTier?: number | null
+  viewerTierName?: string | null
+  hiddenLeagueCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -103,6 +109,11 @@ export interface CreatorLeagueDto {
   latestCommentary: string | null
   creator?: CreatorProfileDto | null
   isMember?: boolean
+  leagueTier?: number | null
+  canJoinByRanking?: boolean
+  inviteOnlyByTier?: boolean
+  viewerTier?: number | null
+  viewerTierName?: string | null
   createdAt: string
   updatedAt: string
 }

@@ -50,7 +50,11 @@ export function RecommendedLeaguesSection({ sport = null, limit = 6 }: Recommend
 
   if (loading) {
     return (
-      <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+      <section
+        className="rounded-xl border p-6"
+        style={{ borderColor: "var(--border)" }}
+        data-testid="recommended-leagues-section"
+      >
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--text)" }}>
           <Sparkles className="h-5 w-5" style={{ color: "var(--muted)" }} />
           Recommended for you
@@ -65,7 +69,11 @@ export function RecommendedLeaguesSection({ sport = null, limit = 6 }: Recommend
   if (items.length === 0) return null
 
   return (
-    <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+    <section
+      className="rounded-xl border p-6"
+      style={{ borderColor: "var(--border)" }}
+      data-testid="recommended-leagues-section"
+    >
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--text)" }}>
         <Sparkles className="h-5 w-5" style={{ color: "var(--muted)" }} />
         Recommended for you

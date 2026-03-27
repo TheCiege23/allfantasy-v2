@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { redeemReward } from "@/lib/referral"
+import { getReferralStats, redeemReward } from "@/lib/referral"
 
 export const runtime = "nodejs"
 
@@ -17,5 +17,7 @@ export async function POST(req: NextRequest) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
-  return NextResponse.json({ ok: true })
+
+  const stats = await getReferralStats(session.user.id)
+  return NextResponse.json({ ok: true, reward: result.reward, stats })
 }

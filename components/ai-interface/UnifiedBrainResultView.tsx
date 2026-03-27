@@ -79,7 +79,7 @@ export default function UnifiedBrainResultView({
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {useNormalized ? (
+      {useNormalized && normalizedOutput ? (
         <AIEvidencePresentation
           output={normalizedOutput}
           showConfidence={true}

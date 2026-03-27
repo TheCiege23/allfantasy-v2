@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getCreatorLeagues } from '@/lib/creator-system'
+import { prisma } from '@/lib/prisma'
+import { resolveUserCareerTier } from '@/lib/ranking/tier-visibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,9 +24,16 @@ export async function GET(
     } | null
     const viewerUserId = session?.user?.id ?? null
     const viewerEmail = session?.user?.email ?? null
+    const viewerTier = await resolveUserCareerTier(prisma as any, viewerUserId, 1)
     const baseUrl = getBaseUrl(req)
 
-    const leagues = await getCreatorLeagues(creatorIdOrSlug, viewerUserId, baseUrl, viewerEmail)
+    const leagues = await getCreatorLeagues(
+      creatorIdOrSlug,
+      viewerUserId,
+      baseUrl,
+      viewerEmail,
+      viewerTier
+    )
     return NextResponse.json(leagues)
   } catch (e) {
     console.error('[api/creators/.../leagues]', e)

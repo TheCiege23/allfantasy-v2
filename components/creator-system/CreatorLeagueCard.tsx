@@ -19,6 +19,7 @@ export function CreatorLeagueCard({
   const joinHref = league.inviteUrl || `${leagueHref}?join=${encodeURIComponent(league.inviteCode)}`
   const shareUrl =
     typeof window !== 'undefined' ? `${window.location.origin}${joinHref}` : joinHref
+  const canJoinDirect = league.canJoinByRanking !== false
 
   const handleShare = () => {
     if (onShare) {
@@ -72,6 +73,11 @@ export function CreatorLeagueCard({
             {league.memberCount}
             {league.maxMembers > 0 ? ` / ${league.maxMembers}` : ''} members
           </span>
+          {league.leagueTier ? (
+            <span className="rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
+              Tier {league.leagueTier}
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1 rounded-full border px-3 py-1" style={{ borderColor: 'var(--border)' }}>
             <Trophy className="h-3.5 w-3.5" />
             {Math.round(league.fillRate * 100)}% full
@@ -121,7 +127,7 @@ export function CreatorLeagueCard({
           >
             View league
           </Link>
-          {showJoinButton && !league.isMember && (
+          {showJoinButton && !league.isMember && canJoinDirect && (
             <Link
               href={joinHref}
               data-testid={`creator-league-join-${league.id}`}
@@ -130,6 +136,14 @@ export function CreatorLeagueCard({
             >
               Join league
             </Link>
+          )}
+          {showJoinButton && !league.isMember && !canJoinDirect && (
+            <span
+              className="rounded-xl border px-4 py-2 text-sm font-semibold"
+              style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+            >
+              Invite required
+            </span>
           )}
           {league.isMember && (
             <span

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Loader2, Trophy } from "lucide-react"
 import { CreatorLeagueDiscoveryCard } from "@/components/discovery/CreatorLeagueDiscoveryCard"
-import { getDiscoverySports } from "@/lib/public-discovery"
+import { getDiscoverySports } from "@/lib/public-discovery/discovery-sports"
 import type { DiscoveryCard } from "@/lib/public-discovery/types"
 
 const SPORT_LABELS: Record<string, string> = {

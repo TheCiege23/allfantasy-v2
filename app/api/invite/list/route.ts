@@ -6,12 +6,18 @@ import type { InviteType } from '@/lib/invite-engine/types'
 
 export const dynamic = 'force-dynamic'
 
+function getBaseUrl(req: NextRequest): string {
+  return req.headers.get('x-forwarded-host')
+    ? `${req.headers.get('x-forwarded-proto') || 'https'}://${req.headers.get('x-forwarded-host')}`
+    : process.env.NEXTAUTH_URL ?? req.nextUrl.origin ?? 'https://allfantasy.ai'
+}
+
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const type = req.nextUrl.searchParams.get('type') as InviteType | undefined
-  const links = await listMyInviteLinks(userId, type)
+  const links = await listMyInviteLinks(userId, type, getBaseUrl(req))
   return NextResponse.json({ ok: true, links })
 }

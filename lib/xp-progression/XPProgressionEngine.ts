@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { aggregateXPForManager } from './XPEventAggregator'
 import { getTierFromXP, getXPRemainingToNextTier } from './TierResolver'
 import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
-import { XP_EVENT_TYPES } from './types'
+import { GENERATED_XP_EVENT_TYPES } from './types'
 
 export interface RunResult {
   managerId: string
@@ -35,7 +35,7 @@ export async function runForManager(
       where: {
         managerId,
         ...(sport ? { sport } : {}),
-        eventType: { in: [...XP_EVENT_TYPES] },
+        eventType: { in: [...GENERATED_XP_EVENT_TYPES] },
       },
     })
   }

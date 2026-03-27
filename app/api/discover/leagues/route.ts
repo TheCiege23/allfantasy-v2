@@ -7,6 +7,7 @@ import type {
   DiscoveryFormat,
   DiscoverySort,
   EntryFeeFilter,
+  LeagueStyleFilter,
   VisibilityFilter,
 } from "@/lib/public-discovery/types"
 import { resolveUserCareerTier } from "@/lib/ranking/tier-visibility"
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
     const query = sp.get("q") ?? sp.get("query") ?? null
     const sport = sp.get("sport") ?? null
     const format = (sp.get("format") as DiscoveryFormat) ?? "all"
+    const style = (sp.get("style") as LeagueStyleFilter) ?? "all"
     const sort = (sp.get("sort") as DiscoverySort) ?? "popularity"
     const entryFee = (sp.get("entryFee") as EntryFeeFilter) ?? "all"
     const visibility = (sp.get("visibility") as VisibilityFilter) ?? "public"
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
         query,
         sport,
         format,
+        style,
         sort,
         entryFee,
         visibility,

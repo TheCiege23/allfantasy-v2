@@ -6,9 +6,9 @@ export {
   recordShare,
   attributeSignup,
   attributeSignupToReferrer,
+  recordReferralOnboardingStep,
   getReferralStats,
   getReferredUsers,
-  type ReferralStats,
 } from "./ReferralService"
 
 export {
@@ -19,8 +19,9 @@ export {
 
 export {
   REWARD_TYPE_SIGNUP,
-  REWARD_TYPE_LABELS,
   grantRewardForSignup,
+  grantRewardsForTrigger,
+  getRewardDefinitions,
   listRewards,
   redeemReward,
   getRewardLabel,
@@ -31,6 +32,24 @@ export {
   getReferrerProgress,
   getTierForSignups,
   REFERRAL_TIERS,
-  type LeaderboardEntry,
-  type LeaderboardSort,
 } from "./ReferralLeaderboardService"
+
+export { getReferralDashboardData } from "./ReferralDashboardService"
+export type {
+  LeaderboardSort,
+  ReferralAudience,
+  ReferralCTAView,
+  ReferralDashboardData,
+  ReferralFunnelView,
+  ReferralLeaderboardEntry,
+  ReferralMilestone,
+  ReferralProgress,
+  ReferralRewardDefinition,
+  ReferralRewardKind,
+  ReferralRewardStatus,
+  ReferralRewardTriggerType,
+  ReferralRewardView,
+  ReferralStats,
+  ReferralStatus,
+  ReferredUserView,
+} from "./types"

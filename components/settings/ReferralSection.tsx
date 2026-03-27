@@ -7,7 +7,16 @@ import { buildInviteShareUrl } from "@/lib/invite-engine/shareUrls"
 import { ReferralShareBar } from "@/components/referral/ReferralShareBar"
 
 type Stats = { clicks: number; signups: number; pendingRewards: number; redeemedRewards: number }
-type Reward = { id: string; type: string; label: string; status: string; grantedAt: string; redeemedAt: string | null }
+type Reward = {
+  id: string
+  type: string
+  label: string
+  status: string
+  grantedAt: string
+  redeemedAt: string | null
+  claimLabel?: string
+  helperText?: string | null
+}
 
 export function ReferralSection() {
   const [code, setCode] = useState<string | null>(null)
@@ -216,10 +225,15 @@ export function ReferralSection() {
                 <div>
                   <span className="font-medium" style={{ color: "var(--text)" }}>{r.label}</span>
                   <span className="ml-2 text-xs" style={{ color: "var(--muted)" }}>
-                    {r.status === "redeemed" ? "Redeemed" : "Pending"}
+                    {r.status === "redeemed" ? "Claimed" : r.status === "claimable" ? "Ready to claim" : "Pending"}
                   </span>
+                  {r.helperText ? (
+                    <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+                      {r.helperText}
+                    </p>
+                  ) : null}
                 </div>
-                {r.status === "pending" && (
+                {r.status === "claimable" && (
                   <button
                     type="button"
                     disabled={redeemingId === r.id}
@@ -228,7 +242,7 @@ export function ReferralSection() {
                     className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                     style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                   >
-                    {redeemingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem"}
+                    {redeemingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : r.claimLabel ?? "Claim"}
                   </button>
                 )}
               </li>

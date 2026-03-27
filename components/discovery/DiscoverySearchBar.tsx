@@ -37,6 +37,7 @@ export function DiscoverySearchBar({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={placeholder}
+        data-testid="discovery-search-input"
         className="w-full rounded-xl border pl-10 pr-4 py-2.5 text-sm transition-colors"
         style={{
           borderColor: focused ? "var(--accent)" : "var(--border)",
@@ -47,6 +48,7 @@ export function DiscoverySearchBar({
       />
       <button
         type="submit"
+        data-testid="discovery-search-submit"
         className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg px-3 py-2.5 text-sm font-medium touch-manipulation"
         style={{ background: "var(--accent)", color: "var(--bg)" }}
         aria-label="Search leagues"

@@ -65,7 +65,8 @@ export default async function DiscoverLeaguesBySportPage({
           Discover {sportName} leagues
         </h1>
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-          Browse public brackets and creator leagues for {sportName}. Join before they fill.
+          Browse public and creator {sportName} leagues ranked to your current AllFantasy level.
+          Commissioner invites can still unlock out-of-range leagues.
         </p>
         <PublicLeagueDiscoveryPage defaultSport={upper} />
       </div>

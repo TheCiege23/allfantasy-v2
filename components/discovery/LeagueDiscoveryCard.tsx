@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Users, Sparkles, Zap } from "lucide-react"
+import { Lock, Sparkles, Trophy, Users, Zap } from "lucide-react"
 import { trackDiscoveryJoinClick } from "@/lib/discovery-analytics/client"
 import type { DiscoveryCard } from "@/lib/public-discovery/types"
 
@@ -11,173 +11,184 @@ export interface LeagueDiscoveryCardProps {
 
 function isNew(createdAt: string): boolean {
   try {
-    const d = new Date(createdAt)
-    return Date.now() - d.getTime() < 7 * 24 * 60 * 60 * 1000
+    return Date.now() - new Date(createdAt).getTime() < 7 * 24 * 60 * 60 * 1000
   } catch {
     return false
   }
 }
 
+function getSourceLabel(league: DiscoveryCard): string {
+  if (league.source === "fantasy") return "Public league"
+  if (league.source === "creator") return "Creator league"
+  return "Bracket"
+}
+
 export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
   const isFull = league.maxMembers > 0 && league.memberCount >= league.maxMembers
-  const fillingFast =
-    !isFull && league.maxMembers > 0 && league.fillPct >= 50
+  const fillingFast = !isFull && league.maxMembers > 0 && league.fillPct >= 60
   const showNew = isNew(league.createdAt)
   const hasAI = Array.isArray(league.aiFeatures) && league.aiFeatures.length > 0
+  const canJoinDirect = !isFull && !league.inviteOnlyByTier && league.canJoinByRanking !== false
 
   return (
     <article
-      className="group rounded-2xl border overflow-hidden flex flex-col h-full transition-all duration-200 hover:border-[var(--accent)]/30 hover:shadow-lg"
+      data-testid={`league-discovery-card-${league.source}-${league.id}`}
+      className="group flex h-full flex-col overflow-hidden rounded-3xl border transition-all duration-200 hover:shadow-lg"
       style={{
         borderColor: "var(--border)",
-        background: "var(--panel)",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        background:
+          league.source === "creator"
+            ? "linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--panel)) 0%, var(--panel) 70%)"
+            : "var(--panel)",
       }}
     >
-      <div className="p-4 flex-1 flex flex-col gap-3">
-        {/* Title row */}
-        <div className="flex items-start justify-between gap-2">
-          <h3
-            className="font-semibold text-base leading-tight truncate flex-1 min-w-0"
-            style={{ color: "var(--text)" }}
-          >
-            {league.name}
-          </h3>
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--muted)" }}>
+              {getSourceLabel(league)}
+            </p>
+            <h3 className="mt-2 truncate text-lg font-semibold" style={{ color: "var(--text)" }}>
+              {league.name}
+            </h3>
+          </div>
+          {league.leagueTier != null ? (
+            <span
+              className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            >
+              Tier {league.leagueTier}
+            </span>
+          ) : null}
         </div>
 
-        {/* League badges */}
         <div className="flex flex-wrap gap-1.5">
           <span
-            className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-            style={{
-              background: "var(--panel2)",
-              color: "var(--text)",
-            }}
+            className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+            style={{ background: "var(--panel2)", color: "var(--text)" }}
           >
             {league.sport}
           </span>
+          {league.leagueStyle ? (
+            <span
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize"
+              style={{ background: "rgba(14, 165, 233, 0.12)", color: "rgb(56, 189, 248)" }}
+            >
+              {league.leagueStyle.replace(/_/g, " ")}
+            </span>
+          ) : null}
           <span
-            className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize"
+            className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
             style={{
-              background: league.source === "bracket" ? "rgba(59, 130, 246, 0.15)" : "rgba(168, 85, 247, 0.15)",
-              color: league.source === "bracket" ? "rgb(96, 165, 250)" : "rgb(216, 180, 254)",
+              background: league.isPaid ? "rgba(234, 179, 8, 0.16)" : "rgba(34, 197, 94, 0.12)",
+              color: league.isPaid ? "rgb(250, 204, 21)" : "rgb(74, 222, 128)",
             }}
           >
-            {league.source === "bracket" ? "Bracket" : "Creator"}
+            {league.isPaid ? "Paid" : "Free"}
           </span>
-          {league.isPaid ? (
+          {fillingFast ? (
             <span
-              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-              style={{ background: "rgba(234, 179, 8, 0.15)", color: "rgb(250, 204, 21)" }}
-            >
-              Paid
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-              style={{ background: "rgba(34, 197, 94, 0.12)", color: "rgb(74, 222, 128)" }}
-            >
-              Free
-            </span>
-          )}
-          {fillingFast && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-medium"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
               style={{ background: "rgba(34, 211, 238, 0.12)", color: "rgb(34, 211, 238)" }}
             >
               <Zap className="h-3 w-3" />
               Filling fast
             </span>
-          )}
-          {showNew && (
+          ) : null}
+          {showNew ? (
             <span
-              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-              style={{ background: "rgba(251, 146, 60, 0.15)", color: "rgb(251, 146, 60)" }}
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+              style={{ background: "rgba(251, 146, 60, 0.14)", color: "rgb(251, 146, 60)" }}
             >
               New
             </span>
-          )}
-          {hasAI && (
+          ) : null}
+          {league.inviteOnlyByTier ? (
             <span
-              className="inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-xs font-medium"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+              title="This league is outside your current rank window and needs a commissioner invite."
+              style={{ background: "rgba(251, 146, 60, 0.16)", color: "rgb(251, 146, 60)" }}
+            >
+              <Lock className="h-3 w-3" />
+              Invite required
+            </span>
+          ) : null}
+          {hasAI ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
               style={{ background: "rgba(167, 139, 250, 0.15)", color: "rgb(196, 181, 253)" }}
             >
               <Sparkles className="h-3 w-3" />
-              {league.aiFeatures.length <= 2
-                ? league.aiFeatures.join(", ")
-                : "AI-enabled"}
+              {league.aiFeatures.length <= 2 ? league.aiFeatures.join(", ") : "AI-ready"}
             </span>
-          )}
-          {league.inviteOnlyByTier && (
-            <span
-              className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-              title="Tier policy: you can browse leagues in your tier, one above, or one below. Other tiers require an invite code."
-              aria-label="Invite only by tier policy"
-              style={{ background: "rgba(251, 146, 60, 0.16)", color: "rgb(251, 146, 60)" }}
-            >
-              Invite only
-            </span>
-          )}
+          ) : null}
         </div>
 
-        {/* Subtitle */}
-        {league.tournamentName && (
-          <p className="text-sm truncate" style={{ color: "var(--muted)" }}>
+        {league.description ? (
+          <p className="line-clamp-3 text-sm" style={{ color: "var(--muted)" }}>
+            {league.description}
+          </p>
+        ) : null}
+
+        {league.creatorName && league.source === "creator" ? (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
+            by {league.creatorName}
+            {league.isCreatorVerified ? (
+              <span className="ml-1 font-semibold" style={{ color: "var(--text)" }}>
+                Verified
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+
+        {league.tournamentName ? (
+          <p className="text-sm" style={{ color: "var(--muted)" }}>
             {league.tournamentName}
             {league.season ? ` · ${league.season}` : ""}
           </p>
-        )}
-        {league.creatorName && league.source === "creator" && (
-          <p className="text-sm truncate" style={{ color: "var(--muted)" }}>
-            by {league.creatorName}
-            {league.isCreatorVerified && (
-              <span className="ml-1 inline-block text-[10px] opacity-80" title="Verified">
-                ✓
-              </span>
-            )}
-          </p>
-        )}
+        ) : null}
 
-        {/* Meta + progress */}
-        <div className="flex items-center gap-2 text-xs mt-auto" style={{ color: "var(--muted)" }}>
-          <Users className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            {league.memberCount}
-            {league.maxMembers > 0 ? ` / ${league.maxMembers}` : ""} spots
-          </span>
-        </div>
-        {league.maxMembers > 0 && (
-          <div
-            className="h-1.5 rounded-full overflow-hidden"
-            style={{ background: "var(--panel2)" }}
-          >
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${Math.min(100, league.fillPct)}%`,
-                background: isFull ? "var(--muted)" : "var(--accent)",
-              }}
-            />
+        <div className="mt-auto space-y-2">
+          <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>
+            <span className="inline-flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" />
+              {league.memberCount}
+              {league.maxMembers > 0 ? ` / ${league.maxMembers}` : ""} spots
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Trophy className="h-3.5 w-3.5" />
+              {league.fillPct}% full
+            </span>
           </div>
-        )}
+          {league.maxMembers > 0 ? (
+            <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--panel2)" }}>
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${Math.min(100, league.fillPct)}%`,
+                  background: isFull ? "var(--muted)" : "var(--accent)",
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {/* Actions */}
-      <div
-        className="p-4 pt-0 flex flex-wrap items-center gap-2 border-t"
-        style={{ borderColor: "var(--border)" }}
-      >
+      <div className="flex flex-wrap items-center gap-2 border-t p-5 pt-4" style={{ borderColor: "var(--border)" }}>
         <Link
           href={league.detailUrl}
-          className="rounded-lg border px-3 py-2.5 min-h-[44px] inline-flex items-center justify-center text-sm font-medium transition-colors hover:bg-white/5 touch-manipulation"
+          data-testid={`league-discovery-view-${league.id}`}
+          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border px-3.5 py-2.5 text-sm font-semibold"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          View
+          View details
         </Link>
-        {!isFull && !league.inviteOnlyByTier ? (
+
+        {canJoinDirect ? (
           <Link
             href={league.joinUrl}
-            className="min-h-[44px] inline-flex items-center justify-center touch-manipulation rounded-lg px-3 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
+            data-testid={`league-discovery-join-${league.id}`}
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl px-3.5 py-2.5 text-sm font-semibold"
             onClick={() =>
               trackDiscoveryJoinClick({
                 leagueId: league.id,
@@ -189,32 +200,34 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
             }
             style={{ background: "var(--accent)", color: "var(--bg)" }}
           >
-            Join
+            Join league
           </Link>
         ) : league.inviteOnlyByTier ? (
           <span
-            className="rounded-lg px-3 py-2 text-sm font-medium"
+            className="rounded-xl px-3.5 py-2.5 text-sm font-semibold"
             style={{ background: "rgba(251, 146, 60, 0.14)", color: "rgb(251, 146, 60)" }}
           >
-            Invite code required
+            Invite required
           </span>
         ) : (
           <span
-            className="rounded-lg px-3 py-2 text-sm font-medium"
+            className="rounded-xl px-3.5 py-2.5 text-sm font-semibold"
             style={{ background: "var(--panel2)", color: "var(--muted)" }}
           >
-            Full
+            {isFull ? "Full" : "Unavailable"}
           </span>
         )}
-        {league.creatorSlug && (
+
+        {league.creatorSlug ? (
           <Link
             href={`/creators/${encodeURIComponent(league.creatorSlug)}`}
-            className="text-sm font-medium ml-auto"
+            data-testid={`league-discovery-creator-${league.creatorSlug}`}
+            className="ml-auto text-sm font-semibold"
             style={{ color: "var(--accent)" }}
           >
-            Creator
+            Creator profile
           </Link>
-        )}
+        ) : null}
       </div>
     </article>
   )

@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Loader2, Inbox, Search } from "lucide-react"
 import { FindLeagueCard } from "@/components/discovery/FindLeagueCard"
 import { RecommendedLeaguesSection } from "@/components/discovery/RecommendedLeaguesSection"
-import { getDiscoverySports } from "@/lib/public-discovery"
+import { getDiscoverySports } from "@/lib/public-discovery/discovery-sports"
 import type {
   DiscoveryCard,
   DiscoveryFormat,

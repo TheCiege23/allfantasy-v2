@@ -135,9 +135,27 @@ export default function CreatorLeagueLandingPage() {
           </div>
         )}
 
+        {league.inviteOnlyByTier && !joinCode && !league.isMember && (
+          <div
+            className="mb-5 rounded-2xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: 'rgba(251, 146, 60, 0.35)',
+              background: 'rgba(251, 146, 60, 0.10)',
+              color: 'rgb(251, 146, 60)',
+            }}
+            data-testid="creator-league-tier-gate"
+          >
+            This league is outside your current ranking window. You can still join if a commissioner
+            sends you a direct invite code.
+          </div>
+        )}
+
         <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
-            <CreatorLeagueCard league={league} showJoinButton={!league.isMember} />
+            <CreatorLeagueCard
+              league={league}
+              showJoinButton={!league.isMember && (!league.inviteOnlyByTier || Boolean(joinCode))}
+            />
 
             <section
               className="rounded-[28px] border p-5"
@@ -187,6 +205,7 @@ export default function CreatorLeagueLandingPage() {
               <div className="mt-4 space-y-3 text-sm" style={{ color: 'var(--muted)' }}>
                 <p>Visibility: {league.isPublic ? 'Public branded community' : 'Invite-only room'}</p>
                 <p>Members: {league.memberCount}{league.maxMembers > 0 ? ` / ${league.maxMembers}` : ''}</p>
+                <p>League tier: {league.leagueTier ? `Tier ${league.leagueTier}` : 'Open tier'}</p>
                 <p>Share URL: {league.shareUrl}</p>
               </div>
             </section>

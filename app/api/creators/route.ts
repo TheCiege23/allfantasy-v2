@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { getCreators, getCreatorsLeaderboard } from '@/lib/creator-system'
+import { prisma } from '@/lib/prisma'
+import { resolveUserCareerTier } from '@/lib/ranking/tier-visibility'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
+    const viewerUserId = session?.user?.id ?? null
+    const viewerTier = await resolveUserCareerTier(prisma as any, viewerUserId, 1)
     const { searchParams } = new URL(req.url)
     const visibility = (searchParams.get('visibility') as 'public' | 'unlisted' | 'all') || 'public'
     const sport = searchParams.get('sport') || undefined
@@ -23,7 +32,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, creators })
     }
 
-    const result = await getCreators({ visibility, sport, limit, cursor, baseUrl })
+    const result = await getCreators({
+      visibility,
+      sport,
+      limit,
+      cursor,
+      baseUrl,
+      viewerTier,
+    })
     return NextResponse.json({ ok: true, ...result })
   } catch (e) {
     console.error('[api/creators]', e)

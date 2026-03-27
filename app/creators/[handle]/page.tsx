@@ -172,6 +172,20 @@ export default function CreatorProfilePage() {
           followLoading={followLoading}
         />
 
+        {(creator.hiddenLeagueCount ?? 0) > 0 && (
+          <div
+            className="mt-4 rounded-2xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: 'rgba(251, 146, 60, 0.35)',
+              background: 'rgba(251, 146, 60, 0.10)',
+              color: 'rgb(251, 146, 60)',
+            }}
+          >
+            Some creator leagues are hidden because they sit outside your current ranking window.
+            Commissioner invites can still unlock those rooms.
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap gap-2">
           <button
             type="button"
@@ -223,7 +237,11 @@ export default function CreatorProfilePage() {
                 <CreatorCommunityPreview
                   leagues={publicLeagues}
                   creatorSlug={creator.slug}
-                  emptyMessage="This creator has not opened a public league yet."
+                  emptyMessage={
+                    (creator.hiddenLeagueCount ?? 0) > 0
+                      ? 'No public leagues in your current ranking window yet.'
+                      : 'This creator has not opened a public league yet.'
+                  }
                 />
                 <div className="space-y-4">
                   {leagues.length === 0 ? (

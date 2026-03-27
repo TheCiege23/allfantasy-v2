@@ -1,8 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
+import { InvitePreviewCard } from '@/components/invite'
 
 interface Preview {
   inviteType: string
@@ -16,17 +18,29 @@ interface Preview {
   maxMembers: number | null
   isFull: boolean
   expired: boolean
+  expiresAt: string | null
   status: string
+  statusReason: string | null
+  destinationHref: string | null
+  destinationLabel: string | null
+  createdByLabel: string | null
 }
 
 export default function AcceptInvitePage() {
   const searchParams = useSearchParams()
-  const code = searchParams?.get('code')?.trim()
+  const code = searchParams?.get('code')?.trim() ?? ''
+  const { data: session, status: sessionStatus } = useSession()
 
   const [preview, setPreview] = useState<Preview | null>(null)
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; targetId?: string; inviteType?: string; error?: string } | null>(null)
+  const [result, setResult] = useState<{
+    ok: boolean
+    targetId?: string
+    inviteType?: string
+    destinationHref?: string | null
+    error?: string
+  } | null>(null)
 
   const loadPreview = useCallback(() => {
     if (!code) {
@@ -35,7 +49,7 @@ export default function AcceptInvitePage() {
     }
     setLoading(true)
     fetch(`/api/invite/preview?code=${encodeURIComponent(code)}`)
-      .then((r) => r.json())
+      .then((response) => response.json())
       .then((data) => {
         if (data.ok && data.preview) setPreview(data.preview)
         else setPreview(null)
@@ -48,8 +62,18 @@ export default function AcceptInvitePage() {
     loadPreview()
   }, [loadPreview])
 
+  const callbackUrl = useMemo(() => {
+    if (!code) return '/invite/accept'
+    return `/invite/accept?code=${encodeURIComponent(code)}`
+  }, [code])
+
   const handleAccept = () => {
     if (!code) return
+    if (!session?.user) {
+      window.location.href = `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+      return
+    }
+
     setAccepting(true)
     setResult(null)
     fetch('/api/invite/accept', {
@@ -57,20 +81,26 @@ export default function AcceptInvitePage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),
     })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.ok) {
-          setResult({ ok: true, targetId: data.targetId, inviteType: data.inviteType })
-          if (data.inviteType === 'bracket' && data.targetId) {
-            window.location.href = `/brackets/leagues/${data.targetId}`
-            return
-          }
-          if (data.inviteType === 'creator_league' && data.targetId) {
-            window.location.href = `/creator/leagues/${data.targetId}`
+      .then((response) =>
+        response
+          .json()
+          .then((data) => ({ ok: response.ok, status: response.status, data }))
+      )
+      .then(({ ok, data }) => {
+        if (ok && data.ok) {
+          setResult({
+            ok: true,
+            targetId: data.targetId,
+            inviteType: data.inviteType,
+            destinationHref: data.destinationHref,
+          })
+          if (data.destinationHref) {
+            window.location.href = data.destinationHref
             return
           }
         } else {
-          setResult({ ok: false, error: data.error ?? 'Could not accept' })
+          setResult({ ok: false, error: data.error ?? 'Could not accept invite' })
+          loadPreview()
         }
       })
       .catch(() => setResult({ ok: false, error: 'Something went wrong' }))
@@ -80,7 +110,7 @@ export default function AcceptInvitePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ color: 'var(--muted)' }}>
-        Loading invite…
+        Loading invite...
       </div>
     )
   }
@@ -105,10 +135,10 @@ export default function AcceptInvitePage() {
       <div className="min-h-screen mode-surface mode-readable flex items-center justify-center">
         <div className="max-w-md mx-auto px-4 text-center">
           <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text)' }}>
-            Invalid or expired invite
+            Invalid invite
           </h1>
           <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-            This invite link is not valid or has expired.
+            This invite link is not valid or is no longer available.
           </p>
           <Link href="/" className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
             Go home
@@ -118,73 +148,58 @@ export default function AcceptInvitePage() {
     )
   }
 
-  const isExpired = preview.expired || preview.status === 'expired'
-  const isFull = preview.status === 'full' || preview.isFull
-  const alreadyMember = preview.status === 'already_member'
-  const canAccept = !isExpired && !isFull && !alreadyMember
+  const acceptLabel =
+    sessionStatus === 'loading'
+      ? 'Loading account...'
+      : session?.user
+        ? accepting
+          ? 'Accepting...'
+          : 'Accept invite'
+        : 'Sign in to accept invite'
 
   return (
     <div className="min-h-screen mode-surface mode-readable">
       <div className="max-w-lg mx-auto px-4 py-12">
-        <div
-          className="rounded-2xl border p-6 mb-6"
-          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 60%, transparent)' }}
-        >
-          <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text)' }}>
-            {preview.title}
-          </h1>
-          {preview.targetName && (
-            <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
-              {preview.targetName}
-              {preview.sport ? ` · ${preview.sport}` : ''}
-            </p>
-          )}
-          {preview.memberCount != null && preview.maxMembers != null && (
-            <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
-              {preview.memberCount} / {preview.maxMembers} members
-            </p>
-          )}
+        <InvitePreviewCard
+          title={preview.title}
+          description={preview.description}
+          targetName={preview.targetName}
+          sport={preview.sport}
+          memberCount={preview.memberCount}
+          maxMembers={preview.maxMembers}
+          isFull={preview.isFull}
+          expired={preview.expired}
+          expiresAt={preview.expiresAt}
+          status={preview.status}
+          statusReason={preview.statusReason}
+          inviteType={preview.inviteType}
+          destinationHref={preview.destinationHref}
+          destinationLabel={preview.destinationLabel}
+          createdByLabel={preview.createdByLabel}
+          acceptLabel={acceptLabel}
+          acceptDisabled={accepting || sessionStatus === 'loading'}
+          onAccept={handleAccept}
+        />
 
-          {isExpired && (
-            <p className="text-sm py-2 rounded-lg mb-4" style={{ color: 'var(--destructive)', background: 'color-mix(in srgb, var(--destructive) 15%, transparent)' }}>
-              This invite has expired.
-            </p>
-          )}
-          {isFull && !isExpired && (
-            <p className="text-sm py-2 rounded-lg mb-4" style={{ color: 'var(--destructive)', background: 'color-mix(in srgb, var(--destructive) 15%, transparent)' }}>
-              This league is full.
-            </p>
-          )}
-          {alreadyMember && (
-            <p className="text-sm py-2 rounded-lg mb-4" style={{ color: 'var(--muted)' }}>
-              You’re already a member.
-            </p>
-          )}
-
-          {canAccept && (
-            <button
-              type="button"
-              disabled={accepting}
-              onClick={handleAccept}
-              className="w-full rounded-xl py-3 px-4 text-sm font-semibold disabled:opacity-60"
-              style={{ background: 'var(--accent)', color: 'var(--bg)' }}
-            >
-              {accepting ? 'Joining…' : 'Accept invite'}
-            </button>
-          )}
-        </div>
+        {preview.status === 'expired' || preview.status === 'max_used' ? (
+          <p data-testid="invite-expired-state" className="mt-4 text-center text-sm" style={{ color: 'var(--destructive)' }}>
+            {preview.statusReason}
+          </p>
+        ) : null}
 
         {result && (
           <div
-            className="rounded-xl border p-4 mb-4"
+            className="mt-4 rounded-xl border p-4"
             style={{
               borderColor: result.ok ? 'var(--accent)' : 'var(--destructive)',
-              background: result.ok ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
+              background: result.ok
+                ? 'color-mix(in srgb, var(--accent) 15%, transparent)'
+                : 'color-mix(in srgb, var(--destructive) 15%, transparent)',
             }}
           >
             {result.ok ? (
               <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
-                You’re in! Redirecting…
+                Invite accepted. Redirecting...
               </p>
             ) : (
               <p className="text-sm" style={{ color: 'var(--destructive)' }}>
@@ -194,7 +209,13 @@ export default function AcceptInvitePage() {
           </div>
         )}
 
-        <p className="text-center">
+        {!session?.user && preview.status === 'valid' && (
+          <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
+            Sign in first so AllFantasy can apply the invite to your account.
+          </p>
+        )}
+
+        <p className="mt-6 text-center">
           <Link href="/" className="text-sm" style={{ color: 'var(--muted)' }}>
             Back to AllFantasy
           </Link>

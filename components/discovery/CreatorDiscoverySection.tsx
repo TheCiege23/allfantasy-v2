@@ -38,7 +38,11 @@ export function CreatorDiscoverySection({ sport = null, limit = 6 }: CreatorDisc
 
   if (loading) {
     return (
-      <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+      <section
+        className="rounded-xl border p-6"
+        style={{ borderColor: "var(--border)" }}
+        data-testid="creator-discovery-section"
+      >
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--text)" }}>
           <Users className="h-5 w-5" style={{ color: "var(--muted)" }} />
           Creator leagues
@@ -53,7 +57,11 @@ export function CreatorDiscoverySection({ sport = null, limit = 6 }: CreatorDisc
   if (leagues.length === 0) return null
 
   return (
-    <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+    <section
+      className="rounded-xl border p-6"
+      style={{ borderColor: "var(--border)" }}
+      data-testid="creator-discovery-section"
+    >
       <div className="flex items-center justify-between gap-4 mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2" style={{ color: "var(--text)" }}>
           <Users className="h-5 w-5" style={{ color: "var(--muted)" }} />

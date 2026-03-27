@@ -34,7 +34,8 @@ export default function DiscoverLeaguesPage() {
           Discover leagues
         </h1>
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-          Browse public brackets and creator leagues. Filter by sport, format, and join before they fill.
+          Browse public leagues, creator communities, and brackets ranked to your current AllFantasy level.
+          Commissioner invites can still unlock leagues outside your normal range.
         </p>
         <PublicLeagueDiscoveryPage />
       </div>

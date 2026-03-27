@@ -5,6 +5,12 @@
 
 import { prisma } from '@/lib/prisma'
 import { isAdminEmailAllowed } from '@/lib/adminAuth'
+import {
+  clampCareerTier,
+  extractLeagueCareerTier,
+  getCareerTierName,
+  isLeagueVisibleForCareerTier,
+} from '@/lib/ranking/tier-visibility'
 import { isSupportedSport } from '@/lib/sport-scope'
 import type {
   CreatorAnalyticsSummaryDto,
@@ -129,6 +135,9 @@ function buildCreatorLeaguePreview(
     name: string
     sport: string
     inviteCode: string
+    leagueTier?: number | null
+    canJoinByRanking?: boolean
+    inviteOnlyByTier?: boolean
   },
   baseUrl: string
 ): CreatorLeaguePreviewDto {
@@ -137,6 +146,9 @@ function buildCreatorLeaguePreview(
     name: league.name,
     sport: league.sport,
     inviteUrl: buildLeagueShareUrl(league.id, league.inviteCode, baseUrl),
+    leagueTier: league.leagueTier ?? null,
+    canJoinByRanking: league.canJoinByRanking ?? true,
+    inviteOnlyByTier: league.inviteOnlyByTier ?? false,
   }
 }
 
@@ -354,6 +366,94 @@ function buildTopSports(leagues: Array<{ sport: string }>) {
     .map(([sport]) => sport)
 }
 
+type CreatorLeagueTierSeed = {
+  id: string
+  type: string
+  leagueId: string | null
+  bracketLeagueId: string | null
+}
+
+type RankedCreatorLeaguePreview = {
+  id: string
+  name: string
+  sport: string
+  inviteCode: string
+  leagueTier: number
+  canJoinByRanking: boolean
+  inviteOnlyByTier: boolean
+}
+
+function resolveCreatorLeagueTierWindow(
+  viewerTier: number | null | undefined,
+  leagueTier: number | null | undefined,
+  options: {
+    inviteOverride?: boolean
+    visibilityBypass?: boolean
+  } = {}
+) {
+  const safeViewerTier = clampCareerTier(viewerTier, 1)
+  const safeLeagueTier = clampCareerTier(leagueTier, 1)
+  const inWindow = isLeagueVisibleForCareerTier(safeViewerTier, safeLeagueTier, 1)
+  const inviteOverride = options.inviteOverride === true
+  const visibilityBypass = options.visibilityBypass === true
+
+  return {
+    viewerTier: safeViewerTier,
+    viewerTierName: getCareerTierName(safeViewerTier),
+    leagueTier: safeLeagueTier,
+    inWindow,
+    canJoinByRanking: inWindow || inviteOverride,
+    inviteOnlyByTier: !inWindow && !inviteOverride,
+    visible: inWindow || inviteOverride || visibilityBypass,
+  }
+}
+
+async function loadCreatorLeagueTierMap(
+  leagues: CreatorLeagueTierSeed[]
+): Promise<Map<string, number>> {
+  const fantasyLeagueIds = [...new Set(leagues.map((league) => league.leagueId).filter(Boolean))]
+  const bracketLeagueIds = [...new Set(leagues.map((league) => league.bracketLeagueId).filter(Boolean))]
+
+  const [fantasyLeagues, bracketLeagues] = await Promise.all([
+    fantasyLeagueIds.length
+      ? prisma.league.findMany({
+          where: { id: { in: fantasyLeagueIds as string[] } },
+          select: {
+            id: true,
+            settings: true,
+          },
+        })
+      : Promise.resolve([]),
+    bracketLeagueIds.length
+      ? prisma.bracketLeague.findMany({
+          where: { id: { in: bracketLeagueIds as string[] } },
+          select: {
+            id: true,
+            scoringRules: true,
+          },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const fantasyById = new Map(
+    fantasyLeagues.map((league) => [league.id, extractLeagueCareerTier(league.settings, 1)])
+  )
+  const bracketById = new Map(
+    bracketLeagues.map((league) => [league.id, extractLeagueCareerTier(league.scoringRules, 1)])
+  )
+
+  const tierByCreatorLeagueId = new Map<string, number>()
+  for (const league of leagues) {
+    const isBracket = String(league.type).toUpperCase() === 'BRACKET'
+    const tier = isBracket
+      ? bracketById.get(league.bracketLeagueId ?? '') ?? 1
+      : fantasyById.get(league.leagueId ?? '') ?? 1
+    tierByCreatorLeagueId.set(league.id, clampCareerTier(tier, 1))
+  }
+
+  return tierByCreatorLeagueId
+}
+
 function toProfileDto(
   profile: {
     id: string
@@ -383,8 +483,10 @@ function toProfileDto(
     followerCount?: number
     totalLeagueMembers?: number
     isFollowing?: boolean
-    leagueSample?: Array<{ id: string; name: string; sport: string; inviteCode: string }>
+    leagueSample?: RankedCreatorLeaguePreview[]
     baseUrl?: string
+    viewerTier?: number | null
+    hiddenLeagueCount?: number
   } = {}
 ): CreatorProfileDto {
   const baseUrl = resolveBaseUrl(options.baseUrl ?? '')
@@ -427,6 +529,10 @@ function toProfileDto(
     isFollowing: options.isFollowing,
     topSports: buildTopSports(leagueSample),
     featuredLeague,
+    viewerTier: options.viewerTier ?? null,
+    viewerTierName:
+      options.viewerTier != null ? getCareerTierName(clampCareerTier(options.viewerTier, 1)) : null,
+    hiddenLeagueCount: options.hiddenLeagueCount ?? 0,
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString(),
   }
@@ -458,7 +564,13 @@ function toLeagueDto(
     creator?: Parameters<typeof toProfileDto>[0]
     isMember?: boolean
   },
-  baseUrl: string
+  baseUrl: string,
+  options: {
+    viewerTier?: number | null
+    leagueTier?: number | null
+    canJoinByRanking?: boolean
+    inviteOnlyByTier?: boolean
+  } = {}
 ): CreatorLeagueDto {
   const creatorDisplayName =
     league.creator?.displayName ??
@@ -498,6 +610,12 @@ function toLeagueDto(
     latestCommentary: league.latestCommentary ?? generatedNarrative.commentary,
     creator: league.creator ? toProfileDto(league.creator, { baseUrl }) : null,
     isMember: league.isMember,
+    leagueTier: options.leagueTier ?? null,
+    canJoinByRanking: options.canJoinByRanking ?? true,
+    inviteOnlyByTier: options.inviteOnlyByTier ?? false,
+    viewerTier: options.viewerTier ?? null,
+    viewerTierName:
+      options.viewerTier != null ? getCareerTierName(clampCareerTier(options.viewerTier, 1)) : null,
     createdAt: league.createdAt.toISOString(),
     updatedAt: league.updatedAt.toISOString(),
   }
@@ -509,12 +627,14 @@ export async function getCreators(options: {
   limit?: number
   cursor?: string
   baseUrl?: string
+  viewerTier?: number | null
 }) {
-  const { visibility = 'public', sport, limit = 24, cursor, baseUrl = '' } = options
+  const { visibility = 'public', sport, limit = 24, cursor, baseUrl = '', viewerTier } = options
   const where: {
     visibility?: string
     leagues?: { some: { sport?: string; isPublic?: boolean } }
   } = {}
+  const safeViewerTier = clampCareerTier(viewerTier, 1)
 
   if (visibility === 'public') where.visibility = 'public'
   else if (visibility === 'unlisted') where.visibility = 'unlisted'
@@ -542,6 +662,9 @@ export async function getCreators(options: {
         take: 3,
         select: {
           id: true,
+          type: true,
+          leagueId: true,
+          bracketLeagueId: true,
           name: true,
           sport: true,
           inviteCode: true,
@@ -553,22 +676,51 @@ export async function getCreators(options: {
 
   const list = profiles.slice(0, limit)
   const nextCursor = profiles.length > limit ? list[list.length - 1]?.id ?? null : null
+  const tierMap = await loadCreatorLeagueTierMap(
+    list.flatMap((profile) =>
+      profile.leagues.map((league) => ({
+        id: league.id,
+        type: league.type,
+        leagueId: league.leagueId,
+        bracketLeagueId: league.bracketLeagueId,
+      }))
+    )
+  )
 
-  const creators = await Promise.all(
+  const creators = (
+    await Promise.all(
     list.map(async (profile) => {
       const followerCount = await prisma.userFollow.count({
         where: { followeeId: profile.userId },
       })
-      const totalLeagueMembers = profile.leagues.reduce((sum, league) => sum + league.memberCount, 0)
+      const rankedLeagueSample: RankedCreatorLeaguePreview[] = profile.leagues.map((league) => {
+        const tierWindow = resolveCreatorLeagueTierWindow(safeViewerTier, tierMap.get(league.id) ?? 1)
+        return {
+          id: league.id,
+          name: league.name,
+          sport: league.sport,
+          inviteCode: league.inviteCode,
+          leagueTier: tierWindow.leagueTier,
+          canJoinByRanking: tierWindow.canJoinByRanking,
+          inviteOnlyByTier: tierWindow.inviteOnlyByTier,
+        }
+      })
+      const visibleLeagueSample = rankedLeagueSample.filter((league) => league.canJoinByRanking)
+      const totalLeagueMembers = profile.leagues
+        .filter((league) => visibleLeagueSample.some((sample) => sample.id === league.id))
+        .reduce((sum, league) => sum + league.memberCount, 0)
 
       return toProfileDto(profile, {
         followerCount,
         totalLeagueMembers,
-        leagueSample: profile.leagues,
+        leagueSample: visibleLeagueSample,
         baseUrl,
+        viewerTier: safeViewerTier,
+        hiddenLeagueCount: Math.max(0, rankedLeagueSample.length - visibleLeagueSample.length),
       })
     })
   )
+  ).filter((creator) => (creator.hiddenLeagueCount ?? 0) === 0 || !!creator.featuredLeague)
 
   return {
     creators,
@@ -631,8 +783,10 @@ export async function getCreatorBySlugOrId(
   creatorIdOrSlug: string,
   viewerUserId?: string | null,
   viewerEmail?: string | null,
-  baseUrl = ''
+  baseUrl = '',
+  viewerTier?: number | null
 ) {
+  const safeViewerTier = clampCareerTier(viewerTier, 1)
   const isSlug = !/^[0-9a-f-]{36}$/i.test(creatorIdOrSlug)
   const profile = await prisma.creatorProfile.findFirst({
     where: isSlug ? { slug: creatorIdOrSlug } : { id: creatorIdOrSlug },
@@ -650,6 +804,9 @@ export async function getCreatorBySlugOrId(
         take: 3,
         select: {
           id: true,
+          type: true,
+          leagueId: true,
+          bracketLeagueId: true,
           name: true,
           sport: true,
           inviteCode: true,
@@ -679,14 +836,41 @@ export async function getCreatorBySlugOrId(
       : Promise.resolve(null),
   ])
 
-  const totalLeagueMembers = profile.leagues.reduce((sum, league) => sum + league.memberCount, 0)
+  const tierMap = await loadCreatorLeagueTierMap(
+    profile.leagues.map((league) => ({
+      id: league.id,
+      type: league.type,
+      leagueId: league.leagueId,
+      bracketLeagueId: league.bracketLeagueId,
+    }))
+  )
+  const rankedLeagueSample: RankedCreatorLeaguePreview[] = profile.leagues
+    .filter((league) => league.isPublic)
+    .map((league) => {
+      const tierWindow = resolveCreatorLeagueTierWindow(safeViewerTier, tierMap.get(league.id) ?? 1)
+      return {
+        id: league.id,
+        name: league.name,
+        sport: league.sport,
+        inviteCode: league.inviteCode,
+        leagueTier: tierWindow.leagueTier,
+        canJoinByRanking: tierWindow.canJoinByRanking,
+        inviteOnlyByTier: tierWindow.inviteOnlyByTier,
+      }
+    })
+  const visibleLeagueSample = rankedLeagueSample.filter((league) => league.canJoinByRanking)
+  const totalLeagueMembers = profile.leagues
+    .filter((league) => visibleLeagueSample.some((sample) => sample.id === league.id))
+    .reduce((sum, league) => sum + league.memberCount, 0)
 
   return toProfileDto(profile, {
     followerCount,
     totalLeagueMembers,
     isFollowing: !!followRow,
-    leagueSample: profile.leagues.filter((league) => league.isPublic),
+    leagueSample: visibleLeagueSample,
     baseUrl,
+    viewerTier: safeViewerTier,
+    hiddenLeagueCount: Math.max(0, rankedLeagueSample.length - visibleLeagueSample.length),
   })
 }
 
@@ -694,7 +878,8 @@ export async function getCreatorLeagues(
   creatorIdOrSlug: string,
   viewerUserId?: string | null,
   baseUrl = '',
-  viewerEmail?: string | null
+  viewerEmail?: string | null,
+  viewerTier?: number | null
 ) {
   const creator = await prisma.creatorProfile.findFirst({
     where: {
@@ -710,6 +895,7 @@ export async function getCreatorLeagues(
   if (!canViewCreator(creator, viewerUserId, viewerEmail)) return []
 
   const manageAccess = canManageCreator(creator, viewerUserId, viewerEmail)
+  const safeViewerTier = clampCareerTier(viewerTier, 1)
   const leagues = await prisma.creatorLeague.findMany({
     where: {
       creatorId: creator.id,
@@ -730,6 +916,14 @@ export async function getCreatorLeagues(
       },
     },
   })
+  const tierMap = await loadCreatorLeagueTierMap(
+    leagues.map((league) => ({
+      id: league.id,
+      type: league.type,
+      leagueId: league.leagueId,
+      bracketLeagueId: league.bracketLeagueId,
+    }))
+  )
 
   const withMembership = await Promise.all(
     leagues.map(async (league) => {
@@ -744,11 +938,27 @@ export async function getCreatorLeagues(
             select: { id: true },
           })
         : null
-      return { ...league, isMember: !!membership }
+      const tierWindow = resolveCreatorLeagueTierWindow(safeViewerTier, tierMap.get(league.id) ?? 1, {
+        visibilityBypass: manageAccess,
+      })
+      return {
+        ...league,
+        isMember: !!membership,
+        tierWindow,
+      }
     })
   )
 
-  return withMembership.map((league) => toLeagueDto(league, baseUrl))
+  return withMembership
+    .filter((league) => league.tierWindow.visible)
+    .map((league) =>
+      toLeagueDto(league, baseUrl, {
+        viewerTier: safeViewerTier,
+        leagueTier: league.tierWindow.leagueTier,
+        canJoinByRanking: league.tierWindow.canJoinByRanking || !!league.isMember,
+        inviteOnlyByTier: league.tierWindow.inviteOnlyByTier && !league.isMember,
+      })
+    )
 }
 
 export async function upsertCreatorProfile(
@@ -1442,7 +1652,8 @@ export async function getCreatorLeagueById(
   viewerUserId?: string | null,
   baseUrl = '',
   viewerEmail?: string | null,
-  inviteCode?: string | null
+  inviteCode?: string | null,
+  viewerTier?: number | null
 ) {
   const league = await prisma.creatorLeague.findUnique({
     where: { id: creatorLeagueId },
@@ -1462,6 +1673,24 @@ export async function getCreatorLeagueById(
   })
   if (!league) return null
   if (!canViewLeague(league, viewerUserId, viewerEmail, inviteCode)) return null
+  const manageAccess = canManageCreator(league.creator, viewerUserId, viewerEmail)
+  const tierMap = await loadCreatorLeagueTierMap([
+    {
+      id: league.id,
+      type: league.type,
+      leagueId: league.leagueId,
+      bracketLeagueId: league.bracketLeagueId,
+    },
+  ])
+  const tierWindow = resolveCreatorLeagueTierWindow(
+    clampCareerTier(viewerTier, 1),
+    tierMap.get(league.id) ?? 1,
+    {
+      inviteOverride:
+        !!inviteCode && inviteCode.trim().toUpperCase() === league.inviteCode.trim().toUpperCase(),
+      visibilityBypass: manageAccess,
+    }
+  )
 
   const membership = viewerUserId
     ? await prisma.creatorLeagueMember.findUnique({
@@ -1475,7 +1704,16 @@ export async function getCreatorLeagueById(
       })
     : null
 
-  return toLeagueDto({ ...league, isMember: !!membership }, baseUrl)
+  return toLeagueDto(
+    { ...league, isMember: !!membership },
+    baseUrl,
+    {
+      viewerTier: tierWindow.viewerTier,
+      leagueTier: tierWindow.leagueTier,
+      canJoinByRanking: tierWindow.canJoinByRanking || !!membership,
+      inviteOnlyByTier: tierWindow.inviteOnlyByTier && !membership,
+    }
+  )
 }
 
 export async function ensureCreatorProfile(

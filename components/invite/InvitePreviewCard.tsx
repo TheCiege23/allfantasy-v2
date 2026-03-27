@@ -11,9 +11,21 @@ export interface InvitePreviewCardProps {
   maxMembers?: number | null
   isFull?: boolean
   expired?: boolean
+  expiresAt?: string | null
   status: string
-  acceptUrl: string
+  statusReason?: string | null
+  acceptUrl?: string
   inviteType?: string
+  destinationHref?: string | null
+  destinationLabel?: string | null
+  createdByLabel?: string | null
+  acceptLabel?: string
+  acceptDisabled?: boolean
+  onAccept?: (() => void) | null
+}
+
+function canAccept(status: string, expired?: boolean, isFull?: boolean) {
+  return !expired && !isFull && !['invalid', 'already_member', 'already_redeemed', 'max_used'].includes(status)
 }
 
 export function InvitePreviewCard({
@@ -25,64 +37,123 @@ export function InvitePreviewCard({
   maxMembers,
   isFull,
   expired,
+  expiresAt,
   status,
+  statusReason,
   acceptUrl,
   inviteType,
+  destinationHref,
+  destinationLabel,
+  createdByLabel,
+  acceptLabel = 'Accept invite',
+  acceptDisabled = false,
+  onAccept,
 }: InvitePreviewCardProps) {
-  const invalid = status === 'invalid'
-  const canAccept = !invalid && !expired && !isFull && status !== 'already_member'
+  const acceptEnabled = canAccept(status, expired, isFull)
 
   return (
     <div
+      data-testid="invite-preview-card"
       className="rounded-2xl border p-5"
       style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 60%, transparent)' }}
     >
-      <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--text)' }}>
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        {inviteType && (
+          <span className="rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
+            {inviteType.replace(/_/g, ' ')}
+          </span>
+        )}
+        <span className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide" style={{ background: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--text)' }}>
+          {status.replace(/_/g, ' ')}
+        </span>
+      </div>
+
+      <h2 className="mb-1 text-lg font-bold" style={{ color: 'var(--text)' }}>
         {title}
       </h2>
+
       {targetName && (
-        <p className="text-sm mb-1" style={{ color: 'var(--muted)' }}>
+        <p className="mb-1 text-sm" style={{ color: 'var(--muted)' }}>
           {targetName}
-          {sport ? ` · ${sport}` : ''}
+          {sport ? ` - ${sport}` : ''}
         </p>
       )}
+
+      {createdByLabel && (
+        <p className="mb-2 text-xs uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+          Shared by {createdByLabel}
+        </p>
+      )}
+
       {description && (
-        <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
+        <p className="mb-2 text-sm" style={{ color: 'var(--muted)' }}>
           {description}
         </p>
       )}
+
       {memberCount != null && maxMembers != null && (
-        <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+        <p className="mb-3 text-xs" style={{ color: 'var(--muted)' }}>
           {memberCount} / {maxMembers} members
         </p>
       )}
 
-      {expired && (
-        <p className="text-sm py-2 rounded-lg mb-3" style={{ color: 'var(--destructive)' }}>
-          This invite has expired.
-        </p>
-      )}
-      {isFull && !expired && (
-        <p className="text-sm py-2 rounded-lg mb-3" style={{ color: 'var(--destructive)' }}>
-          This league is full.
-        </p>
-      )}
-      {status === 'already_member' && (
-        <p className="text-sm py-2 mb-3" style={{ color: 'var(--muted)' }}>
-          You’re already a member.
+      {expiresAt && (
+        <p className="mb-3 text-xs" style={{ color: 'var(--muted)' }}>
+          Expires {new Date(expiresAt).toLocaleString()}
         </p>
       )}
 
-      {canAccept && (
-        <Link
-          href={acceptUrl}
-          className="inline-block rounded-xl py-2.5 px-4 text-sm font-semibold"
+      {statusReason && (
+        <p
+          className="mb-3 rounded-lg px-3 py-2 text-sm"
+          style={{
+            color: status === 'valid' ? 'var(--text)' : 'var(--destructive)',
+            background:
+              status === 'valid'
+                ? 'color-mix(in srgb, var(--accent) 10%, transparent)'
+                : 'color-mix(in srgb, var(--destructive) 12%, transparent)',
+          }}
+        >
+          {statusReason}
+        </p>
+      )}
+
+      {acceptEnabled && onAccept && (
+        <button
+          type="button"
+          onClick={onAccept}
+          disabled={acceptDisabled}
+          data-testid="invite-accept-button"
+          className="inline-flex rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
           style={{ background: 'var(--accent)', color: 'var(--bg)' }}
         >
-          Accept invite
+          {acceptLabel}
+        </button>
+      )}
+
+      {acceptEnabled && !onAccept && acceptUrl && (
+        <Link
+          href={acceptUrl}
+          data-testid="invite-accept-link"
+          className="inline-block rounded-xl px-4 py-2.5 text-sm font-semibold"
+          style={{ background: 'var(--accent)', color: 'var(--bg)' }}
+        >
+          {acceptLabel}
         </Link>
       )}
-      {invalid && (
+
+      {!acceptEnabled && destinationHref && destinationLabel && (
+        <Link
+          href={destinationHref}
+          data-testid="invite-destination-link"
+          className="inline-flex rounded-xl border px-4 py-2.5 text-sm font-semibold"
+          style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
+        >
+          {destinationLabel}
+        </Link>
+      )}
+
+      {status === 'invalid' && !destinationHref && (
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
           Invalid invite link.
         </p>

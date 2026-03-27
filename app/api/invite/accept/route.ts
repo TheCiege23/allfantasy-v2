@@ -16,14 +16,23 @@ export async function POST(req: NextRequest) {
 
   const result = await acceptInvite(code, userId)
   if (!result.ok) {
-    const status =
-      result.error === 'Invite expired' ? 410 : result.error === 'Invite limit reached' ? 409 : 400
-    return NextResponse.json({ error: result.error }, { status })
+    const statusByError: Record<string, number> = {
+      'Invite expired': 410,
+      'Invite limit reached': 409,
+      'League is full': 409,
+      'Referral already claimed': 409,
+      'You cannot redeem your own referral invite': 400,
+      'Invalid or expired invite': 404,
+      'Invalid code': 400,
+    }
+    return NextResponse.json({ error: result.error }, { status: statusByError[result.error] ?? 400 })
   }
   return NextResponse.json({
     ok: true,
     inviteType: result.inviteType,
     targetId: result.targetId,
     alreadyMember: result.alreadyMember,
+    alreadyRedeemed: result.alreadyRedeemed,
+    destinationHref: result.destinationHref,
   })
 }

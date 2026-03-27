@@ -7,7 +7,11 @@
 import { prisma } from '@/lib/prisma'
 import { getMergedHistoricalSeasonResultsForManager } from '@/lib/season-results/HistoricalSeasonResultService'
 import { resolveSeasonResultRosterIds } from '@/lib/season-results/SeasonResultRosterIdentity'
-import { XP_EVENT_TYPES, XP_VALUES, type XPEventType } from './types'
+import {
+  GENERATED_XP_EVENT_TYPES,
+  XP_VALUES,
+  type GeneratedXPEventType,
+} from './types'
 import {
   DEFAULT_SPORT,
   isSupportedSport,
@@ -23,8 +27,6 @@ const XP_SUCCESSFUL_TRADE = XP_VALUES.successful_trade ?? 10
 const XP_DRAFT_ACCURACY = XP_VALUES.draft_accuracy ?? 15
 const XP_LEAGUE_PARTICIPATION = XP_VALUES.league_participation ?? 5
 const XP_COMMISSIONER_SERVICE = XP_VALUES.commissioner_service ?? 25
-const GENERATED_XP_EVENT_TYPES: readonly XPEventType[] = XP_EVENT_TYPES
-
 export interface AggregatedXPResult {
   managerId: string
   totalXP: number
@@ -33,7 +35,7 @@ export interface AggregatedXPResult {
 
 type XPEventSeed = {
   managerId: string
-  eventType: XPEventType
+  eventType: GeneratedXPEventType
   xpValue: number
   sport: SupportedSport
   createdAt: Date

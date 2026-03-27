@@ -3,7 +3,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import { getReferrerIdByCode, recordClick } from "./ReferralService"
+
 
 const REFERRAL_COOKIE = "af_ref"
 const REFERRAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
@@ -61,6 +61,7 @@ export async function resolveAndPersistClick(req: NextRequest): Promise<{
   if (!referrerId) return { code: null, referrerId: null, clickRecorded: false }
 
   await recordClick(referrerId, {
+    referralCode: code,
     userAgent: req.headers.get("user-agent") ?? undefined,
   })
   return { code, referrerId, clickRecorded: true }

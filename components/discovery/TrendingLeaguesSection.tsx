@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import Link from "next/link"
 import { TrendingUp, Loader2 } from "lucide-react"
 import { LeagueDiscoveryCard } from "./LeagueDiscoveryCard"
 import type { DiscoveryCard } from "@/lib/public-discovery/types"
@@ -36,7 +35,11 @@ export function TrendingLeaguesSection({ sport = null, limit = 6 }: TrendingLeag
 
   if (loading) {
     return (
-      <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+      <section
+        className="rounded-xl border p-6"
+        style={{ borderColor: "var(--border)" }}
+        data-testid="trending-leagues-section"
+      >
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--text)" }}>
           <TrendingUp className="h-5 w-5" style={{ color: "var(--muted)" }} />
           Trending leagues
@@ -51,7 +54,11 @@ export function TrendingLeaguesSection({ sport = null, limit = 6 }: TrendingLeag
   if (leagues.length === 0) return null
 
   return (
-    <section className="rounded-xl border p-6" style={{ borderColor: "var(--border)" }}>
+    <section
+      className="rounded-xl border p-6"
+      style={{ borderColor: "var(--border)" }}
+      data-testid="trending-leagues-section"
+    >
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2" style={{ color: "var(--text)" }}>
         <TrendingUp className="h-5 w-5" style={{ color: "var(--muted)" }} />
         Trending leagues

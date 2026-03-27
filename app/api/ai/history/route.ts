@@ -61,7 +61,7 @@ function toProviderResults(value: unknown): SavedProviderResult[] {
         raw: toStringValue(candidate.raw, 8_000) ?? '',
         error: toStringValue(candidate.error, 512),
         skipped: candidate.skipped === true,
-      }
+      } as SavedProviderResult
     })
     .filter((item): item is SavedProviderResult => item != null)
     .slice(0, 6)

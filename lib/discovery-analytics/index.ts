@@ -9,7 +9,7 @@ export const DISCOVERY_EVENTS = {
   ORPHAN_ADOPTION: "discovery_orphan_adoption",
 } as const
 
-export type DiscoverySource = "bracket" | "creator"
+export type { DiscoverySource } from "@/lib/public-discovery/types"
 
 /** Meta for league view / join click (client). */
 export interface DiscoveryEventMeta {

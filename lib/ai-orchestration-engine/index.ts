@@ -151,9 +151,6 @@ export const AIConfidenceCalculator = {
   formatConfidenceLine,
 } as const
 
-export const DeterministicContextEnvelope = {
-  buildAIContextEnvelope,
-} as const
 
 export const ResponseNormalizer = {
   normalizeToUnifiedResponse,

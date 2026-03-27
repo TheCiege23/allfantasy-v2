@@ -2384,9 +2384,11 @@ model AppUser {
   walletAccount                 PlatformWalletAccount?
   walletLedgerEntries           WalletLedgerEntry[]
   referralCodes                 ReferralCode[]
+  referralsAsReferrer           Referral[]                 @relation("ReferralReferrer")
+  referralAsReferred            Referral?                  @relation("ReferralReferred")
   referralEventsAsReferrer      ReferralEvent[]            @relation("ReferralEventReferrer")
   referralRewards               ReferralReward[]
-  referredByEvent               ReferralEvent?             @relation("ReferralEventReferred")
+  referredByEvents              ReferralEvent[]            @relation("ReferralEventReferred")
   creatorProfile                CreatorProfile?
   inviteLinksCreated            InviteLink[]
   leagueTemplates               LeagueTemplate[]
@@ -2432,8 +2434,11 @@ model InviteLink {
   events    InviteLinkEvent[]
 
   @@index([createdByUserId])
+  @@index([createdByUserId, type, createdAt])
   @@index([type])
+  @@index([type, targetId])
   @@index([status])
+  @@index([status, expiresAt])
   @@index([token])
   @@map("invite_links")
 }
@@ -2449,7 +2454,9 @@ model InviteLinkEvent {
   inviteLink InviteLink @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
 
   @@index([inviteLinkId, createdAt])
+  @@index([inviteLinkId, eventType, createdAt])
   @@index([eventType])
+  @@index([channel, createdAt])
   @@map("invite_link_events")
 }
 
@@ -2574,46 +2581,137 @@ model CreatorAnalyticsEvent {
 }
 
 model ReferralCode {
-  id        String   @id @default(uuid())
-  userId    String
-  code      String   @unique
-  createdAt DateTime @default(now())
+  id                      String    @id @default(uuid())
+  userId                  String
+  code                    String    @unique
+  status                  String    @default("active") @db.VarChar(16)
+  isPrimary               Boolean   @default(true)
+  metadata                Json?
+  shareCount              Int       @default(0)
+  successfulReferralCount Int       @default(0)
+  lastSharedAt            DateTime?
+  lastUsedAt              DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("referral_codes")
-}
-
-model ReferralEvent {
-  id              String   @id @default(uuid())
-  referrerId      String
-  referredUserId String?  @unique
-  type            String   // click | signup | reward_eligible
-  metadata        Json?
-  createdAt       DateTime @default(now())
-
-  referrer  AppUser  @relation("ReferralEventReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
-  referred  AppUser? @relation("ReferralEventReferred", fields: [referredUserId], references: [id], onDelete: SetNull)
-
-  @@index([referrerId])
-  @@index([referrerId, type])
-  @@map("referral_events")
-}
-
-model ReferralReward {
-  id        String    @id @default(uuid())
-  userId    String
-  type      String    // e.g. referral_signup
-  status    String    @default("pending") // pending | redeemed
-  metadata  Json?
-  grantedAt DateTime  @default(now())
-  redeemedAt DateTime?
-
-  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referrals Referral[]
+  events    ReferralEvent[]
 
   @@index([userId])
   @@index([userId, status])
+  @@map("referral_codes")
+}
+
+model Referral {
+  id                    String    @id @default(uuid())
+  referrerId            String
+  referredUserId        String?   @unique
+  referralCodeId        String?
+  kind                  String    @default("user") @db.VarChar(16) // user | creator
+  status                String    @default("clicked") @db.VarChar(24) // clicked | signed_up | engaged | onboarded | rewarded | blocked
+  onboardingStep        String?   @db.VarChar(48)
+  clickedAt             DateTime  @default(now())
+  signupCompletedAt     DateTime?
+  onboardingStartedAt   DateTime?
+  onboardingCompletedAt DateTime?
+  rewardGrantedAt       DateTime?
+  metadata              Json?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  referrer     AppUser       @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser AppUser?      @relation("ReferralReferred", fields: [referredUserId], references: [id], onDelete: SetNull)
+  referralCode ReferralCode? @relation(fields: [referralCodeId], references: [id], onDelete: SetNull)
+  events       ReferralEvent[]
+  rewards      ReferralReward[]
+
+  @@index([referrerId])
+  @@index([referrerId, kind, status])
+  @@index([referralCodeId])
+  @@index([signupCompletedAt])
+  @@index([onboardingCompletedAt])
+  @@map("referrals")
+}
+
+model ReferralEvent {
+  id             String   @id @default(uuid())
+  referrerId     String
+  referredUserId String?
+  referralId     String?
+  codeId         String?
+  type           String   @db.VarChar(32) // click | share | signup | onboarding_step | reward_granted | reward_redeemed
+  channel        String?  @db.VarChar(24)
+  onboardingStep String?  @db.VarChar(48)
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  referrer AppUser       @relation("ReferralEventReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred AppUser?      @relation("ReferralEventReferred", fields: [referredUserId], references: [id], onDelete: SetNull)
+  referral Referral?     @relation(fields: [referralId], references: [id], onDelete: SetNull)
+  code     ReferralCode? @relation(fields: [codeId], references: [id], onDelete: SetNull)
+
+  @@index([referrerId])
+  @@index([referrerId, type])
+  @@index([referredUserId])
+  @@index([referralId, type, createdAt])
+  @@index([codeId, type, createdAt])
+  @@index([channel, createdAt])
+  @@map("referral_events")
+}
+
+model ReferralRewardRule {
+  id                  String   @id @default(uuid())
+  key                 String   @unique @db.VarChar(64)
+  type                String   @db.VarChar(48)
+  label               String   @db.VarChar(128)
+  description         String?  @db.Text
+  triggerType         String   @db.VarChar(32) // signup | onboarding_completed
+  audience            String   @default("all") @db.VarChar(16) // all | user | creator
+  rewardKind          String   @default("xp") @db.VarChar(24) // xp | badge | perk | bundle
+  value               Int      @default(0)
+  badgeType           String?  @db.VarChar(64)
+  badgeName           String?  @db.VarChar(128)
+  badgeDescription    String?  @db.Text
+  badgeTier           String?  @db.VarChar(16)
+  maxAwardsPerUser    Int      @default(0) // 0 = unlimited
+  minSuccessfulReferrals Int   @default(0)
+  isClaimable         Boolean  @default(true)
+  isActive            Boolean  @default(true)
+  config              Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  rewards ReferralReward[]
+
+  @@index([triggerType, isActive])
+  @@index([audience, isActive])
+  @@map("referral_reward_rules")
+}
+
+model ReferralReward {
+  id           String    @id @default(uuid())
+  userId       String
+  referralId   String?
+  rewardRuleId String?
+  type         String    @db.VarChar(48)
+  rewardKind   String    @default("xp") @db.VarChar(24)
+  label        String?   @db.VarChar(128)
+  value        Int       @default(0)
+  status       String    @default("pending") @db.VarChar(16) // pending | claimable | redeemed | expired | blocked
+  metadata     Json?
+  grantedAt    DateTime  @default(now())
+  redeemedAt   DateTime?
+
+  user       AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referral   Referral?           @relation(fields: [referralId], references: [id], onDelete: SetNull)
+  rewardRule ReferralRewardRule? @relation(fields: [rewardRuleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([referralId])
+  @@index([rewardRuleId])
+  @@index([type, status])
   @@map("referral_rewards")
 }
 
