@@ -6,7 +6,8 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { checkProviderAvailability } from '@/lib/ai-orchestration'
+import { getProviderStatus, getProviderSurfaceStatus } from '@/lib/provider-config'
+import { getClearSportsToolStates } from '@/lib/clear-sports'
 import { isOpenClawConfigured, isOpenClawGrowthConfigured } from '@/lib/openclaw/config'
 
 export async function GET() {
@@ -15,10 +16,19 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const availability = checkProviderAvailability()
+  const status = getProviderStatus()
+  const surfaces = getProviderSurfaceStatus(status)
+
   return NextResponse.json({
-    ...availability,
+    openai: status.openai,
+    deepseek: status.deepseek,
+    grok: status.xai,
+    xai: status.xai,
+    clearsports: status.clearsports,
+    anyAi: status.anyAi,
     openclaw: isOpenClawConfigured(),
     openclawGrowth: isOpenClawGrowthConfigured(),
+    surfaces,
+    clearsportsTools: getClearSportsToolStates(status.clearsports),
   })
 }

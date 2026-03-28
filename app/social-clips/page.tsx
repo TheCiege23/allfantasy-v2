@@ -177,7 +177,12 @@ export default function SocialClipsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {providerStatus && !providerStatus.anyAvailable && (
-            <p className="text-amber-400 text-sm">No AI provider available. Set XAI_API_KEY or OPENAI_API_KEY.</p>
+            <p
+              className="text-amber-400 text-sm"
+              data-testid="social-clip-ai-provider-unavailable-message"
+            >
+              No AI provider available. Set XAI_API_KEY or OPENAI_API_KEY.
+            </p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -186,6 +191,7 @@ export default function SocialClipsPage() {
                 value={aiInputType}
                 onChange={(e) => setAiInputType(e.target.value as ClipInputType)}
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+                data-testid="social-clip-ai-input-type-selector"
               >
                 {CLIP_INPUT_TYPES.map((t) => (
                   <option key={t} value={t}>{AI_INPUT_LABELS[t]}</option>
@@ -198,6 +204,7 @@ export default function SocialClipsPage() {
                 value={aiOutputType}
                 onChange={(e) => setAiOutputType(e.target.value as ClipOutputType)}
                 className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white"
+                data-testid="social-clip-ai-output-type-selector"
               >
                 {CLIP_OUTPUT_TYPES.map((t) => (
                   <option key={t} value={t}>{AI_OUTPUT_LABELS[t]}</option>
@@ -227,13 +234,20 @@ export default function SocialClipsPage() {
               placeholder="e.g. Team A 142, Team B 118. Week 7."
               rows={2}
               className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-zinc-500"
+              data-testid="social-clip-ai-facts-input"
             />
           </div>
-          {aiError && <p className="text-amber-400 text-sm">{aiError}</p>}
+          {aiError && (
+            <p className="text-amber-400 text-sm" data-testid="social-clip-ai-error-message">
+              {aiError}
+            </p>
+          )}
           <Button
             onClick={handleAiGenerate}
             disabled={aiGenerating || (providerStatus !== null && !providerStatus.anyAvailable)}
             className="w-full gap-2"
+            data-testid="social-clip-ai-generate-button"
+            data-audit="generate-ai-social-clip-button"
           >
             {aiGenerating ? (
               <Loader2 className="h-4 w-4 animate-spin" />

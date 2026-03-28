@@ -1,24 +1,25 @@
 import type { Metadata } from 'next'
-import AIHubPage from '@/components/ai-hub/AIHubPage'
+import AISystemExplainerPage from '@/components/ai-hub/AISystemExplainerPage'
 import { buildSeoMeta } from '@/lib/seo'
 import { getWebPageSchema } from '@/lib/seo'
 import { PageJsonLd } from '@/components/seo/JsonLd'
 
 export const metadata: Metadata = buildSeoMeta({
-  title: 'AllFantasy AI Hub – Tools, Chimmy, and Saved Analyses',
+  title: 'AllFantasy AI System Explainer – Chimmy, Deterministic AI, and Provider Roles',
   description:
-    'Access all AllFantasy AI tools in one premium hub: Trade Analyzer, Waiver AI, Draft Helper, Matchup AI, Rankings AI, Story Creator, Fantasy Coach, Content Generator, and Chimmy.',
+    'Learn how AllFantasy AI works across the app: Chimmy, deterministic-first intelligence, orchestration modes, and OpenAI/DeepSeek/xAI provider roles.',
   canonicalPath: '/ai',
-  openGraphTitle: 'AllFantasy AI Hub',
+  openGraphTitle: 'AllFantasy AI System Explainer',
   openGraphDescription:
-    'Unified AI hub for fantasy sports tools, quick actions, provider/mode controls, and saved analysis history.',
-  twitterTitle: 'AllFantasy AI Hub',
-  twitterDescription: 'One place for Chimmy, AI tools, and saved analysis history.',
+    'How AllFantasy combines deterministic engines with multi-provider AI across leagues, bracket, dynasty, creator, legacy, and analytics surfaces.',
+  twitterTitle: 'AllFantasy AI System Explainer',
+  twitterDescription: 'Understand Chimmy, deterministic AI, provider roles, and orchestration modes.',
 })
 
 const AI_PAGE_SCHEMA = getWebPageSchema({
-  name: 'AllFantasy AI Hub',
-  description: 'Unified AI hub for AllFantasy tools, quick actions, Chimmy, and saved analysis history.',
+  name: 'AllFantasy AI System Explainer',
+  description:
+    'Explainer page for AllFantasy AI architecture: deterministic-first intelligence, provider roles, orchestration modes, and platform-wide AI surfaces.',
   url: '/ai',
 })
 
@@ -26,7 +27,7 @@ export default function AIPage() {
   return (
     <>
       <PageJsonLd schemas={[AI_PAGE_SCHEMA]} />
-      <AIHubPage />
+      <AISystemExplainerPage />
     </>
   )
 }

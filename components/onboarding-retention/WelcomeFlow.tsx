@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { getSportOptions } from "@/lib/onboarding-funnel"
 import type { OnboardingStepId } from "@/lib/onboarding-funnel"
+import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 
 /**
  * PROMPT 149 — WelcomeFlow: first-time user flow (sports, tools, league, AI, referral).
@@ -25,6 +25,16 @@ const TOOL_LINKS = [
   { label: "Chimmy AI", href: "/chimmy" },
 ]
 
+const SPORT_LABELS: Record<string, string> = {
+  NFL: "NFL",
+  NHL: "NHL",
+  NBA: "NBA",
+  MLB: "MLB",
+  NCAAB: "NCAA Basketball",
+  NCAAF: "NCAA Football",
+  SOCCER: "Soccer",
+}
+
 export function WelcomeFlow({
   initialStep = "welcome",
   preferredSportsInitial = [],
@@ -37,7 +47,10 @@ export function WelcomeFlow({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [selectedSports, setSelectedSports] = useState<string[]>(preferredSportsInitial)
-  const sportOptions = getSportOptions()
+  const sportOptions = SUPPORTED_SPORTS.map((sport) => ({
+    value: sport,
+    label: SPORT_LABELS[sport] ?? sport,
+  }))
 
   async function advance(completeFunnel = false) {
     setLoading(true)

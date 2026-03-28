@@ -113,6 +113,7 @@ export async function POST(req: Request) {
       outputType,
       sport,
       providersUsed: result.providersUsed,
+      providerStatus: pipeline.providerStatus,
       factCheckPassed: result.factCheckPassed,
       moderationPassed: true,
       generatedAt: new Date().toISOString(),

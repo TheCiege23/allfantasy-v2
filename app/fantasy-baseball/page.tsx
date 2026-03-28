@@ -1,29 +1,28 @@
 import type { Metadata } from 'next'
 import SportSeoLanding from '@/components/seo/SportSeoLanding'
-import { SPORT_PAGE_CONFIG, getSportPageCanonical } from '@/lib/seo-landing/sport-pages'
+import {
+  SPORT_PAGE_CONFIG,
+  getSportPageCanonical,
+  getSportPageJsonLd,
+} from '@/lib/seo-landing/sport-pages'
+import { buildSeoMeta } from '@/lib/seo'
 
-const config = SPORT_PAGE_CONFIG['fantasy-baseball']
+const slug = 'fantasy-baseball'
+const config = SPORT_PAGE_CONFIG[slug]
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildSeoMeta({
   title: config.title,
   description: config.description,
+  canonical: getSportPageCanonical(slug),
   keywords: config.keywords,
-  alternates: { canonical: getSportPageCanonical('fantasy-baseball') },
-  openGraph: {
-    title: config.title,
-    description: config.description,
-    url: getSportPageCanonical('fantasy-baseball'),
-    siteName: 'AllFantasy',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: config.title,
-    description: config.description,
-  },
-  robots: { index: true, follow: true },
-}
+})
 
 export default function FantasyBaseballPage() {
-  return <SportSeoLanding config={config} />
+  const jsonLd = getSportPageJsonLd(slug)
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <SportSeoLanding config={config} />
+    </>
+  )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { MessageSquareText } from 'lucide-react'
@@ -19,6 +19,7 @@ export default function CreatorLeagueLandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [joinResult, setJoinResult] = useState<{ success: boolean; error?: string } | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const joinAttemptedRef = useRef(false)
 
   const fetchLeague = useCallback(() => {
     if (!leagueId) return
@@ -44,7 +45,13 @@ export default function CreatorLeagueLandingPage() {
   }, [fetchLeague])
 
   useEffect(() => {
+    joinAttemptedRef.current = false
+  }, [joinCode, leagueId])
+
+  useEffect(() => {
     if (!joinCode || !league || joinResult) return
+    if (joinAttemptedRef.current) return
+    joinAttemptedRef.current = true
     fetch('/api/creator-invites/join', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

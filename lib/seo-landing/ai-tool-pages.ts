@@ -9,6 +9,11 @@ export interface AIToolSeoConfig {
   headline: string
   body: string
   benefits: string[]
+  screenshots: Array<{
+    src: string
+    alt: string
+    caption: string
+  }>
   openToolHref: string
   openToolLabel: string
 }
@@ -27,6 +32,18 @@ export const AI_TOOL_PAGES = {
       'Counter-offer suggestions to maximize value',
       'Works for redraft and dynasty across NFL, NBA, MLB, NHL, NCAA, and soccer',
     ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-ai-for-fantasy-sports-logo.png',
+        alt: 'Trade Analyzer screenshot showing AI trade fairness result',
+        caption: 'Example AI trade fairness output with decision context.',
+      },
+      {
+        src: '/branding/allfantasy-colorful-logo.png',
+        alt: 'Trade Analyzer screenshot showing lineup impact details',
+        caption: 'Lineup impact and replacement-value insights in one view.',
+      },
+    ],
     openToolHref: '/trade-evaluator',
     openToolLabel: 'Open Trade Analyzer',
   },
@@ -42,6 +59,18 @@ export const AI_TOOL_PAGES = {
       'Lineup optimization and start/sit suggestions',
       'Scoring and roster context considered',
       'Available inside the AllFantasy Sports App',
+    ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-colorful-logo.png',
+        alt: 'Waiver Wire AI screenshot showing top pickup recommendations',
+        caption: 'Prioritized waiver recommendations based on team context.',
+      },
+      {
+        src: '/branding/allfantasy-crest-chatgpt.png',
+        alt: 'Waiver Wire AI screenshot showing start and sit guidance',
+        caption: 'Start/sit and role guidance for upcoming matchups.',
+      },
     ],
     openToolHref: '/waiver-ai',
     openToolLabel: 'Open Waiver Wire AI',
@@ -59,6 +88,18 @@ export const AI_TOOL_PAGES = {
       'Chimmy AI for draft questions and guidance',
       'Practice before your real draft day',
     ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-crest-chatgpt.png',
+        alt: 'Draft Helper screenshot showing live draft board and pick recommendations',
+        caption: 'Live board + AI pick suggestions for every draft round.',
+      },
+      {
+        src: '/branding/allfantasy-ai-for-fantasy-sports-logo.png',
+        alt: 'Draft Helper screenshot showing pre-draft tiers and strategy',
+        caption: 'Tier views and strategy recommendations before draft day.',
+      },
+    ],
     openToolHref: '/mock-draft',
     openToolLabel: 'Open Draft Helper',
   },
@@ -74,6 +115,18 @@ export const AI_TOOL_PAGES = {
       'Projections, trends, and ROS outlook',
       'Injury and usage context',
       'Available in the AllFantasy Sports App',
+    ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-wordmark-logo.png',
+        alt: 'Player Comparison Lab screenshot with side-by-side player metrics',
+        caption: 'Side-by-side stats, projections, and role comparisons.',
+      },
+      {
+        src: '/branding/allfantasy-colorful-logo.png',
+        alt: 'Player Comparison Lab screenshot with trend and outlook chart',
+        caption: 'Trend and rest-of-season outlook to support your decisions.',
+      },
     ],
     openToolHref: '/player-comparison-lab',
     openToolLabel: 'Open Player Comparison Lab',
@@ -91,6 +144,18 @@ export const AI_TOOL_PAGES = {
       'Dynasty scenario modeling',
       'Part of the AllFantasy Sports App',
     ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-legacy-tool-logo.png',
+        alt: 'Matchup Simulator screenshot showing projected matchup outcomes',
+        caption: 'Projected outcomes and score ranges for weekly matchups.',
+      },
+      {
+        src: '/branding/allfantasy-colorful-logo.png',
+        alt: 'Matchup Simulator screenshot with playoff scenario simulation',
+        caption: 'Playoff path and scenario simulation for strategic planning.',
+      },
+    ],
     openToolHref: '/app/simulation-lab',
     openToolLabel: 'Open Matchup Simulator',
   },
@@ -106,6 +171,18 @@ export const AI_TOOL_PAGES = {
       'Trade, waiver, and lineup advice',
       'Draft strategy and real-time guidance',
       'Available in the AllFantasy Sports App',
+    ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-robot-king.png',
+        alt: 'Fantasy Coach screenshot showing AI weekly strategy guidance',
+        caption: 'Weekly AI coaching with actionable lineup and roster steps.',
+      },
+      {
+        src: '/branding/allfantasy-ai-for-fantasy-sports-logo.png',
+        alt: 'Fantasy Coach screenshot showing waiver and trade recommendations',
+        caption: 'Unified coaching across waivers, trades, and draft decisions.',
+      },
     ],
     openToolHref: '/app/coach',
     openToolLabel: 'Open Fantasy Coach',
@@ -123,6 +200,18 @@ export const AI_TOOL_PAGES = {
       'Chimmy AI for in-draft strategy and questions',
       'Snake and auction; NFL, NBA, MLB, NHL, NCAA, Soccer',
     ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-crest-chatgpt.png',
+        alt: 'Draft War Room screenshot showing draft control center',
+        caption: 'All draft controls, tiers, and recommendations in one screen.',
+      },
+      {
+        src: '/branding/allfantasy-colorful-logo.png',
+        alt: 'Draft War Room screenshot with AI strategic draft assistant',
+        caption: 'Real-time AI strategy for each pick and roster build.',
+      },
+    ],
     openToolHref: '/mock-draft',
     openToolLabel: 'Open War Room',
   },
@@ -138,6 +227,18 @@ export const AI_TOOL_PAGES = {
       'Trade analysis and counter-offer ideas',
       'Waiver and lineup recommendations',
       'Sport-specific guidance: NFL, NBA, MLB, NHL, NCAA, Soccer',
+    ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-robot-king.png',
+        alt: 'AI Chat screenshot with Chimmy fantasy assistant',
+        caption: 'Ask Chimmy for instant fantasy advice in plain language.',
+      },
+      {
+        src: '/branding/allfantasy-ai-for-fantasy-sports-logo.png',
+        alt: 'AI Chat screenshot showing multi-topic fantasy guidance',
+        caption: 'One AI assistant for drafts, trades, waivers, and matchups.',
+      },
     ],
     openToolHref: '/chimmy',
     openToolLabel: 'Chat with Chimmy',

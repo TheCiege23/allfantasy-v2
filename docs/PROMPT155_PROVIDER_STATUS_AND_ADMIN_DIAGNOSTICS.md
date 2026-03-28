@@ -10,7 +10,7 @@ Provider status and diagnostics for **OpenAI**, **DeepSeek**, **xAI**, and **Cle
 |-----------|--------|
 | **ProviderStatus service** | `lib/admin/provider-status-service.ts` — in-memory tracking of failures, fallback events, latency; `getProviderDiagnostics()` builds safe payload. |
 | **Provider diagnostics (re-export)** | `lib/provider-diagnostics.ts` — re-exports recording and types for use by orchestration and admin route. |
-| **ProviderHealthCheck route** | Existing `runProviderHealthCheck()` (AI providers) and `getProviderStatus()` (ClearSports) are used by the new admin diagnostics route. |
+| **ProviderHealthCheck route** | `GET /api/admin/providers/health` returns admin-safe configured/available/healthy/state for OpenAI, DeepSeek, xAI, and ClearSports. |
 | **Admin diagnostics route** | `GET /api/admin/providers/diagnostics` — admin-only; returns safe diagnostics payload. |
 | **Admin diagnostics panel** | `app/admin/components/AdminProviderDiagnostics.tsx` — provider cards, status badges, expand/collapse, failure summary, fallback summary, refresh button. |
 | **Provider status badges** | Configured, Available, Degraded, Unavailable, Fallback active (with distinct styling). |
@@ -25,19 +25,27 @@ Provider status and diagnostics for **OpenAI**, **DeepSeek**, **xAI**, and **Cle
 ### Route: GET /api/admin/providers/diagnostics
 
 - **Auth:** `requireAdmin()` — admin session cookie or bearer/admin-secret. Non-admin receives `401 Unauthorized`.
-- **Behavior:** Calls `runProviderHealthCheck()` (OpenAI, DeepSeek, Grok), `getProviderStatus()` for ClearSports, and `getProviderDiagnostics(healthEntries, clearsports, clearsports)` to build the payload.
-- **Response:** JSON with `providers`, `recentFailures`, `fallbackEvents`, `latencyTrend`, `generatedAt`. No API keys, no stack traces, no internal paths.
+- **Behavior:** Calls `runProviderHealthCheck()` + `runClearSportsHealthCheck()`, reads `getProviderStatus()`, and builds diagnostics via `getProviderDiagnostics({ healthEntries, providerStatus, clearSportsHealth })`.
+- **Response:** JSON with `providers`, `recentFailures`, `fallbackEvents`, `latencyTrend`, `degradedMode`, and `generatedAt`. No API keys, no stack traces, no internal paths.
+
+### Route: GET /api/admin/providers/health
+
+- **Auth:** `requireAdmin()`.
+- **Behavior:** Returns lightweight provider health rows with `configured`, `available`, optional `healthy`, safe `error`, and normalized `state` (`configured | available | degraded | unavailable`).
+- **Response:** Admin-safe health metadata only; no secret values.
 
 ### Service: lib/admin/provider-status-service.ts
 
 - **Recording:** `recordProviderFailure(provider, error?)`, `recordProviderFallback(primary, used)`, `recordProviderLatency(provider, ms)`. Error is sanitized before storage.
-- **Payload:** `getProviderDiagnostics(healthEntries, clearsportsConfigured, clearsportsAvailable)` returns `ProviderDiagnosticsPayload` with per-provider state (configured / available / degraded / unavailable / fallback_active), recent failure count (1h window), fallback count, last latency, last failure time.
+- **Payload:** `getProviderDiagnostics({ healthEntries, providerStatus, clearSportsHealth })` returns `ProviderDiagnosticsPayload` with per-provider state (configured / available / degraded / unavailable / fallback_active), recent failure count (1h window), fallback count, last/avg latency, latency trend, degraded reasons, and degraded-mode events.
 
 ### Orchestration wiring
 
 - In `lib/ai-orchestration/orchestration-service.ts`, after `Promise.all(available.map(callProviderWithRetry))`:
   - For each provider: `recordProviderLatency(role, meta.latencyMs)`; if `result.status !== 'ok'`, `recordProviderFailure(role, result.error)`.
   - If multiple providers and at least one succeeded: for each failed/skipped provider, `recordProviderFallback(failedRole, usedRole)`.
+  - On deterministic degraded fallback (`all providers unavailable` / `all provider calls failed`): `recordDegradedModeActivation(...)`.
+  - Safe diagnostics logging calls `logDiagnosticsEvent(...)` for failure/fallback/latency events.
 
 ---
 
@@ -46,8 +54,10 @@ Provider status and diagnostics for **OpenAI**, **DeepSeek**, **xAI**, and **Cle
 - **Location:** Admin → **Providers** tab (`/admin?tab=providers`).
 - **Refresh:** “Refresh status” button calls `GET /api/admin/providers/diagnostics` (credentials included); loading state and error state are shown.
 - **Provider cards:** One row per provider (OpenAI, DeepSeek, xAI, ClearSports) with status badge. Row is expandable; details show configured/available/healthy, last latency, recent failure count, last failure time, sanitized error if any.
+- **Provider cards:** One row per provider (OpenAI, DeepSeek, xAI, ClearSports) with status badge. Row is expandable; details show configured/available/healthy, last + average latency, latency trend, recent failure count, last failure time, degraded reasons, sanitized error if any.
 - **Failure summary:** Expandable section “Recent failure summary” with list of entries (provider, time, error snippet). Opens/closes correctly.
 - **Fallback summary:** Expandable section “Fallback event summary” with primary → used and time. Fallback badge also shown on provider row when `fallbackUsedCount > 0`.
+- **Degraded mode section:** Shows whether degraded mode was recently active and a list of recent degraded-mode activation reasons/timestamps.
 - **States:** Configured (grey), Available (green), Degraded (amber), Unavailable (red), Fallback active (amber + icon). No dead controls; all buttons and expand toggles are wired.
 
 ---
@@ -86,10 +96,11 @@ Provider status and diagnostics for **OpenAI**, **DeepSeek**, **xAI**, and **Cle
 
 | Path | Purpose |
 |------|---------|
-| `lib/admin/provider-status-service.ts` | In-memory failures, fallbacks, latency; getProviderDiagnostics(); safe only. |
+| `lib/admin/provider-status-service.ts` | In-memory failures, fallbacks, latency, degraded-mode events; getProviderDiagnostics(); safe only. |
 | `lib/provider-diagnostics.ts` | Re-exports for orchestration and admin; recordProviderFailure/Fallback/Latency. |
 | `lib/ai-orchestration/orchestration-service.ts` | Records latency and failure per provider; records fallback when multiple providers and one succeeds. |
 | `app/api/admin/providers/diagnostics/route.ts` | GET diagnostics; requireAdmin(); returns safe payload. |
+| `app/api/admin/providers/health/route.ts` | GET health snapshot; requireAdmin(); safe configured/available/healthy/state payload. |
 | `app/admin/components/AdminProviderDiagnostics.tsx` | Panel: providers, badges, expand, failure summary, fallback summary, refresh. |
 | `app/admin/components/AdminLayout.tsx` | Added “providers” tab and nav entry. |
 | `app/admin/page.tsx` | Added “providers” to allowed tabs; renders AdminProviderDiagnostics. |

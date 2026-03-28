@@ -35,8 +35,11 @@ import {
 } from './clear-sports';
 import { normalizeTeamAbbrev } from './team-abbrev';
 import { isClearSportsAvailable } from './provider-config';
+import { normalizeToSupportedSport, type SupportedSport } from './sport-scope';
+import { sanitizeProviderError } from './ai-orchestration/provider-utils';
+import { logDiagnosticsEvent } from './provider-diagnostics';
 
-export type Sport = 'NFL' | 'NBA' | 'MLB';
+export type Sport = SupportedSport;
 export type DataType = 'teams' | 'players' | 'games' | 'stats' | 'standings' | 'schedule' | 'depth_charts' | 'team_stats';
 
 interface SportsDataRequest {
@@ -52,15 +55,20 @@ interface SportsDataResponse {
   data: unknown;
   source: string;
   cached: boolean;
+  stale: boolean;
   fetchedAt: Date;
+  attemptedSources?: string[];
 }
 
 const API_PRIORITY: Record<Sport, string[]> = {
-  // NFL: Rolling Insights primary, then API-Sports, ESPN, Clear Sports, then TheSportsDB as a last resort.
+  // NFL keeps deterministic-first provider ordering from existing implementation.
   NFL: ['rolling_insights', 'api_sports', 'espn', 'clear_sports', 'thesportsdb'],
-  // For NBA/MLB, prefer Clear Sports when available, then TheSportsDB, then ESPN.
+  NHL: ['clear_sports', 'thesportsdb', 'espn'],
   NBA: ['clear_sports', 'thesportsdb', 'espn'],
   MLB: ['clear_sports', 'thesportsdb', 'espn'],
+  NCAAB: ['clear_sports', 'thesportsdb', 'espn'],
+  NCAAF: ['clear_sports', 'thesportsdb', 'espn'],
+  SOCCER: ['clear_sports', 'thesportsdb', 'espn'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {
@@ -167,16 +175,24 @@ async function fetchWithTimeout<T>(fn: () => Promise<T>, timeoutMs: number = SOU
   }
 }
 
-const THESPORTSDB_LEAGUE_IDS: Record<string, string> = {
+const THESPORTSDB_LEAGUE_IDS: Partial<Record<Sport, string>> = {
   NFL: '4391',
+  NHL: '4380',
   NBA: '4387',
   MLB: '4424',
+  NCAAB: process.env.THESPORTSDB_NCAAM_LEAGUE_ID || '4607',
+  NCAAF: process.env.THESPORTSDB_NCAAF_LEAGUE_ID || '',
+  SOCCER: process.env.THESPORTSDB_SOCCER_LEAGUE_ID || '',
 };
 
-const ESPN_PATHS: Record<string, string> = {
+const ESPN_PATHS: Partial<Record<Sport, string>> = {
   NFL: 'football/nfl',
+  NHL: 'hockey/nhl',
   NBA: 'basketball/nba',
   MLB: 'baseball/mlb',
+  NCAAB: 'basketball/mens-college-basketball',
+  NCAAF: 'football/college-football',
+  SOCCER: process.env.ESPN_SOCCER_PATH || 'soccer/eng.1',
 };
 
 interface NormalizedTeam {
@@ -328,7 +344,7 @@ async function fetchFromRollingInsights(
         return null;
     }
   } catch (error) {
-    console.error('[SportsRouter] Rolling Insights fetch failed:', error);
+    console.error('[SportsRouter] Rolling Insights fetch failed:', sanitizeProviderError(error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
@@ -441,7 +457,7 @@ async function fetchFromAPISports(
         return null;
     }
   } catch (error) {
-    console.error('[SportsRouter] API-Sports fetch failed:', error);
+    console.error('[SportsRouter] API-Sports fetch failed:', sanitizeProviderError(error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
@@ -475,7 +491,7 @@ async function fetchFromClearSports(
         return null;
     }
   } catch (error) {
-    console.error('[SportsRouter] ClearSports fetch failed:', error);
+    console.error('[SportsRouter] ClearSports fetch failed:', sanitizeProviderError(error instanceof Error ? error.message : String(error)));
     return null;
   }
 }
@@ -684,7 +700,14 @@ async function tryNFLFromDb(dataType: DataType, identifier?: string): Promise<Sp
     if (dataType === 'teams') {
       const teams = await getNFLTeamsFromDb();
       if (teams.length > 0) {
-        return { data: teams, source: 'rolling_insights_db', cached: true, fetchedAt: new Date() };
+        return {
+          data: teams,
+          source: 'rolling_insights_db',
+          cached: true,
+          stale: false,
+          fetchedAt: new Date(),
+          attemptedSources: ['rolling_insights_db'],
+        };
       }
     }
 
@@ -696,10 +719,19 @@ async function tryNFLFromDb(dataType: DataType, identifier?: string): Promise<Sp
             data: [{ id: player.id, name: player.name, position: player.position, team: player.team, regularSeason: player.seasonStats, postSeason: [], source: 'rolling_insights_db' }],
             source: 'rolling_insights_db',
             cached: true,
+            stale: false,
             fetchedAt: new Date(),
+            attemptedSources: ['rolling_insights_db'],
           };
         }
-        return { data: [player], source: 'rolling_insights_db', cached: true, fetchedAt: new Date() };
+        return {
+          data: [player],
+          source: 'rolling_insights_db',
+          cached: true,
+          stale: false,
+          fetchedAt: new Date(),
+          attemptedSources: ['rolling_insights_db'],
+        };
       }
     }
   } catch {
@@ -709,7 +741,8 @@ async function tryNFLFromDb(dataType: DataType, identifier?: string): Promise<Sp
 }
 
 export async function getSportsData(request: SportsDataRequest): Promise<SportsDataResponse> {
-  const { sport, dataType, identifier, season, forceRefresh } = request;
+  const sport = normalizeToSupportedSport(request.sport) as Sport;
+  const { dataType, identifier, season, forceRefresh } = request;
   const cacheKey = identifier || 'all';
   const key = `${sport}:${dataType}:${cacheKey}`;
 
@@ -718,7 +751,7 @@ export async function getSportsData(request: SportsDataRequest): Promise<SportsD
     if (mem?.fresh) return mem.entry.data;
     if (mem && !mem.fresh) {
       refreshInBackground(sport, dataType, identifier, season);
-      return mem.entry.data;
+      return { ...mem.entry.data, stale: true };
     }
   }
 
@@ -755,7 +788,9 @@ async function getSportsDataInternal(
         data: cached.data,
         source: 'cache',
         cached: true,
+        stale: false,
         fetchedAt: cached.createdAt,
+        attemptedSources: ['cache'],
       };
       memCacheSet(key, response, freshnessMs);
       return response;
@@ -766,7 +801,9 @@ async function getSportsDataInternal(
         data: cached.data,
         source: 'cache',
         cached: true,
+        stale: true,
         fetchedAt: cached.createdAt,
+        attemptedSources: ['cache'],
       };
       memCacheSet(key, response, Math.min(freshnessMs, 60000));
       refreshInBackground(sport, dataType, identifier, season);
@@ -782,11 +819,13 @@ async function getSportsDataInternal(
     }
   }
 
-  const sources = API_PRIORITY[sport];
+  const sources = API_PRIORITY[sport] || API_PRIORITY.NFL;
   let fetchedData: unknown = null;
   let usedSource = '';
+  const attemptedSources: string[] = [];
 
   for (const source of sources) {
+    attemptedSources.push(source);
     const data = await fetchFromSource(source, sport, dataType, identifier, season);
     if (data) {
       fetchedData = data;
@@ -818,8 +857,13 @@ async function getSportsDataInternal(
     data: fetchedData,
     source: usedSource,
     cached: false,
+    stale: false,
     fetchedAt: new Date(),
+    attemptedSources,
   };
+  if (attemptedSources.includes('clear_sports') && usedSource !== 'clear_sports') {
+    logDiagnosticsEvent('fallback', 'clearsports', `used_${usedSource}`)
+  }
   memCacheSet(key, response, freshnessMs);
   return response;
 }
@@ -827,7 +871,7 @@ async function getSportsDataInternal(
 async function refreshInBackground(sport: Sport, dataType: DataType, identifier?: string, season?: string) {
   const cacheKey = identifier || 'all';
   const key = `${sport}:${dataType}:${cacheKey}`;
-  const sources = API_PRIORITY[sport];
+  const sources = API_PRIORITY[sport] || API_PRIORITY.NFL;
 
   for (const source of sources) {
     const data = await fetchFromSource(source, sport, dataType, identifier, season);

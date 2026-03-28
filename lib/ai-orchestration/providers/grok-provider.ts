@@ -8,7 +8,13 @@ import type { ProviderChatRequest, ProviderChatResult } from '../types'
 import { xaiChatJson, parseTextFromXaiChatCompletion, parseUsage } from '@/lib/xai-client'
 import { getXaiConfigFromEnv } from '@/lib/provider-config'
 import { isXaiAvailable } from '@/lib/provider-config'
-import { sanitizeProviderError, isMeaningfulText } from '../provider-utils'
+import {
+  buildProviderFailure,
+  buildProviderInvalidResponse,
+  buildProviderSuccess,
+  isMeaningfulText,
+  tryParseJson,
+} from '../provider-utils'
 
 const ROLE = 'grok' as const
 
@@ -29,51 +35,68 @@ export function createGrokProvider(): IProviderClient {
       return isXaiAvailable()
     },
     async chat(request: ProviderChatRequest): Promise<ProviderChatResult> {
-      const timeoutMs = request.timeoutMs ?? 25_000
-      const controller = new AbortController()
-      const t = setTimeout(() => controller.abort(), timeoutMs)
+      const requestedModel = request.model?.trim() || undefined
+      const fallbackModel = requestedModel ?? getModelName()
       try {
         const result = await xaiChatJson({
           messages: request.messages,
+          model: requestedModel,
           temperature: request.temperature ?? 0.4,
           maxTokens: request.maxTokens ?? 1000,
+          responseFormat:
+            request.responseFormat === 'json_object' ? { type: 'json_object' } : undefined,
         })
-        clearTimeout(t)
         if (!result.ok) {
-          const isTimeout = result.details?.toLowerCase().includes('timeout') || result.details?.toLowerCase().includes('abort')
-          return {
-            text: '',
-            model: getModelName(),
+          return buildProviderFailure({
             provider: ROLE,
-            error: sanitizeProviderError(result.details),
-            timedOut: isTimeout,
-            status: result.status === 429 ? 'failed' : isTimeout ? 'timeout' : 'failed',
-          }
+            model: fallbackModel,
+            statusCode: result.status,
+            error: result.details,
+          })
         }
         const text = parseTextFromXaiChatCompletion(result.json) ?? ''
         const usage = parseUsage(result.json)
-        const valid = isMeaningfulText(text)
-        return {
-          text: valid ? text : '',
-          model: (result.json as { model?: string })?.model ?? getModelName(),
+
+        if (!isMeaningfulText(text)) {
+          return buildProviderInvalidResponse({
+            provider: ROLE,
+            model: (result.json as { model?: string })?.model ?? fallbackModel,
+          })
+        }
+
+        if (request.responseFormat === 'json_object') {
+          const parsed = tryParseJson(text)
+          if (parsed == null || typeof parsed !== 'object') {
+            return buildProviderInvalidResponse({
+              provider: ROLE,
+              model: (result.json as { model?: string })?.model ?? fallbackModel,
+              error: 'xAI returned malformed JSON response',
+            })
+          }
+          return buildProviderSuccess({
+            provider: ROLE,
+            model: (result.json as { model?: string })?.model ?? fallbackModel,
+            text,
+            json: parsed,
+            tokensPrompt: usage?.prompt_tokens,
+            tokensCompletion: usage?.completion_tokens,
+          })
+        }
+
+        return buildProviderSuccess({
           provider: ROLE,
+          model: (result.json as { model?: string })?.model ?? fallbackModel,
+          text,
           tokensPrompt: usage?.prompt_tokens,
           tokensCompletion: usage?.completion_tokens,
-          status: valid ? 'ok' : 'invalid_response',
-          ...(valid ? {} : { error: sanitizeProviderError('Empty or invalid response') }),
-        }
+        })
       } catch (e: unknown) {
-        clearTimeout(t)
-        const msg = e instanceof Error ? e.message : String(e)
-        const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('abort')
-        return {
-          text: '',
-          model: getModelName(),
+        const message = e instanceof Error ? e.message : String(e)
+        return buildProviderFailure({
           provider: ROLE,
-          error: sanitizeProviderError(msg),
-          timedOut: isTimeout,
-          status: isTimeout ? 'timeout' : 'failed',
-        }
+          model: fallbackModel,
+          error: message,
+        })
       }
     },
   }

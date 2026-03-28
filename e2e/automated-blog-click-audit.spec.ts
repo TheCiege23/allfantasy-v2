@@ -447,14 +447,23 @@ test.describe("@content automated blog click audit", () => {
 
     await page.getByTestId("blog-draft-title-input").fill("Updated Draft Title")
     await page.getByTestId("blog-draft-slug-input").fill("updated-draft-title")
+    await page.getByTestId("blog-seo-title-input").fill("Updated SEO Title")
+    await page.getByTestId("blog-seo-description-input").fill("Updated SEO Description for persistence check")
+    await page.getByTestId("blog-seo-tags-input").fill("AllFantasy, Soccer, Strategy")
     await expect(page.getByTestId("blog-draft-slug-preview")).toContainText("/blog/updated-draft-title")
     await page.getByTestId("blog-draft-seo-preview-toggle").click()
     await expect(page.getByTestId("blog-draft-seo-preview-panel")).toBeVisible()
+    await expect(page.getByTestId("blog-draft-seo-preview-panel")).toContainText("Updated SEO Title")
+    await expect(page.getByTestId("blog-draft-seo-preview-panel")).toContainText("Updated SEO Description")
     await expect(page.getByTestId("blog-internal-link-panel")).toBeVisible()
     await page.getByTestId("blog-internal-link-refresh-button").click()
 
     await page.getByTestId("blog-draft-save-button").click()
     await expect.poll(() => publishLogsByArticleId.get("article-1")?.some((log) => log.actionType === "save_draft")).toBeTruthy()
+    await expect.poll(() => {
+      const article = articles.find((entry) => entry.articleId === "article-1")
+      return article?.title ?? ""
+    }).toBe("Updated Draft Title")
 
     const future = new Date(Date.now() + 90 * 60_000)
     const local = `${future.getFullYear()}-${`${future.getMonth() + 1}`.padStart(2, "0")}-${`${future.getDate()}`.padStart(2, "0")}T${`${future.getHours()}`.padStart(2, "0")}:${`${future.getMinutes()}`.padStart(2, "0")}`

@@ -1,3 +1,4 @@
+import { getXaiConfigFromEnv } from '@/lib/provider-config'
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string }
 
 export type XaiToolXSearch = {
@@ -70,6 +71,21 @@ export type XaiChatJsonResult =
   | { ok: true; status: number; json: XaiChatCompletionResponse; _responsesRaw?: XaiResponsesResponse; _annotations?: XaiResponsesAnnotation[]; _sourcesUsed?: number; _serverToolsUsed?: number }
   | { ok: false; status: number; details: string }
 
+function getXaiRuntimeConfig():
+  | { ok: true; apiKey: string; baseUrl: string; model: string }
+  | { ok: false; details: string } {
+  const cfg = getXaiConfigFromEnv()
+  if (!cfg) {
+    return { ok: false, details: "xAI provider unavailable. Set XAI_API_KEY." }
+  }
+  return {
+    ok: true,
+    apiKey: cfg.apiKey,
+    baseUrl: cfg.baseUrl,
+    model: cfg.model,
+  }
+}
+
 export async function xaiChatJson(opts: {
   messages: ChatMessage[]
   model?: string
@@ -84,18 +100,18 @@ export async function xaiChatJson(opts: {
   responseFormat?: { type: "text" | "json_object" }
   seed?: number
 }) : Promise<XaiChatJsonResult> {
-  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
-  if (!apiKey) {
-    return { ok: false, status: 500, details: "Missing XAI_API_KEY/GROK_API_KEY env var" }
+  const runtime = getXaiRuntimeConfig()
+  if (!runtime.ok) {
+    return { ok: false, status: 503, details: runtime.details }
   }
 
   const hasSearchTools = opts.tools && opts.tools.length > 0
   if (hasSearchTools) {
-    return xaiResponsesJsonInternal(opts, apiKey)
+    return xaiResponsesJsonInternal(opts, runtime.apiKey, runtime.baseUrl, runtime.model)
   }
 
   const body: Record<string, unknown> = {
-    model: opts.model ?? "grok-4-fast-non-reasoning",
+    model: opts.model ?? runtime.model,
     messages: opts.messages,
     temperature: opts.temperature ?? 0.4,
     max_tokens: opts.maxTokens ?? 700,
@@ -109,11 +125,11 @@ export async function xaiChatJson(opts: {
   if (opts.responseFormat !== undefined) body.response_format = opts.responseFormat
   if (opts.seed !== undefined) body.seed = opts.seed
 
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
+  const res = await fetch(`${runtime.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${runtime.apiKey}`,
     },
     body: JSON.stringify(body),
   })
@@ -210,14 +226,14 @@ async function xaiResponsesJsonInternal(opts: {
   stop?: string | string[]
   responseFormat?: { type: "text" | "json_object" }
   seed?: number
-}, apiKey: string): Promise<XaiChatJsonResult> {
+}, apiKey: string, baseUrl: string, defaultModel: string): Promise<XaiChatJsonResult> {
   const input = opts.messages.map(m => ({
     role: m.role,
     content: m.content,
   }))
 
   const body: Record<string, unknown> = {
-    model: opts.model ?? "grok-4-fast-non-reasoning",
+    model: opts.model ?? defaultModel,
     input,
   }
 
@@ -233,7 +249,7 @@ async function xaiResponsesJsonInternal(opts: {
     body.text = { format: opts.responseFormat }
   }
 
-  const res = await fetch("https://api.x.ai/v1/responses", {
+  const res = await fetch(`${baseUrl}/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -308,9 +324,9 @@ export async function xaiResponsesJson(opts: {
   store?: boolean
   reasoning?: { effort?: "low" | "medium" | "high"; summary?: "auto" | "concise" | "detailed" }
 }): Promise<XaiResponsesJsonResult> {
-  const apiKey = process.env.XAI_API_KEY || process.env.GROK_API_KEY
-  if (!apiKey) {
-    return { ok: false, status: 500, details: "Missing XAI_API_KEY/GROK_API_KEY env var" }
+  const runtime = getXaiRuntimeConfig()
+  if (!runtime.ok) {
+    return { ok: false, status: 503, details: runtime.details }
   }
 
   const input = opts.messages.map(m => ({
@@ -319,7 +335,7 @@ export async function xaiResponsesJson(opts: {
   }))
 
   const body: Record<string, unknown> = {
-    model: opts.model ?? "grok-4-fast-non-reasoning",
+    model: opts.model ?? runtime.model,
     input,
   }
 
@@ -332,11 +348,11 @@ export async function xaiResponsesJson(opts: {
   if (opts.store !== undefined) body.store = opts.store
   if (opts.reasoning !== undefined) body.reasoning = opts.reasoning
 
-  const res = await fetch("https://api.x.ai/v1/responses", {
+  const res = await fetch(`${runtime.baseUrl}/responses`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${runtime.apiKey}`,
     },
     body: JSON.stringify(body),
   })

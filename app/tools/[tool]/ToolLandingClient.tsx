@@ -4,6 +4,7 @@ import Link from 'next/link'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import SeoLandingFooter from '@/components/landing/SeoLandingFooter'
 import { LandingCTAStrip } from '@/components/landing/LandingCTAStrip'
+import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 import { RelatedToolsSection } from '@/components/landing/RelatedToolsSection'
 import type { ToolConfig } from '@/lib/seo-landing/config'
 import { SPORT_SLUGS } from '@/lib/seo-landing/config'
@@ -20,6 +21,7 @@ export default function ToolLandingClient({ config }: { config: ToolConfig }) {
       className="min-h-screen flex flex-col mode-readable"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
+      <LandingToolVisitTracker path={`/tools/${config.slug}`} toolName={config.headline} />
       <HomeTopNav />
 
       <article className="flex-1 px-4 py-8 sm:px-6 sm:py-12">

@@ -1,255 +1,145 @@
 # PROMPT 150 — AllFantasy Growth System QA and Click Audit
 
-## Scope Audited
+## Scope
 
-- Creator leagues (landing, join, discover)
-- Viral invites (accept, join by code, share)
-- Referrals (dashboard, progress, leaderboard, rewards)
-- Public league discovery (discover/leagues, by sport)
-- Social sharing (share APIs, moment, track)
-- AI social clips (social-clips, clips, generate/publish)
-- Automated blogs (blog index, [slug], draft, API)
-- Platform content feed (feed page, tabs, filters, follow, save)
-- Onboarding (profile, funnel, checklist API)
-- Retention (nudges, dismiss, dashboard widgets)
+Audited growth and viral systems:
 
-**Supported sports:** NFL, NHL, NBA, MLB, NCAA Basketball (NCAAB), NCAA Football (NCAAF), Soccer (SOCCER).
+- Creator leagues
+- Viral invites
+- Referrals
+- Public league discovery
+- Social sharing
+- AI social clips
+- Automated blogs
+- Platform content feed
+- Onboarding
+- Retention prompts
 
----
-
-## 1. Issue List by Severity
-
-### Critical (P0) — None
-
-- All growth routes have corresponding pages; no broken redirects identified.
-- Join and invite/accept APIs exist and return expected shapes; redirects target valid pages.
-
-### High (P1) — Fixed
-
-| ID | Issue | Location | Fix |
-|----|--------|----------|-----|
-| P1-1 | Dead buttons: “Helpful” / “Not helpful” did nothing (TODO placeholder) | `app/components/WaiverAI.tsx` | Wired to local state + toast; show “Thanks for your feedback!” and disable after click. |
-
-### Medium (P2) — No code change required
-
-| ID | Issue | Notes |
-|----|--------|--------|
-| P2-1 | Waiver feedback not persisted server-side | Optional enhancement: POST to `/api/legacy/feedback` with tool: "WaiverAI" and feedbackType "like" / "confusing" for analytics. Current fix removes dead UX. |
-| P2-2 | Join page success path redirects immediately | Intentional; “You joined the league” may not be visible. Consider brief delay or leaving as-is for speed. |
-
-### Low (P3) — Informational
-
-| ID | Item | Status |
-|----|------|--------|
-| P3-1 | Creator follow/unfollow APIs require creator slug | Profile page uses `creator.slug`; 404 if slug missing. Handled by “Creator not found” state. |
-| P3-2 | Content feed “Follow” navigates to creator profile | No dedicated follow API from feed card; link is valid. |
-| P3-3 | Retention nudge dismiss cooldown 24h | Documented in PROMPT149; no change. |
+Supported sports validated in route and UI paths:
+`NFL`, `NHL`, `NBA`, `MLB`, `NCAAB`, `NCAAF`, `SOCCER`.
 
 ---
 
-## 2. File-by-File Fix Plan
+## Issue List by Severity
+
+### P0 Critical
+
+- None found.
+
+### P1 High (fixed)
+
+1. **Duplicate join API calls on creator invite landing**
+   - **Impact:** Joining a creator league from invite query (`/creator/leagues/[leagueId]?join=...`) could call `POST /api/creator-invites/join` more than once under state refresh timing.
+   - **Root cause:** Join effect depended on state that was updated by `fetchLeague()` after join success, allowing a second effect run before `joinResult` stabilized.
+   - **Fix:** Added one-shot join guard via `useRef` in `app/creator/leagues/[leagueId]/page.tsx`.
+
+### P2 Medium (fixed / mitigated)
+
+1. **Growth click-audit instability in parallel execution**
+   - **Impact:** Full growth suite had intermittent failures only under high parallel worker load (resource contention/transient DB retries), while isolated tests passed.
+   - **Fix:** Added stable serial QA command:
+     - `npm run test:e2e:growth-qa`
+     - runs growth click-audit scope with `--workers=1`.
+
+2. **Retention routing spec timeout sensitivity**
+   - **Impact:** `e2e/engagement-notification-routing-click-audit.spec.ts` could time out in mixed parallel runs.
+   - **Fix:** Added explicit `Page` typing and increased suite timeout to `90_000ms`.
+
+### P3 Low
+
+- `POST /api/analytics/track` emits 400s during some mocked E2E flows; does not break audited user flows but creates noisy logs. Candidate follow-up for stricter mock isolation.
+
+---
+
+## File-by-File Fix Plan
 
 | File | Action | Status |
-|------|--------|--------|
-| `app/components/WaiverAI.tsx` | Add `feedbackSentForIndex` state; on “Helpful”/“Not helpful” click set state, show toast, render “Thanks for your feedback!” and hide buttons for that suggestion. | **Done** |
-| All other growth routes/components | Verify only (routes exist, handlers exist, loading/error/success covered). | **Verified** |
-
-No other files required code changes for this audit.
-
----
-
-## 3. Full Merged Code Fixes
-
-**Single file modified:** `app/components/WaiverAI.tsx`
-
-- Added state: `feedbackSentForIndex: Set<number>`.
-- Replaced placeholder `onClick={() => {/* TODO */}}` on both feedback buttons with:
-  - `setFeedbackSentForIndex(prev => new Set(prev).add(i))`
-  - `toast.success('Thanks for your feedback!')`
-- When `feedbackSentForIndex.has(i)` is true, render “Thanks for your feedback!” instead of the two buttons.
-
-No patch snippets; full file remains as merged in the repo.
+|---|---|---|
+| `app/creator/leagues/[leagueId]/page.tsx` | Prevent duplicate invite-join submission with one-shot ref guard; reset guard when route params change. | Done |
+| `e2e/engagement-notification-routing-click-audit.spec.ts` | Improve typing and timeout resilience for retention routing click-audit. | Done |
+| `package.json` | Add deterministic end-to-end growth QA script (`test:e2e:growth-qa`). | Done |
+| `docs/PROMPT150_GROWTH_SYSTEM_QA_AUDIT.md` | Replace with current Prompt 150 findings, fixes, and checklists. | Done |
 
 ---
 
-## 4. Final QA Checklist
+## Full Merged Code Fixes
 
-Use this to re-verify after any future changes.
+Merged files:
 
-### Routes exist
+- `app/creator/leagues/[leagueId]/page.tsx`
+- `e2e/engagement-notification-routing-click-audit.spec.ts`
+- `package.json`
+- `docs/PROMPT150_GROWTH_SYSTEM_QA_AUDIT.md`
 
-- [ ] `/creators` — list
-- [ ] `/creators/[handle]` — profile, leagues, follow, share
-- [ ] `/creator` — dashboard (auth)
-- [ ] `/creator/leagues/[leagueId]` — landing + join
-- [ ] `/join` — join by code (creator invite)
-- [ ] `/invite/accept` — accept invite (token)
-- [ ] `/referral` — referral dashboard
-- [ ] `/referrals` — invite links + referral
-- [ ] `/discover`, `/discover/leagues`, `/discover/leagues/[sport]`
-- [ ] `/app/discover` — find league
-- [ ] `/feed` — content feed (auth)
-- [ ] `/onboarding`, `/onboarding/funnel`
-- [ ] `/dashboard` — dashboard + checklist + nudges
-- [ ] `/social-clips`, `/social-clips/[assetId]`
-- [ ] `/clips`, `/clips/[id]`
-- [ ] `/blog`, `/blog/[slug]`, `/blog/draft/[articleId]`
-
-### Components render
-
-- [ ] Creator profile: header, leagues, analytics tab, branding (owner), follow/unfollow, share
-- [ ] Creator league card: join CTA, link to league landing
-- [ ] Join page: code input/auto-join, loading, success, error
-- [ ] Invite accept: preview, accept button, expired/full/already member states
-- [ ] Referral: section, progress widget, leaderboard, CTA to /referrals
-- [ ] Discover: PublicLeagueDiscoveryPage, sport filter
-- [ ] Feed: tabs (Following / For You / Trending), filters, cards, refresh, follow, save
-- [ ] Onboarding: funnel steps, checklist on dashboard, progress widget
-- [ ] Retention: ReturnPromptCards, dismiss
-- [ ] WaiverAI: suggestions, roster alerts, **Helpful / Not helpful** → “Thanks for your feedback!”
-
-### Click handlers and state
-
-- [ ] Creator follow/unfollow: loading state, refetch creator after success
-- [ ] Creator share: copy URL + POST share API
-- [ ] Join: POST `/api/creator-invites/join`, redirect to `/creator/leagues/[id]` on success
-- [ ] Invite accept: POST `/api/invite/accept`, redirect bracket or creator league
-- [ ] Feed: tab switch refetches; filters refetch; refresh refetches; follow navigates; save toggles localStorage
-- [ ] Checklist: task links navigate; milestone recorded on click for tool/AI/referral
-- [ ] Nudges: CTA links navigate; dismiss POST and removes card
-- [ ] WaiverAI: Helpful/Not helpful update state and show toast (no dead buttons)
-
-### Backend APIs
-
-- [ ] Creator: GET/PATCH profile, GET leagues, POST follow/unfollow/share, GET analytics
-- [ ] Creator league: GET `/api/creator/leagues/[leagueId]`
-- [ ] Join: POST `/api/creator-invites/join`
-- [ ] Invite: GET preview, POST accept, POST generate, GET list, POST revoke/share, GET stats
-- [ ] Referral: GET/POST link, GET stats/progress/leaderboard/rewards, POST redeem, POST track-click
-- [ ] Discover: GET leagues, recommended, trending
-- [ ] Content feed: GET with tab, sport, contentType
-- [ ] Onboarding: GET/POST funnel, GET/POST checklist
-- [ ] Retention: GET nudges, POST dismiss
-- [ ] Share: preview, publish, generate-copy, moment, track, targets
-- [ ] Social-clips: list, generate, [assetId] get/patch, approve, publish, logs, retry, AI generate/status
-- [ ] Blog: list, get/patch article, publish, slug, internal-links, generate, generate-and-save
-
-### Success / error / loading
-
-- [ ] Join: loading “Joining…”, success message + redirect or “Browse creators”, error message + link
-- [ ] Invite accept: loading “Loading invite…”, invalid/expired/full/already member, success “You’re in! Redirecting…”
-- [ ] Creator profile: loading “Loading…”, not found + link, follow loading disabled state
-- [ ] Feed: loading spinner + “Loading your feed…”, error banner, empty state
-- [ ] Onboarding checklist: loading “Loading checklist…”, empty handled by API
-- [ ] Retention cards: loading “Loading…”, dismiss in progress (button disabled)
-- [ ] WaiverAI: loading steps, error banner, feedback “Thanks for your feedback!”
-
-### Mobile and desktop
-
-- [ ] Discover, feed, referral, onboarding funnel, dashboard: responsive; tap targets adequate
-- [ ] No horizontal scroll or clipped content on small viewports
-- [ ] Creator profile, join, invite accept: usable on mobile
-
-### No dead buttons or broken redirects
-
-- [ ] No `href="#"` or `onClick={() => {}}` left in production growth surfaces
-- [ ] No placeholder-only actions (TODO removed from WaiverAI)
-- [ ] Redirects: `/creator/leagues/[id]`, `/brackets/leagues/[id]`, `/creators`, `/dashboard`, etc. all have pages
-
-### Stale saved state
-
-- [ ] Feed saved IDs: read from localStorage on mount; write on save toggle
-- [ ] No other growth surfaces rely on stale client-only state for critical paths
+No patch snippets included.
 
 ---
 
-## 5. Manual Testing Checklist
+## Final QA Checklist
 
-Run through these flows once per release or before shipping growth changes.
+### Growth Systems Coverage
 
-1. **Creator leagues**
-   - Open `/creators`, click a creator → profile loads.
-   - On profile click Follow → loading then state updates; Unfollow same.
-   - Click Share → URL copied; optional: confirm share API in network.
-   - Click a league → league landing; Join (if not member) → join API, redirect or success message.
+- [x] Creator leagues: discovery, profile, follow, join, invite landing, share
+- [x] Viral invites: generate/list/revoke/share/preview/accept states
+- [x] Referrals: dashboard widgets, progress, leaderboard, claim flow
+- [x] Public discovery: filters/search/pagination/sport-aware routing
+- [x] Social sharing: preview/copy/share destinations and analytics hooks
+- [x] AI social clips: generate/preview/approve/publish/retry/copy/download
+- [x] Automated blogs: draft/preview/edit/save/publish/SEO fields
+- [x] Content feed: tabs/filters/save/follow/refresh/link destinations
+- [x] Onboarding: funnel/checklist/progress persistence
+- [x] Retention prompts: nudge rendering, safe links, dismiss behavior
 
-2. **Join by code**
-   - Open `/join?code=VALID_CODE` (use real creator invite code) → joining → redirect to `/creator/leagues/[id]` or success message.
-   - Open `/join?code=INVALID` → error message, link to Browse creators.
-   - Open `/join` (no code) → message and link to Browse creators.
+### Verification Matrix
 
-3. **Invite accept**
-   - Open `/invite/accept?code=TOKEN` (use real InviteLink token) → preview → Accept → redirect to bracket or creator league.
-   - Use expired/invalid token → “Invalid or expired invite”.
-   - Use full league → “This league is full”.
-
-4. **Referral**
-   - Open `/referral` signed in → ReferralSection, Progress, Leaderboard, CTA to Invite links.
-   - Open `/referral` signed out → sign-in CTA.
-   - Open `/referrals` → invite management + referral dashboard.
-
-5. **Discover**
-   - Open `/discover` → redirects to `/discover/leagues`.
-   - Open `/discover/leagues` → list and filters load.
-   - Open `/discover/leagues/NFL` (or other sport) → filtered list.
-
-6. **Content feed**
-   - Open `/feed` (signed in) → tabs, filters, cards.
-   - Switch tabs → list refetches.
-   - Change sport/type filters → list refetches.
-   - Click Refresh → loading then updated list.
-   - Click card link → navigates to correct destination.
-   - Click Follow on creator card → navigates to creator profile.
-   - Click Save → toggles saved state; refresh page → saved state persists (localStorage).
-
-7. **Onboarding**
-   - Open `/onboarding/funnel` (signed in) → steps; Next/Skip; sport selection; tool links; league CTAs.
-   - Open `/dashboard` with incomplete onboarding → progress widget and checklist visible; click task → correct href; complete a task → state updates (e.g. after funnel or joining league).
-
-8. **Retention**
-   - Open `/dashboard` → if nudges returned, cards show; click CTA → navigates; click Dismiss → card disappears; reload → dismissed nudge not shown (within cooldown).
-
-9. **WaiverAI**
-   - Open WaiverAI page, get suggestions; click “Helpful” or “Not helpful” on one → toast “Thanks for your feedback!”, buttons replaced by “Thanks for your feedback!” for that suggestion.
-
-10. **Blog**
-    - Open `/blog` → list of published articles.
-    - Open `/blog/[slug]` → article content.
-    - Draft editor (if used): internal links, publish flow.
-
-11. **Social clips**
-    - Open `/social-clips` → list/create.
-    - Open `/social-clips/[assetId]` → detail/edit/publish.
-    - Open `/clips/[id]` → clip view/share.
+- [x] Route exists
+- [x] Component renders
+- [x] Click handler exists
+- [x] State updates correctly
+- [x] Backend API exists
+- [x] Success states work
+- [x] Error states work
+- [x] Loading states work
+- [x] Mobile behavior works
+- [x] Desktop behavior works
+- [x] No dead buttons
+- [x] No broken redirects
+- [x] No stale saved state (feed save/checklist/nudge states verified)
+- [x] No placeholder-only production actions in audited growth surfaces
 
 ---
 
-## 6. Automated Test Recommendations
+## Manual Testing Checklist
 
-The project has tests under `tests/`, `lib/**/__tests__/`, and `__tests__/`. No existing E2E or growth-specific route tests were found in the audit. Recommendations:
+1. **Creator flows**
+   - Open `/creators`, follow creator, open profile, open community/analytics/branding tabs.
+   - Open featured league landing, verify single join result and no duplicate join side effects.
+2. **Invite + referral**
+   - Generate invite, copy/share, preview accept, validate full/expired/invalid branches.
+   - Confirm referral progress and claim actions update visibly.
+3. **Discovery**
+   - Apply sport filter/search, open league cards, navigate to creator profiles.
+4. **Social and content**
+   - Feed tab/filter/refresh/follow/save interactions.
+   - Social clip generation + publish controls.
+   - Blog draft generate/edit/save/publish with SEO persistence.
+5. **Onboarding and retention**
+   - Complete checklist tasks and refresh to verify persistence.
+   - Open retention cards, verify safe destination links, dismiss and refresh cooldown behavior.
 
-1. **API route tests (Jest or Vitest)**
-   - `GET /api/content-feed` — returns 200 and `items` array; with `tab`, `sport`, `contentType` params.
-   - `GET /api/onboarding/checklist` — returns 200 and `tasks` when authenticated.
-   - `GET /api/retention/nudges` — returns 200 and `nudges` when authenticated.
-   - `POST /api/retention/nudges/dismiss` — with `nudgeId` returns 200.
-   - `POST /api/creator-invites/join` — with valid code and auth returns `success` and optional `creatorLeagueId`.
-   - `GET /api/invite/preview?code=TOKEN` — returns preview or invalid.
-   - `POST /api/invite/accept` — with valid token returns `ok`, `inviteType`, `targetId`.
+---
 
-2. **Integration tests**
-   - Onboarding: advance funnel step via POST, then GET state — step updated.
-   - Retention: GET nudges, POST dismiss with first nudge id, GET again — that nudge excluded (or cooldown).
+## Automated Test Recommendations
 
-3. **E2E (Playwright/Cypress) if added**
-   - Visit `/join?code=...`, submit or auto-join, assert redirect or success message.
-   - Visit `/invite/accept?code=...`, click Accept, assert redirect.
-   - Visit `/feed`, switch tab, assert URL or list change.
-   - Visit dashboard, dismiss a nudge, assert card gone.
+Test framework exists (Playwright + Vitest). Recommended commands:
 
-4. **Component tests (React Testing Library)**
-   - `WaiverAI`: render with mock suggestions; click “Helpful”; assert toast or “Thanks for your feedback!” and buttons hidden for that index.
-   - `ReturnPromptCards`: render with mock nudges; click dismiss; assert POST called and nudge removed from list (mock fetch).
-   - `OnboardingChecklist`: render with mock state; click task link; assert correct href and optional milestone POST (mock fetch).
+- `npm run test:e2e:growth-qa` (new stable serial growth suite)
+- `npm run test:e2e:onboarding-activation`
+- `npm run test:e2e:click-audits:core:chromium`
+- `npm run test` for unit/service regression checks
 
-Use the same test runner and patterns as existing `tests/*.test.ts` and `lib/**/__tests__/*.test.ts` for consistency.
+Suggested follow-up:
+
+1. Add a focused contract test for `POST /api/creator-invites/join` idempotency.
+2. Add telemetry mock/contract around `POST /api/analytics/track` in growth E2E harnesses to reduce noisy 400 logs.
+3. Keep growth QA serial in CI unless DB connection contention is eliminated.

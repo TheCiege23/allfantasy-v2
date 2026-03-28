@@ -71,3 +71,20 @@ export const SPORT_PAGE_CONFIG: Record<SportPageSlug, SportSeoPageConfig> = {
 export function getSportPageCanonical(slug: SportPageSlug): string {
   return `${BASE}/${slug}`
 }
+
+/** WebPage JSON-LD for flat sport SEO pages. */
+export function getSportPageJsonLd(slug: SportPageSlug): Record<string, unknown> {
+  const config = SPORT_PAGE_CONFIG[slug]
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: config.headline,
+    description: config.description,
+    url: getSportPageCanonical(slug),
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'AllFantasy',
+      url: BASE,
+    },
+  }
+}

@@ -23,11 +23,16 @@ const BOOLEAN_DEFAULTS: Record<string, boolean> = {
 
 /** Get raw value for key, or null if not set. */
 export async function getValue(key: string): Promise<string | null> {
-  const row = await prisma.platformConfig.findUnique({
-    where: { key },
-    select: { value: true },
-  })
-  return row?.value ?? null
+  try {
+    const row = await prisma.platformConfig.findUnique({
+      where: { key },
+      select: { value: true },
+    })
+    return row?.value ?? null
+  } catch (error) {
+    console.warn(`[feature-toggle] getValue fallback for key "${key}" due to config read error`, error)
+    return null
+  }
 }
 
 /** Set value for key (creates or updates). */
@@ -76,9 +81,14 @@ export interface FeatureTogglesSnapshot {
 
 /** Get full snapshot of all known toggles (for admin panel and resolver). */
 export async function getFeatureTogglesSnapshot(): Promise<FeatureTogglesSnapshot> {
-  const rows = await prisma.platformConfig.findMany({
-    select: { key: true, value: true },
-  })
+  let rows: Array<{ key: string; value: string }> = []
+  try {
+    rows = await prisma.platformConfig.findMany({
+      select: { key: true, value: true },
+    })
+  } catch (error) {
+    console.warn("[feature-toggle] getFeatureTogglesSnapshot fallback to defaults due to config read error", error)
+  }
   const raw: Record<string, string> = {}
   for (const r of rows) raw[r.key] = r.value
 

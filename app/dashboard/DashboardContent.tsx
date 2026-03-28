@@ -42,11 +42,17 @@ import {
 } from "@/lib/sport-scope"
 import { resolveFallbackRoute, resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
 import { AIProductLayer } from "@/lib/ai-product-layer"
+import {
+  OnboardingChecklist,
+  OnboardingProgressWidget,
+  ReturnPromptCards,
+} from "@/components/onboarding-retention"
+import type { OnboardingChecklistState, RetentionNudge } from "@/lib/onboarding-retention"
 
 interface DashboardProps {
   onboardingComplete?: boolean
-  checklistState?: unknown
-  retentionNudges?: unknown[]
+  checklistState?: OnboardingChecklistState | null
+  retentionNudges?: RetentionNudge[]
   user: {
     id: string
     username: string | null
@@ -161,6 +167,9 @@ function formatVariantLabel(league: { leagueVariant?: string | null; league_vari
 }
 
 export default function DashboardContent({
+  onboardingComplete = false,
+  checklistState = null,
+  retentionNudges = [],
   user,
   profile,
   leagues,
@@ -688,6 +697,18 @@ export default function DashboardContent({
 
   const renderHomeTab = () => (
     <div className="space-y-4">
+      {!onboardingComplete ? (
+        <section
+          data-testid="dashboard-onboarding-retention-panel"
+          className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+        >
+          <OnboardingProgressWidget initialState={checklistState} />
+          <OnboardingChecklist initialState={checklistState} />
+        </section>
+      ) : null}
+
+      <ReturnPromptCards initialNudges={retentionNudges} />
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Connected leagues", value: connectedLeagues.length, hint: connectedPlatforms.join(" · ") || "No providers yet" },

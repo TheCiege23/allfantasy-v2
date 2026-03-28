@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useCallback, useEffect, useMemo } from "react"
+import { Suspense, useState, useCallback, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
@@ -42,6 +42,7 @@ import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
+import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import {
   ArrowLeft,
   Loader2,
@@ -121,6 +122,7 @@ function SignupContent() {
   const [disclaimerAgreed, setDisclaimerAgreed] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [suggestingUsername, setSuggestingUsername] = useState(false)
+  const signupConversionTrackedRef = useRef(false)
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
   const agreementGateOpen = useMemo(
@@ -131,6 +133,14 @@ function SignupContent() {
     if (!confirmPassword.length) return false
     return password === confirmPassword
   }, [password, confirmPassword])
+  const trackSignupConversion = useCallback((source: string) => {
+    if (signupConversionTrackedRef.current) return
+    signupConversionTrackedRef.current = true
+    trackLandingSignupComplete({
+      existing_user: false,
+      source,
+    })
+  }, [])
   const progressPercent = useMemo(() => {
     const fields = [
       !!username.trim(),
@@ -418,6 +428,8 @@ function SignupContent() {
         setLoading(false)
         return
       }
+
+      trackSignupConversion(refParam ? "signup_form_referral" : "signup_form")
 
       // Immediately continue to the authenticated homepage after signup.
       const callbackTarget = resolvePostSignupCallbackUrl({

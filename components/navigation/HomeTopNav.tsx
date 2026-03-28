@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { ModeToggle } from "@/components/theme/ModeToggle"
@@ -52,13 +53,15 @@ export default function HomeTopNav() {
           {/* Logo */}
           <div className="flex min-w-0 items-center gap-2">
             <Link href="/" className="flex items-center gap-2 min-w-0" aria-label="AllFantasy home">
-              <img
+              <Image
                 src="/af-crest.png"
                 alt="AllFantasy Crest"
-                className="h-8 w-8 rounded-lg object-contain"
+                width={32}
+                height={32}
+                className="mode-logo-safe h-8 w-8 rounded-lg object-contain"
               />
               <span
-                className="hidden text-sm font-semibold tracking-tight sm:inline-block"
+                className="mode-wordmark-safe hidden text-sm font-semibold tracking-tight sm:inline-block"
                 style={{ color: "var(--text)" }}
               >
                 AllFantasy

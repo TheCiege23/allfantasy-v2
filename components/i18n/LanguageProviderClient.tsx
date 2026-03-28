@@ -53,6 +53,8 @@ export function LanguageProviderClient({
       document.documentElement.dataset.lang = language;
       document.documentElement.lang = language;
     }
+    // Immediately reflect language switch with bundled copy while remote dictionary loads.
+    setMessages(translations[language] || translations.en);
 
     let cancelled = false;
     fetch(`/api/i18n/translations?lang=${encodeURIComponent(language)}`, {

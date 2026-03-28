@@ -53,8 +53,23 @@ export function useProviderStatus(): {
 
   useEffect(() => {
     const onFocus = () => { fetchStatus() }
+    const onOnline = () => { fetchStatus() }
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [fetchStatus])
+
+  useEffect(() => {
+    const intervalMs = 60_000
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchStatus()
+      }
+    }, intervalMs)
+    return () => window.clearInterval(id)
   }, [fetchStatus])
 
   const availableCount = status

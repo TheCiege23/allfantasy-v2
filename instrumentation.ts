@@ -6,8 +6,9 @@
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   try {
-    const { logProviderStatus } = await import("./lib/provider-config");
+    const { logProviderStatus, logProviderStartupValidation } = await import("./lib/provider-config");
     logProviderStatus();
+    logProviderStartupValidation();
   } catch {
     // Non-fatal; do not block startup
   }

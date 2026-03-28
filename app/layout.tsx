@@ -13,7 +13,9 @@ import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
+import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import { buildSeoMeta } from '@/lib/seo';
+import { resolveTheme } from '@/lib/theme';
 import './globals.css';
 
 const inter = Inter({
@@ -46,7 +48,6 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/af-crest.png', type: 'image/png' },
-      { url: '/af-crest.jpg', type: 'image/jpeg' },
     ],
     apple: '/af-crest.png',
   },
@@ -60,34 +61,52 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('af_lang')?.value;
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
+  const cookieMode = cookieStore.get('af_mode')?.value;
+  const htmlMode = resolveTheme(cookieMode);
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
 
   return (
-    <html lang={htmlLang} className={`${inter.variable}`} suppressHydrationWarning>
+    <html
+      lang={htmlLang}
+      data-lang={htmlLang}
+      data-mode={htmlMode}
+      className={`${inter.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <Script id="af-init-mode" strategy="beforeInteractive">
           {`/* Global theme: Light, Dark, AF Legacy. Key af_mode; default legacy. See lib/theme. */
             try {
+              var currentMode = document.documentElement.getAttribute('data-mode');
               var m = localStorage.getItem('af_mode');
               if (m === 'dark' || m === 'light' || m === 'legacy') {
                 document.documentElement.setAttribute('data-mode', m);
+              } else if (currentMode === 'dark' || currentMode === 'light' || currentMode === 'legacy') {
+                document.documentElement.setAttribute('data-mode', currentMode);
               } else {
                 document.documentElement.setAttribute('data-mode', 'legacy');
               }
+              var appliedMode = document.documentElement.getAttribute('data-mode');
+              document.documentElement.style.colorScheme = appliedMode === 'light' ? 'light' : 'dark';
             } catch (e) {
               document.documentElement.setAttribute('data-mode', 'legacy');
+              document.documentElement.style.colorScheme = 'dark';
             }
           `}
         </Script>
         <Script id="af-init-lang" strategy="beforeInteractive">
           {`/* Language: English, Spanish. Key af_lang; default en. See lib/i18n. */
             try {
+              var currentLang = document.documentElement.getAttribute('data-lang');
               var lang = localStorage.getItem('af_lang');
               if (lang === 'en' || lang === 'es') {
                 document.documentElement.setAttribute('data-lang', lang);
                 document.documentElement.setAttribute('lang', lang);
+              } else if (currentLang === 'en' || currentLang === 'es') {
+                document.documentElement.setAttribute('data-lang', currentLang);
+                document.documentElement.setAttribute('lang', currentLang);
               } else {
                 document.documentElement.setAttribute('data-lang', 'en');
                 document.documentElement.setAttribute('lang', 'en');
@@ -185,7 +204,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
 
       <body
-        className={`${inter.variable} antialiased min-h-screen`}
+        className={`${inter.variable} antialiased min-h-screen mode-readable`}
         style={{ background: 'var(--bg)', color: 'var(--text)' }}
       >
         {metaPixelId && (
@@ -212,6 +231,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <ThemeProvider>
             <LanguageProviderClient>
               <ErrorTrackingInit />
+              <WebVitalsTracker />
               <ReferralTracker />
               <SyncProfilePreferences />
               <ErrorBoundaryClient>

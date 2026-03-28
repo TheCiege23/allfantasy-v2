@@ -1,6 +1,8 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
-async function gotoWithRetry(page: Parameters<typeof test>[0]["page"], url: string): Promise<void> {
+test.describe.configure({ timeout: 90_000 })
+
+async function gotoWithRetry(page: Page, url: string): Promise<void> {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded" })

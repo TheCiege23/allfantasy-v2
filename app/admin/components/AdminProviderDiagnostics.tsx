@@ -21,6 +21,7 @@ import type {
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
+  xai: "xAI (Grok)",
   grok: "xAI (Grok)",
   clearsports: "ClearSports",
 };
@@ -75,6 +76,13 @@ function formatTime(ts: number) {
   if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatLatencyTrend(trend: string) {
+  if (trend === "critical") return "Critical";
+  if (trend === "elevated") return "Elevated";
+  if (trend === "stable") return "Stable";
+  return "Unknown";
 }
 
 export default function AdminProviderDiagnostics() {
@@ -203,11 +211,27 @@ export default function AdminProviderDiagnostics() {
                           {p.lastLatencyMs != null && (
                             <span>Last latency: {p.lastLatencyMs}ms</span>
                           )}
+                          {p.avgLatencyMs != null && (
+                            <span>Avg latency: {p.avgLatencyMs}ms</span>
+                          )}
+                          <span>Latency trend: {formatLatencyTrend(p.latencyTrend)}</span>
                           <span>Recent failures (1h): {p.recentFailureCount}</span>
                           {p.lastFailureAt != null && (
                             <span>Last failure: {formatTime(p.lastFailureAt)}</span>
                           )}
                         </div>
+                        {p.degradedReasons.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {p.degradedReasons.map((reason) => (
+                              <span
+                                key={`${id}-${reason}`}
+                                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300"
+                              >
+                                {reason.replaceAll("_", " ")}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         {p.error && (
                           <p className="rounded-lg bg-red-500/10 border border-red-500/20 p-2 text-red-200/90">
                             {p.error}
@@ -219,6 +243,33 @@ export default function AdminProviderDiagnostics() {
                 );
               })}
             </ul>
+          </section>
+
+          <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+            <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-white/5 bg-white/[0.03]">
+              <span className="text-sm font-semibold text-white/90">Degraded mode behavior</span>
+              <span
+                className={`text-xs px-2 py-1 rounded-full border ${
+                  data.degradedMode.active
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                }`}
+              >
+                {data.degradedMode.active ? "Active recently" : "No recent activation"}
+              </span>
+            </div>
+            {data.degradedMode.recentEvents.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-white/50">No degraded-mode activations in recent history.</div>
+            ) : (
+              <ul className="divide-y divide-white/5 max-h-44 overflow-y-auto">
+                {data.degradedMode.recentEvents.map((event, index) => (
+                  <li key={`${event.at}-${index}`} className="px-4 py-2 text-xs text-white/70">
+                    <span className="text-amber-300">{event.reason.replaceAll("_", " ")}</span>{" "}
+                    <span className="text-white/50">{formatTime(event.at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">

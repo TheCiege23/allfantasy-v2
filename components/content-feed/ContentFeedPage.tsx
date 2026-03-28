@@ -4,7 +4,9 @@ import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { FeedTabs } from "./FeedTabs"
 import { FeedFilters } from "./FeedFilters"
-import { FeedList } from "./FeedList"
+import { FollowingFeed } from "./FollowingFeed"
+import { ForYouFeed } from "./ForYouFeed"
+import { TrendingFeed } from "./TrendingFeed"
 import type { FeedMode, FeedItemType, ContentFeedItem } from "@/lib/content-feed"
 
 const SAVED_STORAGE_KEY = "content-feed-saved"
@@ -26,7 +28,7 @@ export default function ContentFeedPage() {
   }, [])
 
   const handleFollowCreator = useCallback((creatorHandle: string) => {
-    window.location.href = `/creators/${creatorHandle}`
+    window.location.assign(`/creators/${creatorHandle}`)
   }, [])
 
   const handleSave = useCallback((item: ContentFeedItem) => {
@@ -69,14 +71,31 @@ export default function ContentFeedPage() {
         onContentTypeChange={setContentType}
       />
 
-      <FeedList
-        tab={activeTab}
-        sport={sport}
-        contentType={contentType}
-        onFollowCreator={handleFollowCreator}
-        onSave={handleSave}
-        savedIds={savedIds}
-      />
+      {activeTab === "following" ? (
+        <FollowingFeed
+          sport={sport}
+          contentType={contentType}
+          onFollowCreator={handleFollowCreator}
+          onSave={handleSave}
+          savedIds={savedIds}
+        />
+      ) : activeTab === "trending" ? (
+        <TrendingFeed
+          sport={sport}
+          contentType={contentType}
+          onFollowCreator={handleFollowCreator}
+          onSave={handleSave}
+          savedIds={savedIds}
+        />
+      ) : (
+        <ForYouFeed
+          sport={sport}
+          contentType={contentType}
+          onFollowCreator={handleFollowCreator}
+          onSave={handleSave}
+          savedIds={savedIds}
+        />
+      )}
     </div>
   )
 }

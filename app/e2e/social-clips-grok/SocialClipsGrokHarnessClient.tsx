@@ -3,6 +3,12 @@
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { SOCIAL_ASSET_TYPES, SUPPORTED_PLATFORMS, type SocialAssetType } from "@/lib/social-clips-grok/types"
+import {
+  CLIP_INPUT_TYPES,
+  CLIP_OUTPUT_TYPES,
+  type ClipInputType,
+  type ClipOutputType,
+} from "@/lib/ai-social-clip-engine/types"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 
 type Target = {
@@ -36,15 +42,23 @@ const ASSET_TYPE_LABELS: Record<SocialAssetType, string> = {
 export default function SocialClipsGrokHarnessClient() {
   const [hydrated, setHydrated] = useState(false)
   const [sport, setSport] = useState<string>(SUPPORTED_SPORTS[0] ?? "NFL")
+  const [aiInputType, setAiInputType] = useState<ClipInputType>("matchup_result")
+  const [aiOutputType, setAiOutputType] = useState<ClipOutputType>("short_post")
+  const [aiFactsSummary, setAiFactsSummary] = useState("")
+  const [aiStatus, setAiStatus] = useState<{ anyAvailable?: boolean } | null>(null)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [assetType, setAssetType] = useState<SocialAssetType>("weekly_league_winners")
   const [tone, setTone] = useState("energetic and fun")
   const [brandingHint, setBrandingHint] = useState("AllFantasy — fantasy sports insights")
   const [assetId, setAssetId] = useState<string | null>(null)
   const [approved, setApproved] = useState(false)
   const [previewVisible, setPreviewVisible] = useState(true)
+  const [editMode, setEditMode] = useState(false)
   const [selectedPlatform, setSelectedPlatform] = useState<string>("x")
   const [caption, setCaption] = useState("Harness caption")
   const [headline, setHeadline] = useState("Harness headline")
+  const [editCaption, setEditCaption] = useState("Harness caption")
+  const [editHeadline, setEditHeadline] = useState("Harness headline")
   const [targets, setTargets] = useState<Target[]>([])
   const [logs, setLogs] = useState<PublishLog[]>([])
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
@@ -61,6 +75,16 @@ export default function SocialClipsGrokHarnessClient() {
     }
   }, [])
 
+  const fetchAIStatus = useCallback(async () => {
+    const res = await fetch("/api/social-clips/ai/status", { cache: "no-store" })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      setAiStatus({ anyAvailable: Boolean(data.anyAvailable) })
+      return
+    }
+    setAiStatus({ anyAvailable: false })
+  }, [])
+
   const fetchLogs = useCallback(async () => {
     if (!assetId) return
     const res = await fetch(`/api/social-clips/${encodeURIComponent(assetId)}/logs`, { cache: "no-store" })
@@ -73,7 +97,8 @@ export default function SocialClipsGrokHarnessClient() {
   useEffect(() => {
     if (!hydrated) return
     void fetchTargets()
-  }, [hydrated, fetchTargets])
+    void fetchAIStatus()
+  }, [hydrated, fetchTargets, fetchAIStatus])
 
   useEffect(() => {
     if (!assetId) return
@@ -98,6 +123,40 @@ export default function SocialClipsGrokHarnessClient() {
       setApproved(false)
       setCaption(`Generated caption for ${sport}`)
       setHeadline(`Generated headline for ${ASSET_TYPE_LABELS[assetType]}`)
+      setEditCaption(`Generated caption for ${sport}`)
+      setEditHeadline(`Generated headline for ${ASSET_TYPE_LABELS[assetType]}`)
+      setEditMode(false)
+    }
+    setLoadingAction(null)
+  }
+
+  const handleAIGenerate = async () => {
+    setAiError(null)
+    setLoadingAction("ai-generate")
+    const body: Record<string, unknown> = {
+      inputType: aiInputType,
+      outputType: aiOutputType,
+      sport,
+    }
+    if (aiFactsSummary.trim()) {
+      body.deterministicFacts = { storySummary: aiFactsSummary.trim(), sport }
+    }
+    const res = await fetch("/api/social-clips/ai/generate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && typeof data.id === "string") {
+      setAssetId(data.id)
+      setApproved(false)
+      setCaption(`AI ${aiInputType} caption for ${sport}`)
+      setHeadline(`AI ${aiOutputType} headline`)
+      setEditCaption(`AI ${aiInputType} caption for ${sport}`)
+      setEditHeadline(`AI ${aiOutputType} headline`)
+      setEditMode(false)
+    } else {
+      setAiError(typeof data.error === "string" ? data.error : "Generation failed")
     }
     setLoadingAction(null)
   }
@@ -194,6 +253,19 @@ export default function SocialClipsGrokHarnessClient() {
     URL.revokeObjectURL(url)
   }
 
+  const handleEditSave = () => {
+    setHeadline(editHeadline)
+    setCaption(editCaption)
+    setEditMode(false)
+    setPreviewVisible(true)
+  }
+
+  const handleEditCancel = () => {
+    setEditHeadline(headline)
+    setEditCaption(caption)
+    setEditMode(false)
+  }
+
   return (
     <main className="min-h-screen bg-[#040915] p-6 text-white">
       <div className="mx-auto max-w-4xl space-y-6">
@@ -216,6 +288,77 @@ export default function SocialClipsGrokHarnessClient() {
         </header>
 
         <section className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+          <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 p-3 space-y-2">
+            <p className="text-xs text-amber-100">AI social clip engine (Prompt 146)</p>
+            {aiStatus && !aiStatus.anyAvailable && (
+              <p
+                className="text-xs text-amber-300"
+                data-testid="social-clip-ai-provider-unavailable-message"
+              >
+                No AI provider available.
+              </p>
+            )}
+            {aiError ? (
+              <p className="text-xs text-amber-300" data-testid="social-clip-ai-error-message">
+                {aiError}
+              </p>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <select
+                value={aiInputType}
+                onChange={(event) => setAiInputType(event.target.value as ClipInputType)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                data-testid="social-clip-ai-input-type-selector"
+              >
+                {CLIP_INPUT_TYPES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={aiOutputType}
+                onChange={(event) => setAiOutputType(event.target.value as ClipOutputType)}
+                className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                data-testid="social-clip-ai-output-type-selector"
+              >
+                {CLIP_OUTPUT_TYPES.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              value={aiFactsSummary}
+              onChange={(event) => setAiFactsSummary(event.target.value)}
+              className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              placeholder="Deterministic facts"
+              rows={2}
+              data-testid="social-clip-ai-facts-input"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void fetchAIStatus()}
+                className="rounded-lg border border-white/20 px-3 py-2 text-xs"
+                data-testid="social-clip-ai-status-refresh-button"
+              >
+                Refresh AI status
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleAIGenerate()}
+                disabled={loadingAction === "ai-generate" || aiStatus?.anyAvailable === false}
+                className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-200 disabled:opacity-60"
+                data-testid="social-clip-ai-generate-button"
+                data-audit="generate-ai-social-clip-button"
+              >
+                {loadingAction === "ai-generate" ? "Generating AI..." : "Generate clip"}
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="mb-1 block text-xs text-white/60">Sport</label>
             <select
@@ -307,7 +450,41 @@ export default function SocialClipsGrokHarnessClient() {
             {previewVisible ? "Hide preview" : "Show preview"}
           </button>
 
-          {previewVisible ? (
+          {editMode ? (
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+              <input
+                value={editHeadline}
+                onChange={(event) => setEditHeadline(event.target.value)}
+                className="w-full rounded border border-white/20 bg-black/30 px-2 py-1 text-sm"
+                data-testid="social-clip-edit-headline-input"
+              />
+              <textarea
+                value={editCaption}
+                onChange={(event) => setEditCaption(event.target.value)}
+                rows={3}
+                className="w-full rounded border border-white/20 bg-black/30 px-2 py-1 text-sm"
+                data-testid="social-clip-edit-caption-input"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleEditSave}
+                  className="rounded border border-white/20 px-2 py-1 text-xs"
+                  data-testid="social-clip-edit-save-button"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEditCancel}
+                  className="rounded border border-white/20 px-2 py-1 text-xs"
+                  data-testid="social-clip-edit-cancel-button"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : previewVisible ? (
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <p className="text-sm font-semibold">{headline}</p>
               <p className="mt-1 text-sm text-white/80">{caption}</p>
@@ -364,6 +541,19 @@ export default function SocialClipsGrokHarnessClient() {
             data-audit="approve-for-publish-button"
           >
             {approved ? "Revoke approval" : "Approve for publish"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEditHeadline(headline)
+              setEditCaption(caption)
+              setEditMode(true)
+            }}
+            className="rounded-lg border border-white/20 px-3 py-2 text-sm"
+            data-testid="social-clip-edit-mode-button"
+            data-audit="edit-mode-button"
+          >
+            Edit mode
           </button>
         </section>
 

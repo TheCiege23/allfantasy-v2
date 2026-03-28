@@ -19,7 +19,13 @@ import { normalizeToUnifiedResponse } from './response-normalizer'
 import { toUnifiedAIError, toHttpStatus, fromThrown } from './error-handler'
 import { generateTraceId, logOrchestrationResult } from './tracing'
 import type { ProviderResultMeta } from '@/lib/ai-reliability/types'
-import { recordProviderFailure, recordProviderFallback, recordProviderLatency } from '@/lib/provider-diagnostics'
+import {
+  recordProviderFailure,
+  recordProviderFallback,
+  recordProviderLatency,
+  recordDegradedModeActivation,
+  logDiagnosticsEvent,
+} from '@/lib/provider-diagnostics'
 import type { ProviderId } from '@/lib/provider-diagnostics'
 import { getToolRegistration } from '@/lib/ai-tool-registry'
 import type { DeterministicSource } from '@/lib/unified-ai/DeterministicToAIContextBridge'
@@ -76,6 +82,27 @@ function buildMessages(
       userParts.push('Sports context (teams/games — use only this, do not invent):\n' + JSON.stringify(stats.sportsData).slice(0, 2000))
     }
     if (stats.sportsDataSource) userParts.push(`(Source: ${stats.sportsDataSource})`)
+    if (stats.sportsDataState && typeof stats.sportsDataState === 'string') {
+      userParts.push(`Sports data freshness state: ${stats.sportsDataState}.`)
+    }
+    if (stats.sportsDataCoverage && typeof stats.sportsDataCoverage === 'object') {
+      const coverage = stats.sportsDataCoverage as {
+        requested?: unknown
+        available?: unknown
+        missing?: unknown
+      }
+      const requested = Array.isArray(coverage.requested) ? coverage.requested.join(', ') : ''
+      const available = Array.isArray(coverage.available) ? coverage.available.join(', ') : ''
+      const missing = Array.isArray(coverage.missing) ? coverage.missing.join(', ') : ''
+      if (requested || available || missing) {
+        userParts.push(
+          `Sports data coverage — requested: ${requested || 'n/a'}; available: ${available || 'n/a'}; missing: ${missing || 'none'}.`
+        )
+      }
+    }
+    if (stats.sportsDataAttemptedSources && Array.isArray(stats.sportsDataAttemptedSources)) {
+      userParts.push(`Sports providers attempted: ${stats.sportsDataAttemptedSources.join(', ') || 'none'}.`)
+    }
   }
   if (envelope.dataQualityMetadata?.missing?.length) {
     userParts.push('Unavailable or missing data: ' + envelope.dataQualityMetadata.missing.join(', ') + '. State when information is unavailable; do not invent.')
@@ -180,6 +207,9 @@ function toModelOutput(result: ProviderChatResult): ModelOutput {
   return {
     model: result.provider,
     raw: result.text,
+    structured: result.json && typeof result.json === 'object'
+      ? (result.json as Record<string, unknown>)
+      : null,
     error: result.error,
     skipped: result.status !== 'ok',
   }
@@ -536,6 +566,7 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
     }))
 
     if (envelope.deterministicPayload) {
+      recordDegradedModeActivation('all_providers_unavailable_before_execution')
       const fallbackResult = buildDeterministicFallbackResult({
         envelope,
         mode: effectiveMode,
@@ -578,15 +609,23 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
   for (let i = 0; i < results.length; i++) {
     const role = available[i] as ProviderId
     const { result, meta } = results[i]
-    if (typeof meta.latencyMs === 'number') recordProviderLatency(role, meta.latencyMs)
-    if (result.status !== 'ok') recordProviderFailure(role, result.error)
+    if (typeof meta.latencyMs === 'number') {
+      recordProviderLatency(role, meta.latencyMs)
+      logDiagnosticsEvent('latency', role, `${meta.latencyMs}ms`)
+    }
+    if (result.status !== 'ok') {
+      recordProviderFailure(role, result.error)
+      logDiagnosticsEvent('failure', role, result.status)
+    }
   }
   const succeededIdx = results.findIndex((r) => r.result.status === 'ok')
   if (succeededIdx >= 0 && available.length > 1) {
     const usedRole = available[succeededIdx] as ProviderId
     for (let i = 0; i < results.length; i++) {
       if (i !== succeededIdx && results[i].result.status !== 'ok') {
-        recordProviderFallback(available[i] as ProviderId, usedRole)
+        const failedRole = available[i] as ProviderId
+        recordProviderFallback(failedRole, usedRole)
+        logDiagnosticsEvent('fallback', failedRole, `used_${usedRole}`)
       }
     }
   }
@@ -598,6 +637,7 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
   try {
     if (allProvidersFailed) {
       if (envelope.deterministicPayload) {
+        recordDegradedModeActivation('all_provider_calls_failed_deterministic_fallback')
         const fallbackResult = buildDeterministicFallbackResult({
           envelope,
           mode: effectiveMode,

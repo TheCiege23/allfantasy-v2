@@ -7,9 +7,32 @@ import type { IProviderClient } from '../provider-interface'
 import type { ProviderChatRequest, ProviderChatResult } from '../types'
 import { deepseekChat } from '@/lib/deepseek-client'
 import { isDeepSeekAvailable } from '@/lib/provider-config'
-import { sanitizeProviderError, isMeaningfulText } from '../provider-utils'
+import {
+  buildProviderFailure,
+  buildProviderInvalidResponse,
+  buildProviderSuccess,
+  isMeaningfulText,
+  tryParseJson,
+} from '../provider-utils'
 
 const ROLE = 'deepseek' as const
+const DEFAULT_MODEL = 'deepseek-chat'
+
+function toDeepSeekUserPrompt(messages: ProviderChatRequest['messages']): string {
+  return (
+    messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => `${m.role}: ${m.content}`)
+      .join('\n\n') || messages[messages.length - 1]?.content || ''
+  )
+}
+
+function normalizeJsonText(text: string): string {
+  return text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+}
 
 export function createDeepSeekProvider(): IProviderClient {
   return {
@@ -21,55 +44,75 @@ export function createDeepSeekProvider(): IProviderClient {
       return isDeepSeekAvailable()
     },
     async chat(request: ProviderChatRequest): Promise<ProviderChatResult> {
-      const timeoutMs = request.timeoutMs ?? 25_000
-      const controller = new AbortController()
-      const t = setTimeout(() => controller.abort(), timeoutMs)
+      const requestedModel = request.model?.trim() || undefined
+      const fallbackModel = requestedModel ?? DEFAULT_MODEL
       try {
-        const system = request.messages.find((m) => m.role === 'system')?.content ?? 'You are a quantitative fantasy sports analyst.'
-        const user = (request.messages.filter((m) => m.role === 'user' || m.role === 'assistant').map((m) => `${m.role}: ${m.content}`).join('\n\n') || request.messages[request.messages.length - 1]?.content) ?? ''
+        const systemBase =
+          request.messages.find((m) => m.role === 'system')?.content ??
+          'You are a quantitative fantasy sports analyst.'
+        const system =
+          request.responseFormat === 'json_object'
+            ? `${systemBase}\nReturn strict JSON object only. No markdown, no preamble, no prose outside JSON.`
+            : systemBase
+        const user = toDeepSeekUserPrompt(request.messages)
         const result = await deepseekChat({
           prompt: user,
           systemPrompt: system,
+          model: requestedModel,
           temperature: request.temperature ?? 0.2,
           maxTokens: request.maxTokens ?? 1000,
         })
-        clearTimeout(t)
         if (result.error) {
-          const isTimeout = result.error.toLowerCase().includes('timeout') || result.error.toLowerCase().includes('abort')
-          return {
-            text: '',
-            model: 'deepseek-chat',
+          return buildProviderFailure({
             provider: ROLE,
-            error: sanitizeProviderError(result.error),
-            timedOut: isTimeout,
+            model: result.model || fallbackModel,
+            error: result.error,
             tokensPrompt: result.usage?.promptTokens,
             tokensCompletion: result.usage?.completionTokens,
-            status: isTimeout ? 'timeout' : 'failed',
-          }
+          })
         }
-        const text = result.content ?? ''
-        const valid = isMeaningfulText(text)
-        return {
-          text: valid ? text : '',
-          model: 'deepseek-chat',
+
+        const rawText = result.content ?? ''
+        if (!isMeaningfulText(rawText)) {
+          return buildProviderInvalidResponse({
+            provider: ROLE,
+            model: result.model || fallbackModel,
+          })
+        }
+
+        if (request.responseFormat === 'json_object') {
+          const parsed = tryParseJson(normalizeJsonText(rawText))
+          if (parsed == null || typeof parsed !== 'object') {
+            return buildProviderInvalidResponse({
+              provider: ROLE,
+              model: result.model || fallbackModel,
+              error: 'DeepSeek returned malformed JSON response',
+            })
+          }
+          return buildProviderSuccess({
+            provider: ROLE,
+            model: result.model || fallbackModel,
+            text: rawText,
+            json: parsed,
+            tokensPrompt: result.usage?.promptTokens,
+            tokensCompletion: result.usage?.completionTokens,
+          })
+        }
+
+        return buildProviderSuccess({
           provider: ROLE,
+          model: result.model || fallbackModel,
+          text: rawText,
           tokensPrompt: result.usage?.promptTokens,
           tokensCompletion: result.usage?.completionTokens,
-          status: valid ? 'ok' : 'invalid_response',
-          ...(valid ? {} : { error: sanitizeProviderError('Empty or invalid response') }),
-        }
+        })
       } catch (e: unknown) {
-        clearTimeout(t)
-        const msg = e instanceof Error ? e.message : String(e)
-        const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('abort')
-        return {
-          text: '',
-          model: 'deepseek-chat',
+        const message = e instanceof Error ? e.message : String(e)
+        return buildProviderFailure({
           provider: ROLE,
-          error: sanitizeProviderError(msg),
-          timedOut: isTimeout,
-          status: isTimeout ? 'timeout' : 'failed',
-        }
+          model: fallbackModel,
+          error: message,
+        })
       }
     },
   }

@@ -3,7 +3,13 @@
  * Uses lib/theme for constants and resolution.
  */
 
-import { THEME_STORAGE_KEY, DEFAULT_THEME, resolveTheme, type ThemeId } from "@/lib/theme"
+import {
+  THEME_STORAGE_KEY,
+  THEME_COOKIE_KEY,
+  DEFAULT_THEME,
+  resolveTheme,
+  type ThemeId,
+} from "@/lib/theme"
 
 export type ThemeMode = ThemeId
 
@@ -19,5 +25,14 @@ export function getStoredTheme(): ThemeMode {
 export function setStoredTheme(mode: ThemeMode): void {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, mode)
+  } catch {}
+  try {
+    document.cookie = `${THEME_COOKIE_KEY}=${mode}; path=/; max-age=31536000; samesite=lax`
+  } catch {}
+  try {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.mode = mode
+      document.documentElement.style.colorScheme = mode === "light" ? "light" : "dark"
+    }
   } catch {}
 }

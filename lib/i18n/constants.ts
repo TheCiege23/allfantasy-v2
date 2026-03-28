@@ -7,6 +7,7 @@
 export type LanguageCode = 'en' | 'es'
 
 export const LANG_STORAGE_KEY = 'af_lang'
+export const LANG_COOKIE_KEY = 'af_lang'
 
 export const DEFAULT_LANG: LanguageCode = 'en'
 

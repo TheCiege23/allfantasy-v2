@@ -4,11 +4,17 @@
  */
 
 import { NextResponse } from "next/server"
-import { getProviderStatus } from "@/lib/provider-config"
+import { getProviderStatus, getProviderSurfaceStatus } from "@/lib/provider-config"
+import { getClearSportsToolStates } from "@/lib/clear-sports"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   const status = getProviderStatus()
-  return NextResponse.json(status)
+  return NextResponse.json({
+    ...status,
+    grok: status.xai,
+    surfaces: getProviderSurfaceStatus(status),
+    clearsportsTools: getClearSportsToolStates(status.clearsports),
+  })
 }

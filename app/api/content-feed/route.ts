@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { getContentFeed } from "@/lib/content-feed"
 import { isSupportedSport } from "@/lib/sport-scope"
 import type { FeedMode, FeedItemType } from "@/lib/content-feed"
+import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
 
@@ -49,7 +50,13 @@ export async function GET(req: NextRequest) {
 
     if (trackEvent === "feed_view" || trackEvent === "feed_refresh") {
       try {
-        await trackFeedEvent(userId, trackEvent, { tab, sport, contentType })
+        await trackFeedEvent(userId, trackEvent, {
+          tab,
+          sport,
+          contentType,
+          userAgent: req.headers.get("user-agent"),
+          referrer: req.headers.get("referer"),
+        })
       } catch (_) {
         /* non-fatal */
       }
@@ -78,11 +85,30 @@ export async function GET(req: NextRequest) {
 async function trackFeedEvent(
   userId: string | null,
   event: string,
-  meta: { tab?: string; sport?: string | null; contentType?: string | null }
-): Promise<void> {
-  if (typeof process.env.NEXT_PUBLIC_ANALYTICS_ENABLED !== "undefined" && !process.env.NEXT_PUBLIC_ANALYTICS_ENABLED) return
-  // Extend with your analytics backend (e.g. post to /api/analytics/event).
-  if (process.env.NODE_ENV === "development") {
-    console.debug("[content-feed] event:", event, "userId:", userId ?? "anonymous", meta)
+  meta: {
+    tab?: string
+    sport?: string | null
+    contentType?: string | null
+    userAgent?: string | null
+    referrer?: string | null
   }
+): Promise<void> {
+  if (String(process.env.NEXT_PUBLIC_ANALYTICS_ENABLED ?? "").toLowerCase() === "false") return
+
+  await prisma.analyticsEvent.create({
+    data: {
+      event: event === "feed_refresh" ? "content_feed_refresh" : "content_feed_view",
+      sessionId: null,
+      path: "/api/content-feed",
+      referrer: meta.referrer?.slice(0, 500) ?? null,
+      userAgent: meta.userAgent?.slice(0, 500) ?? null,
+      toolKey: "content_feed",
+      userId: userId ?? null,
+      meta: {
+        tab: meta.tab ?? null,
+        sport: meta.sport ?? null,
+        contentType: meta.contentType ?? null,
+      },
+    },
+  })
 }

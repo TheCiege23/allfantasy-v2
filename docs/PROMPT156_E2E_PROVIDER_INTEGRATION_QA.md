@@ -1,169 +1,319 @@
 # PROMPT 156 — End-to-End Provider Integration QA
 
-Audit and fixes for the AllFantasy provider integration layer (OpenAI, DeepSeek, xAI, ClearSports) across AI tools, diagnostics, and UI.
+Audit and corrective fixes for the AllFantasy provider integration layer across:
+
+- OpenAI
+- DeepSeek
+- xAI
+- ClearSports
+
+Checked surfaces:
+
+- AI provider selection
+- Unified brain mode / consensus mode / specialist mode
+- Chimmy
+- Trade Analyzer, Waiver AI, Draft Helper
+- Player Comparison, Power Rankings, Trend Detection
+- AI social clips
+- Automated blogs
+- Provider diagnostics + provider status UI
+- Fallback behavior
 
 ---
 
-## 1. Issue list by severity
+## 1) Issue list by severity
 
 ### High
 
-| ID | Issue | Location | Fix |
-|----|--------|----------|-----|
-| H1 | Legacy run path could call orchestration with `envelope: undefined`, causing validation failure and unclear client error. | `app/api/ai/run/route.ts` | Validate envelope presence before calling `runUnifiedOrchestration`; return 400 with clear message when missing. |
+| ID | Issue | Impact | Files |
+|---|---|---|---|
+| H1 | Back-compat ClearSports barrel (`lib/clear-sports.ts`) did not re-export newer helpers (`getClearSportsToolStates`, optional ClearSports fetch helpers, health check exports). | Routes/services importing `@/lib/clear-sports` can fail to type-check or break provider-status/ClearSports enrichment paths. | `lib/clear-sports.ts`, `app/api/ai/providers/status/route.ts`, `app/api/providers/status/route.ts`, `lib/ai-orchestration/sports-context-enricher.ts` |
 
 ### Medium
 
-| ID | Issue | Location | Fix |
-|----|--------|----------|-----|
-| M1 | Provider status UI returned `null` on loading/error so user saw nothing (dead area). | `components/ai-interface/AIProviderSelector.tsx` | Show "Loading…" when loading; show "Unable to load" + Retry button when error. |
-| M2 | Provider status could be stale after tab/window focus. | `hooks/useProviderStatus.ts` | Refetch on `window` `focus` so badges update when user returns. |
-| M3 | Chimmy provider status showed nothing on error with no retry. | `components/chimmy/ChimmyProviderStatus.tsx` | Show "Status unavailable" + retry button when error and no lastMeta. |
+| ID | Issue | Impact | Files |
+|---|---|---|---|
+| M1 | Provider badge freshness relied on initial load + window focus only. | Long-lived sessions can show stale provider status badges until tab focus changes. | `hooks/useProviderStatus.ts` |
+| M2 | `/api/ai/providers/health` did not include ClearSports health metadata. | Incomplete health visibility for provider QA parity across four providers. | `app/api/ai/providers/health/route.ts` |
 
 ### Low
 
-| ID | Issue | Location | Fix |
-|----|--------|----------|-----|
-| L1 | Compare route mutated shared request object. | `app/api/ai/compare/route.ts` | Build explicit `compareRequest` with `mode: 'consensus'` and new envelope so no mutation of adapter output. |
-| L2 | Provider status fetch did not send credentials. | `hooks/useProviderStatus.ts` | Use `credentials: 'include'` for `/api/ai/providers/status`. |
+No new low-severity defects found in this QA pass.
 
 ---
 
-## 2. File-by-file fix plan (applied)
+## 2) File-by-file fix plan (applied)
 
-| File | Changes |
-|------|--------|
-| `app/api/ai/run/route.ts` | Legacy path: require `body.envelope`; return 400 with clear message if missing. Build explicit `envelope` and pass `{ envelope, mode, options }` to `runUnifiedOrchestration`. |
-| `app/api/ai/compare/route.ts` | Build `compareRequest` with `mode: 'consensus'` and `envelope: { ...unified.envelope, modelRoutingHints: undefined }`; pass to `runUnifiedOrchestration` instead of mutating `unified`. |
-| `hooks/useProviderStatus.ts` | Add `credentials: 'include'` to fetch. Add `useEffect` to refetch on `window` `focus`. |
-| `components/ai-interface/AIProviderSelector.tsx` | When loading: render "Loading…". When error: render "Unable to load" + Retry button calling `refetch()`. Only hide when `!showStatus`. |
-| `components/chimmy/ChimmyProviderStatus.tsx` | When `error && !lastMeta`: render "Status unavailable" + retry button. |
+| File | Fix applied |
+|---|---|
+| `lib/clear-sports.ts` | Expanded re-exports to include ClearSports tool-state helper, optional data helpers (`rankings/projections/trends/news`), and health-check exports/types. |
+| `hooks/useProviderStatus.ts` | Added online-event refetch + visible-tab interval refresh (`60s`) to prevent stale provider badges. |
+| `app/api/ai/providers/health/route.ts` | Added ClearSports health payload (`configured`, `healthy`, `latencyMs`, sanitized `error`) alongside AI provider health entries. |
 
 ---
 
-## 3. Verification summary (no code changes)
+## 3) Full merged code fixes
 
-- **Env loading:** Provider adapters use `provider-config` (`getOpenAIConfigFromEnv`, etc.) and `isOpenAIAvailable()`; env is read server-side only.
-- **Secrets server-side:** No API keys in client payloads; error handler uses `userMessage` for display; `sanitizeProviderError` used in providers and diagnostics.
-- **Provider status checks:** `checkProviderAvailability()` and `runProviderHealthCheck()` use registry and optional `healthCheck()`; admin diagnostics use same.
-- **Individual provider calls:** Orchestration uses `getProvider(role).chat()` with timeout/retry; each adapter uses its client (openai-client, deepseek-client, xai-client).
-- **Fallback routing:** `getAvailableFromRequested(modelsToCall)` filters to configured providers; multiple providers called in parallel; failed/skipped recorded for diagnostics.
-- **Malformed responses:** Providers set `status: 'invalid_response'` and sanitized error when text empty/invalid; orchestration treats non-ok as failure.
-- **ClearSports normalization:** `lib/clear-sports/normalize.ts` and sports-router use normalizers; enricher injects into envelope.
-- **Deterministic evidence:** Envelope `deterministicPayload` and tool evidence builders feed UI; `mergeDataQualityWarnings` adds missing-data warnings.
+### `lib/clear-sports.ts`
+
+```ts
+/**
+ * ClearSports integration — re-export from lib/clear-sports for backward compatibility.
+ * PROMPT 153: client (rate limit, retry, timeout), normalizer, types live in lib/clear-sports/.
+ */
+
+export {
+  fetchClearSportsTeams,
+  fetchClearSportsPlayers,
+  fetchClearSportsGames,
+  fetchClearSportsRankings,
+  fetchClearSportsProjections,
+  fetchClearSportsTrends,
+  fetchClearSportsNews,
+  normalizeClearSportsTeams,
+  normalizeClearSportsPlayers,
+  normalizeClearSportsGames,
+  getClearSportsToolStates,
+  runClearSportsHealthCheck,
+  type ClearSportsSport,
+  type ClearSportsTeam,
+  type ClearSportsPlayer,
+  type ClearSportsGame,
+  type ClearSportsHealthCheckResult,
+  type NormalizedTeam,
+  type NormalizedPlayer,
+  type NormalizedGame,
+  type SupportedClearSportsSport,
+  type ClearSportsConsumerTool,
+  type ClearSportsToolState,
+  type ClearSportsToolStateMap,
+} from './clear-sports/index'
+```
+
+### `hooks/useProviderStatus.ts`
+
+```ts
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+
+export type ProviderStatus = {
+  openai: boolean
+  deepseek: boolean
+  grok: boolean
+  openclaw: boolean
+  openclawGrowth: boolean
+}
+
+export function useProviderStatus(): {
+  status: ProviderStatus | null
+  loading: boolean
+  error: boolean
+  refetch: () => void
+  availableCount: number
+} {
+  const [status, setStatus] = useState<ProviderStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true)
+    setError(false)
+    try {
+      const res = await fetch('/api/ai/providers/status', { credentials: 'include' })
+      if (!res.ok) {
+        setError(true)
+        setStatus(null)
+        return
+      }
+      const data = await res.json()
+      setStatus({
+        openai: !!data.openai,
+        deepseek: !!data.deepseek,
+        grok: !!data.grok,
+        openclaw: !!data.openclaw,
+        openclawGrowth: !!data.openclawGrowth,
+      })
+    } catch {
+      setError(true)
+      setStatus(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchStatus()
+  }, [fetchStatus])
+
+  useEffect(() => {
+    const onFocus = () => { fetchStatus() }
+    const onOnline = () => { fetchStatus() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('online', onOnline)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('online', onOnline)
+    }
+  }, [fetchStatus])
+
+  useEffect(() => {
+    const intervalMs = 60_000
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchStatus()
+      }
+    }, intervalMs)
+    return () => window.clearInterval(id)
+  }, [fetchStatus])
+
+  const availableCount = status
+    ? [status.openai, status.deepseek, status.grok, status.openclaw, status.openclawGrowth].filter(Boolean).length
+    : 0
+
+  return { status, loading, error, refetch: fetchStatus, availableCount }
+}
+```
+
+### `app/api/ai/providers/health/route.ts`
+
+```ts
+/**
+ * GET /api/ai/providers/health — active provider health checks (no secrets).
+ * Uses provider registry checks with timeout and returns safe status for admin diagnostics.
+ */
+
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { checkProviderHealth } from '@/lib/ai-orchestration'
+import { getProviderStatus } from '@/lib/provider-config'
+import { runClearSportsHealthCheck } from '@/lib/clear-sports/client'
+import { sanitizeProviderError } from '@/lib/ai-orchestration/provider-utils'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const [providers, clearSportsHealth] = await Promise.all([
+    checkProviderHealth(),
+    runClearSportsHealthCheck(),
+  ])
+  const status = getProviderStatus()
+  const clearSportsConfigured = status.clearsports || clearSportsHealth.configured
+  const clearSports = {
+    provider: 'clearsports',
+    configured: clearSportsConfigured,
+    healthy: clearSportsConfigured ? clearSportsHealth.available : false,
+    checkedAt: clearSportsHealth.checkedAt,
+    latencyMs: clearSportsHealth.latencyMs,
+    error: clearSportsHealth.error ? sanitizeProviderError(clearSportsHealth.error) : undefined,
+  }
+  const anyHealthy =
+    Object.values(providers).some((provider) => provider.healthy) ||
+    Boolean(clearSports.healthy)
+  return NextResponse.json({
+    ok: anyHealthy,
+    providers,
+    clearSports,
+    checkedAt: new Date().toISOString(),
+  })
+}
+```
 
 ---
 
-## 4. Final QA checklist
+## 4) Final QA checklist
 
-- [ ] **Env variable loading:** With valid `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `XAI_API_KEY`, `CLEARSPORTS_API_KEY`/`CLEARSPORTS_API_BASE`, providers report available and requests succeed.
-- [ ] **Server-side secrets:** No keys in JSON responses, logs, or frontend; error messages are generic or sanitized.
-- [ ] **Provider status checks:** GET `/api/ai/providers/status` returns `{ openai, deepseek, grok }`; GET `/api/admin/providers/diagnostics` (admin) returns full diagnostics without secrets.
-- [ ] **Individual provider calls:** Single-model and specialist flows return answers from the expected provider(s).
-- [ ] **Fallback routing:** With one provider down, others still used; diagnostics show fallback events.
-- [ ] **Malformed provider responses:** Empty or invalid provider output yields `invalid_response` and safe message, not crash.
-- [ ] **ClearSports data normalization:** Teams/players/games from ClearSports (or fallback) appear normalized in envelope and responses.
-- [ ] **Deterministic evidence:** Evidence blocks and confidence reflect envelope and data-quality; missing data shows in caveats.
-- [ ] **Mobile behavior:** Provider selector and Chimmy status render and retry works; Compare and refresh work.
-- [ ] **Desktop behavior:** Same as mobile; admin diagnostics panel loads and refresh works.
-- [ ] **No dead provider buttons:** Loading shows "Loading…"; error shows Retry; Compare only when `canCompare` and `onCompareClick` set.
-- [ ] **Compare-provider actions:** POST `/api/ai/compare` with valid contract returns response with `modelOutputs`/provider results; no broken compare flow.
-- [ ] **No stale provider badges:** useProviderStatus refetches on window focus; admin diagnostics refresh updates data.
-- [ ] **Retry flows:** Retry in AIProviderSelector and ChimmyProviderStatus calls `refetch()`; orchestration retry is client re-POST.
+- [ ] Env variables load correctly for OpenAI/DeepSeek/xAI/ClearSports.
+- [ ] No API response leaks raw secrets or stack traces.
+- [ ] Provider status routes return safe metadata and expected availability states.
+- [ ] Provider health checks include all required providers (including ClearSports).
+- [ ] Individual provider calls succeed when configured.
+- [ ] Fallback routing occurs without user-facing crashes.
+- [ ] Malformed provider responses become safe failures (`invalid_response` / sanitized errors).
+- [ ] ClearSports normalization provides stable team/player/game structures.
+- [ ] Deterministic evidence and uncertainty fields update correctly in responses.
+- [ ] Mobile flows (run/compare/retry/provider badges) function correctly.
+- [ ] Desktop flows (run/compare/retry/provider badges) function correctly.
+- [ ] No dead provider buttons in selector, compare actions, or diagnostics.
+- [ ] Compare-provider actions remain functional for supported tools.
+- [ ] Provider badges refresh and do not remain stale in long sessions.
+- [ ] Retry flows work for provider status and AI request paths.
 
 ---
 
-## 5. Manual testing checklist
+## 5) Manual testing checklist
 
-### AI provider selection
-
-- [ ] Open a screen that shows AI provider status (e.g. Chimmy or trade tool).
-- [ ] Confirm "Loading…" then provider names or "None configured".
-- [ ] With no env keys, confirm "None configured" or "Unable to load" + Retry.
-- [ ] Click Retry and confirm status updates or error persists with no crash.
+### Provider selection + status UI
+- [ ] Open Unified AI Workbench and confirm provider status row renders.
+- [ ] Verify loading state appears then providers resolve.
+- [ ] Simulate auth failure and confirm retry controls still work.
+- [ ] Stay on page > 60s and verify status refreshes without tab switch.
 
 ### Unified brain / consensus / specialist
-
-- [ ] Trigger a request that uses specialist or consensus (e.g. trade explain).
-- [ ] Confirm response includes answer and `modelOutputs`/reliability.
-- [ ] Confirm no provider keys or stack traces in response or console.
+- [ ] Run each mode and verify response with provider metadata.
+- [ ] Force one provider unavailable and confirm fallback response remains usable.
+- [ ] Trigger compare action and verify multi-provider output appears.
 
 ### Chimmy
+- [ ] Send message and verify response + provider indicator behavior.
+- [ ] Verify retry behavior on temporary request/provider errors.
 
-- [ ] Send a Chimmy message; confirm reply and provider indicator.
-- [ ] If provider status fails, confirm "Status unavailable" and retry button works.
+### Trade Analyzer / Waiver AI / Draft Helper / Player Comparison
+- [ ] Run each with deterministic context and confirm evidence/uncertainty fields.
+- [ ] Verify no broken run/compare buttons.
 
-### Trade Analyzer / Waiver AI / Draft Helper
+### Power rankings / trend detection
+- [ ] Run each tool and confirm provider fallback behavior under degraded env.
 
-- [ ] Run each tool with valid context; confirm AI answer and evidence.
-- [ ] Confirm deterministic evidence (scores, rankings) is visible and not overridden.
-
-### Player Comparison / Power Rankings / Trend Detection
-
-- [ ] Use features that call AI; confirm responses and no secret leakage.
-
-### AI social clips / Automated blogs
-
-- [ ] Trigger generation (if enabled); confirm they use configured providers and no secrets in response.
+### AI social clips / automated blogs
+- [ ] Generate output with all providers available.
+- [ ] Disable one provider and verify graceful fallback with no secret leakage.
 
 ### Provider diagnostics
+- [ ] As admin, open `/admin?tab=providers` and verify refresh/expand/collapse.
+- [ ] Verify fallback and failure summaries render.
+- [ ] Verify non-admin receives 401 for admin diagnostics routes.
 
-- [ ] As admin, open `/admin?tab=providers`.
-- [ ] Confirm provider list, status badges, expand/collapse, failure and fallback sections.
-- [ ] Click Refresh status; confirm data updates.
-- [ ] As non-admin, confirm GET `/api/admin/providers/diagnostics` returns 401.
-
-### Provider status UI
-
-- [ ] Confirm provider selector shows Loading → status or error + Retry.
-- [ ] Switch tab and return; confirm status refetches (no stale badges).
-- [ ] When multiple providers available and compare supported, confirm Compare button works.
-
-### Fallback
-
-- [ ] With one provider disabled (e.g. unset key), run a multi-provider flow; confirm fallback and no crash.
-- [ ] In admin diagnostics, confirm fallback events when applicable.
-
-### Mobile vs desktop
-
-- [ ] Repeat critical flows on mobile viewport and desktop; confirm no dead buttons and retry/compare work.
+### ClearSports normalization
+- [ ] Verify team/player/game data shape in routes using sports context enrichment.
+- [ ] Verify missing data sets uncertainty/caveat signals rather than inventing facts.
 
 ---
 
-## 6. Automated test recommendations
+## 6) Automated test recommendations
 
-The project uses **Vitest** for unit tests (e.g. `lib/ai-orchestration/__tests__/request-validator.test.ts`, `error-handler.test.ts`). Recommendations:
+Framework signals in repo indicate **Vitest** + **Playwright** usage.
 
-### Unit tests (Vitest)
+### Unit (Vitest)
+- Add `lib/clear-sports.ts` barrel export contract test to assert required symbols are exported.
+- Add `useProviderStatus` hook test for:
+  - focus refetch
+  - online refetch
+  - interval refetch when document is visible
+- Add `/api/ai/providers/health` route test asserting `clearSports` shape and sanitized error behavior.
 
-- **Request validator:** Already covers missing envelope, invalid mode, sport normalization. Add one case: body with `envelope` as non-object (e.g. string) returns invalid.
-- **Run route legacy path:** Add a test (or integration test) that POST with body `{}` (no envelope) returns 400 and message containing "envelope".
-- **Error handler:** Ensure `toUnifiedAIError` and `fromThrown` never assign raw `message` to a field that is sent to client as-is; client should only see `userMessage` or sanitized content.
-- **Provider diagnostics:** Test `getProviderDiagnostics` with mock health entries and ClearSports flags; assert payload shape and that no secret-like strings appear in `recentFailures` or `error` fields.
-- **Provider status service:** Test `recordProviderFailure` with a string containing `sk-`; assert stored `error` is sanitized (e.g. contains `[REDACTED]` or is generic).
+### Integration/API
+- `GET /api/ai/providers/status` returns expected booleans and no secrets.
+- `GET /api/ai/providers/health` includes OpenAI/DeepSeek/Grok + ClearSports metadata.
+- `POST /api/ai/run` and `POST /api/ai/compare`:
+  - success path
+  - provider unavailable path
+  - malformed provider response path
 
-### Integration / API tests
-
-- **GET /api/ai/providers/status:** With auth, expect 200 and `{ openai, deepseek, grok }` booleans.
-- **POST /api/ai/run:** With invalid body (e.g. `{}`), expect 400 and envelope-related message.
-- **POST /api/ai/compare:** With valid contract, expect 200 and response with `modelOutputs` or equivalent; assert no secrets in body.
-
-### E2E (if Playwright/Cypress exists)
-
-- **Provider selector:** Load page that uses AIProviderSelector; assert "Loading…" then status or error; if error, click Retry and assert refetch.
-- **Chimmy:** Send message; assert reply and (if implemented) provider indicator; on status error, assert retry button present.
-- **Admin diagnostics:** As admin, open providers tab; assert table and Refresh; as non-admin, assert redirect or 401 on diagnostics API.
+### E2E (Playwright)
+- Unified AI Workbench: run, compare, regenerate, retry, provider badges.
+- Chimmy shell: send message, retry flow, provider indicator.
+- Admin diagnostics: refresh, expand/collapse, failure/fallback summaries, 401 for non-admin.
 
 ---
 
-## 7. Files touched (full merged fixes)
+## 7) Validation notes for this pass
 
-All fixes are in the following files; no patch snippets—only full-file context for the modified sections:
-
-1. **app/api/ai/run/route.ts** — Legacy path envelope validation and explicit request object.
-2. **app/api/ai/compare/route.ts** — Explicit compare request with `mode: 'consensus'`.
-3. **hooks/useProviderStatus.ts** — `credentials: 'include'`, refetch on window focus.
-4. **components/ai-interface/AIProviderSelector.tsx** — Loading and error UI, Retry button.
-5. **components/chimmy/ChimmyProviderStatus.tsx** — Error state with retry button.
-
-No other files were changed. Env loading, provider-config, orchestration, ClearSports, and admin diagnostics were audited and considered correct; only the above issues were fixed.
+- `ReadLints` on modified files: no new lint errors.
+- Existing repository-wide type issues remain outside this scope; fixed items in this prompt are localized to provider integration and status/health surfaces.

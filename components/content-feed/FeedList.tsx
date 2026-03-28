@@ -80,7 +80,7 @@ export function FeedList({
   return (
     <div className="space-y-4" data-testid="content-feed-list">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-white">
+        <h2 className="text-lg font-semibold text-white" data-testid="content-feed-active-tab-title">
           {tab === "following" ? "Following" : tab === "trending" ? "Trending" : "For you"}
         </h2>
         <button

@@ -4,6 +4,8 @@
  */
 
 import { getClearSportsConfigFromEnv } from '@/lib/provider-config'
+import { recordProviderFailure, recordProviderLatency, logDiagnosticsEvent } from '@/lib/provider-diagnostics'
+import { sanitizeProviderError } from '@/lib/ai-orchestration/provider-utils'
 
 const DEFAULT_TIMEOUT_MS = 15_000
 const DEFAULT_MAX_RETRIES = 2
@@ -109,25 +111,77 @@ export async function clearSportsFetch<T>(
           await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
           continue
         }
+        recordProviderFailure('clearsports', `HTTP ${res.status} ${res.statusText}`)
+        logDiagnosticsEvent('failure', 'clearsports', `http_${res.status}`)
         return null
       }
 
       const json = await res.json().catch(() => null)
       safeLog(pathLabel, res.status, durationMs)
+      recordProviderLatency('clearsports', durationMs)
+      logDiagnosticsEvent('latency', 'clearsports', `${durationMs}ms`)
       return json as T
     } catch (err) {
       clearTimeout(t)
       const durationMs = Date.now() - start
       lastError = err instanceof Error ? err : new Error(String(err))
       const isTimeout = lastError.message?.toLowerCase().includes('abort') || lastError.message?.toLowerCase().includes('timeout')
-      safeLog(pathLabel, isTimeout ? 408 : 500, durationMs, isTimeout ? 'timeout' : lastError.message?.slice(0, 50) ?? 'error')
+      const safeError = sanitizeProviderError(lastError.message)
+      safeLog(pathLabel, isTimeout ? 408 : 500, durationMs, isTimeout ? 'timeout' : safeError.slice(0, 50))
       if (attempt < maxRetries) {
         await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
       } else {
+        recordProviderFailure('clearsports', isTimeout ? 'request_timeout' : safeError)
+        logDiagnosticsEvent('failure', 'clearsports', isTimeout ? 'timeout' : safeError.slice(0, 120))
         return null
       }
     }
   }
 
   return null
+}
+
+export interface ClearSportsHealthCheckResult {
+  configured: boolean
+  available: boolean
+  checkedAt: string
+  latencyMs?: number
+  error?: string
+}
+
+/**
+ * Lightweight live probe for diagnostics/test-keys.
+ * Keeps all secrets server-side and returns safe metadata only.
+ */
+export async function runClearSportsHealthCheck(): Promise<ClearSportsHealthCheckResult> {
+  const cfg = getClearSportsConfigFromEnv()
+  const checkedAt = new Date().toISOString()
+  if (!cfg?.apiKey || !cfg.baseUrl) {
+    return {
+      configured: false,
+      available: false,
+      checkedAt,
+      error: 'ClearSports not configured',
+    }
+  }
+
+  const timeoutMs = Math.max(1000, Math.min(getTimeoutMs(), 4000))
+  const start = Date.now()
+  const json = await clearSportsFetch<unknown>('leagues/nfl/teams', undefined, { timeoutMs })
+  const latencyMs = Date.now() - start
+  if (json == null) {
+    return {
+      configured: true,
+      available: false,
+      checkedAt,
+      latencyMs,
+      error: 'ClearSports health probe failed',
+    }
+  }
+  return {
+    configured: true,
+    available: true,
+    checkedAt,
+    latencyMs,
+  }
 }

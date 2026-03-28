@@ -166,6 +166,7 @@ function buildDailyCoveragePlaceholders(
 }
 
 function fetchMediaArticles(leagueIds: string[]): Promise<ContentFeedItem[]> {
+  if (leagueIds.length === 0) return Promise.resolve([])
   const leagueFilter =
     leagueIds.length > 0 ? { leagueId: { in: leagueIds } } : {}
   return (prisma as any).mediaArticle

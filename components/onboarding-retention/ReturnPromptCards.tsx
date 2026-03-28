@@ -15,6 +15,26 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   sport_season_prompt: Calendar,
 }
 
+const SAFE_HREF_PREFIXES = [
+  "/dashboard",
+  "/feed",
+  "/onboarding/funnel",
+  "/leagues",
+  "/chimmy",
+  "/creators",
+  "/app",
+] as const
+
+function getSafeHref(href: string): string {
+  if (!href || typeof href !== "string") return "/dashboard"
+  if (href.startsWith("http://") || href.startsWith("https://")) return href
+  if (!href.startsWith("/")) return "/dashboard"
+  if (SAFE_HREF_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}/`))) {
+    return href
+  }
+  return "/dashboard"
+}
+
 export interface ReturnPromptCardsProps {
   initialNudges?: RetentionNudge[] | null
   onDismiss?: (nudgeId: string) => void
@@ -84,14 +104,16 @@ export function ReturnPromptCards({
   if (nudges.length === 0) return null
 
   return (
-    <div className={`space-y-3 ${className}`}>
+    <div data-testid="retention-prompt-cards" className={`space-y-3 ${className}`}>
       <h3 className="text-sm font-semibold text-white">For you</h3>
       {nudges.map((nudge) => {
         const Icon = TYPE_ICONS[nudge.type] ?? BookOpen
         const isDismissing = dismissingId === nudge.id
+        const safeHref = getSafeHref(nudge.href)
         return (
           <div
             key={nudge.id}
+            data-testid={`retention-nudge-card-${nudge.id}`}
             className="rounded-xl border border-white/10 bg-white/5 overflow-hidden hover:bg-white/[0.07] transition"
           >
             <div className="flex gap-3 p-4">
@@ -102,7 +124,8 @@ export function ReturnPromptCards({
                 <p className="text-sm font-medium text-white">{nudge.title}</p>
                 <p className="text-xs text-white/60 mt-0.5">{nudge.body}</p>
                 <Link
-                  href={nudge.href}
+                  href={safeHref}
+                  data-testid={`retention-nudge-link-${nudge.id}`}
                   className="mt-2 inline-block text-xs font-medium text-cyan-400 hover:text-cyan-300"
                 >
                   {nudge.ctaLabel} →
@@ -112,6 +135,7 @@ export function ReturnPromptCards({
                 type="button"
                 onClick={() => handleDismiss(nudge.id)}
                 disabled={isDismissing}
+                data-testid={`retention-nudge-dismiss-${nudge.id}`}
                 className="shrink-0 rounded-lg p-1.5 text-white/40 hover:bg-white/10 hover:text-white/70 transition disabled:opacity-50"
                 aria-label="Dismiss"
               >

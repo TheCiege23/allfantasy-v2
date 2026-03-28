@@ -12,7 +12,74 @@ import {
   validateToolRequest,
   requestContractToUnified,
   unifiedResponseToContract,
+  type AIToolResponseContract,
 } from '@/lib/ai-tool-registry'
+import type { AIContextEnvelope } from '@/lib/unified-ai/types'
+
+function extractSportsContextMeta(envelope: AIContextEnvelope): {
+  source?: string
+  state?: 'live' | 'cached' | 'stale' | 'missing'
+  available: boolean
+  keys: string[]
+  missingCount: number
+  attemptedSources: string[]
+} {
+  const stats = envelope.statisticsPayload && typeof envelope.statisticsPayload === 'object'
+    ? (envelope.statisticsPayload as Record<string, unknown>)
+    : null
+  const sportsData = stats?.sportsData && typeof stats.sportsData === 'object'
+    ? (stats.sportsData as Record<string, unknown>)
+    : null
+  const coverage = stats?.sportsDataCoverage && typeof stats.sportsDataCoverage === 'object'
+    ? (stats.sportsDataCoverage as Record<string, unknown>)
+    : null
+  const missing = Array.isArray(coverage?.missing)
+    ? coverage?.missing.filter((item): item is string => typeof item === 'string')
+    : []
+  const attemptedSources = Array.isArray(stats?.sportsDataAttemptedSources)
+    ? stats?.sportsDataAttemptedSources.filter((item): item is string => typeof item === 'string')
+    : []
+  const rawState = typeof stats?.sportsDataState === 'string' ? stats.sportsDataState : undefined
+  const state: 'live' | 'cached' | 'stale' | 'missing' =
+    rawState === 'live' || rawState === 'cached' || rawState === 'stale'
+      ? rawState
+      : sportsData
+        ? 'live'
+        : 'missing'
+  return {
+    source: typeof stats?.sportsDataSource === 'string' ? stats.sportsDataSource : undefined,
+    state,
+    available: Boolean(sportsData && Object.keys(sportsData).length > 0),
+    keys: sportsData ? Object.keys(sportsData) : [],
+    missingCount: missing.length,
+    attemptedSources,
+  }
+}
+
+function attachSportsDebugTrace(
+  responseContract: AIToolResponseContract,
+  envelope: AIContextEnvelope
+): AIToolResponseContract {
+  const providerUsed = responseContract.providerResults.find((provider) => !provider.skipped && !provider.error)?.provider
+  const sportsMeta = extractSportsContextMeta(envelope)
+  return {
+    ...responseContract,
+    uncertainty:
+      responseContract.uncertainty ??
+      (sportsMeta.missingCount > 0 ? `Some sports context is unavailable (${sportsMeta.missingCount} missing item(s)).` : null),
+    debugTrace: {
+      ...(responseContract.debugTrace ?? {}),
+      traceId: responseContract.traceId ?? null,
+      providerUsed,
+      sportsDataSource: sportsMeta.source,
+      sportsDataState: sportsMeta.state,
+      sportsDataAvailable: sportsMeta.available,
+      sportsDataKeys: sportsMeta.keys,
+      sportsDataMissingCount: sportsMeta.missingCount,
+      sportsDataAttemptedSources: sportsMeta.attemptedSources,
+    },
+  }
+}
 
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -92,5 +159,5 @@ export async function POST(req: Request) {
   }
 
   const responseContract = unifiedResponseToContract(result.response)
-  return NextResponse.json(responseContract)
+  return NextResponse.json(attachSportsDebugTrace(responseContract, unified.envelope))
 }

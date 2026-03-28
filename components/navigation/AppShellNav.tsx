@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { MessageCircle, Shield, Wallet, Sparkles } from "lucide-react"
 import { ModeToggle } from "@/components/theme/ModeToggle"
@@ -51,8 +52,14 @@ export default function AppShellNav({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex shrink-0 items-center gap-2">
-            <div className="mode-image-safe h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500" />
-            <span className="text-sm font-bold tracking-wide mode-text">AllFantasy.ai</span>
+            <Image
+              src="/af-crest.png"
+              alt="AllFantasy crest"
+              width={32}
+              height={32}
+              className="mode-logo-safe h-8 w-8 rounded-lg object-contain"
+            />
+            <span className="mode-wordmark-safe text-sm font-bold tracking-wide mode-text">AllFantasy.ai</span>
           </Link>
 
           <div className="hidden items-center gap-1 md:flex">

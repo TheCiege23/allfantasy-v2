@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { getOpenAIConfigFromEnv } from '@/lib/provider-config'
 
 export type OpenAIConfig = {
   apiKey: string
@@ -7,13 +8,13 @@ export type OpenAIConfig = {
 }
 
 export function getOpenAIConfig(): OpenAIConfig {
-  const apiKey = (process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '').trim()
-  if (!apiKey) throw new Error('OpenAI API key is not configured.')
-
-  const baseUrl = (process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')
-  const model = (process.env.OPENAI_MODEL || 'gpt-4o').trim()
-
-  return { apiKey, baseUrl, model }
+  const config = getOpenAIConfigFromEnv()
+  if (!config) throw new Error('OpenAI provider is not configured. Set OPENAI_API_KEY.')
+  return {
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    model: config.model,
+  }
 }
 
 let _client: OpenAI | null = null
@@ -31,13 +32,29 @@ export function getOpenAIClient(): OpenAI {
 
 export async function openaiChatJson(args: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model?: string
   temperature?: number
   maxTokens?: number
 }): Promise<
   | { ok: true; json: any; model: string; baseUrl: string }
   | { ok: false; status: number; details: string; model: string; baseUrl: string }
 > {
-  const { model, baseUrl } = getOpenAIConfig()
+  let model = 'unavailable'
+  let baseUrl = ''
+  try {
+    const cfg = getOpenAIConfig()
+    model = args.model?.trim() || cfg.model
+    baseUrl = cfg.baseUrl
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      details: 'OpenAI provider unavailable. Set OPENAI_API_KEY.',
+      model,
+      baseUrl,
+    }
+  }
+
   const client = getOpenAIClient()
 
   try {
@@ -59,13 +76,29 @@ export async function openaiChatJson(args: {
 
 export async function openaiChatText(args: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model?: string
   temperature?: number
   maxTokens?: number
 }): Promise<
   | { ok: true; text: string; model: string; baseUrl: string }
   | { ok: false; status: number; details: string; model: string; baseUrl: string }
 > {
-  const { model, baseUrl } = getOpenAIConfig()
+  let model = 'unavailable'
+  let baseUrl = ''
+  try {
+    const cfg = getOpenAIConfig()
+    model = args.model?.trim() || cfg.model
+    baseUrl = cfg.baseUrl
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      details: 'OpenAI provider unavailable. Set OPENAI_API_KEY.',
+      model,
+      baseUrl,
+    }
+  }
+
   const client = getOpenAIClient()
 
   try {

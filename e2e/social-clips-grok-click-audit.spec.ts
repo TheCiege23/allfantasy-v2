@@ -31,8 +31,10 @@ test.describe("@media grok social clip generator click audit", () => {
     page,
   }) => {
     const generateBodies: Array<Record<string, unknown>> = []
+    const aiGenerateBodies: Array<Record<string, unknown>> = []
     const publishBodies: Array<Record<string, unknown>> = []
     const connectAttempts: Array<{ platform: string; ok: boolean }> = []
+    let aiStatusCalls = 0
     let currentAssetId: string | null = null
 
     const logsByAsset = new Map<string, Array<{ id: string; platform: string; status: string; createdAt: string }>>()
@@ -172,6 +174,46 @@ test.describe("@media grok social clip generator click audit", () => {
       const method = request.method()
       const path = new URL(request.url()).pathname
 
+      if (path.includes("/api/social-clips/ai/status") && method === "GET") {
+        aiStatusCalls += 1
+        const anyAvailable = aiStatusCalls >= 2
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            xai: anyAvailable,
+            openai: anyAvailable,
+            deepseek: anyAvailable,
+            anyAvailable,
+          }),
+        })
+        return
+      }
+
+      if (path.includes("/api/social-clips/ai/generate") && method === "POST") {
+        const body = (request.postDataJSON() ?? {}) as Record<string, unknown>
+        aiGenerateBodies.push(body)
+        const id = `asset-ai-${aiGenerateBodies.length}`
+        currentAssetId = id
+        approvalsByAsset.set(id, false)
+        if (!logsByAsset.has(id)) {
+          logsByAsset.set(id, [
+            {
+              id: `log-failed-seed-${id}`,
+              platform: "facebook",
+              status: "failed",
+              createdAt: new Date().toISOString(),
+            },
+          ])
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ id }),
+        })
+        return
+      }
+
       if (path.includes("/api/social-clips/generate") && method === "POST") {
         const body = (request.postDataJSON() ?? {}) as Record<string, unknown>
         generateBodies.push(body)
@@ -278,6 +320,20 @@ test.describe("@media grok social clip generator click audit", () => {
     const hydratedFlag = page.getByTestId("social-clip-harness-hydrated-flag")
     await expect(hydratedFlag).toContainText(/hydrat/i)
     await expect(hydratedFlag).toHaveText(/hydrated/i, { timeout: 5_000 }).catch(() => {})
+    await expect(page.getByTestId("social-clip-ai-provider-unavailable-message")).toBeVisible()
+    await expect(page.getByTestId("social-clip-ai-generate-button")).toBeDisabled()
+    await page.getByTestId("social-clip-ai-status-refresh-button").click()
+    await expect(page.getByTestId("social-clip-ai-generate-button")).toBeEnabled()
+    await page.getByTestId("social-clip-ai-input-type-selector").selectOption("power_rankings")
+    await page.getByTestId("social-clip-ai-output-type-selector").selectOption("thread_format")
+    await page.getByTestId("social-clip-ai-facts-input").fill("Team A 142, Team B 118. Week 7.")
+    await page.getByTestId("social-clip-ai-generate-button").click()
+    await expect.poll(() => aiGenerateBodies.length).toBeGreaterThan(0)
+    const firstAiGenerate = aiGenerateBodies[0] ?? {}
+    expect(String(firstAiGenerate.inputType ?? "")).toBe("power_rankings")
+    expect(String(firstAiGenerate.outputType ?? "")).toBe("thread_format")
+    expect(String(firstAiGenerate.sport ?? "")).toMatch(/NFL|NHL|NBA|MLB|NCAAB|NCAAF|SOCCER/i)
+
     await expect(page.getByTestId("social-clip-generate-button")).toBeVisible()
 
     const sportSelector = page.getByTestId("social-clip-grok-sport-selector")
@@ -346,6 +402,12 @@ test.describe("@media grok social clip generator click audit", () => {
         return !hiddenTextVisible
       })
       .toBeTruthy()
+    await page.getByTestId("social-clip-edit-mode-button").click()
+    await page.getByTestId("social-clip-edit-headline-input").fill("Edited harness headline")
+    await page.getByTestId("social-clip-edit-caption-input").fill("Edited harness caption")
+    await page.getByTestId("social-clip-edit-save-button").click()
+    await expect(page.getByText("Edited harness headline")).toBeVisible()
+    await expect(page.getByText("Edited harness caption")).toBeVisible()
 
     const readClipboard = async () =>
       page.evaluate(() => ((window as any).__socialClipClipboard as string) ?? "")
@@ -408,7 +470,9 @@ test.describe("@media grok social clip generator click audit", () => {
     await expect(autoPostToggleX).toBeVisible()
     await autoPostToggleX.click()
     await expect(autoPostToggleX).toBeChecked()
+    await expect(page.getByTestId("social-clip-publish-now-button-x")).toBeDisabled()
     await page.getByTestId("social-clip-approve-for-publish-button").click()
+    await expect(page.getByTestId("social-clip-publish-now-button-x")).toBeEnabled()
     await page.getByTestId("social-clip-publish-now-button-x").click()
     await expect.poll(() => publishBodies.length).toBe(1)
 

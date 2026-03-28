@@ -7,6 +7,7 @@
 export type ThemeId = 'light' | 'dark' | 'legacy'
 
 export const THEME_STORAGE_KEY = 'af_mode'
+export const THEME_COOKIE_KEY = 'af_mode'
 
 /** Default theme when none is stored (must match layout script default). */
 export const DEFAULT_THEME: ThemeId = 'legacy'

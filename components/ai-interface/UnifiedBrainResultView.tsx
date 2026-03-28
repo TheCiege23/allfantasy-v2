@@ -35,6 +35,12 @@ export interface UnifiedBrainResultViewProps {
     confidenceCapped?: boolean
     uncertaintyCount?: number
     missingDataCount?: number
+    sportsDataSource?: string
+    sportsDataState?: 'live' | 'cached' | 'stale' | 'missing'
+    sportsDataAvailable?: boolean
+    sportsDataKeys?: string[]
+    sportsDataMissingCount?: number
+    sportsDataAttemptedSources?: string[]
   } | null
   /** Expand "Sources" (keyEvidence) by default on desktop */
   defaultSourcesExpanded?: boolean
@@ -192,6 +198,42 @@ export default function UnifiedBrainResultView({
                 <div className="flex justify-between gap-2">
                   <dt className="text-white/45">Data quality</dt>
                   <dd className="text-right">{debugTrace.dataQualitySummary}</dd>
+                </div>
+              )}
+              {debugTrace.sportsDataSource && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports source</dt>
+                  <dd className="text-right">{debugTrace.sportsDataSource}</dd>
+                </div>
+              )}
+              {debugTrace.sportsDataState && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports data state</dt>
+                  <dd className="text-right">{debugTrace.sportsDataState}</dd>
+                </div>
+              )}
+              {typeof debugTrace.sportsDataAvailable === 'boolean' && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports data available</dt>
+                  <dd className="text-right">{debugTrace.sportsDataAvailable ? 'Yes' : 'No'}</dd>
+                </div>
+              )}
+              {Array.isArray(debugTrace.sportsDataKeys) && debugTrace.sportsDataKeys.length > 0 && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports keys</dt>
+                  <dd className="text-right">{debugTrace.sportsDataKeys.join(', ')}</dd>
+                </div>
+              )}
+              {typeof debugTrace.sportsDataMissingCount === 'number' && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports missing</dt>
+                  <dd className="text-right">{debugTrace.sportsDataMissingCount}</dd>
+                </div>
+              )}
+              {Array.isArray(debugTrace.sportsDataAttemptedSources) && debugTrace.sportsDataAttemptedSources.length > 0 && (
+                <div className="flex justify-between gap-2">
+                  <dt className="text-white/45">Sports providers tried</dt>
+                  <dd className="text-right">{debugTrace.sportsDataAttemptedSources.join(', ')}</dd>
                 </div>
               )}
               <div className="flex justify-between gap-2">

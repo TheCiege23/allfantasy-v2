@@ -468,13 +468,15 @@ function PreferencesSection({
 
       <div>
         <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Language</label>
-        <div className="flex gap-2">
+        <div className="flex gap-2" data-testid="settings-language-toggle" role="radiogroup" aria-label="Language toggle">
           {(["en", "es"] as const).map((l) => (
             <button
               key={l}
               type="button"
               onClick={() => setLang(l)}
               className="rounded-xl border px-4 py-2 text-sm font-medium"
+              role="radio"
+              aria-checked={lang === l}
               style={{
                 borderColor: lang === l ? "var(--accent-cyan)" : "var(--border)",
                 background: lang === l ? "color-mix(in srgb, var(--accent-cyan) 18%, transparent)" : "var(--panel2)",

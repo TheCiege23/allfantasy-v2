@@ -2,75 +2,93 @@
 
 import Link from 'next/link'
 import {
-  BarChart3,
-  Layers3,
-  DraftingCompass,
-  Users,
-  Target,
-  GraduationCap,
   ArrowRight,
+  BarChart3,
+  DraftingCompass,
+  GraduationCap,
+  Layers3,
+  Target,
+  Users,
 } from 'lucide-react'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const FEATURE_CARDS = [
   {
-    title: 'Trade Analyzer',
-    description: 'Get AI fairness scores and lineup impact for any trade.',
+    titleKey: 'landing.tools.tradeAnalyzer.title',
+    descriptionKey: 'landing.tools.tradeAnalyzer.description',
     href: '/trade-analyzer',
     icon: BarChart3,
   },
   {
-    title: 'Waiver Wire AI',
-    description: 'Prioritize pickups with AI-powered waiver analysis.',
-    href: '/waiver-ai',
+    titleKey: 'landing.tools.waiverWireAi.title',
+    descriptionKey: 'landing.tools.waiverWireAi.description',
+    href: '/waiver-wire',
     icon: Layers3,
   },
   {
-    title: 'Draft Assistant',
-    description: 'Mock drafts and draft-day AI recommendations.',
-    href: '/mock-draft',
+    titleKey: 'landing.tools.draftAssistant.title',
+    descriptionKey: 'landing.tools.draftAssistant.description',
+    href: '/draft-helper',
     icon: DraftingCompass,
   },
   {
-    title: 'Player Comparison Lab',
-    description: 'Compare players side-by-side with projections and trends.',
-    href: '/player-comparison-lab',
+    titleKey: 'landing.tools.playerComparisonLab.title',
+    descriptionKey: 'landing.tools.playerComparisonLab.description',
+    href: '/player-comparison',
     icon: Users,
   },
   {
-    title: 'Matchup Simulator',
-    description: 'Simulate matchups and playoff scenarios.',
-    href: '/app/simulation-lab',
+    titleKey: 'landing.tools.matchupSimulator.title',
+    descriptionKey: 'landing.tools.matchupSimulator.description',
+    href: '/matchup-simulator',
     icon: Target,
   },
   {
-    title: 'Fantasy Coach',
-    description: 'AI coaching and strategy tailored to your league.',
-    href: '/app/coach',
+    titleKey: 'landing.tools.fantasyCoach.title',
+    descriptionKey: 'landing.tools.fantasyCoach.description',
+    href: '/fantasy-coach',
     icon: GraduationCap,
   },
 ] as const
 
 export default function LandingFeatureCards() {
+  const { t } = useLanguage()
   return (
-    <section className="border-t px-4 py-12 sm:px-6 sm:py-16" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 30%, transparent)' }}>
+    <section
+      className="border-t px-4 py-12 sm:px-6 sm:py-16"
+      style={{
+        borderColor: 'var(--border)',
+        background: 'color-mix(in srgb, var(--panel) 30%, transparent)',
+        contentVisibility: 'auto',
+        containIntrinsicSize: '720px',
+      }}
+    >
       <div className="mx-auto max-w-4xl">
-        <h2 className="text-center text-lg font-semibold sm:text-xl" style={{ color: 'var(--text)' }}>
-          What you can do
+        <h2
+          className="text-center text-lg font-semibold sm:text-xl"
+          style={{ color: 'var(--text)' }}
+          data-testid="landing-what-you-can-do-heading"
+        >
+          {t('landing.whatYouCanDo.heading')}
         </h2>
         <p className="mx-auto mt-2 max-w-xl text-center text-sm" style={{ color: 'var(--muted)' }}>
-          Leagues, brackets, AI tools, dynasty, and more — all inside the AllFantasy Sports App.
+          {t('landing.whatYouCanDo.subheading')}
         </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURE_CARDS.map((card) => {
             const Icon = card.icon
+            const title = t(card.titleKey)
+            const description = t(card.descriptionKey)
             return (
               <Link
                 key={card.href}
                 href={card.href}
+                prefetch={false}
                 className="group flex flex-col rounded-2xl border p-5 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-[var(--bg)]"
                 style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
-                onClick={() => trackLandingCtaClick({ cta_label: card.title, cta_destination: card.href, cta_type: 'feature_card', source: 'landing' })}
+                onClick={() => trackLandingCtaClick({ cta_label: title, cta_destination: card.href, cta_type: 'feature_card', source: 'landing' })}
+                data-testid={`landing-tool-card-${title.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -80,14 +98,14 @@ export default function LandingFeatureCards() {
                     <Icon className="h-5 w-5 text-emerald-400" />
                   </div>
                   <span className="font-semibold" style={{ color: 'var(--text)' }}>
-                    {card.title}
+                    {title}
                   </span>
                 </div>
                 <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
-                  {card.description}
+                  {description}
                 </p>
                 <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-emerald-400 group-hover:underline">
-                  Open tool
+                  {t('landing.tools.open')}
                   <ArrowRight className="h-4 w-4" />
                 </span>
               </Link>

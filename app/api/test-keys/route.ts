@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getProviderStatus } from "@/lib/provider-config";
+import { runClearSportsHealthCheck } from "@/lib/clear-sports/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,12 +20,8 @@ function maskKey(value?: string | null): string | null {
 }
 
 async function testOpenAI(): Promise<ServiceResult> {
-  const apiKey =
-    process.env.AI_INTEGRATIONS_OPENAI_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    "";
-
-  if (!apiKey.trim()) {
+  const status = getProviderStatus();
+  if (!status.openai) {
     return {
       configured: false,
       ok: false,
@@ -36,8 +34,73 @@ async function testOpenAI(): Promise<ServiceResult> {
     configured: true,
     ok: true,
     message: "OpenAI key is configured.",
+    details: null,
+  };
+}
+
+async function testDeepSeek(): Promise<ServiceResult> {
+  const status = getProviderStatus();
+  if (!status.deepseek) {
+    return {
+      configured: false,
+      ok: false,
+      message: "DeepSeek key not configured.",
+      details: null,
+    };
+  }
+  return {
+    configured: true,
+    ok: true,
+    message: "DeepSeek key is configured.",
+    details: null,
+  };
+}
+
+async function testXai(): Promise<ServiceResult> {
+  const status = getProviderStatus();
+  if (!status.xai) {
+    return {
+      configured: false,
+      ok: false,
+      message: "xAI key not configured.",
+      details: null,
+    };
+  }
+  return {
+    configured: true,
+    ok: true,
+    message: "xAI key is configured.",
+    details: null,
+  };
+}
+
+async function testClearSports(): Promise<ServiceResult> {
+  const health = await runClearSportsHealthCheck();
+  if (!health.configured) {
+    return {
+      configured: false,
+      ok: false,
+      message: "ClearSports credentials not configured (requires key + base URL).",
+      details: null,
+    };
+  }
+  if (!health.available) {
+    return {
+      configured: true,
+      ok: false,
+      message: "ClearSports is configured but not reachable.",
+      details: {
+        latencyMs: health.latencyMs ?? null,
+        error: health.error ?? null,
+      },
+    };
+  }
+  return {
+    configured: true,
+    ok: true,
+    message: "ClearSports credentials are configured and provider is reachable.",
     details: {
-      keyPreview: maskKey(apiKey),
+      latencyMs: health.latencyMs ?? null,
     },
   };
 }
@@ -188,9 +251,7 @@ async function testCoinbase(): Promise<ServiceResult> {
     configured: true,
     ok: true,
     message: "Coinbase key is configured.",
-    details: {
-      keyPreview: maskKey(key),
-    },
+    details: null,
   };
 }
 
@@ -214,9 +275,7 @@ async function testPayPal(): Promise<ServiceResult> {
     configured: true,
     ok: true,
     message: "PayPal env vars are configured.",
-    details: {
-      clientIdPreview: maskKey(clientId),
-    },
+    details: null,
   };
 }
 
@@ -224,6 +283,9 @@ export async function GET(_req: NextRequest) {
   try {
     const [
       openai,
+      deepseek,
+      xai,
+      clearsports,
       resend,
       stripe,
       supabase,
@@ -232,6 +294,9 @@ export async function GET(_req: NextRequest) {
       paypal,
     ] = await Promise.all([
       testOpenAI(),
+      testDeepSeek(),
+      testXai(),
+      testClearSports(),
       testResend(),
       testStripe(),
       testSupabase(),
@@ -244,6 +309,9 @@ export async function GET(_req: NextRequest) {
       ok: true,
       services: {
         openai,
+        deepseek,
+        xai,
+        clearsports,
         resend,
         stripe,
         supabase,
@@ -254,6 +322,9 @@ export async function GET(_req: NextRequest) {
       summary: {
         configuredCount: [
           openai,
+          deepseek,
+          xai,
+          clearsports,
           resend,
           stripe,
           supabase,
@@ -263,6 +334,9 @@ export async function GET(_req: NextRequest) {
         ].filter((x) => x.configured).length,
         passingCount: [
           openai,
+          deepseek,
+          xai,
+          clearsports,
           resend,
           stripe,
           supabase,

@@ -4,7 +4,7 @@
  */
 
 import { xaiChatJson, parseTextFromXaiChatCompletion } from "@/lib/xai-client";
-import { openaiChatText, getOpenAIConfig } from "@/lib/openai-client";
+import { openaiChatText } from "@/lib/openai-client";
 import { deepseekChat } from "@/lib/deepseek-client";
 import { normalizeToSupportedSport } from "@/lib/sport-scope";
 import {
@@ -136,7 +136,6 @@ async function runDeepSeekStep(
 /** Step 3: OpenAI — polished final copy. */
 async function runOpenAIStep(draftJson: string, input: AIClipGenerateInput): Promise<ProviderStepResult> {
   try {
-    const config = getOpenAIConfig();
     const res = await openaiChatText({
       messages: [
         { role: "system", content: buildOpenAISystemPrompt(input) },

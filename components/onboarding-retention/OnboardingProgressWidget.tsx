@@ -29,6 +29,7 @@ export function OnboardingProgressWidget({ initialState, className = "" }: Onboa
   return (
     <Link
       href="/onboarding/funnel"
+      data-testid="onboarding-progress-widget"
       className={`flex items-center gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 hover:bg-cyan-500/15 transition ${className}`}
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20">

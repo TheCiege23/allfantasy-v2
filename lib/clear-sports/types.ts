@@ -2,7 +2,9 @@
  * PROMPT 153 — ClearSports API response types (raw from API / parsed).
  */
 
-export type ClearSportsSport = 'NFL' | 'NBA' | 'MLB'
+import type { SupportedSport } from '@/lib/sport-scope'
+
+export type ClearSportsSport = SupportedSport
 
 export interface ClearSportsTeam {
   id: string

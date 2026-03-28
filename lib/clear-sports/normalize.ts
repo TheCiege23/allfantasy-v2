@@ -1,12 +1,12 @@
 /**
  * PROMPT 153 — Sport-aware normalization of ClearSports API responses to internal models.
- * Used by sports-router. Supports NFL, NBA, MLB (ClearSports-supported); other sports fall back elsewhere.
+ * Used by sports-router across platform-supported sports.
  */
 
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
-import type { ClearSportsTeam, ClearSportsPlayer, ClearSportsGame } from './types'
+import type { ClearSportsTeam, ClearSportsPlayer, ClearSportsGame, ClearSportsSport } from './types'
 
-export type SupportedClearSportsSport = 'NFL' | 'NBA' | 'MLB'
+export type SupportedClearSportsSport = ClearSportsSport
 
 /** Internal normalized team (matches sports-router NormalizedTeam). */
 export interface NormalizedTeam {

@@ -24,6 +24,50 @@ function ensureSlug(raw: string | undefined): string {
   return toSlug(String(raw ?? "article"))
 }
 
+const CATEGORY_FALLBACK_TITLES: Record<string, string> = {
+  waiver_wire: "Waiver Wire Targets",
+  trade_value: "Trade Value Watch",
+  ranking_updates: "Rankings Update",
+  matchup_preview: "Matchup Preview",
+  playoff_recap: "Weekly Recap",
+  creator_recap: "Creator League Recap",
+  player_trend_feature: "Player Trend Feature",
+  weekly_strategy: "Weekly Strategy Guide",
+}
+
+function generateDeterministicFallbackDraft(input: BlogDraftInput): GeneratedDraft {
+  const sport = normalizeToSupportedSport(input.sport)
+  const topic = (input.topicHint ?? "").trim()
+  const titleBase = CATEGORY_FALLBACK_TITLES[input.category] ?? "Fantasy Insights"
+  const title = topic ? `${titleBase}: ${topic}` : `${sport} ${titleBase}`
+  const excerpt = `Quick ${sport} ${input.category.replace(/_/g, " ")} draft generated while AI providers are unavailable.`
+  const body = [
+    `# ${title}`,
+    "",
+    `This draft is generated with deterministic fallback content because AI providers are currently unavailable.`,
+    "",
+    "## Key takeaways",
+    "- Focus on recent usage trends and role stability.",
+    "- Validate matchup context before making lineup decisions.",
+    "- Prioritize flexible roster moves and short-term upside.",
+    "",
+    "## Action plan",
+    "1. Review your roster needs by position and schedule.",
+    "2. Compare waiver, trade, and matchup options using AllFantasy tools.",
+    "3. Re-run AI generation later for expanded analysis and narrative polish.",
+  ].join("\n")
+
+  return {
+    title: title.slice(0, 512),
+    slug: ensureSlug(title),
+    excerpt: excerpt.slice(0, 240),
+    body,
+    seoTitle: `${title.slice(0, 50)} | AllFantasy`,
+    seoDescription: excerpt.slice(0, 160),
+    tags: [sport, input.category, "AllFantasy", "FantasySports"].slice(0, 6),
+  }
+}
+
 /** OpenAI-only path (fallback when multi-provider fails or is unavailable). */
 async function generateBlogDraftOpenAIOnly(input: BlogDraftInput): Promise<GeneratedDraft | null> {
   const sport = normalizeToSupportedSport(input.sport)
@@ -72,5 +116,7 @@ async function generateBlogDraftOpenAIOnly(input: BlogDraftInput): Promise<Gener
 export async function generateBlogDraft(input: BlogDraftInput): Promise<GeneratedDraft | null> {
   const multi = await generateBlogDraftMultiProvider(input)
   if (multi) return multi
-  return generateBlogDraftOpenAIOnly(input)
+  const openaiOnly = await generateBlogDraftOpenAIOnly(input)
+  if (openaiOnly) return openaiOnly
+  return generateDeterministicFallbackDraft(input)
 }

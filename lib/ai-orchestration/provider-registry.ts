@@ -9,6 +9,7 @@ import type { ProviderHealthEntry } from './types'
 import { createOpenAIProvider } from './providers/openai-provider'
 import { createDeepSeekProvider } from './providers/deepseek-provider'
 import { createGrokProvider } from './providers/grok-provider'
+import { sanitizeProviderError } from './provider-utils'
 
 const ROLES: AIModelRole[] = ['openai', 'deepseek', 'grok']
 
@@ -124,7 +125,7 @@ async function checkOneProviderHealth(role: AIModelRole): Promise<ProviderHealth
       ...(healthy ? {} : { error: 'Provider health check returned unhealthy.' }),
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = sanitizeProviderError(error instanceof Error ? error.message : String(error))
     return {
       provider: role,
       configured: true,

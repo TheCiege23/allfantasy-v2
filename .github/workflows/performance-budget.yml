@@ -1,0 +1,164 @@
+name: Landing Performance Budget
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  landing-performance-budget-strict:
+    name: Landing Perf Budget (strict)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: allfantasy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d allfantasy_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NEXTAUTH_SECRET: ci-nextauth-secret
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      PERF_BASE_URL: http://127.0.0.1:3000
+      PERF_BUDGET_LCP_MS: "2800"
+      PERF_BUDGET_CLS: "0.1"
+      PERF_BUDGET_INP_MS: "250"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare DB schema
+        run: npx prisma db push --skip-generate
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start app
+        run: |
+          nohup npm run start -- -p 3000 > /tmp/next-start.log 2>&1 &
+
+      - name: Wait for app
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000" > /dev/null; then
+              echo "App is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not start in time"
+          cat /tmp/next-start.log || true
+          exit 1
+
+      - name: Run landing performance budget gate
+        run: npm run perf:landing-budget
+
+      - name: Upload app startup log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-perf-next-start-log-strict
+          path: /tmp/next-start.log
+          retention-days: 7
+
+  landing-performance-budget-warning:
+    name: Landing Perf Budget (warning profile)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: allfantasy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d allfantasy_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NEXTAUTH_SECRET: ci-nextauth-secret
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      PERF_BASE_URL: http://127.0.0.1:3000
+      PERF_BUDGET_LCP_MS: "3500"
+      PERF_BUDGET_CLS: "0.15"
+      PERF_BUDGET_INP_MS: "350"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare DB schema
+        run: npx prisma db push --skip-generate
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start app
+        run: |
+          nohup npm run start -- -p 3000 > /tmp/next-start.log 2>&1 &
+
+      - name: Wait for app
+        run: |
+          for i in {1..60}; do
+            if curl -fsS "http://127.0.0.1:3000" > /dev/null; then
+              echo "App is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not start in time"
+          cat /tmp/next-start.log || true
+          exit 1
+
+      - name: Run landing performance budget warning check
+        id: perf_budget_warning
+        continue-on-error: true
+        run: npm run perf:landing-budget
+
+      - name: Report warning budget breach
+        if: steps.perf_budget_warning.outcome == 'failure'
+        run: echo "::warning::Landing performance exceeded warning profile budgets (LCP/CLS/INP)."
+
+      - name: Upload app startup log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: landing-perf-next-start-log-warning
+          path: /tmp/next-start.log
+          retention-days: 7

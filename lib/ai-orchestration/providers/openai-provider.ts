@@ -5,12 +5,22 @@
 
 import type { IProviderClient } from '../provider-interface'
 import type { ProviderChatRequest, ProviderChatResult } from '../types'
-import { getOpenAIConfig } from '@/lib/openai-client'
-import { openaiChatText } from '@/lib/openai-client'
+import { openaiChatJson, openaiChatText, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { isOpenAIAvailable } from '@/lib/provider-config'
-import { sanitizeProviderError, isMeaningfulText } from '../provider-utils'
+import {
+  buildProviderFailure,
+  buildProviderInvalidResponse,
+  buildProviderSuccess,
+  isMeaningfulText,
+} from '../provider-utils'
 
 const ROLE = 'openai' as const
+const DEFAULT_MODEL = 'gpt-4o'
+
+function extractTextFromOpenAIJson(data: unknown): string {
+  const content = (data as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content
+  return typeof content === 'string' ? content : ''
+}
 
 export function createOpenAIProvider(): IProviderClient {
   return {
@@ -22,47 +32,73 @@ export function createOpenAIProvider(): IProviderClient {
       return isOpenAIAvailable()
     },
     async chat(request: ProviderChatRequest): Promise<ProviderChatResult> {
-      const timeoutMs = request.timeoutMs ?? 25_000
-      const controller = new AbortController()
-      const t = setTimeout(() => controller.abort(), timeoutMs)
+      const requestedModel = request.model?.trim() || undefined
+      const fallbackModel = requestedModel ?? DEFAULT_MODEL
       try {
+        if (request.responseFormat === 'json_object') {
+          const result = await openaiChatJson({
+            messages: request.messages,
+            model: requestedModel,
+            temperature: request.temperature ?? 0.4,
+            maxTokens: request.maxTokens ?? 1200,
+          })
+          if (!result.ok) {
+            return buildProviderFailure({
+              provider: ROLE,
+              model: result.model || fallbackModel,
+              statusCode: result.status,
+              error: result.details,
+            })
+          }
+          const parsed = parseJsonContentFromChatCompletion(result.json)
+          if (parsed == null || typeof parsed !== 'object') {
+            return buildProviderInvalidResponse({
+              provider: ROLE,
+              model: result.model || fallbackModel,
+              error: 'OpenAI returned malformed JSON response',
+            })
+          }
+          const text = extractTextFromOpenAIJson(result.json)
+          return buildProviderSuccess({
+            provider: ROLE,
+            model: result.model || fallbackModel,
+            text: isMeaningfulText(text) ? text : JSON.stringify(parsed),
+            json: parsed,
+          })
+        }
+
         const result = await openaiChatText({
           messages: request.messages,
+          model: requestedModel,
           temperature: request.temperature ?? 0.5,
           maxTokens: request.maxTokens ?? 1500,
         })
-        clearTimeout(t)
-        if (result.ok) {
-          const text = result.text ?? ''
-          const valid = isMeaningfulText(text)
-          return {
-            text: valid ? text : '',
-            model: result.model,
+        if (!result.ok) {
+          return buildProviderFailure({
             provider: ROLE,
-            status: valid ? 'ok' : 'invalid_response',
-            ...(valid ? {} : { error: sanitizeProviderError('Empty or invalid response') }),
-          }
+            model: result.model || fallbackModel,
+            statusCode: result.status,
+            error: result.details,
+          })
         }
-        const isTimeout = result.details?.toLowerCase().includes('timeout') || result.details?.toLowerCase().includes('abort')
-        return {
-          text: '',
-          model: result.model,
+        if (!isMeaningfulText(result.text)) {
+          return buildProviderInvalidResponse({
+            provider: ROLE,
+            model: result.model || fallbackModel,
+          })
+        }
+        return buildProviderSuccess({
           provider: ROLE,
-          error: sanitizeProviderError(result.details),
-          status: result.status === 429 ? 'failed' : isTimeout ? 'timeout' : 'failed',
-        }
+          model: result.model || fallbackModel,
+          text: result.text,
+        })
       } catch (e: unknown) {
-        clearTimeout(t)
-        const msg = e instanceof Error ? e.message : String(e)
-        const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('abort')
-        return {
-          text: '',
-          model: '',
+        const message = e instanceof Error ? e.message : String(e)
+        return buildProviderFailure({
           provider: ROLE,
-          error: sanitizeProviderError(msg),
-          timedOut: isTimeout,
-          status: isTimeout ? 'timeout' : 'failed',
-        }
+          model: fallbackModel,
+          error: message,
+        })
       }
     },
   }

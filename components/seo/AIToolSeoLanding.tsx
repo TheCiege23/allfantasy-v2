@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { AppWindow, ArrowRight, CheckCircle2 } from 'lucide-react'
@@ -33,6 +34,7 @@ export default function AIToolSeoLanding({ config }: AIToolSeoLandingProps) {
             <Link
               href="/app"
               className="inline-flex min-h-[52px] w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-emerald-500 px-8 py-4 text-base font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors touch-manipulation"
+              data-testid="ai-tool-seo-open-app-hero-cta"
             >
               <AppWindow className="h-5 w-5 shrink-0" />
               {t('aiToolLanding.openApp')}
@@ -61,21 +63,33 @@ export default function AIToolSeoLanding({ config }: AIToolSeoLandingProps) {
 
           <section className="mt-10">
             <h2 className="text-lg font-semibold mb-4">{t('aiToolLanding.example')}</h2>
-            <div
-              className="rounded-2xl border-2 border-dashed p-8 text-center"
-              style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel) 50%, transparent)' }}
-            >
-              <p className="text-sm" style={{ color: 'var(--muted2)' }}>
-                {t('aiToolLanding.examplePrefix')} {config.headline} {t('aiToolLanding.exampleSuffix')}
-              </p>
-              <Link
-                href={config.openToolHref}
-                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-400 hover:underline"
-              >
-                {t('aiToolLanding.openTool')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {config.screenshots.map((shot) => (
+                <div
+                  key={shot.src + shot.caption}
+                  className="overflow-hidden rounded-2xl border"
+                  style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+                >
+                  <Image
+                    src={shot.src}
+                    alt={shot.alt}
+                    width={1280}
+                    height={720}
+                    className="mode-logo-safe h-40 w-full object-cover"
+                  />
+                  <div className="px-3 py-2 text-xs" style={{ color: 'var(--muted)' }}>
+                    {shot.caption}
+                  </div>
+                </div>
+              ))}
             </div>
+            <Link
+              href={config.openToolHref}
+              className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-400 hover:underline"
+            >
+              {t('aiToolLanding.openTool')}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </section>
 
           <section className="mt-10 rounded-2xl border p-6" style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}>
@@ -86,6 +100,7 @@ export default function AIToolSeoLanding({ config }: AIToolSeoLandingProps) {
             <Link
               href="/app"
               className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-black hover:bg-emerald-400 transition-colors touch-manipulation"
+              data-testid="ai-tool-seo-open-app-final-cta"
             >
               <AppWindow className="h-4 w-4 shrink-0" />
               {t('aiToolLanding.openApp')}

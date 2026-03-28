@@ -4,11 +4,14 @@
  */
 
 import { sanitizeProviderError } from '@/lib/ai-orchestration/provider-utils'
+import type { ProviderStatus } from '@/lib/provider-config'
 
 export type ProviderId = 'openai' | 'deepseek' | 'grok' | 'clearsports'
+export type ProviderPublicId = 'openai' | 'deepseek' | 'xai' | 'clearsports'
 
 const MAX_FAILURES_PER_PROVIDER = 50
 const MAX_FALLBACK_EVENTS = 100
+const MAX_DEGRADED_MODE_EVENTS = 50
 const LATENCY_SAMPLES_PER_PROVIDER = 20
 
 interface FailureEntry {
@@ -23,8 +26,14 @@ interface FallbackEntry {
   used: ProviderId
 }
 
+interface DegradedModeEntry {
+  at: number
+  reason: string
+}
+
 const recentFailures: FailureEntry[] = []
 const fallbackEvents: FallbackEntry[] = []
+const degradedModeEvents: DegradedModeEntry[] = []
 const latencyByProvider: Partial<Record<ProviderId, number[]>> = {}
 
 function trimFailures() {
@@ -47,6 +56,18 @@ function trimFallbacks() {
     fallbackEvents.sort((a, b) => b.at - a.at)
     fallbackEvents.length = MAX_FALLBACK_EVENTS
   }
+}
+
+function trimDegradedModeEvents() {
+  if (degradedModeEvents.length > MAX_DEGRADED_MODE_EVENTS) {
+    degradedModeEvents.sort((a, b) => b.at - a.at)
+    degradedModeEvents.length = MAX_DEGRADED_MODE_EVENTS
+  }
+}
+
+function toPublicProviderId(id: ProviderId): ProviderPublicId {
+  if (id === 'grok') return 'xai'
+  return id
 }
 
 /** Record a provider failure (error message is sanitized before storage). */
@@ -73,6 +94,16 @@ export function recordProviderLatency(provider: ProviderId, latencyMs: number): 
   latencyByProvider[provider] = arr
 }
 
+/** Record a degraded-mode activation event (safe reason string only). */
+export function recordDegradedModeActivation(reason: string): void {
+  const safeReason = sanitizeProviderError(reason).slice(0, 160) || 'degraded_mode_active'
+  degradedModeEvents.push({
+    at: Date.now(),
+    reason: safeReason,
+  })
+  trimDegradedModeEvents()
+}
+
 /** Safe log for server logs only (no secrets). */
 export function logDiagnosticsEvent(event: 'failure' | 'fallback' | 'latency', provider: string, detail?: string): void {
   if (process.env.NODE_ENV === 'development' || event === 'failure') {
@@ -85,35 +116,48 @@ export function logDiagnosticsEvent(event: 'failure' | 'fallback' | 'latency', p
 export type ProviderStatusState = 'configured' | 'available' | 'degraded' | 'unavailable' | 'fallback_active'
 
 export interface ProviderDiagnosticsEntry {
-  id: ProviderId
+  id: ProviderPublicId
   state: ProviderStatusState
   configured: boolean
   available: boolean
   healthy?: boolean
   error?: string
+  fallbackActive: boolean
+  degradedReasons: string[]
   lastLatencyMs?: number
+  avgLatencyMs?: number
+  latencyTrend: 'unknown' | 'stable' | 'elevated' | 'critical'
   recentFailureCount: number
   lastFailureAt?: number
   fallbackUsedCount: number
 }
 
 export interface RecentFailureSummary {
-  provider: ProviderId
+  provider: ProviderPublicId
   at: number
   error?: string
 }
 
 export interface FallbackEventSummary {
   at: number
-  primary: ProviderId
-  used: ProviderId
+  primary: ProviderPublicId
+  used: ProviderPublicId
+}
+
+export interface DegradedModeSummary {
+  active: boolean
+  recentEvents: Array<{
+    at: number
+    reason: string
+  }>
 }
 
 export interface ProviderDiagnosticsPayload {
   providers: ProviderDiagnosticsEntry[]
   recentFailures: RecentFailureSummary[]
   fallbackEvents: FallbackEventSummary[]
-  latencyTrend: Record<ProviderId, number[]>
+  degradedMode: DegradedModeSummary
+  latencyTrend: Record<ProviderPublicId, number[]>
   generatedAt: number
 }
 
@@ -129,50 +173,139 @@ function getFallbackUsedCount(provider: ProviderId, windowMs: number = 3600_000)
   return fallbackEvents.filter((e) => e.primary === provider && e.at >= cutoff).length
 }
 
+function getLatestFailure(provider: ProviderId): FailureEntry | undefined {
+  return recentFailures.filter((e) => e.provider === provider).sort((a, b) => b.at - a.at)[0]
+}
+
+function getLatencyStats(provider: ProviderId): {
+  lastLatencyMs?: number
+  avgLatencyMs?: number
+  trend: 'unknown' | 'stable' | 'elevated' | 'critical'
+} {
+  const samples = latencyByProvider[provider] || []
+  if (samples.length === 0) {
+    return { trend: 'unknown' }
+  }
+
+  const lastLatencyMs = samples[samples.length - 1]
+  const recent = samples.slice(-5)
+  const avgLatencyMs = Math.round(recent.reduce((sum, value) => sum + value, 0) / recent.length)
+
+  let trend: 'unknown' | 'stable' | 'elevated' | 'critical' = 'stable'
+  if (avgLatencyMs >= 3500) trend = 'critical'
+  else if (avgLatencyMs >= 1800) trend = 'elevated'
+
+  return { lastLatencyMs, avgLatencyMs, trend }
+}
+
+interface ProviderHealthEntryInput {
+  role: string
+  available: boolean
+  healthy?: boolean
+  error?: string
+}
+
+interface ClearSportsHealthInput {
+  configured: boolean
+  available: boolean
+  latencyMs?: number
+  error?: string
+}
+
 /** Build safe diagnostics payload for admin (no secrets, no stack traces). */
-export function getProviderDiagnostics(healthEntries: Array<{ role: string; available: boolean; healthy?: boolean; error?: string }>, clearsportsConfigured: boolean, clearsportsAvailable: boolean): ProviderDiagnosticsPayload {
+export function getProviderDiagnostics(input: {
+  healthEntries: ProviderHealthEntryInput[]
+  providerStatus: ProviderStatus
+  clearSportsHealth: ClearSportsHealthInput
+}): ProviderDiagnosticsPayload {
+  const { healthEntries, providerStatus, clearSportsHealth } = input
   const windowMs = 3600_000
-  const providerIds: ProviderId[] = ['openai', 'deepseek', 'grok']
-  const entries: ProviderDiagnosticsEntry[] = providerIds.map((id) => {
-    const health = healthEntries.find((e) => e.role === id)
-    const configured = !!health?.available
-    const available = !!health?.available
+  const entries: ProviderDiagnosticsEntry[] = []
+
+  const aiProviders: Array<{ runtimeId: Extract<ProviderId, 'openai' | 'deepseek' | 'grok'>; configured: boolean }> = [
+    { runtimeId: 'openai', configured: providerStatus.openai },
+    { runtimeId: 'deepseek', configured: providerStatus.deepseek },
+    { runtimeId: 'grok', configured: providerStatus.xai },
+  ]
+
+  for (const { runtimeId, configured } of aiProviders) {
+    const health = healthEntries.find((entry) => entry.role === runtimeId)
+    const probePresent = Boolean(health)
     const healthy = health?.healthy
-    const failureCount = getRecentFailureCount(id, windowMs)
-    const fallbackCount = getFallbackUsedCount(id, windowMs)
-    const lastFailure = recentFailures.filter((e) => e.provider === id).sort((a, b) => b.at - a.at)[0]
-    const latencies = latencyByProvider[id]
-    const lastLatencyMs = latencies?.length ? latencies[latencies.length - 1] : undefined
+    const available = configured && (probePresent ? healthy !== false : false)
+    const failureCount = getRecentFailureCount(runtimeId, windowMs)
+    const fallbackCount = getFallbackUsedCount(runtimeId, windowMs)
+    const lastFailure = getLatestFailure(runtimeId)
+    const latency = getLatencyStats(runtimeId)
+    const fallbackActive = fallbackCount > 0
+    const degradedReasons: string[] = []
+    if (failureCount >= 3) degradedReasons.push('recent_failures')
+    if (latency.trend === 'elevated') degradedReasons.push('latency_elevated')
+    if (latency.trend === 'critical') degradedReasons.push('latency_critical')
+    if (healthy === false) degradedReasons.push('health_check_failed')
+    const degraded = available && degradedReasons.length > 0
 
     let state: ProviderStatusState = 'unavailable'
-    if (configured && available) {
-      if (fallbackCount > 0 && failureCount > 0) state = 'fallback_active'
-      else if (healthy === false || failureCount > 2) state = 'degraded'
-      else if (healthy === true || healthy === undefined) state = 'available'
-      else state = 'configured'
-    } else if (configured) state = 'configured'
+    if (!configured) state = 'unavailable'
+    else if (!probePresent) state = 'configured'
+    else if (!available) state = 'unavailable'
+    else if (fallbackActive) state = 'fallback_active'
+    else if (degraded) state = 'degraded'
+    else state = 'available'
 
-    return {
-      id,
+    entries.push({
+      id: toPublicProviderId(runtimeId),
       state,
       configured,
       available,
       healthy,
-      error: health?.error,
-      lastLatencyMs,
+      error: health?.error ? sanitizeProviderError(health.error) : undefined,
+      fallbackActive,
+      degradedReasons,
+      lastLatencyMs: latency.lastLatencyMs,
+      avgLatencyMs: latency.avgLatencyMs,
+      latencyTrend: latency.trend,
       recentFailureCount: failureCount,
       lastFailureAt: lastFailure?.at,
       fallbackUsedCount: fallbackCount,
-    }
-  })
+    })
+  }
+
+  const clearsportsConfigured = providerStatus.clearsports || clearSportsHealth.configured
+  const clearsportsProbePresent = clearSportsHealth != null
+  const clearsportsAvailable = clearsportsConfigured && clearSportsHealth.available
+  const clearSportsFailureCount = getRecentFailureCount('clearsports', windowMs)
+  const clearSportsLastFailure = getLatestFailure('clearsports')
+  const clearSportsLatency = getLatencyStats('clearsports')
+  const clearSportsDegradedReasons: string[] = []
+  if (clearSportsFailureCount >= 3) clearSportsDegradedReasons.push('recent_failures')
+  if (clearSportsLatency.trend === 'elevated') clearSportsDegradedReasons.push('latency_elevated')
+  if (clearSportsLatency.trend === 'critical') clearSportsDegradedReasons.push('latency_critical')
+  const clearSportsDegraded = clearsportsAvailable && clearSportsDegradedReasons.length > 0
+
+  let clearSportsState: ProviderStatusState = 'unavailable'
+  if (!clearsportsConfigured) clearSportsState = 'unavailable'
+  else if (!clearsportsProbePresent) clearSportsState = 'configured'
+  else if (!clearsportsAvailable) clearSportsState = 'unavailable'
+  else if (clearSportsDegraded) clearSportsState = 'degraded'
+  else clearSportsState = 'available'
 
   entries.push({
     id: 'clearsports',
-    state: clearsportsConfigured && clearsportsAvailable ? 'available' : clearsportsConfigured ? 'configured' : 'unavailable',
+    state: clearSportsState,
     configured: clearsportsConfigured,
     available: clearsportsAvailable,
-    healthy: clearsportsAvailable ? undefined : undefined,
-    recentFailureCount: recentFailures.filter((e) => e.provider === 'clearsports').length,
+    healthy: clearsportsProbePresent ? clearSportsHealth.available : undefined,
+    error: clearSportsHealth.error
+      ? sanitizeProviderError(clearSportsHealth.error)
+      : clearSportsLastFailure?.error,
+    fallbackActive: false,
+    degradedReasons: clearSportsDegradedReasons,
+    lastLatencyMs: clearSportsLatency.lastLatencyMs ?? clearSportsHealth.latencyMs,
+    avgLatencyMs: clearSportsLatency.avgLatencyMs,
+    latencyTrend: clearSportsLatency.trend,
+    recentFailureCount: clearSportsFailureCount,
+    lastFailureAt: clearSportsLastFailure?.at,
     fallbackUsedCount: 0,
   })
 
@@ -180,25 +313,35 @@ export function getProviderDiagnostics(healthEntries: Array<{ role: string; avai
     .slice()
     .sort((a, b) => b.at - a.at)
     .slice(0, 30)
-    .map((e) => ({ provider: e.provider, at: e.at, error: e.error }))
+    .map((e) => ({ provider: toPublicProviderId(e.provider), at: e.at, error: e.error }))
 
   const fallbackSummary = fallbackEvents
     .slice()
     .sort((a, b) => b.at - a.at)
     .slice(0, 30)
-    .map((e) => ({ at: e.at, primary: e.primary, used: e.used }))
+    .map((e) => ({ at: e.at, primary: toPublicProviderId(e.primary), used: toPublicProviderId(e.used) }))
 
-  const latencyTrend: Record<ProviderId, number[]> = {
+  const latencyTrend: Record<ProviderPublicId, number[]> = {
     openai: [...(latencyByProvider.openai || [])],
     deepseek: [...(latencyByProvider.deepseek || [])],
-    grok: [...(latencyByProvider.grok || [])],
-    clearsports: [],
+    xai: [...(latencyByProvider.grok || [])],
+    clearsports: [...(latencyByProvider.clearsports || [])],
   }
+
+  const recentDegradedModeEvents = degradedModeEvents
+    .slice()
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 20)
+    .map((event) => ({ at: event.at, reason: event.reason }))
 
   return {
     providers: entries,
     recentFailures: failureSummary,
     fallbackEvents: fallbackSummary,
+    degradedMode: {
+      active: recentDegradedModeEvents.length > 0,
+      recentEvents: recentDegradedModeEvents,
+    },
     latencyTrend,
     generatedAt: Date.now(),
   }

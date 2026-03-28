@@ -3487,6 +3487,7 @@ model BlogArticle {
   updatedAt    DateTime  @updatedAt
 
   publishLogs  BlogPublishLog[]
+  draft        BlogDraft?
 
   @@index([publishStatus])
   @@index([sport])
@@ -3494,6 +3495,32 @@ model BlogArticle {
   @@index([publishedAt])
   @@index([createdAt])
   @@map("blog_articles")
+}
+
+/// Blog draft lifecycle record. Preserves editable draft state separately from published rendering.
+model BlogDraft {
+  draftId         String    @id @default(cuid())
+  articleId       String    @unique @db.VarChar(64)
+  title           String    @db.VarChar(512)
+  slug            String    @db.VarChar(512)
+  sport           String    @db.VarChar(16)
+  category        String    @db.VarChar(64)
+  excerpt         String?   @db.VarChar(1024)
+  body            String    @db.Text
+  seoTitle        String?   @db.VarChar(512)
+  seoDescription  String?   @db.VarChar(512)
+  tags            Json      @default("[]")
+  draftStatus     String    @db.VarChar(24)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  article BlogArticle @relation(fields: [articleId], references: [articleId], onDelete: Cascade)
+
+  @@index([draftStatus])
+  @@index([sport])
+  @@index([category])
+  @@index([updatedAt])
+  @@map("blog_drafts")
 }
 
 /// Blog publish lifecycle log (publish, schedule, draft save).

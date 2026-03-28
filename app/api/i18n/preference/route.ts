@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server"
-import { DEFAULT_LANG, resolveLanguage } from "@/lib/i18n/constants"
+import { DEFAULT_LANG, resolveLanguage, LANG_COOKIE_KEY } from "@/lib/i18n/constants"
 
 export const runtime = "nodejs"
-
-const COOKIE_NAME = "af_lang"
 
 export async function POST(req: Request) {
   try {
@@ -12,7 +10,7 @@ export async function POST(req: Request) {
 
     const response = NextResponse.json({ ok: true, language: nextLanguage })
     response.cookies.set({
-      name: COOKIE_NAME,
+      name: LANG_COOKIE_KEY,
       value: nextLanguage,
       path: "/",
       sameSite: "lax",

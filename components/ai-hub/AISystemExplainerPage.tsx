@@ -2,7 +2,76 @@
 
 import Link from 'next/link'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
-import { Bot, Cpu, Zap, ArrowRight, Sparkles } from 'lucide-react'
+import {
+  ArrowRight,
+  Bot,
+  BrainCircuit,
+  Cpu,
+  Gauge,
+  Layers3,
+  Network,
+  ShieldCheck,
+  Sparkles,
+  Workflow,
+  Zap,
+} from 'lucide-react'
+
+const APP_SURFACES = [
+  {
+    title: 'Fantasy leagues',
+    description: 'League workflows, roster moves, and decision support inside Sports App.',
+    href: '/app',
+  },
+  {
+    title: 'Bracket challenges',
+    description: 'Bracket analysis, simulations, and AI-assisted tournament strategy.',
+    href: '/brackets',
+  },
+  {
+    title: 'AI tools',
+    description: 'Unified AI Workbench for run, compare, and provider-aware reasoning.',
+    href: '/ai/tools',
+  },
+  {
+    title: 'Dynasty tools',
+    description: 'Long-horizon valuation, strategy planning, and lifecycle decision support.',
+    href: '/af-legacy',
+  },
+  {
+    title: 'Creator leagues',
+    description: 'Creator-facing league experiences with AI-enhanced growth and content support.',
+    href: '/creator-leagues',
+  },
+  {
+    title: 'Legacy history',
+    description: 'Hall of Fame, story systems, and identity narratives grounded in deterministic history.',
+    href: '/app/hall-of-fame',
+  },
+  {
+    title: 'Analytics tools',
+    description: 'Meta insights, trend intelligence, and confidence-aware recommendation context.',
+    href: '/app/meta-insights',
+  },
+] as const
+
+const ORCHESTRATION_MODES = [
+  {
+    title: 'Single Model',
+    description: 'One provider executes the full response path for speed and clarity.',
+  },
+  {
+    title: 'Specialist Mode',
+    description: 'Tool-specific provider routing based on deterministic context and use case.',
+  },
+  {
+    title: 'Consensus Mode',
+    description: 'Multiple providers are compared and disagreements are surfaced clearly.',
+  },
+  {
+    title: 'Unified Brain Mode',
+    description: 'Deterministic facts + DeepSeek reasoning + xAI narrative framing + OpenAI synthesis.',
+  },
+] as const
 
 export default function AISystemExplainerPage() {
   return (
@@ -14,12 +83,30 @@ export default function AISystemExplainerPage() {
 
       <article className="flex-1 px-4 py-8 sm:px-6 sm:py-12">
         <div className="mx-auto max-w-3xl">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            How the AllFantasy AI system works
+          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+            <BrainCircuit className="h-3.5 w-3.5" />
+            AI System Explainer
+          </div>
+          <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
+            How AllFantasy AI works across the entire app
           </h1>
           <p className="mt-4 text-base leading-relaxed" style={{ color: 'var(--muted)' }}>
-            AllFantasy combines deterministic engines with multiple AI providers so you get reliable numbers first, then clear explanations and advice.
+            AllFantasy uses a deterministic-first AI architecture. Core engines compute the facts,
+            then AI explains, compares, and recommends without overriding deterministic rules.
+            This powers Chimmy, tools, leagues, bracket strategy, dynasty workflows, creator systems,
+            legacy history, and analytics surfaces.
           </p>
+          <div className="mt-6">
+            <Link
+              href="/ai/tools"
+              data-testid="ai-system-try-tools-final-button"
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
+            >
+              <Sparkles className="h-5 w-5 shrink-0" />
+              Try AI Tools
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </Link>
+          </div>
 
           <section className="mt-10">
             <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -27,7 +114,10 @@ export default function AISystemExplainerPage() {
               Chimmy overview
             </h2>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-              Chimmy is your AI fantasy assistant. You can ask Chimmy about trades, waivers, drafts, matchups, and league strategy. Chimmy uses the same unified AI layer as the rest of the app: your question is turned into a structured context (envelope) that includes league data, sport, and any deterministic results we already have. Chimmy then gets an answer from our AI providers and returns a clear, on-topic response. Chimmy does not invent stats or override our engines—it explains and advises within the facts we give it.
+              Chimmy is the conversational face of AllFantasy AI. Chimmy turns your natural-language
+              question into a structured context envelope that includes sport, league context,
+              deterministic evidence, confidence metadata, and risk caveats. Chimmy is designed
+              to stay calm, clear, and trustworthy.
             </p>
           </section>
 
@@ -37,7 +127,11 @@ export default function AISystemExplainerPage() {
               Deterministic-first AI
             </h2>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-              Before any AI runs, AllFantasy runs deterministic engines where they apply: trade fairness and lineup impact, rankings and tiers, waiver priority, simulation outcomes, legacy score, reputation, and draft value. Those results are passed into the AI as context. The AI is instructed not to override or contradict them. So you get consistent numbers (scores, orderings, probabilities) from our rules, and the AI adds explanation, narrative, and recommendations that stay aligned with those numbers. This keeps outputs trustworthy and repeatable.
+              Before AI generates any narrative, deterministic layers compute the numbers: trade
+              fairness, lineup impact, rankings and tiers, waiver priority, simulation outcomes,
+              legacy scoring, reputation signals, and draft value context. Those outputs are passed
+              into model prompts as hard evidence. AI explains and extends; it does not replace
+              deterministic computation.
             </p>
           </section>
 
@@ -47,14 +141,93 @@ export default function AISystemExplainerPage() {
               OpenAI, DeepSeek, and xAI (Grok)
             </h2>
             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-              AllFantasy can use multiple AI providers: OpenAI (e.g. GPT-4), DeepSeek, and xAI (Grok), plus OpenClaw assistant routing for workflow-focused assistant surfaces. Each is wired through a single orchestration layer. The app chooses which provider to call based on availability, your request, and optional routing hints. If one provider is unavailable or rate-limited, the system can fall back to another. You don’t have to pick a provider yourself—the system handles it. All providers receive the same deterministic context and rules so behavior stays consistent no matter which model answers.
+              OpenAI, DeepSeek, and xAI are orchestrated through one provider layer.
+              OpenAI focuses on final synthesis and clear action planning.
+              DeepSeek focuses on structured reasoning, calculations, and analysis depth.
+              xAI focuses on narrative framing and trend-forward context.
+              All three consume deterministic evidence and follow the same safety envelope.
+            </p>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Workflow className="h-5 w-5 text-cyan-400" aria-hidden />
+              Orchestration modes
+            </h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {ORCHESTRATION_MODES.map((mode) => (
+                <div
+                  key={mode.title}
+                  className="rounded-xl border p-4"
+                  style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+                >
+                  <h3 className="text-sm font-semibold">{mode.title}</h3>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                    {mode.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Layers3 className="h-5 w-5 text-emerald-400" aria-hidden />
+              AI across AllFantasy
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
+              AI is not a separate product tier. It is a system layer integrated across core
+              AllFantasy experiences.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {APP_SURFACES.map((surface) => (
+                <Link
+                  key={surface.href + surface.title}
+                  href={surface.href}
+                  className="rounded-xl border p-4 transition-colors hover:opacity-90"
+                  style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+                >
+                  <h3 className="text-sm font-semibold">{surface.title}</h3>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
+                    {surface.description}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Network className="h-5 w-5 text-amber-400" aria-hidden />
+              Reliability and fallback behavior
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
+              Provider health and fallback routing are monitored continuously. If one provider
+              fails or is degraded, orchestration can route to another provider while preserving
+              deterministic evidence and safety constraints. Output includes confidence and
+              uncertainty notes when data quality is partial.
+            </p>
+          </section>
+
+          <section className="mt-10">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-rose-400" aria-hidden />
+              Safety and trust boundaries
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
+              AllFantasy AI is constrained to avoid invented stats, unsupported claims, and
+              deterministic conflicts. Risk and uncertainty are surfaced explicitly. This keeps
+              recommendations actionable without pretending to have certainty where data is missing.
             </p>
           </section>
 
           <section className="mt-10 rounded-2xl border p-6" style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}>
-            <h2 className="text-lg font-semibold mb-2">Try AI tools</h2>
+            <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Gauge className="h-5 w-5 text-cyan-400" />
+              Explore the AI system live
+            </h2>
             <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-              Trade analyzer, waiver AI, draft helper, matchup sim, fantasy coach, and more—all use this system.
+              Open the Unified AI Workbench to run tools, compare providers, and inspect confidence-aware outputs.
             </p>
             <Link
               href="/ai/tools"

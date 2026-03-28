@@ -8,6 +8,7 @@ import {
   getNextTheme,
   type ThemeId,
 } from "@/lib/theme"
+import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
 
 export type AppMode = ThemeId
 
@@ -36,11 +37,18 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== THEME_STORAGE_KEY) return
+      setModeState(resolveTheme(event.newValue))
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
+
+  useEffect(() => {
     if (typeof document === "undefined") return
-    document.documentElement.dataset.mode = mode
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, mode)
-    } catch {}
+    setStoredTheme(mode)
   }, [mode])
 
   const api = useMemo<ThemeCtx>(() => {

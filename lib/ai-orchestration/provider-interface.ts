@@ -19,6 +19,9 @@ export interface IProviderClient {
   healthCheck?(): Promise<boolean>
 }
 
+/** Alias name used by orchestration architecture docs. */
+export type AIProviderInterface = IProviderClient
+
 /** Default timeout when not specified (ms). */
 export const DEFAULT_PROVIDER_TIMEOUT_MS = 25_000
 

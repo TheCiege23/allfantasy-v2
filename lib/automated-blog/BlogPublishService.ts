@@ -25,6 +25,10 @@ export async function publishArticle(articleId: string): Promise<{ ok: boolean; 
       where: { articleId },
       data: { publishStatus: "published", publishedAt: new Date() },
     }),
+    prisma.blogDraft.updateMany({
+      where: { articleId },
+      data: { draftStatus: "published_snapshot" },
+    }),
     prisma.blogPublishLog.create({
       data: {
         articleId,
@@ -54,6 +58,10 @@ export async function scheduleArticle(
       where: { articleId },
       data: { publishStatus: "scheduled", publishedAt: scheduledAt },
     }),
+    prisma.blogDraft.updateMany({
+      where: { articleId },
+      data: { draftStatus: "scheduled" },
+    }),
     prisma.blogPublishLog.create({
       data: {
         articleId,
@@ -70,13 +78,19 @@ export async function unpublishArticle(articleId: string): Promise<{ ok: boolean
   if (!article) return { ok: false, error: "Article not found" }
   if (article.publishStatus === "draft") return { ok: true }
 
-  await prisma.blogArticle.update({
-    where: { articleId },
-    data: { publishStatus: "draft", publishedAt: null },
-  })
-  await prisma.blogPublishLog.create({
-    data: { articleId, actionType: "unpublish", status: "success" },
-  })
+  await prisma.$transaction([
+    prisma.blogArticle.update({
+      where: { articleId },
+      data: { publishStatus: "draft", publishedAt: null },
+    }),
+    prisma.blogDraft.updateMany({
+      where: { articleId },
+      data: { draftStatus: "draft" },
+    }),
+    prisma.blogPublishLog.create({
+      data: { articleId, actionType: "unpublish", status: "success" },
+    }),
+  ])
   return { ok: true }
 }
 

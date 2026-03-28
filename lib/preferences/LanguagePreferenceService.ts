@@ -3,7 +3,13 @@
  * Uses lib/i18n for constants.
  */
 
-import { LANG_STORAGE_KEY, DEFAULT_LANG, resolveLanguage, type LanguageCode } from "@/lib/i18n/constants"
+import {
+  LANG_STORAGE_KEY,
+  LANG_COOKIE_KEY,
+  DEFAULT_LANG,
+  resolveLanguage,
+  type LanguageCode,
+} from "@/lib/i18n/constants"
 
 export type { LanguageCode }
 
@@ -18,5 +24,14 @@ export function getStoredLanguage(): LanguageCode {
 export function setStoredLanguage(lang: LanguageCode): void {
   try {
     window.localStorage.setItem(LANG_STORAGE_KEY, lang)
+  } catch {}
+  try {
+    document.cookie = `${LANG_COOKIE_KEY}=${lang}; path=/; max-age=31536000; samesite=lax`
+  } catch {}
+  try {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.lang = lang
+      document.documentElement.lang = lang
+    }
   } catch {}
 }

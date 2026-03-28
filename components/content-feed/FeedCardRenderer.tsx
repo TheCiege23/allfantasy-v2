@@ -43,6 +43,14 @@ function formatTime(iso: string): string {
   return d.toLocaleDateString()
 }
 
+function getSafeHref(rawHref: string | null | undefined): string {
+  const href = typeof rawHref === "string" ? rawHref.trim() : ""
+  if (!href) return "/feed"
+  if (href.startsWith("/")) return href
+  if (/^https?:\/\//i.test(href)) return href
+  return "/feed"
+}
+
 export interface FeedCardRendererProps {
   item: ContentFeedItem
   onFollowCreator?: (creatorHandle: string) => void
@@ -61,6 +69,7 @@ export function FeedCardRenderer({
   const showCreatorCta =
     item.type === "creator_post" && (item.creatorHandle ?? item.creatorId)
   const safeId = item.id.replace(/[^a-zA-Z0-9_-]/g, "_")
+  const itemHref = getSafeHref(item.href)
   const isAiInsightCard =
     item.type === "ai_insight" || item.type === "ai_story_card" || item.type === "power_rankings_card"
 
@@ -72,7 +81,7 @@ export function FeedCardRenderer({
       data-testid={`content-feed-card-${safeId}`}
     >
       <Link
-        href={item.href}
+        href={itemHref}
         className="block p-4"
         data-testid={
           isAiInsightCard
@@ -117,6 +126,7 @@ export function FeedCardRenderer({
               href={`/creators/${item.creatorHandle ?? item.creatorId}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10 transition"
+              data-testid={`content-feed-view-creator-cta-${safeId}`}
             >
               <User className="h-3.5 w-3.5" />
               {item.creatorDisplayName || item.creatorHandle || "View creator"}
@@ -131,6 +141,7 @@ export function FeedCardRenderer({
                 onFollowCreator(item.creatorHandle!)
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 px-2.5 py-1.5 text-xs font-medium text-cyan-300 hover:bg-cyan-500/20 transition"
+              data-testid={`content-feed-follow-creator-cta-${safeId}`}
             >
               Follow
             </button>
@@ -146,6 +157,7 @@ export function FeedCardRenderer({
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:bg-white/10 transition"
             aria-label={isSaved ? "Unsave" : "Save"}
+            data-testid={`content-feed-save-item-cta-${safeId}`}
           >
             <Bookmark
               className={`h-3.5 w-3.5 ${isSaved ? "fill-amber-400/80 text-amber-400/80" : ""}`}

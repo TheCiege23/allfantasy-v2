@@ -43,7 +43,7 @@ const CHECKLIST_SPEC: Record<
   referral_share: {
     label: "Refer a friend or share",
     description: "Share AllFantasy and grow your league.",
-    href: "/dashboard",
+    href: "/referral",
     ctaLabel: "Share",
   },
 }
@@ -120,6 +120,19 @@ export async function recordMilestone(
   meta?: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const dedupeWindowStart = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    const recent = await prisma.engagementEvent.findFirst({
+      where: {
+        userId,
+        eventType,
+        createdAt: { gte: dedupeWindowStart },
+      },
+      select: { id: true },
+    })
+    if (recent) {
+      return { ok: true }
+    }
+
     await prisma.engagementEvent.create({
       data: {
         userId,

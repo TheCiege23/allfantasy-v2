@@ -22,9 +22,12 @@ export default function SportSeoLanding({ config }: SportSeoLandingProps) {
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             {config.headline}
           </h1>
-          <p className="mt-4 text-base leading-relaxed" style={{ color: 'var(--muted)' }}>
-            {config.body}
-          </p>
+          <section className="mt-6">
+            <h2 className="text-lg font-semibold mb-2">Sport overview</h2>
+            <p className="text-base leading-relaxed" style={{ color: 'var(--muted)' }}>
+              {config.body}
+            </p>
+          </section>
 
           <section className="mt-8">
             <h2 className="text-lg font-semibold mb-4">Tools available</h2>
@@ -39,6 +42,7 @@ export default function SportSeoLanding({ config }: SportSeoLandingProps) {
                       background: 'var(--panel)',
                       color: 'var(--text)',
                     }}
+                    data-testid={`sport-seo-tool-link-${label.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     {label}
                     <ArrowRight className="h-4 w-4 shrink-0" />
@@ -56,6 +60,7 @@ export default function SportSeoLanding({ config }: SportSeoLandingProps) {
             <Link
               href="/app"
               className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
+              data-testid="sport-seo-open-app-cta"
             >
               <AppWindow className="h-5 w-5 shrink-0" />
               Open AllFantasy App

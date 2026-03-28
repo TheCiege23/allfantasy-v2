@@ -98,6 +98,11 @@ export interface AISocialClipAuditMeta {
   outputType: ClipOutputType;
   sport: string;
   providersUsed: ProviderRole[];
+  providerStatus?: {
+    xai: boolean;
+    openai: boolean;
+    deepseek: boolean;
+  };
   factCheckPassed?: boolean;
   moderationPassed: boolean;
   generatedAt: string;

@@ -1,130 +1,41 @@
-'use client'
+import type { Metadata } from 'next'
+import LandingPageClient from '@/components/landing/LandingPageClient'
+import { buildSeoMeta } from '@/lib/seo'
+import { getSoftwareApplicationSchema, getWebPageSchema } from '@/lib/seo'
+import { PageJsonLd } from '@/components/seo/JsonLd'
 
-import { Suspense, useMemo } from 'react'
-import dynamic from 'next/dynamic'
-import Link from 'next/link'
-import Image from 'next/image'
-import HomeTopNav from '@/components/navigation/HomeTopNav'
-import LandingHero from '@/components/landing/LandingHero'
-import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import {
-  buildLoginHrefWithIntent,
-  buildSignupHrefWithIntent,
-} from '@/lib/auth/PostAuthIntentRouter'
+export const metadata: Metadata = buildSeoMeta({
+  title: 'AllFantasy Sports App – Fantasy Sports With AI Superpowers',
+  description:
+    'AllFantasy combines fantasy leagues, bracket challenges, and AI tools to help you draft smarter, analyze trades, dominate waivers, and win your league.',
+  canonicalPath: '/',
+  openGraphTitle: 'AllFantasy Sports App',
+  openGraphDescription:
+    'Fantasy sports with AI superpowers across leagues, brackets, waivers, draft prep, and advanced analytics.',
+  twitterTitle: 'AllFantasy Sports App',
+  twitterDescription: 'Draft smarter, analyze trades, dominate waivers, and win your league.',
+})
 
-/** Below-the-fold: minimal features, AI value, final CTA. PROMPT 282 — minimal landing. */
-const LandingFeaturesMinimal = dynamic(
-  () => import('@/components/landing/LandingFeaturesMinimal').then((m) => m.default),
-  { ssr: true, loading: () => <SectionSkeleton /> }
-)
-const LandingAIValue = dynamic(
-  () => import('@/components/landing/LandingAIValue').then((m) => m.default),
-  { ssr: true, loading: () => <SectionSkeleton /> }
-)
-const LandingFinalCTA = dynamic(
-  () => import('@/components/landing/LandingFinalCTA').then((m) => m.default),
-  { ssr: true, loading: () => <SectionSkeleton /> }
-)
+const HOME_WEBPAGE_SCHEMA = getWebPageSchema({
+  name: 'AllFantasy Sports App',
+  description:
+    'Fantasy sports platform with AI-powered analysis for trades, waivers, draft prep, bracket strategy, and league management.',
+  url: '/',
+})
 
-function SectionSkeleton() {
+const HOME_SOFTWARE_APP_SCHEMA = getSoftwareApplicationSchema({
+  name: 'AllFantasy Sports App',
+  description:
+    'AI-powered fantasy sports tools for leagues, brackets, draft prep, waivers, trade analysis, and in-season optimization.',
+  url: 'https://allfantasy.ai/',
+  applicationCategory: 'SportsApplication',
+})
+
+export default function HomePage() {
   return (
-    <section className="min-h-[160px] border-t px-4 py-12 sm:px-6" style={{ borderColor: 'var(--border)' }}>
-      <div className="mx-auto max-w-3xl animate-pulse rounded-xl" style={{ background: 'color-mix(in srgb, var(--panel) 40%, transparent)', height: 140 }} />
-    </section>
-  )
-}
-
-function LandingContent() {
-  const { t } = useLanguage()
-  const defaultLoginHref = buildLoginHrefWithIntent('/dashboard')
-  const defaultSignupHref = buildSignupHrefWithIntent('/dashboard')
-
-  const jsonLd = useMemo(
-    () => ({
-      '@context': 'https://schema.org',
-      '@type': 'SoftwareApplication',
-      name: 'AllFantasy',
-      applicationCategory: 'SportsApplication',
-      operatingSystem: 'Web',
-      description: t('landing.hero.subline'),
-      url: 'https://allfantasy.ai/',
-      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    }),
-    [t]
-  )
-
-  return (
-    <main
-      className="min-h-screen flex flex-col mode-readable"
-      style={{ background: 'var(--bg)', color: 'var(--text)' }}
-    >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-
-      <HomeTopNav />
-
-      <LandingHero />
-      <LandingFeaturesMinimal />
-      <LandingAIValue />
-      <LandingFinalCTA />
-
-      <footer className="border-t py-6 text-xs" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
-        <div className="mx-auto flex max-w-4xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="flex items-center gap-2" aria-label="AllFantasy home">
-              <Image
-                src="/af-crest.png"
-                alt=""
-                width={20}
-                height={20}
-                className="rounded-lg border object-contain"
-                style={{ borderColor: 'var(--border)' }}
-                sizes="20px"
-              />
-              <span>© {new Date().getFullYear()} AllFantasy</span>
-            </Link>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span style={{ color: 'var(--muted)' }}>© {new Date().getFullYear()} AllFantasy · {t('landing.footer.tagline')}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href={defaultSignupHref} className="hover:underline">
-              {t('common.signUp')}
-            </Link>
-            <Link href={defaultLoginHref} className="hover:underline">
-              {t('common.signIn')}
-            </Link>
-            <Link href="/privacy" className="hover:underline">
-              {t('landing.footer.privacy')}
-            </Link>
-            <Link href="/terms" className="hover:underline">
-              {t('landing.footer.terms')}
-            </Link>
-            <Link href="/disclaimer" className="hover:underline">
-              Disclaimer
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </main>
-  )
-}
-
-export default function Home() {
-  return (
-    <Suspense
-      fallback={
-        <main
-          className="min-h-screen flex items-center justify-center"
-          style={{ background: 'var(--bg)', color: 'var(--text)' }}
-        >
-          <div style={{ color: 'var(--muted)' }}>Loading...</div>
-        </main>
-      }
-    >
-      <LandingContent />
-    </Suspense>
+    <>
+      <PageJsonLd schemas={[HOME_WEBPAGE_SCHEMA, HOME_SOFTWARE_APP_SCHEMA]} />
+      <LandingPageClient />
+    </>
   )
 }

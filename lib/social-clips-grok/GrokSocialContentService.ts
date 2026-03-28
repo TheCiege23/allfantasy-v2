@@ -1,48 +1,47 @@
 /**
  * Calls Grok API to generate social content (Prompt 116).
- * Server-only; uses XAI_API_KEY or GROK_API_KEY from env.
+ * Server-only; loads credentials via centralized provider config.
  */
 
 import OpenAI from 'openai';
 import { buildSocialSystemPrompt, buildSocialUserPrompt } from './SocialPromptBuilder';
 import type { SocialPromptBuildInput, GrokSocialOutput } from './types';
+import { getXaiConfigFromEnv } from '@/lib/provider-config';
 
-const GROK_BASE = 'https://api.x.ai/v1';
-const GROK_MODEL = 'grok-4-0709';
+const DEFAULT_GROK_MODEL = 'grok-4-0709';
 
-function getApiKey(): string | null {
-  const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY;
-  return key?.trim() || null;
-}
-
-function getClient(): OpenAI | null {
-  const apiKey = getApiKey();
-  if (!apiKey) return null;
-  return new OpenAI({
-    apiKey,
-    baseURL: GROK_BASE,
-  });
+function getClient(): { client: OpenAI; model: string } | null {
+  const cfg = getXaiConfigFromEnv();
+  if (!cfg) return null;
+  return {
+    client: new OpenAI({
+      apiKey: cfg.apiKey,
+      baseURL: cfg.baseUrl,
+    }),
+    model: cfg.model || DEFAULT_GROK_MODEL,
+  };
 }
 
 export function isGrokConfigured(): boolean {
-  return !!getApiKey();
+  return !!getXaiConfigFromEnv();
 }
 
 export async function generateSocialContent(
   input: SocialPromptBuildInput
 ): Promise<GrokSocialOutput | null> {
-  const client = getClient();
-  if (!client) {
-    console.error('[GrokSocialContent] XAI_API_KEY/GROK_API_KEY not set');
+  const runtime = getClient();
+  if (!runtime) {
+    console.error('[GrokSocialContent] xAI provider is not configured');
     return null;
   }
+  const { client, model } = runtime;
 
   const systemPrompt = buildSocialSystemPrompt(input);
   const userPrompt = buildSocialUserPrompt(input);
 
   try {
     const response = await client.chat.completions.create({
-      model: GROK_MODEL,
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

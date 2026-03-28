@@ -56,6 +56,12 @@ type GeneratedInternalLink = {
   reason?: string;
 };
 
+type BlogProviderStatus = {
+  openai: boolean;
+  deepseek: boolean;
+  xai: boolean;
+};
+
 export default function AdminBlog() {
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +83,8 @@ export default function AdminBlog() {
   const [showGeneratedBodyPreview, setShowGeneratedBodyPreview] = useState(false);
   const [generatedSeo, setGeneratedSeo] = useState<GeneratedSEO | null>(null);
   const [generatedInternalLinks, setGeneratedInternalLinks] = useState<GeneratedInternalLink[]>([]);
+  const [providerStatus, setProviderStatus] = useState<BlogProviderStatus | null>(null);
+  const [degradedMode, setDegradedMode] = useState(false);
 
   const categoriesWithLabels = getCategoriesWithLabels();
   const topicHints = getDefaultTopicHints(category, sport);
@@ -108,6 +116,7 @@ export default function AdminBlog() {
     setGeneratedSeo(null);
     setGeneratedInternalLinks([]);
     setShowGeneratedBodyPreview(false);
+    setDegradedMode(false);
     try {
       const res = await fetch("/api/blog/generate", {
         method: "POST",
@@ -119,6 +128,16 @@ export default function AdminBlog() {
         }),
       });
       const data = await res.json();
+      if (data.providerStatus && typeof data.providerStatus === "object") {
+        setProviderStatus({
+          openai: Boolean(data.providerStatus.openai),
+          deepseek: Boolean(data.providerStatus.deepseek),
+          xai: Boolean(data.providerStatus.xai),
+        });
+      } else {
+        setProviderStatus(null);
+      }
+      setDegradedMode(Boolean(data.degradedMode));
       if (data.draft) {
         setGeneratedDraft(data.draft);
         if (data.seo && typeof data.seo === "object") {
@@ -154,6 +173,7 @@ export default function AdminBlog() {
     setGeneratedSeo(null);
     setGeneratedInternalLinks([]);
     setShowGeneratedBodyPreview(false);
+    setDegradedMode(false);
     try {
       const res = await fetch("/api/blog/generate-and-save", {
         method: "POST",
@@ -165,6 +185,15 @@ export default function AdminBlog() {
         }),
       });
       const data = await res.json();
+      if (data.providerStatus && typeof data.providerStatus === "object") {
+        setProviderStatus({
+          openai: Boolean(data.providerStatus.openai),
+          deepseek: Boolean(data.providerStatus.deepseek),
+          xai: Boolean(data.providerStatus.xai),
+        });
+      } else {
+        setProviderStatus(null);
+      }
       if (data.articleId) {
         await fetchArticles();
         setPreviewSlug(data.slug);
@@ -340,6 +369,16 @@ export default function AdminBlog() {
             Generate and save draft
           </button>
         </div>
+        {providerStatus && (
+          <p className="mt-2 text-xs text-zinc-400" data-testid="admin-blog-provider-status">
+            Providers — OpenAI: {providerStatus.openai ? "on" : "off"} · DeepSeek: {providerStatus.deepseek ? "on" : "off"} · xAI: {providerStatus.xai ? "on" : "off"}
+          </p>
+        )}
+        {degradedMode && (
+          <p className="mt-1 text-xs text-amber-300" data-testid="admin-blog-provider-fallback-message">
+            Running in fallback mode due to provider availability. Draft remains editable before publish.
+          </p>
+        )}
 
         {generatedDraft && (
           <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">

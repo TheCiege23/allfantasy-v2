@@ -9,6 +9,22 @@ import type { RetentionNudge } from "./types"
 
 const MAX_NUDGES_RETURNED = 5
 const DISMISS_COOLDOWN_HOURS = 24
+const DISMISS_TTL_DAYS = 45
+const MAX_DISMISSED_ENTRIES = 200
+const MAX_PER_TYPE: Partial<Record<RetentionNudge["type"], number>> = {
+  unfinished_reminder: 2,
+  creator_recommendation: 1,
+  sport_season_prompt: 1,
+}
+const SAFE_HREF_PREFIXES = [
+  "/dashboard",
+  "/feed",
+  "/onboarding/funnel",
+  "/leagues",
+  "/chimmy",
+  "/creators",
+  "/app",
+] as const
 
 function getDismissedMap(profile: { retentionNudgeDismissedAt?: unknown } | null): Record<string, string> {
   const raw = profile?.retentionNudgeDismissedAt
@@ -24,8 +40,49 @@ function getDismissedMap(profile: { retentionNudgeDismissedAt?: unknown } | null
 
 function isWithinCooldown(dismissedAtIso: string, hours: number): boolean {
   const at = new Date(dismissedAtIso).getTime()
+  if (!Number.isFinite(at)) return false
   const now = Date.now()
   return (now - at) / (60 * 60 * 1000) < hours
+}
+
+function sanitizeHref(href: string): string {
+  if (!href || typeof href !== "string") return "/dashboard"
+  if (href.startsWith("http://") || href.startsWith("https://")) return href
+  if (!href.startsWith("/")) return "/dashboard"
+  if (SAFE_HREF_PREFIXES.some((prefix) => href === prefix || href.startsWith(`${prefix}/`))) {
+    return href
+  }
+  return "/dashboard"
+}
+
+function applyAntiSpamLimits(nudges: RetentionNudge[]): RetentionNudge[] {
+  const seenIds = new Set<string>()
+  const perTypeCount = new Map<RetentionNudge["type"], number>()
+  const out: RetentionNudge[] = []
+
+  for (const nudge of nudges) {
+    if (seenIds.has(nudge.id)) continue
+    const typeCount = perTypeCount.get(nudge.type) ?? 0
+    const typeCap = MAX_PER_TYPE[nudge.type] ?? Number.POSITIVE_INFINITY
+    if (typeCount >= typeCap) continue
+
+    seenIds.add(nudge.id)
+    perTypeCount.set(nudge.type, typeCount + 1)
+    out.push({ ...nudge, href: sanitizeHref(nudge.href) })
+    if (out.length >= MAX_NUDGES_RETURNED) break
+  }
+
+  return out
+}
+
+function pruneDismissedMap(entries: Record<string, string>): Record<string, string> {
+  const cutoff = Date.now() - DISMISS_TTL_DAYS * 24 * 60 * 60 * 1000
+  const valid = Object.entries(entries).filter(([, iso]) => {
+    const time = new Date(iso).getTime()
+    return Number.isFinite(time) && time >= cutoff
+  })
+  valid.sort((a, b) => new Date(b[1]).getTime() - new Date(a[1]).getTime())
+  return Object.fromEntries(valid.slice(0, MAX_DISMISSED_ENTRIES))
 }
 
 /**
@@ -51,7 +108,7 @@ export async function getNudges(userId: string): Promise<RetentionNudge[]> {
     return true
   })
 
-  return filtered.slice(0, MAX_NUDGES_RETURNED)
+  return applyAntiSpamLimits(filtered)
 }
 
 /**
@@ -67,7 +124,7 @@ export async function dismissNudge(
       select: { retentionNudgeDismissedAt: true },
     })
 
-    const current = getDismissedMap(profile ?? null)
+    const current = pruneDismissedMap(getDismissedMap(profile ?? null))
     const next = { ...current, [nudgeId]: new Date().toISOString() }
 
     await prisma.userProfile.upsert({

@@ -8,8 +8,9 @@ Automated blog engine that converts fantasy insights into SEO-friendly blog draf
 
 ## Schema
 
-- **BlogArticle** (existing): Stores all articles; drafts use `publishStatus: "draft"`. No separate BlogDraft table. Fields: articleId, title, slug, sport, category, excerpt, body, seoTitle, seoDescription, tags (JSON), publishStatus, publishedAt, createdAt, updatedAt.
-- **BlogPublishLog**: Publish/schedule lifecycle logs.
+- **BlogArticle**: Canonical article row used by public rendering and publish lifecycle.
+- **BlogDraft**: Dedicated draft-state model preserving editable draft content and draft lifecycle state.
+- **BlogPublishLog**: Publish/schedule/unpublish/save lifecycle logs.
 
 ---
 
@@ -54,32 +55,32 @@ Supported sports: NFL, NHL, NBA, MLB, NCAA Basketball (NCAAB), NCAA Football (NC
 
 ## Mandatory Click Audit
 
-- [ ] **Generate draft button works**  
+- [x] **Generate draft button works**  
   In Admin Blog, "Generate preview" calls POST /api/blog/generate; "Generate and save draft" calls POST /api/blog/generate-and-save. Both use multi-provider when available (DeepSeek → xAI → OpenAI) with fallback to OpenAI-only. Result: draft in response or new article in list.
 
-- [ ] **Preview tab works**  
+- [x] **Preview tab works**  
   On /blog/draft/[articleId], "Preview" tab shows live preview of title, excerpt, and body (markdown rendered). No dead tab.
 
-- [ ] **Edit tab works**  
+- [x] **Edit tab works**  
   "Edit" tab shows form: title, slug, excerpt, body (textarea), SEOFields (seoTitle, seoDescription, tags). All fields editable.
 
-- [ ] **Save draft works**  
+- [x] **Save draft works**  
   "Save draft" sends PATCH /api/blog/[articleId] with current form values. Success toast and refetch; SEO field edits are included and persist.
 
-- [ ] **Publish action works**  
+- [x] **Publish action works**  
   "Publish" (only for drafts) calls POST /api/blog/[articleId]/publish. Article moves to published; publish log created.
 
-- [ ] **SEO field edits persist**  
+- [x] **SEO field edits persist**  
   After editing seoTitle, seoDescription, or tags and saving, GET /api/blog/[articleId] returns updated values. Preview and public page use stored SEO when applicable.
 
-- [ ] **No dead CMS-style controls**  
+- [x] **No dead CMS-style controls**  
   Every button has a clear action: Generate preview, Generate and save draft, Save draft, Publish, Edit, Preview. No placeholder or disabled-without-reason controls.
 
 ---
 
 ## Backend Requirements
 
-- **Preserve unpublished drafts**: BlogArticle with publishStatus "draft" is never exposed on public blog index; /blog/[slug] shows draft only when ?preview=1.
+- **Preserve unpublished drafts**: Draft edits are persisted in `BlogDraft`; public index excludes drafts and `/blog/[slug]` only exposes drafts with `?preview=1`.
 - **SEO metadata support**: seoTitle, seoDescription, tags on BlogArticle; buildBlogSEO for canonical, OG, keywords.
 - **Category / sport-aware tagging**: category and sport on BlogArticle; InternalLinkSuggestionService uses category and body for suggestions.
 - **Internal link suggestions**: GET /api/blog/[articleId]/internal-links returns suggestInternalLinks(article).
@@ -97,12 +98,18 @@ Supported sports: NFL, NHL, NBA, MLB, NCAA Basketball (NCAAB), NCAA Football (NC
 
 ## Files Touched / Added
 
+- `prisma/schema.prisma` (BlogDraft model + BlogArticle draft relation)
+- `prisma/migrations/20260327190000_add_blog_drafts/migration.sql` (blog draft schema migration)
 - `lib/automated-blog/types.ts` (creator_recap, player_trend_feature + prompts)
 - `lib/automated-blog/BlogTopicPlanner.ts` (hints for new categories)
 - `lib/automated-blog/BlogGenerationService.ts` (new)
-- `lib/automated-blog/BlogContentGenerator.ts` (wire multi-provider + fallback)
+- `lib/automated-blog/BlogContentGenerator.ts` (multi-provider + OpenAI + deterministic fallback)
+- `lib/automated-blog/BlogDraftWorkflowService.ts` (persist/reconcile BlogDraft records)
+- `lib/automated-blog/BlogPublishService.ts` (sync draft lifecycle status with publish actions)
 - `lib/automated-blog/InternalLinkSuggestionService.ts` (creator_recap, player_trend_feature)
 - `lib/automated-blog/index.ts` (export BlogGenerationService)
+- `app/api/blog/generate/route.ts` (provider status + degraded mode in response)
+- `app/api/blog/[articleId]/route.ts` (read/write draft-state from BlogDraft)
 - `app/api/blog/[articleId]/internal-links/route.ts` (new)
 - `app/blog/draft/[articleId]/page.tsx` (new — BlogEditor with Preview/Edit, SEOFields, InternalLinkSuggestionPanel)
 - `components/blog/SEOFields.tsx` (new)

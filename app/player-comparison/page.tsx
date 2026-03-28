@@ -1,28 +1,29 @@
 import type { Metadata } from 'next'
 import AIToolSeoLanding from '@/components/seo/AIToolSeoLanding'
-import { AI_TOOL_PAGES, getAIToolPageCanonical } from '@/lib/seo-landing/ai-tool-pages'
+import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import {
+  AI_TOOL_PAGES,
+  getAIToolPageCanonical,
+  getAIToolPageJsonLd,
+} from '@/lib/seo-landing/ai-tool-pages'
+import { buildSeoMeta } from '@/lib/seo'
 
-const config = AI_TOOL_PAGES['player-comparison']
+const slug = 'player-comparison'
+const config = AI_TOOL_PAGES[slug]
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildSeoMeta({
   title: config.title,
   description: config.description,
-  alternates: { canonical: getAIToolPageCanonical('player-comparison') },
-  openGraph: {
-    title: config.title,
-    description: config.description,
-    url: getAIToolPageCanonical('player-comparison'),
-    siteName: 'AllFantasy',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: config.title,
-    description: config.description,
-  },
-  robots: { index: true, follow: true },
-}
+  canonical: getAIToolPageCanonical(slug),
+})
 
 export default function PlayerComparisonPage() {
-  return <AIToolSeoLanding config={config} />
+  const jsonLd = getAIToolPageJsonLd(slug)
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <LandingToolVisitTracker path="/player-comparison" toolName="Player Comparison Lab" />
+      <AIToolSeoLanding config={config} />
+    </>
+  )
 }

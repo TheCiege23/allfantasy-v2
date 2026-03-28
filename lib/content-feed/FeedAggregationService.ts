@@ -163,6 +163,7 @@ export async function fetchLeagueRecapItems(
   leagueIds: string[],
   limit: number = MAX_PER_SOURCE
 ): Promise<ContentFeedItem[]> {
+  if (leagueIds.length === 0) return [];
   const where = leagueIds.length > 0 ? { leagueId: { in: leagueIds } } : {};
   const rows = await (prisma as any).mediaArticle
     ?.findMany({
@@ -197,7 +198,7 @@ export function buildAiStoryAndRankingPlaceholders(sportFilter: string | null): 
       type: "ai_story_card" as const,
       title: "AI matchup insight",
       body: "Get AI-powered matchup analysis and start/sit advice for your league.",
-      href: "/app",
+      href: "/chimmy",
       sport,
       leagueId: null,
       leagueName: null,
@@ -209,7 +210,7 @@ export function buildAiStoryAndRankingPlaceholders(sportFilter: string | null): 
       type: "power_rankings_card" as const,
       title: "Power rankings",
       body: "See rest-of-season power rankings and tier breakdowns.",
-      href: "/app",
+      href: "/app/power-rankings",
       sport,
       leagueId: null,
       leagueName: null,
@@ -221,7 +222,7 @@ export function buildAiStoryAndRankingPlaceholders(sportFilter: string | null): 
       type: "matchup_card" as const,
       title: "Matchup preview",
       body: "View weekly matchups and projections for your league.",
-      href: "/app",
+      href: "/app/home",
       sport,
       leagueId: null,
       leagueName: null,

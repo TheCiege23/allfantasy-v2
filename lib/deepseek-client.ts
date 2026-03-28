@@ -1,23 +1,31 @@
 import OpenAI from 'openai'
+import { getDeepSeekConfigFromEnv } from '@/lib/provider-config'
 
-if (!process.env.DEEPSEEK_API_KEY) {
-  console.warn('[DeepSeek] DEEPSEEK_API_KEY is not set')
+let deepseekClient: OpenAI | null = null
+
+function getDeepSeekClient(): OpenAI | null {
+  const cfg = getDeepSeekConfigFromEnv()
+  if (!cfg) return null
+  if (!deepseekClient) {
+    deepseekClient = new OpenAI({
+      apiKey: cfg.apiKey,
+      baseURL: cfg.baseUrl,
+    })
+  }
+  return deepseekClient
 }
-
-export const deepseekClient = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY ?? '',
-  baseURL: 'https://api.deepseek.com/v1',
-})
 
 export interface DeepSeekChatOptions {
   prompt: string
   systemPrompt?: string
+  model?: string
   temperature?: number
   maxTokens?: number
 }
 
 export interface DeepSeekResult {
   content: string
+  model?: string
   usage?: { promptTokens: number; completionTokens: number }
   error?: string
 }
@@ -28,13 +36,31 @@ export async function deepseekChat(
   const {
     prompt,
     systemPrompt = 'You are a quantitative fantasy sports analyst.',
+    model,
     temperature = 0.2,
     maxTokens = 1000,
   } = options
 
+  const cfg = getDeepSeekConfigFromEnv()
+  if (!cfg) {
+    return {
+      content: '',
+      error: 'DeepSeek unavailable (missing DEEPSEEK_API_KEY)',
+    }
+  }
+
+  const client = getDeepSeekClient()
+  if (!client) {
+    return {
+      content: '',
+      error: 'DeepSeek client unavailable',
+    }
+  }
+
   try {
-    const response = await deepseekClient.chat.completions.create({
-      model: 'deepseek-chat',
+    const runtimeModel = model?.trim() || cfg.model || 'deepseek-chat'
+    const response = await client.chat.completions.create({
+      model: runtimeModel,
       temperature,
       max_tokens: maxTokens,
       messages: [
@@ -46,14 +72,15 @@ export async function deepseekChat(
     const content = response.choices[0]?.message?.content ?? ''
     return {
       content,
+      model: runtimeModel,
       usage: {
         promptTokens: response.usage?.prompt_tokens ?? 0,
         completionTokens: response.usage?.completion_tokens ?? 0,
       },
     }
   } catch (e: any) {
-    console.error('[DeepSeek] Chat error:', e?.message)
-    return { content: '', error: e?.message ?? 'DeepSeek unavailable' }
+    console.error('[DeepSeek] Chat error:', String(e?.message ?? e).slice(0, 240))
+    return { content: '', model: model?.trim() || cfg.model || 'deepseek-chat', error: e?.message ?? 'DeepSeek unavailable' }
   }
 }
 

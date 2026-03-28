@@ -87,6 +87,12 @@ type UnifiedRunResponse = {
     confidenceCapped?: boolean
     uncertaintyCount?: number
     missingDataCount?: number
+    sportsDataSource?: string
+    sportsDataState?: 'live' | 'cached' | 'stale' | 'missing'
+    sportsDataAvailable?: boolean
+    sportsDataKeys?: string[]
+    sportsDataMissingCount?: number
+    sportsDataAttemptedSources?: string[]
   } | null
 }
 
@@ -468,6 +474,14 @@ export default function UnifiedAIWorkbench() {
         Boolean(result?.reliability?.disagreement?.hasDisagreement)
       )
   )
+  const sportsDataState = result?.debugTrace?.sportsDataState
+  const showSportsContextNotice = Boolean(
+    result && (
+      sportsDataState === 'stale' ||
+      sportsDataState === 'missing' ||
+      (result.debugTrace?.sportsDataMissingCount ?? 0) > 0
+    )
+  )
 
   return (
     <section
@@ -764,6 +778,28 @@ export default function UnifiedAIWorkbench() {
                 retryLoading={loading}
               />
             )}
+            {showSportsContextNotice && (
+              <div
+                className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-100"
+                data-testid="unified-ai-sports-context-notice"
+              >
+                <p>
+                  {sportsDataState === 'stale'
+                    ? 'Sports context is currently stale. Refresh to load the latest deterministic context.'
+                    : sportsDataState === 'missing'
+                      ? 'Sports context is missing for this run. Retry after refresh to avoid unsupported assumptions.'
+                      : 'Some sports context fields are missing. Confidence and uncertainty are capped accordingly.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void runRequest(lastAction)}
+                  className="mt-2 rounded-md border border-amber-200/40 bg-amber-100/10 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-100/20"
+                  data-testid="unified-ai-sports-context-refresh-button"
+                >
+                  Refresh context
+                </button>
+              </div>
+            )}
             <UnifiedBrainResultView
               primaryAnswer={activeExplanation || result.aiExplanation}
               keyEvidence={result.evidence}
@@ -903,6 +939,28 @@ export default function UnifiedAIWorkbench() {
                   onRetry={() => void runRequest(lastAction)}
                   retryLoading={loading}
                 />
+              )}
+              {showSportsContextNotice && (
+                <div
+                  className="rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-100"
+                  data-testid="unified-ai-mobile-sports-context-notice"
+                >
+                  <p>
+                    {sportsDataState === 'stale'
+                      ? 'Sports context is currently stale. Refresh to load the latest deterministic context.'
+                      : sportsDataState === 'missing'
+                        ? 'Sports context is missing for this run. Retry after refresh to avoid unsupported assumptions.'
+                        : 'Some sports context fields are missing. Confidence and uncertainty are capped accordingly.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void runRequest(lastAction)}
+                    className="mt-2 rounded-md border border-amber-200/40 bg-amber-100/10 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-100/20"
+                    data-testid="unified-ai-mobile-sports-context-refresh-button"
+                  >
+                    Refresh context
+                  </button>
+                </div>
               )}
               <UnifiedBrainResultView
                 primaryAnswer={activeExplanation || result.aiExplanation}

@@ -6,7 +6,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getSettingsProfile } from "@/lib/user-settings/SettingsQueryService"
-import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
+import { DEFAULT_SPORT, normalizeToSupportedSport, SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import type { RetentionNudge } from "./types"
 
 /** Rough "in season" windows per sport (month); used for sport-season prompts. */
@@ -18,6 +18,26 @@ const SPORT_SEASON_MONTHS: Record<string, number[]> = {
   NCAAB: [11, 12, 1, 2, 3, 4],
   NCAAF: [8, 9, 10, 11, 12, 1],
   SOCCER: [8, 9, 10, 11, 12, 1, 2, 3, 4, 5],
+}
+
+const SAFE_NUDGE_HREFS = [
+  "/dashboard",
+  "/feed",
+  "/onboarding/funnel",
+  "/leagues",
+  "/chimmy",
+  "/creators",
+  "/app",
+] as const
+
+function sanitizeNudgeHref(href: string): string {
+  if (!href || typeof href !== "string") return "/dashboard"
+  if (href.startsWith("http://") || href.startsWith("https://")) return href
+  if (!href.startsWith("/")) return "/dashboard"
+  if (SAFE_NUDGE_HREFS.some((prefix) => href === prefix || href.startsWith(`${prefix}/`))) {
+    return href
+  }
+  return "/dashboard"
 }
 
 function isSportInSeason(sport: string): boolean {
@@ -51,7 +71,7 @@ export async function getReturnNudges(userId: string): Promise<RetentionNudge[]>
       type: "return_nudge",
       title: "We miss you",
       body: "Your leagues and brackets are waiting. Check your lineup or create a new pool.",
-      href: "/dashboard",
+      href: sanitizeNudgeHref("/dashboard"),
       ctaLabel: "Go to dashboard",
     })
   }
@@ -61,7 +81,7 @@ export async function getReturnNudges(userId: string): Promise<RetentionNudge[]>
       type: "return_nudge",
       title: "Quick check-in",
       body: "See how your teams are doing and get the latest AI insights.",
-      href: "/feed",
+      href: sanitizeNudgeHref("/feed"),
       ctaLabel: "View feed",
     })
   }
@@ -90,7 +110,7 @@ export async function getUnfinishedReminders(userId: string): Promise<RetentionN
       type: "unfinished_reminder",
       title: "Finish getting started",
       body: "Complete the quick setup to personalize your experience.",
-      href: "/onboarding/funnel",
+      href: sanitizeNudgeHref("/onboarding/funnel"),
       ctaLabel: "Continue setup",
     })
   }
@@ -101,7 +121,7 @@ export async function getUnfinishedReminders(userId: string): Promise<RetentionN
       type: "unfinished_reminder",
       title: "Create or join a league",
       body: "Connect a league or create one to unlock full features.",
-      href: "/leagues",
+      href: sanitizeNudgeHref("/leagues"),
       ctaLabel: "Leagues",
     })
   }
@@ -119,7 +139,7 @@ export async function getRecapCards(userId: string): Promise<RetentionNudge[]> {
     type: "recap",
     title: "Your weekly recap",
     body: "See your league standings and recent activity.",
-    href: "/dashboard",
+    href: sanitizeNudgeHref("/dashboard"),
     ctaLabel: "View recap",
   })
   return nudges
@@ -135,7 +155,7 @@ export async function getWeeklySummaryNudges(userId: string): Promise<RetentionN
       type: "weekly_summary",
       title: "Weekly AI summary",
       body: "Get a personalized summary of your leagues and trends from Chimmy.",
-      href: "/chimmy",
+      href: sanitizeNudgeHref("/chimmy"),
       ctaLabel: "Get summary",
     },
   ]
@@ -151,7 +171,7 @@ export async function getAICheckInNudges(userId: string): Promise<RetentionNudge
       type: "ai_check_in",
       title: "Chimmy check-in",
       body: "Get a quick tip or ask how your league is doing. Your AI assistant is here to help.",
-      href: "/chimmy",
+      href: sanitizeNudgeHref("/chimmy"),
       ctaLabel: "Check in with Chimmy",
     },
   ]
@@ -162,7 +182,10 @@ export async function getAICheckInNudges(userId: string): Promise<RetentionNudge
  */
 export async function getCreatorLeagueRecommendations(userId: string): Promise<RetentionNudge[]> {
   const profile = await getSettingsProfile(userId)
-  const sports = (profile?.preferredSports as string[] | null) ?? []
+  const sports = ((profile?.preferredSports as string[] | null) ?? [])
+    .map((sport) => normalizeToSupportedSport(sport))
+    .filter((sport) => (SUPPORTED_SPORTS as readonly string[]).includes(String(sport)))
+    .map((sport) => String(sport))
   const limit = 2
 
   const where: { isPublic: true; creator?: { visibility: string } } = { isPublic: true }
@@ -179,14 +202,14 @@ export async function getCreatorLeagueRecommendations(userId: string): Promise<R
     })
     .catch(() => [])
 
-  return leagues.slice(0, 2).map((l: any, i: number) => ({
+  return leagues.slice(0, 2).map((l: any) => ({
     id: `creator_rec_${l.id}`,
     type: "creator_recommendation" as const,
     title: `Join ${l.name}`,
     body: l.creator?.displayName
       ? `By ${l.creator.displayName} · ${l.memberCount ?? 0} members`
       : `${l.memberCount ?? 0} members`,
-    href: `/creators/${l.creator?.handle ?? "discover"}/leagues`,
+    href: sanitizeNudgeHref(l.creator?.handle ? `/creators/${l.creator.handle}` : "/creators"),
     ctaLabel: "View",
     sport: l.sport ?? null,
     meta: { creatorLeagueId: l.id },
@@ -198,7 +221,11 @@ export async function getCreatorLeagueRecommendations(userId: string): Promise<R
  */
 export async function getSportSeasonPrompts(userId: string): Promise<RetentionNudge[]> {
   const profile = await getSettingsProfile(userId)
-  const sports = (profile?.preferredSports as string[] | null) ?? []
+  const profileSports = ((profile?.preferredSports as string[] | null) ?? [])
+    .map((sport) => normalizeToSupportedSport(sport))
+    .filter((sport) => (SUPPORTED_SPORTS as readonly string[]).includes(String(sport)))
+    .map((sport) => String(sport))
+  const sports = profileSports.length > 0 ? profileSports : [DEFAULT_SPORT]
   const nudges: RetentionNudge[] = []
 
   const labels: Record<string, string> = {
@@ -219,7 +246,7 @@ export async function getSportSeasonPrompts(userId: string): Promise<RetentionNu
       type: "sport_season_prompt",
       title: `${labels[sport] ?? sport} season`,
       body: "Stay on top of your lineup and waiver wire.",
-      href: "/app",
+      href: sanitizeNudgeHref("/app"),
       ctaLabel: "Open app",
       sport,
     })

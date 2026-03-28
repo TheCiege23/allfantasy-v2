@@ -137,6 +137,12 @@ export interface AIToolResponseContract {
     confidenceCapped?: boolean
     uncertaintyCount?: number
     missingDataCount?: number
+    sportsDataSource?: string
+    sportsDataState?: 'live' | 'cached' | 'stale' | 'missing'
+    sportsDataAvailable?: boolean
+    sportsDataKeys?: string[]
+    sportsDataMissingCount?: number
+    sportsDataAttemptedSources?: string[]
   } | null
   /** Fact guard warnings surfaced from orchestration/tool validation. */
   factGuardWarnings?: string[]

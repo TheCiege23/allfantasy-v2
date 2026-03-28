@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { MessageCircle, Shield, Sparkles, Menu, Search, Settings as SettingsIcon } from "lucide-react"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
@@ -141,8 +142,14 @@ export default function GlobalTopNav({
             </button>
           )}
           <Link href={isAuthenticated ? "/dashboard" : "/"} className="flex shrink-0 items-center gap-2">
-            <div className="mode-image-safe h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500" />
-            <span className="text-sm font-bold tracking-wide mode-text">AllFantasy.ai</span>
+            <Image
+              src="/af-crest.png"
+              alt="AllFantasy crest"
+              width={32}
+              height={32}
+              className="mode-logo-safe h-8 w-8 rounded-lg object-contain"
+            />
+            <span className="mode-wordmark-safe text-sm font-bold tracking-wide mode-text">AllFantasy.ai</span>
           </Link>
 
           <ProductContextSwitcher />

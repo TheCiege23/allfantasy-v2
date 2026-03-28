@@ -3,6 +3,7 @@ import { generateAndSaveDraft } from "@/lib/automated-blog"
 import { prisma } from "@/lib/prisma"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import { BLOG_CATEGORIES } from "@/lib/automated-blog/types"
+import { getBlogProviderStatus } from "@/lib/automated-blog/BlogGenerationService"
 
 /** POST /api/blog/generate-and-save — generate and save as draft in one step. Body: sport, category, topicHint?. */
 export async function POST(req: NextRequest) {
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       articleId: result.articleId,
       slug: result.slug,
+      providerStatus: getBlogProviderStatus(),
       article: article
         ? {
             articleId: article.articleId,

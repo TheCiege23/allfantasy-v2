@@ -11,25 +11,33 @@ export async function GET(
     const { articleId } = await params
     const article = await prisma.blogArticle.findUnique({
       where: { articleId },
+      include: { draft: true },
     })
     if (!article) {
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
-    const tags = Array.isArray(article.tags) ? article.tags : []
+    const activeDraft = article.draft
+    const tags =
+      Array.isArray(activeDraft?.tags)
+        ? activeDraft.tags
+        : Array.isArray(article.tags)
+          ? article.tags
+          : []
     return NextResponse.json({
       article: {
         articleId: article.articleId,
-        title: article.title,
-        slug: article.slug,
+        title: activeDraft?.title ?? article.title,
+        slug: activeDraft?.slug ?? article.slug,
         sport: article.sport,
         category: article.category,
-        excerpt: article.excerpt,
-        body: article.body,
-        seoTitle: article.seoTitle,
-        seoDescription: article.seoDescription,
+        excerpt: activeDraft?.excerpt ?? article.excerpt,
+        body: activeDraft?.body ?? article.body,
+        seoTitle: activeDraft?.seoTitle ?? article.seoTitle,
+        seoDescription: activeDraft?.seoDescription ?? article.seoDescription,
         tags,
         publishStatus: article.publishStatus,
         publishedAt: article.publishedAt?.toISOString() ?? null,
+        draftStatus: activeDraft?.draftStatus ?? null,
         createdAt: article.createdAt.toISOString(),
         updatedAt: article.updatedAt.toISOString(),
       },
@@ -60,23 +68,33 @@ export async function PATCH(
     if (!ok) {
       return NextResponse.json({ error: "Article not found or not a draft" }, { status: 400 })
     }
-    const article = await prisma.blogArticle.findUnique({ where: { articleId } })
+    const article = await prisma.blogArticle.findUnique({
+      where: { articleId },
+      include: { draft: true },
+    })
+    const activeDraft = article?.draft
     return NextResponse.json({
       ok: true,
       article: article
         ? {
             articleId: article.articleId,
-            title: article.title,
-            slug: article.slug,
+            title: activeDraft?.title ?? article.title,
+            slug: activeDraft?.slug ?? article.slug,
             sport: article.sport,
             category: article.category,
-            excerpt: article.excerpt,
-            body: article.body,
-            seoTitle: article.seoTitle,
-            seoDescription: article.seoDescription,
-            tags: Array.isArray(article.tags) ? article.tags : [],
+            excerpt: activeDraft?.excerpt ?? article.excerpt,
+            body: activeDraft?.body ?? article.body,
+            seoTitle: activeDraft?.seoTitle ?? article.seoTitle,
+            seoDescription: activeDraft?.seoDescription ?? article.seoDescription,
+            tags:
+              Array.isArray(activeDraft?.tags)
+                ? activeDraft.tags
+                : Array.isArray(article.tags)
+                  ? article.tags
+                  : [],
             publishStatus: article.publishStatus,
             publishedAt: article.publishedAt?.toISOString() ?? null,
+            draftStatus: activeDraft?.draftStatus ?? null,
             createdAt: article.createdAt.toISOString(),
             updatedAt: article.updatedAt.toISOString(),
           }

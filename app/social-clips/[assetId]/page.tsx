@@ -425,14 +425,34 @@ export default function SocialClipDetailPage() {
           </Button>
           {editMode ? (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setEditMode(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleSaveEdit} disabled={saving} className="gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditMode(false)}
+                data-testid="social-clip-edit-cancel-button"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveEdit}
+                disabled={saving}
+                className="gap-1"
+                data-testid="social-clip-edit-save-button"
+              >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Save
               </Button>
             </div>
           ) : (
-            <Button variant="outline" size="sm" onClick={() => setEditMode(true)} className="gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditMode(true)}
+              className="gap-1"
+              data-testid="social-clip-edit-mode-button"
+              data-audit="edit-mode-button"
+            >
               <Pencil className="h-4 w-4" /> Edit
             </Button>
           )}
@@ -445,6 +465,7 @@ export default function SocialClipDetailPage() {
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-title-input"
               />
             </div>
             <div>
@@ -453,6 +474,7 @@ export default function SocialClipDetailPage() {
                 value={editShortScriptOverlay}
                 onChange={(e) => setEditShortScriptOverlay(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-script-overlay-input"
               />
             </div>
             <div>
@@ -461,6 +483,7 @@ export default function SocialClipDetailPage() {
                 value={editHeadline}
                 onChange={(e) => setEditHeadline(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-headline-input"
               />
             </div>
             <div>
@@ -470,6 +493,7 @@ export default function SocialClipDetailPage() {
                 onChange={(e) => setEditShortCaption(e.target.value)}
                 rows={3}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-caption-input"
               />
             </div>
             <div>
@@ -478,6 +502,7 @@ export default function SocialClipDetailPage() {
                 value={editCtaText}
                 onChange={(e) => setEditCtaText(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-cta-input"
               />
             </div>
             <div>
@@ -486,6 +511,7 @@ export default function SocialClipDetailPage() {
                 value={editSocialCardCopy}
                 onChange={(e) => setEditSocialCardCopy(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-card-copy-input"
               />
             </div>
             <div>
@@ -494,6 +520,7 @@ export default function SocialClipDetailPage() {
                 value={editClipTitle}
                 onChange={(e) => setEditClipTitle(e.target.value)}
                 className="w-full rounded border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white"
+                data-testid="social-clip-edit-clip-title-input"
               />
             </div>
           </div>

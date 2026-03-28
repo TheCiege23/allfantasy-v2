@@ -60,10 +60,13 @@ export function OnboardingChecklist({
   if (!state || state.tasks.length === 0) return null
 
   return (
-    <div className={`rounded-2xl border border-white/10 bg-white/5 p-4 ${className}`}>
+    <div
+      data-testid="onboarding-checklist"
+      className={`rounded-2xl border border-white/10 bg-white/5 p-4 ${className}`}
+    >
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-white">Get started</h3>
-        <span className="text-xs text-white/50">
+        <span data-testid="onboarding-checklist-progress" className="text-xs text-white/50">
           {state.completedCount} of {state.totalCount} complete
         </span>
       </div>
@@ -72,6 +75,8 @@ export function OnboardingChecklist({
           <li key={task.id}>
             <Link
               href={task.href}
+              data-testid={`onboarding-checklist-task-${task.id}`}
+              data-onboarding-task-completed={task.completed ? "true" : "false"}
               onClick={() => {
                 onTaskClick?.(task.id, task.href)
                 const milestone = MILESTONE_BY_TASK[task.id]
@@ -80,7 +85,9 @@ export function OnboardingChecklist({
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ milestone }),
-                  }).catch(() => {})
+                  })
+                    .then((res) => (res.ok ? fetchChecklist() : null))
+                    .catch(() => {})
                 }
               }}
               className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3 hover:bg-white/[0.06] transition"
@@ -104,7 +111,9 @@ export function OnboardingChecklist({
         ))}
       </ul>
       {state.isFullyComplete && (
-        <p className="mt-3 text-xs text-emerald-400/80">All set! You’re ready to get the most out of AllFantasy.</p>
+        <p data-testid="onboarding-checklist-complete" className="mt-3 text-xs text-emerald-400/80">
+          All set! You’re ready to get the most out of AllFantasy.
+        </p>
       )}
     </div>
   )

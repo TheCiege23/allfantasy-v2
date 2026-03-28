@@ -59,6 +59,21 @@ export async function createDraft(input: CreateDraftInput): Promise<{ articleId:
         publishStatus: "draft",
       },
     })
+    await tx.blogDraft.create({
+      data: {
+        articleId: created.articleId,
+        title: input.draft.title,
+        slug,
+        sport,
+        category: input.category,
+        excerpt: input.draft.excerpt || null,
+        body: input.draft.body,
+        seoTitle: input.draft.seoTitle || null,
+        seoDescription: input.draft.seoDescription || null,
+        tags: input.draft.tags as any,
+        draftStatus: "draft",
+      },
+    })
     await tx.blogPublishLog.create({
       data: {
         articleId: created.articleId,
@@ -83,33 +98,71 @@ export async function updateDraft(
     tags: string[]
   }>
 ): Promise<boolean> {
-  const existing = await prisma.blogArticle.findUnique({ where: { articleId } })
+  const existing = await prisma.blogArticle.findUnique({
+    where: { articleId },
+    include: { draft: true },
+  })
   if (!existing || existing.publishStatus !== "draft") return false
 
   const data: Record<string, unknown> = {}
   if (updates.title != null) data.title = updates.title.slice(0, 512)
-  if (updates.slug != null) {
-    data.slug = await resolveUniqueSlug(updates.slug, articleId)
-  }
+  const resolvedSlug = updates.slug != null ? await resolveUniqueSlug(updates.slug, articleId) : undefined
+  if (resolvedSlug != null) data.slug = resolvedSlug
   if (updates.excerpt != null) data.excerpt = updates.excerpt.slice(0, 1024)
   if (updates.body != null) data.body = updates.body
   if (updates.seoTitle != null) data.seoTitle = updates.seoTitle.slice(0, 512)
   if (updates.seoDescription != null) data.seoDescription = updates.seoDescription.slice(0, 512)
   if (updates.tags != null) data.tags = updates.tags
 
-  await prisma.$transaction([
-    prisma.blogArticle.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.blogArticle.update({
       where: { articleId },
       data: data as any,
-    }),
-    prisma.blogPublishLog.create({
+    })
+    await tx.blogDraft.upsert({
+      where: { articleId },
+      create: {
+        articleId,
+        title: (updates.title ?? existing.title).slice(0, 512),
+        slug: resolvedSlug ?? existing.slug,
+        sport: existing.sport,
+        category: existing.category,
+        excerpt:
+          updates.excerpt != null
+            ? updates.excerpt.slice(0, 1024)
+            : existing.excerpt,
+        body: updates.body ?? existing.body,
+        seoTitle:
+          updates.seoTitle != null
+            ? updates.seoTitle.slice(0, 512)
+            : existing.seoTitle,
+        seoDescription:
+          updates.seoDescription != null
+            ? updates.seoDescription.slice(0, 512)
+            : existing.seoDescription,
+        tags: (updates.tags ?? (Array.isArray(existing.tags) ? existing.tags : [])) as any,
+        draftStatus: "draft",
+      },
+      update: {
+        title: updates.title != null ? updates.title.slice(0, 512) : undefined,
+        slug: resolvedSlug,
+        excerpt: updates.excerpt != null ? updates.excerpt.slice(0, 1024) : undefined,
+        body: updates.body ?? undefined,
+        seoTitle: updates.seoTitle != null ? updates.seoTitle.slice(0, 512) : undefined,
+        seoDescription:
+          updates.seoDescription != null ? updates.seoDescription.slice(0, 512) : undefined,
+        tags: updates.tags ?? undefined,
+        draftStatus: "draft",
+      },
+    })
+    await tx.blogPublishLog.create({
       data: {
         articleId,
         actionType: "save_draft",
         status: "success",
       },
-    }),
-  ])
+    })
+  })
   return true
 }
 

@@ -24,25 +24,25 @@ AI social clip engine that turns platform insights into share-ready social conte
 
 ## Mandatory Click Audit
 
-- [ ] **Generate clip button works**  
+- [x] **Generate clip button works**  
   On `/social-clips`, in the "AI social clip" card, "Generate clip" calls `POST /api/social-clips/ai/generate` with selected input/output type and context. On success, redirects to `/social-clips/[id]`. No silent failure.
 
-- [ ] **Preview updates correctly**  
+- [x] **Preview updates correctly**  
   On the asset detail page, the Preview section shows headline, caption, CTA, hashtags from asset metadata. After edit and save, preview reflects saved values.
 
-- [ ] **Edit mode works**  
+- [x] **Edit mode works**  
   "Edit" toggles to inline fields (title, headline, caption, CTA, card copy, clip title). "Save" sends PATCH to `/api/social-clips/[assetId]` and updates asset; "Cancel" exits without saving.
 
-- [ ] **Approve state works**  
+- [x] **Approve state works**  
   "Approve" / "Revoke" calls `/api/social-clips/[assetId]/approve` and updates `approvedForPublish`. Publish actions require approval.
 
-- [ ] **Publish or copy action works**  
+- [x] **Publish or copy action works**  
   "Publish now" per platform calls `/api/social-clips/[assetId]/publish` and is only enabled when approved. "Copy caption" / "Copy text" copy to clipboard. No auto-post on generate; auto-post is opt-in per target.
 
-- [ ] **Provider unavailable state works**  
+- [x] **Provider unavailable state works**  
   When no provider is configured (GET `/api/social-clips/ai/status` returns `anyAvailable: false`), the AI generator shows a message and the Generate button is disabled. On generate failure, error and optional `providerStatus` are shown.
 
-- [ ] **No dead auto-post buttons**  
+- [x] **No dead auto-post buttons**  
   Auto-post is a per-platform checkbox; "Publish now" is explicit. No button that claims to auto-post on generate without user opt-in.
 
 ---
@@ -123,4 +123,6 @@ NFL, NHL, NBA, MLB, NCAA Basketball (NCAAB), NCAA Football (NCAAF), Soccer. Use 
 - `app/api/social-clips/[assetId]/route.ts` (PATCH added)
 - `app/social-clips/page.tsx` (AI Clip generator card)
 - `app/social-clips/[assetId]/page.tsx` (edit mode, Save)
+- `app/e2e/social-clips-grok/SocialClipsGrokHarnessClient.tsx` (Prompt 146 click-audit controls)
+- `e2e/social-clips-grok-click-audit.spec.ts` (Prompt 146 click audit assertions)
 - `docs/PROMPT146_AI_SOCIAL_CLIP_ENGINE_QA_CHECKLIST.md` (this file)
