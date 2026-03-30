@@ -28,10 +28,11 @@ export default async function UserStatsPage() {
   }
 
   return (
-    <div className="min-h-screen mode-surface mode-readable">
+    <div className="min-h-screen mode-surface mode-readable" data-testid="user-stats-page">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <Link
           href="/profile"
+          data-testid="user-stats-back-to-profile"
           className="text-sm font-medium mb-6 inline-block"
           style={{ color: "var(--muted)" }}
         >

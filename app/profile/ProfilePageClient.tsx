@@ -383,6 +383,18 @@ export default function ProfilePageClient({
               <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
             </Link>
             <Link
+              href="/user/stats"
+              className="flex items-center justify-between rounded-xl border p-4 transition"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+              data-testid="profile-quick-link-user-stats"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text)" }}>
+                <BarChart3 className="h-4 w-4" style={{ color: "var(--muted)" }} />
+                Cross-league stats
+              </span>
+              <ChevronRight className="h-4 w-4" style={{ color: "var(--muted)" }} />
+            </Link>
+            <Link
               href="/settings?tab=preferences"
               className="flex items-center justify-between rounded-xl border p-4 transition"
               style={{ borderColor: "var(--border)", background: "var(--panel2)" }}

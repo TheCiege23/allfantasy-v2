@@ -1796,6 +1796,23 @@ model ChatConversation {
   @@map("chat_conversations")
 }
 
+/// Persistent message log for Chimmy context replay and personalization. PROMPT 234.
+model ChatHistory {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String?
+  leagueId       String?
+  role           String
+  content        String
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([leagueId, createdAt])
+  @@map("chat_history")
+}
+
 model WeeklyMatchup {
   id            String @id @default(cuid())
   leagueId      String @db.VarChar(64)
@@ -6188,6 +6205,25 @@ model AiAdpSnapshot {
   @@map("ai_adp_snapshots")
 }
 
+/// AI ADP snapshot history: immutable records from each daily/triggered run.
+/// Keeps audit trail and diagnostics across time for each segment.
+model AiAdpSnapshotHistory {
+  id           String   @id @default(uuid())
+  sport        String   @db.VarChar(16)
+  leagueType   String   @db.VarChar(16)
+  formatKey    String   @db.VarChar(32)
+  snapshotData Json     @default("[]")
+  totalDrafts  Int      @default(0)
+  totalPicks   Int      @default(0)
+  computedAt   DateTime @default(now())
+  /// Optional run context: cutoffApplied, lookbackDays, source counts, thresholds.
+  runMeta      Json?
+
+  @@index([sport, leagueType, formatKey, computedAt(sort: Desc)])
+  @@index([computedAt(sort: Desc)])
+  @@map("ai_adp_snapshot_history")
+}
+
 model ShareEngagement {
   id              String   @id @default(uuid())
   sleeperUsername String   @db.VarChar(64)
@@ -6553,6 +6589,24 @@ model AdminAuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("admin_audit_log")
+}
+
+/// Idempotency and processing audit log for Stripe webhook events.
+model StripeWebhookEvent {
+  id           String    @id @default(uuid())
+  eventId      String    @unique
+  type         String    @db.VarChar(128)
+  purchaseType String?   @db.VarChar(64)
+  status       String    @default("processing") @db.VarChar(32)
+  error        String?   @db.Text
+  processedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([processedAt])
+  @@map("stripe_webhook_events")
 }
 
 model PlatformWalletAccount {

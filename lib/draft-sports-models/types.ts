@@ -23,6 +23,10 @@ export interface TeamDisplayModel {
 export interface PlayerAssetModel {
   headshotUrl: string | null
   teamLogoUrl: string | null
+  /** Optional explicit fallback URL when headshotUrl is missing. */
+  headshotFallbackUrl?: string | null
+  /** Optional explicit fallback URL when teamLogoUrl is missing. */
+  teamLogoFallbackUrl?: string | null
   /** True when headshot is fallback (initial, placeholder) */
   headshotFallbackUsed?: boolean
   /** True when team logo is fallback */
@@ -47,7 +51,11 @@ export interface PlayerDraftMetadataModel {
   position: string
   /** Secondary positions if applicable (e.g. WR/TE) */
   secondaryPositions?: string[]
+  /** Position eligibility tokens for roster-slot matching and filters. */
+  positionEligibility?: string[]
   teamAbbreviation: string | null
+  /** Team affiliation label (e.g. "KC", "Ohio State"). */
+  teamAffiliation?: string | null
   byeWeek: number | null
   injuryStatus: string | null
   /** College or pipeline marker for devy/C2C */

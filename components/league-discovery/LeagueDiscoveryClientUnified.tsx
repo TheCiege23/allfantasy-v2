@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Search, Trophy, Users, TrendingUp, Sparkles, UserPlus, ChevronRight, Loader2 } from 'lucide-react'
+import { Search, Trophy, TrendingUp, Sparkles, UserPlus, ChevronRight, Loader2, Wand2 } from 'lucide-react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { trackDiscoveryJoinClick } from '@/lib/discovery-analytics/client'
+import { getFanCredBoundaryDisclosureShort } from '@/lib/legal/FanCredBoundaryDisclosure'
 import type { DiscoveryCard } from '@/lib/public-discovery/types'
 
 const SORT_OPTIONS = [
@@ -33,30 +35,64 @@ interface OrphanCard {
   memberCount: number
 }
 
+interface RecommendationCard {
+  league: DiscoveryCard
+  explanation: string | null
+  reasons?: string[]
+  explanationSource?: 'deterministic' | 'ai'
+}
+
 function DiscoveryCardItem({ card, showJoin }: { card: DiscoveryCard; showJoin?: boolean }) {
+  const hasAI = Array.isArray(card.aiFeatures) && card.aiFeatures.length > 0
+  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
   return (
     <Link
       href={showJoin ? card.joinUrl : card.detailUrl}
-      className="block rounded-xl border border-white/10 bg-white/[0.03] p-4 hover:bg-white/[0.06] transition"
+      onClick={() => {
+        if (!showJoin) return
+        trackDiscoveryJoinClick({
+          leagueId: card.id,
+          source: card.source,
+          leagueName: card.name,
+          sport: card.sport,
+          joinUrl: card.joinUrl,
+        })
+      }}
+      className="block rounded-xl border border-white/10 bg-gradient-to-br from-[#0b1731] to-[#081124] p-3 sm:p-4 hover:bg-white/[0.06] transition"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-white truncate">{card.name}</h3>
-          <p className="text-xs text-white/50 mt-0.5">
-            {card.sport} · {card.memberCount}/{card.maxMembers} teams
-            {card.leagueType && ` · ${card.leagueType}`}
-          </p>
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <h3 className="font-semibold text-sm sm:text-base text-white truncate">{card.name}</h3>
+          <p className="text-xs text-white/50 mt-0.5">{card.memberCount}/{card.maxMembers} teams</p>
+          <div className="flex flex-wrap gap-1 mt-1.5 sm:mt-2">
+            <span className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-white/10 text-white/80">{card.sport}</span>
+            <span className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-200 capitalize">
+              {String(card.leagueStyle ?? card.leagueType ?? card.source).replace(/_/g, " ")}
+            </span>
             {card.isPaid && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">Paid</span>
+              <span
+                className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300"
+                title={paidBoundaryDisclosure}
+              >
+                Paid
+              </span>
             )}
             {!card.isPaid && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70">Free</span>
+              <span className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-white/10 text-white/70">Free</span>
             )}
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-white/70">{card.fillPct}% full</span>
+            <span className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-white/10 text-white/70">{card.fillPct}% full</span>
+            {hasAI && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-200">
+                <Sparkles className="h-3 w-3" />
+                AI-enabled
+              </span>
+            )}
           </div>
+          {card.isPaid ? (
+            <p className="mt-1 text-[11px] text-amber-200/75">Paid dues and payouts are external via FanCred.</p>
+          ) : null}
         </div>
-        <ChevronRight className="h-5 w-5 text-white/30 shrink-0" />
+        <ChevronRight className="h-[18px] w-[18px] sm:h-5 sm:w-5 text-white/30 shrink-0" />
       </div>
     </Link>
   )
@@ -66,22 +102,22 @@ function OrphanCardItem({ card }: { card: OrphanCard }) {
   return (
     <Link
       href={card.joinUrl}
-      className="block rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 hover:bg-violet-500/10 transition"
+      className="block rounded-xl border border-violet-500/20 bg-violet-500/5 p-3 sm:p-4 hover:bg-violet-500/10 transition"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <UserPlus className="h-4 w-4 text-violet-400 shrink-0" />
-            <h3 className="font-semibold text-white truncate">{card.name}</h3>
+            <h3 className="font-semibold text-sm sm:text-base text-white truncate">{card.name}</h3>
           </div>
           <p className="text-xs text-white/50 mt-0.5">
             {card.sport} · {card.memberCount}/{card.leagueSize} · {card.isDynasty ? 'Dynasty' : 'Redraft'}
           </p>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 mt-2 inline-block">
+          <span className="text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 mt-1.5 sm:mt-2 inline-block">
             Seeking manager
           </span>
         </div>
-        <ChevronRight className="h-5 w-5 text-violet-400/70 shrink-0" />
+        <ChevronRight className="h-[18px] w-[18px] sm:h-5 sm:w-5 text-violet-400/70 shrink-0" />
       </div>
     </Link>
   )
@@ -89,7 +125,7 @@ function OrphanCardItem({ card }: { card: OrphanCard }) {
 
 export default function LeagueDiscoveryClientUnified() {
   const [trending, setTrending] = useState<DiscoveryCard[]>([])
-  const [recommended, setRecommended] = useState<{ league: DiscoveryCard; explanation: string | null }[]>([])
+  const [recommended, setRecommended] = useState<RecommendationCard[]>([])
   const [orphans, setOrphans] = useState<OrphanCard[]>([])
   const [browse, setBrowse] = useState<DiscoveryCard[]>([])
   const [total, setTotal] = useState(0)
@@ -103,6 +139,7 @@ export default function LeagueDiscoveryClientUnified() {
   const [entryFee, setEntryFee] = useState('all')
   const [sort, setSort] = useState('popularity')
   const [query, setQuery] = useState('')
+  const [recommendationAiExplainEnabled, setRecommendationAiExplainEnabled] = useState(false)
   const [page, setPage] = useState(1)
   const limit = 12
 
@@ -114,11 +151,27 @@ export default function LeagueDiscoveryClientUnified() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/discover/recommendations?limit=6')
+    const params = new URLSearchParams()
+    params.set('limit', '6')
+    if (recommendationAiExplainEnabled) params.set('aiExplain', '1')
+    fetch(`/api/discover/recommendations?${params.toString()}`)
       .then((r) => r.json())
-      .then((d) => setRecommended(d.leagues ?? []))
+      .then((d) => {
+        if (!Array.isArray(d.leagues)) {
+          setRecommended([])
+          return
+        }
+        setRecommended(
+          d.leagues.map((item: RecommendationCard) => ({
+            league: item.league,
+            explanation: item.explanation ?? null,
+            reasons: Array.isArray(item.reasons) ? item.reasons.slice(0, 2) : [],
+            explanationSource: item.explanationSource === 'ai' ? 'ai' : 'deterministic',
+          }))
+        )
+      })
       .finally(() => setLoadingRec(false))
-  }, [])
+  }, [recommendationAiExplainEnabled])
 
   const [orphanSport, setOrphanSport] = useState('')
 
@@ -189,10 +242,24 @@ export default function LeagueDiscoveryClientUnified() {
 
       {/* Recommended (AI / personalized) */}
       <section>
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-white mb-3">
-          <Sparkles className="h-4 w-4 text-cyan-400" />
-          Recommended for you
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+            <Sparkles className="h-4 w-4 text-cyan-400" />
+            Recommended for you
+          </h2>
+          <button
+            type="button"
+            onClick={() => setRecommendationAiExplainEnabled((value) => !value)}
+            className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-2.5 py-1.5 text-[11px] font-semibold text-white/80 hover:bg-white/5"
+            data-testid="discovery-recommendations-ai-toggle"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            {recommendationAiExplainEnabled ? 'AI explanations on' : 'AI explanations off'}
+          </button>
+        </div>
+        <p className="text-[11px] text-white/50 mb-3">
+          Deterministic-first recommendations from your sports, league history, draft activity, league types, and AI usage.
+        </p>
         {loadingRec ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-white/40" />
@@ -207,6 +274,21 @@ export default function LeagueDiscoveryClientUnified() {
                 {item.explanation && (
                   <p className="mt-1 text-[11px] text-white/50 line-clamp-2">{item.explanation}</p>
                 )}
+                {Array.isArray(item.reasons) && item.reasons.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {item.reasons.map((reason) => (
+                      <span
+                        key={`${item.league.id}-${reason}`}
+                        className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/70"
+                      >
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-white/35">
+                  {item.explanationSource === 'ai' ? 'AI-enhanced explanation' : 'Deterministic explanation'}
+                </p>
               </div>
             ))}
           </div>

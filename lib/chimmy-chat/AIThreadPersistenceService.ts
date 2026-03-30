@@ -12,12 +12,15 @@ function cleanKeyPart(value: string | undefined): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 80) || "none"
 }
 
-export function getAIThreadStorageKey(context?: Pick<AIChatContext, "leagueId" | "sport" | "insightType" | "teamId">): string {
+export function getAIThreadStorageKey(
+  context?: Pick<AIChatContext, "leagueId" | "sport" | "insightType" | "teamId" | "conversationId">
+): string {
   const league = cleanKeyPart(context?.leagueId)
   const sport = cleanKeyPart(context?.sport)
   const insight = cleanKeyPart(context?.insightType)
   const team = cleanKeyPart(context?.teamId)
-  return `${STORAGE_PREFIX}:${league}:${sport}:${insight}:${team}`
+  const conversation = cleanKeyPart(context?.conversationId)
+  return `${STORAGE_PREFIX}:${league}:${sport}:${insight}:${team}:${conversation}`
 }
 
 function sanitizeMessages(messages: ChimmyThreadMessage[]): ChimmyThreadMessage[] {

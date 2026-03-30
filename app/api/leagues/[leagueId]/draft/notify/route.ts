@@ -40,6 +40,8 @@ export async function POST(
 
   const allowedTypes: DraftNotificationEventType[] = [
     'draft_approaching_timeout',
+    'draft_queue_player_unavailable',
+    'draft_ai_trade_review_available',
     'draft_slow_reminder',
     'draft_starting_soon',
     'draft_orphan_ai_assigned',
@@ -67,6 +69,23 @@ export async function POST(
           ...basePayload,
           pickLabel: payload.pickLabel as string | undefined,
           rosterId: String(payload.rosterId),
+        })
+      }
+    } else if (eventType === 'draft_queue_player_unavailable' && payload?.rosterId) {
+      const appUserId = await getAppUserIdForRoster(String(payload.rosterId))
+      if (appUserId) {
+        await createDraftNotification(appUserId, 'draft_queue_player_unavailable', {
+          ...basePayload,
+          rosterId: String(payload.rosterId),
+        })
+      }
+    } else if (eventType === 'draft_ai_trade_review_available' && payload?.rosterId) {
+      const appUserId = await getAppUserIdForRoster(String(payload.rosterId))
+      if (appUserId) {
+        await createDraftNotification(appUserId, 'draft_ai_trade_review_available', {
+          ...basePayload,
+          rosterId: String(payload.rosterId),
+          tradeProposalId: payload.tradeProposalId as string | undefined,
         })
       }
     } else if (eventType === 'draft_auction_outbid' && payload?.rosterId) {

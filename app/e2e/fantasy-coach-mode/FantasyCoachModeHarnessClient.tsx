@@ -2,11 +2,24 @@
 
 import { useEffect, useState } from "react"
 import { CoachDashboard, type CoachEvaluationLoader } from "@/components/coach/CoachDashboard"
-import type { CoachAdviceRequester } from "@/components/coach/CoachAdvicePanel"
-import type { AdviceType, CoachEvaluationResult } from "@/lib/fantasy-coach/types"
+import type {
+  CoachAdviceRequester,
+  LineupOptimizationRequester,
+} from "@/components/coach/CoachAdvicePanel"
+import type { CoachEvaluationResult } from "@/lib/fantasy-coach/types"
+import type { CoachAdviceType } from "@/lib/ai-coach/types"
 
-const ADVICE_BY_TYPE: Record<AdviceType, { summary: string; bullets: string[]; challenge: string }> = {
-  lineup: {
+const ADVICE_BY_TYPE: Record<CoachAdviceType, { summary: string; bullets: string[]; challenge: string }> = {
+  start_sit: {
+    summary: "Start/Sit edge: lock your top projected core and bench the low-floor fringe.",
+    bullets: [
+      "Start the strongest projection at each required slot.",
+      "Bench volatile fringe players in close matchups.",
+      "Keep late-swap flexibility for questionable tags.",
+    ],
+    challenge: "Finalize two toughest start/sit calls before lock.",
+  },
+  lineup_optimization: {
     summary: "Lineup edge: start the highest-floor core and use matchup upside in flex.",
     bullets: [
       "Prioritize projection leaders for locked starters.",
@@ -14,6 +27,15 @@ const ADVICE_BY_TYPE: Record<AdviceType, { summary: string; bullets: string[]; c
       "Re-check injury tags before kickoff windows.",
     ],
     challenge: "Finalize your flex decision one hour before lock.",
+  },
+  draft: {
+    summary: "Draft edge: prioritize value pockets and avoid forcing positional reaches.",
+    bullets: [
+      "Take best value on board when tier gaps are small.",
+      "Use roster needs only as tie-breakers, not primary drivers.",
+      "Track ADP drift to capitalize on late value.",
+    ],
+    challenge: "Make your next pick from the best remaining value tier.",
   },
   trade: {
     summary: "Trade edge: package bench depth into one reliable weekly starter.",
@@ -52,6 +74,92 @@ const requestAdvice: CoachAdviceRequester = async ({ type }) => {
     bullets: resolved.bullets,
     challenge: resolved.challenge,
     tone: "motivational",
+    recommendation: {
+      type,
+      headline: resolved.summary,
+      items: resolved.bullets.map((bullet) => ({ label: bullet })),
+      contextSummary: "Harness deterministic context.",
+    },
+    explanation: {
+      summary: resolved.summary,
+      bullets: resolved.bullets,
+      challenge: resolved.challenge,
+      tone: "motivational",
+      source: "ai",
+    },
+  }
+}
+
+const requestLineupOptimization: LineupOptimizationRequester = async ({ sport, useAIExplanation }) => {
+  return {
+    ok: true,
+    deterministic: true,
+    result: {
+      sport: sport ?? "NBA",
+      totalProjectedPoints: 134.7,
+      starters: [
+        {
+          slotId: "PG-1",
+          slotCode: "PG",
+          slotLabel: "PG",
+          playerId: "starter-1",
+          playerName: "Harness Floor Guard",
+          projectedPoints: 34.2,
+          selectedPosition: "PG",
+        },
+        {
+          slotId: "SG-1",
+          slotCode: "SG",
+          slotLabel: "SG",
+          playerId: "starter-2",
+          playerName: "Harness Wing Creator",
+          projectedPoints: 31.8,
+          selectedPosition: "SG",
+        },
+        {
+          slotId: "SF-1",
+          slotCode: "SF",
+          slotLabel: "SF",
+          playerId: "starter-3",
+          playerName: "Harness Two-Way Wing",
+          projectedPoints: 33.1,
+          selectedPosition: "SF",
+        },
+        {
+          slotId: "UTIL-1",
+          slotCode: "UTIL",
+          slotLabel: "UTIL",
+          playerId: "starter-4",
+          playerName: "Harness Utility Scorer",
+          projectedPoints: 35.6,
+          selectedPosition: "PF",
+        },
+      ],
+      bench: [
+        {
+          playerId: "bench-1",
+          playerName: "Harness Bench Upside",
+          projectedPoints: 21.4,
+          positions: ["SG"],
+        },
+      ],
+      unfilledSlots: [],
+      deterministicNotes: [
+        "Deterministic optimizer selected the highest projected legal combination.",
+        "All required slots were filled.",
+      ],
+    },
+    explanation: {
+      summary: "The optimizer selected the top legal projection combination for this lineup.",
+      bullets: [
+        "High-floor guard production anchors the total projection.",
+        "Wing volume and utility upside maximize projected points.",
+        useAIExplanation
+          ? "AI explanation is enabled in this harness response."
+          : "Deterministic explanation is active in this harness response.",
+      ],
+      source: useAIExplanation ? "ai" : "deterministic",
+    },
   }
 }
 
@@ -222,6 +330,7 @@ export default function FantasyCoachModeHarnessClient() {
           initialWeek={9}
           loadEvaluation={loadEvaluation}
           requestAdvice={requestAdvice}
+          requestLineupOptimization={requestLineupOptimization}
         />
       </div>
     </div>

@@ -1,5 +1,3 @@
-import { prisma } from '@/lib/prisma'
-
 const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
 const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
 
@@ -79,6 +77,11 @@ function buildMediaFromTemplate(playerId: string | null, teamAbbr: string | null
   }
 }
 
+async function getPrismaClient() {
+  const mod = await import('@/lib/prisma')
+  return mod.prisma
+}
+
 export function buildPlayerMedia(
   playerId: string | null,
   teamAbbr: string | null,
@@ -119,6 +122,7 @@ export async function attachPlayerMedia(player: {
   let source: 'db' | 'template' = 'template'
 
   try {
+    const prisma = await getPrismaClient()
     const identity = await prisma.playerIdentityMap.findFirst({
       where: { sleeperId: player.playerId },
       select: { currentTeam: true },
@@ -196,6 +200,7 @@ export async function attachPlayerMediaBatch(
   let sportsPlayerMap = new Map<string, { imageUrl: string | null; team: string | null }>()
 
   try {
+    const prisma = await getPrismaClient()
     const identities = await prisma.playerIdentityMap.findMany({
       where: { sleeperId: { in: sleeperIds } },
       select: { sleeperId: true, currentTeam: true },
@@ -254,6 +259,7 @@ export async function getHistoricalTeam(
   sport: string = 'nfl'
 ): Promise<string | null> {
   try {
+    const prisma = await getPrismaClient()
     const effectiveWeek = week ?? 0
 
     if (effectiveWeek > 0) {
@@ -312,6 +318,7 @@ export async function recordTeamHistory(
   source: string = 'sleeper'
 ): Promise<void> {
   try {
+    const prisma = await getPrismaClient()
     await prisma.playerTeamHistory.upsert({
       where: {
         playerId_sport_season_week: {

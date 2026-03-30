@@ -3,15 +3,26 @@
  */
 
 import { resolvePlayerStats } from './PlayerStatsResolver';
-import type { PlayerComparisonResult, ComparisonChartSeries, ResolvedPlayerStats } from './types';
+import type {
+  PlayerComparisonResult,
+  ComparisonChartSeries,
+  ResolvedPlayerStats,
+  ScoringFormat,
+  LeagueScoringSettings,
+} from './types';
 
 export async function comparePlayers(
   playerAName: string,
-  playerBName: string
+  playerBName: string,
+  options?: {
+    sport?: string | null;
+    scoringFormat?: ScoringFormat;
+    leagueScoringSettings?: LeagueScoringSettings | null;
+  }
 ): Promise<PlayerComparisonResult | null> {
   const [a, b] = await Promise.all([
-    resolvePlayerStats(playerAName),
-    resolvePlayerStats(playerBName),
+    resolvePlayerStats(playerAName, options),
+    resolvePlayerStats(playerBName, options),
   ]);
 
   if (!a || !b) return null;

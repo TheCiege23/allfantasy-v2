@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { getStripeClient } from "@/lib/stripe-client";
 import { getBaseUrl } from "@/lib/get-base-url";
 import { getActiveTournament } from "@/lib/tournament";
+import {
+  assertNoLeagueSettlementIntent,
+  isMonetizationComplianceError,
+} from "@/lib/monetization/compliance-guardrails";
 
 type Body = {
   mode: "donate" | "lab";
@@ -21,6 +25,10 @@ export async function POST(req: Request) {
     const APP_URL = getBaseUrl();
 
     const body = (await req.json()) as Body;
+    assertNoLeagueSettlementIntent(body?.mode ?? "", {
+      route: "/api/stripe/create-checkout-session",
+      purchase_type: body?.mode ?? "",
+    });
 
     if (!body || !body.amount || body.amount <= 0) {
       return NextResponse.json(
@@ -87,6 +95,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ url: checkoutSession.url });
   } catch (e: any) {
+    if (isMonetizationComplianceError(e)) {
+      return NextResponse.json(
+        { error: e.message, code: e.code },
+        { status: e.statusCode }
+      );
+    }
     console.error("Stripe checkout error:", e);
     return NextResponse.json(
       { error: e?.message ?? "Server error" },

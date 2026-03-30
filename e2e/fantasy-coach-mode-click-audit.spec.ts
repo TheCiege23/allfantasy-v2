@@ -30,6 +30,22 @@ test.describe("@coach fantasy coach mode click audit", () => {
     await expect(page.getByTestId("coach-action-link-waiver")).toBeVisible()
     await expect(page.getByTestId("coach-waiver-link-0")).toBeVisible()
     await expect(page.getByTestId("coach-trade-link-0")).toBeVisible()
+
+    await page.getByTestId("coach-advice-type-lineup_optimization").click()
+    await page
+      .getByTestId("coach-roster-json-input")
+      .fill(
+        '[{"playerName":"Harness Floor Guard","position":"PG","projectedPoints":34.2},{"playerName":"Harness Wing Creator","position":"SG","projectedPoints":31.8}]'
+      )
+    await page.getByTestId("coach-lineup-optimize-button").click()
+    const optimizerPanel = page.getByTestId("coach-lineup-optimizer-panel")
+    await expect(optimizerPanel).toBeVisible()
+    await expect(optimizerPanel).toContainText("Deterministic lineup optimizer")
+    await expect(page.getByTestId("coach-lineup-optimizer-starters")).toContainText("Harness Floor Guard")
+
+    await page.getByTestId("coach-lineup-optimize-ai-toggle").click()
+    await page.getByTestId("coach-lineup-optimize-button").click()
+    await expect(optimizerPanel).toContainText("Explanation source: AI")
   })
 
   test("recommendation, waiver target, and trade suggestion links navigate correctly", async ({ page }) => {

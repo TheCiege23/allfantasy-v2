@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
+import { emitLeagueCreationPerf } from '@/lib/league-creation/perf';
 
 const LEAGUE_SPORTS: readonly SupportedSport[] = SUPPORTED_SPORTS;
 export type LeagueSportOption = SupportedSport;
@@ -123,6 +124,14 @@ export interface LeagueCreationPresetPayload {
   featureFlags?: SportFeatureFlagsPayload;
 }
 
+const SPORT_PRESET_CACHE_TTL_MS = 5 * 60 * 1000;
+const sportPresetCache = new Map<string, { data: LeagueCreationPresetPayload; expiresAt: number }>();
+const sportPresetInflight = new Map<string, Promise<LeagueCreationPresetPayload>>();
+
+function buildSportPresetCacheKey(sport: LeagueSportOption, variant?: string | null): string {
+  return `${String(sport).trim().toUpperCase()}::${String(variant ?? '').trim().toUpperCase()}`;
+}
+
 /**
  * Load sport preset for league creation (roster, scoring, league defaults).
  * When sport changes, fetches GET /api/sport-defaults?sport=X&load=creation.
@@ -133,20 +142,77 @@ export function useSportPreset(sport: LeagueSportOption, variant?: string | null
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (s: LeagueSportOption, v?: string | null) => {
+  const load = useCallback(async (s: LeagueSportOption, v?: string | null, opts?: { force?: boolean }) => {
+    const force = opts?.force === true;
+    const key = buildSportPresetCacheKey(s, v);
+    const start = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!force) {
+      const cached = sportPresetCache.get(key);
+      if (cached && cached.expiresAt > Date.now()) {
+        emitLeagueCreationPerf('sport_preset_fetch', {
+          sport: s,
+          variant: v ?? null,
+          source: 'memory_cache',
+          forceRefresh: force,
+          durationMs: Number(
+            ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start).toFixed(1)
+          ),
+        });
+        setPreset(cached.data);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+    } else {
+      sportPresetCache.delete(key);
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ sport: s, load: 'creation' });
-      if (v && v.trim()) params.set('variant', v.trim());
-      const res = await fetch(`/api/sport-defaults?${params.toString()}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to load preset');
+      let inflight = sportPresetInflight.get(key);
+      const source = inflight ? 'inflight' : 'network';
+      if (!inflight) {
+        inflight = (async () => {
+          const params = new URLSearchParams({ sport: s, load: 'creation' });
+          if (v && v.trim()) params.set('variant', v.trim());
+          const res = await fetch(`/api/sport-defaults?${params.toString()}`);
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Failed to load preset');
+          }
+          const data = (await res.json()) as LeagueCreationPresetPayload;
+          sportPresetCache.set(key, {
+            data,
+            expiresAt: Date.now() + SPORT_PRESET_CACHE_TTL_MS,
+          });
+          return data;
+        })().finally(() => {
+          sportPresetInflight.delete(key);
+        });
+        sportPresetInflight.set(key, inflight);
       }
-      const data = await res.json();
-      setPreset(data as LeagueCreationPresetPayload);
+      const data = await inflight;
+      emitLeagueCreationPerf('sport_preset_fetch', {
+        sport: s,
+        variant: v ?? null,
+        source,
+        forceRefresh: force,
+        durationMs: Number(
+          ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start).toFixed(1)
+        ),
+      });
+      setPreset(data);
     } catch (e) {
+      emitLeagueCreationPerf('sport_preset_fetch_error', {
+        sport: s,
+        variant: v ?? null,
+        forceRefresh: force,
+        message: e instanceof Error ? e.message : 'Failed to load preset',
+        durationMs: Number(
+          ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - start).toFixed(1)
+        ),
+      });
       setError(e instanceof Error ? e.message : 'Failed to load preset');
       setPreset(null);
     } finally {
@@ -158,7 +224,7 @@ export function useSportPreset(sport: LeagueSportOption, variant?: string | null
     load(sport, variant);
   }, [sport, variant, load]);
 
-  return { preset, loading, error, refetch: () => load(sport, variant) };
+  return { preset, loading, error, refetch: () => load(sport, variant, { force: true }) };
 }
 
 export { LEAGUE_SPORTS };

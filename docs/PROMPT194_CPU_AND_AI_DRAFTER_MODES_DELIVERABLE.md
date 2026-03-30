@@ -39,8 +39,19 @@ Commissioner chooses mode per league; UI clearly labels which mode is active. No
 - **OrphanAIManagerService** (`lib/orphan-ai-manager/OrphanAIManagerService.ts`):
   - Reads `uiSettings.orphanDrafterMode`.
   - If `'cpu'`: uses `computeCPUPick(cpuInput)`.
-  - If `'ai'`: uses `computeAIDrafterPick(cpuInput, { useAIProvider: true })` (fallback to CPU on error).
-  - Audit log payload includes **drafterMode** (`'cpu' | 'ai'`) and optional **narrative** for AI picks.
+  - If `'ai'`: uses `computeAIDrafterPick(cpuInput, { useAIProvider: true })`.
+  - If providers are unavailable or AI path fails, execution falls back to CPU deterministically.
+  - Audit log payload includes:
+    - `requestedMode`
+    - `drafterMode` (executed mode)
+    - `aiProviderAvailable`
+    - `usedFallback`
+    - optional AI narrative/profile details
+- **API response (`/draft/ai-pick`) now returns execution metadata**:
+  - `requestedMode`
+  - `executedMode`
+  - `aiProviderAvailable`
+  - `usedFallback`
 
 ---
 
@@ -50,8 +61,15 @@ Commissioner chooses mode per league; UI clearly labels which mode is active. No
   - When "Orphan team AI manager enabled" is on, shows **Orphan drafter mode** dropdown: **CPU (rules-based, no API)** | **AI (strategy/narrative, fallback to CPU)**.
   - Commissioner-only. Orphan status text reflects selected mode (CPU vs AI with fallback).
 - **Draft room** (`DraftTopBar.tsx`, `DraftRoomPageClient.tsx`):
-  - When an orphan is on the clock, label shows **"CPU Manager"** or **"AI Manager"** based on `session.orphanDrafterMode`.
-  - "Run AI pick" button unchanged (still triggers the automated pick for the current orphan slot).
+  - Session/events payload now includes:
+    - `orphanAiProviderAvailable`
+    - `orphanDrafterEffectiveMode`
+  - When an orphan is on the clock, top bar label shows:
+    - **CPU Manager**
+    - **AI Manager**
+    - **AI Manager (CPU fallback)** when AI mode is selected but providers are unavailable.
+  - Commissioner modal now surfaces requested/effective mode and explicit fallback status note.
+  - Run button label is mode-aware (`Run CPU pick now` or `Run AI pick now`, with fallback label when relevant).
 
 ---
 
@@ -76,23 +94,25 @@ Commissioner chooses mode per league; UI clearly labels which mode is active. No
 ## 6. Fallback Behavior
 
 - If commissioner selects **AI** and the AI provider is unavailable or errors, the system uses the **CPU** drafter for that pick.
-- Audit log still records the pick with `drafterMode: 'ai'` only when the AI path actually returned the pick; otherwise the fallback pick is logged with `drafterMode: 'cpu'`.
+- Session/events/status responses expose provider availability and effective mode so UI can show fallback clearly.
+- Audit log records executed mode and fallback metadata for post-action review.
 
 ---
 
 ## 7. Mandatory Click Audit (QA Checklist)
 
-- [ ] **Mode selector works:** Commissioner enables orphan AI manager → "Orphan drafter mode" dropdown appears; can select CPU or AI; save persists selection.
-- [ ] **Fallback works:** With mode AI, if provider unavailable (or not implemented), pick still executes using CPU; no dead pick or error blocking draft.
-- [ ] **Status display works:** When orphan is on the clock, draft room shows "CPU Manager" when mode is CPU and "AI Manager" when mode is AI.
-- [ ] **Picks process correctly:** Run AI pick (commissioner) submits a valid pick; session updates; audit log has entry with correct `drafterMode`.
-- [ ] **No dead mode toggles:** CPU/AI selector is enabled for commissioner when orphan manager is on; draft room badge and Run pick button work for both modes.
+- [x] **Mode selector works:** Commissioner can toggle orphan automation and switch CPU/AI mode from control center.
+- [x] **Fallback works:** In AI mode with provider unavailable, action executes with CPU fallback and completes pick.
+- [x] **Status display works:** UI shows requested/effective mode and top-bar fallback label (`AI Manager (CPU fallback)`).
+- [x] **Picks process correctly:** Automated pick updates board/session in CPU mode, AI mode, and fallback mode.
+- [x] **No dead mode toggles:** Mode selector, status label, and run action are all wired and actionable.
 
 ---
 
 ## 8. Files Touched
 
 - **Backend:** `lib/draft-defaults/DraftUISettingsResolver.ts` (orphanDrafterMode, OrphanDrafterMode), `lib/draft-defaults/index.ts` (export OrphanDrafterMode), `lib/automated-drafter/*` (new), `lib/orphan-ai-manager/OrphanAIManagerService.ts` (CPU/AI branch, audit drafterMode).
-- **API:** `app/api/leagues/[leagueId]/draft/session/route.ts` (session.orphanDrafterMode), `app/api/leagues/[leagueId]/draft/settings/route.ts` (PATCH orphanDrafterMode).
-- **Frontend:** `components/app/settings/DraftSettingsPanel.tsx` (mode selector + status text), `components/app/draft-room/DraftTopBar.tsx` (orphanDrafterMode prop, CPU/AI label), `components/app/draft-room/DraftRoomPageClient.tsx` (pass orphanDrafterMode from session).
+- **API:** `app/api/leagues/[leagueId]/draft/ai-pick/route.ts`, `app/api/leagues/[leagueId]/draft/session/route.ts`, `app/api/leagues/[leagueId]/draft/events/route.ts`, `app/api/leagues/[leagueId]/draft/settings/route.ts`, `app/api/leagues/[leagueId]/orphan-ai-manager/status/route.ts`.
+- **Frontend:** `components/app/settings/DraftSettingsPanel.tsx`, `components/app/draft-room/DraftTopBar.tsx`, `components/app/draft-room/CommissionerControlCenterModal.tsx`, `components/app/draft-room/DraftRoomPageClient.tsx`.
+- **E2E:** `e2e/cpu-ai-drafter-modes-click-audit.spec.ts`.
 - **Docs:** `docs/PROMPT194_CPU_AND_AI_DRAFTER_MODES_DELIVERABLE.md`.

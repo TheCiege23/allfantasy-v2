@@ -13,7 +13,7 @@ const AI_FEATURES: { id: AIFeatureId; label: string; description: string }[] = [
   { id: 'matchupSimulatorEnabled', label: 'Matchup Simulator', description: 'Matchup projections and win probability' },
   { id: 'fantasyCoachEnabled', label: 'Fantasy Coach', description: 'Lineup and strategy advice' },
   { id: 'aiChatChimmyEnabled', label: 'AI Chat Chimmy', description: 'League context chat and quick answers' },
-  { id: 'aiDraftManagerOrphanEnabled', label: 'AI Draft Manager for orphan teams', description: 'CPU or AI drafts for empty teams when on the clock' },
+  { id: 'aiDraftManagerOrphanEnabled', label: 'AI Draft Manager for orphan teams', description: 'Optional AI drafting for empty teams (with deterministic fallback when unavailable)' },
 ]
 
 type Response = { settings: LeagueAISettings; isCommissioner: boolean }
@@ -135,11 +135,14 @@ export default function AISettingsPanel({ leagueId }: { leagueId: string }) {
               onChange={(e) => handleToggle(id, e.target.checked)}
               disabled={!isCommissioner}
               className="mt-1 rounded border-white/20"
+              data-testid={`commissioner-ai-toggle-${id}`}
               aria-label={`${label} ${current?.[id] ? 'on' : 'off'}`}
             />
           </label>
         ))}
       </div>
+
+      {error ? <p className="text-xs text-red-400/90">{error}</p> : null}
 
       {isCommissioner && (
         <div className="flex items-center gap-2 pt-2">
@@ -147,6 +150,7 @@ export default function AISettingsPanel({ leagueId }: { leagueId: string }) {
             type="button"
             onClick={handleSave}
             disabled={saving}
+            data-testid="commissioner-ai-save"
             className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-4 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save AI settings'}

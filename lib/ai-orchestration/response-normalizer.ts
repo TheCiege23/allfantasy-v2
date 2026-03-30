@@ -10,6 +10,7 @@ import { resolveConfidence as resolveReliabilityConfidence } from '@/lib/ai-reli
 import { blockUnsupportedClaim } from '@/lib/ai-reliability/AIFactGuard'
 import { resolveConsensusDisagreement } from '@/lib/ai-reliability/ConsensusDisagreementResolver'
 import { buildReliabilityMetadata } from '@/lib/ai-reliability/AIResultStabilityService'
+import { runAIQASystem } from '@/lib/ai-qa-system'
 
 export interface NormalizerInput {
   result: OrchestrationResult
@@ -151,21 +152,39 @@ export function normalizeToUnifiedResponse(input: NormalizerInput): UnifiedAIRes
     adpDataStale: staleFlags.adpDataStale,
     providerResults,
   })
-  const confidencePct = confidenceResolution.finalConfidence
-  const confidenceLabel = result.confidenceLabel ?? toConfidenceLabel(confidencePct)
-
   const confidenceWarnings = confidenceResolution.factGuard.violations.map((v) => v.detail)
-  const factGuardWarnings = Array.from(new Set([...(result.factGuardWarnings ?? []), ...confidenceWarnings]))
+  const preQaWarnings = Array.from(new Set([...(result.factGuardWarnings ?? []), ...confidenceWarnings]))
+  const qa = runAIQASystem({
+    primaryAnswer: result.primaryAnswer,
+    modelOutputs: result.modelOutputs,
+    envelope,
+    factGuardWarnings: preQaWarnings,
+  })
+  const qaWarnings = qa.warnings.map((warning) => `[AI QA] ${warning}`)
+  const factGuardWarnings = Array.from(new Set([...preQaWarnings, ...qaWarnings]))
+  let confidencePct = confidenceResolution.finalConfidence
+  if (!qa.verification.noHallucinations) {
+    confidencePct = Math.min(confidencePct, 55)
+  }
+  if (!qa.verification.correctDataUsage) {
+    confidencePct = Math.min(confidencePct, 65)
+  }
+  if (!qa.verification.consistentResponses) {
+    confidencePct = Math.min(confidencePct, 70)
+  }
+  const confidenceLabel = result.confidenceLabel ?? toConfidenceLabel(confidencePct)
   const hardViolation =
     confidenceResolution.factGuard.blocked ||
     blockUnsupportedClaim(confidencePct, 20) ||
-    factGuardWarnings.some((warning) => /unsupported|blocked/i.test(warning))
+    factGuardWarnings.some((warning) => /unsupported|blocked/i.test(warning)) ||
+    !qa.verification.noHallucinations
 
   const evidence = structured.evidence ?? structured.keyEvidence
   const actionPlan = structured.actionPlan ?? structured.suggestedNextAction
   const confidenceScore = confidencePct
   const confidenceReason =
     (confidenceWarnings.length ? confidenceWarnings.join('; ') : undefined) ||
+    (!qa.passed ? `AI QA warnings: ${qa.warnings.slice(0, 2).join('; ')}` : undefined) ||
     (confidenceResolution.partialProviderFailure ? 'Confidence reduced due to partial provider failure.' : undefined) ||
     (staleFlags.staleAny ? 'Confidence reduced because some source data may be stale.' : undefined) ||
     result.reason
@@ -235,6 +254,7 @@ export function normalizeToUnifiedResponse(input: NormalizerInput): UnifiedAIRes
       confidence: reliability.confidence,
       confidenceSource: confidenceResolution.source,
       disagreement: disagreement ?? undefined,
+      aiQa: qa,
       partialProviderFailure: confidenceResolution.partialProviderFailure,
     },
     alternateOutputs,

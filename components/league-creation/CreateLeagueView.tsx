@@ -49,9 +49,11 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
   const [templates, setTemplates] = useState<LeagueTemplateListItem[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(initialTemplateId ?? null);
-  const selectedTemplatePayload = selectedTemplateId
-    ? (templates.find((t) => t.id === selectedTemplateId)?.payload as LeagueTemplatePayload | undefined)
+  const selectedTemplate = selectedTemplateId
+    ? templates.find((t) => t.id === selectedTemplateId)
     : undefined;
+  const selectedTemplatePayload = selectedTemplate?.payload as LeagueTemplatePayload | undefined;
+  const wizardTemplateKey = `${selectedTemplateId ?? 'create'}:${selectedTemplatePayload ? 'ready' : 'none'}`;
 
   const [saveTemplateState, setSaveTemplateState] = useState<{
     state: LeagueCreationWizardState;
@@ -247,7 +249,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
           )}
 
           <LeagueCreationWizard
-            key={selectedTemplateId ?? 'create'}
+            key={wizardTemplateKey}
             initialWizardState={selectedTemplatePayload}
             onSaveAsTemplate={handleSaveAsTemplate}
             savingTemplate={savingTemplate}

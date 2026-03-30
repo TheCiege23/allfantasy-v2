@@ -44,11 +44,13 @@ function HeadshotOrFallback({
   displayName,
   size = 32,
   className = '',
+  testIdBase = 'draft-player-headshot',
 }: {
   headshotUrl: string | null
   displayName: string
   size?: number
   className?: string
+  testIdBase?: string
 }) {
   const [imgError, setImgError] = useState(false)
   const showImg = headshotUrl && !imgError
@@ -60,6 +62,7 @@ function HeadshotOrFallback({
         alt=""
         width={size}
         height={size}
+        testId={`${testIdBase}-image`}
         className={`rounded-full object-cover bg-white/10 ${className}`}
         lazy
         onError={() => setImgError(true)}
@@ -68,6 +71,7 @@ function HeadshotOrFallback({
   }
   return (
     <div
+      data-testid={`${testIdBase}-fallback`}
       className={`rounded-full bg-white/15 flex items-center justify-center text-white/70 font-semibold flex-shrink-0 ${className}`}
       style={{ width: size, height: size, fontSize: Math.max(10, size * 0.4) }}
       aria-hidden
@@ -82,11 +86,13 @@ function TeamLogoOrFallback({
   teamAbbr,
   size = 20,
   className = '',
+  testIdBase = 'draft-player-team-logo',
 }: {
   logoUrl: string | null
   teamAbbr: string | null
   size?: number
   className?: string
+  testIdBase?: string
 }) {
   const [imgError, setImgError] = useState(false)
   const showImg = logoUrl && !imgError
@@ -98,6 +104,7 @@ function TeamLogoOrFallback({
         alt={teamAbbr ?? ''}
         width={size}
         height={size}
+        testId={`${testIdBase}-image`}
         className={`rounded object-contain ${className}`}
         lazy
         onError={() => setImgError(true)}
@@ -106,6 +113,7 @@ function TeamLogoOrFallback({
   }
   return (
     <span
+      data-testid={`${testIdBase}-fallback`}
       className={`inline-flex items-center justify-center rounded bg-white/10 text-[10px] font-medium text-white/80 flex-shrink-0 ${className}`}
       style={{ width: size, height: size }}
     >
@@ -170,12 +178,15 @@ function DraftPlayerCardInner({
 
   const headshotUrl = assets?.headshotUrl ?? null
   const teamLogoUrl = assets?.teamLogoUrl ?? null
+  const headshotTestBase = testId ? `${testId}-headshot` : 'draft-player-headshot'
+  const teamLogoTestBase = testId ? `${testId}-team-logo` : 'draft-player-team-logo'
 
   if (variant === 'card') {
     return (
       <div
         data-draft-player-card="true"
         data-variant="card"
+        data-drafted={isDrafted ? 'true' : 'false'}
         data-testid={testId}
         onClick={onSelect}
         onKeyDown={(event) => {
@@ -188,7 +199,12 @@ function DraftPlayerCardInner({
         } ${isDevy ? 'ring-1 ring-inset ring-violet-500/30' : ''}`}
       >
         <div className="flex items-center gap-3">
-          <HeadshotOrFallback headshotUrl={headshotUrl} displayName={displayName} size={40} />
+          <HeadshotOrFallback
+            headshotUrl={headshotUrl}
+            displayName={displayName}
+            size={40}
+            testIdBase={headshotTestBase}
+          />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <p className="font-medium text-white truncate">{displayName}</p>
@@ -204,7 +220,12 @@ function DraftPlayerCardInner({
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={18} />
+              <TeamLogoOrFallback
+                logoUrl={teamLogoUrl}
+                teamAbbr={teamAbbr}
+                size={18}
+                testIdBase={teamLogoTestBase}
+              />
               <span className="text-xs text-white/60">{position}</span>
               {teamAbbr && <span className="text-xs text-white/50">{teamAbbr}</span>}
               {primaryStat != null && (
@@ -239,6 +260,7 @@ function DraftPlayerCardInner({
     <li
       data-draft-player-card="true"
       data-variant="row"
+      data-drafted={isDrafted ? 'true' : 'false'}
       data-testid={testId}
       onClick={onSelect}
       onKeyDown={(event) => {
@@ -250,8 +272,18 @@ function DraftPlayerCardInner({
         isDrafted ? 'border-white/5 bg-[#0a1228]/70 opacity-70' : 'border-white/10 bg-[#0a1228] hover:border-white/20'
       } ${isDevy ? 'border-l-2 border-l-violet-500/50' : ''}`}
     >
-      <HeadshotOrFallback headshotUrl={headshotUrl} displayName={displayName} size={28} />
-      <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={18} />
+      <HeadshotOrFallback
+        headshotUrl={headshotUrl}
+        displayName={displayName}
+        size={28}
+        testIdBase={headshotTestBase}
+      />
+      <TeamLogoOrFallback
+        logoUrl={teamLogoUrl}
+        teamAbbr={teamAbbr}
+        size={18}
+        testIdBase={teamLogoTestBase}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="truncate font-medium text-white">{displayName}</p>

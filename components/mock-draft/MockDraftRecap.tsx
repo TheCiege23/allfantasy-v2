@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react'
 import { Share2, Copy, Check, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import type { MockDraftPick } from '@/lib/mock-draft/types'
 import type { MockDraftConfig } from '@/lib/mock-draft/types'
 
@@ -83,6 +84,8 @@ export interface MockDraftRecapProps {
   userManagerName?: string | null
   /** League id for sharing (required for Share results) */
   leagueId?: string | null
+  /** Session/saved draft id for replay route */
+  draftId?: string | null
   onBack?: () => void
 }
 
@@ -91,6 +94,7 @@ export function MockDraftRecap({
   config,
   userManagerName,
   leagueId,
+  draftId,
   onBack,
 }: MockDraftRecapProps) {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
@@ -173,6 +177,15 @@ export function MockDraftRecap({
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-white">Mock Draft Recap</h2>
         <div className="flex flex-wrap items-center gap-2">
+          {draftId && (
+            <Link
+              href={`/mock-draft/${encodeURIComponent(draftId)}/replay`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/20 px-3 py-1.5 text-xs font-medium text-purple-100 hover:bg-purple-500/30"
+              data-testid="mock-draft-recap-replay"
+            >
+              Open replay
+            </Link>
+          )}
           {leagueId && (
             <>
               {!shareUrl ? (

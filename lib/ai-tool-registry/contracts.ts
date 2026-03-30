@@ -64,6 +64,16 @@ export interface ReliabilityResponseMeta {
   confidenceSource?: 'deterministic' | 'llm' | 'capped'
   partialProviderFailure?: boolean
   disagreement?: ReliabilityDisagreement
+  aiQa?: {
+    passed: boolean
+    score: number
+    verification: {
+      noHallucinations: boolean
+      correctDataUsage: boolean
+      consistentResponses: boolean
+    }
+    warnings: string[]
+  }
   providerStatus?: ProviderStatusItem[]
 }
 

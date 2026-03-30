@@ -9,7 +9,8 @@ import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/liv
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
-import type { KeeperSelection } from '@/lib/live-draft-engine/keeper/types'
+import type { KeeperConfig, KeeperSelection } from '@/lib/live-draft-engine/keeper/types'
+import { isKeeperDeadlineLocked } from '@/lib/live-draft-engine/keeper/KeeperCarryover'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,18 +41,20 @@ export async function POST(
   }
 
   const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
-  if (rosterId !== currentUserRosterId) {
-    try {
-      await assertCommissioner(leagueId, userId)
-    } catch {
-      return NextResponse.json({ error: 'You can only remove keepers from your own roster' }, { status: 403 })
-    }
+  const isCommissioner = await assertCommissioner(leagueId, userId).then(() => true).catch(() => false)
+  if (rosterId !== currentUserRosterId && !isCommissioner) {
+    return NextResponse.json({ error: 'You can only remove keepers from your own roster' }, { status: 403 })
   }
 
   const draft = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!draft) return NextResponse.json({ error: 'No draft session' }, { status: 404 })
   if (draft.status !== 'pre_draft') {
     return NextResponse.json({ error: 'Keepers cannot be changed after draft has started' }, { status: 400 })
+  }
+  const config = (draft.keeperConfig ?? (draft as any).keeperConfig) as KeeperConfig | null
+  const deadlineLocked = isKeeperDeadlineLocked(config)
+  if (deadlineLocked && !isCommissioner) {
+    return NextResponse.json({ error: 'Keeper deadline has passed. Commissioner override is required.' }, { status: 400 })
   }
 
   const existing = (draft.keeperSelections ?? (draft as any).keeperSelections) as KeeperSelection[] | undefined

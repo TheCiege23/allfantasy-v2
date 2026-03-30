@@ -8,6 +8,7 @@ type DraftConfig = {
   draft_type?: string
   rounds?: number
   timer_seconds?: number | null
+  slow_timer_seconds?: number | null
   snake_or_linear?: string
   pick_order_rules?: string
   third_round_reversal?: boolean
@@ -90,6 +91,68 @@ const POSITION_FILTER_BEHAVIOR_OPTIONS = [
   { value: 'by_eligibility', label: 'By eligibility' },
 ] as const
 
+const DEFAULT_SESSION_VARIANT: SessionVariantPayload = {
+  keeperConfig: { maxKeepers: 0, deadline: null, maxKeepersPerPosition: {} },
+  devyConfig: { enabled: false, devyRounds: [] },
+  c2cConfig: { enabled: false, collegeRounds: [] },
+  auctionBudgetPerTeam: 200,
+}
+
+function parseRoundList(value: string): number[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[,\s]+/)
+        .map((token) => Number.parseInt(token.trim(), 10))
+        .filter((round) => Number.isFinite(round) && round >= 1 && round <= 50)
+    )
+  ).sort((a, b) => a - b)
+}
+
+function parsePositionCaps(value: string): Record<string, number> {
+  const result: Record<string, number> = {}
+  const tokens = value
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean)
+  for (const token of tokens) {
+    const [positionRaw, capRaw] = token.split(':')
+    const position = String(positionRaw ?? '').trim().toUpperCase()
+    const cap = Number.parseInt(String(capRaw ?? '').trim(), 10)
+    if (!position || !Number.isFinite(cap) || cap < 0) continue
+    result[position] = Math.min(50, cap)
+  }
+  return result
+}
+
+function stringifyPositionCaps(caps: Record<string, number> | undefined | null): string {
+  if (!caps || typeof caps !== 'object') return ''
+  return Object.entries(caps)
+    .map(([position, cap]) => `${position}:${cap}`)
+    .join(', ')
+}
+
+function normalizeSessionVariant(input: SessionVariantPayload | null | undefined): SessionVariantPayload {
+  const devyRounds = Array.isArray(input?.devyConfig?.devyRounds) ? input?.devyConfig?.devyRounds : []
+  const collegeRounds = Array.isArray(input?.c2cConfig?.collegeRounds) ? input?.c2cConfig?.collegeRounds : []
+  return {
+    keeperConfig: {
+      maxKeepers: Math.max(0, Math.min(50, Math.round(Number(input?.keeperConfig?.maxKeepers ?? 0) || 0))),
+      deadline: input?.keeperConfig?.deadline ?? null,
+      maxKeepersPerPosition: input?.keeperConfig?.maxKeepersPerPosition ?? {},
+    },
+    devyConfig: {
+      enabled: Boolean(input?.devyConfig?.enabled),
+      devyRounds,
+    },
+    c2cConfig: {
+      enabled: Boolean(input?.c2cConfig?.enabled),
+      collegeRounds,
+    },
+    auctionBudgetPerTeam: Number(input?.auctionBudgetPerTeam ?? 200),
+  }
+}
+
 export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<DraftSettingsResponse | null>(null)
@@ -125,8 +188,8 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
       }
       setData(json)
       setUISettings(json.draftUISettings ?? null)
-      if (json.config) setConfig(json.config)
-      if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
+      setConfig(json.config ?? null)
+      setSessionVariant(normalizeSessionVariant(json.variantSettings?.sessionVariant ?? json.sessionVariant ?? DEFAULT_SESSION_VARIANT))
       setSessionPreDraft(!!json.sessionPreDraft)
       if (json.draftOrderMode) setDraftOrderMode(json.draftOrderMode)
       if (json.lotteryConfig != null) setLotteryConfig(json.lotteryConfig)
@@ -150,10 +213,11 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
     try {
       const payload: Record<string, unknown> = {}
       if (uiSettings) Object.assign(payload, uiSettings)
-      if (config && (config.draft_type || config.rounds != null || config.timer_seconds !== undefined || config.third_round_reversal !== undefined || config.snake_or_linear || config.autopick_behavior || config.queue_size_limit !== undefined || config.pre_draft_ranking_source)) {
+      if (config && (config.draft_type || config.rounds != null || config.timer_seconds !== undefined || config.slow_timer_seconds !== undefined || config.third_round_reversal !== undefined || config.snake_or_linear || config.autopick_behavior || config.queue_size_limit !== undefined || config.pre_draft_ranking_source)) {
         payload.draft_type = config.draft_type
         payload.rounds = config.rounds
         payload.timer_seconds = config.timer_seconds
+        payload.slow_timer_seconds = config.slow_timer_seconds
         payload.pick_order_rules = config.pick_order_rules ?? config.snake_or_linear
         payload.snake_or_linear = config.snake_or_linear
         payload.third_round_reversal = config.third_round_reversal
@@ -180,8 +244,8 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
       }
       setData((prev) => (prev ? { ...prev, draftUISettings: json.draftUISettings, config: json.config, draftOrderMode: json.draftOrderMode, lotteryConfig: json.lotteryConfig } : null))
       setUISettings(json.draftUISettings)
-      if (json.config) setConfig(json.config)
-      if (json.variantSettings?.sessionVariant != null) setSessionVariant(json.variantSettings.sessionVariant)
+      setConfig(json.config ?? null)
+      setSessionVariant(normalizeSessionVariant(json.variantSettings?.sessionVariant ?? json.sessionVariant ?? DEFAULT_SESSION_VARIANT))
       if (json.draftOrderMode) setDraftOrderMode(json.draftOrderMode)
       if (json.lotteryConfig != null) setLotteryConfig(json.lotteryConfig)
       setSaveSuccess(true)
@@ -233,7 +297,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const effectiveConfig = config ?? data?.config ?? null
   const isCommissioner = data?.isCommissioner ?? false
   const ui = uiSettings ?? data?.draftUISettings
-  const effectiveSessionVariant = sessionVariant ?? data?.sessionVariant ?? null
+  const effectiveSessionVariant = normalizeSessionVariant(sessionVariant ?? data?.sessionVariant ?? DEFAULT_SESSION_VARIANT)
 
   return (
     <section className="space-y-6 rounded-xl border border-white/10 bg-black/20 p-4">
@@ -294,6 +358,25 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                     className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                   />
                 ) : (effectiveConfig.timer_seconds ?? '—')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/50">Slow draft timer (minutes)</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <input
+                    type="number"
+                    min={5}
+                    max={10080}
+                    value={Math.max(5, Math.round(Number(effectiveConfig.slow_timer_seconds ?? 3600) / 60))}
+                    onChange={(e) => {
+                      const minutes = Math.max(5, Math.min(10080, parseInt(e.target.value, 10) || 60))
+                      setConfigField('slow_timer_seconds', minutes * 60)
+                    }}
+                    data-testid="commissioner-draft-slow-timer-input"
+                    className="w-24 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  />
+                ) : (effectiveConfig.slow_timer_seconds != null ? Math.round(Number(effectiveConfig.slow_timer_seconds) / 60) : '—')}
               </dd>
             </div>
             <div>
@@ -567,6 +650,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('draftOrderRandomizationEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-order-randomization-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
@@ -577,6 +661,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('pickTradeEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-pick-trade-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
@@ -587,6 +672,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('tradedPickColorModeEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-traded-pick-color-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
@@ -607,6 +693,7 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('aiAdpEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-ai-adp-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
@@ -617,33 +704,39 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('aiQueueReorderEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-ai-queue-reorder-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
-              <span>Orphan team AI manager enabled</span>
+              <span>CPU manager for empty teams</span>
               <input
                 type="checkbox"
-                checked={ui.orphanTeamAiManagerEnabled}
-                onChange={(e) => setUI('orphanTeamAiManagerEnabled', e.target.checked)}
+                checked={ui.orphanTeamAiManagerEnabled && (ui.orphanDrafterMode ?? 'cpu') === 'cpu'}
+                onChange={(e) => {
+                  const enabled = e.target.checked
+                  setUI('orphanTeamAiManagerEnabled', enabled)
+                  if (enabled) setUI('orphanDrafterMode', 'cpu')
+                }}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+                data-testid="commissioner-draft-cpu-manager-toggle"
               />
             </label>
-            {ui.orphanTeamAiManagerEnabled && (
-              <div className="flex items-center justify-between gap-4 text-xs text-white/90">
-                <span>Orphan drafter mode</span>
-                <select
-                  value={ui.orphanDrafterMode ?? 'cpu'}
-                  onChange={(e) => setUI('orphanDrafterMode', e.target.value as 'cpu' | 'ai')}
-                  disabled={!isCommissioner}
-                  className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
-                  aria-label="CPU or AI drafter for orphan teams"
-                >
-                  <option value="cpu">CPU (rules-based, no API)</option>
-                  <option value="ai">AI (strategy/narrative, fallback to CPU)</option>
-                </select>
-              </div>
-            )}
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>AI manager for empty teams (optional)</span>
+              <input
+                type="checkbox"
+                checked={ui.orphanTeamAiManagerEnabled && (ui.orphanDrafterMode ?? 'cpu') === 'ai'}
+                onChange={(e) => {
+                  const enabled = e.target.checked
+                  setUI('orphanTeamAiManagerEnabled', enabled)
+                  setUI('orphanDrafterMode', enabled ? 'ai' : 'cpu')
+                }}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+                data-testid="commissioner-draft-ai-manager-toggle"
+              />
+            </label>
             {isCommissioner && orphanStatus && (
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80">
                 <p>
@@ -669,6 +762,17 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 onChange={(e) => setUI('liveDraftChatSyncEnabled', e.target.checked)}
                 disabled={!isCommissioner}
                 className="rounded border-white/20"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 text-xs text-white/90">
+              <span>Draft import enabled</span>
+              <input
+                type="checkbox"
+                checked={ui.importEnabled ?? true}
+                onChange={(e) => setUI('importEnabled', e.target.checked)}
+                disabled={!isCommissioner}
+                className="rounded border-white/20"
+                data-testid="commissioner-draft-import-enabled-toggle"
               />
             </label>
             <label className="flex items-center justify-between gap-4 text-xs text-white/90">
@@ -744,10 +848,10 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
             </label>
           </div>
 
-          {sessionPreDraft && effectiveSessionVariant && (
+          {sessionPreDraft && (
             <>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Keeper rules</h4>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2 text-xs rounded-lg border border-white/10 bg-black/25 p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-white/70">Max keepers</span>
                   {isCommissioner ? (
@@ -756,41 +860,119 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                       min={0}
                       max={50}
                       value={effectiveSessionVariant.keeperConfig?.maxKeepers ?? 0}
-                      onChange={(e) => setSessionVariantField({ keeperConfig: { ...(effectiveSessionVariant?.keeperConfig ?? { maxKeepers: 0 }), maxKeepers: parseInt(e.target.value, 10) || 0 } })}
+                      onChange={(e) => setSessionVariantField({ keeperConfig: { ...(effectiveSessionVariant.keeperConfig ?? { maxKeepers: 0 }), maxKeepers: parseInt(e.target.value, 10) || 0 } })}
                       className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      data-testid="commissioner-draft-keeper-max-input"
                     />
                   ) : (
                     <span className="text-white/90">{effectiveSessionVariant.keeperConfig?.maxKeepers ?? 0}</span>
                   )}
                 </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70">Keeper deadline (ISO)</span>
+                  {isCommissioner ? (
+                    <input
+                      type="text"
+                      value={effectiveSessionVariant.keeperConfig?.deadline ?? ''}
+                      onChange={(e) => setSessionVariantField({ keeperConfig: { ...(effectiveSessionVariant.keeperConfig ?? { maxKeepers: 0 }), deadline: e.target.value.trim() || null } })}
+                      className="w-64 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      placeholder="2026-08-15T23:59:00.000Z"
+                      data-testid="commissioner-draft-keeper-deadline-input"
+                    />
+                  ) : (
+                    <span className="text-white/90">{effectiveSessionVariant.keeperConfig?.deadline ?? '—'}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70">Max keepers per position</span>
+                  {isCommissioner ? (
+                    <input
+                      type="text"
+                      value={stringifyPositionCaps(effectiveSessionVariant.keeperConfig?.maxKeepersPerPosition)}
+                      onChange={(e) => setSessionVariantField({
+                        keeperConfig: {
+                          ...(effectiveSessionVariant.keeperConfig ?? { maxKeepers: 0 }),
+                          maxKeepersPerPosition: parsePositionCaps(e.target.value),
+                        },
+                      })}
+                      className="w-64 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      placeholder="QB:1, RB:3, WR:3"
+                      data-testid="commissioner-draft-keeper-position-caps-input"
+                    />
+                  ) : (
+                    <span className="text-white/90">{stringifyPositionCaps(effectiveSessionVariant.keeperConfig?.maxKeepersPerPosition) || '—'}</span>
+                  )}
+                </div>
               </div>
 
               <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Devy rules</h4>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2 text-xs rounded-lg border border-white/10 bg-black/25 p-3">
                 <label className="flex items-center gap-2 text-white/90">
                   <input
                     type="checkbox"
                     checked={!!effectiveSessionVariant.devyConfig?.enabled}
-                    onChange={(e) => setSessionVariantField({ devyConfig: e.target.checked ? { enabled: true, devyRounds: effectiveSessionVariant?.devyConfig?.devyRounds ?? [] } : { enabled: false, devyRounds: [] } })}
+                    onChange={(e) => setSessionVariantField({ devyConfig: e.target.checked ? { enabled: true, devyRounds: effectiveSessionVariant.devyConfig?.devyRounds ?? [] } : { enabled: false, devyRounds: [] } })}
                     disabled={!isCommissioner}
                     className="rounded border-white/20"
+                    data-testid="commissioner-draft-devy-enabled-toggle"
                   />
                   Devy rounds enabled (rounds as comma list, e.g. 14,15)
                 </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70">Devy rounds</span>
+                  {isCommissioner ? (
+                    <input
+                      type="text"
+                      value={(effectiveSessionVariant.devyConfig?.devyRounds ?? []).join(', ')}
+                      onChange={(e) => setSessionVariantField({
+                        devyConfig: {
+                          enabled: effectiveSessionVariant.devyConfig?.enabled ?? false,
+                          devyRounds: parseRoundList(e.target.value),
+                        },
+                      })}
+                      className="w-56 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      placeholder="14, 15"
+                      data-testid="commissioner-draft-devy-rounds-input"
+                    />
+                  ) : (
+                    <span className="text-white/90">{(effectiveSessionVariant.devyConfig?.devyRounds ?? []).join(', ') || '—'}</span>
+                  )}
+                </div>
               </div>
 
               <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">C2C rules</h4>
-              <div className="space-y-2 text-xs">
+              <div className="space-y-2 text-xs rounded-lg border border-white/10 bg-black/25 p-3">
                 <label className="flex items-center gap-2 text-white/90">
                   <input
                     type="checkbox"
                     checked={!!effectiveSessionVariant.c2cConfig?.enabled}
-                    onChange={(e) => setSessionVariantField({ c2cConfig: e.target.checked ? { enabled: true, collegeRounds: effectiveSessionVariant?.c2cConfig?.collegeRounds ?? [] } : { enabled: false, collegeRounds: [] } })}
+                    onChange={(e) => setSessionVariantField({ c2cConfig: e.target.checked ? { enabled: true, collegeRounds: effectiveSessionVariant.c2cConfig?.collegeRounds ?? [] } : { enabled: false, collegeRounds: [] } })}
                     disabled={!isCommissioner}
                     className="rounded border-white/20"
+                    data-testid="commissioner-draft-c2c-enabled-toggle"
                   />
                   College vs pro rounds enabled
                 </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/70">College rounds</span>
+                  {isCommissioner ? (
+                    <input
+                      type="text"
+                      value={(effectiveSessionVariant.c2cConfig?.collegeRounds ?? []).join(', ')}
+                      onChange={(e) => setSessionVariantField({
+                        c2cConfig: {
+                          enabled: effectiveSessionVariant.c2cConfig?.enabled ?? false,
+                          collegeRounds: parseRoundList(e.target.value),
+                        },
+                      })}
+                      className="w-56 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      placeholder="1, 2, 3"
+                      data-testid="commissioner-draft-c2c-rounds-input"
+                    />
+                  ) : (
+                    <span className="text-white/90">{(effectiveSessionVariant.c2cConfig?.collegeRounds ?? []).join(', ') || '—'}</span>
+                  )}
+                </div>
               </div>
 
               {effectiveConfig?.draft_type === 'auction' && (

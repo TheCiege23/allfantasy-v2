@@ -3,7 +3,7 @@
  * Used by setup flow, engine, and recap.
  */
 
-export type MockDraftSport = 'NFL' | 'NBA' | 'MLB'
+export type MockDraftSport = 'NFL' | 'NHL' | 'NBA' | 'MLB' | 'NCAAB' | 'NCAAF' | 'SOCCER'
 
 export type MockLeagueType = 'redraft' | 'dynasty'
 
@@ -32,6 +32,17 @@ export interface MockDraftConfig {
   rosterSize?: number
   /** all | rookies | vets */
   poolType?: MockPoolType
+  /** solo | mixed | linked_public | cpu_only */
+  roomMode?: 'solo' | 'mixed' | 'linked_public' | 'cpu_only'
+  /** Number of human slots in mixed mode */
+  humanTeams?: number
+  /** Optional explicit room slots */
+  slotConfig?: Array<{
+    slot: number
+    type: 'human' | 'cpu'
+    userId?: string | null
+    displayName?: string | null
+  }>
 }
 
 export const DEFAULT_MOCK_CONFIG: MockDraftConfig = {
@@ -44,6 +55,8 @@ export const DEFAULT_MOCK_CONFIG: MockDraftConfig = {
   aiEnabled: true,
   rounds: 15,
   leagueId: null,
+  roomMode: 'solo',
+  humanTeams: 1,
 }
 
 export interface MockDraftPick {

@@ -4,21 +4,33 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { getAuctionMaxBid, canPlaceAuctionBid } from '@/lib/mock-draft/draft-engine'
+import { canPlaceAuctionBid } from '@/lib/mock-draft/draft-engine'
 import type {
   AuctionState,
   AuctionBudgets,
   AuctionNomination,
   SlotOrderEntry,
-  DraftSessionSnapshot,
 } from '@/lib/live-draft-engine/types'
 import { computeTimerEndAt } from '@/lib/live-draft-engine/DraftTimerService'
-import { formatPickLabel } from '@/lib/live-draft-engine/DraftOrderService'
 
 const DEFAULT_BUDGET = 200
 const DEFAULT_MIN_BID = 1
 const DEFAULT_MIN_INCREMENT = 1
 const DEFAULT_BID_TIMER_SECONDS = 35
+
+function getTeamRosterSlotsRemaining(picksCountForRoster: number, rounds: number): number {
+  return Math.max(0, rounds - picksCountForRoster)
+}
+
+function normalizeNominationIndex(index: number, slotOrderLength: number): number {
+  if (slotOrderLength <= 0) return 0
+  const safe = Number.isFinite(index) ? Math.floor(index) : 0
+  return ((safe % slotOrderLength) + slotOrderLength) % slotOrderLength
+}
+
+function timerHasExpired(timerEndAt: Date | null | undefined, now: Date): boolean {
+  return Boolean(timerEndAt && timerEndAt.getTime() <= now.getTime())
+}
 
 export interface AuctionConfig {
   budgetPerTeam: number
@@ -102,17 +114,23 @@ export async function nominatePlayer(
   if (!session || session.draftType !== 'auction') {
     return { success: false, error: 'Auction session not found' }
   }
-  if (session.status !== 'in_progress' && session.status !== 'paused') {
+  if (session.status !== 'in_progress') {
     return { success: false, error: 'Draft is not in progress' }
   }
 
   const slotOrder = (session.slotOrder as unknown as SlotOrderEntry[]) ?? []
+  if (slotOrder.length === 0) {
+    return { success: false, error: 'Draft order is not configured' }
+  }
   const state = getAuctionStateFromSession(session)
   const config = getAuctionConfigFromSession(session)
-  const nominationIndex = state?.nominationOrderIndex ?? 0
+  const nominationIndex = normalizeNominationIndex(state?.nominationOrderIndex ?? 0, slotOrder.length)
   const currentNominator = slotOrder[nominationIndex]
   if (!currentNominator || currentNominator.rosterId !== nominatorRosterId) {
     return { success: false, error: 'You are not the current nominator' }
+  }
+  if (state?.currentNomination) {
+    return { success: false, error: 'A player is already on the block' }
   }
 
   const playerName = nomination.playerName?.trim()
@@ -129,7 +147,7 @@ export async function nominatePlayer(
   const minNextBid = config.minBid
 
   const newState: AuctionState = {
-    nominationOrderIndex: state?.nominationOrderIndex ?? 0,
+    nominationOrderIndex: nominationIndex,
     currentNomination: {
       playerName,
       position: nomination.position ?? '',
@@ -149,7 +167,6 @@ export async function nominatePlayer(
       auctionState: newState as any,
       timerEndAt: bidTimerEndAt,
       pausedRemainingSeconds: null,
-      status: 'in_progress',
       version: { increment: 1 },
       updatedAt: new Date(),
     },
@@ -180,14 +197,18 @@ export async function placeBid(
   if (!state?.currentNomination) {
     return { success: false, error: 'No player currently on the block' }
   }
+  if (timerHasExpired(session.timerEndAt, new Date())) {
+    return { success: false, error: 'Bidding window expired' }
+  }
 
   const config = getAuctionConfigFromSession(session)
   const budgets = getBudgetsFromSession(session)
   const myBudget = budgets[rosterId] ?? 0
-  const picksByRoster = session.picks.filter((p) => p.rosterId === rosterId)
-  const rosterSlotsRemaining = Math.max(0, session.rounds * session.teamCount - picksByRoster.length)
-  const rosterSlotsTotal = session.rounds * session.teamCount
-  const slotsRemaining = rosterSlotsTotal - picksByRoster.length
+  const picksByRosterCount = session.picks.filter((p) => p.rosterId === rosterId).length
+  const rosterSlotsRemaining = getTeamRosterSlotsRemaining(picksByRosterCount, session.rounds)
+  if (rosterSlotsRemaining <= 0) {
+    return { success: false, error: 'Roster is full' }
+  }
 
   const minNext = getMinNextBid(state, config.minBidIncrement)
   if (amount < minNext) {
@@ -197,7 +218,7 @@ export async function placeBid(
   const canBid = canPlaceAuctionBid({
     budget: myBudget,
     bid: amount,
-    rosterSlotsRemaining: slotsRemaining,
+    rosterSlotsRemaining,
     minimumBid: config.minBid,
   })
   if (!canBid) {
@@ -230,7 +251,16 @@ export async function placeBid(
  * Resolve the current auction: assign player to high bidder, deduct budget, create pick, advance nominator.
  * Called when bid timer expires or commissioner forces sell. If no bids, player is not assigned (pass).
  */
-export async function resolveAuctionWin(leagueId: string): Promise<{
+export interface ResolveAuctionOptions {
+  /** Commissioner-forced resolution can bypass timer expiry. */
+  force?: boolean
+  now?: Date
+}
+
+export async function resolveAuctionWin(
+  leagueId: string,
+  options?: ResolveAuctionOptions
+): Promise<{
   success: boolean
   error?: string
   sold?: boolean
@@ -244,6 +274,9 @@ export async function resolveAuctionWin(leagueId: string): Promise<{
   if (!session || session.draftType !== 'auction') {
     return { success: false, error: 'Auction session not found' }
   }
+  if (session.status !== 'in_progress') {
+    return { success: false, error: 'Draft is not in progress' }
+  }
 
   const state = getAuctionStateFromSession(session)
   if (!state?.currentNomination) {
@@ -251,18 +284,58 @@ export async function resolveAuctionWin(leagueId: string): Promise<{
   }
 
   const slotOrder = (session.slotOrder as unknown as SlotOrderEntry[]) ?? []
+  if (slotOrder.length === 0) {
+    return { success: false, error: 'Draft order is not configured' }
+  }
+  const now = options?.now ?? new Date()
+  const force = Boolean(options?.force)
+  if (!force && !timerHasExpired(session.timerEndAt, now)) {
+    return { success: false, error: 'Bid timer has not expired yet' }
+  }
+
+  const config = getAuctionConfigFromSession(session)
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
   const picksCount = session.picks.length
 
-  const winnerRosterId = state.currentBidderRosterId
-  const amount = state.currentBid
+  let winnerRosterId = state.currentBidderRosterId
+  let amount = state.currentBid
+  if (winnerRosterId && amount > 0) {
+    const budgets = getBudgetsFromSession(session)
+    const winnerBudget = budgets[winnerRosterId] ?? 0
+    const winnerPicks = session.picks.filter((pick) => pick.rosterId === winnerRosterId).length
+    const rosterSlotsRemaining = getTeamRosterSlotsRemaining(winnerPicks, session.rounds)
+    const stillValid = canPlaceAuctionBid({
+      budget: winnerBudget,
+      bid: amount,
+      rosterSlotsRemaining,
+      minimumBid: config.minBid,
+    })
+    if (!stillValid) {
+      winnerRosterId = null
+      amount = 0
+    }
+  }
+
+  const sold = Boolean(winnerRosterId && amount > 0)
+  const shouldCompleteAfterResolution = picksCount + (sold ? 1 : 0) >= totalPicks
   const nomination = state.currentNomination
-  const nominationIndex = state.nominationOrderIndex
-  const nextNominationIndex = (nominationIndex + 1) % slotOrder.length
+  const nominationIndex = normalizeNominationIndex(state.nominationOrderIndex, slotOrder.length)
+  const nextNominationIndex = normalizeNominationIndex(nominationIndex + 1, slotOrder.length)
+  const nextNominationTimerEndAt = shouldCompleteAfterResolution
+    ? null
+    : computeTimerEndAt(config.bidTimerSeconds, now)
+  const nextAuctionState: AuctionState = {
+    nominationOrderIndex: nextNominationIndex,
+    currentNomination: null,
+    currentBid: 0,
+    currentBidderRosterId: null,
+    bidTimerEndAt: nextNominationTimerEndAt?.toISOString() ?? null,
+    minNextBid: config.minBid,
+  }
 
   await prisma.$transaction(async (tx) => {
-    if (winnerRosterId && amount > 0) {
+    if (sold && winnerRosterId && amount > 0) {
       const budgets = getBudgetsFromSession(session)
       const newBudgets = { ...budgets }
       newBudgets[winnerRosterId] = Math.max(0, (budgets[winnerRosterId] ?? 0) - amount)
@@ -294,17 +367,11 @@ export async function resolveAuctionWin(leagueId: string): Promise<{
       await (tx as any).draftSession.update({
         where: { id: session.id },
         data: {
-          auctionState: {
-            nominationOrderIndex: nextNominationIndex,
-            currentNomination: null,
-            currentBid: 0,
-            currentBidderRosterId: null,
-            bidTimerEndAt: null,
-            minNextBid: 0,
-          },
+          auctionState: nextAuctionState as any,
           auctionBudgets: newBudgets,
-          timerEndAt: null,
+          timerEndAt: nextNominationTimerEndAt,
           pausedRemainingSeconds: null,
+          status: shouldCompleteAfterResolution ? 'completed' : 'in_progress',
           version: { increment: 1 },
           updatedAt: new Date(),
         },
@@ -313,30 +380,16 @@ export async function resolveAuctionWin(leagueId: string): Promise<{
       await (tx as any).draftSession.update({
         where: { id: session.id },
         data: {
-          auctionState: {
-            nominationOrderIndex: nextNominationIndex,
-            currentNomination: null,
-            currentBid: 0,
-            currentBidderRosterId: null,
-            bidTimerEndAt: null,
-            minNextBid: 0,
-          },
-          timerEndAt: null,
+          auctionState: nextAuctionState as any,
+          timerEndAt: nextNominationTimerEndAt,
           pausedRemainingSeconds: null,
+          status: shouldCompleteAfterResolution ? 'completed' : 'in_progress',
           version: { increment: 1 },
           updatedAt: new Date(),
         },
       })
     }
   })
-
-  const sold = Boolean(winnerRosterId && amount > 0)
-  if (picksCount + (sold ? 1 : 0) >= totalPicks) {
-    await prisma.draftSession.update({
-      where: { id: session.id },
-      data: { status: 'completed', timerEndAt: null, pausedRemainingSeconds: null, version: { increment: 1 } },
-    })
-  }
 
   return {
     success: true,
@@ -355,17 +408,19 @@ export async function initializeAuctionForSession(leagueId: string): Promise<boo
 
   const slotOrder = (session.slotOrder as unknown as SlotOrderEntry[]) ?? []
   const budgetPerTeam = session.auctionBudgetPerTeam ?? DEFAULT_BUDGET
+  const config = getAuctionConfigFromSession(session)
   const budgets: AuctionBudgets = {}
   for (const entry of slotOrder) {
     budgets[entry.rosterId] = budgetPerTeam
   }
+  const nominationWindowEndAt = computeTimerEndAt(config.bidTimerSeconds)
 
   const initialAuctionState: AuctionState = {
     nominationOrderIndex: 0,
     currentNomination: null,
     currentBid: 0,
     currentBidderRosterId: null,
-    bidTimerEndAt: null,
+    bidTimerEndAt: nominationWindowEndAt.toISOString(),
     minNextBid: DEFAULT_MIN_BID,
   }
 
@@ -374,6 +429,8 @@ export async function initializeAuctionForSession(leagueId: string): Promise<boo
     data: {
       auctionBudgets: budgets as any,
       auctionState: initialAuctionState as any,
+      timerEndAt: nominationWindowEndAt,
+      pausedRemainingSeconds: null,
       version: { increment: 1 },
       updatedAt: new Date(),
     },

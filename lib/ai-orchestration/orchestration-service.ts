@@ -8,9 +8,10 @@ import type { UnifiedAIRequest, UnifiedAIResponse, UnifiedAIError, ProviderChatR
 import { validateAIRequest } from './request-validator'
 import { getProvider, getAvailableFromRequested, getAvailableProviders } from './provider-registry'
 import { enrichEnvelopeWithSportsData } from './sports-context-enricher'
-import { resolveEffectiveMode } from './tool-registry'
+import { isModeAllowed, resolveEffectiveMode } from './tool-registry'
 import { runOrchestration } from '@/lib/unified-ai/AIOrchestrator'
 import {
+  resolveOrchestrationMode,
   resolveSingleModel,
   resolveSpecialistPair,
   resolveModelsForConsensus,
@@ -37,6 +38,9 @@ import {
   type DeterministicContextEnvelope,
   type ProviderInputContract,
 } from '@/lib/ai-context-envelope'
+import { resolveChimmyRoutingPlan, runChimmyOrchestrator } from '@/lib/chimmy-orchestration'
+import { getChimmyPromptStyleBlock } from '@/lib/chimmy-interface/ChimmyPromptStyleResolver'
+import { createHash } from 'crypto'
 
 function getDefaultTimeoutMs(): number {
   const v = process.env.AI_ORCHESTRATION_TIMEOUT_MS
@@ -52,10 +56,60 @@ function getDefaultMaxRetries(): number {
   return Number.isFinite(n) && n >= 0 ? n : 1
 }
 
+function getProviderResponseCacheTtlMs(): number {
+  const v = process.env.AI_PROVIDER_RESPONSE_CACHE_TTL_MS
+  if (v == null || v === '') return 20_000
+  const n = parseInt(v, 10)
+  return Number.isFinite(n) && n >= 0 ? n : 20_000
+}
+
+type ProviderCacheEntry = {
+  result: ProviderChatResult
+  expiresAt: number
+}
+
+const PROVIDER_RESPONSE_CACHE = new Map<string, ProviderCacheEntry>()
+const PROVIDER_IN_FLIGHT = new Map<string, Promise<ProviderChatResult>>()
+const PROVIDER_CACHE_MAX_ENTRIES = 500
+
+function stableSerialize(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map((item) => stableSerialize(item)).join(',')}]`
+  const obj = value as Record<string, unknown>
+  const keys = Object.keys(obj).sort()
+  return `{${keys.map((key) => `${JSON.stringify(key)}:${stableSerialize(obj[key])}`).join(',')}}`
+}
+
+function buildProviderCallCacheKey(input: {
+  role: AIModelRole
+  messages: Array<{ role: 'system' | 'user'; content: string }>
+  timeoutMs: number
+}): string {
+  const payload = {
+    role: input.role,
+    timeoutMs: input.timeoutMs,
+    messages: input.messages,
+  }
+  const digest = createHash('sha256').update(stableSerialize(payload)).digest('hex').slice(0, 32)
+  return `ai-provider:${input.role}:${digest}`
+}
+
+function pruneProviderResponseCache(now: number) {
+  for (const [key, entry] of PROVIDER_RESPONSE_CACHE.entries()) {
+    if (entry.expiresAt <= now) PROVIDER_RESPONSE_CACHE.delete(key)
+  }
+  if (PROVIDER_RESPONSE_CACHE.size <= PROVIDER_CACHE_MAX_ENTRIES) return
+  const sorted = [...PROVIDER_RESPONSE_CACHE.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt)
+  for (const [key] of sorted.slice(0, PROVIDER_RESPONSE_CACHE.size - PROVIDER_CACHE_MAX_ENTRIES)) {
+    PROVIDER_RESPONSE_CACHE.delete(key)
+  }
+}
+
 function buildMessages(
   envelope: AIContextEnvelope,
   providerInput?: ProviderInputContract
 ): Array<{ role: 'system' | 'user'; content: string }> {
+  const normalizedFeatureType = normalizeOrchestrationToolKey(envelope.featureType)
   const systemParts: string[] = [
     'You are a helpful fantasy sports analyst. Be concise, calm, and explicit about uncertainty.',
     'Deterministic-first: never override hard engine outputs.',
@@ -67,6 +121,9 @@ function buildMessages(
   }
   if (providerInput?.systemPromptSuffix) {
     systemParts.push(providerInput.systemPromptSuffix)
+  }
+  if (normalizedFeatureType === 'chimmy_chat') {
+    systemParts.push('Chimmy prompt style:\n' + getChimmyPromptStyleBlock())
   }
   systemParts.push(`Sport context: ${envelope.sport}.`)
   if (envelope.leagueId) {
@@ -333,10 +390,26 @@ function resolveDeterministicContextEnvelope(
 async function runProviderCallWithTimeout(
   role: AIModelRole,
   messages: Array<{ role: 'system' | 'user'; content: string }>,
-  timeoutMs: number
+  timeoutMs: number,
+  skipCache = false
 ): Promise<ProviderChatResult> {
+  const now = Date.now()
+  const cacheKey = buildProviderCallCacheKey({ role, messages, timeoutMs })
+  const cacheTtlMs = getProviderResponseCacheTtlMs()
+  if (!skipCache && cacheTtlMs > 0) {
+    pruneProviderResponseCache(now)
+    const cached = PROVIDER_RESPONSE_CACHE.get(cacheKey)
+    if (cached && cached.expiresAt > now) {
+      return cached.result
+    }
+    const inFlight = PROVIDER_IN_FLIGHT.get(cacheKey)
+    if (inFlight) {
+      return inFlight
+    }
+  }
+
   const provider = getProvider(role)
-  return new Promise<ProviderChatResult>((resolve) => {
+  const requestPromise = new Promise<ProviderChatResult>((resolve) => {
     let finished = false
     const timeout = setTimeout(() => {
       if (finished) return
@@ -378,18 +451,38 @@ async function runProviderCallWithTimeout(
         })
       })
   })
+
+  if (!skipCache && cacheTtlMs > 0) {
+    PROVIDER_IN_FLIGHT.set(cacheKey, requestPromise)
+  }
+
+  try {
+    const result = await requestPromise
+    if (!skipCache && cacheTtlMs > 0 && result.status === 'ok') {
+      PROVIDER_RESPONSE_CACHE.set(cacheKey, {
+        result,
+        expiresAt: Date.now() + cacheTtlMs,
+      })
+    }
+    return result
+  } finally {
+    if (!skipCache && cacheTtlMs > 0) {
+      PROVIDER_IN_FLIGHT.delete(cacheKey)
+    }
+  }
 }
 
 async function callProviderWithRetry(
   role: AIModelRole,
   messages: Array<{ role: 'system' | 'user'; content: string }>,
   timeoutMs: number,
-  maxRetries: number
+  maxRetries: number,
+  skipCache = false
 ): Promise<{ result: ProviderChatResult; meta: ProviderResultMeta }> {
   const startMs = Date.now()
   let lastResult: ProviderChatResult | null = null
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    lastResult = await runProviderCallWithTimeout(role, messages, timeoutMs)
+    lastResult = await runProviderCallWithTimeout(role, messages, timeoutMs, skipCache)
     if (lastResult.status === 'ok') break
     if (attempt < maxRetries) {
       await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
@@ -520,26 +613,37 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
   }
 
   const modeOverride = req.mode
-  const effectiveMode = resolveEffectiveMode(envelope.featureType, modeOverride) as OrchestrationMode
+  const toolDefaultMode = resolveEffectiveMode(envelope.featureType, modeOverride) as OrchestrationMode
+  const inferredMode = resolveOrchestrationMode(envelope, toolDefaultMode)
+  const effectiveMode = isModeAllowed(envelope.featureType, inferredMode) ? inferredMode : toolDefaultMode
   const timeoutMs = req.options?.timeoutMs ?? getDefaultTimeoutMs()
   const maxRetries = req.options?.maxRetries ?? getDefaultMaxRetries()
 
   let modelsToCall: AIModelRole[]
-  switch (effectiveMode) {
-    case 'single_model':
-      modelsToCall = [resolveSingleModel(envelope)]
-      break
-    case 'specialist': {
-      const pair = resolveSpecialistPair(envelope)
-      modelsToCall = [pair.analysis, pair.explanation]
-      break
+  const normalizedFeatureKey = normalizeOrchestrationToolKey(envelope.featureType)
+  if (normalizedFeatureKey === 'chimmy_chat') {
+    const routingPlan = resolveChimmyRoutingPlan({
+      envelope,
+      availableProviders: getAvailableProviders(),
+    })
+    modelsToCall = routingPlan.models
+  } else {
+    switch (effectiveMode) {
+      case 'single_model':
+        modelsToCall = [resolveSingleModel(envelope)]
+        break
+      case 'specialist': {
+        const pair = resolveSpecialistPair(envelope)
+        modelsToCall = [pair.analysis, pair.explanation]
+        break
+      }
+      case 'consensus':
+      case 'unified_brain':
+        modelsToCall = resolveModelsForConsensus(envelope)
+        break
+      default:
+        modelsToCall = resolveModelsForConsensus(envelope)
     }
-    case 'consensus':
-    case 'unified_brain':
-      modelsToCall = resolveModelsForConsensus(envelope)
-      break
-    default:
-      modelsToCall = resolveModelsForConsensus(envelope)
   }
 
   const requestedAvailable = getAvailableFromRequested(modelsToCall)
@@ -603,7 +707,9 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
   const messages = buildMessages(envelope, providerInput)
 
   const results = await Promise.all(
-    available.map((role) => callProviderWithRetry(role, messages, timeoutMs, maxRetries))
+    available.map((role) =>
+      callProviderWithRetry(role, messages, timeoutMs, maxRetries, Boolean(req.options?.skipCache))
+    )
   )
 
   for (let i = 0; i < results.length; i++) {
@@ -667,12 +773,19 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
       return { ok: false, error, status: toHttpStatus(error.code) }
     }
 
-    const orchestrationResult = runOrchestration({
-      envelope,
-      modelOutputs,
-      mode: effectiveMode,
-      deterministicSource: resolveDeterministicSource(envelope.featureType),
-    })
+    const orchestrationResult =
+      normalizedFeatureKey === 'chimmy_chat'
+        ? runChimmyOrchestrator({
+            envelope,
+            modelOutputs,
+            mode: effectiveMode,
+          })
+        : runOrchestration({
+            envelope,
+            modelOutputs,
+            mode: effectiveMode,
+            deterministicSource: resolveDeterministicSource(envelope.featureType),
+          })
 
     const response = normalizeToUnifiedResponse({
       result: orchestrationResult,

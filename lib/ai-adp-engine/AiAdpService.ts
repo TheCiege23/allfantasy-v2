@@ -2,16 +2,116 @@
  * AI ADP service: run aggregation + computation, persist snapshots, and read for draft room.
  */
 
+import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { aggregateLiveDraftPicks, aggregateMockDraftResults, mergeSegmentPicks } from './aggregate-draft-picks'
 import { computeAdpFromPicks, buildSnapshotDataAndMeta } from './compute-adp'
 import type { AiAdpPlayerEntry } from './types'
-import { LOW_SAMPLE_THRESHOLD_DEFAULT } from './types'
+import { LOW_SAMPLE_THRESHOLD_DEFAULT, MIN_SAMPLE_SIZE_DEFAULT } from './types'
+import { resolveAiAdpSegmentContext } from './segment-resolver'
 
 export interface RunAiAdpJobResult {
   segmentsUpdated: number
+  segmentsConsidered: number
   totalPicksProcessed: number
+  cutoffApplied: string
   errors: string[]
+}
+
+export interface RunAiAdpJobOptions {
+  since?: Date
+  lookbackDays?: number
+  lowSampleThreshold?: number
+  minSampleSize?: number
+  runReason?: string
+  scheduledAtUtc?: string | null
+  now?: Date
+}
+
+const DEFAULT_LOOKBACK_DAYS = 120
+const STALE_AFTER_HOURS = 36
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)))
+}
+
+function resolveRunOptions(
+  input?: Date | RunAiAdpJobOptions,
+  lowSampleThresholdLegacy?: number
+): Required<Pick<RunAiAdpJobOptions, 'lowSampleThreshold' | 'minSampleSize' | 'lookbackDays' | 'runReason' | 'scheduledAtUtc' | 'now'>> & {
+  since?: Date
+} {
+  if (input instanceof Date) {
+    return {
+      since: input,
+      lookbackDays: DEFAULT_LOOKBACK_DAYS,
+      lowSampleThreshold: clampInt(
+        Number(lowSampleThresholdLegacy ?? LOW_SAMPLE_THRESHOLD_DEFAULT),
+        2,
+        25
+      ),
+      minSampleSize: MIN_SAMPLE_SIZE_DEFAULT,
+      runReason: 'manual',
+      scheduledAtUtc: null,
+      now: new Date(),
+    }
+  }
+
+  const source = input ?? {}
+  return {
+    since: source.since,
+    lookbackDays: clampInt(
+      Number(source.lookbackDays ?? DEFAULT_LOOKBACK_DAYS),
+      30,
+      365
+    ),
+    lowSampleThreshold: clampInt(
+      Number(source.lowSampleThreshold ?? LOW_SAMPLE_THRESHOLD_DEFAULT),
+      2,
+      25
+    ),
+    minSampleSize: clampInt(
+      Number(source.minSampleSize ?? MIN_SAMPLE_SIZE_DEFAULT),
+      1,
+      25
+    ),
+    runReason: String(source.runReason ?? 'cron'),
+    scheduledAtUtc: source.scheduledAtUtc ?? null,
+    now: source.now ?? new Date(),
+  }
+}
+
+function resolveCutoffDate(options: { since?: Date; lookbackDays: number; now: Date }): Date {
+  if (options.since && !Number.isNaN(options.since.getTime())) return options.since
+  return new Date(options.now.getTime() - options.lookbackDays * 24 * 60 * 60 * 1000)
+}
+
+async function appendAiAdpHistoryRow(input: {
+  sport: string
+  leagueType: string
+  formatKey: string
+  snapshotData: AiAdpPlayerEntry[]
+  totalDrafts: number
+  totalPicks: number
+  computedAt: Date
+  runMeta: Record<string, unknown>
+}): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `
+      INSERT INTO "ai_adp_snapshot_history"
+      ("id", "sport", "leagueType", "formatKey", "snapshotData", "totalDrafts", "totalPicks", "computedAt", "runMeta")
+      VALUES ($1, $2, $3, $4, CAST($5 AS JSONB), $6, $7, $8, CAST($9 AS JSONB))
+    `,
+    randomUUID(),
+    input.sport,
+    input.leagueType,
+    input.formatKey,
+    JSON.stringify(input.snapshotData),
+    input.totalDrafts,
+    input.totalPicks,
+    input.computedAt,
+    JSON.stringify(input.runMeta)
+  )
 }
 
 /**
@@ -19,12 +119,17 @@ export interface RunAiAdpJobResult {
  * Call from cron daily.
  */
 export async function runAiAdpJob(
-  since?: Date,
-  lowSampleThreshold: number = LOW_SAMPLE_THRESHOLD_DEFAULT
+  input?: Date | RunAiAdpJobOptions,
+  lowSampleThresholdLegacy?: number
 ): Promise<RunAiAdpJobResult> {
   const errors: string[] = []
   let totalPicksProcessed = 0
-  const cutoff = since ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) // default last 90 days
+  const options = resolveRunOptions(input, lowSampleThresholdLegacy)
+  const cutoff = resolveCutoffDate({
+    since: options.since,
+    lookbackDays: options.lookbackDays,
+    now: options.now,
+  })
 
   let live: Awaited<ReturnType<typeof aggregateLiveDraftPicks>> = []
   let mock: Awaited<ReturnType<typeof aggregateMockDraftResults>> = []
@@ -35,11 +140,20 @@ export async function runAiAdpJob(
     ])
   } catch (e) {
     errors.push((e as Error).message)
-    return { segmentsUpdated: 0, totalPicksProcessed: 0, errors }
+    return {
+      segmentsUpdated: 0,
+      segmentsConsidered: 0,
+      totalPicksProcessed: 0,
+      cutoffApplied: cutoff.toISOString(),
+      errors,
+    }
   }
 
   const merged = mergeSegmentPicks(live, mock)
-  const computed = computeAdpFromPicks(merged, { lowSampleThreshold })
+  const computed = computeAdpFromPicks(merged, {
+    lowSampleThreshold: options.lowSampleThreshold,
+    minSampleSize: options.minSampleSize,
+  })
   let segmentsUpdated = 0
 
   for (const [, { segment, entries }] of computed) {
@@ -57,8 +171,18 @@ export async function runAiAdpJob(
       entries,
       totalDrafts,
       totalPicks,
-      lowSampleThreshold
+      options.lowSampleThreshold,
+      options.minSampleSize
     )
+    const runMeta = {
+      ...meta,
+      source: segData?.source ?? null,
+      runReason: options.runReason,
+      scheduledAtUtc: options.scheduledAtUtc,
+      cutoffApplied: cutoff.toISOString(),
+    }
+    const computedAt = new Date()
+
     try {
       await prisma.aiAdpSnapshot.upsert({
         where: {
@@ -75,23 +199,48 @@ export async function runAiAdpJob(
           snapshotData: snapshotData as any,
           totalDrafts,
           totalPicks,
-          meta: meta as any,
+          meta: runMeta as any,
+          computedAt,
         },
         update: {
           snapshotData: snapshotData as any,
           totalDrafts,
           totalPicks,
-          meta: meta as any,
-          computedAt: new Date(),
+          meta: runMeta as any,
+          computedAt,
         },
       })
+      try {
+        await appendAiAdpHistoryRow({
+          sport: segment.sport,
+          leagueType: segment.leagueType,
+          formatKey: segment.formatKey,
+          snapshotData,
+          totalDrafts,
+          totalPicks,
+          computedAt,
+          runMeta,
+        })
+      } catch (historyError) {
+        errors.push(
+          `History ${segment.sport}/${segment.leagueType}/${segment.formatKey}: ${
+            (historyError as Error).message
+          }`
+        )
+      }
       segmentsUpdated++
     } catch (e) {
       errors.push(`Segment ${segment.sport}/${segment.leagueType}/${segment.formatKey}: ${(e as Error).message}`)
     }
   }
 
-  return { segmentsUpdated, totalPicksProcessed, errors }
+  return {
+    segmentsUpdated,
+    segmentsConsidered: computed.size,
+    totalPicksProcessed,
+    cutoffApplied: cutoff.toISOString(),
+    errors,
+  }
 }
 
 /**
@@ -107,25 +256,39 @@ export async function getAiAdp(
   totalPicks: number
   computedAt: Date | null
   lowSampleThreshold?: number
+  stale: boolean
+  ageHours: number | null
 } | null> {
+  const segment = resolveAiAdpSegmentContext({
+    sport,
+    leagueType,
+    settings: { formatKey },
+  })
   const snapshot = await prisma.aiAdpSnapshot.findUnique({
     where: {
       sport_leagueType_formatKey: {
-        sport: sport.toUpperCase(),
-        leagueType: leagueType.toLowerCase(),
-        formatKey: formatKey.toLowerCase(),
+        sport: segment.sport,
+        leagueType: segment.leagueType,
+        formatKey: segment.formatKey,
       },
     },
   })
   if (!snapshot) return null
   const data = (snapshot.snapshotData as unknown as AiAdpPlayerEntry[]) ?? []
   const meta = (snapshot.meta as Record<string, unknown>) ?? {}
+  const computedAt = snapshot.computedAt ?? null
+  const ageHours = computedAt
+    ? (Date.now() - computedAt.getTime()) / (60 * 60 * 1000)
+    : null
+  const stale = ageHours != null ? ageHours >= STALE_AFTER_HOURS : true
   return {
     entries: data,
     totalDrafts: snapshot.totalDrafts,
     totalPicks: snapshot.totalPicks,
-    computedAt: snapshot.computedAt,
+    computedAt,
     lowSampleThreshold: meta.lowSampleThreshold as number | undefined,
+    stale,
+    ageHours: ageHours != null ? Math.round(ageHours * 10) / 10 : null,
   }
 }
 
@@ -144,29 +307,154 @@ export async function getAiAdpForLeague(
   computedAt: Date | null
   segment: { sport: string; leagueType: string; formatKey: string }
   lowSampleThreshold?: number
+  stale: boolean
+  ageHours: number | null
 } | null> {
-  const leagueType = isDynasty ? 'dynasty' : 'redraft'
-  const fmt = formatKey ?? 'default'
-  let result = await getAiAdp(sport, leagueType, fmt)
+  const baseSegment = resolveAiAdpSegmentContext({
+    sport,
+    isDynasty,
+    settings: { formatKey: formatKey ?? 'default' },
+  })
+  let result = await getAiAdp(
+    baseSegment.sport,
+    baseSegment.leagueType,
+    baseSegment.formatKey
+  )
   if (result) {
     return {
       ...result,
-      segment: { sport: sport.toUpperCase(), leagueType, formatKey: fmt },
+      segment: baseSegment,
     }
   }
-  result = await getAiAdp(sport, leagueType, 'default')
+
+  result = await getAiAdp(baseSegment.sport, baseSegment.leagueType, 'default')
   if (result) {
     return {
       ...result,
-      segment: { sport: sport.toUpperCase(), leagueType, formatKey: 'default' },
+      segment: {
+        sport: baseSegment.sport,
+        leagueType: baseSegment.leagueType,
+        formatKey: 'default',
+      },
     }
   }
-  result = await getAiAdp(sport, 'redraft', 'default')
+
+  const sameLeagueType = await prisma.aiAdpSnapshot.findMany({
+    where: {
+      sport: baseSegment.sport,
+      leagueType: baseSegment.leagueType,
+    },
+    orderBy: [{ totalDrafts: 'desc' }, { computedAt: 'desc' }],
+    take: 1,
+  })
+  if (sameLeagueType[0]) {
+    result = await getAiAdp(
+      baseSegment.sport,
+      baseSegment.leagueType,
+      sameLeagueType[0].formatKey
+    )
+    if (result) {
+      return {
+        ...result,
+        segment: {
+          sport: baseSegment.sport,
+          leagueType: baseSegment.leagueType,
+          formatKey: sameLeagueType[0].formatKey,
+        },
+      }
+    }
+  }
+
+  result = await getAiAdp(baseSegment.sport, 'redraft', 'default')
   if (result) {
     return {
       ...result,
-      segment: { sport: sport.toUpperCase(), leagueType: 'redraft', formatKey: 'default' },
+      segment: {
+        sport: baseSegment.sport,
+        leagueType: 'redraft',
+        formatKey: 'default',
+      },
     }
   }
+
+  const anySportSegment = await prisma.aiAdpSnapshot.findFirst({
+    where: { sport: baseSegment.sport },
+    orderBy: [{ totalDrafts: 'desc' }, { computedAt: 'desc' }],
+  })
+  if (anySportSegment) {
+    result = await getAiAdp(
+      anySportSegment.sport,
+      anySportSegment.leagueType,
+      anySportSegment.formatKey
+    )
+    if (result) {
+      return {
+        ...result,
+        segment: {
+          sport: anySportSegment.sport,
+          leagueType: anySportSegment.leagueType,
+          formatKey: anySportSegment.formatKey,
+        },
+      }
+    }
+  }
+
   return null
+}
+
+export async function getRecentAiAdpHistory(limit: number = 25): Promise<
+  Array<{
+    id: string
+    sport: string
+    leagueType: string
+    formatKey: string
+    totalDrafts: number
+    totalPicks: number
+    computedAt: string
+    entryCount: number
+    runMeta: Record<string, unknown> | null
+  }>
+> {
+  const safeLimit = clampInt(Number(limit), 1, 200)
+  try {
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{
+        id: string
+        sport: string
+        leagueType: string
+        formatKey: string
+        totalDrafts: number
+        totalPicks: number
+        computedAt: Date
+        entryCount: number
+        runMeta: Record<string, unknown> | null
+      }>
+    >(
+      `
+        SELECT
+          h."id",
+          h."sport",
+          h."leagueType",
+          h."formatKey",
+          h."totalDrafts",
+          h."totalPicks",
+          h."computedAt",
+          jsonb_array_length(h."snapshotData") AS "entryCount",
+          h."runMeta"
+        FROM "ai_adp_snapshot_history" h
+        ORDER BY h."computedAt" DESC
+        LIMIT $1
+      `,
+      safeLimit
+    )
+    return rows.map((row) => ({
+      ...row,
+      computedAt: row.computedAt.toISOString(),
+      entryCount: Number(row.entryCount ?? 0),
+      runMeta: row.runMeta ?? null,
+    }))
+  } catch {
+    // History table may not exist before migration is applied.
+    return []
+  }
 }

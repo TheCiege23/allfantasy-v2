@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { X, Send, MessageSquare, Sparkles } from 'lucide-react'
 import { DraftPickTradePanelRoot } from './DraftPickTradePanelRoot'
 
 export type ProposalSummary = {
@@ -24,6 +23,9 @@ export type AiReviewState = {
   declineReasons: string[]
   counterReasons: string[]
   summary: string
+  suggestedCounterPackage?: string | null
+  privateAiDmSent?: boolean
+  executionMode?: string | null
 } | null
 
 export type DraftPickTradePanelProps = {
@@ -87,16 +89,29 @@ export function DraftPickTradePanel({
       try {
         const res = await fetch(
           `/api/leagues/${encodeURIComponent(leagueId)}/draft/trade-proposals/${encodeURIComponent(proposalId)}/review`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ includeAiExplanation: true }),
+          }
         )
         const data = await res.json().catch(() => ({}))
         if (res.ok && data.ok) {
+          const suggestedCounterPackage =
+            typeof data.suggestedCounterPackage === 'string'
+              ? data.suggestedCounterPackage
+              : typeof data.privateAiDmCounterSuggestion === 'string'
+                ? data.privateAiDmCounterSuggestion
+                : null
           setAiReview({
             verdict: data.verdict ?? 'accept',
             reasons: data.reasons ?? [],
             declineReasons: data.declineReasons ?? [],
             counterReasons: data.counterReasons ?? [],
             summary: data.summary ?? '',
+            suggestedCounterPackage,
+            privateAiDmSent: Boolean(data.privateAiDmSent),
+            executionMode: typeof data?.execution?.mode === 'string' ? data.execution.mode : null,
           })
         }
       } finally {

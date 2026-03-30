@@ -61,6 +61,30 @@ const DEFAULT_AUCTION_BUDGET = 200
 const DEFAULT_AUCTION_MIN_BID = 1
 const DEFAULT_AUCTION_MIN_INCREMENT = 1
 
+function sanitizeRoundList(input: unknown): number[] {
+  if (!Array.isArray(input)) return []
+  return Array.from(
+    new Set(
+      input
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+        .map((value) => Math.max(1, Math.min(50, Math.round(value))))
+    )
+  ).sort((a, b) => a - b)
+}
+
+function sanitizeKeeperPositionCaps(input: unknown): Record<string, number> | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const result: Record<string, number> = {}
+  for (const [position, value] of Object.entries(input as Record<string, unknown>)) {
+    const normalizedPosition = String(position || '').trim().toUpperCase()
+    if (!normalizedPosition) continue
+    const cap = Math.max(0, Math.min(50, Math.round(Number(value) || 0)))
+    result[normalizedPosition] = cap
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
 /**
  * Get full draft variant settings for the hub (config + UI + session variant).
  */
@@ -95,19 +119,19 @@ export async function getDraftVariantSettings(leagueId: string): Promise<DraftVa
     const rawDevy = session.devyConfig as { enabled?: boolean; devyRounds?: number[] } | null
     const rawC2c = session.c2cConfig as { enabled?: boolean; collegeRounds?: number[] } | null
     sessionVariant = {
-      keeperConfig: rawKeeper && typeof rawKeeper === 'object'
-        ? {
-            maxKeepers: Number(rawKeeper.maxKeepers ?? 0),
-            deadline: rawKeeper.deadline ?? null,
-            maxKeepersPerPosition: rawKeeper.maxKeepersPerPosition ?? undefined,
-          }
-        : null,
-      devyConfig: rawDevy && typeof rawDevy === 'object' && rawDevy.enabled
-        ? { enabled: true, devyRounds: Array.isArray(rawDevy.devyRounds) ? rawDevy.devyRounds : [] }
-        : null,
-      c2cConfig: rawC2c && typeof rawC2c === 'object' && rawC2c.enabled
-        ? { enabled: true, collegeRounds: Array.isArray(rawC2c.collegeRounds) ? rawC2c.collegeRounds : [] }
-        : null,
+      keeperConfig: {
+        maxKeepers: Math.max(0, Math.min(50, Math.round(Number(rawKeeper?.maxKeepers ?? 0) || 0))),
+        deadline: rawKeeper?.deadline ?? null,
+        maxKeepersPerPosition: sanitizeKeeperPositionCaps(rawKeeper?.maxKeepersPerPosition),
+      },
+      devyConfig: {
+        enabled: Boolean(rawDevy?.enabled),
+        devyRounds: sanitizeRoundList(rawDevy?.devyRounds),
+      },
+      c2cConfig: {
+        enabled: Boolean(rawC2c?.enabled),
+        collegeRounds: sanitizeRoundList(rawC2c?.collegeRounds),
+      },
       auctionBudgetPerTeam: session.draftType === 'auction' ? (session.auctionBudgetPerTeam ?? DEFAULT_AUCTION_BUDGET) : null,
       auctionMinBid: session.draftType === 'auction' ? DEFAULT_AUCTION_MIN_BID : null,
       auctionMinIncrement: session.draftType === 'auction' ? DEFAULT_AUCTION_MIN_INCREMENT : null,
@@ -128,7 +152,7 @@ export async function getDraftVariantSettings(leagueId: string): Promise<DraftVa
  */
 export async function updateDraftConfigForLeague(
   leagueId: string,
-  patch: Partial<Pick<DraftRoomConfig, 'draft_type' | 'rounds' | 'timer_seconds' | 'pick_order_rules' | 'snake_or_linear' | 'third_round_reversal' | 'autopick_behavior' | 'queue_size_limit' | 'pre_draft_ranking_source' | 'roster_fill_order' | 'position_filter_behavior'>>
+  patch: Partial<Pick<DraftRoomConfig, 'draft_type' | 'rounds' | 'timer_seconds' | 'slow_timer_seconds' | 'pick_order_rules' | 'snake_or_linear' | 'third_round_reversal' | 'autopick_behavior' | 'queue_size_limit' | 'pre_draft_ranking_source' | 'roster_fill_order' | 'position_filter_behavior'>>
 ): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -142,6 +166,7 @@ export async function updateDraftConfigForLeague(
   if (patch.draft_type !== undefined) next.draft_type = patch.draft_type
   if (patch.rounds !== undefined) next.draft_rounds = Math.max(1, Math.min(50, Math.round(patch.rounds)))
   if (patch.timer_seconds !== undefined) next.draft_timer_seconds = patch.timer_seconds == null ? null : Math.max(0, Math.min(86400, Math.round(patch.timer_seconds)))
+  if (patch.slow_timer_seconds !== undefined) next.draft_slow_timer_seconds = patch.slow_timer_seconds == null ? null : Math.max(300, Math.min(604800, Math.round(patch.slow_timer_seconds)))
   if (patch.pick_order_rules !== undefined) next.draft_pick_order_rules = patch.pick_order_rules
   if (patch.snake_or_linear !== undefined) next.draft_snake_or_linear = patch.snake_or_linear
   if (patch.third_round_reversal !== undefined) next.draft_third_round_reversal = patch.third_round_reversal
@@ -176,18 +201,23 @@ export async function updateSessionVariant(
   }
 
   if (patch.keeperConfig !== undefined) {
+    const maxKeepers = Math.max(0, Math.min(50, Math.round(Number(patch.keeperConfig?.maxKeepers ?? 0) || 0)))
     updatePayload.keeperConfig = patch.keeperConfig && typeof patch.keeperConfig === 'object'
-      ? { maxKeepers: patch.keeperConfig.maxKeepers ?? 0, deadline: patch.keeperConfig.deadline ?? null, maxKeepersPerPosition: patch.keeperConfig.maxKeepersPerPosition }
+      ? {
+          maxKeepers,
+          deadline: patch.keeperConfig.deadline ?? null,
+          maxKeepersPerPosition: sanitizeKeeperPositionCaps(patch.keeperConfig.maxKeepersPerPosition),
+        }
       : { maxKeepers: 0 }
   }
   if (patch.devyConfig !== undefined) {
     updatePayload.devyConfig = patch.devyConfig && patch.devyConfig.enabled
-      ? { enabled: true, devyRounds: Array.isArray(patch.devyConfig.devyRounds) ? patch.devyConfig.devyRounds : [] }
+      ? { enabled: true, devyRounds: sanitizeRoundList(patch.devyConfig.devyRounds) }
       : { enabled: false, devyRounds: [] }
   }
   if (patch.c2cConfig !== undefined) {
     updatePayload.c2cConfig = patch.c2cConfig && patch.c2cConfig.enabled
-      ? { enabled: true, collegeRounds: Array.isArray(patch.c2cConfig.collegeRounds) ? patch.c2cConfig.collegeRounds : [] }
+      ? { enabled: true, collegeRounds: sanitizeRoundList(patch.c2cConfig.collegeRounds) }
       : { enabled: false, collegeRounds: [] }
   }
   if (patch.auctionBudgetPerTeam !== undefined && session.draftType === 'auction') {
@@ -204,16 +234,27 @@ export async function updateSessionVariant(
  * Sync config (draft_type, rounds, timer, third_round_reversal) to existing pre_draft session so draft room reflects hub.
  */
 async function syncConfigToSession(leagueId: string, config: Partial<DraftRoomConfig>): Promise<void> {
-  const session = await prisma.draftSession.findUnique({
-    where: { leagueId },
-    select: { id: true, status: true },
-  })
+  const [session, uiSettings] = await Promise.all([
+    prisma.draftSession.findUnique({
+      where: { leagueId },
+      select: { id: true, status: true },
+    }),
+    getDraftUISettingsForLeague(leagueId),
+  ])
   if (!session || session.status !== 'pre_draft') return
 
   const data: Record<string, unknown> = { updatedAt: new Date() }
   if (config.draft_type !== undefined) data.draftType = config.draft_type
   if (config.rounds !== undefined) data.rounds = Math.max(1, Math.min(50, Math.round(config.rounds)))
-  if (config.timer_seconds !== undefined) data.timerSeconds = config.timer_seconds == null ? null : Math.max(0, Math.min(86400, Math.round(config.timer_seconds)))
+  const prefersSlowTimer = uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
+  if (config.timer_seconds !== undefined || config.slow_timer_seconds !== undefined) {
+    const preferredTimerSeconds = prefersSlowTimer
+      ? (config.slow_timer_seconds ?? config.timer_seconds)
+      : config.timer_seconds
+    if (preferredTimerSeconds !== undefined) {
+      data.timerSeconds = preferredTimerSeconds == null ? null : Math.max(0, Math.min(86400, Math.round(preferredTimerSeconds)))
+    }
+  }
   if (config.third_round_reversal !== undefined) data.thirdRoundReversal = config.third_round_reversal
   if (Object.keys(data).length <= 1) return
 

@@ -9,6 +9,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { prisma } from '@/lib/prisma'
+import { buildDraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
+import { openaiChatText } from '@/lib/openai-client'
+import { getProviderStatus } from '@/lib/provider-config'
+import { sendPrivateTradeAIDM } from '@/lib/trade-ai-dm/TradeAIDMService'
+import {
+  buildDraftExecutionMetadata,
+  evaluateAIInvocationPolicy,
+  withTimeout,
+} from '@/lib/draft-automation-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,38 +48,104 @@ export async function POST(
   if (proposal.status !== 'pending') {
     return NextResponse.json({ error: 'Proposal already responded to' }, { status: 400 })
   }
+  const body = await req.json().catch(() => ({}))
+  const includeAiExplanation = Boolean(
+    body?.includeAiExplanation ?? body?.include_ai_explanation ?? false
+  )
 
-  // Deterministic suggestion from pick swap: earlier pick generally more valuable; same round is even.
-  const teamCount = proposal.session?.teamCount ?? 12
-  const giveOverall = (proposal.giveRound - 1) * teamCount + proposal.giveSlot
-  const receiveOverall = (proposal.receiveRound - 1) * teamCount + proposal.receiveSlot
-  const giveLabel = `${proposal.giveRound}.${String(proposal.giveSlot).padStart(2, '0')}`
-  const receiveLabel = `${proposal.receiveRound}.${String(proposal.receiveSlot).padStart(2, '0')}`
+  const review = buildDraftTradeAiReview({
+    giveRound: proposal.giveRound,
+    giveSlot: proposal.giveSlot,
+    receiveRound: proposal.receiveRound,
+    receiveSlot: proposal.receiveSlot,
+    teamCount: proposal.session?.teamCount ?? 12,
+  })
 
-  let verdict: 'accept' | 'reject' | 'counter' = 'accept'
-  const reasons: string[] = []
-  let declineReasons: string[] = []
-  let counterReasons: string[] = []
+  const invocation = evaluateAIInvocationPolicy({
+    feature: 'private_trade_review',
+    scopeId: leagueId,
+    requestAI: includeAiExplanation,
+    aiEnabled: true,
+    providerAvailable: getProviderStatus().anyAi,
+  })
 
-  if (receiveOverall < giveOverall) {
-    verdict = 'accept'
-    reasons.push(`You would receive an earlier pick (${receiveLabel}) for a later pick (${giveLabel}); typically favorable.`)
-  } else if (receiveOverall > giveOverall) {
-    verdict = 'counter'
-    reasons.push(`You are giving an earlier pick (${giveLabel}) for a later one (${receiveLabel}). Consider countering for additional value.`)
-    counterReasons.push('Ask for an extra later-round pick or a player if league allows.')
-  } else {
-    verdict = 'accept'
-    reasons.push('Same-round swap; even value. Accept if it improves your draft position preference.')
+  let summary = review.summary
+  let aiUsed = false
+  let reasonCode = invocation.reasonCode
+
+  if (invocation.decision === 'allow_ai') {
+    const aiResult = await withTimeout(
+      openaiChatText({
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You explain draft-pick trades in concise language for a private fantasy manager review. Keep facts unchanged and do not invent context.',
+          },
+          {
+            role: 'user',
+            content: [
+              `Give pick: round ${proposal.giveRound}, slot ${proposal.giveSlot}`,
+              `Receive pick: round ${proposal.receiveRound}, slot ${proposal.receiveSlot}`,
+              `Team count: ${proposal.session?.teamCount ?? 12}`,
+              `Deterministic verdict: ${review.verdict}`,
+              `Deterministic reasons: ${review.reasons.join('; ')}`,
+              `Counter reasons: ${review.counterReasons.join('; ')}`,
+              `Decline reasons: ${review.declineReasons.join('; ')}`,
+              `Suggested counter package: ${review.suggestedCounterPackage ?? 'none'}`,
+              `Rewrite as a concise private review summary in 2-3 sentences.`,
+            ].join('\n'),
+          },
+        ],
+        temperature: 0.35,
+        maxTokens: 180,
+      }),
+      invocation.maxLatencyMs
+    )
+
+    if (aiResult.ok && aiResult.value.ok && aiResult.value.text.trim().length > 0) {
+      summary = aiResult.value.text.trim()
+      aiUsed = true
+      reasonCode = 'ai_private_trade_summary'
+    } else if (!aiResult.ok) {
+      reasonCode = 'ai_timeout_deterministic_fallback'
+    } else {
+      reasonCode = 'ai_error_deterministic_fallback'
+    }
   }
+
+  const privateAiDm = await sendPrivateTradeAIDM({
+    receiverUserId: userId,
+    leagueId,
+    proposalId,
+    review: {
+      verdict: review.verdict,
+      summary,
+      reasons: review.reasons,
+      counterReasons: review.counterReasons,
+      declineReasons: review.declineReasons,
+      suggestedCounterPackage: review.suggestedCounterPackage,
+    },
+    trigger: 'review_requested',
+  })
 
   return NextResponse.json({
     ok: true,
-    verdict,
-    reasons,
-    declineReasons,
-    counterReasons,
-    summary: reasons[0] ?? 'Review the pick values and your roster needs.',
+    verdict: review.verdict,
+    reasons: review.reasons,
+    declineReasons: review.declineReasons,
+    counterReasons: review.counterReasons,
+    summary,
+    suggestedCounterPackage: review.suggestedCounterPackage,
+    privateAiDmSent: privateAiDm.sent,
+    privateAiDmCounterSuggestion: privateAiDm.counterSuggestion,
     private: true,
+    execution: buildDraftExecutionMetadata({
+      feature: 'private_trade_review',
+      aiUsed,
+      aiEligible: invocation.canShowAIButton,
+      reasonCode,
+      fallbackToDeterministic: includeAiExplanation && !aiUsed && invocation.decision !== 'deny_dead_button',
+    }),
   })
 }

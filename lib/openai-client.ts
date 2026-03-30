@@ -121,6 +121,59 @@ export async function openaiChatText(args: {
   }
 }
 
+export async function openaiChatTextStream(args: {
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model?: string
+  temperature?: number
+  maxTokens?: number
+}): Promise<
+  | { ok: true; stream: AsyncIterable<string>; model: string; baseUrl: string }
+  | { ok: false; status: number; details: string; model: string; baseUrl: string }
+> {
+  let model = 'unavailable'
+  let baseUrl = ''
+  try {
+    const cfg = getOpenAIConfig()
+    model = args.model?.trim() || cfg.model
+    baseUrl = cfg.baseUrl
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      details: 'OpenAI provider unavailable. Set OPENAI_API_KEY.',
+      model,
+      baseUrl,
+    }
+  }
+
+  const client = getOpenAIClient()
+
+  try {
+    const streamResponse = (await client.chat.completions.create({
+      model,
+      temperature: args.temperature ?? 0.7,
+      max_completion_tokens: args.maxTokens ?? 1500,
+      messages: args.messages,
+      stream: true,
+    })) as any
+
+    async function* iterateTextChunks() {
+      for await (const chunk of streamResponse) {
+        const delta = chunk?.choices?.[0]?.delta?.content
+        if (typeof delta === 'string' && delta.length > 0) {
+          yield delta
+        }
+      }
+    }
+
+    return { ok: true, stream: iterateTextChunks(), model, baseUrl }
+  } catch (e: any) {
+    const status = e?.status ?? e?.statusCode ?? 0
+    const details = String(e?.message || e || '').slice(0, 800)
+    return { ok: false, status, details, model, baseUrl }
+  }
+}
+
 export function parseJsonContentFromChatCompletion(data: any) {
   const content = data?.choices?.[0]?.message?.content
   if (typeof content !== 'string') return null

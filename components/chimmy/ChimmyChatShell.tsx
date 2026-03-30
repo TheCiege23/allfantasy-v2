@@ -12,6 +12,7 @@ import {
   saveAIThreadMessages,
   sendChimmyMessage,
 } from '@/lib/chimmy-chat'
+import type { AIChatContext } from '@/lib/chimmy-chat'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
 import ChimmyConversationThread from './ChimmyConversationThread'
 import ChimmyQuickPrompts from './ChimmyQuickPrompts'
@@ -57,6 +58,16 @@ export interface ChimmyChatShellProps {
   season?: number | null
   /** Optional week/period context */
   week?: number | null
+  /** Optional thread/conversation context for DM-aware AI mode. */
+  conversationId?: string | null
+  /** Optional private mode target for DM AI chat. */
+  privateMode?: boolean
+  /** Optional DM username target for private AI mode. */
+  targetUsername?: string | null
+  /** Optional strategy mode label for AI routing hints. */
+  strategyMode?: string | null
+  /** Optional source tag for orchestration context/routing hints. */
+  source?: AIChatContext['source']
   /** Optional: on "Save conversation" (placeholder) */
   onSaveConversation?: () => void
   /** Optional: compact mode (e.g. drawer) */
@@ -92,6 +103,11 @@ export default function ChimmyChatShell({
   sport,
   season,
   week,
+  conversationId,
+  privateMode = false,
+  targetUsername,
+  strategyMode,
+  source,
   onSaveConversation,
   compact = false,
   onClose,
@@ -136,9 +152,26 @@ export default function ChimmyChatShell({
       sport: resolvedSport,
       season: season ?? undefined,
       week: week ?? undefined,
-      source: "messages_ai" as const,
+      conversationId: conversationId ?? undefined,
+      privateMode,
+      targetUsername: targetUsername ?? undefined,
+      strategyMode: strategyMode ?? undefined,
+      source: source ?? (privateMode ? "messages_dm_ai" : "messages_ai"),
     }),
-    [insightType, leagueId, resolvedSport, season, sleeperUsername, teamId, week]
+    [
+      conversationId,
+      insightType,
+      leagueId,
+      privateMode,
+      resolvedSport,
+      season,
+      sleeperUsername,
+      source,
+      strategyMode,
+      targetUsername,
+      teamId,
+      week,
+    ]
   )
   const threadStorageKey = useMemo(
     () =>
@@ -147,8 +180,9 @@ export default function ChimmyChatShell({
         sport: resolvedSport,
         insightType,
         teamId: teamId ?? undefined,
+        conversationId: conversationId ?? undefined,
       }),
-    [insightType, leagueId, resolvedSport, teamId]
+    [conversationId, insightType, leagueId, resolvedSport, teamId]
   )
 
   const canCompare = lastMeta && Object.keys(lastMeta).length > 1

@@ -1,111 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import OpenAI from 'openai'
 import { authOptions } from '@/lib/auth'
 import { runAiProtection } from '@/lib/ai-protection'
-import { getChimmyPromptStyleBlock } from '@/lib/chimmy-interface'
-import { openaiChatText } from '@/lib/openai-client'
-import { xaiChatJson, parseTextFromXaiChatCompletion } from '@/lib/xai-client'
-import { deepseekChat } from '@/lib/deepseek-client'
-import { enrichChatWithData, buildDataSourcesSummary } from '@/lib/chat-data-enrichment'
-import { getFullAIContext, buildMemoryPromptSection, recordMemoryEvent } from '@/lib/ai-memory'
-import { getInsightBundle, getSimulationAndWarehouseContextForUser } from '@/lib/ai-simulation-integration'
+import { runUnifiedOrchestration } from '@/lib/ai-orchestration/orchestration-service'
+import {
+  requestContractToUnified,
+  unifiedResponseToContract,
+  validateToolRequest,
+  type AIToolResponseContract,
+} from '@/lib/ai-tool-registry'
+import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import type { InsightType } from '@/lib/ai-simulation-integration'
-import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
-import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
-import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
-import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
-import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tournamentContextForChimmy'
-import { buildBigBrotherContextForChimmy } from '@/lib/big-brother/ai/bigBrotherContextForChimmy'
-import { buildIdpContextForChimmy } from '@/lib/idp/ai/idpContextForChimmy'
-import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
-import { buildZombieContextForChimmy } from '@/lib/zombie/ai/zombieContextForChimmy'
-import { prisma } from '@/lib/prisma'
-import OpenAI from 'openai'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
+import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
+import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 
-export type StrategyMode =
-  | 'conservative'
-  | 'aggressive'
-  | 'win_now'
-  | 'rebuild'
-  | 'playoff_lock'
-  | 'chaos'
-
-export type ToolKey =
-  | 'trade_analyzer'
-  | 'trade_finder'
-  | 'waiver_ai'
-  | 'rankings'
-  | 'mock_draft'
-  | 'none'
-
-interface ConversationTurn {
+type ConversationTurn = {
   role: 'user' | 'assistant'
   content: string
 }
 
-interface QuantResult {
-  projectionDelta?: number
-  expectedWeeklyGain?: number
-  winProbability?: number
-  playoffOdds?: number
-  fairnessScore?: number
-  riskGrade?: 'A' | 'B' | 'C' | 'D' | 'F'
-  confidencePct?: number
-  ceilingScore?: number
-  floorScore?: number
-  varianceScore?: number
-  simulationCount?: number
-  error?: string
-}
-
-interface GrokResult {
-  trendSignals?: string[]
-  injuryAlerts?: string[]
-  snapShareChanges?: string[]
-  socialBuzz?: string[]
-  momentumFlags?: string[]
-  rawInsight?: string
-  error?: string
-}
-
-interface ChimmyResponseStructure {
-  shortAnswer: string
-  whatDataSays?: string
-  whatItMeans?: string
-  recommendedAction?: string
-  caveats?: string[]
-}
-
-interface ChimmyResponse {
-  answer: string
-  recommendedTool: ToolKey
-  reason: string
-  quantData?: QuantResult
-  trendData?: GrokResult
-  responseStructure?: ChimmyResponseStructure
-  confidencePct?: number
-  strategyNote?: string
-  providers: {
-    openai: 'ok' | 'error' | 'skipped'
-    grok: 'ok' | 'error' | 'skipped'
-    deepseek: 'ok' | 'error' | 'skipped'
-  }
-  dataSources: string[]
-  processingMs?: number
-}
-
-const TOOL_LINKS: Record<ToolKey, string | null> = {
-  trade_analyzer: '/trade-evaluator',
-  trade_finder:   '/trade-finder',
-  waiver_ai:      '/waiver-ai',
-  rankings:       '/rankings',
-  mock_draft:     '/mock-draft-simulator',
-  none:           null,
-}
-
-const VALID_TOOL_KEYS = new Set<string>([
-  'trade_analyzer', 'trade_finder', 'waiver_ai', 'rankings', 'mock_draft', 'none',
-])
+type ToolKey = 'trade_analyzer' | 'trade_finder' | 'waiver_ai' | 'rankings' | 'mock_draft' | 'none'
 
 const VALID_INSIGHT_TYPES: Set<InsightType> = new Set([
   'matchup',
@@ -123,17 +40,126 @@ const SPORTS_KEYWORDS = [
   'standings', 'bench', 'injury', 'bye week', 'matchup', 'projection',
   'qb', 'rb', 'wr', 'te', 'flex', 'superflex', 'ppr', 'dynasty', 'keeper',
   'faab', 'auction', 'nfl', 'nba', 'mlb', 'basketball', 'baseball', 'football',
-  'idp', 'linebacker', 'defensive end', 'defensive tackle', 'cornerback', 'safety',
-  'dl', 'lb', 'db', 'tackle floor', 'big play', 'best ball',
+  'nhl', 'hockey', 'soccer', 'ncaab', 'ncaaf',
 ]
 
-const STRATEGY_MODE_CONTEXT: Record<StrategyMode, string> = {
-  conservative:  'Prioritize floor, minimize risk, favor proven veterans and stable roles.',
-  aggressive:    'Maximize upside, favor volatile high-ceiling plays, accept higher risk.',
-  win_now:       'All-in for immediate wins. Deprioritize future value completely.',
-  rebuild:       'Target youth, picks, and long-term upside. Accept short-term losses.',
-  playoff_lock:  'Focus on securing playoff spot. Balance floor and matchup advantage.',
-  chaos:         'High variance plays only. Swing big or go home.',
+function hasSportsContent(text: string, hasImage: boolean): boolean {
+  if (hasImage) return true
+  const lower = text.toLowerCase()
+  return SPORTS_KEYWORDS.some((keyword) => lower.includes(keyword))
+}
+
+function parseConversation(raw: unknown): ConversationTurn[] {
+  if (typeof raw !== 'string' || raw.trim().length === 0) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((item): item is ConversationTurn => {
+        if (!item || typeof item !== 'object') return false
+        const role = (item as Record<string, unknown>).role
+        const content = (item as Record<string, unknown>).content
+        return (role === 'user' || role === 'assistant') && typeof content === 'string'
+      })
+      .slice(-10)
+  } catch {
+    return []
+  }
+}
+
+function extractFirstSentence(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return ''
+  const match = trimmed.match(/(.+?[.!?])(\s|$)/)
+  return (match?.[1] ?? trimmed).slice(0, 220)
+}
+
+function safeParseJson(raw: string): Record<string, unknown> | null {
+  if (!raw || !raw.trim()) return null
+  try {
+    return JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    const candidate = raw
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim()
+    try {
+      return JSON.parse(candidate) as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+}
+
+function compactRecord<T extends Record<string, unknown>>(record: T): Record<string, unknown> {
+  const entries = Object.entries(record).filter(([, value]) => value !== undefined)
+  return Object.fromEntries(entries)
+}
+
+function inferRecommendedTool(answer: string, actionPlan?: string | null): ToolKey {
+  const text = `${answer}\n${actionPlan ?? ''}`.toLowerCase()
+  if (/trade|offer|accept|decline/.test(text)) return 'trade_analyzer'
+  if (/waiver|faab|pickup|free agent/.test(text)) return 'waiver_ai'
+  if (/rank|tiers|ranking/.test(text)) return 'rankings'
+  if (/mock draft|draft sim/.test(text)) return 'mock_draft'
+  return 'none'
+}
+
+function buildProviderStatusMap(responseContract: AIToolResponseContract): Record<string, string> {
+  const status: Record<string, string> = {
+    openai: 'skipped',
+    deepseek: 'skipped',
+    grok: 'skipped',
+  }
+
+  for (const provider of responseContract.reliability?.providerStatus ?? []) {
+    status[provider.provider] =
+      provider.status === 'ok'
+        ? 'ok'
+        : provider.status === 'timeout'
+          ? 'error'
+          : provider.status === 'invalid_response'
+            ? 'error'
+            : 'error'
+  }
+
+  return status
+}
+
+function extractQuantData(responseContract: AIToolResponseContract): Record<string, unknown> | undefined {
+  const deepseek = responseContract.providerResults.find((provider) => provider.provider === 'deepseek')
+  if (!deepseek?.raw) return undefined
+  const parsed = safeParseJson(deepseek.raw)
+  return parsed ?? undefined
+}
+
+function extractTrendData(responseContract: AIToolResponseContract): Record<string, unknown> | undefined {
+  const grok = responseContract.providerResults.find((provider) => provider.provider === 'grok')
+  if (!grok?.raw) return undefined
+  const parsed = safeParseJson(grok.raw)
+  return parsed ?? undefined
+}
+
+function buildResponseStructure(
+  answer: string,
+  actionPlan?: string | null,
+  uncertainty?: string | null
+): {
+  shortAnswer: string
+  whatDataSays?: string
+  whatItMeans?: string
+  recommendedAction?: string
+  caveats?: string[]
+} {
+  const shortAnswer = extractFirstSentence(answer) || 'Chimmy response available.'
+  return {
+    shortAnswer,
+    whatDataSays: extractFirstSentence(answer),
+    whatItMeans: actionPlan ? extractFirstSentence(actionPlan) : undefined,
+    recommendedAction: actionPlan ?? undefined,
+    caveats: uncertainty ? [uncertainty] : undefined,
+  }
 }
 
 function getVisionClient(): OpenAI | null {
@@ -149,605 +175,86 @@ function getVisionClient(): OpenAI | null {
   }
 }
 
-function buildDomainGuard(strategyMode?: StrategyMode): string {
-  const strategyContext = strategyMode
-    ? `\nActive Strategy Mode: ${strategyMode.toUpperCase()} — ${STRATEGY_MODE_CONTEXT[strategyMode]}`
-    : ''
-
-  return `You are Chimmy — AllFantasy's AI fantasy sports co-manager.
-
-SCOPE: Fantasy sports and real sports only. If asked about anything else, politely redirect.
-GROUNDING: When the prompt includes USER FANTASY CONTEXT or REAL-TIME DATA, base your numbers, rankings, and recommendations only on that data. Do not invent stats, values, or player metrics not provided.
-${strategyContext}
-${getChimmyPromptStyleBlock()}
-
-RESPONSE FORMAT (strict JSON):
-{
-  "answer": "Your full response in Chimmy's voice",
-  "shortAnswer": "1-2 calm sentences with the direct recommendation",
-  "whatDataSays": "Evidence and numbers from provided data only",
-  "whatItMeans": "Interpretation in plain language",
-  "recommendedAction": "Clear next move",
-  "caveats": ["uncertainty or missing data caveat"],
-  "recommendedTool": "trade_analyzer|trade_finder|waiver_ai|rankings|mock_draft|none",
-  "reason": "Why you recommended that tool (or 'none' if no tool needed)",
-  "confidencePct": 0-100,
-  "strategyNote": "Optional note about how strategy mode affects this advice"
-}
-
-TONE EXAMPLE:
-Instead of: "The expected value change is 4.3 points."
-Say: "This move gives you about a 4-point weekly edge. In close matchups, that can matter."
-
-Always lead with the most important insight. Keep answers under 300 words unless deep analysis is requested.`
-}
-
-function buildGrokSystemPrompt(): string {
-  return `You are the real-time intelligence layer for Chimmy, an AI fantasy sports assistant.
-
-YOUR ROLE: Detect breaking trends, injury signals, momentum shifts, and social buzz.
-
-Focus on:
-- Breaking injury updates and practice reports
-- Snap count changes and target share shifts
-- Depth chart movements
-- Coach quotes affecting fantasy value
-- Social media sentiment spikes
-- Unexpected usage patterns
-- Trade rumors affecting player value
-
-RESPONSE FORMAT (strict JSON):
-{
-  "trendSignals": ["signal1", "signal2"],
-  "injuryAlerts": ["alert1"],
-  "snapShareChanges": ["change1"],
-  "socialBuzz": ["buzz1"],
-  "momentumFlags": ["flag1"],
-  "rawInsight": "Brief paragraph of most important real-time context"
-}`
-}
-
-function buildDeepSeekSystemPrompt(strategyMode?: StrategyMode): string {
-  const modeContext = strategyMode
-    ? `Strategy Mode: ${strategyMode} — ${STRATEGY_MODE_CONTEXT[strategyMode]}`
-    : ''
-
-  return `You are the quantitative modeling engine for Chimmy, an AI fantasy sports assistant.
-
-YOUR ROLE: Run numerical analysis, simulations, and projections.
-GROUNDING: Use only the numbers and context provided in the prompt. Do not invent stats, values, or projections not given.
-${modeContext}
-
-Focus on:
-- Expected value calculations
-- Win probability modeling
-- Trade fairness scoring
-- Ceiling/floor projections
-- Variance and risk scoring
-- Playoff path probability
-- Rest-of-season projections
-
-RESPONSE FORMAT (strict JSON):
-{
-  "projectionDelta": number or null,
-  "expectedWeeklyGain": number or null,
-  "winProbability": 0-100 or null,
-  "playoffOdds": 0-100 or null,
-  "fairnessScore": 0-100 or null,
-  "riskGrade": "A|B|C|D|F" or null,
-  "confidencePct": 0-100,
-  "ceilingScore": number or null,
-  "floorScore": number or null,
-  "varianceScore": 0-100 or null,
-  "simulationCount": number or null,
-  "reasoning": "Brief explanation of your calculations"
-}`
-}
-
-function buildPrompt(params: {
-  question: string
-  conversation: ConversationTurn[]
-  userContext: string
-  screenshotContext: string
-  enrichmentData: string
-  privateMode: boolean
-  targetUsername?: string
-  strategyMode?: StrategyMode
-  aiMemory?: string
-}): string {
-  const {
-    question,
-    conversation,
-    userContext,
-    screenshotContext,
-    enrichmentData,
-    privateMode,
-    targetUsername,
-    strategyMode,
-    aiMemory,
-  } = params
-
-  const sections: string[] = []
-
-  sections.push(`USER QUESTION:\n${question}`)
-
-  if (strategyMode) {
-    sections.push(`STRATEGY MODE: ${strategyMode.toUpperCase()}\n${STRATEGY_MODE_CONTEXT[strategyMode]}`)
-  }
-
-  if (privateMode && targetUsername) {
-    sections.push(`PRIVATE MODE: Analyzing for user: ${targetUsername}`)
-  }
-
-  if (aiMemory) {
-    sections.push(`USER BEHAVIORAL PROFILE:\n${aiMemory}`)
-  }
-
-  if (conversation.length > 0) {
-    const historyText = conversation
-      .slice(-10)
-      .map(t => `${t.role === 'user' ? 'User' : 'Chimmy'}: ${t.content}`)
-      .join('\n')
-    sections.push(`RECENT CONVERSATION:\n${historyText}`)
-  }
-
-  if (userContext) {
-    sections.push(`USER FANTASY CONTEXT:\n${userContext}`)
-  }
-
-  if (screenshotContext) {
-    sections.push(`SCREENSHOT ANALYSIS:\n${screenshotContext}`)
-  }
-
-  if (enrichmentData) {
-    sections.push(`REAL-TIME DATA:\n${enrichmentData}`)
-  }
-
-  return sections.join('\n\n---\n\n')
-}
-
-function normalizeToolKey(raw: string | undefined): ToolKey {
-  if (!raw) return 'none'
-  const cleaned = raw.toLowerCase().trim()
-  return VALID_TOOL_KEYS.has(cleaned) ? (cleaned as ToolKey) : 'none'
-}
-
-function parseJsonResponse(raw: string): Record<string, any> | null {
-  try {
-    const cleaned = raw
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/```\s*$/i, '')
-      .trim()
-    return JSON.parse(cleaned)
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (match) {
-      try { return JSON.parse(match[0]) } catch {}
-    }
-    return null
-  }
-}
-
-function toOptionalTrimmedString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const trimmed = value.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
-
-function toCaveatList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-      .slice(0, 4)
-  }
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return value
-      .split(/\n|;+/)
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0)
-      .slice(0, 4)
-  }
-  return []
-}
-
-function buildResponseStructureFromOpenAIJson(
-  openaiJson: Record<string, any> | null
-): ChimmyResponseStructure | undefined {
-  if (!openaiJson) return undefined
-  const shortAnswer = toOptionalTrimmedString(openaiJson.shortAnswer ?? openaiJson.answer)
-  if (!shortAnswer) return undefined
-  const caveats = toCaveatList(openaiJson.caveats)
-  return {
-    shortAnswer,
-    whatDataSays: toOptionalTrimmedString(openaiJson.whatDataSays),
-    whatItMeans: toOptionalTrimmedString(openaiJson.whatItMeans),
-    recommendedAction: toOptionalTrimmedString(openaiJson.recommendedAction),
-    caveats: caveats.length > 0 ? caveats : undefined,
-  }
-}
-
-function buildFallbackResponseStructure(
-  answer: string,
-  reason: string,
-  quantResult: QuantResult | null,
-  grokResult: GrokResult | null
-): ChimmyResponseStructure | undefined {
-  const shortAnswer = answer.trim().slice(0, 220)
-  if (!shortAnswer) return undefined
-
-  const dataLineParts: string[] = []
-  if (quantResult?.fairnessScore != null) dataLineParts.push(`Fairness ${quantResult.fairnessScore}/100`)
-  if (quantResult?.expectedWeeklyGain != null) dataLineParts.push(`Weekly edge ${quantResult.expectedWeeklyGain.toFixed(1)} pts`)
-  if (quantResult?.playoffOdds != null) dataLineParts.push(`Playoff odds ${quantResult.playoffOdds}%`)
-  if (grokResult?.injuryAlerts?.length) dataLineParts.push(`Injury signal: ${grokResult.injuryAlerts[0]}`)
-  if (grokResult?.snapShareChanges?.length) dataLineParts.push(`Usage change: ${grokResult.snapShareChanges[0]}`)
-
-  const caveats: string[] = []
-  if (!quantResult || quantResult.error) {
-    caveats.push('Quant model context is limited for this answer.')
-  }
-  if (!grokResult || grokResult.error) {
-    caveats.push('Real-time trend context is limited right now.')
-  }
-
-  return {
-    shortAnswer,
-    whatDataSays: dataLineParts.length > 0 ? dataLineParts.join(' | ') : undefined,
-    whatItMeans: reason.trim().length > 0 ? reason.trim() : undefined,
-    recommendedAction: reason.trim().length > 0 ? reason.trim() : undefined,
-    caveats: caveats.length > 0 ? caveats : undefined,
-  }
-}
-
-function buildChimmyVoiceAnswer(
-  openaiAnswer: string,
-  grokResult: GrokResult | null,
-  quantResult: QuantResult | null
-): string {
-  let answer = openaiAnswer
-
-  if (quantResult && !quantResult.error) {
-    const quantInsights: string[] = []
-
-    if (quantResult.expectedWeeklyGain != null && Math.abs(quantResult.expectedWeeklyGain) > 0.5) {
-      const direction = quantResult.expectedWeeklyGain > 0 ? 'gain' : 'cost'
-      quantInsights.push(
-        `**Quant Edge:** ~${Math.abs(quantResult.expectedWeeklyGain).toFixed(1)} pts/week ${direction}`
-      )
-    }
-
-    if (quantResult.fairnessScore != null) {
-      const fairLabel =
-        quantResult.fairnessScore >= 55 ? 'Fair' :
-        quantResult.fairnessScore >= 45 ? 'Slight Lean' : 'Lopsided'
-      quantInsights.push(`**Trade Fairness:** ${quantResult.fairnessScore}/100 — ${fairLabel}`)
-    }
-
-    if (quantResult.playoffOdds != null) {
-      quantInsights.push(`**Playoff Impact:** ${quantResult.playoffOdds > 50 ? '+' : ''}${quantResult.playoffOdds}% odds`)
-    }
-
-    if (quantResult.riskGrade) {
-      quantInsights.push(`**Risk Grade:** ${quantResult.riskGrade}`)
-    }
-
-    if (quantInsights.length > 0) {
-      answer += '\n\n' + quantInsights.join('\n')
-    }
-  }
-
-  if (grokResult && !grokResult.error) {
-    const trendAlerts: string[] = []
-
-    if (grokResult.injuryAlerts?.length) {
-      trendAlerts.push(`**Injury Alert:** ${grokResult.injuryAlerts.slice(0, 2).join(' | ')}`)
-    }
-
-    if (grokResult.momentumFlags?.length) {
-      trendAlerts.push(`**Momentum:** ${grokResult.momentumFlags.slice(0, 2).join(' | ')}`)
-    }
-
-    if (grokResult.snapShareChanges?.length) {
-      trendAlerts.push(`**Usage Shift:** ${grokResult.snapShareChanges[0]}`)
-    }
-
-    if (trendAlerts.length > 0) {
-      answer += '\n\n' + trendAlerts.join('\n')
-    }
-  }
-
-  return answer
-}
-
-interface ConsensusResult {
-  answer: string
-  recommendedTool: ToolKey
-  reason: string
-  responseStructure?: ChimmyResponseStructure
-  confidencePct?: number
-  strategyNote?: string
-  quantData?: QuantResult
-  trendData?: GrokResult
-}
-
-function buildConsensus(
-  openaiRaw: string,
-  grokRaw: string,
-  deepseekResult: QuantResult | null
-): ConsensusResult {
-  const openaiJson = parseJsonResponse(openaiRaw)
-
-  let grokResult: GrokResult | null = null
-  if (grokRaw) {
-    const grokJson = parseJsonResponse(grokRaw)
-    if (grokJson) {
-      grokResult = {
-        trendSignals:     grokJson.trendSignals ?? [],
-        injuryAlerts:     grokJson.injuryAlerts ?? [],
-        snapShareChanges: grokJson.snapShareChanges ?? [],
-        socialBuzz:       grokJson.socialBuzz ?? [],
-        momentumFlags:    grokJson.momentumFlags ?? [],
-        rawInsight:       grokJson.rawInsight ?? '',
-      }
-    }
-  }
-
-  let primaryAnswer: string
-  let recommendedTool: ToolKey
-  let reason: string
-  let responseStructure: ChimmyResponseStructure | undefined
-  let strategyNote: string | undefined
-  let confidencePct: number | undefined
-
-  if (openaiJson?.answer) {
-    primaryAnswer = openaiJson.answer
-    recommendedTool = normalizeToolKey(openaiJson.recommendedTool)
-    reason = openaiJson.reason ?? ''
-    responseStructure = buildResponseStructureFromOpenAIJson(openaiJson)
-    confidencePct = openaiJson.confidencePct ?? deepseekResult?.confidencePct
-    strategyNote = openaiJson.strategyNote
-  } else if (openaiRaw && openaiRaw.trim().length > 10) {
-    primaryAnswer = openaiRaw
-    recommendedTool = 'none'
-    reason = ''
-    confidencePct = deepseekResult?.confidencePct
-  } else if (grokResult?.rawInsight) {
-    primaryAnswer = grokResult.rawInsight
-    recommendedTool = 'none'
-    reason = 'Grok real-time intelligence (primary model unavailable)'
-    confidencePct = deepseekResult?.confidencePct
-  } else if (grokRaw && grokRaw.trim().length > 10) {
-    primaryAnswer = grokRaw
-    recommendedTool = 'none'
-    reason = 'Grok fallback (primary model unavailable)'
-    confidencePct = deepseekResult?.confidencePct
-  } else {
-    primaryAnswer = "I couldn't complete the analysis right now."
-    recommendedTool = 'none'
-    reason = ''
-    confidencePct = undefined
-  }
-
-  const answer = buildChimmyVoiceAnswer(primaryAnswer, grokResult, deepseekResult)
-  if (!responseStructure) {
-    responseStructure = buildFallbackResponseStructure(answer, reason, deepseekResult, grokResult)
-  }
-
-  return {
-    answer,
-    recommendedTool,
-    reason,
-    responseStructure,
-    confidencePct,
-    strategyNote,
-    quantData: deepseekResult ?? undefined,
-    trendData: grokResult ?? undefined,
-  }
-}
-
-function hasSportsContent(text: string, hasImage: boolean): boolean {
-  if (hasImage) return true
-  const lower = text.toLowerCase()
-  return SPORTS_KEYWORDS.some(kw => lower.includes(kw))
-}
-
-function detectNotificationTriggers(
-  grokResult: GrokResult | null,
-  quantResult: QuantResult | null
-): string[] {
-  const triggers: string[] = []
-
-  if (grokResult?.injuryAlerts?.length) {
-    triggers.push('injury_alert')
-  }
-  if (grokResult?.momentumFlags?.length) {
-    triggers.push('momentum_shift')
-  }
-  if (quantResult?.playoffOdds != null && quantResult.playoffOdds < 30) {
-    triggers.push('playoff_danger')
-  }
-  if (quantResult?.fairnessScore != null && quantResult.fairnessScore < 40) {
-    triggers.push('lopsided_trade_warning')
-  }
-
-  return triggers
-}
-
-function summarizeProviderSignalAudit(
-  openaiRaw: string,
-  grokRaw: string,
-  quantResult: QuantResult | null,
-) {
-  const openaiJson = openaiRaw ? parseJsonResponse(openaiRaw) : null
-  const grokJson = grokRaw ? parseJsonResponse(grokRaw) : null
-
-  const internetBuckets = [
-    ...(Array.isArray(grokJson?.injuryAlerts) ? grokJson!.injuryAlerts : []),
-    ...(Array.isArray(grokJson?.trendSignals) ? grokJson!.trendSignals : []),
-    ...(Array.isArray(grokJson?.snapShareChanges) ? grokJson!.snapShareChanges : []),
-    ...(Array.isArray(grokJson?.socialBuzz) ? grokJson!.socialBuzz : []),
-    ...(Array.isArray(grokJson?.momentumFlags) ? grokJson!.momentumFlags : []),
-  ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-
-  const normalizedInternetSignals = internetBuckets.slice(0, 10).map((text) => {
-    const low = text.toLowerCase()
-    const recency =
-      low.includes('breaking') || low.includes('today') || low.includes('just')
-        ? 'fresh'
-        : low.includes('week') || low.includes('recent')
-          ? 'recent'
-          : 'stale'
-    const relevance =
-      low.includes('injur') || low.includes('trade') || low.includes('depth chart') || low.includes('usage')
-        ? 0.88
-        : 0.65
-    const confidence =
-      low.includes('report') || low.includes('confirmed')
-        ? 0.78
-        : low.includes('rumor')
-          ? 0.52
-          : 0.64
-    const affectedEntities = (text.match(/[A-Z][a-z]+\s[A-Z][a-z]+/g) || []).slice(0, 3)
-
-    return {
-      source: 'grok_web_search',
-      recency,
-      relevance,
-      confidence,
-      affectedEntities,
-      summary: text,
-    }
-  })
-
-  const disagreementFlags: string[] = []
-  if (quantResult?.fairnessScore != null && quantResult.fairnessScore < 40 && normalizedInternetSignals.length > 0) {
-    disagreementFlags.push('Quant model flags low fairness while internet signals are active.')
-  }
-  if (
-    quantResult?.riskGrade &&
-    ['D', 'F'].includes(quantResult.riskGrade) &&
-    normalizedInternetSignals.some((s) => s.summary.toLowerCase().includes('bull'))
-  ) {
-    disagreementFlags.push('Risk model is pessimistic but internet sentiment contains bullish signals.')
-  }
-  if (!openaiJson?.answer && (grokRaw || quantResult)) {
-    disagreementFlags.push('Primary reasoning response was incomplete; fallback provider data carried the response.')
-  }
-
-  return {
-    responsibilities: {
-      openai: 'final reasoning synthesis, user-facing recommendation framing, and action ordering',
-      grok: 'internet/current-event scanning normalized into structured context signals',
-      deepseek: 'quantitative risk, fairness, and projection calibration',
-    },
-    normalizedInternetSignals,
-    disagreementFlags,
-  }
-}
 async function parseScreenshotWithVision(imageFile: File, userQuestion: string): Promise<string> {
-  const arrayBuffer = await imageFile.arrayBuffer()
-  const base64 = Buffer.from(arrayBuffer).toString('base64')
-
   const openai = getVisionClient()
   if (!openai) {
-    return JSON.stringify({
-      error: 'Vision unavailable',
-      players: [],
-      context: 'No API key configured',
-    })
+    return 'Image uploaded; vision extraction unavailable (provider not configured).'
   }
-
   try {
-    const res = await openai.chat.completions.create({
+    const buffer = Buffer.from(await imageFile.arrayBuffer())
+    const base64 = buffer.toString('base64')
+    const response = await openai.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 1000,
+      max_tokens: 500,
       temperature: 0.2,
-      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
-          content: `Analyze this fantasy sports screenshot. Extract ALL of the following as JSON:
-{
-  "type": "trade|waiver|standings|draft|lineup|injury|box_score|social|other",
-  "players": [{ "name": string, "team": string, "position": string, "side": "offer|receive|available|other" }],
-  "tradeComponents": { "side_a": string[], "side_b": string[] },
-  "standings": [{ "team": string, "record": string, "rank": number }],
-  "draftPicks": [{ "round": number, "pick": number, "player": string }],
-  "keyDetails": ["important visible details"],
-  "initialTake": "short plain-English summary of what is visible"
-}`,
+          content:
+            'You are extracting deterministic fantasy context from an uploaded screenshot. ' +
+            'Return a concise plain-text summary with only what is visible (players, teams, values, injuries, lineup/draft/trade context).',
         },
         {
           role: 'user',
           content: [
-            { type: 'text', text: userQuestion || 'Analyze this screenshot and summarize what is visible.' },
+            { type: 'text', text: userQuestion || 'Summarize visible fantasy context from this screenshot.' },
             { type: 'image_url', image_url: { url: `data:${imageFile.type};base64,${base64}`, detail: 'high' } },
           ],
         },
       ],
     })
-
-    return res.choices[0]?.message?.content ?? '{}'
-  } catch (e: any) {
-    console.error('[Chimmy] Vision error:', e?.message)
-    return JSON.stringify({ error: e?.message, players: [] })
-  }
-}
-
-async function getUserContext(userId?: string): Promise<string> {
-  if (!userId) return 'No signed-in user context available.'
-  try {
-    const leagues = await (prisma as any).league.findMany({
-      where: { userId },
-      select: {
-        name: true,
-        sport: true,
-        isDynasty: true,
-        scoring: true,
-        leagueSize: true,
-        season: true,
-        rosters: { select: { playerData: true }, take: 1 },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 3,
-    })
-
-    if (!leagues.length) return 'User has no synced leagues yet.'
-
-    const lines = leagues.map((l: any, idx: number) => {
-      const roster = l.rosters?.[0]?.playerData
-      const rosterPreview = Array.isArray(roster)
-        ? roster.slice(0, 8).join(', ')
-        : roster && typeof roster === 'object'
-          ? Object.keys(roster).slice(0, 8).join(', ')
-          : 'No roster players visible'
-
-      return `${idx + 1}. ${l.name || 'Unnamed league'} (${l.sport}${l.isDynasty ? ', dynasty' : ''}${l.scoring ? `, ${l.scoring}` : ''}${l.leagueSize ? `, ${l.leagueSize} teams` : ''}${l.season ? `, ${l.season}` : ''}) | roster preview: ${rosterPreview}`
-    })
-
-    return lines.join('\n')
+    return response.choices[0]?.message?.content?.trim() || 'Image uploaded; no extractable fantasy context returned.'
   } catch {
-    return 'User league context unavailable right now.'
+    return 'Image uploaded; vision extraction failed.'
   }
 }
 
-async function getAIMemorySummary(userId: string): Promise<string> {
-  try {
-    const context = await getFullAIContext({ userId })
-    const summary = buildMemoryPromptSection(context)
-    return summary || ''
-  } catch (e) {
-    console.warn('[Chimmy] AI memory load failed:', e)
-    return ''
+function buildUserMessage(input: {
+  message: string
+  conversation: ConversationTurn[]
+  screenshotSummary?: string
+  insightSummary?: string
+  memorySection?: string
+  strategyMode?: string
+  privateMode: boolean
+  targetUsername?: string
+}): string {
+  const parts: string[] = []
+  parts.push(`USER QUESTION:\n${input.message || 'Analyze my fantasy context and recommend next moves.'}`)
+
+  if (input.strategyMode) {
+    parts.push(`STRATEGY MODE:\n${input.strategyMode}`)
   }
+
+  if (input.privateMode && input.targetUsername) {
+    parts.push(`PRIVATE MODE TARGET:\n${input.targetUsername}`)
+  }
+
+  if (input.conversation.length > 0) {
+    const convo = input.conversation
+      .slice(-8)
+      .map((turn) => `${turn.role === 'user' ? 'User' : 'Chimmy'}: ${turn.content}`)
+      .join('\n')
+    parts.push(`RECENT CONVERSATION:\n${convo}`)
+  }
+
+  if (input.screenshotSummary) {
+    parts.push(`SCREENSHOT SUMMARY:\n${input.screenshotSummary}`)
+  }
+
+  if (input.insightSummary) {
+    parts.push(`SIMULATION / WAREHOUSE CONTEXT:\n${input.insightSummary}`)
+  }
+
+  if (input.memorySection) {
+    parts.push(`MEMORY CONTEXT:\n${input.memorySection}`)
+  }
+
+  return parts.join('\n\n---\n\n')
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now()
-
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
@@ -757,447 +264,290 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   })
   if (limitRes) return limitRes
 
-  let message = ''
-  let imageFile: File | null = null
-  let privateMode = false
-  let targetUsername = ''
-  let conversation: ConversationTurn[] = []
-  let strategyMode: StrategyMode | undefined
-  let sleeperUsername: string | undefined
-  let leagueId: string | undefined
-  let insightType: InsightType | undefined
-  let teamId: string | undefined
-  let contextSport: string | undefined
-  let contextSeason: number | undefined
-  let contextWeek: number | undefined
-
+  let formData: FormData
   try {
-    const formData = await req.formData()
-    message        = ((formData.get('message') as string) ?? '').trim()
-    privateMode    = formData.get('privateMode') === 'true'
-    targetUsername  = ((formData.get('targetUsername') as string) ?? '').trim()
-    sleeperUsername = ((formData.get('sleeperUsername') as string) ?? '').trim() || undefined
-    leagueId        = ((formData.get('leagueId') as string) ?? '').trim() || undefined
-    teamId          = ((formData.get('teamId') as string) ?? '').trim() || undefined
-    contextSport    = ((formData.get('sport') as string) ?? '').trim() || undefined
-
-    const rawInsightType = ((formData.get('insightType') as string) ?? '').trim().toLowerCase()
-    if (VALID_INSIGHT_TYPES.has(rawInsightType as InsightType)) {
-      insightType = rawInsightType as InsightType
-    }
-
-    const rawSeason = Number((formData.get('season') as string) ?? '')
-    if (Number.isFinite(rawSeason) && rawSeason > 0) contextSeason = Math.floor(rawSeason)
-
-    const rawWeek = Number((formData.get('week') as string) ?? '')
-    if (Number.isFinite(rawWeek) && rawWeek > 0) contextWeek = Math.floor(rawWeek)
-
-    const rawStrategy = (formData.get('strategyMode') as string) ?? ''
-    if (rawStrategy && rawStrategy in STRATEGY_MODE_CONTEXT) {
-      strategyMode = rawStrategy as StrategyMode
-    }
-
-    const rawHistory = formData.get('conversation') || formData.get('messages')
-    if (rawHistory && typeof rawHistory === 'string') {
-      try {
-        const parsed = JSON.parse(rawHistory)
-        if (Array.isArray(parsed)) conversation = parsed.slice(-10)
-      } catch {}
-    }
-
-    const imgFile = formData.get('image') as File | null
-    if (imgFile && imgFile.size > 0 && imgFile.type?.startsWith('image/')) {
-      imageFile = imgFile
-    }
-  } catch (e) {
-    console.error('[Chimmy] FormData parse error:', e)
-    return NextResponse.json({ error: 'Invalid request format' }, { status: 400 })
+    formData = await req.formData()
+  } catch {
+    return NextResponse.json({ error: 'Invalid request format.' }, { status: 400 })
   }
 
-  if (!message && !imageFile) {
+  const message = ((formData.get('message') as string) ?? '').trim()
+  const explicitConversationId = ((formData.get('conversationId') as string) ?? '').trim() || undefined
+  const privateMode = formData.get('privateMode') === 'true'
+  const targetUsername = ((formData.get('targetUsername') as string) ?? '').trim() || undefined
+  const strategyMode = ((formData.get('strategyMode') as string) ?? '').trim() || undefined
+  const source = ((formData.get('source') as string) ?? '').trim() || undefined
+  const leagueId = ((formData.get('leagueId') as string) ?? '').trim() || undefined
+  const sleeperUsername = ((formData.get('sleeperUsername') as string) ?? '').trim() || undefined
+  const teamId = ((formData.get('teamId') as string) ?? '').trim() || undefined
+  const sportRaw = ((formData.get('sport') as string) ?? '').trim()
+  const sport = normalizeToSupportedSport(sportRaw || undefined)
+  const seasonRaw = Number((formData.get('season') as string) ?? '')
+  const weekRaw = Number((formData.get('week') as string) ?? '')
+  const season = Number.isFinite(seasonRaw) && seasonRaw > 0 ? Math.floor(seasonRaw) : undefined
+  const week = Number.isFinite(weekRaw) && weekRaw > 0 ? Math.floor(weekRaw) : undefined
+
+  const rawInsightType = ((formData.get('insightType') as string) ?? '').trim().toLowerCase()
+  const insightType = VALID_INSIGHT_TYPES.has(rawInsightType as InsightType)
+    ? (rawInsightType as InsightType)
+    : undefined
+
+  const conversation = parseConversation(formData.get('messages') ?? formData.get('conversation'))
+  const imageFile = formData.get('image') as File | null
+  const hasImage = Boolean(imageFile && imageFile.size > 0 && imageFile.type?.startsWith('image/'))
+  const conversationId = buildChimmyConversationId({
+    userId,
+    leagueId: leagueId ?? null,
+    explicitConversationId,
+  })
+
+  if (!message && !hasImage) {
     return NextResponse.json({
       response: 'Ask me a fantasy sports question, share roster context, or upload a screenshot for analysis.',
     })
   }
 
-  const domainInput = [message, ...conversation.map(c => c.content)].join(' ')
-  if (!hasSportsContent(domainInput, !!imageFile)) {
-    const offTopicResponse: ChimmyResponse = {
-      answer:
-        "I'm Chimmy, your fantasy sports assistant. I can help with trades, waivers, matchups, and lineup strategy. Share your league question and I'll keep it clear and evidence-based.",
-      responseStructure: {
-        shortAnswer: 'I can help with fantasy sports questions only.',
-        whatDataSays: 'No fantasy-specific context was provided in this request.',
-        whatItMeans: 'I need a league, roster, trade, waiver, or matchup question to give useful analysis.',
-        recommendedAction: 'Share your fantasy question and any relevant league context.',
-        caveats: ['Off-topic requests are intentionally redirected to fantasy guidance.'],
-      },
-      recommendedTool: 'none',
-      reason: 'Off-topic query',
-      providers: { openai: 'skipped', grok: 'skipped', deepseek: 'skipped' },
-      dataSources: [],
-    }
-    return NextResponse.json({ response: offTopicResponse.answer, meta: offTopicResponse })
-  }
-
-  const providers: ChimmyResponse['providers'] = {
-    openai: 'skipped',
-    grok: 'skipped',
-    deepseek: 'skipped',
-  }
-  const dataSources: string[] = []
-
-  let screenshotContext = ''
-  if (imageFile) {
-    try {
-      screenshotContext = await parseScreenshotWithVision(imageFile, message)
-      dataSources.push('screenshot_vision')
-    } catch (e) {
-      console.error('[Chimmy] Vision error:', e)
-      screenshotContext = JSON.stringify({ error: 'Vision processing failed', players: [] })
-    }
-  }
-
-  const leagueFormatContextPromise =
-    leagueId
-      ? (prisma as any).league.findUnique({ where: { id: leagueId }, select: { isDynasty: true, settings: true } }).then((l: { isDynasty: boolean; settings: Record<string, unknown> | null } | null) => {
-          if (!l) return ''
-          const leagueType = typeof l.settings?.league_type === 'string' ? String(l.settings.league_type).trim().toLowerCase() : null
-          const isBestBall = leagueType === 'best_ball' || (l.settings?.best_ball === true)
-          if (isBestBall) return 'ACTIVE LEAGUE (best ball): This is a best ball league. The system automatically selects the highest-scoring legal lineup each scoring period; managers do not set lineups manually. Advise on draft strategy (depth, spike weeks, handcuffs), waiver/trade for best-ball context (weekly upside, insulation), and explain why the optimizer chose a given lineup. Do not assume manual start/sit decisions.'
-          if (leagueType === 'keeper') return 'ACTIVE LEAGUE (keeper): This is a keeper league. Balance current-season value with keeper retention; respect keeper count, deadline, and round-cost rules. Advise on who to keep, keeper trades, waiver pickup keeper eligibility, and win-now vs keeper value.'
-          if (leagueType === 'redraft' || (!leagueType && !l.isDynasty)) return 'ACTIVE LEAGUE (redraft): This is a standard redraft league. Focus on current season value only; no dynasty stashing, future picks, or long-term value. Advise for playoff push, weekly wins, and waiver/trade decisions for this season.'
-          return ''
-        }).catch(() => '')
-      : Promise.resolve('')
-
-  const [userContextResult, enrichmentResult, aiMemoryResult, simWarehouseResult, targetedInsightResult, survivorContextResult, dynastyContextResult, devyContextResult, c2cContextResult, tournamentContextResult, bigBrotherContextResult, idpContextResult, salaryCapContextResult, zombieContextResult, leagueFormatContextResult] = await Promise.allSettled([
-    getUserContext(userId ?? undefined),
-    enrichChatWithData(message || '', { sleeperUsername }).catch((err: any) => {
-      console.warn('[Chimmy] Enrichment failed:', err)
-      return null
-    }),
-    userId ? getAIMemorySummary(userId) : Promise.resolve(''),
-    userId ? getSimulationAndWarehouseContextForUser(userId) : Promise.resolve(''),
-    leagueId && insightType
-      ? getInsightBundle(leagueId, insightType, {
-          teamId,
-          sport: contextSport,
-          season: contextSeason,
-          week: contextWeek,
-        })
-      : Promise.resolve(null),
-    leagueId && userId ? buildSurvivorContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildDynastyContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildDevyContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildC2CContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildTournamentContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildBigBrotherContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildIdpContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildSalaryCapContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueId && userId ? buildZombieContextForChimmy(leagueId, userId) : Promise.resolve(''),
-    leagueFormatContextPromise,
-  ])
-
-  let userContextStr = userContextResult.status === 'fulfilled' ? userContextResult.value : ''
-  const simWarehouseStr = simWarehouseResult.status === 'fulfilled' ? simWarehouseResult.value : ''
-  if (simWarehouseStr && typeof simWarehouseStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${simWarehouseStr}` : simWarehouseStr
-  }
-  if (simWarehouseStr) dataSources.push('simulation_warehouse')
-  const targetedInsightBundle =
-    targetedInsightResult.status === 'fulfilled' ? targetedInsightResult.value : null
-  if (targetedInsightBundle?.contextText) {
-    const sourceLabels = targetedInsightBundle.sources.length
-      ? targetedInsightBundle.sources.join(', ')
-      : 'simulation/warehouse'
-    const targetedContextBlock = [
-      `TARGETED ${targetedInsightBundle.insightType.toUpperCase()} CONTEXT (${targetedInsightBundle.sport})`,
-      `Sources: ${sourceLabels}`,
-      targetedInsightBundle.contextText,
-      `Model responsibilities: DeepSeek (${targetedInsightBundle.modelResponsibilities.deepseek}); Grok (${targetedInsightBundle.modelResponsibilities.grok}); OpenAI (${targetedInsightBundle.modelResponsibilities.openai}).`,
-    ].join('\n')
-    userContextStr = userContextStr
-      ? `${userContextStr}\n\n${targetedContextBlock}`
-      : targetedContextBlock
-    dataSources.push('ai_insight_router')
-    for (const source of targetedInsightBundle.sources) {
-      dataSources.push(`ai_${source}`)
-    }
-  }
-  const survivorContextStr = survivorContextResult.status === 'fulfilled' ? survivorContextResult.value : ''
-  if (survivorContextStr && typeof survivorContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${survivorContextStr}` : survivorContextStr
-    dataSources.push('survivor_league')
-  }
-  const dynastyContextStr = dynastyContextResult.status === 'fulfilled' ? dynastyContextResult.value : ''
-  if (dynastyContextStr && typeof dynastyContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${dynastyContextStr}` : dynastyContextStr
-    dataSources.push('dynasty_league')
-  }
-  const devyContextStr = devyContextResult.status === 'fulfilled' ? devyContextResult.value : ''
-  if (devyContextStr && typeof devyContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${devyContextStr}` : devyContextStr
-    dataSources.push('devy_league')
-  }
-  const c2cContextStr = c2cContextResult.status === 'fulfilled' ? c2cContextResult.value : ''
-  if (c2cContextStr && typeof c2cContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${c2cContextStr}` : c2cContextStr
-    dataSources.push('c2c_league')
-  }
-  const tournamentContextStr = tournamentContextResult.status === 'fulfilled' ? tournamentContextResult.value : ''
-  if (tournamentContextStr && typeof tournamentContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${tournamentContextStr}` : tournamentContextStr
-    dataSources.push('tournament_league')
-  }
-  const bigBrotherContextStr = bigBrotherContextResult.status === 'fulfilled' ? bigBrotherContextResult.value : ''
-  if (bigBrotherContextStr && typeof bigBrotherContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${bigBrotherContextStr}` : bigBrotherContextStr
-    dataSources.push('big_brother_league')
-  }
-  const idpContextStr = idpContextResult.status === 'fulfilled' ? idpContextResult.value : ''
-  if (idpContextStr && typeof idpContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${idpContextStr}` : idpContextStr
-    dataSources.push('idp_league')
-  }
-  const salaryCapContextStr = salaryCapContextResult.status === 'fulfilled' ? salaryCapContextResult.value : ''
-  if (salaryCapContextStr && typeof salaryCapContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${salaryCapContextStr}` : salaryCapContextStr
-    dataSources.push('salary_cap_league')
-  }
-  const zombieContextStr = zombieContextResult.status === 'fulfilled' ? zombieContextResult.value : ''
-  if (zombieContextStr && typeof zombieContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${zombieContextStr}` : zombieContextStr
-    dataSources.push('zombie_league')
-  }
-  const leagueFormatContextStr = leagueFormatContextResult.status === 'fulfilled' ? leagueFormatContextResult.value : ''
-  if (leagueFormatContextStr && typeof leagueFormatContextStr === 'string') {
-    userContextStr = userContextStr ? `${userContextStr}\n\n${leagueFormatContextStr}` : leagueFormatContextStr
-    dataSources.push(leagueFormatContextStr.startsWith('ACTIVE LEAGUE (keeper)') ? 'keeper_league' : 'redraft_league')
-  }
-  const enrichment = enrichmentResult.status === 'fulfilled' ? enrichmentResult.value : null
-  const enrichmentStr = enrichment?.context ?? ''
-  const aiMemoryStr = aiMemoryResult.status === 'fulfilled' ? aiMemoryResult.value : ''
-
-  if (enrichment?.sources) {
-    const sourceSummary = buildDataSourcesSummary(enrichment.sources)
-    dataSources.push(...sourceSummary)
-  }
-
-  const compiledPrompt = buildPrompt({
-    question: message || 'Analyze this fantasy sports screenshot and advise what to do next.',
-    conversation,
-    userContext: userContextStr,
-    screenshotContext,
-    enrichmentData: enrichmentStr,
-    privateMode,
-    targetUsername,
-    strategyMode,
-    aiMemory: aiMemoryStr,
-  })
-
-  const CHIMMY_PROVIDER_TIMEOUT_MS = 28_000
-  const providerPromise = Promise.allSettled([
-    (async (): Promise<string> => {
-      try {
-        const res = await openaiChatText({
-          messages: [
-            { role: 'system', content: buildDomainGuard(strategyMode) },
-            { role: 'user', content: compiledPrompt },
-          ],
-          temperature: 0.4,
-          maxTokens: 850,
-        })
-        if (res.ok) {
-          providers.openai = 'ok'
-          return res.text
-        }
-        providers.openai = 'error'
-        console.error('[Chimmy] OpenAI error:', (res as any).details)
-        return ''
-      } catch (e: any) {
-        providers.openai = 'error'
-        console.error('[Chimmy] OpenAI error:', e?.message)
-        return ''
-      }
-    })(),
-
-    (async (): Promise<string> => {
-      try {
-        const res = await xaiChatJson({
-          messages: [
-            { role: 'system', content: buildGrokSystemPrompt() },
-            { role: 'user', content: compiledPrompt },
-          ],
-          tools: [{ type: 'web_search', user_location_country: 'US' }],
-          temperature: 0.35,
-          maxTokens: 900,
-        })
-        if (res.ok) {
-          providers.grok = 'ok'
-          return parseTextFromXaiChatCompletion(res.json) ?? ''
-        }
-        providers.grok = 'error'
-        console.error('[Chimmy] Grok error:', (res as any).details)
-        return ''
-      } catch (e: any) {
-        providers.grok = 'error'
-        console.error('[Chimmy] Grok error:', e?.message)
-        return ''
-      }
-    })(),
-
-    (async (): Promise<QuantResult | null> => {
-      try {
-        const result = await deepseekChat({
-          prompt: compiledPrompt,
-          systemPrompt: buildDeepSeekSystemPrompt(strategyMode),
-          temperature: 0.1,
-          maxTokens: 1200,
-        })
-
-        if (result.error || !result.content) {
-          providers.deepseek = 'error'
-          return { error: result.error ?? 'Empty response' }
-        }
-
-        providers.deepseek = 'ok'
-        const parsed = parseJsonResponse(result.content)
-        if (parsed) {
-          return {
-            projectionDelta: parsed.projectionDelta ?? null,
-            expectedWeeklyGain: parsed.expectedWeeklyGain ?? null,
-            winProbability: parsed.winProbability ?? null,
-            playoffOdds: parsed.playoffOdds ?? null,
-            fairnessScore: parsed.fairnessScore ?? null,
-            riskGrade: parsed.riskGrade ?? null,
-            confidencePct: parsed.confidencePct ?? null,
-            ceilingScore: parsed.ceilingScore ?? null,
-            floorScore: parsed.floorScore ?? null,
-            varianceScore: parsed.varianceScore ?? null,
-            simulationCount: parsed.simulationCount ?? null,
-          }
-        }
-        return { error: 'JSON parse failed' }
-      } catch (e: any) {
-        providers.deepseek = 'error'
-        console.error('[Chimmy] DeepSeek error:', e?.message)
-        return null
-      }
-    })(),
-  ])
-  const timeoutPromise = new Promise<PromiseSettledResult<string | QuantResult | null>[]>((_, reject) => {
-    setTimeout(() => reject(new Error('Chimmy provider timeout')), CHIMMY_PROVIDER_TIMEOUT_MS)
-  })
-  let settled: PromiseSettledResult<string | QuantResult | null>[]
-  try {
-    settled = await Promise.race([providerPromise, timeoutPromise])
-  } catch (e) {
-    if (String(e).includes('timeout')) {
-      return NextResponse.json({
-        response: "I couldn't complete that analysis in time. Try a shorter question or try again in a moment.",
-        meta: {
-          assistant: 'Chimmy',
-          providers,
-          dataSources,
-          processingMs: Date.now() - startMs,
-          confidencePct: 0,
-          timeout: true,
-          responseStructure: {
-            shortAnswer: "I couldn't finish that request in time.",
-            recommendedAction: 'Try a shorter question or retry in a moment.',
-            caveats: ['Provider timeout while generating analysis.'],
-          },
-        },
-      })
-    }
-    throw e
-  }
-
-  const openaiRaw: string = settled[0]?.status === 'fulfilled' ? (typeof settled[0].value === 'string' ? settled[0].value : '') : ''
-  const grokRaw: string = settled[1]?.status === 'fulfilled' ? (typeof settled[1].value === 'string' ? settled[1].value : '') : ''
-  const dsResult: QuantResult | null = settled[2]?.status === 'fulfilled' && settled[2].value !== null && typeof settled[2].value === 'object' ? (settled[2].value as QuantResult) : null
-
-  if (!openaiRaw && !grokRaw) {
+  const domainInput = [message, ...conversation.map((turn) => turn.content)].join(' ')
+  if (!hasSportsContent(domainInput, hasImage)) {
     return NextResponse.json({
-      response: "I couldn't complete that analysis right now. Re-ask your fantasy question, and if possible include league/roster details or re-upload the image.",
+      response:
+        "I'm Chimmy, your fantasy sports assistant. I can help with trades, waivers, matchups, and lineup strategy.",
       meta: {
-        assistant: 'Chimmy',
-        providers,
-        dataSources,
-        processingMs: Date.now() - startMs,
-        confidencePct: 0,
-        providerStatus: providers,
+        confidencePct: 100,
+        providerStatus: {
+          openai: 'skipped',
+          deepseek: 'skipped',
+          grok: 'skipped',
+        },
+        recommendedTool: 'none',
+        dataSources: [],
         responseStructure: {
-          shortAnswer: "I couldn't complete that analysis right now.",
-          recommendedAction: 'Please retry with league or roster details for better grounding.',
-          caveats: ['Primary providers were unavailable for this request.'],
+          shortAnswer: 'I can help with fantasy sports questions only.',
+          recommendedAction: 'Share your fantasy question and league context.',
+          caveats: ['Off-topic requests are redirected to fantasy guidance.'],
         },
       },
     })
   }
 
-  const consensus = buildConsensus(openaiRaw, grokRaw, dsResult)
-  const providerSignalAudit = summarizeProviderSignalAudit(openaiRaw, grokRaw, dsResult)
+  const dataSources: string[] = []
 
-  const toolLink = consensus.recommendedTool !== 'none' ? TOOL_LINKS[consensus.recommendedTool] : null
-  let finalAnswer = consensus.answer
-  if (toolLink && consensus.recommendedTool !== 'none') {
-    const toolLabel = consensus.recommendedTool.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-    const why = consensus.reason ? `\n\nWhy: ${consensus.reason}` : ''
-    finalAnswer += `\n\n👉 [Open ${toolLabel}](${toolLink})${why}`
+  const screenshotTask: Promise<string | undefined> =
+    hasImage && imageFile
+      ? parseScreenshotWithVision(imageFile, message)
+      : Promise.resolve(undefined)
+  const insightTask: Promise<{ summary?: string; sources: string[] } | undefined> =
+    leagueId && insightType
+      ? getInsightBundle(leagueId, insightType, {
+          teamId,
+          season,
+          week,
+          sport,
+        })
+          .then((bundle) => ({
+            summary: bundle.contextText || undefined,
+            sources: bundle.sources.map((source) => `ai_${source}`),
+          }))
+          .catch(() => undefined)
+      : Promise.resolve(undefined)
+  const memoryTask: Promise<string | undefined> =
+    userId
+      ? getChimmyMemoryContext({
+          userId,
+          leagueId: leagueId ?? null,
+          conversationId,
+          sleeperUsername: sleeperUsername ?? null,
+        })
+          .then((ctx) => (ctx.promptSection?.trim().length ? ctx.promptSection : undefined))
+          .catch(() => undefined)
+      : Promise.resolve(undefined)
+
+  const [screenshotResult, insightResult, memoryResult] = await Promise.allSettled([
+    screenshotTask,
+    insightTask,
+    memoryTask,
+  ])
+  const screenshotSummary = screenshotResult.status === 'fulfilled' ? screenshotResult.value : undefined
+  const insightSummary = insightResult.status === 'fulfilled' ? insightResult.value?.summary : undefined
+  const insightSources = insightResult.status === 'fulfilled' ? insightResult.value?.sources ?? [] : []
+  const memorySection = memoryResult.status === 'fulfilled' ? memoryResult.value : undefined
+
+  if (screenshotSummary) dataSources.push('screenshot_vision')
+  if (insightSources.length > 0) dataSources.push(...insightSources)
+  if (memorySection) dataSources.push('ai_memory', 'chat_history')
+
+  const userMessage = buildUserMessage({
+    message,
+    conversation,
+    screenshotSummary,
+    insightSummary,
+    memorySection,
+    strategyMode,
+    privateMode,
+    targetUsername,
+  })
+
+  const deterministicContext = compactRecord({
+    contextSnapshot: compactRecord({
+      leagueId,
+      sleeperUsername,
+      teamId,
+      sport,
+      season,
+      week,
+      insightType,
+      privateMode,
+      targetUsername,
+      strategyMode,
+      source,
+      conversationId,
+    }),
+    matchupData: insightType === 'matchup'
+      ? compactRecord({ leagueId, teamId, week, season, summary: insightSummary })
+      : undefined,
+    projections: insightType === 'playoff' || /projection|projected|win probability/i.test(message)
+      ? compactRecord({ season, week, summary: insightSummary })
+      : undefined,
+    rosterNeeds: /roster|lineup|need|depth/i.test(message)
+      ? compactRecord({ summary: insightSummary || message.slice(0, 280) })
+      : undefined,
+    adpComparisons: /adp|value pick|reach/i.test(message)
+      ? compactRecord({ summary: message.slice(0, 280) })
+      : undefined,
+    rankings: /rank|ranking|tiers/i.test(message)
+      ? compactRecord({ summary: insightSummary || message.slice(0, 280) })
+      : undefined,
+    scoringOutputs: /score|points|scoring|projection/i.test(message)
+      ? compactRecord({ summary: insightSummary || message.slice(0, 280) })
+      : undefined,
+    screenshotEvidence: screenshotSummary,
+    memoryContext: memorySection
+      ? compactRecord({
+          conversationId,
+          promptSection: memorySection.slice(0, 4000),
+        })
+      : undefined,
+  })
+
+  const leagueSettings = compactRecord({
+    sport,
+    season,
+    week,
+    insightType,
+    source,
+    privateMode,
+    targetUsername,
+  })
+
+  const validation = validateToolRequest('chimmy_chat', deterministicContext, {
+    leagueSettings,
+    sport,
+  })
+  if (!validation.valid) {
+    return NextResponse.json(
+      {
+        error: validation.error ?? 'Invalid Chimmy request.',
+      },
+      { status: 400 }
+    )
   }
 
-  const triggers = detectNotificationTriggers(consensus.trendData ?? null, consensus.quantData ?? null)
+  const unifiedRequest = requestContractToUnified(
+    {
+      tool: 'chimmy_chat',
+      sport,
+      leagueId: leagueId ?? null,
+      userId,
+      leagueSettings,
+      deterministicContext,
+      userMessage,
+      aiMode: 'unified_brain',
+      provider: null,
+    },
+    userId
+  )
+
+  const run = await runUnifiedOrchestration(unifiedRequest)
+  if (!run.ok) {
+    return NextResponse.json(
+      {
+        error: run.error.userMessage || 'Unable to process Chimmy request.',
+        message: run.error.message,
+        traceId: run.error.traceId,
+      },
+      { status: run.status }
+    )
+  }
+
+  const responseContract = unifiedResponseToContract(run.response)
+  const providerStatus = buildProviderStatusMap(responseContract)
+  const quantData = extractQuantData(responseContract)
+  const trendData = extractTrendData(responseContract)
+  const recommendedTool = inferRecommendedTool(
+    responseContract.aiExplanation,
+    responseContract.actionPlan
+  )
+  const responseStructure = buildResponseStructure(
+    responseContract.aiExplanation,
+    responseContract.actionPlan,
+    responseContract.uncertainty
+  )
+
+  const meta = {
+    assistant: 'Chimmy',
+    conversationId,
+    confidencePct: responseContract.confidence ?? undefined,
+    providerStatus,
+    recommendedTool,
+    dataSources: dataSources.length ? dataSources : undefined,
+    quantData,
+    trendData,
+    responseStructure,
+    reliability: responseContract.reliability ?? undefined,
+    traceId: responseContract.traceId ?? undefined,
+    processingMs: Date.now() - startMs,
+  }
 
   if (userId) {
-    recordMemoryEvent({
-      userId,
-      eventType: 'chimmy_chat',
-      subject: message.slice(0, 100),
-      content: {
-        tool: consensus.recommendedTool,
-        confidence: consensus.confidencePct,
-        strategy: strategyMode,
-        triggers,
-        providers: { ...providers },
-      },
-    }).catch(e => console.warn('[Chimmy] Memory record failed:', e))
+    const assistantResponse = responseContract.aiExplanation || "I couldn't complete that request. Please try again."
+    const persistTasks = [
+      appendChatHistory({
+        conversationId,
+        role: 'user',
+        content: message || '[image-only request]',
+        userId,
+        leagueId: leagueId ?? null,
+      }),
+      appendChatHistory({
+        conversationId,
+        role: 'assistant',
+        content: assistantResponse,
+        userId,
+        leagueId: leagueId ?? null,
+        meta: {
+          recommendedTool,
+          confidence: responseContract.confidence ?? null,
+        },
+      }),
+      rememberChimmyUserMessageMemory({
+        userId,
+        leagueId: leagueId ?? null,
+        sport,
+        message: message || '[image-only request]',
+      }),
+      rememberChimmyAssistantMemory({
+        userId,
+        leagueId: leagueId ?? null,
+        answer: assistantResponse,
+        recommendedTool,
+        confidence: responseContract.confidence ?? null,
+      }),
+    ]
+    await Promise.allSettled(persistTasks)
   }
 
-  const processingMs = Date.now() - startMs
-
   return NextResponse.json({
-    response: finalAnswer,
-    meta: {
-      assistant: 'Chimmy',
-      persona: 'calm-natural-analyst',
-      responseStyle: 'evidence_first_confidence_aware',
-      voiceStyle: 'calm_default',
-      providerStatus: providers,
-      recommendedTool: consensus.recommendedTool,
-      confidencePct: consensus.confidencePct,
-      strategyNote: consensus.strategyNote,
-      quantData: consensus.quantData,
-      trendData: consensus.trendData,
-      responseStructure: consensus.responseStructure,
-      providerSignalAudit,
-      hasImage: !!screenshotContext,
-      privateMode,
-      targetUsername: targetUsername || null,
-      usedConversationTurns: conversation.length,
-      dataSources: dataSources.length > 0 ? dataSources : undefined,
-      enrichmentAudit: enrichment?.audit || undefined,
-      triggers: triggers.length > 0 ? triggers : undefined,
-      insightContext: targetedInsightBundle
-        ? {
-            type: targetedInsightBundle.insightType,
-            sport: targetedInsightBundle.sport,
-            sources: targetedInsightBundle.sources,
-          }
-        : undefined,
-      processingMs,
-    },
+    response: responseContract.aiExplanation || "I couldn't complete that request. Please try again.",
+    meta,
   })
 }
-

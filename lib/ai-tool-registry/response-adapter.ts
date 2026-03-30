@@ -35,6 +35,7 @@ export function unifiedResponseToContract(response: UnifiedAIResponse): AIToolRe
           confidenceSource: response.reliability.confidenceSource,
           partialProviderFailure: response.reliability.partialProviderFailure,
           disagreement: response.reliability.disagreement,
+          aiQa: response.reliability.aiQa,
           providerStatus: response.reliability.providerStatus,
         }
       : null,

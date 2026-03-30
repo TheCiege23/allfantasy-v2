@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState, useEffect, useCallback } from "react"
+import { useMemo, useState, useEffect, useCallback, useRef } from "react"
 import { useParams, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { SmartDataView } from "@/components/app/league/SmartDataView"
@@ -14,6 +14,7 @@ import { DynastyProjectionPanel } from "@/components/dynasty/DynastyProjectionPa
 import WarehouseHistoryPanel from "@/components/app/tabs/WarehouseHistoryPanel"
 import { useLegacyTab } from "@/hooks/useLegacyTab"
 import { postMarketRefresh } from "@/lib/api/legacy"
+import { trackDiscoveryLeagueView } from "@/lib/discovery-analytics/client"
 import type {
   GetDraftWarRoomQuery,
   GetTradeCommandCenterQuery,
@@ -61,6 +62,7 @@ function isLeagueTab(tab: string | null): tab is LeagueTab {
 type LeagueSummary = {
   id: string
   name: string
+  sport?: string | null
   joinCode?: string
   tournamentId?: string
   _count?: { members?: number; entries?: number }
@@ -149,6 +151,7 @@ export default function LeagueHomeShellPage() {
 
   const [waiverRefresh, setWaiverRefresh] = useState<LegacyApiResponse<MarketRefreshData> | null>(null)
   const [waiverLoading, setWaiverLoading] = useState<boolean>(false)
+  const trackedDiscoveryViewRef = useRef(false)
 
   const isAuthenticated = status === "authenticated"
 
@@ -311,6 +314,18 @@ export default function LeagueHomeShellPage() {
       void refreshWaiverPanel()
     }
   }, [activeTab, waiverRefresh, waiverLoading, refreshWaiverPanel])
+
+  useEffect(() => {
+    if (trackedDiscoveryViewRef.current) return
+    if (!leagueId || leagueId === "unknown" || loadingLeagueData) return
+    trackedDiscoveryViewRef.current = true
+    trackDiscoveryLeagueView({
+      leagueId,
+      source: "fantasy",
+      leagueName: leagueSummary?.name ?? null,
+      sport: leagueSummary?.sport ?? null,
+    })
+  }, [leagueId, leagueSummary?.name, leagueSummary?.sport, loadingLeagueData])
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 space-y-4 mode-readable">

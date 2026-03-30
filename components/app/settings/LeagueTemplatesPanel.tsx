@@ -104,17 +104,20 @@ export default function LeagueTemplatesPanel({ leagueId }: { leagueId: string })
           placeholder="Template name"
           value={saveName}
           onChange={(e) => setSaveName(e.target.value)}
+          data-testid="commissioner-template-name-input"
           className="max-w-xs bg-gray-900 border-white/20"
         />
         <Input
           placeholder="Description (optional)"
           value={saveDescription}
           onChange={(e) => setSaveDescription(e.target.value)}
+          data-testid="commissioner-template-description-input"
           className="max-w-xs bg-gray-900 border-white/20"
         />
         <Button
           onClick={handleSaveAsTemplate}
           disabled={saving}
+          data-testid="commissioner-template-save"
           className="bg-purple-600 hover:bg-purple-700"
         >
           <FileDown className="mr-2 h-4 w-4" />
@@ -133,6 +136,7 @@ export default function LeagueTemplatesPanel({ leagueId }: { leagueId: string })
             {templates.map((t) => (
               <li
                 key={t.id}
+                data-testid={`commissioner-template-row-${t.id}`}
                 className="flex items-center justify-between rounded-lg border border-white/10 bg-gray-900/50 px-3 py-2"
               >
                 <div>
@@ -147,6 +151,7 @@ export default function LeagueTemplatesPanel({ leagueId }: { leagueId: string })
                     variant="outline"
                     className="border-purple-600/40 text-purple-300"
                     onClick={() => handleUseTemplate(t.id)}
+                    data-testid={`commissioner-template-use-${t.id}`}
                   >
                     <PlusCircle className="mr-1 h-3 w-3" />
                     Use
@@ -156,6 +161,7 @@ export default function LeagueTemplatesPanel({ leagueId }: { leagueId: string })
                     variant="ghost"
                     className="text-red-400 hover:text-red-300"
                     onClick={() => handleDelete(t.id)}
+                    data-testid={`commissioner-template-delete-${t.id}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

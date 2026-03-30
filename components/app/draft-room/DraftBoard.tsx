@@ -7,6 +7,7 @@ import type { KeeperSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { formatPickLabel, getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getRoundNavigationState } from '@/lib/draft-room/DraftBoardRenderer'
+import { getManagerColorBySeed } from '@/lib/draft-room'
 
 export type DraftBoardProps = {
   picks: DraftPickSnapshot[]
@@ -25,6 +26,7 @@ export type DraftBoardProps = {
   /** C2C: 1-based round numbers that are college-only (show "College" on empty slots) */
   c2cCollegeRounds?: number[]
   currentOverallPick?: number | null
+  sport?: string
 }
 
 function DraftBoardInner({
@@ -41,6 +43,7 @@ function DraftBoardInner({
   devyRounds = [],
   c2cCollegeRounds = [],
   currentOverallPick = null,
+  sport,
 }: DraftBoardProps) {
   const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
   const [selectedRound, setSelectedRound] = useState(1)
@@ -80,6 +83,32 @@ function DraftBoardInner({
     const existing = pickByKey[key]
     const lock = keeperByKey[key]
     const resolved = resolvePickOwner(round, slot, slotOrder, tradedPicks)
+    const ownerSeed = resolved?.rosterId ?? resolved?.displayName ?? `${slot}-${round}`
+    const ownerColor = getManagerColorBySeed(ownerSeed)
+    const resolvedTradedMeta = (existing?.tradedPickMeta ?? resolved?.tradedPickMeta)
+      ? {
+          ...(existing?.tradedPickMeta ?? resolved?.tradedPickMeta),
+          tintColor: (existing?.tradedPickMeta ?? resolved?.tradedPickMeta)?.tintColor ?? ownerColor.tintHex,
+        }
+      : null
+    const source = String((existing as { source?: string | null } | undefined)?.source ?? '').toLowerCase()
+    const isDevyRound = devyRounds.includes(round)
+    const isCollegeRound = c2cCollegeRounds.includes(round)
+    const c2cEnabled = c2cCollegeRounds.length > 0
+    const isCollegePick =
+      c2cEnabled &&
+      !!existing &&
+      (source === 'college' || isCollegeRound)
+    const isProPick =
+      c2cEnabled &&
+      !!existing &&
+      !isCollegePick
+    const isDevyPick =
+      !c2cEnabled &&
+      (source === 'devy' ||
+        source === 'college' ||
+        (!!existing && isDevyRound && source !== 'promoted_devy'))
+    const isPromotedFromDevy = source === 'promoted_devy'
     const useLock = !existing && lock
     grid.push({
       round,
@@ -93,11 +122,20 @@ function DraftBoardInner({
         playerName: existing?.playerName ?? lock?.playerName ?? null,
         position: existing?.position ?? lock?.position ?? null,
         team: existing?.team ?? lock?.team ?? null,
+        playerId: existing?.playerId ?? lock?.playerId ?? null,
+        sport: sport ?? null,
+        injuryStatus: (existing as { injuryStatus?: string | null } | undefined)?.injuryStatus ?? null,
         byeWeek: existing?.byeWeek ?? null,
         displayName: existing?.displayName ?? lock?.displayName ?? resolved?.displayName ?? null,
-        tradedPickMeta: existing?.tradedPickMeta ?? resolved?.tradedPickMeta ?? null,
+        tradedPickMeta: resolvedTradedMeta,
+        managerTintColor: ownerColor.tintHex,
         amount: existing?.amount ?? null,
         isKeeper: useLock ?? undefined,
+        isDevyPick: isDevyPick || undefined,
+        isCollegePick: isCollegePick || undefined,
+        isProPick: isProPick || undefined,
+        isPromotedFromDevy: isPromotedFromDevy || undefined,
+        source: source || undefined,
       },
     })
   }

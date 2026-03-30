@@ -80,8 +80,10 @@ The draft asset pipeline ensures **consistent asset rendering** for player heads
 | `lib/draft-asset-pipeline/index.ts` | [NEW] |
 | `components/app/draft-room/LazyDraftImage.tsx` | [NEW] |
 | `components/app/draft-room/DraftPlayerCard.tsx` | [UPDATED] |
+| `components/app/draft-room/DraftBoardCell.tsx` | [UPDATED] |
 | `components/app/draft-room/index.ts` | [UPDATED] |
 | `hooks/useNormalizedDraftPool.ts` | [NEW] |
+| `e2e/draft-asset-pipeline-click-audit.spec.ts` | [NEW] |
 
 Existing (unchanged but part of pipeline):
 
@@ -111,29 +113,29 @@ Pipeline clear: `clearPipelineCaches()` clears both asset and stat snapshot cach
 
 ### Player-card–dependent interactions
 
-- [ ] **Card opens correctly** — Tapping/clicking a player card (e.g. in pool list or board) opens detail or compare without error.
-- [ ] **Compare / Add to queue works** — Secondary action (e.g. “Add to queue”) and any compare flow work; no dead buttons.
-- [ ] **Drafted state updates visually** — When a player is drafted, the card shows drafted state (e.g. opacity, border) and no longer appears in available pool where applicable.
-- [ ] **Image fallback works** — If headshot or team logo fails to load (or is missing), fallback (initials / team abbr) is shown; **no broken image icons**.
-- [ ] **No dead asset retry buttons** — There are no “retry” buttons that do nothing; refresh/resync triggers a real refetch (e.g. `refetch()` from `useNormalizedDraftPool` or draft room resync).
+- [x] **Card opens correctly** — Tapping/clicking a player card (e.g. in pool list or board) opens detail or compare without error.
+- [x] **Compare / Add to queue works** — Secondary action (e.g. “Add to queue”) and any compare flow work; no dead buttons.
+- [x] **Drafted state updates visually** — When a player is drafted, the card shows drafted state (e.g. opacity, border) and no longer appears in available pool where applicable.
+- [x] **Image fallback works** — If headshot or team logo fails to load (or is missing), fallback (initials / team abbr) is shown; **no broken image icons**.
+- [x] **No dead asset retry buttons** — There are no “retry” buttons that do nothing; refresh/resync triggers a real refetch (e.g. `refetch()` from `useNormalizedDraftPool` or draft room resync).
 
 ### Assets and stats
 
-- [ ] **No broken image icons** — Headshot and team logo either show image or fallback (initials / abbr); never a broken image.
-- [ ] **No blank team logos** — Team logo area always shows either the logo image or the 2-letter team abbreviation.
-- [ ] **Consistent stat shapes** — ADP, bye (where applicable), and position are shown in a consistent shape across sports; no provider-specific fields in UI.
-- [ ] **No provider-specific leaks** — UI does not show raw provider keys (e.g. `sleeper_id`, `ffcPlayerId`) or provider-specific labels.
+- [x] **No broken image icons** — Headshot and team logo either show image or fallback (initials / abbr); never a broken image.
+- [x] **No blank team logos** — Team logo area always shows either the logo image or the 2-letter team abbreviation.
+- [x] **Consistent stat shapes** — ADP, bye (where applicable), and position are shown in a consistent shape across sports; no provider-specific fields in UI.
+- [x] **No provider-specific leaks** — UI does not show raw provider keys (e.g. `sleeper_id`, `ffcPlayerId`) or provider-specific labels.
 
 ### Draft types
 
-- [ ] **Live draft** — Pool and cards use normalized assets and stats; fallbacks and loading/error states correct.
-- [ ] **Mock draft** — When using league-scoped mock, `useNormalizedDraftPool(leagueId)` (or same pool API) yields same normalized cards and assets.
-- [ ] **Auction / slow / keeper / devy / C2C** — Same player card contract and pipeline; drafted state and stats render consistently.
+- [x] **Live draft** — Pool and cards use normalized assets and stats; fallbacks and loading/error states correct.
+- [x] **Mock draft** — When using league-scoped mock, `useNormalizedDraftPool(leagueId)` (or same pool API) yields same normalized cards and assets.
+- [x] **Auction / slow / keeper / devy / C2C** — Same player card contract and pipeline; drafted state and stats render consistently.
 
 ### Responsive
 
-- [ ] **Mobile** — Cards and rows are readable and tappable; images and fallbacks scale; no horizontal overflow.
-- [ ] **Desktop** — Layout and density appropriate; lazy loading and fallbacks behave correctly.
+- [x] **Mobile** — Cards and rows are readable and tappable; images and fallbacks scale; no horizontal overflow.
+- [x] **Desktop** — Layout and density appropriate; lazy loading and fallbacks behave correctly.
 
 ---
 

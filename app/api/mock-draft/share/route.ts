@@ -12,26 +12,28 @@ export async function POST(req: NextRequest) {
     }
 
     const { leagueId, results, draftId } = await req.json()
-    if (!leagueId) {
-      return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
-    }
-    if (!Array.isArray(results) || results.length === 0) {
-      return NextResponse.json({ error: 'results must be a non-empty array' }, { status: 400 })
+    if (!draftId && !leagueId) {
+      return NextResponse.json({ error: 'leagueId or draftId is required' }, { status: 400 })
     }
 
     let draft = draftId
       ? await prisma.mockDraft.findFirst({
-          where: { id: draftId, userId: session.user.id, leagueId },
+          where: { id: draftId, userId: session.user.id },
         })
       : await prisma.mockDraft.findFirst({
           where: { leagueId, userId: session.user.id },
           orderBy: { createdAt: 'desc' },
         })
 
+    const safeResults = Array.isArray(results) ? results : Array.isArray(draft?.results) ? draft.results : []
+    if (!Array.isArray(safeResults) || safeResults.length === 0) {
+      return NextResponse.json({ error: 'results must be a non-empty array' }, { status: 400 })
+    }
+
     if (draft?.shareId) {
       await prisma.mockDraft.update({
         where: { id: draft.id },
-        data: { results },
+        data: { results: safeResults },
       })
       return NextResponse.json({ shareId: draft.shareId })
     }
@@ -41,15 +43,15 @@ export async function POST(req: NextRequest) {
     if (draft) {
       await prisma.mockDraft.update({
         where: { id: draft.id },
-        data: { shareId, results },
+        data: { shareId, results: safeResults },
       })
     } else {
       await prisma.mockDraft.create({
         data: {
           leagueId,
           userId: session.user.id,
-          rounds: Math.max(...results.map((p: any) => p.round || 0), 1),
-          results,
+          rounds: Math.max(...safeResults.map((p: any) => p.round || 0), 1),
+          results: safeResults,
           shareId,
         },
       })

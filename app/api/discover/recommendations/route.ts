@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getPersonalizedRecommendations } from "@/lib/league-recommendations"
+import {
+  getPersonalizedRecommendations,
+  getUserLeagueProfile,
+  summarizeRecommendationProfile,
+} from "@/lib/league-recommendations"
 import { getRecommendedLeagues } from "@/lib/public-discovery"
 import { prisma } from "@/lib/prisma"
 import { resolveUserCareerTier } from "@/lib/ranking/tier-visibility"
@@ -33,20 +37,32 @@ export async function GET(req: NextRequest) {
     const viewerIsAdmin = !!session?.user?.email && adminAllow.includes(session.user.email.toLowerCase())
     const sport = req.nextUrl.searchParams.get("sport") ?? null
     const limit = Math.min(24, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") ?? "6", 10)))
+    const aiExplain = req.nextUrl.searchParams.get("aiExplain") === "1"
     const baseUrl = getBaseUrl(req)
 
     if (userId) {
+      const profile = await getUserLeagueProfile(userId)
       const results = await getPersonalizedRecommendations(userId, baseUrl, {
         limit,
         sport,
         viewerTier,
         viewerIsAdmin,
+        aiExplain,
+        profile,
       })
       return NextResponse.json(
         {
           ok: true,
           personalized: true,
-          leagues: results.map((r) => ({ league: r.league, explanation: r.explanation })),
+          profileSignals: summarizeRecommendationProfile(profile),
+          aiExplanationEnabled: aiExplain,
+          leagues: results.map((r) => ({
+            league: r.league,
+            explanation: r.explanation,
+            reasons: r.reasons ?? [],
+            matchedSignals: r.matchedSignals ?? [],
+            explanationSource: r.explanationSource ?? "deterministic",
+          })),
         },
         { headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" } }
       )
@@ -58,7 +74,18 @@ export async function GET(req: NextRequest) {
       viewerIsAdmin,
     })
     return NextResponse.json(
-      { ok: true, personalized: false, leagues: leagues.map((l) => ({ league: l, explanation: null })) },
+      {
+        ok: true,
+        personalized: false,
+        aiExplanationEnabled: false,
+        leagues: leagues.map((l) => ({
+          league: l,
+          explanation: null,
+          reasons: [],
+          matchedSignals: [],
+          explanationSource: "deterministic",
+        })),
+      },
       { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" } }
     )
   } catch (err: unknown) {

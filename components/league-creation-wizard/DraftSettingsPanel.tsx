@@ -12,6 +12,12 @@ import { cn } from '@/lib/utils'
 const ROUNDS = [10, 12, 15, 18, 20, 22, 25, 30] as const
 const TIMER_OPTS = [60, 90, 120, 180, 300, 0] as const
 
+const DRAFT_DEFAULT_PRESETS = [
+  { id: 'standard_live', label: 'Standard live', rounds: 15, timerSeconds: 90, hint: 'Most common live setup' },
+  { id: 'fast_live', label: 'Fast live', rounds: 15, timerSeconds: 60, hint: 'Quicker live draft pace' },
+  { id: 'slow_async', label: 'Slow async', rounds: 20, timerSeconds: 0, hint: 'No timer for async drafts' },
+] as const
+
 export type DraftSettingsPanelProps = {
   leagueType: LeagueTypeId
   draftType: DraftTypeId
@@ -46,6 +52,35 @@ export function DraftSettingsPanel({
         helpTitle="Draft settings explained"
       />
       <div className="space-y-4">
+        <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
+          <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Quick defaults</p>
+          <p className="mt-1 text-xs text-white/60">Start with one tap, then customize only if needed.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {DRAFT_DEFAULT_PRESETS.map((preset) => {
+              const active = (d.rounds ?? 15) === preset.rounds && (d.timerSeconds ?? 90) === preset.timerSeconds
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() =>
+                    onDraftSettingsChange({
+                      rounds: preset.rounds,
+                      timerSeconds: preset.timerSeconds,
+                    })
+                  }
+                  className={`rounded-xl border px-3 py-2 text-left transition ${
+                    active
+                      ? 'border-cyan-300 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
+                      : 'border-white/15 bg-black/20 hover:bg-white/[0.05]'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-white">{preset.label}</p>
+                  <p className="mt-1 text-xs text-white/60">{preset.hint}</p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="space-y-1.5">
           <Label className="text-white/90">Rounds</Label>
           <Select value={String(d.rounds)} onValueChange={(v) => onDraftSettingsChange({ rounds: Number(v) })}>

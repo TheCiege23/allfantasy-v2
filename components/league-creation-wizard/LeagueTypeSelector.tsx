@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import {
   LEAGUE_TYPE_IDS,
@@ -21,8 +23,8 @@ const LEAGUE_TYPE_TOOLTIPS: Partial<Record<LeagueTypeId, string>> = {
   dynasty: 'Keep your full roster year to year; rookie drafts each season.',
   keeper: 'Keep a set number of players each season.',
   best_ball: 'No lineup setting; best scoring lineup counts each week.',
-  devy: 'Draft college players (devy) in addition to NFL; NFL/NCAAF only.',
-  c2c: 'Campus to Canton: college + NFL in one league; NFL/NCAAF only.',
+  devy: 'Draft college players (devy) in addition to pro assets; currently NFL/NBA.',
+  c2c: 'Campus to Canton: college + pro assets in one league; currently NFL/NBA.',
   guillotine: 'Lowest scorer each week is eliminated.',
   survivor: 'Similar to guillotine; elimination-style.',
   tournament: 'Bracket or tournament format.',
@@ -42,6 +44,7 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
   const allowed = getAllowedLeagueTypesForSport(sport)
   const safeValue = allowed.includes(value) ? value : allowed[0]!
   const selectedMedia = getLeagueTypeMedia(safeValue)
+  const [showPreview, setShowPreview] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -50,7 +53,7 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
         description="You can change this later in settings (except where league rules lock the choice)."
         help={
           <>
-            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players (NFL/NCAAF).
+            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players where supported (NFL/NBA).
           </>
         }
         helpTitle="League type explained"
@@ -97,26 +100,46 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
       </div>
 
       <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
-        <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected league type preview</p>
-        <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
-        <video
-          key={selectedMedia.selectionVideo}
-          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
-          src={selectedMedia.selectionVideo}
-          poster={selectedMedia.thumbnail}
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls
-          onError={(event) => {
-            const target = event.currentTarget
-            target.poster = selectedMedia.thumbnailFallback
-            target.removeAttribute('src')
-            target.load()
-          }}
-        />
-        <p className="mt-2 text-xs text-white/60">The intro video (when available) will play on league entry; this preview is the commissioner selection video.</p>
+        <button
+          type="button"
+          onClick={() => setShowPreview((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1 text-left"
+          aria-expanded={showPreview}
+        >
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected league type preview</p>
+            <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
+          </div>
+          {showPreview ? (
+            <ChevronDown className="size-4 text-cyan-200/80" aria-hidden />
+          ) : (
+            <ChevronRight className="size-4 text-cyan-200/80" aria-hidden />
+          )}
+        </button>
+        {showPreview && (
+          <>
+            <video
+              key={selectedMedia.selectionVideo}
+              className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
+              src={selectedMedia.selectionVideo}
+              poster={selectedMedia.thumbnail}
+              autoPlay
+              loop
+              muted
+              playsInline
+              controls
+              onError={(event) => {
+                const target = event.currentTarget
+                target.poster = selectedMedia.thumbnailFallback
+                target.removeAttribute('src')
+                target.load()
+              }}
+            />
+            <p className="mt-2 text-xs text-white/60">
+              The intro video (when available) will play on league entry; this preview is optional during setup.
+            </p>
+          </>
+        )}
       </div>
     </div>
   )

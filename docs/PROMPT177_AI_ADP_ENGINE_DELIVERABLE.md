@@ -14,32 +14,42 @@ Universal **AI ADP** system that:
 
 ## Schema & Migration
 
-### Model: `AiAdpSnapshot`
+### Models: `AiAdpSnapshot`, `AiAdpSnapshotHistory`
 
 - **Table:** `ai_adp_snapshots`
-- **Unique:** `(sport, leagueType, formatKey)`
+- **Snapshot unique:** `(sport, leagueType, formatKey)`
 - **Fields:**
   - `id`, `sport`, `leagueType`, `formatKey`
   - `snapshotData` (JSON array of `{ playerName, position, team, adp, sampleSize, lowSample }`)
   - `totalDrafts`, `totalPicks`, `computedAt`, `meta` (optional: minSampleSize, lowSampleThreshold, segmentLabel)
+- **History table:** `ai_adp_snapshot_history`
+  - immutable per-run segment record with `snapshotData`, `totalDrafts`, `totalPicks`, `computedAt`, `runMeta`
 - **Indexes:** `sport`, `computedAt`
 
 ### Migration
 
-- **File:** `prisma/migrations/20260347000000_add_ai_adp_snapshots/migration.sql`
+- **Files:**
+  - `prisma/migrations/20260347000000_add_ai_adp_snapshots/migration.sql`
+  - `prisma/migrations/20260328123000_add_ai_adp_snapshot_history/migration.sql`
 - **Apply:** `npx prisma migrate deploy` (or fix any existing schema issues and run `migrate dev`)
 
 ---
 
 ## Scheduled Job (Daily)
 
-- **Endpoint:** `POST /api/cron/ai-adp`
+- **Endpoint:** `GET|POST /api/cron/ai-adp`
 - **Auth:** `x-cron-secret` or `x-admin-secret` header (e.g. `LEAGUE_CRON_SECRET` or `BRACKET_ADMIN_SECRET` / `ADMIN_PASSWORD`)
-- **Body (optional):** `{ "since": "ISO date", "lowSampleThreshold": 5 }`
+- **Body (POST optional):** `{ "since": "ISO date", "lookbackDays": 120, "lowSampleThreshold": 5, "minSampleSize": 2 }`
 - **Behavior:** Aggregates live + mock draft picks, computes ADP per segment, upserts `AiAdpSnapshot`.
+- **Defaults from env:**
+  - `AI_ADP_DAILY_CRON_UTC` (e.g. `0 6 * * *`)
+  - `AI_ADP_LOOKBACK_DAYS`
+  - `AI_ADP_LOW_SAMPLE_THRESHOLD`
+  - `AI_ADP_MIN_SAMPLE_SIZE`
+  - `AI_ADP_CRON_SECRET`
 
 **Daily scheduler options:**
-- **Vercel Cron:** Add to `vercel.json` a cron that calls this URL daily at the desired time with the secret in headers.
+- **Vercel Cron:** `vercel.json` includes daily schedule for `/api/cron/ai-adp` at `0 6 * * *` UTC.
 - **External cron:** e.g. `curl -X POST -H "x-cron-secret: $CRON_SECRET" https://your-domain/api/cron/ai-adp`.
 
 ---
@@ -48,7 +58,7 @@ Universal **AI ADP** system that:
 
 | Method | Route | Auth | Purpose |
 |--------|--------|------|--------|
-| POST | `/api/cron/ai-adp` | Cron/Admin secret | Run AI ADP job (aggregate + compute + persist). |
+| GET/POST | `/api/cron/ai-adp` | Cron/Admin secret | Run AI ADP job (aggregate + compute + persist + history append). |
 | GET | `/api/ai-adp` | Session | Get AI ADP for segment: `?sport=&leagueType=&formatKey=&limit=` |
 | GET | `/api/leagues/[leagueId]/ai-adp` | Can access league draft | Get AI ADP for league context + `enabled` from draft UI settings. Used by draft room. |
 | GET | `/api/admin/ai-adp/diagnostics` | Admin session | List segments, last `computedAt`, totals, entry counts. |
@@ -58,7 +68,7 @@ Universal **AI ADP** system that:
 ## Service Usage
 
 - **Engine:** `lib/ai-adp-engine/`
-  - `runAiAdpJob(since?, lowSampleThreshold)` — run full job (cron).
+  - `runAiAdpJob(options)` — run full job (cron/manual), supports lookback + sample thresholds.
   - `getAiAdp(sport, leagueType, formatKey)` — get snapshot for segment.
   - `getAiAdpForLeague(sport, isDynasty, formatKey?)` — best-match for league (exact → default format → redraft default).
 - **Segmentation:** Sport (from `SUPPORTED_SPORTS`), leagueType (redraft/dynasty), formatKey (from league settings or mock metadata).
@@ -96,7 +106,7 @@ Universal **AI ADP** system that:
 - [ ] **Low sample:** For a segment with few drafts, “Low sample” warning appears; individual players with low sample show ⚠; ordering still works.
 - [ ] **Refresh:** After cron runs or new draft data exists, refresh draft room (or wait for poll); ordering/display updates when new AI ADP data loads.
 - [ ] **Sort controls:** ADP and Name sort buttons always work; no dead controls when AI ADP is off or unavailable.
-- [ ] **Admin:** GET `/api/admin/ai-adp/diagnostics` returns segments and summary when logged in as admin.
+- [ ] **Admin:** GET `/api/admin/ai-adp/diagnostics` returns segments, stale flags, and recent run history when logged in as admin.
 - [ ] **Cron:** POST `/api/cron/ai-adp` with valid secret returns `segmentsUpdated` / `totalPicksProcessed`; without secret returns 401.
 
 ---

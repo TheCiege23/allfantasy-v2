@@ -8,6 +8,7 @@ import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionServic
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 import { computeDraftResults } from './scoringService'
 import type { DraftResultsPayload, ManagerRankingEntry } from './types'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export type { DraftResultsPayload, ManagerRankingEntry, PickScoreEntry } from './types'
 export { scoreToLetterGrade, LETTER_GRADES } from './gradeMapper'
@@ -26,7 +27,7 @@ export async function computeAndPersistDraftRankings(leagueId: string): Promise<
   })
   if (!league) return null
 
-  const sport = String(league.sport ?? 'NFL')
+  const sport = normalizeToSupportedSport(league.sport)
   const isDynasty = !!league.isDynasty
   const settings = (league.settings as Record<string, unknown>) ?? {}
   const formatKey = settings.draft_pre_draft_ranking_source
@@ -83,9 +84,16 @@ async function persistDraftGrades(
             slot: r.slot,
             totalValueScore: r.totalValueScore,
             positionalScore: r.positionalScore,
+            positionalDepthScore: r.positionalDepthScore,
             benchScore: r.benchScore,
             balanceScore: r.balanceScore,
+            upsideScore: r.upsideScore,
+            reachPenaltyScore: r.reachPenaltyScore,
+            injuryRiskScore: r.injuryRiskScore,
+            byeWeekScore: r.byeWeekScore,
             pickCount: r.pickCount,
+            explanation: r.explanation ?? null,
+            explanationSource: r.explanationSource ?? 'deterministic',
             bestPick: r.bestPick
               ? {
                   playerName: r.bestPick.playerName,
@@ -123,9 +131,16 @@ async function persistDraftGrades(
             slot: r.slot,
             totalValueScore: r.totalValueScore,
             positionalScore: r.positionalScore,
+            positionalDepthScore: r.positionalDepthScore,
             benchScore: r.benchScore,
             balanceScore: r.balanceScore,
+            upsideScore: r.upsideScore,
+            reachPenaltyScore: r.reachPenaltyScore,
+            injuryRiskScore: r.injuryRiskScore,
+            byeWeekScore: r.byeWeekScore,
             pickCount: r.pickCount,
+            explanation: r.explanation ?? null,
+            explanationSource: r.explanationSource ?? 'deterministic',
             bestPick: r.bestPick
               ? {
                   playerName: r.bestPick.playerName,

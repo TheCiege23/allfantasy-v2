@@ -2,9 +2,31 @@
 
 ## Overview
 
-Final optimization pass on the AllFantasy draft ecosystem: performance, reliability, reduced AI API usage, better sports API asset delivery, mobile usability, commissioner controls, AI helper UX, reconnect behavior, latency, and fewer duplicate calculations.
+Final optimization pass completed across the AllFantasy draft ecosystem with focus on:
 
-**Scope:** Live drafts, mock drafts, auction, slow draft, keeper, devy, C2C, AI helper, CPU/AI drafter modes, asset pipeline, chat sync, notifications, post-draft summaries.
+- performance
+- reliability
+- reduced AI API usage
+- sports API asset delivery efficiency
+- mobile usability / reconnect stability
+- commissioner flow stability
+- lower latency and fewer duplicate calculations
+
+Covered systems:
+
+- live drafts
+- mock drafts
+- auction drafts
+- slow drafts
+- keeper drafts
+- devy drafts
+- C2C drafts
+- AI helper
+- CPU/AI drafter modes
+- asset pipeline
+- chat sync
+- notifications
+- post-draft summaries
 
 ---
 
@@ -12,129 +34,119 @@ Final optimization pass on the AllFantasy draft ecosystem: performance, reliabil
 
 | # | Bottleneck | Location | Impact |
 |---|------------|----------|--------|
-| B1 | Poll every 8s runs 4–5 requests (session, queue, settings, optional AI ADP) for every tab. | DraftRoomPageClient poll useEffect | High request volume over long drafts; reconnecting flash every 8s. |
-| B2 | Recommendation API called on every pick (any team). | fetchRecommendation + useEffect deps on currentPick.overall, session.picks.length | N× rounds × teams deterministic calls per draft; redundant when not user’s turn. |
-| B3 | Derived state (players, draftedNames, queueFiltered) recomputed on every render. | DraftRoomPageClient inline computation | Extra work on every state update (poll, pick, queue, etc.). |
-| B4 | AI ADP refetched on every poll when enabled, even when data is fresh. | Poll includes fetchLeagueAiAdp() every 8s | Unnecessary load; AI ADP is batch-computed (cron) and changes infrequently. |
-| B5 | Draft pool fetched with cache: 'no-store'; no Cache-Control on API. | Client fetch + draft/pool route | No HTTP caching benefit; repeated identical pool requests. |
-| B6 | useLeagueSectionData(leagueId, 'draft') runs in draft room and proxies to mock-draft ADP. | DraftRoomPageClient | Redundant with fetchDraftPool when normalized pool is used. |
-| B7 | No single “draft state” endpoint; client must call session, queue, settings separately. | Multiple GETs on load and poll | More round trips and latency. |
+| B1 | Draft poll loop triggered queue/settings/chat every tick for every open client tab. | `components/app/draft-room/DraftRoomPageClient.tsx` | High request volume and avoidable reconnect churn on long drafts. |
+| B2 | Poll loop allowed overlapping in-flight runs (new interval before prior completed). | `components/app/draft-room/DraftRoomPageClient.tsx` | Duplicate backend calls and UI reconnect noise. |
+| B3 | Recommendation fetch could re-run for the same pick context. | `components/app/draft-room/DraftRoomPageClient.tsx` | Duplicate deterministic compute calls and avoidable helper latency. |
+| B4 | Draft events endpoint ran keeper/slow/auction automation ticks on every request without per-league throttle. | `app/api/leagues/[leagueId]/draft/events/route.ts` | Excessive automation load during heavy polling and multi-tab usage. |
+| B5 | Draft pool route duplicated provider fetches for non-NFL and IDP path. | `app/api/leagues/[leagueId]/draft/pool/route.ts` | Unnecessary sports data calls and latency spikes. |
+| B6 | Draft pool route had no server-side response cache/dedupe. | `app/api/leagues/[leagueId]/draft/pool/route.ts` | Recomputed identical payloads repeatedly. |
+| B7 | AI recap generation repeated identical OpenAI calls for unchanged post-draft content. | `app/api/leagues/[leagueId]/draft/recap/route.ts` | Wasted AI tokens and slower recap refresh. |
+| B8 | Queue AI explanation generation repeated identical OpenAI calls for same deterministic reorder outcome. | `app/api/leagues/[leagueId]/draft/queue/ai-reorder/route.ts` | Wasted AI tokens and higher provider load. |
 
 ---
 
 ## 2. Wasted AI API Call List
 
-| # | Call | When | Wasted? | Note |
-|---|------|------|--------|------|
-| 1 | POST draft/recap | User clicks “Generate AI recap” | No | User-triggered; no waste. |
-| 2 | POST draft/ai-pick | Commissioner clicks “Run pick” for orphan | No | User-triggered; AIDrafterService defaults to CPU (tryAIPickProvider returns null). |
-| 3 | GET ai-adp | On load when AI ADP enabled; on every poll | Partially | Precomputed snapshot; refetching every 8s is redundant when computedAt is recent. |
-| 4 | POST draft/queue/ai-reorder | User clicks AI reorder queue | No | Deterministic (reorderQueueByNeed); no LLM. |
-| 5 | POST draft/recommend | Effect on pick/session/players change | No (deterministic) | Deterministic (computeDraftRecommendation); not an AI call. |
+| # | Wasted AI pattern | Location | Resolution |
+|---|-------------------|----------|------------|
+| A1 | Repeated AI recap calls with unchanged deterministic sections. | `draft/recap` | Added deterministic fingerprint cache + in-flight dedupe for AI recap payloads. |
+| A2 | Repeated AI queue explanation calls for same deterministic reorder context. | `draft/queue/ai-reorder` | Added short/medium TTL cache keyed by deterministic reorder context hash. |
+| A3 | Burst retries after transient AI timeout/errors. | `draft/recap` | Added short fallback cache window to suppress immediate repeated AI retries. |
 
-**Conclusion:** No true “wasted” LLM calls. AI ADP refetch on poll is redundant when data is fresh; recommendation is deterministic and was being called when it wasn’t the user’s turn (reduced by gating).
+Notes:
+
+- `draft/recommend` remains deterministic (no LLM usage).
+- Core draft mechanics remain deterministic-first.
 
 ---
 
 ## 3. Deterministic Replacement Opportunities
 
-| # | Current | Replacement | Status |
-|---|---------|-------------|--------|
-| 1 | Draft recommendation | Already deterministic (RecommendationEngine) | Done |
-| 2 | Queue AI reorder | Already deterministic (reorderQueueByNeed) | Done |
-| 3 | Orphan pick | CPU fallback by default; optional AI (not wired) | No change |
-| 4 | AI ADP | Precomputed batch job; GET returns snapshot | No LLM per request |
-
-No further deterministic replacements required; existing design already favors deterministic paths.
+| # | Existing behavior | Deterministic replacement opportunity | Status |
+|---|-------------------|---------------------------------------|--------|
+| D1 | AI queue reorder explanation is optional text polish. | Keep deterministic reorder engine output as primary explanation; AI only optional rewrite. | Implemented with cache-backed optional AI layer. |
+| D2 | AI post-draft recap rewrite optional. | Always return deterministic recap sections first; AI only overlays text when allowed. | Preserved and optimized with cache/dedupe. |
+| D3 | AI ADP retrieval at runtime. | Continue using precomputed snapshots, not live LLM inference. | Already deterministic snapshot-based. |
 
 ---
 
 ## 4. Sports API Caching Opportunities
 
-| # | Resource | Current | Opportunity | Applied |
-|---|-----------|---------|-------------|--------|
-| 1 | Draft pool (GET draft/pool) | No Cache-Control | private, max-age=60, stale-while-revalidate=120 | Yes |
-| 2 | getLiveADP (NFL) | adp-data in-memory 5 min | Already cached | — |
-| 3 | getPlayerPoolForLeague | Per-request | Consider short TTL cache per league+sport | Doc only |
-| 4 | resolvePlayerAssets (headshot/logo) | 6h in-memory (player-asset-resolver) | Already cached | — |
-| 5 | buildPlayerMedia | Via player-media | Depends on provider; resolver cache helps | — |
+| # | Opportunity | Location | Applied |
+|---|-------------|----------|---------|
+| S1 | Add in-memory server response cache for normalized draft pool payload. | `draft/pool` route | Yes |
+| S2 | Dedupe concurrent identical draft-pool requests (single-flight). | `draft/pool` route | Yes |
+| S3 | Eliminate duplicate player-pool fetches in non-NFL path (reuse fetched pool rows). | `draft/pool` route | Yes |
+| S4 | Eliminate duplicate IDP fetch by deriving IDP rows from already fetched pool rows. | `draft/pool` route | Yes |
+| S5 | Keep existing asset resolver + stat snapshot caches as source of truth for headshot/logo/stat fallback behavior. | `lib/draft-sports-models/player-asset-resolver.ts`, `lib/draft-asset-pipeline` | Already in place |
 
 ---
 
 ## 5. Frontend Rendering Improvements
 
-| # | Improvement | Applied |
-|---|-------------|--------|
-| 1 | Memoize draftedNames (Set from session.picks) to avoid recalc every render | Yes, useMemo |
-| 2 | Memoize players (large map from pool + AI ADP) | Yes, useMemo |
-| 3 | Memoize queueFiltered (queue minus drafted) | Yes, useMemo |
-| 4 | Gate recommendation fetch to “current user on clock” only | Yes |
-| 5 | Virtualize long player list (PlayerPanel) | Doc only (optional) |
-| 6 | Avoid redundant useLeagueSectionData('draft') when draftPool present | Doc only |
+| # | Improvement | Location | Applied |
+|---|-------------|----------|---------|
+| F1 | Prevent overlapping poll cycles with in-flight guard. | `DraftRoomPageClient` | Yes |
+| F2 | Poll cadence tuning: queue/settings/chat fetched on different cadences instead of every tick. | `DraftRoomPageClient` | Yes |
+| F3 | Prioritize queue refresh when current user is on the clock. | `DraftRoomPageClient` | Yes |
+| F4 | Keep AI ADP polling skip window to avoid stale duplicate fetches. | `DraftRoomPageClient` | Yes |
+| F5 | Deduplicate recommendation requests for identical pick context using a request key ref. | `DraftRoomPageClient` | Yes |
 
 ---
 
 ## 6. Backend Event/Realtime Improvements
 
-| # | Improvement | Note |
-|---|-------------|------|
-| 1 | Single “draft state” GET returning session + queue + settings | Reduces round trips; larger payload. Recommended for future. |
-| 2 | Poll interval longer when draft paused (e.g. 20s vs 8s) | Lowers load during overnight/slow drafts. Recommended. |
-| 3 | Server-Sent Events or WebSocket for draft events | Would replace polling; larger change. Documented as future. |
-| 4 | ETag/If-None-Match for session or queue | 304 responses when unchanged. Recommended for future. |
-
-None implemented in this pass; listed as recommended improvements.
+| # | Improvement | Location | Applied |
+|---|-------------|----------|---------|
+| R1 | Per-league throttled automation tick execution (keeper/slow/auction). | `draft/events` route | Yes |
+| R2 | In-flight dedupe for per-league automation tick run. | `draft/events` route | Yes |
+| R3 | Bounded global tick-state map with pruning. | `draft/events` route | Yes |
+| R4 | Response cache headers for recap and pool endpoints to support private SWR behavior. | `draft/recap`, `draft/pool` routes | Yes |
 
 ---
 
-## 7. Recommended Optimization Fixes (Summary)
+## 7. Recommended Optimization Fixes
 
-- **Recommendation gate:** Only call fetchRecommendation when it’s the current user’s turn (session.currentPick.rosterId === currentUserRosterId). **Applied.**
-- **AI ADP poll skip:** On poll, skip fetchLeagueAiAdp when leagueAiAdp.computedAt is within last 30 minutes. **Applied.**
-- **Memoize derived state:** useMemo for draftedNames, players, queueFiltered. **Applied.**
-- **Draft pool Cache-Control:** Add private, max-age=60, stale-while-revalidate=120 to GET draft/pool. **Applied.**
-- **Longer poll when paused:** Use 20s interval when session.status === 'paused'. **Recommended, not applied.**
-- **Single draft-state endpoint:** One GET returning session + queue + settings. **Recommended, not applied.**
+### Implemented in this pass
 
----
+- Add server-side cache + in-flight dedupe to `GET /api/leagues/[leagueId]/draft/pool`.
+- Remove duplicate sports-provider fetch paths in draft pool assembly.
+- Add recap deterministic cache and AI recap cache keyed by deterministic section fingerprint.
+- Add queue AI explanation cache keyed by deterministic reorder context.
+- Throttle + dedupe automation ticks in `GET /api/leagues/[leagueId]/draft/events`.
+- Harden draft-room polling loop with in-flight lock and staggered fetch cadence.
+- Add recommendation request de-duplication for same on-clock context.
 
-## 8. Full Merged Code (Most Important Optimizations)
+### Recommended next
 
-### 8.1 DraftRoomPageClient.tsx
-
-- **Import:** Added `useMemo` to React import.
-- **Constants:** `AI_ADP_POLL_SKIP_MS = 30 * 60 * 1000`.
-- **Recommendation effect:** Only run when current user is on clock: check `(session as any)?.currentUserRosterId` and `session.currentPick.rosterId !== myRosterId` and return early; deps include `session?.currentPick?.rosterId`.
-- **Poll effect:** Build `skipAiAdp` from `leagueAiAdp?.computedAt` and `AI_ADP_POLL_SKIP_MS`; only push `fetchLeagueAiAdp()` when `draftUISettings?.aiAdpEnabled && !skipAiAdp`. Deps include `leagueAiAdp?.computedAt`.
-- **Derived state:**  
-  - `draftedNames = useMemo(() => new Set(session?.picks?.map(p => p.playerName) ?? []), [session?.picks])`.  
-  - `players = useMemo(() => { ... }, [draftPool, draftData, leagueAiAdp, draftUISettings?.aiAdpEnabled])` (full mapping logic inlined).  
-  - `queueFiltered = useMemo(() => queue.filter(e => !draftedNames.has(e.playerName)), [queue, draftedNames])`.  
-  - `aiAdpUnavailable` and `aiAdpLowSampleWarning` left as simple booleans after useMemo block.
-
-### 8.2 app/api/leagues/[leagueId]/draft/pool/route.ts
-
-- After `NextResponse.json({ entries, sport, count, devyConfig, c2cConfig })`, set header: `res.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120')` and return `res`.
+- Optional SSE/WebSocket stream for session/queue/chat to replace short-interval polling.
+- Optional combined “draft-state” endpoint for session+queue+settings in one round trip.
+- Optional client-side virtualized player list for very large pool payloads.
 
 ---
 
-## 9. Mandatory QA
+## 8. Full Merged Code for Most Important Optimizations
 
-- [ ] **No dead UI:** All draft room tabs, commissioner controls, AI recap, share, and helper buttons remain functional.
-- [ ] **No overuse of AI APIs:** Recap and ai-pick are user-triggered; AI ADP refetch skipped on poll when &lt; 30 min old; recommendation is deterministic and only when user on clock.
-- [ ] **No duplicate provider calls:** Pool has Cache-Control; AI ADP not refetched when recent; recommendation not called when not user’s turn.
-- [ ] **No unnecessary sports API refetches:** Pool response cacheable; adp-data and player-asset-resolver already use in-memory cache.
-- [ ] **No broken player assets:** LazyDraftImage and fallbacks unchanged; resolver cache unchanged.
-- [ ] **No broken commissioner flows:** Start draft, pause, resume, undo, import, settings, run AI pick unchanged; only poll and recommendation logic optimized.
+Merged files:
+
+- `app/api/leagues/[leagueId]/draft/pool/route.ts`
+- `app/api/leagues/[leagueId]/draft/recap/route.ts`
+- `app/api/leagues/[leagueId]/draft/queue/ai-reorder/route.ts`
+- `app/api/leagues/[leagueId]/draft/events/route.ts`
+- `components/app/draft-room/DraftRoomPageClient.tsx`
 
 ---
 
-## 10. Summary
+## Mandatory QA Verification
 
-- **Bottlenecks:** Documented (poll frequency, recommendation on every pick, unmemoized derived state, AI ADP on every poll, pool caching).
-- **AI usage:** No wasted LLM calls; AI ADP poll skip when recent; recommendation gated to current user on clock.
-- **Deterministic:** Already in place for recommend and queue reorder.
-- **Caching:** Draft pool Cache-Control added; existing caches (ADP, assets) noted.
-- **Frontend:** useMemo for draftedNames, players, queueFiltered; recommendation effect gated.
-- **Backend:** Recommendations documented (single endpoint, longer poll when paused, SSE/ETag).
-- **Code delivered:** DraftRoomPageClient (useMemo, recommendation gate, AI ADP poll skip) and draft pool route (Cache-Control) as full merged changes above.
+- [x] No dead UI in advanced draft click-audit flows.
+- [x] No overuse of AI APIs in recap / queue explanation paths (cache + dedupe applied).
+- [x] No duplicate provider calls in optimized pool/event paths.
+- [x] No unnecessary sports API refetches in optimized pool route.
+- [x] No broken player assets (asset pipeline untouched except lower request pressure).
+- [x] No broken commissioner flows.
+
+Automated verification:
+
+- `npm run test:e2e -- "e2e/auction-draft-room-click-audit.spec.ts" "e2e/slow-draft-room-click-audit.spec.ts" "e2e/keeper-draft-room-click-audit.spec.ts" "e2e/devy-draft-room-click-audit.spec.ts" "e2e/c2c-draft-room-click-audit.spec.ts" "e2e/draft-import-click-audit.spec.ts" "e2e/cpu-ai-drafter-modes-click-audit.spec.ts" "e2e/draft-asset-pipeline-click-audit.spec.ts" "e2e/draft-notifications-click-audit.spec.ts" "e2e/draft-room-click-audit.spec.ts" "e2e/commissioner-control-panel-click-audit.spec.ts" --project=chromium`
+- Result: **19 passed**.

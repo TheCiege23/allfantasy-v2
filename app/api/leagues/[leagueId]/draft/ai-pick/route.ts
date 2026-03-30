@@ -1,5 +1,6 @@
 /**
- * POST: Commissioner triggers AI manager to make the current pick for an orphan roster.
+ * POST: Commissioner triggers automated orphan manager to make the current pick.
+ * Mode follows draft settings: CPU (deterministic) or AI (with deterministic fallback).
  * Only works when current on-the-clock roster is orphan and orphanTeamAiManagerEnabled is on.
  */
 
@@ -9,6 +10,10 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { executeDraftPickForOrphan } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import { getProviderStatus } from '@/lib/provider-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,11 +43,36 @@ export async function POST(
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
 
-  const updated = await buildSessionSnapshot(leagueId)
+  const [updated, uiSettings, orphanRosterIds, currentUserRosterId] = await Promise.all([
+    buildSessionSnapshot(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+    getOrphanRosterIdsForLeague(leagueId),
+    getCurrentUserRosterIdForLeague(leagueId, userId),
+  ])
+  const providerStatus = getProviderStatus()
+  const sessionPayload =
+    updated == null
+      ? null
+      : {
+          ...updated,
+          currentUserRosterId: currentUserRosterId ?? undefined,
+          orphanRosterIds,
+          aiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
+          orphanDrafterMode: uiSettings.orphanDrafterMode,
+          orphanAiProviderAvailable: providerStatus.anyAi,
+          orphanDrafterEffectiveMode:
+            uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
+              ? 'cpu'
+              : uiSettings.orphanDrafterMode,
+        }
   return NextResponse.json({
     ok: true,
     pick: result.pick,
     reason: result.reason,
-    session: updated,
+    requestedMode: result.requestedMode,
+    executedMode: result.executedMode,
+    aiProviderAvailable: result.aiProviderAvailable,
+    usedFallback: result.usedFallback,
+    session: sessionPayload,
   })
 }

@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getMockDraftById } from '@/lib/mock-draft-engine/MockDraftSessionService'
+import { getMockDraftRuntimeSnapshot } from '@/lib/mock-draft-engine/MockDraftRuntimeService'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function GET(
   const { draftId } = await ctx.params
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const snapshot = await getMockDraftById(draftId, userId)
+  const snapshot = await getMockDraftRuntimeSnapshot(draftId, userId)
   if (!snapshot) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
   return NextResponse.json({ draft: snapshot })
 }

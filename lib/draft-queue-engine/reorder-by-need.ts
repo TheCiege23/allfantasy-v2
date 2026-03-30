@@ -19,6 +19,8 @@ export interface ReorderQueueInput {
   /** Current user's roster (positions already drafted) */
   rosterPositions: string[]
   sport: string
+  /** Optional set of available names (trimmed lowercase). Unavailable entries are dropped before reorder. */
+  availableNames?: Set<string>
   /** Optional: generate short explanation via AI */
   generateExplanation?: boolean
 }
@@ -54,20 +56,26 @@ function needScore(position: string, counts: Record<string, number>): number {
  * Preserves all entries; only order changes.
  */
 export function reorderQueueByNeed(input: ReorderQueueInput): ReorderQueueResult {
-  const { queue, rosterPositions, sport } = input
+  const { queue, rosterPositions, sport, availableNames } = input
   const counts = getNeedCounts(rosterPositions)
   const needByPosition: Record<string, number> = {}
+  const normalizedAvailable = availableNames ?? null
+  const queueAvailable = normalizedAvailable
+    ? queue.filter((entry) => normalizedAvailable.has((entry.playerName || '').trim().toLowerCase()))
+    : queue
+  const removedUnavailable = Math.max(0, queue.length - queueAvailable.length)
 
-  const scored = queue.map((entry) => {
+  const scored = queueAvailable.map((entry, index) => {
     const pos = (entry.position || '').trim().toUpperCase()
     const score = needScore(entry.position ?? '', counts)
     if (pos) needByPosition[pos] = score
-    return { entry, score, position: pos }
+    return { entry, score, position: pos, index }
   })
 
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
-    return (a.position || '').localeCompare(b.position || '')
+    if (a.position !== b.position) return (a.position || '').localeCompare(b.position || '')
+    return a.index - b.index
   })
 
   const reordered = scored.map((s) => s.entry)
@@ -75,10 +83,13 @@ export function reorderQueueByNeed(input: ReorderQueueInput): ReorderQueueResult
     .filter(([, c]) => c < 2)
     .map(([p]) => p)
     .slice(0, 3)
-  const explanation =
+  let explanation =
     topNeeds.length > 0
       ? `Reordered by roster need: prioritizing ${topNeeds.join(', ')}. Queue order now reflects best fit for your current roster.`
       : 'Reordered by roster balance. Queue order now reflects position need and availability.'
+  if (removedUnavailable > 0) {
+    explanation += ` Removed ${removedUnavailable} drafted/unavailable player${removedUnavailable === 1 ? '' : 's'} from queue.`
+  }
 
   return { reordered, explanation, needByPosition }
 }

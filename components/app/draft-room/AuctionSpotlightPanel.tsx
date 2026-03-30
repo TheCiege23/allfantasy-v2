@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import type { AuctionSessionSnapshot, AuctionState } from '@/lib/live-draft-engine/types'
+import { buildDraftPlayerDisplayModel } from '@/lib/draft-sports-models/build-display-model'
 
 export type AuctionSpotlightPanelProps = {
   auction: AuctionSessionSnapshot
@@ -65,6 +66,9 @@ export function AuctionSpotlightPanel({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-white">Auction</h2>
+        <span className="text-[11px] text-white/60" data-testid="auction-current-nominator">
+          Nominator: {currentNominator?.displayName ?? '—'}
+        </span>
         <div className="flex items-center gap-2 text-xs text-white/70">
           {auction.nominationOrder.map((entry) => (
             <span
@@ -87,9 +91,17 @@ export function AuctionSpotlightPanel({
         {nomination ? (
           <div className="flex flex-wrap items-center gap-3">
             <DraftPlayerCard
+              display={buildDraftPlayerDisplayModel({
+                playerName: nomination.playerName,
+                position: nomination.position,
+                team: nomination.team ?? null,
+                playerId: nomination.playerId ?? null,
+                byeWeek: nomination.byeWeek ?? null,
+              })}
               name={nomination.playerName}
               position={nomination.position}
               team={nomination.team}
+              byeWeek={nomination.byeWeek ?? null}
               variant="card"
               isDrafted={false}
             />
@@ -101,6 +113,11 @@ export function AuctionSpotlightPanel({
                     ({auction.nominationOrder.find((e) => e.rosterId === state.currentBidderRosterId)?.displayName ?? '—'})
                   </span>
                 )}
+              </p>
+              <p className="text-[10px] text-white/55" data-testid="auction-highest-bidder">
+                Highest bidder: {state.currentBidderRosterId
+                  ? (auction.nominationOrder.find((e) => e.rosterId === state.currentBidderRosterId)?.displayName ?? '—')
+                  : 'No bids yet'}
               </p>
               <p className="text-[10px] text-white/50">
                 Min next bid: ${minNextBid}
@@ -123,11 +140,13 @@ export function AuctionSpotlightPanel({
                       onChange={(e) => setBidAmount(e.target.value)}
                       className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white"
                       aria-label="Bid amount"
+                        data-testid="auction-bid-input"
                     />
                     <button
                       type="button"
                       onClick={handleBid}
                       disabled={bidLoading}
+                        data-testid="auction-bid-button"
                       className="rounded bg-cyan-500/30 px-3 py-1 text-sm text-cyan-200 hover:bg-cyan-500/40 disabled:opacity-50"
                     >
                       {bidLoading ? '…' : 'Bid'}
@@ -139,6 +158,7 @@ export function AuctionSpotlightPanel({
                     type="button"
                     onClick={onResolve}
                     disabled={resolveLoading}
+                    data-testid="auction-resolve-button"
                     className="rounded bg-emerald-500/30 px-3 py-1 text-sm text-emerald-200 hover:bg-emerald-500/40 disabled:opacity-50"
                   >
                     {resolveLoading ? '…' : isCommissioner ? 'Sell / Pass' : 'Resolve'}
@@ -154,6 +174,11 @@ export function AuctionSpotlightPanel({
                 ? 'Your turn to nominate. Select a player from the list and click Nominate.'
                 : `Waiting for ${currentNominator?.displayName ?? 'nominator'} to nominate.`}
             </p>
+            {timerStatus === 'running' && timerRemainingSeconds != null && (
+              <p className="mt-1 text-[10px] text-white/50" data-testid="auction-nomination-timer">
+                Nomination window: {timerRemainingSeconds}s
+              </p>
+            )}
           </div>
         )}
       </div>

@@ -1,20 +1,78 @@
-'use client'
-
 import Link from 'next/link'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import { Users, ArrowRight } from 'lucide-react'
-import type { DiscoveryLeaguesPageConfig } from '@/lib/seo-landing/discovery-leagues-pages'
+import {
+  DISCOVERY_LEAGUES_PAGE_CONFIG,
+  DISCOVERY_LEAGUES_SLUGS,
+  getDiscoveryLeaguesCanonical,
+  type DiscoveryLeaguesPageConfig,
+} from '@/lib/seo-landing/discovery-leagues-pages'
 
 interface DiscoveryLeaguesSeoLandingProps {
   config: DiscoveryLeaguesPageConfig
 }
 
 export default function DiscoveryLeaguesSeoLanding({ config }: DiscoveryLeaguesSeoLandingProps) {
+  const canonicalUrl = getDiscoveryLeaguesCanonical(config.slug)
+  const relatedPages = DISCOVERY_LEAGUES_SLUGS.filter((slug) => slug !== config.slug).map(
+    (slug) => DISCOVERY_LEAGUES_PAGE_CONFIG[slug]
+  )
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: config.faq.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  }
+  const webPageSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: config.title,
+    description: config.description,
+    url: canonicalUrl,
+    inLanguage: 'en-US',
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'AllFantasy',
+      url: 'https://allfantasy.ai',
+    },
+    breadcrumb: {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: 'https://allfantasy.ai',
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: config.sportLabel,
+          item: canonicalUrl,
+        },
+      ],
+    },
+  }
+
   return (
     <main
       className="min-h-screen flex flex-col mode-readable"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <HomeTopNav />
 
       <article className="flex-1 px-4 py-8 sm:px-6 sm:py-12">
@@ -39,6 +97,46 @@ export default function DiscoveryLeaguesSeoLanding({ config }: DiscoveryLeaguesS
               Browse leagues
               <ArrowRight className="h-4 w-4 shrink-0" />
             </Link>
+          </section>
+
+          <section className="mt-8">
+            <h2 className="text-lg font-semibold mb-4">Frequently asked questions</h2>
+            <div className="space-y-3">
+              {config.faq.map((item) => (
+                <div
+                  key={`${config.slug}-${item.question}`}
+                  className="rounded-xl border p-4"
+                  style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+                >
+                  <h3 className="text-sm font-semibold">{item.question}</h3>
+                  <p className="mt-1.5 text-sm" style={{ color: 'var(--muted)' }}>
+                    {item.answer}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-8">
+            <h2 className="text-lg font-semibold mb-4">Related fantasy league pages</h2>
+            <ul className="space-y-2">
+              {relatedPages.map((page) => (
+                <li key={`related-${page.slug}`}>
+                  <Link
+                    href={`/${page.slug}/leagues`}
+                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors hover:opacity-90"
+                    style={{
+                      borderColor: 'var(--border)',
+                      background: 'var(--panel)',
+                      color: 'var(--text)',
+                    }}
+                  >
+                    {page.headline}
+                    <ArrowRight className="h-4 w-4 shrink-0" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </section>
 
           <section className="mt-8">

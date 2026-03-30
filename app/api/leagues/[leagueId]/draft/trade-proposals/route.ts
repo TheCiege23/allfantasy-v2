@@ -8,11 +8,38 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getDraftSessionByLeague } from '@/lib/live-draft-engine/DraftSessionService'
+import { getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
+import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
+import { buildDraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { sendPrivateTradeAIDM } from '@/lib/trade-ai-dm/TradeAIDMService'
 
 export const dynamic = 'force-dynamic'
+
+function resolveOverallForRoundSlot(params: {
+  round: number
+  slot: number
+  teamCount: number
+  draftType: 'snake' | 'linear' | 'auction'
+  thirdRoundReversal: boolean
+}): number | null {
+  const startOverall = (params.round - 1) * params.teamCount + 1
+  const endOverall = params.round * params.teamCount
+  for (let overall = startOverall; overall <= endOverall; overall += 1) {
+    const derivedSlot = getSlotInRoundForOverall({
+      overall,
+      teamCount: params.teamCount,
+      draftType: params.draftType,
+      thirdRoundReversal: params.thirdRoundReversal,
+    })
+    if (derivedSlot === params.slot) return overall
+  }
+  return null
+}
 
 export async function GET(
   req: NextRequest,
@@ -38,7 +65,6 @@ export async function GET(
     where.status = 'pending'
     if (myRosterId) where.receiverRosterId = myRosterId
     else {
-      const empty = await (prisma as any).draftPickTradeProposal.findMany({ where: { sessionId: draftSession.id, status: 'pending' }, take: 0 })
       return NextResponse.json({ proposals: [] })
     }
   }
@@ -90,6 +116,10 @@ export async function POST(
   if (!draftPickTradingAllowed) {
     return NextResponse.json({ error: 'Draft pick trading is disabled in Tournament Mode leagues.' }, { status: 403 })
   }
+  const uiSettings = await getDraftUISettingsForLeague(leagueId)
+  if (!uiSettings.pickTradeEnabled) {
+    return NextResponse.json({ error: 'Draft pick trading is disabled in draft settings.' }, { status: 403 })
+  }
 
   const draftSession = await getDraftSessionByLeague(leagueId)
   if (!draftSession || draftSession.status !== 'in_progress') {
@@ -101,22 +131,75 @@ export async function POST(
   const giveSlot = Math.max(1, Number(body.giveSlot) || 1)
   const receiveRound = Math.max(1, Number(body.receiveRound) || 1)
   const receiveSlot = Math.max(1, Number(body.receiveSlot) || 1)
-  const receiverRosterId = body.receiverRosterId ?? body.receiver_roster_id
+  const receiverRosterId = String(body.receiverRosterId ?? body.receiver_roster_id ?? '').trim()
   const receiverName = body.receiverName ?? body.receiver_name ?? ''
 
   if (!receiverRosterId) return NextResponse.json({ error: 'receiverRosterId required' }, { status: 400 })
+  if (receiverRosterId === myRosterId) {
+    return NextResponse.json({ error: 'Cannot send a trade to your own roster.' }, { status: 400 })
+  }
+  if (giveRound > draftSession.rounds || receiveRound > draftSession.rounds) {
+    return NextResponse.json({ error: 'Round out of range for this draft.' }, { status: 400 })
+  }
 
   const slotOrder = (draftSession.slotOrder as { slot: number; rosterId: string; displayName: string }[]) ?? []
-  const giveSlotEntry = slotOrder.find((e: any) => e.slot === giveSlot)
-  const receiveSlotEntry = slotOrder.find((e: any) => e.slot === receiveSlot)
-  if (!giveSlotEntry || giveSlotEntry.rosterId !== myRosterId) {
-    return NextResponse.json({ error: 'You can only offer a pick you own (give slot must be your slot)' }, { status: 400 })
+  const tradedPicks = Array.isArray((draftSession as any).tradedPicks)
+    ? ((draftSession as any).tradedPicks as Array<{
+        round: number
+        originalRosterId: string
+        previousOwnerName: string
+        newRosterId: string
+        newOwnerName: string
+      }>)
+    : []
+  const giveBaseSlotEntry = slotOrder.find((e: any) => e.slot === giveSlot)
+  const receiveBaseSlotEntry = slotOrder.find((e: any) => e.slot === receiveSlot)
+  if (!giveBaseSlotEntry || !receiveBaseSlotEntry) {
+    return NextResponse.json({ error: 'Invalid slot for this draft order.' }, { status: 400 })
   }
-  if (!receiveSlotEntry || receiveSlotEntry.rosterId !== receiverRosterId) {
-    return NextResponse.json({ error: 'Receive slot must belong to the receiver' }, { status: 400 })
+  const giveResolvedOwner = resolvePickOwner(giveRound, giveSlot, slotOrder, tradedPicks)
+  const receiveResolvedOwner = resolvePickOwner(receiveRound, receiveSlot, slotOrder, tradedPicks)
+  if (!giveResolvedOwner || giveResolvedOwner.rosterId !== myRosterId) {
+    return NextResponse.json(
+      {
+        error: `You can only offer picks your roster currently owns. Current owner is ${
+          giveResolvedOwner?.displayName ?? 'another manager'
+        }.`,
+      },
+      { status: 400 }
+    )
+  }
+  if (!receiveResolvedOwner || receiveResolvedOwner.rosterId !== receiverRosterId) {
+    return NextResponse.json(
+      {
+        error: `Receive pick is not currently owned by ${receiverName || 'that manager'}.`,
+      },
+      { status: 400 }
+    )
+  }
+  const giveOverall = resolveOverallForRoundSlot({
+    round: giveRound,
+    slot: giveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
+    thirdRoundReversal: draftSession.thirdRoundReversal,
+  })
+  const receiveOverall = resolveOverallForRoundSlot({
+    round: receiveRound,
+    slot: receiveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
+    thirdRoundReversal: draftSession.thirdRoundReversal,
+  })
+  const draftedOveralls = new Set((draftSession.picks ?? []).map((pick) => pick.overall))
+  if ((giveOverall != null && draftedOveralls.has(giveOverall)) || (receiveOverall != null && draftedOveralls.has(receiveOverall))) {
+    return NextResponse.json({ error: 'Cannot trade picks that are already on the board.' }, { status: 400 })
   }
 
-  const proposerName = giveSlotEntry.displayName ?? ''
+  const proposerSlotEntry = slotOrder.find((e: any) => e.rosterId === myRosterId)
+  const receiverSlotEntry = slotOrder.find((e: any) => e.rosterId === receiverRosterId)
+  const proposerName = proposerSlotEntry?.displayName ?? giveResolvedOwner.displayName ?? ''
+  const resolvedReceiverName = receiverName || receiverSlotEntry?.displayName || receiveResolvedOwner.displayName || null
 
   const created = await (prisma as any).draftPickTradeProposal.create({
     data: {
@@ -125,24 +208,74 @@ export async function POST(
       receiverRosterId,
       giveRound,
       giveSlot,
-      giveOriginalRosterId: myRosterId,
+      // Keep canonical "original owner" stable for correct future ownership resolution.
+      giveOriginalRosterId: giveBaseSlotEntry.rosterId,
       receiveRound,
       receiveSlot,
-      receiveOriginalRosterId: receiverRosterId,
+      receiveOriginalRosterId: receiveBaseSlotEntry.rosterId,
       proposerName,
-      receiverName: receiverName || receiveSlotEntry.displayName || null,
+      receiverName: resolvedReceiverName,
       status: 'pending',
     },
   })
 
-  const { createDraftNotification, getAppUserIdForRoster } = await import('@/lib/draft-notifications')
+  const { createDraftNotification, getAppUserIdForRoster, notifyDraftAiTradeReviewAvailable } = await import('@/lib/draft-notifications')
   const receiverUserId = await getAppUserIdForRoster(receiverRosterId)
+  let privateAiDmSent = false
+  let privateAiDmCounterSuggestion: string | null = null
   if (receiverUserId) {
     const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+    const aiReview = buildDraftTradeAiReview({
+      giveRound: created.giveRound,
+      giveSlot: created.giveSlot,
+      receiveRound: created.receiveRound,
+      receiveSlot: created.receiveSlot,
+      teamCount: draftSession.teamCount,
+    })
     void createDraftNotification(receiverUserId, 'draft_trade_offer_received', {
       leagueId,
       leagueName: league?.name ?? undefined,
       tradeProposalId: created.id,
+    })
+    void notifyDraftAiTradeReviewAvailable(leagueId, receiverUserId, created.id)
+    const privateAiDm = await sendPrivateTradeAIDM({
+      receiverUserId,
+      leagueId,
+      proposalId: created.id,
+      review: {
+        verdict: aiReview.verdict,
+        summary: aiReview.summary,
+        reasons: aiReview.reasons,
+        counterReasons: aiReview.counterReasons,
+        declineReasons: aiReview.declineReasons,
+        suggestedCounterPackage: aiReview.suggestedCounterPackage,
+      },
+      trigger: 'trade_received',
+    })
+    privateAiDmSent = privateAiDm.sent
+    privateAiDmCounterSuggestion = privateAiDm.counterSuggestion
+    void dispatchNotification({
+      userIds: [receiverUserId],
+      category: 'trade_proposals',
+      productType: 'app',
+      type: 'draft_trade_ai_private_review',
+      title: `Private AI trade review${league?.name ? ` - ${league.name}` : ''}`,
+      body: `${aiReview.summary} Suggested action: ${aiReview.verdict.toUpperCase()}. Counter suggestion: ${privateAiDm.counterSuggestion}.`,
+      actionHref: `/app/league/${leagueId}/draft`,
+      actionLabel: 'Open draft trade panel',
+      meta: {
+        leagueId,
+        tradeProposalId: created.id,
+        private: true,
+        suggestedAction: aiReview.verdict,
+        reasons: aiReview.reasons,
+        counterReasons: aiReview.counterReasons,
+        declineReasons: aiReview.declineReasons,
+        suggestedCounterPackage: aiReview.suggestedCounterPackage,
+        counterSuggestion: privateAiDm.counterSuggestion,
+        privateAiDmSent: privateAiDm.sent,
+      },
+      severity: aiReview.verdict === 'reject' ? 'medium' : 'low',
     })
   }
 
@@ -157,6 +290,12 @@ export async function POST(
       receiverRosterId: created.receiverRosterId,
       status: created.status,
       createdAt: created.createdAt.toISOString(),
+      giveCurrentOwnerName: giveResolvedOwner.displayName,
+      receiveCurrentOwnerName: receiveResolvedOwner.displayName,
     },
+    privateAiReviewQueued: Boolean(receiverUserId),
+    privateAiDmSent,
+    privateAiDmCounterSuggestion,
+    privacy: { aiReview: 'private' as const },
   })
 }

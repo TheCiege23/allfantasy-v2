@@ -1,12 +1,23 @@
 /**
- * Draft AI assist — BPA/needs recommendation and optional explanation.
- * Stub implementation; extend with real BPA/needs logic and optional LLM.
+ * Draft AI assist — deterministic recommendation with optional AI explanation.
  */
 
+import { computeDraftRecommendation, type RecommendationResult } from '@/lib/draft-helper/RecommendationEngine'
+import { explainDeterministicOutput } from '@/lib/ai-explanation-layer'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+
+type DraftInputPlayer = {
+  name: string
+  position: string
+  team: string | null
+  adp: number | null
+  byeWeek: number | null
+}
+
 export interface DraftAIAssistInput {
-  available: { name: string; position: string; team: string | null; adp: number | null; byeWeek: number | null }[]
-  teamRoster: unknown[]
-  rosterSlots: unknown[]
+  available: DraftInputPlayer[]
+  teamRoster: Array<{ position: string; team?: string | null; byeWeek?: number | null }>
+  rosterSlots: string[]
   round: number
   pick: number
   totalTeams: number
@@ -26,52 +37,106 @@ export interface DraftAIAssistOptions {
   leagueId?: string
 }
 
-export interface DraftAIRecommendation {
-  recommendation: string
-  alternatives: string[]
-  reachWarning?: string | null
-  valueWarning?: string | null
-  scarcityInsight?: string | null
-  byeNote?: string | null
-  caveats?: string[] | null
+export interface DraftAIAssistResult {
+  recommendation: RecommendationResult
   explanation?: string | null
+  aiExplanationUsed: boolean
 }
 
-export interface DraftAIAssistResult {
-  recommendation: DraftAIRecommendation
-  explanation?: string | null
+async function buildOptionalAIExplanation(input: {
+  recommendation: RecommendationResult
+  options: DraftAIAssistOptions
+  context: { sport: string; round: number; pick: number; totalTeams: number }
+}): Promise<string | null> {
+  if (!input.recommendation.recommendation) return null
+
+  const top = input.recommendation.recommendation
+  const alternatives = input.recommendation.alternatives
+    .slice(0, 2)
+    .map((item) => `${item.player.name} (${item.player.position})`)
+    .join(', ')
+
+  const explanation = await explainDeterministicOutput({
+    feature: 'draft_recommendation',
+    sport: input.context.sport,
+    deterministicSummary: input.recommendation.explanation,
+    deterministicEvidence: [
+      `On clock: Round ${input.context.round}, Pick ${input.context.pick}, ${input.context.totalTeams}-team league`,
+      `Top recommendation: ${top.player.name} (${top.player.position}${top.player.team ? `, ${top.player.team}` : ''})`,
+      `Reason: ${top.reason}`,
+      `Confidence: ${top.confidence}%`,
+      `Alternatives: ${alternatives || 'None'}`,
+      `Warnings: ${
+        [
+          input.recommendation.reachWarning,
+          input.recommendation.valueWarning,
+          input.recommendation.scarcityInsight,
+          input.recommendation.formatInsight,
+          input.recommendation.byeNote,
+        ]
+          .filter(Boolean)
+          .join(' | ') || 'None'
+      }`,
+      input.options.idp ? 'League context: IDP enabled.' : '',
+      input.options.recommendationContext ? `Recommendation context: ${input.options.recommendationContext}` : '',
+    ],
+    instruction: 'Write exactly 2 concise sentences: (1) why this pick now, (2) fallback if sniped.',
+    temperature: 0.3,
+    maxTokens: 170,
+    maxChars: 520,
+    deterministicFallbackText: null,
+  })
+
+  if (explanation.source !== 'ai' || !explanation.text) return null
+  return explanation.text
 }
 
 /**
- * Return best available or needs-based pick recommendation. Deterministic core; optional AI explanation.
+ * Deterministic first: best available + roster needs.
+ * AI is optional and only used for narrative explanation.
  */
 export async function runDraftAIAssist(
   input: DraftAIAssistInput,
-  _options: DraftAIAssistOptions
+  options: DraftAIAssistOptions
 ): Promise<DraftAIAssistResult> {
-  const sorted = [...input.available].sort((a, b) => {
-    const adpA = a.adp ?? 9999
-    const adpB = b.adp ?? 9999
-    return adpA - adpB
+  const sport = normalizeToSupportedSport(options.sport ?? input.sport)
+  const deterministic = computeDraftRecommendation({
+    available: input.available,
+    teamRoster: input.teamRoster,
+    rosterSlots: input.rosterSlots,
+    round: input.round,
+    pick: input.pick,
+    totalTeams: input.totalTeams,
+    sport,
+    isDynasty: input.isDynasty,
+    isSF: input.isSF,
+    mode: input.mode,
+    aiAdpByKey: input.aiAdpByKey,
+    byeByKey: input.byeByKey,
   })
-  const top = sorted[0]
-  const rec: DraftAIRecommendation = {
-    recommendation: top?.name ?? 'No player',
-    alternatives: sorted.slice(1, 4).map((p) => p.name).filter(Boolean),
-    reachWarning: null,
-    valueWarning: null,
-    scarcityInsight: null,
-    byeNote: null,
-    caveats: null,
+
+  if (!options.explanation) {
+    return {
+      recommendation: deterministic,
+      explanation: null,
+      aiExplanationUsed: false,
+    }
   }
-  const contextSummary = _options.recommendationContext
-    ? ` Context: ${_options.recommendationContext}.`
-    : ''
-  const idpSummary = _options.idp ? ' IDP roster/scoring context is enabled.' : ''
+
+  const aiExplanation = await buildOptionalAIExplanation({
+    recommendation: deterministic,
+    options,
+    context: {
+      sport,
+      round: input.round,
+      pick: input.pick,
+      totalTeams: input.totalTeams,
+    },
+  })
+
   return {
-    recommendation: rec,
-    explanation: _options.explanation
-      ? `Top of board by ADP: ${rec.recommendation}.${_options.sport ? ` Sport: ${_options.sport}.` : ''}${idpSummary}${contextSummary}`
-      : null,
+    recommendation: deterministic,
+    explanation: aiExplanation,
+    aiExplanationUsed: Boolean(aiExplanation),
   }
 }

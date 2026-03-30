@@ -12,7 +12,7 @@ import type { DiscoveryOrphanAdoptionMeta } from "./index"
  */
 export async function trackDiscoveryOrphanAdoption(
   meta: DiscoveryOrphanAdoptionMeta,
-  options?: { commissionerId?: string }
+  options?: { commissionerId?: string; source?: "orphan_adoptions_route" | "managers_route" }
 ): Promise<void> {
   try {
     await prisma.analyticsEvent.create({
@@ -29,6 +29,7 @@ export async function trackDiscoveryOrphanAdoption(
           rosterId: meta.rosterId,
           userId: meta.userId,
           commissionerId: options?.commissionerId ?? null,
+          source: options?.source ?? null,
         },
       },
     })

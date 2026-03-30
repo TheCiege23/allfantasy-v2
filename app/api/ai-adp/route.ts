@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
       totalDrafts: 0,
       totalPicks: 0,
       computedAt: null,
+      stale: true,
+      ageHours: null,
       message: 'No AI ADP snapshot for this segment. Run the daily AI ADP job or use standard ADP.',
     })
   }
@@ -41,5 +43,10 @@ export async function GET(req: NextRequest) {
     totalPicks: result.totalPicks,
     computedAt: result.computedAt?.toISOString() ?? null,
     lowSampleThreshold: result.lowSampleThreshold,
+    stale: result.stale,
+    ageHours: result.ageHours,
+    message: result.stale
+      ? 'AI ADP snapshot is stale. Run the daily AI ADP job to refresh this segment.'
+      : null,
   })
 }

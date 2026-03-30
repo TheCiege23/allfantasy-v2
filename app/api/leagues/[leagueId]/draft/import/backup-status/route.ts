@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { hasImportBackup } from '@/lib/draft-import'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,11 @@ export async function GET(
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const uiSettings = await getDraftUISettingsForLeague(leagueId)
+  if (!uiSettings.importEnabled) {
+    return NextResponse.json({ hasBackup: false, importEnabled: false })
+  }
+
   const hasBackup = await hasImportBackup(leagueId)
-  return NextResponse.json({ hasBackup })
+  return NextResponse.json({ hasBackup, importEnabled: true })
 }

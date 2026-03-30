@@ -6,6 +6,8 @@
 import type { LeagueSport } from "@prisma/client"
 
 export interface LeagueSearchInput {
+  /** Generic free-text query; matches league name OR commissioner fields. */
+  query?: string | null
   /** Free-text: matches league name (case-insensitive contains). */
   leagueName?: string | null
   /** Matches commissioner by display name or sleeper username (case-insensitive contains). */

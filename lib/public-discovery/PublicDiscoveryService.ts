@@ -6,15 +6,19 @@
 import { prisma } from "@/lib/prisma"
 import { getCareerTierName, clampCareerTier, isLeagueVisibleForCareerTier } from "@/lib/ranking/tier-visibility"
 import { isSupportedSport } from "@/lib/sport-scope"
+import { searchLeagues } from "@/lib/league-search"
 import { getDiscoverySports } from "./discovery-sports"
 import {
   getCachedBracketCards,
+  getCachedComputedDiscoveryList,
   getCachedCreatorCards,
   getCachedFantasyCards,
+  getComputedDiscoveryListCacheKey,
   setCachedBracketCards,
+  setCachedComputedDiscoveryList,
   setCachedCreatorCards,
   setCachedFantasyCards,
-  clearDiscoveryCache,
+  clearDiscoveryCache as clearDiscoveryCardCaches,
 } from "./DiscoveryCache"
 import {
   queryPublicBracketLeagueCards,
@@ -26,13 +30,18 @@ import type {
   DiscoverLeaguesInput,
   DiscoverLeaguesResult,
   DiscoveryFormat,
+  DraftStatusFilter,
+  DraftTypeFilter,
   DiscoveryLeagueStyle,
   DiscoverySort,
   EntryFeeFilter,
   LeagueStyleFilter,
 } from "./types"
 
-export { clearDiscoveryCache }
+export function clearDiscoveryCache(): void {
+  clearDiscoveryCardCaches()
+  ownedLeagueSetsCache.clear()
+}
 
 export interface DiscoveryViewerContext {
   viewerTier?: number | null
@@ -44,13 +53,29 @@ const DEFAULT_BASE_URL =
   typeof process !== "undefined" ? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai" : "https://allfantasy.ai"
 
 const DISCOVERY_TAKE = 300
+const OWNED_SETS_CACHE_TTL_MS = 30_000
+
+type OwnedLeagueSets = {
+  fantasyIds: Set<string>
+  bracketIds: Set<string>
+  creatorIds: Set<string>
+}
+const ownedLeagueSetsCache = new Map<
+  string,
+  {
+    expiresAt: number
+    data: { fantasyIds: string[]; bracketIds: string[]; creatorIds: string[] }
+  }
+>()
 
 function normalizeFormat(value: unknown): DiscoveryFormat {
   return value === "fantasy" || value === "creator" || value === "bracket" ? value : "all"
 }
 
 function normalizeSort(value: unknown): DiscoverySort {
-  return value === "newest" || value === "filling_fast" ? value : "popularity"
+  return value === "newest" || value === "filling_fast" || value === "ranking_match"
+    ? value
+    : "popularity"
 }
 
 function normalizeEntryFee(value: unknown): EntryFeeFilter {
@@ -69,6 +94,19 @@ function normalizeStyle(value: unknown): LeagueStyleFilter {
     : "all"
 }
 
+function normalizeDraftType(value: unknown): DraftTypeFilter {
+  return value === "snake" || value === "linear" || value === "auction" ? value : "all"
+}
+
+function normalizeDraftStatus(value: unknown): DraftStatusFilter {
+  return value === "pre_draft" ||
+    value === "in_progress" ||
+    value === "paused" ||
+    value === "completed"
+    ? value
+    : "all"
+}
+
 export function calculateDiscoveryTrendingScore(card: DiscoveryCard): number {
   const ageHours = Math.max(0, (Date.now() - new Date(card.createdAt).getTime()) / 3_600_000)
   const freshnessBoost = Math.max(0, 24 - Math.min(24, ageHours / 4))
@@ -81,6 +119,17 @@ export function calculateDiscoveryFillingFastScore(card: DiscoveryCard): number 
   const notFull = card.maxMembers <= 0 || card.memberCount < card.maxMembers ? 1 : 0
   const urgencyBoost = card.fillPct >= 80 ? 20 : card.fillPct >= 60 ? 12 : card.fillPct >= 40 ? 6 : 0
   return Math.round(card.fillPct * 1.35 + card.memberCount * 0.75 + urgencyBoost + notFull * 5)
+}
+
+export function calculateDiscoveryRankingEffectScore(
+  card: Pick<DiscoveryCard, "leagueTier" | "canJoinByRanking">,
+  viewerTier: number
+): number {
+  const leagueTier = clampCareerTier(card.leagueTier, viewerTier)
+  const tierDelta = Math.abs(leagueTier - viewerTier)
+  const proximityBoost = Math.max(0, 30 - tierDelta * 8)
+  const directJoinBoost = card.canJoinByRanking === false ? 0 : 10
+  return Math.round(proximityBoost + directJoinBoost)
 }
 
 export function matchesDiscoveryLeagueStyle(
@@ -114,6 +163,16 @@ function applyAiEnabled(cards: DiscoveryCard[], aiEnabled: boolean | null | unde
   return cards.filter((card) => Array.isArray(card.aiFeatures) && card.aiFeatures.length > 0)
 }
 
+function applyDraftType(cards: DiscoveryCard[], draftType: DraftTypeFilter): DiscoveryCard[] {
+  if (draftType === "all") return cards
+  return cards.filter((card) => String(card.draftType ?? "").toLowerCase() === draftType)
+}
+
+function applyDraftStatus(cards: DiscoveryCard[], draftStatus: DraftStatusFilter): DiscoveryCard[] {
+  if (draftStatus === "all") return cards
+  return cards.filter((card) => String(card.draftStatus ?? "").toLowerCase() === draftStatus)
+}
+
 function applyEntryFee(cards: DiscoveryCard[], entryFee: EntryFeeFilter): DiscoveryCard[] {
   if (entryFee === "all") return cards
   if (entryFee === "free") return cards.filter((card) => !card.isPaid)
@@ -127,14 +186,47 @@ function applyLeagueStyle(cards: DiscoveryCard[], style: LeagueStyleFilter): Dis
 
 function applySort(cards: DiscoveryCard[], sort: DiscoverySort): DiscoveryCard[] {
   const arr = [...cards]
-  if (sort === "popularity") {
-    arr.sort((a, b) => calculateDiscoveryTrendingScore(b) - calculateDiscoveryTrendingScore(a))
+  if (sort === "ranking_match") {
+    arr.sort((a, b) => {
+      const rankingDiff = (b.rankingEffectScore ?? 0) - (a.rankingEffectScore ?? 0)
+      if (rankingDiff !== 0) return rankingDiff
+      return calculateDiscoveryTrendingScore(b) - calculateDiscoveryTrendingScore(a)
+    })
+  } else if (sort === "popularity") {
+    arr.sort((a, b) => {
+      const scoreA = calculateDiscoveryTrendingScore(a) + (a.rankingEffectScore ?? 0) * 2
+      const scoreB = calculateDiscoveryTrendingScore(b) + (b.rankingEffectScore ?? 0) * 2
+      return scoreB - scoreA
+    })
   } else if (sort === "newest") {
     arr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   } else {
-    arr.sort((a, b) => calculateDiscoveryFillingFastScore(b) - calculateDiscoveryFillingFastScore(a))
+    arr.sort((a, b) => {
+      const scoreA = calculateDiscoveryFillingFastScore(a) + (a.rankingEffectScore ?? 0)
+      const scoreB = calculateDiscoveryFillingFastScore(b) + (b.rankingEffectScore ?? 0)
+      return scoreB - scoreA
+    })
   }
   return arr
+}
+
+async function getFastSearchCandidateLeagueIds(options: {
+  query: string | null
+  sport: string | null
+}): Promise<string[] | null> {
+  const query = typeof options.query === "string" ? options.query.trim() : ""
+  if (query.length < 2) return null
+  try {
+    const result = await searchLeagues({
+      query,
+      sport: options.sport,
+      limit: DISCOVERY_TAKE,
+      offset: 0,
+    })
+    return result.hits.map((hit) => hit.id)
+  } catch {
+    return null
+  }
 }
 
 async function fetchPublicFantasyLeagues(options: {
@@ -145,9 +237,14 @@ async function fetchPublicFantasyLeagues(options: {
   const cached = getCachedFantasyCards(options.baseUrl, options.sport, options.query)
   if (cached) return cached
 
+  const candidateLeagueIds = await getFastSearchCandidateLeagueIds({
+    query: options.query,
+    sport: options.sport,
+  })
   const cards = await queryPublicFantasyLeagueCards({
     sport: options.sport,
     query: options.query,
+    candidateLeagueIds,
     baseUrl: options.baseUrl,
     take: DISCOVERY_TAKE,
   })
@@ -211,6 +308,16 @@ async function getOwnedLeagueSets(viewerUserId: string | null) {
     }
   }
 
+  const cached = ownedLeagueSetsCache.get(viewerUserId)
+  const now = Date.now()
+  if (cached && cached.expiresAt > now) {
+    return {
+      fantasyIds: new Set(cached.data.fantasyIds),
+      bracketIds: new Set(cached.data.bracketIds),
+      creatorIds: new Set(cached.data.creatorIds),
+    }
+  }
+
   try {
     const [fantasyRows, bracketRows, creatorRows] = await Promise.all([
       prisma.league.findMany({
@@ -231,12 +338,26 @@ async function getOwnedLeagueSets(viewerUserId: string | null) {
       }),
     ])
 
-    return {
+    const result: OwnedLeagueSets = {
       fantasyIds: new Set(fantasyRows.map((row) => row.id)),
       bracketIds: new Set(bracketRows.map((row) => row.id)),
       creatorIds: new Set(creatorRows.map((row) => row.id)),
     }
+    ownedLeagueSetsCache.set(viewerUserId, {
+      expiresAt: now + OWNED_SETS_CACHE_TTL_MS,
+      data: {
+        fantasyIds: [...result.fantasyIds],
+        bracketIds: [...result.bracketIds],
+        creatorIds: [...result.creatorIds],
+      },
+    })
+    if (ownedLeagueSetsCache.size > 500) {
+      const oldestKey = ownedLeagueSetsCache.keys().next().value
+      if (oldestKey) ownedLeagueSetsCache.delete(oldestKey)
+    }
+    return result
   } catch {
+    ownedLeagueSetsCache.delete(viewerUserId)
     return {
       fantasyIds: new Set<string>(),
       bracketIds: new Set<string>(),
@@ -262,11 +383,18 @@ async function applyTierPolicy(
     const inRange = isLeagueVisibleForCareerTier(viewerTier, leagueTier, 1)
 
     if (inRange) {
+      const rankingTierDelta = Math.abs(leagueTier - viewerTier)
+      const rankingEffectScore = calculateDiscoveryRankingEffectScore(
+        { leagueTier, canJoinByRanking: true },
+        viewerTier
+      )
       resolved.push({
         ...card,
         leagueTier,
         inviteOnlyByTier: false,
         canJoinByRanking: true,
+        rankingTierDelta,
+        rankingEffectScore,
       })
       continue
     }
@@ -277,11 +405,18 @@ async function applyTierPolicy(
       (card.source === "creator" && owned.creatorIds.has(card.id))
 
     if (viewerIsAdmin || ownerBypass) {
+      const rankingTierDelta = Math.abs(leagueTier - viewerTier)
+      const rankingEffectScore = calculateDiscoveryRankingEffectScore(
+        { leagueTier, canJoinByRanking: false },
+        viewerTier
+      )
       resolved.push({
         ...card,
         leagueTier,
         inviteOnlyByTier: true,
         canJoinByRanking: false,
+        rankingTierDelta,
+        rankingEffectScore,
       })
     } else {
       hiddenCount += 1
@@ -308,6 +443,45 @@ export async function discoverPublicLeagues(
   const teamCountMin = input.teamCountMin != null ? Number(input.teamCountMin) : null
   const teamCountMax = input.teamCountMax != null ? Number(input.teamCountMax) : null
   const aiEnabled = input.aiEnabled === true
+  const draftType = normalizeDraftType(input.draftType)
+  const draftStatus = normalizeDraftStatus(input.draftStatus)
+  const viewerTierSeed = clampCareerTier(viewerContext?.viewerTier, 1)
+  const viewerIdKey = viewerContext?.viewerUserId ? String(viewerContext.viewerUserId) : null
+  const computedCacheKey = getComputedDiscoveryListCacheKey(baseUrl, {
+    format,
+    sort,
+    style,
+    entryFee,
+    visibility,
+    sport: sport ?? "all",
+    query: query ?? "",
+    teamCountMin: teamCountMin ?? null,
+    teamCountMax: teamCountMax ?? null,
+    aiEnabled,
+    draftType,
+    draftStatus,
+    viewerTier: viewerTierSeed,
+    viewerIsAdmin: viewerContext?.viewerIsAdmin === true,
+    viewerUserId: viewerIdKey ?? "anonymous",
+  })
+  const cachedComputed = getCachedComputedDiscoveryList(computedCacheKey)
+  if (cachedComputed) {
+    const total = cachedComputed.cards.length
+    const totalPages = Math.ceil(total / limit) || 1
+    const start = (page - 1) * limit
+    const leagues = cachedComputed.cards.slice(start, start + limit)
+    return {
+      leagues,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasMore: start + leagues.length < total,
+      viewerTier: cachedComputed.viewerTier,
+      viewerTierName: getCareerTierName(cachedComputed.viewerTier),
+      hiddenByTierPolicy: cachedComputed.hiddenByTierPolicy,
+    }
+  }
 
   const [fantasyCards, bracketCards, creatorCards] = await Promise.all([
     format === "all" || format === "fantasy"
@@ -327,9 +501,16 @@ export async function discoverPublicLeagues(
   combined = tierResolved.cards
   combined = applyLeagueStyle(combined, style)
   combined = applyTeamCount(combined, teamCountMin, teamCountMax)
+  combined = applyDraftType(combined, draftType)
+  combined = applyDraftStatus(combined, draftStatus)
   combined = applyAiEnabled(combined, aiEnabled)
   combined = applyEntryFee(combined, entryFee)
   combined = applySort(combined, sort)
+  setCachedComputedDiscoveryList(computedCacheKey, {
+    cards: combined,
+    viewerTier: tierResolved.viewerTier,
+    hiddenByTierPolicy: tierResolved.hiddenCount,
+  })
 
   const total = combined.length
   const totalPages = Math.ceil(total / limit) || 1

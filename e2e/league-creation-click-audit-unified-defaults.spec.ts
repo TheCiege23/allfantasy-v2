@@ -223,6 +223,19 @@ function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
 }
 
 async function mockCreationApis(page: Page, createdLeagueId: string, createRequests: CreatePayload[]) {
+  let shouldReturnValidationError = true
+  let templates: Array<Record<string, unknown>> = []
+
+  const install = (options?: {
+    shouldReturnValidationError?: boolean
+    templates?: Array<Record<string, unknown>>
+  }) => {
+    shouldReturnValidationError = options?.shouldReturnValidationError ?? true
+    templates = options?.templates ?? []
+  }
+
+  install()
+
   await page.route('**/api/leagues/templates', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
@@ -239,7 +252,7 @@ async function mockCreationApis(page: Page, createdLeagueId: string, createReque
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ templates: [] }),
+      body: JSON.stringify({ templates }),
     })
   })
 
@@ -254,7 +267,6 @@ async function mockCreationApis(page: Page, createdLeagueId: string, createReque
     })
   })
 
-  let shouldReturnValidationError = true
   await page.route('**/api/league/create', async (route) => {
     const payload = route.request().postDataJSON() as CreatePayload
     createRequests.push(payload)
@@ -280,15 +292,21 @@ async function mockCreationApis(page: Page, createdLeagueId: string, createReque
       }),
     })
   })
+
+  return {
+    setOptions: install,
+  }
 }
 
 test('audits wizard click flow and payload consistency end to end', async ({ page }) => {
   const createdLeagueId = `league-click-audit-${Date.now()}`
   const createRequests: CreatePayload[] = []
-  await mockCreationApis(page, createdLeagueId, createRequests)
+  const mock = await mockCreationApis(page, createdLeagueId, createRequests)
+  mock.setOptions({ shouldReturnValidationError: true, templates: [] })
 
   await page.goto('/create-league?e2eAuth=1')
   await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByText(/step 1 of 10/i).first()).toBeVisible()
 
   // Creation mode selector: create -> import -> create.
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
@@ -302,6 +320,7 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   await page.getByRole('button', { name: /soccer/i }).first().click()
   await page.getByRole('button', { name: /nfl football/i }).first().click()
   await page.getByRole('button', { name: /^next$/i }).click()
+  await expect(page.getByText(/step 2 of 10/i).first()).toBeVisible()
 
   // League type selector.
   await page.getByRole('button', { name: /dynasty/i }).first().click()
@@ -329,6 +348,27 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   await expect(page.getByTestId('league-settings-preview-rule-idp_blocked_kick')).toHaveCount(0)
   await page.getByTestId('league-settings-preview-show-disabled-scoring-rules').check()
   await expect(page.getByTestId('league-settings-preview-rule-idp_blocked_kick')).toBeVisible()
+  await page.getByTestId('league-creation-advanced-scoring-toggle').click()
+
+  // Advanced scoring rules: waiver, playoff, and schedule are edited inline.
+  const waiverSection = page.getByTestId('league-creation-advanced-waiver')
+  await waiverSection.getByLabel('Waiver type').selectOption('rolling')
+  await waiverSection.getByLabel('Processing time (UTC)').fill('09:30')
+  await waiverSection.getByLabel('Enable FAAB').check()
+  await waiverSection.getByLabel('FAAB budget').fill('150')
+  await waiverSection.getByLabel('Continuous waivers').check()
+
+  const playoffSection = page.getByTestId('league-creation-advanced-playoff')
+  await playoffSection.getByLabel('Playoff team count').fill('8')
+  await playoffSection.getByLabel('Playoff weeks').fill('4')
+  await playoffSection.getByLabel('Seeding rules').selectOption('division_winners_first')
+
+  const scheduleSection = page.getByTestId('league-creation-advanced-schedule')
+  await scheduleSection.getByLabel('Schedule unit').selectOption('round')
+  await scheduleSection.getByLabel('Regular season length').fill('20')
+  await scheduleSection.getByLabel('Matchup cadence').selectOption('round')
+  await scheduleSection.getByLabel('Schedule generation strategy').selectOption('division_based')
+
   await page.getByRole('button', { name: /^next$/i }).click()
 
   // Draft settings.
@@ -340,33 +380,14 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   await page.getByLabel(/third round reversal/i).check()
   await page.getByRole('button', { name: /^next$/i }).click()
 
-  // Waiver settings.
-  await page.getByLabel('Waiver type').selectOption('rolling')
-  await page.getByLabel('Processing time (UTC)').fill('09:30')
-  await page.getByLabel('Enable FAAB').check()
-  await page.getByLabel('FAAB budget').fill('150')
-  await page.getByLabel('Continuous waivers').check()
-  await page.getByRole('button', { name: /^next$/i }).click()
-
-  // Playoff settings.
-  await page.getByLabel('Playoff team count').fill('8')
-  await page.getByLabel('Playoff weeks').fill('4')
-  await page.getByLabel('Seeding rules').selectOption('division_winners_first')
-  await page.getByRole('button', { name: /^next$/i }).click()
-
-  // Schedule settings + back/next audit.
-  await page.getByLabel('Schedule unit').selectOption('round')
-  await page.getByLabel('Regular season length').fill('20')
-  await page.getByLabel('Matchup cadence').selectOption('round')
-  await page.getByLabel('Schedule generation strategy').selectOption('division_based')
-  await page.getByRole('button', { name: /previous step/i }).click()
-  await expect(page.getByRole('heading', { name: /playoff settings/i })).toBeVisible()
-  await page.getByRole('button', { name: /^next$/i }).click()
-  await expect(page.getByLabel('Schedule unit')).toHaveValue('round')
-  await page.getByRole('button', { name: /^next$/i }).click()
-
   // AI + automation + privacy.
+  await expect(page.getByRole('heading', { name: /ai settings/i })).toBeVisible()
   await page.getByLabel(/ai adp/i).check()
+  await page.getByRole('button', { name: /previous step/i }).click()
+  await expect(page.getByRole('heading', { name: /draft settings/i })).toBeVisible()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await expect(page.getByRole('heading', { name: /ai settings/i })).toBeVisible()
+  await expect(page.getByLabel(/ai adp/i)).toBeChecked()
   await page.getByRole('button', { name: /^next$/i }).click()
   await page.getByLabel(/slow draft reminders/i).uncheck()
   await page.getByRole('button', { name: /^next$/i }).click()
@@ -421,5 +442,185 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
     slow_draft_reminders_enabled: false,
     visibility: 'public',
     allow_invite_link: false,
+  })
+})
+
+test('applies selected template settings snapshot into create payload', async ({ page }) => {
+  const createdLeagueId = `league-template-audit-${Date.now()}`
+  const createRequests: CreatePayload[] = []
+  const mock = await mockCreationApis(page, createdLeagueId, createRequests)
+  mock.setOptions({
+    shouldReturnValidationError: false,
+    templates: [
+      {
+        id: 'template-snapshot-1',
+        name: 'Dynasty Superflex Snapshot',
+        description: 'Carries full settings snapshot',
+        payload: {
+          sport: 'NFL',
+          leagueType: 'dynasty',
+          draftType: 'snake',
+          name: 'Dynasty Superflex Snapshot',
+          teamCount: 12,
+          rosterSize: 24,
+          scoringPreset: 'DYNASTY',
+          leagueVariant: 'DYNASTY',
+          draftSettings: {
+            rounds: 18,
+            timerSeconds: 75,
+            thirdRoundReversal: true,
+            auctionBudgetPerTeam: 200,
+            keeperMaxKeepers: 3,
+            devyRounds: [],
+            c2cCollegeRounds: [],
+          },
+          waiverSettings: {
+            waiverType: 'faab',
+            processingDays: [2],
+            processingTimeUtc: '10:00',
+            faabEnabled: true,
+            faabBudget: 100,
+            faabResetRules: 'never',
+            claimPriorityBehavior: 'faab_highest',
+            continuousWaiversBehavior: false,
+            freeAgentUnlockBehavior: 'after_waiver_run',
+            gameLockBehavior: 'game_time',
+            dropLockBehavior: 'lock_with_game',
+            sameDayAddDropRules: 'allow_if_not_played',
+            maxClaimsPerPeriod: 10,
+          },
+          playoffSettings: {
+            playoffTeamCount: 6,
+            playoffWeeks: 3,
+            playoffStartWeek: 15,
+            seedingRules: 'standard_standings',
+            tiebreakerRules: ['points_for'],
+            byeRules: 'top_two_seeds_bye',
+            firstRoundByes: 2,
+            matchupLength: 1,
+            totalRounds: 3,
+            consolationBracketEnabled: true,
+            thirdPlaceGameEnabled: true,
+            toiletBowlEnabled: false,
+            championshipLength: 1,
+            consolationPlaysFor: 'pick',
+            reseedBehavior: 'fixed_bracket',
+          },
+          scheduleSettings: {
+            scheduleUnit: 'week',
+            regularSeasonLength: 18,
+            matchupFrequency: 'weekly',
+            matchupCadence: 'weekly',
+            headToHeadOrPointsBehavior: 'head_to_head',
+            lockTimeBehavior: 'first_game',
+            lockWindowBehavior: 'first_game_of_week',
+            scoringPeriodBehavior: 'full_period',
+            rescheduleHandling: 'use_final_time',
+            doubleheaderOrMultiGameHandling: 'all_games_count',
+            playoffTransitionPoint: 15,
+            scheduleGenerationStrategy: 'round_robin',
+          },
+          aiSettings: {
+            aiAdpEnabled: true,
+            orphanTeamAiManagerEnabled: true,
+            draftHelperEnabled: true,
+          },
+          automationSettings: {
+            draftNotificationsEnabled: true,
+            autopickFromQueueEnabled: true,
+            slowDraftRemindersEnabled: true,
+          },
+          privacySettings: {
+            visibility: 'private',
+            allowInviteLink: true,
+          },
+          templateSettingsOverrides: {
+            ai_feature_trade_analyzer_enabled: false,
+            ai_feature_player_comparison_enabled: false,
+            ai_feature_matchup_simulator_enabled: false,
+            ai_feature_fantasy_coach_enabled: false,
+            ai_feature_ai_chat_chimmy_enabled: false,
+            draft_commissioner_pause_controls_enabled: false,
+            draft_auction_auto_nomination_enabled: true,
+            draft_timer_mode: 'overnight_pause',
+            league_allow_email_invite: true,
+            league_allow_username_invite: true,
+          },
+        },
+      },
+    ],
+  })
+
+  await page.goto('/create-league?e2eAuth=1&template=template-snapshot-1')
+  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+
+  for (let i = 0; i < 9; i += 1) {
+    await page.getByRole('button', { name: /^next$/i }).click()
+  }
+
+  await expect(page.getByText(/review & create/i)).toBeVisible()
+  await page.getByRole('button', { name: /create league/i }).click()
+  await page.waitForURL(`**/app/league/${createdLeagueId}`)
+
+  const latest = createRequests[createRequests.length - 1] ?? {}
+  const settings = latest.settings ?? {}
+  expect(settings).toMatchObject({
+    ai_feature_trade_analyzer_enabled: false,
+    ai_feature_player_comparison_enabled: false,
+    ai_feature_matchup_simulator_enabled: false,
+    ai_feature_fantasy_coach_enabled: false,
+    ai_feature_ai_chat_chimmy_enabled: false,
+    draft_commissioner_pause_controls_enabled: false,
+    draft_auction_auto_nomination_enabled: true,
+    draft_timer_mode: 'overnight_pause',
+    league_allow_email_invite: true,
+    league_allow_username_invite: true,
+  })
+})
+
+test('mobile viewport click audit validates and creates league', async ({ page }) => {
+  const createdLeagueId = `league-mobile-audit-${Date.now()}`
+  const createRequests: CreatePayload[] = []
+  const mock = await mockCreationApis(page, createdLeagueId, createRequests)
+  mock.setOptions({ shouldReturnValidationError: true, templates: [] })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/create-league?e2eAuth=1')
+  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByText(/step 1 of 10/i).first()).toBeVisible()
+
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+
+  await expect(page.getByRole('heading', { name: /ai settings/i })).toBeVisible()
+  await page.getByLabel(/ai adp/i).check()
+  await page.getByRole('button', { name: /^next$/i }).click()
+
+  await expect(page.getByRole('heading', { name: /automation/i })).toBeVisible()
+  await page.getByLabel(/slow draft reminders/i).uncheck()
+  await page.getByRole('button', { name: /^next$/i }).click()
+
+  await expect(page.getByRole('heading', { name: /privacy/i })).toBeVisible()
+  await page.getByRole('button', { name: /previous step/i }).click()
+  await expect(page.getByRole('heading', { name: /automation/i })).toBeVisible()
+  await expect(page.getByLabel(/slow draft reminders/i)).not.toBeChecked()
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('button', { name: /^next$/i }).click()
+
+  await expect(page.getByText(/review & create/i)).toBeVisible()
+  await page.getByRole('button', { name: /create league/i }).click()
+  await expect(page.getByText(/validation failed for audit test/i)).toBeVisible()
+  await page.getByRole('button', { name: /create league/i }).click()
+  await page.waitForURL(`**/app/league/${createdLeagueId}`)
+
+  const latest = createRequests[createRequests.length - 1] ?? {}
+  const settings = latest.settings ?? {}
+  expect(settings).toMatchObject({
+    ai_adp_enabled: true,
+    slow_draft_reminders_enabled: false,
   })
 })

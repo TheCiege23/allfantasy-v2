@@ -14,6 +14,8 @@ import { validateLeagueSettings } from '@/lib/league-settings-validation'
 import { getDraftOrderModeAndLotteryConfig, setDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
+import { getProviderStatus } from '@/lib/provider-config'
+import { notifyOrphanAiManagerAssigned } from '@/lib/draft-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +58,7 @@ export async function GET(
       })(),
       getDraftOrderModeAndLotteryConfig(leagueId),
     ])
+    const providerStatus = getProviderStatus()
 
     let orphanStatus: { orphanRosterIds: string[]; recentActions: Array<{ action: string; createdAt: string; reason: string | null }> } | null = null
     if (commissioner) {
@@ -66,6 +69,7 @@ export async function GET(
       orphanStatus = {
         orphanRosterIds,
         recentActions: recentLogs.map((l) => ({
+          rosterId: l.rosterId,
           action: l.action,
           createdAt: l.createdAt.toISOString(),
           reason: l.reason,
@@ -81,6 +85,11 @@ export async function GET(
       sessionVariant: variant.sessionVariant ?? null,
       sessionPreDraft: variant.sessionPreDraft ?? false,
       orphanStatus,
+      orphanAiProviderAvailable: providerStatus.anyAi,
+      orphanDrafterEffectiveMode:
+        variant.draftUISettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
+          ? 'cpu'
+          : variant.draftUISettings.orphanDrafterMode,
       formatType: league?.sport === 'NFL' && (league?.leagueVariant === 'IDP' || league?.leagueVariant === 'DYNASTY_IDP' || league?.leagueVariant === 'idp') ? 'IDP' : undefined,
       idpRosterSummary: idpRosterSummary ? { starterSlots: idpRosterSummary.starterSlots, benchSlots: idpRosterSummary.benchSlots } : undefined,
       idpScoringPreset: (idpRosterSummary as { scoringPreset?: string } | null)?.scoringPreset ?? undefined,
@@ -120,6 +129,7 @@ export async function PATCH(
   if (['snake', 'linear', 'auction'].includes(body.draft_type)) configPatch.draft_type = body.draft_type
   if (typeof body.rounds === 'number') configPatch.rounds = body.rounds
   if (body.timer_seconds !== undefined) configPatch.timer_seconds = body.timer_seconds
+  if (body.slow_timer_seconds !== undefined) configPatch.slow_timer_seconds = body.slow_timer_seconds
   if (typeof body.pick_order_rules === 'string') configPatch.pick_order_rules = body.pick_order_rules
   if (typeof body.snake_or_linear === 'string') configPatch.snake_or_linear = body.snake_or_linear
   // 3RR applies only to snake; ignore or clear when draft is linear/auction
@@ -146,9 +156,11 @@ export async function PATCH(
   if (typeof body.draftOrderRandomizationEnabled === 'boolean') uiPatch.draftOrderRandomizationEnabled = body.draftOrderRandomizationEnabled
   if (typeof body.pickTradeEnabled === 'boolean') uiPatch.pickTradeEnabled = body.pickTradeEnabled
   if (typeof body.auctionAutoNominationEnabled === 'boolean') uiPatch.auctionAutoNominationEnabled = body.auctionAutoNominationEnabled
+  if (typeof body.importEnabled === 'boolean') uiPatch.importEnabled = body.importEnabled
   if (typeof body.autoPickEnabled === 'boolean') uiPatch.autoPickEnabled = body.autoPickEnabled
   if (['per_pick', 'soft_pause', 'overnight_pause', 'none'].includes(body.timerMode)) uiPatch.timerMode = body.timerMode
   if (typeof body.commissionerForceAutoPickEnabled === 'boolean') uiPatch.commissionerForceAutoPickEnabled = body.commissionerForceAutoPickEnabled
+  if (typeof body.commissionerPauseControlsEnabled === 'boolean') uiPatch.commissionerPauseControlsEnabled = body.commissionerPauseControlsEnabled
   if (body.slowDraftPauseWindow !== undefined) {
     const w = body.slowDraftPauseWindow
     if (w == null || (typeof w === 'object' && typeof w.start === 'string' && typeof w.end === 'string' && typeof w.timezone === 'string')) {
@@ -178,6 +190,9 @@ export async function PATCH(
   const hasUI = Object.keys(uiPatch).length > 0
   const hasSessionVariant = Object.keys(sessionVariantPatch).length > 0
   const hasOrderMode = orderModePatch !== null
+  const orphanManagerSettingTouched =
+    Object.prototype.hasOwnProperty.call(uiPatch, 'orphanTeamAiManagerEnabled') ||
+    Object.prototype.hasOwnProperty.call(uiPatch, 'orphanDrafterMode')
 
   if (!hasConfig && !hasUI && !hasSessionVariant && !hasOrderMode) {
     const current = await getDraftVariantSettings(leagueId)
@@ -196,11 +211,18 @@ export async function PATCH(
   })
   const leagueSettings = (league?.settings ?? {}) as Record<string, unknown>
   const effectiveForValidation: Record<string, unknown> = {
-    league_type: leagueSettings.league_type ?? current.config?.draft_type,
+    league_type: leagueSettings.league_type,
+    league_variant: leagueSettings.league_variant ?? null,
+    roster_mode: leagueSettings.roster_mode ?? null,
     draft_type: configPatch.draft_type ?? current.config?.draft_type ?? leagueSettings.draft_type,
     auction_budget_per_team: sessionVariantPatch.auctionBudgetPerTeam ?? current.sessionVariant?.auctionBudgetPerTeam ?? leagueSettings.auction_budget_per_team,
     devyConfig: sessionVariantPatch.devyConfig ?? current.sessionVariant?.devyConfig ?? leagueSettings.devyConfig,
     c2cConfig: sessionVariantPatch.c2cConfig ?? current.sessionVariant?.c2cConfig ?? leagueSettings.c2cConfig,
+    devy_slots: leagueSettings.devy_slots ?? leagueSettings.devySlots ?? null,
+    c2c_college_roster_size:
+      leagueSettings.c2c_college_roster_size ??
+      leagueSettings.c2cCollegeRosterSize ??
+      null,
   }
   const validation = validateLeagueSettings(effectiveForValidation)
   if (!validation.valid) {
@@ -222,6 +244,14 @@ export async function PATCH(
       ...(hasUI ? { draftUISettings: uiPatch as any } : {}),
       ...(hasSessionVariant ? { sessionVariant: sessionVariantPatch as any } : {}),
     })
+    if (orphanManagerSettingTouched) {
+      const orphanModeChanged = current.draftUISettings.orphanDrafterMode !== updated.draftUISettings.orphanDrafterMode
+      const orphanEnabledChanged =
+        current.draftUISettings.orphanTeamAiManagerEnabled !== updated.draftUISettings.orphanTeamAiManagerEnabled
+      if (orphanModeChanged || orphanEnabledChanged) {
+        void notifyOrphanAiManagerAssigned(leagueId).catch(() => {})
+      }
+    }
     const orderModeAndLottery = await getDraftOrderModeAndLotteryConfig(leagueId)
     return NextResponse.json({
       ok: true,

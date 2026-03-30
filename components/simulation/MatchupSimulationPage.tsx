@@ -36,6 +36,10 @@ import type {
   MatchupSimulationTeamSummary,
   MatchupSlotComparisonRow,
 } from '@/lib/simulation-engine/types'
+import type {
+  MatchupPredictionEngineOutput,
+  MatchupPredictionScoringRulesInput,
+} from '@/lib/matchup-prediction-engine'
 import { SimulationChart } from './SimulationChart'
 import { UpsideDownsideCards } from './UpsideDownsideCards'
 import { WinProbabilityMeter } from './WinProbabilityMeter'
@@ -60,6 +64,8 @@ type MatchupResult = {
   teamSummaryB?: MatchupSimulationTeamSummary | null
   slotComparisons?: MatchupSlotComparisonRow[] | null
   providerInsights?: MatchupProviderInsights | null
+  storyNarrative?: { text: string; source: 'ai'; model: string } | null
+  prediction?: MatchupPredictionEngineOutput | null
   deterministicSeed?: number | null
 }
 
@@ -381,6 +387,15 @@ export function MatchupSimulationPage({
   const [teamAName, setTeamAName] = useState(initialTeamAName)
   const [teamBName, setTeamBName] = useState(initialTeamBName)
   const [weekOrPeriod, setWeekOrPeriod] = useState(1)
+  const [scoringRules, setScoringRules] = useState<Required<MatchupPredictionScoringRulesInput>>({
+    pointMultiplier: 1,
+    teamABonus: 0,
+    teamBBonus: 0,
+    varianceMultiplier: 1,
+    preset: 'standard',
+  })
+  const [aiExplanationEnabled, setAiExplanationEnabled] = useState(false)
+  const [storyNarrativeEnabled, setStoryNarrativeEnabled] = useState(false)
   const [lineupA, setLineupA] = useState<MatchupLineupSlotInput[]>(
     defaultPresetA ? cloneLineup(buildLineupForSimulationPreset(DEFAULT_SPORT, defaultPresetA)) : []
   )
@@ -417,6 +432,15 @@ export function MatchupSimulationPage({
     setScheduleFactorsA(getDefaultScheduleFactorsForPreset(defaultPresetA))
     setScheduleFactorsB(getDefaultScheduleFactorsForPreset(defaultPresetB))
     setWeekOrPeriod(1)
+    setScoringRules({
+      pointMultiplier: 1,
+      teamABonus: 0,
+      teamBBonus: 0,
+      varianceMultiplier: 1,
+      preset: 'standard',
+    })
+    setAiExplanationEnabled(false)
+    setStoryNarrativeEnabled(false)
     setChartMode('distribution')
     setPositionTab('all')
     setResult(null)
@@ -447,7 +471,9 @@ export function MatchupSimulationPage({
       sport,
       weekOrPeriod,
       iterations: 1500,
-      includeInsights: true,
+      includeInsights: aiExplanationEnabled,
+      includeStoryNarrative: storyNarrativeEnabled,
+      scoringRules,
       teamAName,
       teamBName,
       teamA: {
@@ -472,6 +498,9 @@ export function MatchupSimulationPage({
       previewTeamSummaryB.derivedStdDev,
       scheduleFactorsA,
       scheduleFactorsB,
+      aiExplanationEnabled,
+      storyNarrativeEnabled,
+      scoringRules,
       sport,
       teamAName,
       teamBName,
@@ -502,8 +531,23 @@ export function MatchupSimulationPage({
         ]),
         scheduleFactorsA,
         scheduleFactorsB,
+        scoringRules,
+        aiExplanationEnabled,
+        storyNarrativeEnabled,
       }),
-    [lineupA, lineupB, scheduleFactorsA, scheduleFactorsB, sport, teamAName, teamBName, weekOrPeriod]
+    [
+      aiExplanationEnabled,
+      lineupA,
+      lineupB,
+      scheduleFactorsA,
+      scheduleFactorsB,
+      scoringRules,
+      sport,
+      storyNarrativeEnabled,
+      teamAName,
+      teamBName,
+      weekOrPeriod,
+    ]
   )
 
   const applyPreset = useCallback(
@@ -544,6 +588,15 @@ export function MatchupSimulationPage({
     setScheduleFactorsA(getDefaultScheduleFactorsForPreset(defaultPresetA))
     setScheduleFactorsB(getDefaultScheduleFactorsForPreset(defaultPresetB))
     setWeekOrPeriod(1)
+    setScoringRules({
+      pointMultiplier: 1,
+      teamABonus: 0,
+      teamBBonus: 0,
+      varianceMultiplier: 1,
+      preset: 'standard',
+    })
+    setAiExplanationEnabled(false)
+    setStoryNarrativeEnabled(false)
     setChartMode('distribution')
     setPositionTab('all')
     setResult(null)
@@ -589,6 +642,8 @@ export function MatchupSimulationPage({
         teamSummaryB: data.teamSummaryB ?? null,
         slotComparisons: data.slotComparisons ?? null,
         providerInsights: data.providerInsights ?? null,
+        storyNarrative: data.storyNarrative ?? null,
+        prediction: data.prediction ?? null,
         deterministicSeed: data.deterministicSeed ?? null,
       })
       setLastSimulatedSignature(signature)
@@ -774,6 +829,145 @@ export function MatchupSimulationPage({
               </p>
             </div>
           </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Scoring preset</span>
+              <select
+                value={scoringRules.preset}
+                onChange={(event) =>
+                  setScoringRules((current) => {
+                    const preset = event.target.value as Required<MatchupPredictionScoringRulesInput>['preset']
+                    if (preset === 'aggressive') {
+                      return {
+                        ...current,
+                        preset,
+                        pointMultiplier: 1.08,
+                        varianceMultiplier: 1.12,
+                      }
+                    }
+                    if (preset === 'conservative') {
+                      return {
+                        ...current,
+                        preset,
+                        pointMultiplier: 0.94,
+                        varianceMultiplier: 0.9,
+                      }
+                    }
+                    return {
+                      ...current,
+                      preset,
+                      pointMultiplier: 1,
+                      varianceMultiplier: 1,
+                    }
+                  })
+                }
+                data-testid="matchup-scoring-preset-select"
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              >
+                <option value="standard">Standard</option>
+                <option value="aggressive">Aggressive scoring</option>
+                <option value="conservative">Conservative scoring</option>
+              </select>
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Point multiplier</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.7"
+                max="1.4"
+                value={scoringRules.pointMultiplier}
+                onChange={(event) =>
+                  setScoringRules((current) => ({
+                    ...current,
+                    pointMultiplier: Number(event.target.value) || 1,
+                  }))
+                }
+                data-testid="matchup-scoring-point-multiplier-input"
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Team A bonus</span>
+              <input
+                type="number"
+                step="0.1"
+                value={scoringRules.teamABonus}
+                onChange={(event) =>
+                  setScoringRules((current) => ({
+                    ...current,
+                    teamABonus: Number(event.target.value) || 0,
+                  }))
+                }
+                data-testid="matchup-scoring-team-a-bonus-input"
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Team B bonus</span>
+              <input
+                type="number"
+                step="0.1"
+                value={scoringRules.teamBBonus}
+                onChange={(event) =>
+                  setScoringRules((current) => ({
+                    ...current,
+                    teamBBonus: Number(event.target.value) || 0,
+                  }))
+                }
+                data-testid="matchup-scoring-team-b-bonus-input"
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Variance multiplier</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.65"
+                max="1.8"
+                value={scoringRules.varianceMultiplier}
+                onChange={(event) =>
+                  setScoringRules((current) => ({
+                    ...current,
+                    varianceMultiplier: Number(event.target.value) || 1,
+                  }))
+                }
+                data-testid="matchup-scoring-variance-multiplier-input"
+                className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm text-white"
+              />
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">AI explanation</span>
+              <button
+                type="button"
+                onClick={() => setAiExplanationEnabled((current) => !current)}
+                data-testid="matchup-ai-insight-toggle"
+                className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm ${
+                  aiExplanationEnabled
+                    ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-100'
+                    : 'border-white/15 bg-black/40 text-white/75'
+                }`}
+              >
+                {aiExplanationEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </label>
+            <label className="rounded-xl border border-white/10 bg-black/25 px-3 py-2">
+              <span className="text-[11px] uppercase tracking-wider text-white/45">Story narrative</span>
+              <button
+                type="button"
+                onClick={() => setStoryNarrativeEnabled((current) => !current)}
+                data-testid="matchup-story-toggle"
+                className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm ${
+                  storyNarrativeEnabled
+                    ? 'border-violet-400/60 bg-violet-500/20 text-violet-100'
+                    : 'border-white/15 bg-black/40 text-white/75'
+                }`}
+              >
+                {storyNarrativeEnabled ? 'Enabled' : 'Disabled'}
+              </button>
+            </label>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -915,6 +1109,65 @@ export function MatchupSimulationPage({
               </Card>
             )}
           </div>
+
+          {result.storyNarrative?.text && (
+            <Card className="border-white/10 bg-white/5" data-testid="matchup-story-narrative-panel">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg text-white">
+                  <Sparkles className="h-4 w-4 text-violet-300" />
+                  Matchup story
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-6 text-white/90" data-testid="matchup-story-narrative">
+                  {result.storyNarrative.text}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {result.prediction && (
+            <Card className="border-white/10 bg-white/5" data-testid="matchup-prediction-engine-panel">
+              <CardHeader>
+                <CardTitle className="text-lg text-white">Deterministic prediction engine</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-white/45">Projected score</p>
+                  <p
+                    className="mt-1 text-lg font-semibold text-white"
+                    data-testid="matchup-prediction-projected-score"
+                  >
+                    {result.prediction.projectedScoreA.toFixed(1)} -{' '}
+                    {result.prediction.projectedScoreB.toFixed(1)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-white/45">Win probability</p>
+                  <p
+                    className="mt-1 text-lg font-semibold text-cyan-200"
+                    data-testid="matchup-prediction-win-prob"
+                  >
+                    {(result.prediction.winProbabilityA * 100).toFixed(1)}% /{' '}
+                    {(result.prediction.winProbabilityB * 100).toFixed(1)}%
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-white/45">Confidence spread</p>
+                  <p
+                    className="mt-1 text-lg font-semibold text-white"
+                    data-testid="matchup-prediction-confidence"
+                  >
+                    {result.prediction.confidenceBand}
+                  </p>
+                  <p className="text-[11px] text-white/45">
+                    x{result.prediction.appliedRules.pointMultiplier.toFixed(2)} scoring • x
+                    {result.prediction.appliedRules.varianceMultiplier.toFixed(2)} variance
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="border-white/10 bg-white/5">
             <CardHeader>

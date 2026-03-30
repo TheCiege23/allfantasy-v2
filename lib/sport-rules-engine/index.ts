@@ -7,6 +7,8 @@ export {
   getRulesForSport,
   getValidRosterSlotNames,
   getValidPositions,
+  getAllowedDraftTypesForSport,
+  isDraftTypeAllowedForSport,
   isSportSupported,
   getSupportedSports,
 } from './SportRulesEngine'

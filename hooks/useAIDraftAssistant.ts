@@ -23,6 +23,16 @@ export interface AIAssistantState {
   positionalRunWarning: string | null
   /** Roster construction warning */
   rosterWarning: string | null
+  reachWarning: string | null
+  valueWarning: string | null
+  scarcityInsight: string | null
+  stackInsight: string | null
+  correlationInsight: string | null
+  formatInsight: string | null
+  byeNote: string | null
+  evidence: string[]
+  caveats: string[]
+  uncertainty: string | null
   /** Platform strategy context for this sport/timeframe. */
   strategyMetaContext: Array<{
     strategyType: string
@@ -41,6 +51,16 @@ const defaultState: AIAssistantState = {
   compareOptions: [],
   positionalRunWarning: null,
   rosterWarning: null,
+  reachWarning: null,
+  valueWarning: null,
+  scarcityInsight: null,
+  stackInsight: null,
+  correlationInsight: null,
+  formatInsight: null,
+  byeNote: null,
+  evidence: [],
+  caveats: [],
+  uncertainty: null,
   strategyMetaContext: [],
   loading: false,
   error: null,
@@ -129,6 +149,8 @@ export interface FetchSuggestionParams {
   isSF?: boolean
   isRookieDraft?: boolean
   mode?: 'needs' | 'bpa'
+  leagueId?: string
+  leagueName?: string
   /** Recent picks (for positional run detection) */
   recentPicks?: { position: string }[]
 }
@@ -190,6 +212,16 @@ export function useAIDraftAssistant() {
         compareOptions: suggestions,
         positionalRunWarning,
         rosterWarning,
+        reachWarning: data.reachWarning ?? null,
+        valueWarning: data.valueWarning ?? null,
+        scarcityInsight: data.scarcityInsight ?? null,
+        stackInsight: data.stackInsight ?? null,
+        correlationInsight: data.correlationInsight ?? null,
+        formatInsight: data.formatInsight ?? null,
+        byeNote: data.byeNote ?? null,
+        evidence: Array.isArray(data.evidence) ? data.evidence : [],
+        caveats: Array.isArray(data.caveats) ? data.caveats : [],
+        uncertainty: data.uncertainty ?? null,
         strategyMetaContext,
         loading: false,
         error: null,

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { Lock, Sparkles, Trophy, Users, Zap } from "lucide-react"
 import { trackDiscoveryJoinClick } from "@/lib/discovery-analytics/client"
+import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
 import type { DiscoveryCard } from "@/lib/public-discovery/types"
 
 export interface LeagueDiscoveryCardProps {
@@ -29,11 +30,12 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
   const showNew = isNew(league.createdAt)
   const hasAI = Array.isArray(league.aiFeatures) && league.aiFeatures.length > 0
   const canJoinDirect = !isFull && !league.inviteOnlyByTier && league.canJoinByRanking !== false
+  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
 
   return (
     <article
       data-testid={`league-discovery-card-${league.source}-${league.id}`}
-      className="group flex h-full flex-col overflow-hidden rounded-3xl border transition-all duration-200 hover:shadow-lg"
+      className="group flex h-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl border transition-all duration-200 hover:shadow-lg"
       style={{
         borderColor: "var(--border)",
         background:
@@ -42,19 +44,19 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
             : "var(--panel)",
       }}
     >
-      <div className="flex flex-1 flex-col gap-3 p-5">
+      <div className="flex flex-1 flex-col gap-2.5 sm:gap-3 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--muted)" }}>
+            <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] sm:tracking-[0.22em]" style={{ color: "var(--muted)" }}>
               {getSourceLabel(league)}
             </p>
-            <h3 className="mt-2 truncate text-lg font-semibold" style={{ color: "var(--text)" }}>
+            <h3 className="mt-1.5 sm:mt-2 truncate text-base sm:text-lg font-semibold" style={{ color: "var(--text)" }}>
               {league.name}
             </h3>
           </div>
           {league.leagueTier != null ? (
             <span
-              className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold"
+              className="inline-flex items-center rounded-full border px-2.5 sm:px-3 py-0.5 sm:py-1 text-[11px] sm:text-xs font-semibold"
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
               Tier {league.leagueTier}
@@ -64,21 +66,22 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
 
         <div className="flex flex-wrap gap-1.5">
           <span
-            className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+            className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
             style={{ background: "var(--panel2)", color: "var(--text)" }}
           >
             {league.sport}
           </span>
           {league.leagueStyle ? (
             <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold capitalize"
+              className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold capitalize"
               style={{ background: "rgba(14, 165, 233, 0.12)", color: "rgb(56, 189, 248)" }}
             >
               {league.leagueStyle.replace(/_/g, " ")}
             </span>
           ) : null}
           <span
-            className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+            className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
+            title={league.isPaid ? paidBoundaryDisclosure : undefined}
             style={{
               background: league.isPaid ? "rgba(234, 179, 8, 0.16)" : "rgba(34, 197, 94, 0.12)",
               color: league.isPaid ? "rgb(250, 204, 21)" : "rgb(74, 222, 128)",
@@ -88,7 +91,7 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           </span>
           {fillingFast ? (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
               style={{ background: "rgba(34, 211, 238, 0.12)", color: "rgb(34, 211, 238)" }}
             >
               <Zap className="h-3 w-3" />
@@ -97,7 +100,7 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           ) : null}
           {showNew ? (
             <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+              className="inline-flex items-center rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
               style={{ background: "rgba(251, 146, 60, 0.14)", color: "rgb(251, 146, 60)" }}
             >
               New
@@ -105,7 +108,7 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           ) : null}
           {league.inviteOnlyByTier ? (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
               title="This league is outside your current rank window and needs a commissioner invite."
               style={{ background: "rgba(251, 146, 60, 0.16)", color: "rgb(251, 146, 60)" }}
             >
@@ -115,23 +118,42 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           ) : null}
           {hasAI ? (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+              className="inline-flex items-center gap-1 rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold"
               style={{ background: "rgba(167, 139, 250, 0.15)", color: "rgb(196, 181, 253)" }}
             >
               <Sparkles className="h-3 w-3" />
-              {league.aiFeatures.length <= 2 ? league.aiFeatures.join(", ") : "AI-ready"}
+              AI-enabled
             </span>
           ) : null}
         </div>
+        {league.isPaid ? (
+          <p className="text-[11px]" style={{ color: "rgba(250, 204, 21, 0.75)" }}>
+            Dues and payouts for paid leagues are external via FanCred.
+          </p>
+        ) : null}
+
+        {hasAI ? (
+          <div className="flex flex-wrap gap-1.5">
+            {league.aiFeatures.slice(0, 2).map((feature) => (
+              <span
+                key={`${league.id}-${feature}`}
+                className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                style={{ borderColor: "rgba(167, 139, 250, 0.35)", color: "rgb(221, 214, 254)" }}
+              >
+                {feature}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
         {league.description ? (
-          <p className="line-clamp-3 text-sm" style={{ color: "var(--muted)" }}>
+          <p className="line-clamp-3 text-xs sm:text-sm" style={{ color: "var(--muted)" }}>
             {league.description}
           </p>
         ) : null}
 
         {league.creatorName && league.source === "creator" ? (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
+          <p className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>
             by {league.creatorName}
             {league.isCreatorVerified ? (
               <span className="ml-1 font-semibold" style={{ color: "var(--text)" }}>
@@ -142,21 +164,21 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
         ) : null}
 
         {league.tournamentName ? (
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
+          <p className="text-xs sm:text-sm" style={{ color: "var(--muted)" }}>
             {league.tournamentName}
             {league.season ? ` · ${league.season}` : ""}
           </p>
         ) : null}
 
         <div className="mt-auto space-y-2">
-          <div className="flex flex-wrap items-center gap-3 text-xs" style={{ color: "var(--muted)" }}>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs" style={{ color: "var(--muted)" }}>
             <span className="inline-flex items-center gap-1">
-              <Users className="h-3.5 w-3.5" />
+              <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               {league.memberCount}
               {league.maxMembers > 0 ? ` / ${league.maxMembers}` : ""} spots
             </span>
             <span className="inline-flex items-center gap-1">
-              <Trophy className="h-3.5 w-3.5" />
+              <Trophy className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               {league.fillPct}% full
             </span>
           </div>
@@ -174,11 +196,11 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t p-5 pt-4" style={{ borderColor: "var(--border)" }}>
+      <div className="flex flex-wrap items-center gap-2 border-t p-4 sm:p-5 pt-3 sm:pt-4" style={{ borderColor: "var(--border)" }}>
         <Link
           href={league.detailUrl}
           data-testid={`league-discovery-view-${league.id}`}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border px-3.5 py-2.5 text-sm font-semibold"
+          className="inline-flex min-h-[40px] sm:min-h-[44px] items-center justify-center rounded-xl border px-3 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
           View details
@@ -188,7 +210,7 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
           <Link
             href={league.joinUrl}
             data-testid={`league-discovery-join-${league.id}`}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl px-3.5 py-2.5 text-sm font-semibold"
+            className="inline-flex min-h-[40px] sm:min-h-[44px] items-center justify-center rounded-xl px-3 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold"
             onClick={() =>
               trackDiscoveryJoinClick({
                 leagueId: league.id,
@@ -199,19 +221,20 @@ export function LeagueDiscoveryCard({ league }: LeagueDiscoveryCardProps) {
               })
             }
             style={{ background: "var(--accent)", color: "var(--bg)" }}
+            title={league.isPaid ? paidBoundaryDisclosure : undefined}
           >
             Join league
           </Link>
         ) : league.inviteOnlyByTier ? (
           <span
-            className="rounded-xl px-3.5 py-2.5 text-sm font-semibold"
+            className="rounded-xl px-3 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold"
             style={{ background: "rgba(251, 146, 60, 0.14)", color: "rgb(251, 146, 60)" }}
           >
             Invite required
           </span>
         ) : (
           <span
-            className="rounded-xl px-3.5 py-2.5 text-sm font-semibold"
+            className="rounded-xl px-3 sm:px-3.5 py-2.5 text-xs sm:text-sm font-semibold"
             style={{ background: "var(--panel2)", color: "var(--muted)" }}
           >
             {isFull ? "Full" : "Unavailable"}

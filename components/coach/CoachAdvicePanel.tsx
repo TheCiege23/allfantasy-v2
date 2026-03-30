@@ -4,27 +4,121 @@ import { useCallback, useMemo, useState } from 'react';
 import { Loader2, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { AdviceType, CoachAdviceResult } from '@/lib/fantasy-coach/types';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import type { CoachAdviceType, CoachExplanation, CoachRecommendation } from '@/lib/ai-coach/types';
 
 type AdviceTypeOption = {
-  id: AdviceType;
+  id: CoachAdviceType;
   label: string;
 };
 
 const ADVICE_TYPE_OPTIONS: AdviceTypeOption[] = [
-  { id: 'lineup', label: 'Lineup advice' },
+  { id: 'start_sit', label: 'Start/Sit advice' },
+  { id: 'lineup_optimization', label: 'Lineup optimization' },
+  { id: 'draft', label: 'Draft advice' },
   { id: 'trade', label: 'Trade advice' },
   { id: 'waiver', label: 'Waiver advice' },
 ];
 
+type CoachAdviceResult = {
+  type: CoachAdviceType;
+  summary: string;
+  bullets: string[];
+  challenge: string;
+  tone: 'motivational' | 'cautious' | 'celebration' | 'neutral';
+  recommendation?: CoachRecommendation;
+  explanation?: CoachExplanation;
+};
+
+type LineupOptimizerResult = {
+  sport: string;
+  totalProjectedPoints: number;
+  starters: Array<{
+    slotId: string;
+    slotCode: string;
+    slotLabel: string;
+    playerId: string;
+    playerName: string;
+    playerTeam?: string;
+    projectedPoints: number;
+    selectedPosition: string;
+  }>;
+  bench: Array<{
+    playerId: string;
+    playerName: string;
+    projectedPoints: number;
+    positions: string[];
+  }>;
+  unfilledSlots: Array<{
+    slotId: string;
+    slotCode: string;
+    slotLabel: string;
+  }>;
+  deterministicNotes: string[];
+};
+
+type LineupOptimizerExplanation = {
+  summary: string;
+  bullets: string[];
+  source: 'ai' | 'deterministic';
+};
+
+type LineupOptimizationResponse = {
+  ok: boolean;
+  deterministic: boolean;
+  result: LineupOptimizerResult;
+  explanation: LineupOptimizerExplanation;
+};
+
 export type CoachAdviceRequester = (input: {
-  type: AdviceType;
+  type: CoachAdviceType;
   leagueId?: string;
   leagueName?: string;
   week?: number;
   teamName?: string;
   sport?: string;
+  leagueSettings?: {
+    sport?: string;
+    scoringFormat?: string;
+    teamCount?: number;
+    rosterSlots?: string[];
+  };
+  matchupData?: {
+    opponentName?: string;
+    opponentProjection?: number;
+    teamProjection?: number;
+    spread?: number;
+    notes?: string;
+  };
+  roster?: {
+    playerName: string;
+    position?: string;
+    team?: string;
+    projectedPoints?: number;
+    slot?: string;
+  }[];
+  playerStats?: {
+    playerName: string;
+    position?: string;
+    projectedPoints?: number;
+  }[];
 }) => Promise<CoachAdviceResult>;
+
+export type LineupOptimizationRequester = (input: {
+  leagueId?: string;
+  sport?: string;
+  useAIExplanation?: boolean;
+  players: Array<{
+    id?: string;
+    name: string;
+    team?: string;
+    projectedPoints?: number;
+    positions?: string[];
+    position?: string;
+  }>;
+  rosterSlots?: string[];
+}) => Promise<LineupOptimizationResponse>;
 
 export interface CoachAdvicePanelProps {
   leagueId?: string;
@@ -33,15 +127,41 @@ export interface CoachAdvicePanelProps {
   teamName?: string;
   sport?: string;
   requestAdvice?: CoachAdviceRequester;
+  requestLineupOptimization?: LineupOptimizationRequester;
 }
 
 async function requestCoachAdvice(input: {
-  type: AdviceType;
+  type: CoachAdviceType;
   leagueId?: string;
   leagueName?: string;
   week?: number;
   teamName?: string;
   sport?: string;
+  leagueSettings?: {
+    sport?: string;
+    scoringFormat?: string;
+    teamCount?: number;
+    rosterSlots?: string[];
+  };
+  matchupData?: {
+    opponentName?: string;
+    opponentProjection?: number;
+    teamProjection?: number;
+    spread?: number;
+    notes?: string;
+  };
+  roster?: {
+    playerName: string;
+    position?: string;
+    team?: string;
+    projectedPoints?: number;
+    slot?: string;
+  }[];
+  playerStats?: {
+    playerName: string;
+    position?: string;
+    projectedPoints?: number;
+  }[];
 }): Promise<CoachAdviceResult> {
   const res = await fetch('/api/coach/advice', {
     method: 'POST',
@@ -55,6 +175,43 @@ async function requestCoachAdvice(input: {
   return data as CoachAdviceResult;
 }
 
+async function requestLineupOptimizationDefault(input: {
+  leagueId?: string;
+  sport?: string;
+  useAIExplanation?: boolean;
+  players: Array<{
+    id?: string;
+    name: string;
+    team?: string;
+    projectedPoints?: number;
+    positions?: string[];
+    position?: string;
+  }>;
+  rosterSlots?: string[];
+}): Promise<LineupOptimizationResponse> {
+  const res = await fetch('/api/lineup/optimize', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(typeof data?.error === 'string' ? data.error : 'Failed to optimize lineup');
+  }
+  return data as LineupOptimizationResponse;
+}
+
+function parseJsonArray<T>(value: string): T[] | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? (parsed as T[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function CoachAdvicePanel({
   leagueId,
   leagueName,
@@ -62,15 +219,29 @@ export function CoachAdvicePanel({
   teamName,
   sport,
   requestAdvice = requestCoachAdvice,
+  requestLineupOptimization = requestLineupOptimizationDefault,
 }: CoachAdvicePanelProps) {
-  const [type, setType] = useState<AdviceType>('lineup');
+  const [type, setType] = useState<CoachAdviceType>('lineup_optimization');
   const [advice, setAdvice] = useState<CoachAdviceResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scoringFormat, setScoringFormat] = useState('PPR');
+  const [teamCount, setTeamCount] = useState<number>(12);
+  const [opponentName, setOpponentName] = useState('');
+  const [teamProjection, setTeamProjection] = useState<string>('');
+  const [opponentProjection, setOpponentProjection] = useState<string>('');
+  const [matchupNotes, setMatchupNotes] = useState('');
+  const [rosterJson, setRosterJson] = useState('');
+  const [playerStatsJson, setPlayerStatsJson] = useState('');
+  const [rosterSlotsCsv, setRosterSlotsCsv] = useState('QB,RB,RB,WR,WR,TE,FLEX');
+  const [optimizerUseAI, setOptimizerUseAI] = useState(false);
+  const [optimizerLoading, setOptimizerLoading] = useState(false);
+  const [optimizerResult, setOptimizerResult] = useState<LineupOptimizationResponse | null>(null);
 
-  const onSelectType = useCallback((nextType: AdviceType) => {
+  const onSelectType = useCallback((nextType: CoachAdviceType) => {
     setType(nextType);
     setAdvice(null);
+    setOptimizerResult(null);
     setError(null);
   }, []);
 
@@ -85,6 +256,19 @@ export function CoachAdvicePanel({
         week,
         teamName,
         sport,
+        leagueSettings: {
+          sport,
+          scoringFormat,
+          teamCount,
+        },
+        matchupData: {
+          opponentName: opponentName.trim() || undefined,
+          teamProjection: teamProjection.trim() ? Number(teamProjection) : undefined,
+          opponentProjection: opponentProjection.trim() ? Number(opponentProjection) : undefined,
+          notes: matchupNotes.trim() || undefined,
+        },
+        roster: parseJsonArray(rosterJson),
+        playerStats: parseJsonArray(playerStatsJson),
       });
       setAdvice(result);
     } catch (e) {
@@ -93,7 +277,68 @@ export function CoachAdvicePanel({
     } finally {
       setLoading(false);
     }
-  }, [leagueId, leagueName, requestAdvice, sport, teamName, type, week]);
+  }, [
+    leagueId,
+    leagueName,
+    matchupNotes,
+    opponentName,
+    opponentProjection,
+    playerStatsJson,
+    requestAdvice,
+    rosterJson,
+    scoringFormat,
+    sport,
+    teamCount,
+    teamName,
+    teamProjection,
+    type,
+    week,
+  ]);
+
+  const onOptimizeLineup = useCallback(async () => {
+    const parsedRoster = parseJsonArray<{
+      playerName: string;
+      position?: string;
+      team?: string;
+      projectedPoints?: number;
+    }>(rosterJson);
+    if (!parsedRoster || parsedRoster.length === 0) {
+      setError('Roster JSON is required to run lineup optimization.');
+      setOptimizerResult(null);
+      return;
+    }
+
+    setOptimizerLoading(true);
+    setError(null);
+    try {
+      const players = parsedRoster.map((player, index) => ({
+        id: `${player.playerName}-${index}`,
+        name: player.playerName,
+        team: player.team,
+        projectedPoints: player.projectedPoints,
+        positions: player.position ? [player.position] : undefined,
+        position: player.position,
+      }));
+      const rosterSlots = rosterSlotsCsv
+        .split(',')
+        .map((slot) => slot.trim())
+        .filter(Boolean);
+
+      const result = await requestLineupOptimization({
+        leagueId,
+        sport,
+        useAIExplanation: optimizerUseAI,
+        players,
+        rosterSlots: rosterSlots.length > 0 ? rosterSlots : undefined,
+      });
+      setOptimizerResult(result);
+    } catch (e) {
+      setOptimizerResult(null);
+      setError(e instanceof Error ? e.message : 'Failed to optimize lineup');
+    } finally {
+      setOptimizerLoading(false);
+    }
+  }, [leagueId, optimizerUseAI, requestLineupOptimization, rosterJson, rosterSlotsCsv, sport]);
 
   const title = useMemo(() => {
     const found = ADVICE_TYPE_OPTIONS.find((option) => option.id === advice?.type);
@@ -127,16 +372,151 @@ export function CoachAdvicePanel({
           })}
         </div>
 
-        <Button
-          onClick={() => void onGetAdvice()}
-          disabled={loading}
-          className="gap-2"
-          data-testid="coach-mode-button"
-          data-audit="coach-mode-button"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
-          Get coach advice
-        </Button>
+        <div className="grid gap-3 rounded-lg border border-white/10 bg-black/20 p-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Scoring format
+            </label>
+            <Input
+              value={scoringFormat}
+              onChange={(event) => setScoringFormat(event.target.value)}
+              placeholder="PPR / Half-PPR / Points"
+              className="border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-scoring-format-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Team count
+            </label>
+            <Input
+              type="number"
+              min={2}
+              max={32}
+              value={teamCount}
+              onChange={(event) => setTeamCount(Math.max(2, Math.min(32, Number(event.target.value || 12))))}
+              className="border-white/10 bg-black/30 text-white"
+              data-testid="coach-team-count-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Opponent
+            </label>
+            <Input
+              value={opponentName}
+              onChange={(event) => setOpponentName(event.target.value)}
+              placeholder="Opponent team name"
+              className="border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-opponent-name-input"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+                Team proj
+              </label>
+              <Input
+                value={teamProjection}
+                onChange={(event) => setTeamProjection(event.target.value)}
+                placeholder="124.5"
+                className="border-white/10 bg-black/30 text-white placeholder:text-white/35"
+                data-testid="coach-team-projection-input"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+                Opp proj
+              </label>
+              <Input
+                value={opponentProjection}
+                onChange={(event) => setOpponentProjection(event.target.value)}
+                placeholder="121.2"
+                className="border-white/10 bg-black/30 text-white placeholder:text-white/35"
+                data-testid="coach-opponent-projection-input"
+              />
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Matchup notes
+            </label>
+            <Input
+              value={matchupNotes}
+              onChange={(event) => setMatchupNotes(event.target.value)}
+              placeholder="Injuries, weather, pacing, schedule edges"
+              className="border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-matchup-notes-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Roster JSON (optional)
+            </label>
+            <Textarea
+              value={rosterJson}
+              onChange={(event) => setRosterJson(event.target.value)}
+              placeholder='[{"playerName":"A. Player","position":"WR","projectedPoints":15.2,"slot":"starter"}]'
+              className="min-h-20 border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-roster-json-input"
+            />
+            <Input
+              value={rosterSlotsCsv}
+              onChange={(event) => setRosterSlotsCsv(event.target.value)}
+              placeholder="QB,RB,RB,WR,WR,TE,FLEX"
+              className="mt-2 border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-roster-slots-input"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-[0.12em] text-white/55">
+              Player stats JSON (optional)
+            </label>
+            <Textarea
+              value={playerStatsJson}
+              onChange={(event) => setPlayerStatsJson(event.target.value)}
+              placeholder='[{"playerName":"A. Player","position":"WR","projectedPoints":15.2}]'
+              className="min-h-20 border-white/10 bg-black/30 text-white placeholder:text-white/35"
+              data-testid="coach-player-stats-json-input"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => void onGetAdvice()}
+            disabled={loading}
+            className="gap-2"
+            data-testid="coach-mode-button"
+            data-audit="coach-mode-button"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GraduationCap className="h-4 w-4" />}
+            Get coach advice
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void onOptimizeLineup()}
+            disabled={optimizerLoading}
+            className="gap-2 border-cyan-400/35 text-cyan-100"
+            data-testid="coach-lineup-optimize-button"
+            data-audit="coach-lineup-optimize-button"
+          >
+            {optimizerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Optimize lineup
+          </Button>
+          <button
+            type="button"
+            onClick={() => setOptimizerUseAI((current) => !current)}
+            className={`rounded-md border px-2 py-1 text-xs ${
+              optimizerUseAI
+                ? 'border-cyan-300/70 bg-cyan-400/15 text-cyan-100'
+                : 'border-white/20 bg-black/20 text-white/70'
+            }`}
+            data-testid="coach-lineup-optimize-ai-toggle"
+          >
+            {optimizerUseAI ? 'AI explain on' : 'AI explain off'}
+          </button>
+        </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
 
@@ -153,10 +533,53 @@ export function CoachAdvicePanel({
                 <li key={`${bullet}-${index}`}>{bullet}</li>
               ))}
             </ul>
+            {advice.recommendation && (
+              <div className="mt-3 rounded-lg border border-white/15 bg-black/20 px-3 py-2">
+                <p className="text-xs font-medium uppercase tracking-[0.1em] text-cyan-200">
+                  Deterministic recommendation
+                </p>
+                <p className="mt-1 text-sm text-white/90">{advice.recommendation.headline}</p>
+                <p className="mt-1 text-xs text-white/60">{advice.recommendation.contextSummary}</p>
+              </div>
+            )}
             <div className="mt-3 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2">
               <p className="text-xs font-medium uppercase tracking-[0.1em] text-amber-300">Your challenge</p>
               <p className="mt-1 text-sm text-amber-100/90">{advice.challenge}</p>
             </div>
+            {advice.explanation?.source && (
+              <p className="mt-2 text-[11px] uppercase tracking-[0.12em] text-white/45">
+                Explanation source: {advice.explanation.source === 'ai' ? 'AI' : 'Deterministic fallback'}
+              </p>
+            )}
+          </section>
+        )}
+
+        {optimizerResult && (
+          <section
+            className="rounded-xl border border-emerald-400/25 bg-emerald-500/5 p-4"
+            data-testid="coach-lineup-optimizer-panel"
+          >
+            <p className="text-xs uppercase tracking-[0.12em] text-emerald-300/90">
+              Deterministic lineup optimizer
+            </p>
+            <p className="mt-2 text-sm text-white">
+              Projected total: {optimizerResult.result.totalProjectedPoints.toFixed(1)}
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-white/85" data-testid="coach-lineup-optimizer-starters">
+              {optimizerResult.result.starters.map((starter) => (
+                <li key={`${starter.slotId}-${starter.playerId}`}>
+                  {starter.slotCode}: {starter.playerName} ({starter.projectedPoints.toFixed(1)})
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-white/60">
+              Explanation source: {optimizerResult.explanation.source === 'ai' ? 'AI' : 'Deterministic'}
+            </p>
+            <ul className="mt-1 list-inside list-disc space-y-1 text-xs text-white/70">
+              {optimizerResult.explanation.bullets.slice(0, 4).map((bullet, index) => (
+                <li key={`${bullet}-${index}`}>{bullet}</li>
+              ))}
+            </ul>
           </section>
         )}
       </CardContent>

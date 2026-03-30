@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resetMockDraft } from '@/lib/mock-draft-engine/MockDraftSessionService'
+import { getMockDraftRuntimeSnapshot } from '@/lib/mock-draft-engine/MockDraftRuntimeService'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,5 +23,6 @@ export async function POST(
 
   const ok = await resetMockDraft(draftId, userId)
   if (!ok) return NextResponse.json({ error: 'Draft not found' }, { status: 400 })
-  return NextResponse.json({ ok: true, draftId, status: 'pre_draft' })
+  const draft = await getMockDraftRuntimeSnapshot(draftId, userId)
+  return NextResponse.json({ ok: true, draftId, status: 'pre_draft', draft })
 }

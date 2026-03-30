@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { getMockDraftByInviteToken, getMockDraftById, joinMockDraftByToken } from '@/lib/mock-draft-engine/MockDraftSessionService'
+import { getMockDraftByInviteToken, joinMockDraftByToken } from '@/lib/mock-draft-engine/MockDraftSessionService'
+import { getMockDraftRuntimeSnapshot } from '@/lib/mock-draft-engine/MockDraftRuntimeService'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
 
   const result = await joinMockDraftByToken(token, userId, body.displayName ?? (session?.user as any)?.name)
   if (!result) return NextResponse.json({ error: 'Invalid or expired invite' }, { status: 404 })
-  const snapshot = await getMockDraftById(result.draftId, userId)
+  const snapshot = await getMockDraftRuntimeSnapshot(result.draftId, userId)
   return NextResponse.json({
     ok: true,
     draftId: result.draftId,

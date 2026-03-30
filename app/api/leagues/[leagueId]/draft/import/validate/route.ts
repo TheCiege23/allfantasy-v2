@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { prisma } from '@/lib/prisma'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import {
   parseImportPayload,
   runDraftImportDryRun,
@@ -28,6 +29,10 @@ export async function POST(
 
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const uiSettings = await getDraftUISettingsForLeague(leagueId)
+  if (!uiSettings.importEnabled) {
+    return NextResponse.json({ error: 'Draft import is disabled by commissioner settings.' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const input = body.payload ?? body
@@ -48,12 +53,10 @@ export async function POST(
     }),
     prisma.draftSession.findUnique({
       where: { leagueId },
-      select: { rounds: true, status: true },
+      select: { rounds: true, teamCount: true, slotOrder: true, status: true },
       include: { picks: { select: { id: true } } },
     }),
   ])
-  const teamCount = league?.leagueSize ?? draftSession?.rounds ? 12 : 12
-  const rounds = draftSession?.rounds ?? league?.leagueSize ? 15 : 15
 
   const rosters = await prisma.roster.findMany({
     where: { leagueId },
@@ -65,10 +68,32 @@ export async function POST(
     select: { ownerName: true, teamName: true },
     orderBy: { id: 'asc' },
   })
-  const rosterInfos = rosters.map((r, i) => ({
-    id: r.id,
-    displayName: teams[i]?.ownerName || teams[i]?.teamName || `Team ${i + 1}`,
-  }))
+  const teamCount = draftSession?.teamCount ?? league?.leagueSize ?? (rosters.length > 0 ? rosters.length : 12)
+  const rounds = draftSession?.rounds ?? 15
+  const rosterNameById = rosters.reduce<Record<string, string>>((acc, roster, index) => {
+    acc[roster.id] = teams[index]?.ownerName || teams[index]?.teamName || `Team ${index + 1}`
+    return acc
+  }, {})
+
+  const slotOrder = Array.isArray(draftSession?.slotOrder)
+    ? (draftSession?.slotOrder as Array<{ rosterId?: string; displayName?: string; slot?: number }>)
+    : []
+  const rosterInfos = slotOrder.length > 0
+    ? slotOrder
+        .map((slot, index) => {
+          const rosterId = typeof slot.rosterId === 'string' ? slot.rosterId : null
+          if (!rosterId) return null
+          return {
+            id: rosterId,
+            displayName: slot.displayName || rosterNameById[rosterId] || `Team ${index + 1}`,
+          }
+        })
+        .filter((entry): entry is { id: string; displayName: string } => Boolean(entry))
+    : rosters.map((roster, index) => ({
+        id: roster.id,
+        displayName: rosterNameById[roster.id] || `Team ${index + 1}`,
+      }))
+
   const importCtx = buildLeagueImportContext(leagueId, teamCount, rounds, rosterInfos)
 
   const result = runDraftImportDryRun(payload, importCtx, {

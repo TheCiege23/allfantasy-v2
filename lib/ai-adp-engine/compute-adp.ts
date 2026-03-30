@@ -60,8 +60,10 @@ export function buildSnapshotDataAndMeta(
   entries: AiAdpPlayerEntry[],
   totalDrafts: number,
   totalPicks: number,
-  lowSampleThreshold: number
+  lowSampleThreshold: number,
+  minSampleSize: number
 ): { snapshotData: AiAdpPlayerEntry[]; meta: Record<string, unknown> } {
+  const lowSampleCount = entries.filter((e) => e.sampleSize < lowSampleThreshold).length
   return {
     snapshotData: entries.map((e) => ({
       playerName: e.playerName,
@@ -72,9 +74,12 @@ export function buildSnapshotDataAndMeta(
       lowSample: e.sampleSize < lowSampleThreshold,
     })),
     meta: {
+      minSampleSize,
       lowSampleThreshold,
       totalDrafts,
       totalPicks,
+      lowSampleCount,
+      highConfidenceCount: Math.max(0, entries.length - lowSampleCount),
     },
   }
 }

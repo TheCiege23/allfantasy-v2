@@ -6,6 +6,13 @@ import { prisma } from '@/lib/prisma';
 import { buildLeagueInviteUrl } from '@/lib/viral-loop';
 import { resolveEffectiveLeagueVariant } from '@/lib/league-creation/LeagueVariantResolver';
 import { isSportEnabled } from '@/lib/feature-toggle';
+import { isDraftTypeAllowedForSport } from '@/lib/sport-rules-engine';
+import {
+  DRAFT_TYPE_IDS,
+  LEAGUE_TYPE_IDS,
+  isDraftTypeAllowedForLeagueType,
+  isLeagueTypeAllowedForSport,
+} from '@/lib/league-creation-wizard/league-type-registry';
 import { z } from 'zod';
 
 const createSchema = z.object({
@@ -25,8 +32,12 @@ const createSchema = z.object({
   sleeperLeagueId: z.string().optional(),
   /** League creation wizard: league type (redraft, dynasty, keeper, etc.) */
   league_type: z.string().max(32).optional(),
+  /** Camel-case alias for wizard consumers */
+  leagueType: z.string().max(32).optional(),
   /** League creation wizard: draft type (snake, linear, auction, slow_draft) */
   draft_type: z.string().max(32).optional(),
+  /** Camel-case alias for wizard consumers */
+  draftType: z.string().max(32).optional(),
   /** League creation wizard: merged into League.settings (AI, automation, privacy, draft defaults) */
   settings: z.record(z.unknown()).optional(),
 });
@@ -66,7 +77,9 @@ export async function POST(req: Request) {
     createFromSleeperImport,
     sleeperLeagueId,
     league_type: leagueTypeWizard,
+    leagueType: leagueTypeWizardCamel,
     draft_type: draftTypeWizard,
+    draftType: draftTypeWizardCamel,
     settings: settingsWizard,
   } = parsed.data;
 
@@ -75,17 +88,71 @@ export async function POST(req: Request) {
   }
 
   let sport = sportInput ?? 'NFL';
+  const normalizeWizardEnum = (value: string | undefined): string | undefined => {
+    if (!value) return undefined;
+    const normalized = value.trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+    return normalized.length > 0 ? normalized : undefined;
+  };
+  const requestedLeagueType = normalizeWizardEnum(leagueTypeWizard ?? leagueTypeWizardCamel);
+  const requestedDraftType = normalizeWizardEnum(draftTypeWizard ?? draftTypeWizardCamel);
+  if (requestedLeagueType && !(LEAGUE_TYPE_IDS as string[]).includes(requestedLeagueType)) {
+    return NextResponse.json(
+      { error: `Unsupported league type: ${requestedLeagueType}` },
+      { status: 400 }
+    );
+  }
+  if (requestedDraftType && !(DRAFT_TYPE_IDS as string[]).includes(requestedDraftType)) {
+    return NextResponse.json(
+      { error: `Unsupported draft type: ${requestedDraftType}` },
+      { status: 400 }
+    );
+  }
   if (!(await isSportEnabled(sport))) {
     return NextResponse.json(
       { error: `Sport ${sport} is currently disabled by platform configuration.` },
       { status: 403 }
     );
   }
+  if (
+    requestedLeagueType &&
+    !isLeagueTypeAllowedForSport(requestedLeagueType as any, sport)
+  ) {
+    return NextResponse.json(
+      {
+        error: `${requestedLeagueType} leagues are not available for ${sport}.`,
+      },
+      { status: 400 }
+    );
+  }
+  if (
+    requestedLeagueType &&
+    requestedDraftType &&
+    !isDraftTypeAllowedForLeagueType(requestedDraftType as any, requestedLeagueType as any)
+  ) {
+    return NextResponse.json(
+      {
+        error: `${requestedDraftType} draft is not valid for ${requestedLeagueType} leagues.`,
+      },
+      { status: 400 }
+    );
+  }
+  const draftTypeForSportValidation = requestedDraftType === 'mock_draft' ? 'snake' : requestedDraftType;
+  if (
+    draftTypeForSportValidation &&
+    !isDraftTypeAllowedForSport(sport, draftTypeForSportValidation, leagueVariantInput ?? null)
+  ) {
+    return NextResponse.json(
+      {
+        error: `${draftTypeForSportValidation} draft is not supported for ${sport}.`,
+      },
+      { status: 400 }
+    );
+  }
   const isIdpRequested =
     String(leagueVariantInput ?? '').toUpperCase() === 'IDP' ||
     String(leagueVariantInput ?? '').toUpperCase() === 'DYNASTY_IDP' ||
-    String(leagueTypeWizard ?? '').toLowerCase() === 'idp' ||
-    String(leagueTypeWizard ?? '').toLowerCase() === 'dynasty_idp';
+    String(requestedLeagueType ?? '').toLowerCase() === 'idp' ||
+    String(requestedLeagueType ?? '').toLowerCase() === 'dynasty_idp';
   if (isIdpRequested && sport !== 'NFL') {
     return NextResponse.json(
       { error: 'IDP leagues are only supported for NFL. Please select NFL as the sport.' },
@@ -94,10 +161,10 @@ export async function POST(req: Request) {
   }
   const isDevyRequested =
     String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
-    String(leagueTypeWizard ?? '').toLowerCase() === 'devy';
+    String(requestedLeagueType ?? '').toLowerCase() === 'devy';
   const isC2CRequested =
     String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
-    String(leagueTypeWizard ?? '').toLowerCase() === 'c2c';
+    String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
   if ((isDevyRequested || isC2CRequested) && isDynastyInput === false) {
     return NextResponse.json(
       { error: 'Devy and C2C (Merged Devy) leagues cannot be created as redraft. They are dynasty-only.' },
@@ -220,7 +287,7 @@ export async function POST(req: Request) {
     const presetVariant =
       resolveEffectiveLeagueVariant({
         sport,
-        leagueType: leagueTypeWizard ?? null,
+        leagueType: requestedLeagueType ?? null,
         requestedVariant: leagueVariantInput ?? null,
       }).variant ?? undefined;
     const effectiveDynastyForCreation = isDevyRequested || isC2CRequested || (isDynasty === true);
@@ -263,15 +330,23 @@ export async function POST(req: Request) {
       }
       initialSettings.devyConfig = dc;
     }
-    if (leagueTypeWizard) initialSettings.league_type = leagueTypeWizard;
-    if (draftTypeWizard) initialSettings.draft_type = draftTypeWizard;
+    if (requestedLeagueType) initialSettings.league_type = requestedLeagueType;
+    const requestedMockDraft = requestedDraftType === 'mock_draft';
+    if (requestedDraftType) {
+      initialSettings.draft_type = requestedMockDraft ? 'snake' : requestedDraftType;
+      initialSettings.requested_draft_type = requestedDraftType;
+    }
+    if (requestedMockDraft) {
+      initialSettings.mock_draft_enabled = true;
+      initialSettings.mock_draft_type = 'mock_draft';
+    }
     if (rosterSize != null && initialSettings.roster_size == null) initialSettings.roster_size = rosterSize;
     // Best ball: set flag so feature-flag validation and downstream logic see best ball mode
-    if (String(leagueTypeWizard ?? '').toLowerCase() === 'best_ball') {
+    if (String(requestedLeagueType ?? '').toLowerCase() === 'best_ball') {
       (initialSettings as Record<string, unknown>).best_ball = true;
     }
     // Standard redraft: ensure no dynasty-only settings leak in (defense in depth with validation)
-    if (String(leagueTypeWizard ?? '').toLowerCase() === 'redraft') {
+    if (String(requestedLeagueType ?? '').toLowerCase() === 'redraft') {
       initialSettings.roster_mode = 'redraft';
       initialSettings.taxi_slots = 0;
       initialSettings.taxi = false;
@@ -324,13 +399,13 @@ export async function POST(req: Request) {
     }
     const isGuillotineEarly =
       String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'guillotine';
+      String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
     if (isGuillotineEarly) {
       const { validateGuillotineCreation, normalizeGuillotineRosterMode } = await import('@/lib/guillotine/GuillotineValidation');
       const teamCountFromSettings = typeof initialSettings.teamCount === 'number' ? initialSettings.teamCount : typeof initialSettings.leagueSize === 'number' ? initialSettings.leagueSize : undefined;
       if (teamCountFromSettings != null) leagueSize = teamCountFromSettings;
       const rosterMode = String(initialSettings.roster_mode ?? initialSettings.mode ?? 'redraft').toLowerCase().trim();
-      const draftType = (initialSettings.draft_type ?? draftTypeWizard) as string | undefined;
+      const draftType = (initialSettings.requested_draft_type ?? initialSettings.draft_type ?? requestedDraftType) as string | undefined;
       const result = await validateGuillotineCreation({ sport, teamCount: leagueSize, rosterMode, draftType });
       if (!result.valid) {
         return NextResponse.json({ error: result.error }, { status: 400 });
@@ -355,7 +430,7 @@ export async function POST(req: Request) {
       supportsKickers: initialSettings.use_kickers === true,
       supportsTeamDefense: initialSettings.use_team_defense === true,
       supportsIdp: isIdpRequested,
-      supportsDevy: (initialSettings.devy === true || String(leagueTypeWizard ?? leagueVariantInput ?? '').toLowerCase() === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty'),
+      supportsDevy: (initialSettings.devy === true || String(requestedLeagueType ?? leagueVariantInput ?? '').toLowerCase() === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty'),
       supportsTaxi: (initialSettings.taxi_slots as number) > 0 || initialSettings.taxi === true,
       supportsIr: (initialSettings.ir_slots as number) > 0 || initialSettings.ir === true,
       supportsBracketMode: initialSettings.bracket_mode === true,
@@ -373,25 +448,25 @@ export async function POST(req: Request) {
     }
     const isGuillotine =
       String(leagueVariantInput ?? '').toLowerCase() === 'guillotine' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'guillotine';
+      String(requestedLeagueType ?? '').toLowerCase() === 'guillotine';
     const isSalaryCap =
       String(leagueVariantInput ?? '').toLowerCase() === 'salary_cap' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'salary_cap';
+      String(requestedLeagueType ?? '').toLowerCase() === 'salary_cap';
     const isSurvivor =
       String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'survivor';
+      String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
     const isDevy =
       String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'devy';
+      String(requestedLeagueType ?? '').toLowerCase() === 'devy';
     const isC2C =
       String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'c2c';
+      String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
     const isBigBrother =
       String(leagueVariantInput ?? '').toLowerCase() === 'big_brother' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'big_brother';
+      String(requestedLeagueType ?? '').toLowerCase() === 'big_brother';
     const isZombie =
       String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
-      String(leagueTypeWizard ?? '').toLowerCase() === 'zombie';
+      String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
     const effectiveDynasty = isGuillotine ? false : (isDevy || isC2C ? true : isDynasty);
     const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
     // Canonical cross-module keys used by multi-sport services and downstream UIs.
@@ -575,7 +650,7 @@ export async function POST(req: Request) {
           positionMode: typeof s?.idp_position_mode === 'string' ? s.idp_position_mode : undefined,
           rosterPreset: typeof s?.idp_roster_preset === 'string' ? s.idp_roster_preset : undefined,
           scoringPreset: typeof s?.idp_scoring_preset === 'string' ? s.idp_scoring_preset : undefined,
-          draftType: typeof draftTypeWizard === 'string' ? draftTypeWizard : undefined,
+          draftType: requestedDraftType,
         });
       } catch (err) {
         console.warn('[league/create] IDP config bootstrap non-fatal:', err);

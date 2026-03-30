@@ -12,6 +12,7 @@ import { useBracketLive } from "@/lib/hooks/useBracketLive"
 import CopyJoinCode from "@/app/brackets/leagues/[leagueId]/CopyJoinCode"
 import CreateEntryButton from "@/app/brackets/leagues/[leagueId]/CreateEntryButton"
 import { LeagueInviteShareButtons } from "./LeagueInviteShareButtons"
+import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
 
 type Member = {
   id: string
@@ -523,6 +524,7 @@ function SettingsPanel({
   members?: Member[]
   currentUserId?: string
 }) {
+  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode)
   const [saving, setSaving] = useState(false)
   const [roundPoints, setRoundPoints] = useState<Record<number, number>>(
@@ -905,7 +907,7 @@ function SettingsPanel({
           Pay League Dues on FanCred &rarr;
         </div>
         <div className="text-[9px] mt-1" style={{ color: 'rgba(255,255,255,0.25)' }}>
-          Dues and payouts are handled on FanCred. This app only hosts brackets.
+          {paidBoundaryDisclosure}
         </div>
       </a>
 

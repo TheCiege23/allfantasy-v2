@@ -25,6 +25,8 @@ export interface ValidateKeeperResult {
  */
 export function validateKeeperSelection(input: ValidateKeeperInput): ValidateKeeperResult {
   const { config, existingSelections, newSelection, rounds, commissionerOverride } = input
+  const norm = (value: string) => value.trim().toLowerCase()
+  const normPos = (value: string) => value.trim().toUpperCase()
 
   if (!config || config.maxKeepers <= 0) {
     return { valid: false, error: 'Keeper draft is not configured' }
@@ -50,18 +52,30 @@ export function validateKeeperSelection(input: ValidateKeeperInput): ValidateKee
   const samePlayer = existingSelections.some(
     (s) =>
       s.rosterId === newSelection.rosterId &&
-      s.playerName.trim().toLowerCase() === newSelection.playerName.trim().toLowerCase()
+      norm(s.playerName) === norm(newSelection.playerName)
   )
   if (samePlayer) {
     return { valid: false, error: 'Player already selected as keeper' }
   }
 
+  if (!commissionerOverride) {
+    const globallyTaken = existingSelections.some(
+      (s) =>
+        s.rosterId !== newSelection.rosterId &&
+        norm(s.playerName) === norm(newSelection.playerName)
+    )
+    if (globallyTaken) {
+      return { valid: false, error: 'Player is already protected by another roster' }
+    }
+  }
+
   if (!commissionerOverride && config.maxKeepersPerPosition) {
     const posCounts: Record<string, number> = {}
     for (const s of withoutOverride) {
-      posCounts[s.position] = (posCounts[s.position] ?? 0) + 1
+      const key = normPos(s.position)
+      posCounts[key] = (posCounts[key] ?? 0) + 1
     }
-    const pos = newSelection.position
+    const pos = normPos(newSelection.position)
     const max = config.maxKeepersPerPosition[pos]
     if (max != null && (posCounts[pos] ?? 0) >= max) {
       return { valid: false, error: `Maximum ${max} keeper(s) at ${pos}` }

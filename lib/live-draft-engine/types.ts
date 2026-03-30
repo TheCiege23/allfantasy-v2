@@ -53,6 +53,10 @@ export interface DraftSessionSnapshot {
   devy?: DevySessionSnapshot
   /** C2C draft: college vs pro rounds. */
   c2c?: C2CSessionSnapshot
+  /** Whether any AI provider is currently available for orphan AI drafter mode. */
+  orphanAiProviderAvailable?: boolean
+  /** Effective orphan drafter mode after provider fallback ('cpu' when AI unavailable). */
+  orphanDrafterEffectiveMode?: 'cpu' | 'ai'
 }
 
 export interface C2CSessionSnapshot {

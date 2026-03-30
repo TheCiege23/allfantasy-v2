@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import NextLink from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,8 @@ import { toast } from 'sonner'
 import { AIDraftAssistantPanel } from '@/components/mock-draft'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getManagerColorBySeed, withAlpha } from '@/lib/draft-room'
 
 interface ADPPlayer {
   name: string
@@ -139,6 +142,13 @@ const POSITION_COLORS: Record<string, string> = {
   C: 'text-yellow-400 bg-yellow-500/15 border-yellow-500/30',
   OF: 'text-teal-400 bg-teal-500/15 border-teal-500/30',
   P: 'text-rose-400 bg-rose-500/15 border-rose-500/30',
+  LW: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
+  RW: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30',
+  D: 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
+  G: 'text-orange-400 bg-orange-500/15 border-orange-500/30',
+  MID: 'text-sky-400 bg-sky-500/15 border-sky-500/30',
+  FWD: 'text-red-400 bg-red-500/15 border-red-500/30',
+  GK: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
   '1B': 'text-blue-400 bg-blue-500/15 border-blue-500/30',
   '2B': 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
   '3B': 'text-indigo-400 bg-indigo-500/15 border-indigo-500/30',
@@ -148,7 +158,7 @@ const POSITION_COLORS: Record<string, string> = {
 const FLEXISH_SLOTS = new Set(['FLEX', 'SUPER_FLEX', 'OP', 'UTIL', 'BENCH', 'BN', 'IR', 'G', 'F'])
 
 function normalizeMockSport(sport?: string | null): string {
-  return String(sport || 'NFL').toUpperCase()
+  return normalizeToSupportedSport(sport)
 }
 
 function clampMetric(value: number, min: number, max: number): number {
@@ -157,10 +167,18 @@ function clampMetric(value: number, min: number, max: number): number {
 
 function getDefaultRosterSlotsForSport(sport?: string | null, isDynasty?: boolean): string[] {
   switch (normalizeMockSport(sport)) {
+    case 'NHL':
+      return ['C', 'C', 'LW', 'LW', 'RW', 'RW', 'D', 'D', 'UTIL', 'G']
     case 'NBA':
       return ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL']
     case 'MLB':
       return ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'UTIL', 'P', 'P']
+    case 'NCAAB':
+      return ['G', 'G', 'F', 'F', 'C', 'UTIL']
+    case 'NCAAF':
+      return ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX']
+    case 'SOCCER':
+      return ['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'UTIL']
     default:
       return isDynasty
         ? ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'FLEX', 'SUPER_FLEX']
@@ -170,10 +188,18 @@ function getDefaultRosterSlotsForSport(sport?: string | null, isDynasty?: boolea
 
 function getPrimaryPositionsForSport(sport?: string | null): string[] {
   switch (normalizeMockSport(sport)) {
+    case 'NHL':
+      return ['C', 'LW', 'RW', 'D', 'G']
     case 'NBA':
       return ['PG', 'SG', 'SF', 'PF', 'C']
     case 'MLB':
       return ['C', '1B', '2B', '3B', 'SS', 'OF', 'P']
+    case 'NCAAB':
+      return ['G', 'F', 'C']
+    case 'NCAAF':
+      return ['QB', 'RB', 'WR', 'TE']
+    case 'SOCCER':
+      return ['GK', 'DEF', 'MID', 'FWD']
     default:
       return ['QB', 'RB', 'WR', 'TE', 'K', 'DEF']
   }
@@ -241,10 +267,18 @@ function buildAnalyticsPositions(args: {
 
 function defaultStarterTargetsForSport(sport?: string | null): Record<string, number> {
   switch (normalizeMockSport(sport)) {
+    case 'NHL':
+      return { C: 2, LW: 2, RW: 2, D: 2, G: 1 }
     case 'NBA':
       return { PG: 1, SG: 1, SF: 1, PF: 1, C: 1 }
     case 'MLB':
       return { C: 1, '1B': 1, '2B': 1, '3B': 1, SS: 1, OF: 3, P: 3 }
+    case 'NCAAB':
+      return { G: 2, F: 2, C: 1 }
+    case 'NCAAF':
+      return { QB: 1, RB: 2, WR: 2, TE: 1 }
+    case 'SOCCER':
+      return { GK: 1, DEF: 2, MID: 2, FWD: 1 }
     default:
       return { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DEF: 1 }
   }
@@ -291,6 +325,21 @@ function getPositionBarColor(position: string): string {
     SS: 'bg-violet-500',
   }
   return map[position] || 'bg-gray-500'
+}
+
+function getMockAiAdp(player: ADPPlayer): number {
+  const trendAdjustment = player.adpTrend != null ? player.adpTrend * 0.35 : 0
+  const valueAdjustment = player.value != null ? clampMetric((50 - player.value) / 18, -3, 3) : 0
+  const adjusted = Number((player.adp + trendAdjustment + valueAdjustment).toFixed(1))
+  return Math.max(1, adjusted)
+}
+
+function getManagerTintStyle(managerName: string, alpha = 0.12): { backgroundColor: string; borderColor: string } {
+  const color = getManagerColorBySeed(managerName || 'manager').tintHex
+  return {
+    backgroundColor: withAlpha(color, alpha),
+    borderColor: withAlpha(color, Math.min(0.55, alpha + 0.25)),
+  }
 }
 
 function DnaStat({ label, value, suffix, color, sub, hideBar }: { label: string; value: number; suffix: string; color: string; sub: string; hideBar?: boolean }) {
@@ -390,6 +439,8 @@ export default function MockDraftSimulatorClient({
   initialDraftId = null,
   onDraftComplete,
   showAIAssistantPanel = false,
+  onBack,
+  onChatSuggestionChange,
 }: {
   leagues: LeagueOption[]
   initialLeagueId?: string
@@ -397,6 +448,8 @@ export default function MockDraftSimulatorClient({
   initialDraftId?: string | null
   onDraftComplete?: (results: DraftPick[], draftId: string | null) => void
   showAIAssistantPanel?: boolean
+  onBack?: () => void
+  onChatSuggestionChange?: (message: string | null) => void
 }) {
   const { callAI, loading } = useAI<{ draftResults: DraftPick[]; updatedDraft?: DraftPick[] }>()
   const [selectedLeagueId, setSelectedLeagueId] = useState(initialLeagueId)
@@ -452,6 +505,7 @@ export default function MockDraftSimulatorClient({
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [assistantLoading, setAssistantLoading] = useState(false)
   const [assistantData, setAssistantData] = useState<any>(null)
+  const [useAiBoardAdp, setUseAiBoardAdp] = useState(true)
   const [retroOpen, setRetroOpen] = useState(false)
   const [retroLoading, setRetroLoading] = useState(false)
   const [retroData, setRetroData] = useState<any>(null)
@@ -468,6 +522,22 @@ export default function MockDraftSimulatorClient({
   const [liveIntelLoading, setLiveIntelLoading] = useState(false)
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId)
   const selectedSport = useMemo(() => normalizeMockSport(selectedLeague?.sport), [selectedLeague?.sport])
+  const selectedSportAccent = useMemo(() => {
+    const map: Record<string, string> = {
+      NFL: '34, 211, 238',
+      NHL: '129, 140, 248',
+      NBA: '251, 146, 60',
+      MLB: '52, 211, 153',
+      NCAAB: '244, 114, 182',
+      NCAAF: '167, 139, 250',
+      SOCCER: '56, 189, 248',
+    }
+    return map[selectedSport] ?? map.NFL
+  }, [selectedSport])
+  const getDisplayedAdp = useCallback(
+    (player: ADPPlayer): number => (useAiBoardAdp ? getMockAiAdp(player) : player.adp),
+    [useAiBoardAdp],
+  )
   const defaultRosterSlots = useMemo(
     () => getDefaultRosterSlotsForSport(selectedLeague?.sport, selectedLeague?.isDynasty),
     [selectedLeague?.sport, selectedLeague?.isDynasty],
@@ -579,6 +649,8 @@ export default function MockDraftSimulatorClient({
       isSF: selectedSport === 'NFL',
       isRookieDraft: draftPool === 'rookie',
       mode: (autopickMode === 'bpa' ? 'bpa' : 'needs') as 'bpa' | 'needs',
+      leagueId: selectedLeagueId,
+      leagueName: selectedLeague.name,
       recentPicks,
     }
   }, [
@@ -801,9 +873,12 @@ export default function MockDraftSimulatorClient({
       return
     }
     const draftedNames = new Set(draftedSoFar.map(p => normalizeName(p.playerName)))
-    const remaining = adpData.filter(p => !draftedNames.has(normalizeName(p.name))).slice(0, 3)
+    const remaining = adpData
+      .filter(p => !draftedNames.has(normalizeName(p.name)))
+      .sort((a, b) => getDisplayedAdp(a) - getDisplayedAdp(b))
+      .slice(0, 3)
     setBestAvailableTop(remaining)
-  }, [draftedSoFar, adpData, normalizeName])
+  }, [draftedSoFar, adpData, normalizeName, getDisplayedAdp])
 
   useEffect(() => {
     if (!livePlayback || !isLivePlaying || draftResults.length === 0) return
@@ -934,6 +1009,21 @@ export default function MockDraftSimulatorClient({
       active = false
     }
   }, [livePlayback, selectedLeagueId, currentOnClockPick, adpData, draftedSoFar, normalizeName, draftPool, autopickMode, selectedLeague, draftResults, defaultRosterSlots, selectedSport])
+
+  useEffect(() => {
+    if (!onChatSuggestionChange) return
+    if (!currentOnClockPick?.isUser || !liveSuggestion) {
+      onChatSuggestionChange(null)
+      return
+    }
+    const top = liveSuggestion?.suggestions?.[0]
+    const aiMessage = top?.player
+      ? `Chimmy: On the clock at #${currentOnClockPick.overall}. Top suggestion is ${top.player}${top.position ? ` (${top.position})` : ''}. ${top.reason || 'Best fit by ADP and roster context.'}`
+      : liveSuggestion?.aiInsight
+        ? `Chimmy: ${liveSuggestion.aiInsight}`
+        : null
+    onChatSuggestionChange(aiMessage ?? null)
+  }, [currentOnClockPick?.isUser, currentOnClockPick?.overall, liveSuggestion, onChatSuggestionChange])
 
   const stepLiveDraft = useCallback(() => {
     if (draftResults.length === 0) return
@@ -1426,7 +1516,31 @@ export default function MockDraftSimulatorClient({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="mock-draft-simulator">
+      <div className="flex items-center justify-between gap-3">
+        {onBack ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onBack}
+            data-testid="mock-draft-back-button"
+            className="border-white/20 text-white/80 hover:text-white"
+          >
+            Back to setup
+          </Button>
+        ) : (
+          <NextLink
+            href="/mock-draft"
+            data-testid="mock-draft-back-button"
+            className="inline-flex min-h-[40px] items-center rounded-lg border border-white/20 px-3 py-2 text-sm text-white/80 hover:bg-white/10"
+          >
+            Back to mock lobby
+          </NextLink>
+        )}
+        <span className="text-xs text-white/50">
+          Sport: {selectedSport}
+        </span>
+      </div>
       <div className="bg-black/60 border border-purple-900/50 rounded-2xl p-6">
         <h3 className="text-lg font-medium mb-4">Customize Simulation</h3>
         <div className="grid md:grid-cols-3 gap-6">
@@ -1489,6 +1603,18 @@ export default function MockDraftSimulatorClient({
               {casualMode ? 'Casual (warn only)' : 'Strict (enforce constraints)'}
             </Button>
           </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Board ADP Mode</label>
+            <Button
+              type="button"
+              variant={useAiBoardAdp ? 'default' : 'outline'}
+              className={useAiBoardAdp ? 'w-full bg-cyan-500 hover:bg-cyan-400 text-black' : 'w-full'}
+              onClick={() => setUseAiBoardAdp((prev) => !prev)}
+              data-testid="mock-draft-ai-adp-toggle"
+            >
+              {useAiBoardAdp ? 'AI ADP On' : 'AI ADP Off'}
+            </Button>
+          </div>
           <div className="md:col-span-3">
             <label className="block text-sm text-gray-400 mb-2">Scenario Assumptions</label>
             <div className="flex flex-wrap gap-2">
@@ -1520,7 +1646,7 @@ export default function MockDraftSimulatorClient({
             </div>
           </div>
           <div className="flex items-end gap-3">
-            <Button onClick={startMockDraft} disabled={isSimulating || loading || !selectedLeagueId} className="flex-1 h-10 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700">
+            <Button onClick={startMockDraft} data-testid="mock-draft-run-button" disabled={isSimulating || loading || !selectedLeagueId} className="flex-1 h-10 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700">
               {isSimulating || loading ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Simulating...</>
               ) : (
@@ -1559,7 +1685,7 @@ export default function MockDraftSimulatorClient({
         <div className="bg-black/60 border border-cyan-900/50 rounded-2xl p-6">
           <label className="block text-sm text-gray-400 mb-2">Select League</label>
           <Select value={selectedLeagueId} onValueChange={setSelectedLeagueId}>
-            <SelectTrigger className="bg-gray-950 border-cyan-800">
+            <SelectTrigger className="bg-gray-950 border-cyan-800" data-testid="mock-draft-league-select">
               <SelectValue placeholder="Choose your league" />
             </SelectTrigger>
             <SelectContent>
@@ -1588,7 +1714,17 @@ export default function MockDraftSimulatorClient({
       )}
 
       {draftResults.length > 0 && (
-        <div id="draft-board" className="bg-black/80 border border-cyan-900/50 rounded-3xl p-8">
+        <div
+          id="draft-board"
+          data-testid="mock-draft-board"
+          className="bg-black/80 border border-cyan-900/50 rounded-3xl p-8"
+          style={{
+            backgroundImage: `linear-gradient(180deg, rgba(${selectedSportAccent},0.1), rgba(10,10,16,0.82)), url('/branding/allfantasy-ai-for-fantasy-sports-logo.png')`,
+            backgroundSize: 'cover, 340px',
+            backgroundPosition: 'center, right -30px bottom -20px',
+            backgroundRepeat: 'no-repeat, no-repeat',
+          }}
+        >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-bold">Live Mock Draft Board</h2>
@@ -1697,7 +1833,9 @@ export default function MockDraftSimulatorClient({
                             {' '}&middot;{' '}{player.team || 'FA'}
                           </p>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-xs text-cyan-400">ADP: {player.adp?.toFixed(1) || 'N/A'}</span>
+                            <span className="text-xs text-cyan-400">
+                              {useAiBoardAdp ? 'AI ADP' : 'ADP'}: {getDisplayedAdp(player).toFixed(1)}
+                            </span>
                             {player.value != null && (
                               <span className="text-xs text-emerald-400">Value: {player.value.toFixed(0)}</span>
                             )}
@@ -1731,6 +1869,8 @@ export default function MockDraftSimulatorClient({
                         const isOnClockPick = livePlayback && pick.overall === completedPicks + 1
                         const isOnClockUserPick = isOnClockPick && pick.isUser
                         const isRevealedPick = !isFuturePick
+                        const managerColor = getManagerColorBySeed(pick.manager || `manager-${pick.overall}`)
+                        const managerTint = getManagerTintStyle(pick.manager || `manager-${pick.overall}`, 0.1)
                         return (
                         <motion.div
                           key={pick.overall}
@@ -1756,6 +1896,7 @@ export default function MockDraftSimulatorClient({
                                   ? 'bg-cyan-950/30 border-2 border-cyan-500/40 hover:border-cyan-400/60'
                                   : 'bg-gray-950 border border-gray-800 hover:border-purple-500/60'
                           }`}
+                          style={!isOnClockPick && isRevealedPick ? managerTint : undefined}
                           onClick={() => {
                             if (!isRevealedPick) return
                             if (pick.playerName) openComparison(pick)
@@ -1776,7 +1917,7 @@ export default function MockDraftSimulatorClient({
                               />
                             </div>
                             <div>
-                              <div className="font-medium text-sm">{pick.manager}</div>
+                              <div className={`font-medium text-sm ${managerColor.textClass}`}>{pick.manager}</div>
                               <div className="text-xs text-gray-500">Pick {pick.overall}</div>
                             </div>
                           </div>
@@ -1801,13 +1942,14 @@ export default function MockDraftSimulatorClient({
                           {isRevealedPick ? (() => {
                             const adpInfo = adpMap.get(normalizeName(pick.playerName))
                             if (!adpInfo) return <div className="text-xs text-emerald-400">Confidence: {pick.confidence}%</div>
-                            const diff = pick.overall - adpInfo.adp
+                            const displayedAdp = getDisplayedAdp(adpInfo)
+                            const diff = pick.overall - displayedAdp
                             const isSteal = diff > 3
                             const isReach = diff < -3
                             return (
                               <div className="space-y-1">
                                 <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-500">ADP {adpInfo.adp.toFixed(1)}</span>
+                                  <span className="text-gray-500">{useAiBoardAdp ? 'AI ADP' : 'ADP'} {displayedAdp.toFixed(1)}</span>
                                   <span className={`font-bold flex items-center gap-0.5 ${
                                     isSteal ? 'text-emerald-400' : isReach ? 'text-orange-400' : 'text-gray-400'
                                   }`}>

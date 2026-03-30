@@ -4,8 +4,9 @@ import { authOptions } from '@/lib/auth'
 import { getLiveADP, fetchFFCADP, fetchAllFFCFormats, FFCScoringFormat } from '@/lib/adp-data'
 import { loadSportAwareDraftPlayerPool } from '@/lib/mock-draft/sport-player-pool'
 import { resolveSleeperIds } from '@/lib/sleeper/players-cache'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { findMultiADP, type ADPFormat } from '@/lib/multi-platform-adp'
+import { normalizePlayerList } from '@/lib/draft-asset-pipeline'
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -51,12 +52,21 @@ export async function GET(req: NextRequest) {
 
     const type = (req.nextUrl.searchParams.get('type') || 'redraft') as 'dynasty' | 'redraft'
     const pool = req.nextUrl.searchParams.get('pool') || 'all'
-    const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') || 'NFL')
+    const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') || DEFAULT_SPORT)
 
     if (sport !== 'NFL') {
       const players = await loadSportAwareDraftPlayerPool({ sport, limit })
+      const raw = players.map((player) => ({
+        name: player.name,
+        position: player.position,
+        team: player.team,
+        adp: player.adp,
+        playerId: player.playerId ?? null,
+        injuryStatus: null,
+      }))
+      const normalized = normalizePlayerList(raw, sport)
       return NextResponse.json({
-        entries: players.map((player) => ({
+        entries: players.map((player, index) => ({
           name: player.name,
           position: player.position,
           team: player.team,
@@ -73,6 +83,13 @@ export async function GET(req: NextRequest) {
           bye: null,
           isRookie: false,
           multiPlatformADP: null,
+          playerId: player.playerId ?? null,
+          byeWeek: normalized[index]?.byeWeek ?? null,
+          injuryStatus: normalized[index]?.injuryStatus ?? null,
+          display: normalized[index]?.display ?? null,
+          assets: normalized[index]?.display?.assets ?? null,
+          teamLogoUrl: normalized[index]?.display?.assets?.teamLogoUrl ?? null,
+          headshotUrl: normalized[index]?.display?.assets?.headshotUrl ?? null,
         })),
         count: players.length,
         type,
@@ -136,10 +153,22 @@ export async function GET(req: NextRequest) {
 
     const adpFormat: ADPFormat = type === 'dynasty' ? 'dynasty' : 'redraft'
 
+    const rawNormalized = entries.map((e) => ({
+      name: e.name,
+      position: e.position,
+      team: e.team,
+      adp: e.adp,
+      byeWeek: e.bye ?? null,
+      playerId: sleeperIdMap[e.name] || null,
+    }))
+    const normalized = normalizePlayerList(rawNormalized, sport)
+
     return NextResponse.json({
-      entries: entries.map(e => {
+      entries: entries.map((e, index) => {
         const isRookie = e.source === 'devy' || e.source === 'rookie-db'
         const mp = !isRookie ? findMultiADP(e.name, e.position, e.team || undefined) : null
+        const injuryStatus = mp?.health?.injury ?? mp?.health?.status ?? null
+        const display = normalized[index]?.display ?? null
         return {
           name: e.name,
           position: e.position,
@@ -156,6 +185,13 @@ export async function GET(req: NextRequest) {
           adpStdev: e.adpStdev,
           bye: e.bye,
           isRookie,
+          playerId: sleeperIdMap[e.name] || null,
+          byeWeek: normalized[index]?.byeWeek ?? e.bye ?? null,
+          injuryStatus: injuryStatus != null ? String(injuryStatus) : null,
+          display,
+          assets: display?.assets ?? null,
+          teamLogoUrl: display?.assets?.teamLogoUrl ?? null,
+          headshotUrl: display?.assets?.headshotUrl ?? null,
           multiPlatformADP: mp ? {
             format: adpFormat,
             consensus: mp.consensus,
@@ -172,7 +208,7 @@ export async function GET(req: NextRequest) {
       count: entries.length,
       type,
       pool,
-      sport: 'nfl',
+      sport: sport.toLowerCase(),
     })
   } catch (err: any) {
     console.error('[mock-draft/adp] Error:', err)

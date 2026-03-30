@@ -9,6 +9,11 @@ import type { DraftNotificationEventType, DraftNotificationPayload } from './typ
 
 const DRAFT_ROOM_PATH = (leagueId: string) => `/app/league/${leagueId}/draft`
 
+async function getLeagueName(leagueId: string): Promise<string | undefined> {
+  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+  return league?.name ?? undefined
+}
+
 /**
  * Resolve app user id for a roster owner. Orphan rosters (platformUserId starting with "orphan-") have no user.
  */
@@ -201,10 +206,10 @@ export async function notifyOnTheClockAfterPick(leagueId: string): Promise<void>
     if (!current) return
     const appUserId = await getAppUserIdForRoster(current.rosterId)
     if (!appUserId) return
-    const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+    const leagueName = await getLeagueName(leagueId)
     await createDraftNotification(appUserId, 'draft_on_the_clock', {
       leagueId,
-      leagueName: league?.name ?? undefined,
+      leagueName,
       pickLabel: current.pickLabel,
       round: current.round,
       slot: current.slot,
@@ -222,10 +227,10 @@ export async function notifyOnTheClockAfterPick(leagueId: string): Promise<void>
 export async function notifyDraftPaused(leagueId: string): Promise<void> {
   const userIds = await getLeagueMemberAppUserIds(leagueId)
   if (userIds.length === 0) return
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+  const leagueName = await getLeagueName(leagueId)
   await createDraftNotificationForUsers(userIds, 'draft_paused', {
     leagueId,
-    leagueName: league?.name ?? undefined,
+    leagueName,
   })
 }
 
@@ -235,10 +240,10 @@ export async function notifyDraftPaused(leagueId: string): Promise<void> {
 export async function notifyDraftResumed(leagueId: string): Promise<void> {
   const userIds = await getLeagueMemberAppUserIds(leagueId)
   if (userIds.length === 0) return
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+  const leagueName = await getLeagueName(leagueId)
   await createDraftNotificationForUsers(userIds, 'draft_resumed', {
     leagueId,
-    leagueName: league?.name ?? undefined,
+    leagueName,
   })
 }
 
@@ -252,10 +257,10 @@ export async function notifyAutoPickFired(
 ): Promise<void> {
   const appUserId = await getAppUserIdForRoster(rosterId)
   if (!appUserId) return
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+  const leagueName = await getLeagueName(leagueId)
   await createDraftNotification(appUserId, 'draft_auto_pick_fired', {
     leagueId,
-    leagueName: league?.name ?? undefined,
+    leagueName,
     rosterId,
     playerName,
   })
@@ -267,10 +272,92 @@ export async function notifyAutoPickFired(
 export async function notifyQueuePlayerUnavailable(leagueId: string, rosterId: string): Promise<void> {
   const appUserId = await getAppUserIdForRoster(rosterId)
   if (!appUserId) return
-  const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
+  const leagueName = await getLeagueName(leagueId)
   await createDraftNotification(appUserId, 'draft_queue_player_unavailable', {
     leagueId,
-    leagueName: league?.name ?? undefined,
+    leagueName,
     rosterId,
+  })
+}
+
+/**
+ * Event trigger: on-clock manager is nearing timeout.
+ */
+export async function notifyApproachingTimeout(
+  leagueId: string,
+  rosterId: string,
+  options?: { pickLabel?: string; round?: number; slot?: number }
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_approaching_timeout', {
+    leagueId,
+    leagueName,
+    rosterId,
+    pickLabel: options?.pickLabel,
+    round: options?.round,
+    slot: options?.slot,
+  })
+}
+
+/**
+ * Event trigger: draft start transition.
+ */
+export async function notifyDraftStartingSoon(leagueId: string): Promise<void> {
+  const userIds = await getLeagueMemberAppUserIds(leagueId)
+  if (userIds.length === 0) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotificationForUsers(userIds, 'draft_starting_soon', {
+    leagueId,
+    leagueName,
+  })
+}
+
+/**
+ * Event trigger: orphan AI manager mode/assignment changed.
+ */
+export async function notifyOrphanAiManagerAssigned(leagueId: string): Promise<void> {
+  const userIds = await getLeagueMemberAppUserIds(leagueId)
+  if (userIds.length === 0) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotificationForUsers(userIds, 'draft_orphan_ai_assigned', {
+    leagueId,
+    leagueName,
+  })
+}
+
+/**
+ * Event trigger: auction bid was outbid.
+ */
+export async function notifyAuctionOutbid(
+  leagueId: string,
+  rosterId: string,
+  previousBid?: number
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_auction_outbid', {
+    leagueId,
+    leagueName,
+    rosterId,
+    previousBid,
+  })
+}
+
+/**
+ * Event trigger: private draft trade AI review has been prepared.
+ */
+export async function notifyDraftAiTradeReviewAvailable(
+  leagueId: string,
+  appUserId: string,
+  tradeProposalId: string
+): Promise<void> {
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_ai_trade_review_available', {
+    leagueId,
+    leagueName,
+    tradeProposalId,
   })
 }

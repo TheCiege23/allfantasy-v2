@@ -36,6 +36,7 @@ export function LeagueRecruitmentTools({
   const [emailResult, setEmailResult] = useState<{ sent?: boolean; inviteUrl?: string; error?: string } | null>(null)
   const [publicListing, setPublicListing] = useState(false)
   const [publicListingLoading, setPublicListingLoading] = useState(false)
+  const [publicVisibilityBase, setPublicVisibilityBase] = useState<"private" | "invite_only" | "password_protected">("private")
 
   const base = `/api/commissioner/leagues/${encodeURIComponent(leagueId)}`
   const joinUrl = invite?.joinUrl ?? (invite?.inviteCode ? `${typeof window !== "undefined" ? window.location.origin : ""}/join?code=${encodeURIComponent(invite.inviteCode)}` : null)
@@ -160,33 +161,48 @@ export function LeagueRecruitmentTools({
     const next = !publicListing
     setPublicListingLoading(true)
     try {
-      const res = await fetch(`${base}/operations`, {
-        method: "POST",
+      const nextVisibility = next ? "public" : publicVisibilityBase
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/privacy`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_orphan_seeking", value: next }),
+        body: JSON.stringify({ visibility: nextVisibility }),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok) setPublicListing(data.orphanSeeking !== undefined ? !!data.orphanSeeking : next)
+      if (res.ok) {
+        const visibility = String(data?.visibility ?? nextVisibility).toLowerCase()
+        setPublicListing(visibility === "public")
+        if (visibility === "private" || visibility === "invite_only" || visibility === "password_protected") {
+          setPublicVisibilityBase(visibility)
+        }
+      }
     } finally {
       setPublicListingLoading(false)
     }
-  }, [base, isCommissioner, publicListing])
+  }, [isCommissioner, publicListing, publicVisibilityBase, leagueId])
 
   useEffect(() => {
     if (!isCommissioner) return
-    fetch(`${base}/settings`, { cache: "no-store" })
+    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/privacy`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
-        const s = d?.settings ?? {}
-        setPublicListing(!!(s.orphanSeeking ?? s.publicDashboard))
+        const visibility = String(d?.visibility ?? "private").toLowerCase()
+        const isPublic = visibility === "public"
+        setPublicListing(isPublic)
+        if (!isPublic && (visibility === "private" || visibility === "invite_only" || visibility === "password_protected")) {
+          setPublicVisibilityBase(visibility)
+        }
       })
       .catch(() => {})
-  }, [base, isCommissioner])
+  }, [isCommissioner, leagueId])
 
   if (!isCommissioner) return null
 
   return (
-    <section className="rounded-xl border p-4 space-y-6" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel) 50%, transparent)" }}>
+    <section
+      className="rounded-xl border p-4 space-y-6"
+      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel) 50%, transparent)" }}
+      data-testid="league-recruitment-tools"
+    >
       <div>
         <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: "var(--text)" }}>
           <Link2 className="h-4 w-4" style={{ color: "var(--muted)" }} />
@@ -345,6 +361,7 @@ export function LeagueRecruitmentTools({
             placeholder="Display name or username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            data-testid="league-recruitment-username-input"
             className="rounded-lg border px-3 py-2 text-sm w-48"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
           />
@@ -352,6 +369,7 @@ export function LeagueRecruitmentTools({
             type="button"
             onClick={sendByUsername}
             disabled={!username.trim() || usernameSending}
+            data-testid="league-recruitment-username-send"
             className="rounded-lg px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
             style={{ background: "var(--accent)", color: "var(--bg)" }}
           >
@@ -388,6 +406,7 @@ export function LeagueRecruitmentTools({
             placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            data-testid="league-recruitment-email-input"
             className="rounded-lg border px-3 py-2 text-sm w-48"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
           />
@@ -395,6 +414,7 @@ export function LeagueRecruitmentTools({
             type="button"
             onClick={sendByEmail}
             disabled={!email.trim() || emailSending}
+            data-testid="league-recruitment-email-send"
             className="rounded-lg px-3 py-2 text-sm font-medium inline-flex items-center gap-1.5"
             style={{ background: "var(--accent)", color: "var(--bg)" }}
           >
@@ -423,11 +443,15 @@ export function LeagueRecruitmentTools({
             checked={publicListing}
             onChange={togglePublicListing}
             disabled={publicListingLoading}
+            data-testid="league-recruitment-public-listing-toggle"
             className="rounded border"
             style={{ borderColor: "var(--border)" }}
           />
-          List league publicly (e.g. find a league / orphan seeking)
+          List league publicly in discovery
         </label>
+        <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+          Public listing controls whether this league is visible in discover/join flows.
+        </p>
       </div>
     </section>
   )

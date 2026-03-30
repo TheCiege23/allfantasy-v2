@@ -575,6 +575,7 @@ export async function createSystemMessage(
   threadId: string,
   messageType: string,
   body: string,
+  metadata?: Record<string, unknown> | null,
 ): Promise<PlatformChatMessage | null> {
   const content = String(body || '').trim()
   if (!content) return null
@@ -585,6 +586,7 @@ export async function createSystemMessage(
         senderUserId: null,
         messageType: messageType || 'text',
         body: content,
+        metadata: metadata ?? undefined,
       },
     })
     await (prisma as any).platformChatThread.update({

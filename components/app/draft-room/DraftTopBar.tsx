@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Clock, User, Hash, Settings, Play, Pause, RotateCcw, Undo2, Sparkles, ArrowLeftRight, RefreshCw } from 'lucide-react'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
+import type { TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export type DraftTopBarProps = {
   leagueName: string
@@ -15,6 +16,8 @@ export type DraftTopBarProps = {
   timerRemainingSeconds: number | null
   isCommissioner: boolean
   draftStatus: string
+  timerMode?: TimerMode
+  autoPickEnabled?: boolean
   onCommissionerOpen?: () => void
   onPause?: () => void
   onResume?: () => void
@@ -27,6 +30,10 @@ export type DraftTopBarProps = {
   isOrphanOnClock?: boolean
   /** When orphan on clock: 'cpu' | 'ai' — label shows "CPU Manager" or "AI Manager" */
   orphanDrafterMode?: 'cpu' | 'ai'
+  /** Selected setting mode; used to show fallback state when requested AI runs in CPU fallback. */
+  orphanDrafterRequestedMode?: 'cpu' | 'ai'
+  /** True when requested AI mode fell back to CPU due unavailable providers/errors. */
+  orphanFallbackActive?: boolean
   onRunAiPick?: () => void
   runAiPickLoading?: boolean
   onTradesClick?: () => void
@@ -59,6 +66,8 @@ export function DraftTopBar({
   timerRemainingSeconds,
   isCommissioner,
   draftStatus,
+  timerMode = 'per_pick',
+  autoPickEnabled = false,
   onCommissionerOpen,
   onPause,
   onResume,
@@ -68,6 +77,8 @@ export function DraftTopBar({
   isReconnecting = false,
   isOrphanOnClock = false,
   orphanDrafterMode = 'cpu',
+  orphanDrafterRequestedMode = orphanDrafterMode,
+  orphanFallbackActive = false,
   onRunAiPick,
   runAiPickLoading = false,
   onTradesClick,
@@ -91,9 +102,32 @@ export function DraftTopBar({
       <div className="flex flex-wrap items-center gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-base font-semibold text-white/95 md:text-lg">{leagueName}</h1>
-          <p className="text-xs text-white/55">
-            {sport} · {draftType}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/55">
+            <span>{sport}</span>
+            <span>·</span>
+            <span>{draftType}</span>
+            <span>·</span>
+            <span className="rounded border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] text-white/75" data-testid="draft-topbar-timer-mode">
+              timer: {timerMode.replace('_', ' ')}
+            </span>
+            <span className={`rounded border px-1.5 py-0.5 text-[10px] ${autoPickEnabled ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-200' : 'border-white/20 bg-white/5 text-white/70'}`} data-testid="draft-topbar-auto-pick-status">
+              auto-pick: {autoPickEnabled ? 'on' : 'off'}
+            </span>
+            <span>·</span>
+            <span
+              className={`rounded border px-1.5 py-0.5 text-[10px] ${
+                draftStatus === 'in_progress'
+                  ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
+                  : draftStatus === 'paused'
+                    ? 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+                    : draftStatus === 'completed'
+                      ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-200'
+                      : 'border-white/20 bg-white/5 text-white/70'
+              }`}
+            >
+              {draftStatus.replace('_', ' ')}
+            </span>
+          </div>
         </div>
         {backHref && (
           <Link
@@ -116,9 +150,15 @@ export function DraftTopBar({
         {currentManagerOnClock && (
           <div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/25 bg-cyan-500/8 px-2.5 py-1.5">
             <User className="h-3.5 w-3.5 text-cyan-300" />
-            <span className="text-sm font-medium text-cyan-100">{currentManagerOnClock}</span>
+            <span className="text-sm font-medium text-cyan-100" data-testid="draft-topbar-on-clock-manager">{currentManagerOnClock}</span>
             {isOrphanOnClock ? (
-              <span className="text-[10px] text-cyan-300/80">{orphanDrafterMode === 'ai' ? 'AI Manager' : 'CPU Manager'}</span>
+              <span className="text-[10px] text-cyan-300/80" data-testid="draft-topbar-orphan-mode-label">
+                {orphanDrafterRequestedMode === 'ai' && orphanFallbackActive
+                  ? 'AI Manager (CPU fallback)'
+                  : orphanDrafterMode === 'ai'
+                    ? 'AI Manager'
+                    : 'CPU Manager'}
+              </span>
             ) : (
               <span className="text-[10px] text-cyan-300/80">on the clock</span>
             )}
@@ -126,7 +166,7 @@ export function DraftTopBar({
         )}
         <div className={`flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#0a1228] px-2.5 py-1.5 ${TIMER_COLORS[timerStatus]}`}>
           <Clock className="h-3.5 w-3.5" />
-          <span className="text-sm font-medium tabular-nums">{timerDisplay}</span>
+          <span className="text-sm font-medium tabular-nums" data-testid="draft-topbar-timer-value">{timerDisplay}</span>
           {timerStatus === 'paused' && <span className="text-[10px]">(paused)</span>}
           {timerStatus === 'expired' && <span className="text-[10px]">(expired)</span>}
         </div>

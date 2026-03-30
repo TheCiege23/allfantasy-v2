@@ -74,6 +74,11 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
   if (input.context?.sport) formData.append("sport", input.context.sport)
   if (typeof input.context?.season === "number") formData.append("season", String(input.context.season))
   if (typeof input.context?.week === "number") formData.append("week", String(input.context.week))
+  if (input.context?.conversationId) formData.append("conversationId", input.context.conversationId)
+  if (input.context?.privateMode) formData.append("privateMode", "true")
+  if (input.context?.targetUsername) formData.append("targetUsername", input.context.targetUsername)
+  if (input.context?.strategyMode) formData.append("strategyMode", input.context.strategyMode)
+  if (input.context?.source) formData.append("source", input.context.source)
 
   const conversation = toConversationPayload(input.conversation)
   if (conversation.length > 0) {

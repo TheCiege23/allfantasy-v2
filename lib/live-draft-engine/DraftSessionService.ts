@@ -10,6 +10,7 @@ import { resolvePickOwner } from './PickOwnershipResolver'
 import { computeTimerState, computeTimerStateWithPauseWindow } from './DraftTimerService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { formatPickLabel } from './DraftOrderService'
+import { getManagerColorBySeed } from '@/lib/draft-room'
 import {
   getAuctionStateFromSession,
   getBudgetsFromSession,
@@ -34,12 +35,20 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
   })
   if (!league) throw new Error('League not found')
 
-  const config = await getDraftConfigForLeague(leagueId)
+  const [config, uiSettings] = await Promise.all([
+    getDraftConfigForLeague(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+  ])
   const teamCount = league.leagueSize ?? 12
   const rounds = config?.rounds ?? 15
   const draftType = (config?.draft_type ?? 'snake') as string
   const thirdRoundReversal = config?.third_round_reversal ?? false
-  const timerSeconds = config?.timer_seconds ?? 90
+  const baseTimerSeconds = config?.timer_seconds ?? 90
+  const slowTimerSeconds = config?.slow_timer_seconds ?? Math.max(3600, baseTimerSeconds)
+  const timerSeconds =
+    uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
+      ? slowTimerSeconds
+      : baseTimerSeconds
 
   const teams = league.teams ?? []
   const rosters = league.rosters ?? []
@@ -140,7 +149,27 @@ export async function buildSessionSnapshot(
 
   const isSlowDraft = (session.timerSeconds ?? 0) >= 3600 || uiSettings.timerMode === 'overnight_pause'
 
-  const picks: DraftPickSnapshot[] = session.picks.map((p) => ({
+  const picks: DraftPickSnapshot[] = session.picks.map((p) => {
+    // Emit traded-pick metadata according to commissioner UI settings.
+    // No-trade picks never receive override metadata.
+    const rawMeta = (p.tradedPickMeta ?? null) as Record<string, unknown> | null
+    let tradedMeta: DraftPickSnapshot['tradedPickMeta'] = null
+    if (rawMeta) {
+      const resolved = { ...rawMeta } as Record<string, unknown>
+      if (uiSettings.tradedPickOwnerNameRedEnabled) {
+        resolved.showNewOwnerInRed = true
+      } else {
+        resolved.showNewOwnerInRed = false
+      }
+      if (uiSettings.tradedPickColorModeEnabled) {
+        const seed = String(resolved.newOwnerName ?? p.rosterId ?? p.displayName ?? 'manager')
+        resolved.tintColor = String(resolved.tintColor ?? getManagerColorBySeed(seed).tintHex)
+      } else {
+        delete resolved.tintColor
+      }
+      tradedMeta = resolved as DraftPickSnapshot['tradedPickMeta']
+    }
+    return {
     id: p.id,
     overall: p.overall,
     round: p.round,
@@ -152,30 +181,46 @@ export async function buildSessionSnapshot(
     team: p.team,
     byeWeek: p.byeWeek,
     playerId: p.playerId,
-    tradedPickMeta: p.tradedPickMeta as any,
+    tradedPickMeta: tradedMeta,
     source: p.source ?? 'user',
     pickLabel: formatPickLabel(p.overall, teamCount),
     amount: (p as any).amount ?? undefined,
     createdAt: p.createdAt.toISOString(),
-  }))
+    }
+  })
 
   let auction: AuctionSessionSnapshot | undefined
   if (session.draftType === 'auction') {
     const config = getAuctionConfigFromSession(session)
+    const auctionState = getAuctionStateFromSession(session) ?? {
+      nominationOrderIndex: 0,
+      currentNomination: null,
+      currentBid: 0,
+      currentBidderRosterId: null,
+      bidTimerEndAt: null,
+      minNextBid: config.minBid,
+    }
     auction = {
       draftType: 'auction',
       budgetPerTeam: config.budgetPerTeam,
       budgets: getBudgetsFromSession(session),
-      auctionState: getAuctionStateFromSession(session) ?? {
-        nominationOrderIndex: 0,
-        currentNomination: null,
-        currentBid: 0,
-        currentBidderRosterId: null,
-        bidTimerEndAt: null,
-        minNextBid: config.minBid,
-      },
+      auctionState,
       minBidIncrement: config.minBidIncrement,
       nominationOrder: slotOrder,
+    }
+    const auctionNominator =
+      slotOrder[((Math.max(0, auctionState.nominationOrderIndex) % Math.max(1, slotOrder.length)) + Math.max(1, slotOrder.length)) % Math.max(1, slotOrder.length)]
+    if (auctionNominator) {
+      const overall = picksCount + 1
+      const round = Math.ceil(overall / teamCount)
+      currentPick = {
+        overall,
+        round,
+        slot: auctionNominator.slot,
+        rosterId: auctionNominator.rosterId,
+        displayName: auctionNominator.displayName,
+        pickLabel: formatPickLabel(overall, teamCount),
+      }
     }
   }
 
@@ -278,7 +323,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
     }
     await prisma.draftSession.update({
       where: { id: session.id },
-      data: { status: 'in_progress', timerEndAt: null, pausedRemainingSeconds: null, version: { increment: 1 } },
+      data: { status: 'in_progress', pausedRemainingSeconds: null, version: { increment: 1 } },
     })
     return true
   }
@@ -311,9 +356,29 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
   if (!session || session.status !== 'paused') return false
   const sec = session.pausedRemainingSeconds ?? session.timerSeconds ?? 90
   const timerEndAt = new Date(Date.now() + sec * 1000)
+  const auctionState =
+    session.draftType === 'auction' &&
+    session.auctionState &&
+    typeof session.auctionState === 'object' &&
+    !Array.isArray(session.auctionState)
+      ? (session.auctionState as Record<string, unknown>)
+      : null
   await prisma.draftSession.update({
     where: { id: session.id },
-    data: { status: 'in_progress', timerEndAt, pausedRemainingSeconds: null, version: { increment: 1 } },
+    data: {
+      status: 'in_progress',
+      timerEndAt,
+      pausedRemainingSeconds: null,
+      ...(auctionState
+        ? {
+            auctionState: {
+              ...auctionState,
+              bidTimerEndAt: timerEndAt.toISOString(),
+            } as any,
+          }
+        : {}),
+      version: { increment: 1 },
+    },
   })
   return true
 }
@@ -323,12 +388,27 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
   if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return false
   const timerSeconds = session.timerSeconds ?? 90
   const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
+  const auctionState =
+    session.draftType === 'auction' &&
+    session.auctionState &&
+    typeof session.auctionState === 'object' &&
+    !Array.isArray(session.auctionState)
+      ? (session.auctionState as Record<string, unknown>)
+      : null
   await prisma.draftSession.update({
     where: { id: session.id },
     data: {
       status: 'in_progress',
       timerEndAt,
       pausedRemainingSeconds: null,
+      ...(auctionState
+        ? {
+            auctionState: {
+              ...auctionState,
+              bidTimerEndAt: timerEndAt.toISOString(),
+            } as any,
+          }
+        : {}),
       version: { increment: 1 },
     },
   })
@@ -345,14 +425,31 @@ export async function setTimerSeconds(
 ): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session) return false
-  const sec = Math.max(0, Math.min(300, Math.round(seconds)))
-  const data: { timerSeconds: number; timerEndAt?: Date; pausedRemainingSeconds?: number | null; version: { increment: number } } = {
+  const sec = Math.max(0, Math.min(86400, Math.round(seconds)))
+  const data: {
+    timerSeconds: number
+    timerEndAt?: Date
+    pausedRemainingSeconds?: number | null
+    auctionState?: unknown
+    version: { increment: number }
+  } = {
     timerSeconds: sec,
     version: { increment: 1 },
   }
   if (options?.resetCurrentTimer && (session.status === 'in_progress' || session.status === 'paused')) {
     data.timerEndAt = new Date(Date.now() + sec * 1000)
     data.pausedRemainingSeconds = null
+    if (
+      session.draftType === 'auction' &&
+      session.auctionState &&
+      typeof session.auctionState === 'object' &&
+      !Array.isArray(session.auctionState)
+    ) {
+      data.auctionState = {
+        ...(session.auctionState as Record<string, unknown>),
+        bidTimerEndAt: data.timerEndAt.toISOString(),
+      } as any
+    }
   }
   await prisma.draftSession.update({
     where: { id: session.id },

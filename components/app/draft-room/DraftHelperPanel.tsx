@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Sparkles, RefreshCw, MessageCircle, AlertTriangle } from 'lucide-react'
 import { getDraftAIChatUrl, buildAskChimmyAboutPickPrompt } from '@/lib/draft-room/DraftToAIContextBridge'
 import { DRAFT_WAR_ROOM_LEGACY_URL, getWarRoomPanelDescription, getWarRoomPanelTitle } from '@/lib/draft-room'
+import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -19,9 +20,15 @@ export type DraftHelperPanelProps = {
   reachWarning: string | null
   valueWarning: string | null
   scarcityInsight: string | null
+  stackInsight: string | null
+  correlationInsight: string | null
+  formatInsight: string | null
   byeNote: string | null
   explanation: string
+  evidence: string[]
   caveats: string[]
+  uncertainty: string | null
+  executionMode?: string | null
   sport: string
   round: number
   pick: number
@@ -29,6 +36,8 @@ export type DraftHelperPanelProps = {
   leagueName?: string
   rosterSlots?: string[]
   queueLength?: number
+  aiExplanationEnabled?: boolean
+  onAiExplanationToggle?: (enabled: boolean) => void
   onRefresh: () => void
   onPlayerClick?: (player: { name: string; position: string; team?: string | null }) => void
 }
@@ -41,9 +50,15 @@ export function DraftHelperPanel({
   reachWarning,
   valueWarning,
   scarcityInsight,
+  stackInsight,
+  correlationInsight,
+  formatInsight,
   byeNote,
   explanation,
+  evidence,
   caveats,
+  uncertainty,
+  executionMode,
   sport,
   round,
   pick,
@@ -51,10 +66,13 @@ export function DraftHelperPanel({
   leagueName,
   rosterSlots,
   queueLength,
+  aiExplanationEnabled = false,
+  onAiExplanationToggle,
   onRefresh,
   onPlayerClick,
 }: DraftHelperPanelProps) {
   const [warRoomOpen, setWarRoomOpen] = useState(false)
+  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const chimmyPrompt = buildAskChimmyAboutPickPrompt({
     sport,
     round,
@@ -77,7 +95,7 @@ export function DraftHelperPanel({
       <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-white">AI Draft Helper</span>
+          <span className="text-sm font-semibold text-white">Draft Helper</span>
         </div>
         <button
           type="button"
@@ -89,6 +107,24 @@ export function DraftHelperPanel({
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+      <div className="border-b border-white/8 px-3 py-1.5">
+        <label className="inline-flex items-center gap-2 text-[10px] text-white/70">
+          <input
+            type="checkbox"
+            checked={aiExplanationEnabled}
+            onChange={(event) => onAiExplanationToggle?.(event.target.checked)}
+            data-testid="draft-helper-ai-explanation-toggle"
+            disabled={!aiAssistantEnabled}
+            className="rounded border-white/25 bg-black/40"
+          />
+          AI explanation {!aiAssistantEnabled && !aiAvailabilityLoading ? '(disabled)' : ''}
+        </label>
+      </div>
+      <div className="border-b border-white/8 px-3 py-1.5 text-[10px] text-white/60" data-testid="draft-helper-execution-mode">
+        {executionMode === 'ai_explained'
+          ? 'Execution: instant recommendation + AI explanation'
+          : 'Execution: instant automated recommendation'}
       </div>
       <div className="flex-1 overflow-auto p-2">
         {error && (
@@ -104,7 +140,8 @@ export function DraftHelperPanel({
               tabIndex={0}
               onClick={() => onPlayerClick?.(recommendation.player)}
               onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(recommendation.player)}
-            className="mb-2 rounded-lg border border-cyan-300/30 bg-cyan-500/8 px-2.5 py-2 text-left"
+              data-testid="draft-helper-recommendation-card"
+              className="mb-2 rounded-lg border border-cyan-300/30 bg-cyan-500/8 px-2.5 py-2 text-left"
             >
               <p className="font-medium text-cyan-200">
                 {recommendation.player.name}
@@ -120,7 +157,7 @@ export function DraftHelperPanel({
             {explanation && (
               <p className="mb-2 text-[10px] text-white/80">{explanation}</p>
             )}
-            {(reachWarning || valueWarning || scarcityInsight || byeNote) && (
+            {(reachWarning || valueWarning || scarcityInsight || stackInsight || correlationInsight || formatInsight || byeNote) && (
               <div className="mb-2 space-y-1">
                 {reachWarning && (
                   <p className="flex items-start gap-1 text-[10px] text-amber-300">
@@ -137,9 +174,28 @@ export function DraftHelperPanel({
                 {scarcityInsight && (
                   <p className="text-[10px] text-cyan-300/90">{scarcityInsight}</p>
                 )}
+                {stackInsight && (
+                  <p className="text-[10px] text-violet-200/90">{stackInsight}</p>
+                )}
+                {correlationInsight && (
+                  <p className="text-[10px] text-indigo-200/90">{correlationInsight}</p>
+                )}
+                {formatInsight && (
+                  <p className="text-[10px] text-sky-200/90">{formatInsight}</p>
+                )}
                 {byeNote && (
                   <p className="text-[10px] text-amber-300/90">{byeNote}</p>
                 )}
+              </div>
+            )}
+            {evidence.length > 0 && (
+              <div className="mb-2">
+                <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider">Evidence</p>
+                <ul className="list-inside list-disc text-[10px] text-white/70">
+                  {evidence.slice(0, 4).map((item, i) => (
+                    <li key={`e-${i}`}>{item}</li>
+                  ))}
+                </ul>
               </div>
             )}
             {caveats.length > 0 && (
@@ -152,6 +208,11 @@ export function DraftHelperPanel({
                 </ul>
               </div>
             )}
+            {uncertainty && (
+              <p className="mb-2 text-[10px] text-amber-200/90" data-testid="draft-helper-uncertainty">
+                {uncertainty}
+              </p>
+            )}
             {alternatives.length > 0 && (
               <div className="mb-2">
                 <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider mb-1">Alternatives</p>
@@ -163,6 +224,7 @@ export function DraftHelperPanel({
                       tabIndex={0}
                       onClick={() => onPlayerClick?.(alt.player)}
                       onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(alt.player)}
+                      data-testid={`draft-helper-alternative-${i}`}
                       className="rounded border border-white/10 bg-[#0a1228] px-2 py-1 text-[10px] text-white/80 hover:bg-white/5 cursor-pointer"
                     >
                       {alt.player.name} ({alt.player.position}) — {alt.reason}
@@ -171,16 +233,28 @@ export function DraftHelperPanel({
                 </ul>
               </div>
             )}
-            <a
-              href={chimmyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="draft-ai-suggestion-button"
-              className="mt-2 inline-flex items-center gap-1.5 rounded border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] text-cyan-100 hover:bg-cyan-500/20"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              Ask Chimmy about this pick
-            </a>
+            {aiAssistantEnabled ? (
+              <a
+                href={chimmyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="draft-ai-suggestion-button"
+                className="mt-2 inline-flex items-center gap-1.5 rounded border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] text-cyan-100 hover:bg-cyan-500/20"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Ask Chimmy about this pick
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onRefresh}
+                data-testid="draft-ai-suggestion-fallback-button"
+                className="mt-2 inline-flex items-center gap-1.5 rounded border border-amber-300/35 bg-amber-500/10 px-2.5 py-1.5 text-[10px] text-amber-100 hover:bg-amber-500/20"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                AI unavailable - refresh deterministic advice
+              </button>
+            )}
           </>
         )}
         {!loading && !error && !recommendation && (

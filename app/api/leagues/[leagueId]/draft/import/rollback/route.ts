@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { rollbackImport } from '@/lib/draft-import'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +27,10 @@ export async function POST(
     await assertCommissioner(leagueId, userId)
   } catch {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const uiSettings = await getDraftUISettingsForLeague(leagueId)
+  if (!uiSettings.importEnabled) {
+    return NextResponse.json({ error: 'Draft import is disabled by commissioner settings.' }, { status: 403 })
   }
 
   const result = await rollbackImport(leagueId)

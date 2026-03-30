@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getStripeClient } from "@/lib/stripe-client"
 import { getBaseUrl } from "@/lib/get-base-url"
+import {
+  assertNoLeagueSettlementIntent,
+  isMonetizationComplianceError,
+} from "@/lib/monetization/compliance-guardrails"
 
 const PRESET_AMOUNTS = [300, 500, 1000]
 const MIN_AMOUNT = 100
@@ -17,6 +21,11 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const amountCents = Number(body.amountCents)
+    assertNoLeagueSettlementIntent("donation", {
+      route: "/api/bracket/donate",
+      type: "donation",
+      amountCents: String(amountCents),
+    })
 
     if (!amountCents || amountCents < MIN_AMOUNT || amountCents > MAX_AMOUNT) {
       return NextResponse.json(
@@ -55,6 +64,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: checkoutSession.url })
   } catch (err: any) {
+    if (isMonetizationComplianceError(err)) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.statusCode }
+      )
+    }
     console.error("Donation checkout error:", err)
     return NextResponse.json({ error: "Checkout failed" }, { status: 500 })
   }

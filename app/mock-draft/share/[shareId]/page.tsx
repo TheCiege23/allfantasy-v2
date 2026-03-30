@@ -2,9 +2,13 @@ import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Trophy } from 'lucide-react'
+import Link from 'next/link'
 import type { Metadata } from 'next'
 import { formatInTimezone } from '@/lib/preferences/TimezoneFormattingResolver'
 import { resolveServerRenderPreferences } from '@/lib/preferences/ServerRenderPreferenceResolver'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { buildDraftPlayerDisplayModel } from '@/lib/draft-sports-models/build-display-model'
+import { DraftPlayerCard } from '@/components/app/draft-room/DraftPlayerCard'
 
 const POSITION_COLORS: Record<string, string> = {
   QB: 'text-red-400 bg-red-500/15 border-red-500/30',
@@ -58,6 +62,8 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
 
   const picks = Array.isArray(draft.results) ? (draft.results as unknown as DraftPick[]) : []
   if (picks.length === 0) notFound()
+  const metadata = (draft.metadata && typeof draft.metadata === 'object') ? (draft.metadata as { sport?: string }) : null
+  const sport = normalizeToSupportedSport(metadata?.sport ?? DEFAULT_SPORT)
   const totalRounds = Math.max(...picks.map(p => p.round), 1)
   const userPicks = picks.filter(p => p.isUser)
   const positionCounts = userPicks.reduce((acc, p) => {
@@ -76,6 +82,15 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
           <p className="text-gray-500 mt-2 text-sm">
             by {draft.user?.displayName || 'Anonymous'} &middot; {draft.league?.leagueSize ?? 12}-team {draft.league?.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league?.scoring || 'PPR'} &middot; {formatInTimezone(draft.createdAt, timezone, { dateStyle: 'short' }, language)}
           </p>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <Link
+              href={`/mock-draft/share/${encodeURIComponent(params.shareId)}/replay`}
+              className="rounded-lg border border-purple-500/40 bg-purple-500/15 px-3 py-1.5 text-xs font-medium text-purple-100 hover:bg-purple-500/25"
+              data-testid="mock-draft-shared-open-replay"
+            >
+              Open replay timeline
+            </Link>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-3 items-center justify-center mb-8">
@@ -108,40 +123,56 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {roundPicks.map((pick) => (
-                      <div
-                        key={pick.overall}
-                        className={`relative rounded-xl p-3 border transition-all ${
-                          pick.overall === 1
-                            ? 'bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border-amber-500/50 ring-1 ring-amber-400/30'
-                            : pick.isUser
-                              ? 'bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border-cyan-500/40'
-                              : 'bg-gray-950/80 border-gray-800/60 hover:border-gray-700'
-                        }`}
-                      >
-                        {pick.overall === 1 && (
-                          <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/30">
-                            #1 PICK
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-mono text-gray-600">#{pick.overall}</span>
-                          <Badge className={`${POSITION_COLORS[pick.position] || ''} border text-[10px] px-1.5 py-0`}>
-                            {pick.position}
-                          </Badge>
-                        </div>
-                        <div className="font-bold text-sm text-white truncate">{pick.playerName}</div>
-                        <div className="text-xs text-gray-500 truncate">{pick.position} &middot; {pick.team}</div>
-                        <div className="mt-2 flex items-center gap-1.5 text-xs">
-                          {pick.managerAvatar && (
-                            <div className="w-5 h-5 rounded-full overflow-hidden border border-gray-700 shrink-0">
-                              <img src={pick.managerAvatar} alt={pick.manager} className="w-full h-full object-cover" />
+                      (() => {
+                        const display = buildDraftPlayerDisplayModel({
+                          playerName: pick.playerName,
+                          position: pick.position,
+                          team: pick.team ?? null,
+                          sport,
+                        })
+                        return (
+                          <div
+                            key={pick.overall}
+                            className={`relative rounded-xl p-3 border transition-all ${
+                              pick.overall === 1
+                                ? 'bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border-amber-500/50 ring-1 ring-amber-400/30'
+                                : pick.isUser
+                                  ? 'bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border-cyan-500/40'
+                                  : 'bg-gray-950/80 border-gray-800/60 hover:border-gray-700'
+                            }`}
+                          >
+                            {pick.overall === 1 && (
+                              <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/30">
+                                #1 PICK
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-mono text-gray-600">#{pick.overall}</span>
+                              <Badge className={`${POSITION_COLORS[pick.position] || ''} border text-[10px] px-1.5 py-0`}>
+                                {pick.position}
+                              </Badge>
                             </div>
-                          )}
-                          <span className={`truncate ${pick.isUser ? 'text-cyan-400 font-semibold' : 'text-gray-600'}`}>
-                            {pick.manager}
-                          </span>
-                        </div>
-                      </div>
+                            <DraftPlayerCard
+                              display={display}
+                              name={pick.playerName}
+                              position={pick.position}
+                              team={pick.team ?? null}
+                              variant="row"
+                              testId={`shared-mock-pick-${pick.overall}`}
+                            />
+                            <div className="mt-2 flex items-center gap-1.5 text-xs">
+                              {pick.managerAvatar && (
+                                <div className="w-5 h-5 rounded-full overflow-hidden border border-gray-700 shrink-0">
+                                  <img src={pick.managerAvatar} alt={pick.manager} className="w-full h-full object-cover" />
+                                </div>
+                              )}
+                              <span className={`truncate ${pick.isUser ? 'text-cyan-400 font-semibold' : 'text-gray-600'}`}>
+                                {pick.manager}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })()
                     ))}
                   </div>
                 </div>

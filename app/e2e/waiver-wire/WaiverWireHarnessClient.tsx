@@ -11,6 +11,7 @@ import { buildWaiverSummaryForAI, getWaiverAIChatUrl } from '@/lib/waiver-wire/W
 type Player = { id: string; name: string; position: string | null; team: string | null }
 type Claim = { id: string; addPlayerId: string; dropPlayerId: string | null; faabBid: number | null; priorityOrder: number; status: string }
 type Tx = { id: string; addPlayerId: string; dropPlayerId: string | null; faabSpent: number | null; processedAt: string }
+type EngineSuggestion = { playerId: string; playerName: string; position: string; compositeScore: number; recommendation: string; faabBid: number | null }
 
 const MOCK_PLAYERS: Player[] = [
   { id: 'player-1', name: 'Alpha Runner', position: 'RB', team: 'KC' },
@@ -47,6 +48,8 @@ export function WaiverWireHarnessClient() {
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
   const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string }>>({})
   const [watchlistPlayerIds, setWatchlistPlayerIds] = useState<string[]>([])
+  const [waiverAiIncludeExplanation, setWaiverAiIncludeExplanation] = useState(false)
+  const [waiverAiResult, setWaiverAiResult] = useState<{ explanation: string; source: 'deterministic' | 'ai'; suggestions: EngineSuggestion[] } | null>(null)
 
   const rosterPlayers = [{ id: 'roster-1', name: 'Existing Player' }]
   const rosterPlayerIds = ['roster-1']
@@ -94,6 +97,27 @@ export function WaiverWireHarnessClient() {
 
   const claimedTransactions = useMemo(() => transactions.filter((tx) => Boolean(tx.addPlayerId)), [transactions])
   const droppedTransactions = useMemo(() => transactions.filter((tx) => Boolean(tx.dropPlayerId)), [transactions])
+
+  const analyzeWaiverEngine = () => {
+    const ranked = [...players]
+      .sort((a, b) => (trendScoreByPlayerId.get(b.id) ?? 0) - (trendScoreByPlayerId.get(a.id) ?? 0))
+      .slice(0, 5)
+      .map((player, index) => ({
+        playerId: player.id,
+        playerName: player.name,
+        position: String(player.position ?? 'UTIL'),
+        compositeScore: Math.max(30, 85 - index * 8),
+        recommendation: index === 0 ? 'Must Add' : index <= 2 ? 'Strong Add' : 'Add',
+        faabBid: Math.max(3, 20 - index * 3),
+      }))
+    setWaiverAiResult({
+      source: waiverAiIncludeExplanation ? 'ai' : 'deterministic',
+      explanation: waiverAiIncludeExplanation
+        ? 'AI explanation enabled: prioritize early claims where trend score and roster need intersect.'
+        : 'Deterministic ranking: players are prioritized by trend score and waiver context.',
+      suggestions: ranked,
+    })
+  }
 
   if (!wireOpen) {
     return (
@@ -304,6 +328,41 @@ export function WaiverWireHarnessClient() {
           ))}
         </div>
       )}
+
+      <section className="mt-4 rounded-xl border border-cyan-500/20 bg-black/30 p-4" data-testid="waiver-ai-engine-panel">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-cyan-200">Waiver AI Engine</h2>
+          <label className="inline-flex items-center gap-2 text-xs text-white/75">
+            <input
+              type="checkbox"
+              checked={waiverAiIncludeExplanation}
+              onChange={(event) => setWaiverAiIncludeExplanation(event.target.checked)}
+              data-testid="waiver-ai-engine-explanation-toggle"
+            />
+            AI explanation
+          </label>
+        </div>
+        <button
+          type="button"
+          data-testid="waiver-ai-engine-analyze"
+          onClick={analyzeWaiverEngine}
+          className="mt-2 rounded border border-cyan-400/60 px-3 py-1.5 text-xs text-cyan-200"
+        >
+          Analyze waivers
+        </button>
+        {waiverAiResult && (
+          <div className="mt-3 space-y-2" data-testid="waiver-ai-engine-results">
+            <p className="text-xs text-white/80">
+              Source: <span className="text-cyan-200">{waiverAiResult.source}</span> · {waiverAiResult.explanation}
+            </p>
+            {waiverAiResult.suggestions.map((s, index) => (
+              <div key={s.playerId} className="rounded border border-white/10 px-2 py-1 text-xs" data-testid={`waiver-ai-engine-suggestion-${index + 1}`}>
+                #{index + 1} {s.playerName} ({s.position}) · {s.recommendation} · Score {s.compositeScore}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="mt-4 border-t border-white/10 pt-3">
         <a

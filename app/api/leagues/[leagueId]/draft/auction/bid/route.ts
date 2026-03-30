@@ -8,6 +8,8 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { placeBid } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { prisma } from '@/lib/prisma'
+import { notifyAuctionOutbid } from '@/lib/draft-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,9 +36,27 @@ export async function POST(
     return NextResponse.json({ error: 'Valid amount (integer) required' }, { status: 400 })
   }
 
+  const before = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { auctionState: true },
+  })
+  const beforeState = (before?.auctionState ?? {}) as Record<string, unknown>
+  const previousBidderRosterId =
+    typeof beforeState.currentBidderRosterId === 'string' && beforeState.currentBidderRosterId.length > 0
+      ? beforeState.currentBidderRosterId
+      : null
+  const previousBidAmount =
+    typeof beforeState.currentBid === 'number' && Number.isFinite(beforeState.currentBid)
+      ? beforeState.currentBid
+      : null
+
   const result = await placeBid(leagueId, rosterId, amount)
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 })
+  }
+
+  if (previousBidderRosterId && previousBidderRosterId !== rosterId && (previousBidAmount ?? 0) > 0) {
+    void notifyAuctionOutbid(leagueId, previousBidderRosterId, previousBidAmount ?? undefined)
   }
 
   const updated = await buildSessionSnapshot(leagueId)

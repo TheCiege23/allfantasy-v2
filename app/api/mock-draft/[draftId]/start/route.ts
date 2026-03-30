@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { startMockDraft } from '@/lib/mock-draft-engine/MockDraftSessionService'
+import { startMockDraftRuntime } from '@/lib/mock-draft-engine/MockDraftRuntimeService'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +20,7 @@ export async function POST(
   const { draftId } = await ctx.params
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const ok = await startMockDraft(draftId, userId)
-  if (!ok) return NextResponse.json({ error: 'Draft not found or already started' }, { status: 400 })
-  return NextResponse.json({ ok: true, draftId, status: 'in_progress' })
+  const snapshot = await startMockDraftRuntime(draftId, userId)
+  if (!snapshot) return NextResponse.json({ error: 'Draft not found or already started' }, { status: 400 })
+  return NextResponse.json({ ok: true, draftId, status: snapshot.status, draft: snapshot })
 }

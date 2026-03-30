@@ -6,6 +6,7 @@ import { MessageCircle, Send } from 'lucide-react'
 export interface MockDraftChatPanelProps {
   draftId: string
   pollIntervalMs?: number
+  aiSuggestion?: string | null
 }
 
 type ChatMessage = {
@@ -16,7 +17,7 @@ type ChatMessage = {
   createdAt: string
 }
 
-export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraftChatPanelProps) {
+export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000, aiSuggestion = null }: MockDraftChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -75,12 +76,17 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
   }
 
   return (
-    <section className="flex flex-col rounded-2xl border border-white/12 bg-black/25 text-xs">
+    <section className="flex flex-col rounded-2xl border border-white/12 bg-black/25 text-xs" data-testid="mock-draft-chat-panel">
       <header className="flex items-center gap-2 border-b border-white/10 px-3 py-2">
         <MessageCircle className="h-4 w-4 text-cyan-400" />
         <span className="font-medium text-white">Mock chat (isolated)</span>
       </header>
       <div className="flex min-h-[120px] max-h-[220px] flex-1 flex-col overflow-y-auto p-2">
+        {aiSuggestion && (
+          <p className="mb-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1.5 text-[11px] text-cyan-100" data-testid="mock-draft-chat-ai-suggestion">
+            {aiSuggestion}
+          </p>
+        )}
         {error && (
           <p className="mb-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200">
             {error}
@@ -105,12 +111,14 @@ export function MockDraftChatPanel({ draftId, pollIntervalMs = 5000 }: MockDraft
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
           placeholder="Message..."
+          data-testid="mock-draft-chat-input"
           className="flex-1 rounded-lg border border-white/15 bg-black/40 px-2.5 py-1.5 text-white placeholder:text-white/40"
         />
         <button
           type="button"
           onClick={send}
           disabled={sending || !input.trim()}
+          data-testid="mock-draft-chat-send"
           className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-2.5 py-1.5 text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
         >
           <Send className="h-4 w-4" />

@@ -167,7 +167,7 @@ export async function PATCH(
   if (wasOrphan) {
     await trackDiscoveryOrphanAdoption(
       { leagueId, rosterId, userId },
-      { commissionerId }
+      { commissionerId, source: 'managers_route' }
     )
   }
 

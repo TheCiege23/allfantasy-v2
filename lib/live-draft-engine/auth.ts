@@ -33,7 +33,7 @@ export async function canSubmitPickForRoster(
     select: { id: true, platformUserId: true },
   })
   if (!roster) return false
-  return true
+  return roster.platformUserId === userId
 }
 
 /**

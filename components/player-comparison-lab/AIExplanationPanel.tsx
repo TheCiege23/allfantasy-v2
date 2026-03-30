@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
@@ -26,6 +26,10 @@ export function AIExplanationPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setInsight(initialInsight ?? null);
+  }, [initialInsight]);
+
   const handleRetry = async () => {
     setError(null);
     setLoading(true);
@@ -41,6 +45,12 @@ export function AIExplanationPanel({
 
   const chimmyPrompt = `Compare these players and give a recommendation: ${playerNames.join(', ')}. Summary: ${summaryLines.slice(0, 3).join(' ')}`;
   const chimmyHref = getChimmyChatHrefWithPrompt(chimmyPrompt);
+  const recommendationLabel =
+    insight?.finalRecommendationSource === 'deterministic'
+      ? 'Final recommendation (deterministic)'
+      : insight?.finalRecommendationSource === 'ai'
+        ? 'Final recommendation (AI)'
+        : 'Final recommendation (OpenAI)';
 
   return (
     <Card className="border-white/10 bg-white/5" data-audit="ai-explanation-panel">
@@ -91,7 +101,7 @@ export function AIExplanationPanel({
         {insight?.finalRecommendation && (
           <div className="space-y-3" data-testid="comparison-ai-insight-output">
             <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-white/90">
-              <p className="mb-1 text-xs uppercase tracking-wide text-cyan-300">Final recommendation (OpenAI)</p>
+              <p className="mb-1 text-xs uppercase tracking-wide text-cyan-300">{recommendationLabel}</p>
               <p data-testid="comparison-ai-final-recommendation">{insight.finalRecommendation}</p>
             </div>
             {insight.deepseekAnalysis && (

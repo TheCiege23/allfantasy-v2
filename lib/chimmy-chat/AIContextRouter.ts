@@ -30,6 +30,10 @@ export function readAIContextFromSearchParams(searchParams: SearchParamReader): 
   const sport = resolveSportForAIChat(searchParams.get("sport"), null)
   const insightTypeRaw = searchParams.get("insightType")?.trim()
   const source = searchParams.get("source")?.trim()
+  const conversationId = searchParams.get("conversationId")?.trim()
+  const privateModeRaw = searchParams.get("privateMode")?.trim().toLowerCase()
+  const targetUsername = searchParams.get("targetUsername")?.trim()
+  const strategyMode = searchParams.get("strategyMode")?.trim()
 
   const insightType =
     insightTypeRaw === "matchup" ||
@@ -51,6 +55,10 @@ export function readAIContextFromSearchParams(searchParams: SearchParamReader): 
     sport,
     season: readNumberParam(searchParams.get("season")),
     week: readNumberParam(searchParams.get("week")),
+    conversationId: conversationId || undefined,
+    privateMode: privateModeRaw === "1" || privateModeRaw === "true" ? true : undefined,
+    targetUsername: targetUsername || undefined,
+    strategyMode: strategyMode || undefined,
     source: source ? (source as AIChatContext["source"]) : undefined,
   }
 }
@@ -72,6 +80,10 @@ export function buildAIChatHref(context?: AIChatContext): string {
     if (context?.sport) url.searchParams.set("sport", context.sport)
     if (typeof context?.season === "number") url.searchParams.set("season", String(context.season))
     if (typeof context?.week === "number") url.searchParams.set("week", String(context.week))
+    if (context?.conversationId) url.searchParams.set("conversationId", context.conversationId)
+    if (context?.privateMode) url.searchParams.set("privateMode", "1")
+    if (context?.targetUsername) url.searchParams.set("targetUsername", context.targetUsername)
+    if (context?.strategyMode) url.searchParams.set("strategyMode", context.strategyMode)
     if (context?.source) url.searchParams.set("source", context.source)
 
     return `${url.pathname}${url.search}`

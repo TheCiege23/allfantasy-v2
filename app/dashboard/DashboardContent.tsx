@@ -48,6 +48,7 @@ import {
   ReturnPromptCards,
 } from "@/components/onboarding-retention"
 import type { OnboardingChecklistState, RetentionNudge } from "@/lib/onboarding-retention"
+import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 
 interface DashboardProps {
   onboardingComplete?: boolean
@@ -178,6 +179,7 @@ export default function DashboardContent({
   isAdmin = false,
   initialDashboardPayload,
 }: DashboardProps) {
+  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const displayName = user.displayName || user.username || user.email.split("@")[0] || "Manager"
   const { formatInTimezone } = useUserTimezone()
   const careerTier = Number.isFinite(Number(userCareerTier)) ? Math.max(1, Math.floor(Number(userCareerTier))) : 1
@@ -393,6 +395,7 @@ export default function DashboardContent({
   const waiverAiHref = AIProductLayer.routes.getHrefForFeature("waiver_ai", aiProductContext)
   const tradeEvaluatorHref = AIProductLayer.routes.getHrefForFeature("trade_evaluator", aiProductContext)
   const coachHref = buildLeagueContextHref("/app/coach")
+  const safeChimmyHref = aiAssistantEnabled ? chimmyHref : coachHref
 
   const compactChecklist = useMemo(
     () => [
@@ -422,13 +425,21 @@ export default function DashboardContent({
 
   const aiShortcuts = useMemo(
     () => [
-      { title: "Ask Chimmy", href: chimmyHref, subtitle: "Private AI chat with league context" },
+      {
+        title: aiAssistantEnabled ? "Ask Chimmy" : "AI temporarily unavailable",
+        href: safeChimmyHref,
+        subtitle: aiAssistantEnabled
+          ? "Private AI chat with league context"
+          : aiAvailabilityLoading
+            ? "Checking AI availability..."
+            : "Open deterministic lineup guidance",
+      },
       { title: "Trade Advice", href: tradeEvaluatorHref, subtitle: "Instant deal analysis and negotiation help" },
       { title: "Waiver Advice", href: waiverAiHref, subtitle: "Free-agent priorities and FAAB plan" },
       { title: "Lineup Help", href: coachHref, subtitle: "Start or sit and roster construction guidance" },
       { title: "League Recap", href: intelligenceHref, subtitle: "League-aware pulse, recap, and next moves" },
     ],
-    [chimmyHref, coachHref, intelligenceHref, tradeEvaluatorHref, waiverAiHref]
+    [aiAssistantEnabled, aiAvailabilityLoading, coachHref, intelligenceHref, safeChimmyHref, tradeEvaluatorHref, waiverAiHref]
   )
 
   const normalizeChatMessage = useCallback((msg: any): LeagueChatMessage => {
@@ -1574,7 +1585,9 @@ export default function DashboardContent({
               </Link>
               <div className="grid grid-cols-2 gap-2">
                 <Link href="/messages" className="flex min-h-[52px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">Open Messages</Link>
-                <Link href={chimmyHref} className="flex min-h-[52px] items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300">Ask Chimmy</Link>
+                <Link href={safeChimmyHref} className="flex min-h-[52px] items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300">
+                  {aiAssistantEnabled ? "Ask Chimmy" : "Open lineup help"}
+                </Link>
               </div>
             </div>
           </div>
@@ -1771,7 +1784,7 @@ export default function DashboardContent({
                     <span className="flex items-center gap-2"><Inbox className="h-4 w-4 text-cyan-300" /> Inbox</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>
-                  <Link href={chimmyHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
+                  <Link href={safeChimmyHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
                     <span className="flex items-center gap-2"><Bot className="h-4 w-4 text-cyan-300" /> Chimmy</span>
                     <ChevronRight className="h-4 w-4 text-cyan-300" />
                   </Link>

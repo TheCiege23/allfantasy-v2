@@ -1,17 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import Link from "next/link"
-import { Loader2, Inbox, Search } from "lucide-react"
+import { Loader2, Inbox, Search, ShieldAlert } from "lucide-react"
 import { FindLeagueCard } from "@/components/discovery/FindLeagueCard"
 import { RecommendedLeaguesSection } from "@/components/discovery/RecommendedLeaguesSection"
 import { getDiscoverySports } from "@/lib/public-discovery/discovery-sports"
 import type {
   DiscoveryCard,
-  DiscoveryFormat,
   DiscoverySort,
   EntryFeeFilter,
+  LeagueStyleFilter,
   VisibilityFilter,
   DraftTypeFilter,
   DraftStatusFilter,
@@ -27,10 +26,15 @@ const SPORT_LABELS: Record<string, string> = {
   SOCCER: "Soccer",
 }
 
-const LEAGUE_TYPE_OPTIONS: { value: DiscoveryFormat; label: string }[] = [
+const LEAGUE_TYPE_OPTIONS: { value: LeagueStyleFilter; label: string }[] = [
   { value: "all", label: "All" },
+  { value: "redraft", label: "Redraft" },
+  { value: "dynasty", label: "Dynasty" },
+  { value: "best_ball", label: "Best Ball" },
+  { value: "keeper", label: "Keeper" },
+  { value: "survivor", label: "Survivor" },
   { value: "bracket", label: "Bracket" },
-  { value: "creator", label: "Creator" },
+  { value: "community", label: "Community" },
 ]
 
 const DRAFT_TYPE_OPTIONS: { value: DraftTypeFilter; label: string }[] = [
@@ -44,6 +48,7 @@ const DRAFT_STATUS_OPTIONS: { value: DraftStatusFilter; label: string }[] = [
   { value: "all", label: "Any" },
   { value: "pre_draft", label: "Pre-draft" },
   { value: "in_progress", label: "In progress" },
+  { value: "paused", label: "Paused" },
   { value: "completed", label: "Completed" },
 ]
 
@@ -54,6 +59,7 @@ const ENTRY_FEE_OPTIONS: { value: EntryFeeFilter; label: string }[] = [
 ]
 
 const SORT_OPTIONS: { value: DiscoverySort; label: string }[] = [
+  { value: "ranking_match", label: "Best rank match" },
   { value: "popularity", label: "Popularity" },
   { value: "newest", label: "Newest" },
   { value: "filling_fast", label: "Filling fast" },
@@ -66,9 +72,12 @@ const VISIBILITY_OPTIONS: { value: VisibilityFilter; label: string }[] = [
 
 export function FindLeagueClient() {
   const searchParams = useSearchParams()
+  const hasInitializedFiltersRef = useRef(false)
+  const skipNextFilterFetchRef = useRef(false)
   const [query, setQuery] = useState("")
+  const [appliedQuery, setAppliedQuery] = useState("")
   const [sport, setSport] = useState("")
-  const [leagueType, setLeagueType] = useState<DiscoveryFormat>("all")
+  const [leagueType, setLeagueType] = useState<LeagueStyleFilter>("all")
   const [draftType, setDraftType] = useState<DraftTypeFilter>("all")
   const [teamCountMin, setTeamCountMin] = useState("")
   const [teamCountMax, setTeamCountMax] = useState("")
@@ -76,20 +85,25 @@ export function FindLeagueClient() {
   const [entryFee, setEntryFee] = useState<EntryFeeFilter>("all")
   const [aiEnabled, setAiEnabled] = useState(false)
   const [visibility, setVisibility] = useState<VisibilityFilter>("public")
-  const [sort, setSort] = useState<DiscoverySort>("popularity")
+  const [sort, setSort] = useState<DiscoverySort>("ranking_match")
   const [page, setPage] = useState(1)
   const [leagues, setLeagues] = useState<DiscoveryCard[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [viewerTier, setViewerTier] = useState<number | null>(null)
+  const [viewerTierName, setViewerTierName] = useState<string | null>(null)
+  const [hiddenByTierPolicy, setHiddenByTierPolicy] = useState(0)
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
 
   const buildParams = useCallback(
     (p: number) => {
       const params = new URLSearchParams()
-      if (query.trim()) params.set("q", query.trim())
+      if (appliedQuery.trim()) params.set("q", appliedQuery.trim())
       if (sport) params.set("sport", sport)
-      params.set("format", leagueType)
+      if (leagueType !== "all") params.set("style", leagueType)
+      if (draftType !== "all") params.set("draftType", draftType)
+      if (draftStatus !== "all") params.set("draftStatus", draftStatus)
       params.set("sort", sort)
       params.set("entryFee", entryFee)
       params.set("visibility", visibility)
@@ -102,7 +116,19 @@ export function FindLeagueClient() {
       params.set("limit", "12")
       return params
     },
-    [query, sport, leagueType, sort, entryFee, visibility, teamCountMin, teamCountMax, aiEnabled]
+    [
+      appliedQuery,
+      sport,
+      leagueType,
+      draftType,
+      draftStatus,
+      sort,
+      entryFee,
+      visibility,
+      teamCountMin,
+      teamCountMax,
+      aiEnabled,
+    ]
   )
 
   const fetchLeagues = useCallback(
@@ -115,11 +141,17 @@ export function FindLeagueClient() {
           setLeagues(d.leagues ?? [])
           setTotal(d.total ?? 0)
           setTotalPages(d.totalPages ?? 1)
+          setViewerTier(typeof d.viewerTier === "number" ? d.viewerTier : null)
+          setViewerTierName(typeof d.viewerTierName === "string" ? d.viewerTierName : null)
+          setHiddenByTierPolicy(typeof d.hiddenByTierPolicy === "number" ? d.hiddenByTierPolicy : 0)
         })
         .catch(() => {
           setLeagues([])
           setTotal(0)
           setTotalPages(0)
+          setViewerTier(null)
+          setViewerTierName(null)
+          setHiddenByTierPolicy(0)
         })
         .finally(() => setLoading(false))
     },
@@ -132,14 +164,39 @@ export function FindLeagueClient() {
 
   useEffect(() => {
     const s = searchParams?.get("sport") ?? ""
-    const f = (searchParams?.get("format") as DiscoveryFormat) ?? "all"
+    const styleParam = (searchParams?.get("style") as LeagueStyleFilter) ?? "all"
+    const q = searchParams?.get("q") ?? ""
     if (s) setSport(s)
-    if (f !== "all" && f !== leagueType) setLeagueType(f)
+    if (styleParam !== "all") setLeagueType(styleParam)
+    if (q.trim()) {
+      setQuery(q)
+      setAppliedQuery(q.trim())
+    }
+    hasInitializedFiltersRef.current = true
   }, [searchParams])
 
-  const handleSearch = () => {
-    setPage(1)
+  useEffect(() => {
+    if (!hasInitializedFiltersRef.current) return
+    if (skipNextFilterFetchRef.current) {
+      skipNextFilterFetchRef.current = false
+      return
+    }
+    if (page !== 1) {
+      setPage(1)
+      return
+    }
     fetchLeagues(1)
+  }, [sport, leagueType, draftType, draftStatus, teamCountMin, teamCountMax, entryFee, aiEnabled, visibility, sort, fetchLeagues])
+
+  const handleSearch = () => {
+    const nextQuery = query.trim()
+    skipNextFilterFetchRef.current = true
+    setAppliedQuery(nextQuery)
+    if (page === 1) {
+      fetchLeagues(1)
+      return
+    }
+    setPage(1)
   }
 
   const sports = getDiscoverySports().map((s) => ({
@@ -149,6 +206,44 @@ export function FindLeagueClient() {
 
   return (
     <div className="space-y-8">
+      <section
+        className="rounded-2xl border p-4 sm:p-5"
+        style={{
+          borderColor: "var(--border)",
+          background:
+            "linear-gradient(145deg, color-mix(in srgb, var(--accent) 8%, var(--panel)) 0%, color-mix(in srgb, var(--panel2) 15%, var(--panel)) 100%)",
+        }}
+        data-testid="find-league-ranking-banner"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--muted)" }}>
+              Rankings effect enabled
+            </p>
+            <p className="mt-1 text-sm" style={{ color: "var(--text)" }}>
+              Discovery prioritizes leagues closest to your current tier so recommendations stay competitive and relevant.
+            </p>
+            <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
+              {viewerTierName
+                ? `Current tier: ${viewerTier ?? "—"} (${viewerTierName}).`
+                : "Sign in to personalize tier matching even more."}
+            </p>
+          </div>
+          {hiddenByTierPolicy > 0 ? (
+            <div
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold"
+              style={{
+                borderColor: "rgba(251, 146, 60, 0.35)",
+                background: "rgba(251, 146, 60, 0.12)",
+                color: "rgb(251, 146, 60)",
+              }}
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              {hiddenByTierPolicy} leagues require commissioner invite
+            </div>
+          ) : null}
+        </div>
+      </section>
       <RecommendedLeaguesSection sport={sport || undefined} limit={6} />
       {/* Search — mobile first */}
       <div className="flex flex-col gap-3">
@@ -159,6 +254,7 @@ export function FindLeagueClient() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            data-testid="find-league-search-input"
             className="flex-1 rounded-lg border px-3 py-2.5 text-sm"
             style={{
               borderColor: "var(--border)",
@@ -170,6 +266,7 @@ export function FindLeagueClient() {
           <button
             type="button"
             onClick={handleSearch}
+            data-testid="find-league-search-submit"
             className="rounded-lg px-4 py-2.5 text-sm font-medium flex items-center gap-2"
             style={{ background: "var(--accent)", color: "var(--bg)" }}
           >
@@ -221,8 +318,7 @@ export function FindLeagueClient() {
           <select
             value={leagueType}
             onChange={(e) => {
-              setLeagueType(e.target.value as DiscoveryFormat)
-              setPage(1)
+              setLeagueType(e.target.value as LeagueStyleFilter)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -242,7 +338,6 @@ export function FindLeagueClient() {
             value={draftType}
             onChange={(e) => {
               setDraftType(e.target.value as DraftTypeFilter)
-              setPage(1)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -267,7 +362,6 @@ export function FindLeagueClient() {
               value={teamCountMin}
               onChange={(e) => {
                 setTeamCountMin(e.target.value)
-                setPage(1)
               }}
               className="w-20 rounded-lg border px-2 py-2 text-sm"
               style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -280,7 +374,6 @@ export function FindLeagueClient() {
               value={teamCountMax}
               onChange={(e) => {
                 setTeamCountMax(e.target.value)
-                setPage(1)
               }}
               className="w-20 rounded-lg border px-2 py-2 text-sm"
               style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -295,7 +388,6 @@ export function FindLeagueClient() {
             value={draftStatus}
             onChange={(e) => {
               setDraftStatus(e.target.value as DraftStatusFilter)
-              setPage(1)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -315,7 +407,6 @@ export function FindLeagueClient() {
             value={entryFee}
             onChange={(e) => {
               setEntryFee(e.target.value as EntryFeeFilter)
-              setPage(1)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -337,7 +428,6 @@ export function FindLeagueClient() {
               checked={aiEnabled}
               onChange={(e) => {
                 setAiEnabled(e.target.checked)
-                setPage(1)
               }}
               className="rounded border"
               style={{ borderColor: "var(--border)" }}
@@ -355,7 +445,6 @@ export function FindLeagueClient() {
             value={visibility}
             onChange={(e) => {
               setVisibility(e.target.value as VisibilityFilter)
-              setPage(1)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -375,7 +464,6 @@ export function FindLeagueClient() {
             value={sort}
             onChange={(e) => {
               setSort(e.target.value as DiscoverySort)
-              setPage(1)
             }}
             className="w-full rounded-lg border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
@@ -412,6 +500,7 @@ export function FindLeagueClient() {
           <>
             <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
               {total} league{total !== 1 ? "s" : ""} found
+              {sort === "ranking_match" ? " · sorted by rank fit" : ""}
             </p>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {leagues.map((league) => (

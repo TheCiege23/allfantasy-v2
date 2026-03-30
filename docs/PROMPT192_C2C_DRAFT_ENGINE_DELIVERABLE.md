@@ -54,9 +54,20 @@ C2C draft support for leagues that draft both **college** and **pro** assets. Co
   - Promoted badge unchanged for graduated players.
 - **DraftBoard / DraftBoardCell:**
   - **C2C:** Empty cells in college rounds show **"College"** slot marker (violet).
-  - When C2C enabled, devy round markers are not shown (college rounds use "College").
+  - Filled C2C picks render explicit mixed-pool badges:
+    - **`C`** for college-side picks
+    - **`P`** for pro-side picks
+  - When C2C enabled, devy round markers are not shown (college rounds use C2C college indicators).
 - **DraftRoomPageClient:** Passes `c2cConfig` and `c2cCollegeRounds` to panel and board; maps `poolType` from pool entries to players.
-- **Roster:** Picks are displayed on the board and in “My roster”; college vs pro is derivable from round (collegeRounds) for roster grouping if needed later.
+- **Roster rendering (mixed pools):**
+  - In-draft “My roster” now labels picks as **College** or **Pro** when C2C is enabled.
+  - Post-draft “My roster” applies the same C2C label distinction.
+- **Commissioner controls (in-room):**
+  - Added C2C config section in `CommissionerControlCenterModal`:
+    - toggle C2C enable/disable
+    - comma-separated college rounds mapping
+    - save action wired to `PATCH /api/leagues/[leagueId]/draft/c2c/config`
+  - Config is pre-draft only and refreshes session + pool after save.
 
 ---
 
@@ -79,11 +90,11 @@ C2C draft support for leagues that draft both **college** and **pro** assets. Co
 
 ## 6. QA Checklist (Mandatory Click Audit)
 
-- [ ] **College/pro filters work:** With C2C enabled, "All | College | Pro" filter shows only College or only Pro when selected; "All" shows both.
-- [ ] **Mixed board renders correctly:** Board shows picks in correct round/slot; empty college rounds show "College" marker; pro rounds show no marker (or "—").
-- [ ] **Player cards differentiate pool correctly:** College players show College/school badge; pro players show Pro badge; no dead badges.
-- [ ] **Roster assignment works:** Picks are recorded and appear on board and in "My roster"; college vs pro is consistent with round (collegeRounds).
-- [ ] **No dead C2C actions:** College round rejects pro-only player with clear error; pro round rejects college-only player with clear error; filters and round hints only appear when C2C (or devy) enabled.
+- [x] **College/pro filters work:** With C2C enabled, "All | College | Pro" filter shows only College or only Pro when selected; "All" shows both.
+- [x] **Mixed board renders correctly:** Board shows picks in correct round/slot; empty college rounds show "College" marker; filled picks show C/P badges for mixed pools.
+- [x] **Player cards differentiate pool correctly:** College players show College/school badge; pro players show Pro badge; no dead badges.
+- [x] **Roster assignment works:** Picks are recorded and appear on board and in "My roster"; college vs pro labels are consistent with C2C round mapping.
+- [x] **No dead C2C actions:** College round rejects pro-only player with clear error; pro round rejects college-only player with clear error; filters and round hints only appear when C2C enabled.
 
 ---
 
@@ -93,4 +104,7 @@ C2C draft support for leagues that draft both **college** and **pro** assets. Co
 - **Types:** `lib/draft-sports-models/types.ts`, `lib/draft-sports-models/normalize-draft-player.ts`, `lib/live-draft-engine/types.ts`
 - **Backend:** `lib/live-draft-engine/DraftSessionService.ts`, `lib/live-draft-engine/PickValidation.ts`, `lib/live-draft-engine/PickSubmissionService.ts`, `app/api/leagues/[leagueId]/draft/pool/route.ts`, `app/api/leagues/[leagueId]/draft/c2c/config/route.ts`
 - **Frontend:** `components/app/draft-room/PlayerPanel.tsx`, `components/app/draft-room/DraftPlayerCard.tsx`, `components/app/draft-room/DraftBoard.tsx`, `components/app/draft-room/DraftBoardCell.tsx`, `components/app/draft-room/DraftRoomPageClient.tsx`
+- **Frontend (commissioner):** `components/app/draft-room/CommissionerControlCenterModal.tsx`
+- **Post-draft roster rendering:** `components/app/draft-room/PostDraftView.tsx`
+- **E2E click audit:** `e2e/c2c-draft-room-click-audit.spec.ts`
 - **Docs:** `docs/PROMPT192_C2C_DRAFT_ENGINE_DELIVERABLE.md`

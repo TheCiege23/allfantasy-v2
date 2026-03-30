@@ -1,5 +1,149 @@
 # PROMPT 191 — AllFantasy Devy Draft Engine Deliverable
 
+This deliverable implements deterministic devy draft behavior for live draft rooms, with optional AI layers remaining advisory-only.
+
+Supported sports remain platform-wide:
+
+- NFL
+- NHL
+- NBA
+- MLB
+- NCAA Basketball
+- NCAA Football
+- Soccer
+
+## Data Model Changes
+
+No Prisma table migration was required for this prompt. We extended the live draft pick data contract and client/server source semantics to distinguish devy asset flows deterministically:
+
+- Live pick `source` now supports:
+  - `devy`
+  - `college`
+  - `promoted_devy`
+- Draft board cell model now supports:
+  - `isDevyPick`
+  - `isPromotedFromDevy`
+  - `source`
+
+These changes are backward-compatible and preserve existing `user | auto | commissioner | keeper` behavior.
+
+## Draft Logic Updates (Deterministic)
+
+### 1) Devy round enforcement and pro-round separation
+
+Updated `validateDevyEligibilityAsync` in `lib/live-draft-engine/PickValidation.ts`:
+
+- If current round is devy-only, selected player must be devy-eligible and not graduated.
+- If current round is pro-only, ungraduated devy players are rejected.
+
+This closes the prior gap where pro rounds could still accept devy-only assets.
+
+### 2) Pick submission source handling
+
+Updated `lib/live-draft-engine/PickSubmissionService.ts` and `app/api/leagues/[leagueId]/draft/pick/route.ts`:
+
+- Expanded `SubmitPickInput.source` union to include devy-specific sources.
+- Added source sanitization in API route to prevent invalid arbitrary source values.
+
+### 3) Draft pool separation + promotion metadata
+
+Updated `app/api/leagues/[leagueId]/draft/pool/route.ts`:
+
+- Prevents forced startup-only pool defaults when live draft devy/c2c configs are active.
+- Adds explicit pool type markers (`pro`/`college`) for mixed pools.
+- Enriches pro pool entries with promotion marker metadata by cross-resolving graduated devy player records.
+- Preserves keeper filtering and existing fallback asset pipeline behavior.
+
+## UI Changes
+
+### 1) Player panel devy/pro filtering
+
+Updated `components/app/draft-room/PlayerPanel.tsx`:
+
+- Auto-aligns `Pool` filter with active round context:
+  - Devy round -> `Devy`
+  - Pro round -> `Pro`
+  - C2C college/pro rounds -> `College`/`Pro`
+
+### 2) Draft board devy/promoted markers
+
+Updated:
+
+- `components/app/draft-room/DraftBoard.tsx`
+- `components/app/draft-room/DraftBoardCell.tsx`
+
+Adds deterministic badges:
+
+- `D` for devy/college picks
+- `Promoted` for promoted devy assets drafted into pro slots
+- `K` keeper badge remains intact
+
+### 3) Devy slot summary visibility
+
+Updated `components/app/draft-room/DraftRoomPageClient.tsx`:
+
+- Adds roster-side devy slot summary card with:
+  - Filled devy assets count
+  - Total devy slot target (derived from devy rounds)
+  - Promoted marker count
+
+### 4) Commissioner in-room devy controls
+
+Updated:
+
+- `components/app/draft-room/CommissionerControlCenterModal.tsx`
+- `components/app/draft-room/DraftRoomPageClient.tsx`
+
+Adds commissioner controls for pre-draft devy configuration:
+
+- Enable/disable devy rounds
+- Comma-separated round mapping input (normalized + deduped)
+- Save action wired to `PATCH /api/leagues/[leagueId]/draft/devy/config`
+- Session + draft pool refresh after save
+
+## Automation vs AI Notes
+
+### Deterministic automation (core engine)
+
+- Devy-only round enforcement
+- Pro-only round rejection for ungraduated devy assets
+- Round-aware pool separation behavior
+- Promotion marker rendering data path
+- Draft board source-derived devy markers
+
+### Optional AI (advisory only)
+
+- scouting notes
+- upside/risk explanations
+- stash strategy commentary
+- long-term timeline framing
+
+AI remains non-blocking and does not control pick legality/progression.
+
+## QA Checklist (Click Audit)
+
+- [x] Devy filters work (`All/Pro/Devy` interactions)
+- [x] Devy player cards render with college/devy distinction
+- [x] Devy slot drafting works (devy pick placed and marked on board)
+- [x] Promotion markers display correctly (`Promoted` marker path)
+- [x] No dead devy toggles or filters (all controls wired and interactive)
+- [x] Pro-round devy rejection works deterministically
+
+## New Test Coverage
+
+Added: `e2e/devy-draft-room-click-audit.spec.ts`
+
+Coverage includes:
+
+- devy filter interactions
+- devy card rendering
+- promotion marker rendering
+- devy pick placement and board badge
+- deterministic pro-round devy eligibility rejection
+- no dead filter/toggle controls
+- commissioner devy config save flow from draft control center
+# PROMPT 191 — AllFantasy Devy Draft Engine Deliverable
+
 ## Overview
 
 Devy draft support for leagues drafting future college/developmental players. **Core mechanics are deterministic**; AI is optional for scouting-style explanation and strategy.

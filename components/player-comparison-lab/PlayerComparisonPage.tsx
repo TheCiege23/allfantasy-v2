@@ -35,6 +35,34 @@ const SCORING_OPTIONS: { value: ScoringFormat; label: string }[] = [
 
 type SearchHit = { name: string; position?: string; team?: string };
 
+type TwoPlayerEnginePayload = {
+  sport: string;
+  deterministic: {
+    recommendedSide: 'playerA' | 'playerB' | 'tie';
+    recommendedPlayerName: string | null;
+    confidencePct: number;
+    basedOn: Array<'stats_comparison'>;
+    summary: string;
+    statComparisons: Array<{
+      metricId: string;
+      label: string;
+      playerAValue: number | null;
+      playerBValue: number | null;
+      higherIsBetter: boolean;
+      winner: 'playerA' | 'playerB' | 'tie' | 'none';
+      edgeScore: number | null;
+    }>;
+  };
+  explanation: {
+    source: 'deterministic' | 'ai';
+    text: string;
+  };
+};
+
+type ComparisonApiResponse = MultiPlayerComparisonResult & {
+  twoPlayerEngine?: TwoPlayerEnginePayload | null;
+};
+
 export function PlayerComparisonPage() {
   const [sport, setSport] = useState<string>(SUPPORTED_SPORTS[0]);
   const [scoringFormat, setScoringFormat] = useState<ScoringFormat>('ppr');
@@ -42,8 +70,10 @@ export function PlayerComparisonPage() {
     { query: '', selected: null },
     { query: '', selected: null },
   ]);
+  const [aiExplanationOnCompareEnabled, setAiExplanationOnCompareEnabled] = useState(false);
   const [searchResults, setSearchResults] = useState<Map<number, SearchHit[]>>(new Map());
   const [comparison, setComparison] = useState<MultiPlayerComparisonResult | null>(null);
+  const [initialInsight, setInitialInsight] = useState<ComparisonAIInsight | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +125,7 @@ export function PlayerComparisonPage() {
   const addPlayer = useCallback(() => {
     setPlayerSlots((prev) => (prev.length >= MAX_PLAYERS ? prev : [...prev, { query: '', selected: null }]));
     setComparison(null);
+    setInitialInsight(null);
   }, []);
 
   const removePlayer = useCallback((index: number) => {
@@ -104,6 +135,7 @@ export function PlayerComparisonPage() {
     });
     setSearchResults(new Map());
     setComparison(null);
+    setInitialInsight(null);
   }, []);
 
   const moveSlot = useCallback((index: number, direction: 'up' | 'down') => {
@@ -116,6 +148,7 @@ export function PlayerComparisonPage() {
     });
     setSearchResults(new Map());
     setComparison(null);
+    setInitialInsight(null);
   }, []);
 
   const runComparison = useCallback(async () => {
@@ -126,6 +159,7 @@ export function PlayerComparisonPage() {
     }
     setError(null);
     setComparison(null);
+    setInitialInsight(null);
     setLoading(true);
     try {
       const res = await fetch('/api/player-comparison', {
@@ -136,6 +170,7 @@ export function PlayerComparisonPage() {
           sport,
           scoringFormat,
           leagueScoringSettings,
+          includeAIExplanation: aiExplanationOnCompareEnabled,
         }),
       });
       if (!res.ok) {
@@ -143,14 +178,33 @@ export function PlayerComparisonPage() {
         setError(data?.error ?? 'Comparison failed');
         return;
       }
-      const data: MultiPlayerComparisonResult = await res.json();
+      const data: ComparisonApiResponse = await res.json();
       setComparison(data);
+      const immediateInsight = data.twoPlayerEngine
+        ? {
+            finalRecommendation:
+              data.twoPlayerEngine.explanation.text || data.twoPlayerEngine.deterministic.summary,
+            deepseekAnalysis: null,
+            grokNarrative: null,
+            openaiSummary:
+              data.twoPlayerEngine.explanation.source === 'ai'
+                ? data.twoPlayerEngine.explanation.text
+                : null,
+            finalRecommendationSource: data.twoPlayerEngine.explanation.source,
+            providerStatus: {
+              deepseek: false,
+              grok: false,
+              openai: data.twoPlayerEngine.explanation.source === 'ai',
+            },
+          }
+        : null;
+      setInitialInsight(immediateInsight);
     } catch {
       setError('Request failed');
     } finally {
       setLoading(false);
     }
-  }, [playerSlots, sport, scoringFormat, leagueScoringSettings]);
+  }, [playerSlots, sport, scoringFormat, leagueScoringSettings, aiExplanationOnCompareEnabled]);
 
   const fetchAiInsight = useCallback(async (): Promise<ComparisonAIInsight | null> => {
     if (!comparison) return null;
@@ -177,6 +231,10 @@ export function PlayerComparisonPage() {
       deepseekAnalysis: data.providerAnalyses?.deepseek ?? null,
       grokNarrative: data.providerAnalyses?.grok ?? null,
       openaiSummary: data.providerAnalyses?.openai ?? null,
+      finalRecommendationSource:
+        data.providerAnalyses?.openai || data.providerAnalyses?.deepseek || data.providerAnalyses?.grok
+          ? 'ai'
+          : 'deterministic',
       providerStatus: {
         deepseek: Boolean(data.providerStatus?.deepseek),
         grok: Boolean(data.providerStatus?.grok),
@@ -206,7 +264,7 @@ export function PlayerComparisonPage() {
           <div className="flex flex-wrap gap-4">
             <div>
               <label className="mb-1 block text-sm text-white/70">Sport</label>
-              <Select value={sport} onValueChange={(v) => { setSport(v); setComparison(null); }}>
+              <Select value={sport} onValueChange={(v) => { setSport(v); setComparison(null); setInitialInsight(null); }}>
                 <SelectTrigger className="w-[140px] border-white/10 bg-black/30 text-white" data-testid="sport-select">
                   <SelectValue />
                 </SelectTrigger>
@@ -223,7 +281,7 @@ export function PlayerComparisonPage() {
               <label className="mb-1 block text-sm text-white/70">Scoring format</label>
               <Select
                 value={scoringFormat}
-                onValueChange={(v) => { setScoringFormat(v as ScoringFormat); setComparison(null); }}
+                onValueChange={(v) => { setScoringFormat(v as ScoringFormat); setComparison(null); setInitialInsight(null); }}
               >
                 <SelectTrigger
                   className="w-[140px] border-white/10 bg-black/30 text-white"
@@ -362,6 +420,17 @@ export function PlayerComparisonPage() {
             Compare players
           </Button>
 
+          <label className="flex items-center gap-2 text-sm text-white/80" data-testid="ai-on-compare-toggle-row">
+            <input
+              type="checkbox"
+              checked={aiExplanationOnCompareEnabled}
+              onChange={(event) => setAiExplanationOnCompareEnabled(event.target.checked)}
+              className="h-4 w-4 rounded border-white/20 bg-black/20"
+              data-testid="ai-on-compare-toggle"
+            />
+            Include AI explanation on compare (optional)
+          </label>
+
           {error && <p className="text-sm text-red-400">{error}</p>}
         </CardContent>
       </Card>
@@ -389,6 +458,7 @@ export function PlayerComparisonPage() {
             playerNames={playerNames}
             summaryLines={summaryLines}
             onRetryAnalysis={fetchAiInsight}
+            initialInsight={initialInsight}
           />
         </>
       )}

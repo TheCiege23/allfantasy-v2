@@ -86,6 +86,16 @@ export interface UnifiedAIResponse {
       primaryConfidence: number
       alternateVerdicts: { verdict: string; confidence: number; provider: string }[]
     }
+    aiQa?: {
+      passed: boolean
+      score: number
+      verification: {
+        noHallucinations: boolean
+        correctDataUsage: boolean
+        consistentResponses: boolean
+      }
+      warnings: string[]
+    }
     partialProviderFailure?: boolean
   }
   confidenceReason?: string

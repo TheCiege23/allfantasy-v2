@@ -4,7 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { resolveAiAdpSegmentContext } from './segment-resolver'
 
 export type SegmentKey = { sport: string; leagueType: string; formatKey: string }
 
@@ -19,25 +19,12 @@ export interface SegmentPicks {
   segment: SegmentKey
   picks: RawPick[]
   draftCount: number
-}
-
-function normalizeSport(sport: string | null | undefined): string {
-  const s = String(sport ?? 'NFL').toUpperCase()
-  return SUPPORTED_SPORTS.includes(s as any) ? s : 'NFL'
-}
-
-function leagueTypeFromLeague(isDynasty: boolean | null | undefined): string {
-  return isDynasty ? 'dynasty' : 'redraft'
-}
-
-function formatKeyFromSettings(settings: Record<string, unknown> | null | undefined): string {
-  if (!settings) return 'default'
-  const scoring = String(settings.scoring ?? settings.draft_pre_draft_ranking_source ?? 'default').toLowerCase()
-  if (scoring.includes('ppr') && !scoring.includes('half')) return 'ppr'
-  if (scoring.includes('half')) return 'half-ppr'
-  if (scoring.includes('superflex') || scoring.includes('sf') || scoring.includes('2qb')) return 'sf'
-  if (scoring.includes('standard')) return 'standard'
-  return 'default'
+  source?: {
+    liveDraftCount: number
+    mockDraftCount: number
+    liveDraftPicks: number
+    mockDraftPicks: number
+  }
 }
 
 /** Fetch all completed live draft picks (DraftPick) with league context and group by segment. */
@@ -66,10 +53,15 @@ export async function aggregateLiveDraftPicks(
   for (const p of picks) {
     const league = (p.session as any).league
     if (!league) continue
-    const sport = normalizeSport(league.sport)
-    const leagueType = leagueTypeFromLeague(league.isDynasty)
     const settings = (league.settings as Record<string, unknown>) ?? {}
-    const formatKey = formatKeyFromSettings(settings)
+    const segment = resolveAiAdpSegmentContext({
+      sport: league.sport,
+      isDynasty: league.isDynasty,
+      settings,
+    })
+    const sport = segment.sport
+    const leagueType = segment.leagueType
+    const formatKey = segment.formatKey
     const key = `${sport}|${leagueType}|${formatKey}`
     if (!bySegment.has(key)) {
       bySegment.set(key, {
@@ -92,6 +84,12 @@ export async function aggregateLiveDraftPicks(
     segment,
     picks: p,
     draftCount: draftIds.size,
+    source: {
+      liveDraftCount: draftIds.size,
+      mockDraftCount: 0,
+      liveDraftPicks: p.length,
+      mockDraftPicks: 0,
+    },
   }))
 }
 
@@ -112,9 +110,14 @@ export async function aggregateMockDraftResults(
   for (const m of mocks) {
     const results = Array.isArray(m.results) ? (m.results as any[]) : []
     const meta = (m.metadata as Record<string, unknown>) ?? {}
-    const sport = normalizeSport(meta.sport as string)
-    const leagueType = String(meta.leagueType ?? 'redraft').toLowerCase().includes('dynasty') ? 'dynasty' : 'redraft'
-    const formatKey = formatKeyFromSettings(meta as Record<string, unknown>)
+    const segment = resolveAiAdpSegmentContext({
+      sport: String(meta.sport ?? 'NFL'),
+      leagueType: String(meta.leagueType ?? ''),
+      settings: meta,
+    })
+    const sport = segment.sport
+    const leagueType = segment.leagueType
+    const formatKey = segment.formatKey
     const key = `${sport}|${leagueType}|${formatKey}`
 
     if (!bySegment.has(key)) {
@@ -141,6 +144,12 @@ export async function aggregateMockDraftResults(
     segment,
     picks: p,
     draftCount: draftIds.size,
+    source: {
+      liveDraftCount: 0,
+      mockDraftCount: draftIds.size,
+      liveDraftPicks: 0,
+      mockDraftPicks: p.length,
+    },
   }))
 }
 
@@ -160,6 +169,16 @@ export function mergeSegmentPicks(
     if (existing) {
       existing.picks = existing.picks.concat(s.picks)
       existing.draftCount += s.draftCount
+      existing.source = {
+        liveDraftCount:
+          (existing.source?.liveDraftCount ?? 0) + (s.source?.liveDraftCount ?? 0),
+        mockDraftCount:
+          (existing.source?.mockDraftCount ?? 0) + (s.source?.mockDraftCount ?? 0),
+        liveDraftPicks:
+          (existing.source?.liveDraftPicks ?? 0) + (s.source?.liveDraftPicks ?? 0),
+        mockDraftPicks:
+          (existing.source?.mockDraftPicks ?? 0) + (s.source?.mockDraftPicks ?? 0),
+      }
     } else {
       map.set(key, { ...s })
     }

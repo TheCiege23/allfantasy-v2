@@ -35,10 +35,28 @@ export async function POST(
     return NextResponse.json({ error: 'playerName and position required' }, { status: 400 })
   }
 
-  if (rosterId) {
-    const canSubmit = await canSubmitPickForRoster(leagueId, userId, rosterId)
-    if (!canSubmit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const preSubmitSnapshot = await buildSessionSnapshot(leagueId)
+  if (!preSubmitSnapshot?.currentPick) {
+    return NextResponse.json({ error: 'Draft is complete or not started' }, { status: 400 })
   }
+  const expectedRosterId = preSubmitSnapshot.currentPick.rosterId
+  const effectiveRosterId = rosterId ?? expectedRosterId
+  if (effectiveRosterId !== expectedRosterId) {
+    return NextResponse.json({ error: 'Invalid roster for current pick' }, { status: 400 })
+  }
+  const canSubmit = await canSubmitPickForRoster(leagueId, userId, effectiveRosterId)
+  if (!canSubmit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const rawSource = String(body.source ?? 'user').toLowerCase()
+  const source: 'user' | 'auto' | 'commissioner' | 'keeper' | 'devy' | 'college' | 'promoted_devy' =
+    rawSource === 'auto' ||
+    rawSource === 'commissioner' ||
+    rawSource === 'keeper' ||
+    rawSource === 'devy' ||
+    rawSource === 'college' ||
+    rawSource === 'promoted_devy'
+      ? rawSource
+      : 'user'
 
   const result = await submitPick({
     leagueId,
@@ -47,8 +65,8 @@ export async function POST(
     team: body.team ?? null,
     byeWeek: body.byeWeek ?? body.bye_week ?? null,
     playerId: body.playerId ?? body.player_id ?? null,
-    rosterId: rosterId ?? undefined,
-    source: body.source ?? 'user',
+    rosterId: effectiveRosterId,
+    source,
     tradedPicks: body.tradedPicks ?? body.traded_picks ?? undefined,
   })
 
@@ -59,11 +77,10 @@ export async function POST(
   void notifyOnTheClockAfterPick(leagueId)
 
   try {
-    const snapshot = await buildSessionSnapshot(leagueId)
-    if (snapshot?.currentPick && result.snapshot) {
+    if (result.snapshot?.rosterId) {
       await appendPickToRosterDraftSnapshot(
         leagueId,
-        snapshot.currentPick.rosterId,
+        result.snapshot.rosterId,
         {
           playerName: String(playerName).trim(),
           position: String(position).trim(),

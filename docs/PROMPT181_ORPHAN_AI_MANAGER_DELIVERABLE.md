@@ -16,7 +16,7 @@ Commissioners can assign an **AI manager** to orphaned or empty teams so those t
 | **AI manager drafts for absent team** | When current on-the-clock roster is orphan and setting is on, commissioner can trigger "Run AI pick" or (future) auto-run after timer. |
 | **Strategy / brain** | AI uses deterministic draft-helper engine: need, value, format-aware (SF/TE), roster slots; no invented players. |
 | **Queue, need, value, format** | Same `computeDraftRecommendation` as draft helper: teamRoster, rosterSlots, round, pick, sport, isDynasty, isSF, mode. |
-| **Trade: send, accept, reject, counter** | Deterministic trade decision route: POST returns accept/reject/counter + reason and **logs** the decision. Execution remains commissioner/platform; no arbitrary trade execution. |
+| **Trade: send, accept, reject, counter** | Deterministic trade route supports `intent=respond` (accept/reject/counter) and `intent=send` (outbound proposal suggestion). Optional safe apply mode can update pending proposals; every action is logged. |
 | **Behavior logged/auditable** | All AI manager actions written to `AiManagerAuditLog` (leagueId, rosterId, action, payload, reason, triggeredBy, createdAt). |
 | **No random without context** | Draft pick uses only pool + draft state; trade decision uses deterministic rules and safety checks; reasons stored in audit log. |
 | **Commissioner sees status** | Draft room: "AI Manager" badge when orphan on clock; "Run AI pick" button for commissioner. Draft Settings: orphan roster count + last action. GET `/api/leagues/[leagueId]/orphan-ai-manager/status` for full status. |
@@ -47,7 +47,7 @@ Commissioners can assign an **AI manager** to orphaned or empty teams so those t
 - **`lib/orphan-ai-manager/orphanRosterResolver.ts`**: `isOrphanPlatformUserId(platformUserId)`, `getOrphanRosterIdsForLeague(leagueId)`.
 - **`lib/orphan-ai-manager/OrphanAIManagerService.ts`**: `logAction(input)`, `executeDraftPickForOrphan({ leagueId, triggeredByUserId })`, `getRecentAuditEntries(leagueId, options)`.
 - **Draft pick flow:** Uses `getPlayerPoolForLeague`, session snapshot (drafted names, current pick), `computeDraftRecommendation`, `submitPick` with source `'auto'`, then `logAction('draft_pick', ...)`.
-- **Trade:** Stub returns reject with safety reason and logs; can be extended with full trade engine and deterministic accept/counter rules.
+- **Trade:** Deterministic review uses pick value math (`buildDraftTradeAiReview`) with safety gates (permission, league rules, orphan-only roster, draft in progress). Optional apply path updates pending proposals; send intent can draft/create outbound proposals.
 
 ---
 

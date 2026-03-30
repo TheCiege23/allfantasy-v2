@@ -30,6 +30,7 @@ import {
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
+import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 import { ErrorStateRenderer } from '@/components/ui-states'
 import { resolveRecoveryActions } from '@/lib/ui-state'
 
@@ -119,6 +120,7 @@ type SetTeamFn = (t: TeamInput) => void
 
 function TradeEvaluatorInner() {
   const { formatInTimezone } = useUserTimezone()
+  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const searchParams = useSearchParams()
 
   const [sender, setSender] = useState<TeamInput>(() => {
@@ -827,25 +829,35 @@ function TradeEvaluatorInner() {
                     {result.evaluation?.summary || result.evaluation?.explanation}
                   </p>
                   <Link
-                    href={getTradeAnalyzerAIChatUrl(
-                      buildTradeSummaryForAI(
-                        senderAssetLabels.join(', ') || '—',
-                        receiverAssetLabels.join(', ') || '—',
-                        sport,
-                        {
-                          fairnessScore: getFairnessScore(result),
-                          winnerLabel: getWinnerLabel(result.evaluation?.winner),
-                        }
-                      ),
-                      {
-                        insightType: 'trade',
-                        sport,
-                      }
-                    )}
+                    href={
+                      aiAssistantEnabled
+                        ? getTradeAnalyzerAIChatUrl(
+                            buildTradeSummaryForAI(
+                              senderAssetLabels.join(', ') || '—',
+                              receiverAssetLabels.join(', ') || '—',
+                              sport,
+                              {
+                                fairnessScore: getFairnessScore(result),
+                                winnerLabel: getWinnerLabel(result.evaluation?.winner),
+                              }
+                            ),
+                            {
+                              insightType: 'trade',
+                              sport,
+                            }
+                          )
+                        : `/trade-finder?context=analyzer&sport=${encodeURIComponent(sport)}`
+                    }
                     data-testid="trade-ai-explanation-link"
                     className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
                   >
-                    <span>Discuss in AI Chat</span>
+                    <span>
+                      {aiAssistantEnabled
+                        ? 'Discuss in AI Chat'
+                        : aiAvailabilityLoading
+                          ? 'Checking AI availability...'
+                          : 'Open deterministic trade finder'}
+                    </span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                   </Link>
                 </div>

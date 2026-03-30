@@ -25,14 +25,96 @@ interface LeagueRow {
   settings: unknown
 }
 
+const TEMPLATE_SETTINGS_BLACKLIST = new Set<string>([
+  'inviteCode',
+  'inviteLink',
+  'inviteExpiresAt',
+  'league_password_hash',
+  'source_tracking',
+  'identity_mappings',
+  'league_import_last_summary',
+])
+
+function sanitizeTemplateSettingsOverrides(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const source = raw as Record<string, unknown>
+  const next: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(source)) {
+    if (TEMPLATE_SETTINGS_BLACKLIST.has(key)) continue
+    next[key] = value
+  }
+  return next
+}
+
+function readString(settings: Record<string, unknown>, keys: string[], fallback: string | null = null): string | null {
+  for (const key of keys) {
+    const value = settings[key]
+    if (typeof value === 'string' && value.trim()) return value
+  }
+  return fallback
+}
+
+function readBoolean(settings: Record<string, unknown>, keys: string[], fallback = false): boolean {
+  for (const key of keys) {
+    const value = settings[key]
+    if (typeof value === 'boolean') return value
+  }
+  return fallback
+}
+
+function readNumber(settings: Record<string, unknown>, keys: string[], fallback: number | null = null): number | null {
+  for (const key of keys) {
+    const value = settings[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+  return fallback
+}
+
+function readNumberArray(settings: Record<string, unknown>, keys: string[], fallback: number[] = []): number[] {
+  for (const key of keys) {
+    const value = settings[key]
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item))
+        .map((item) => Math.round(item))
+    }
+  }
+  return fallback
+}
+
 export function buildTemplatePayloadFromLeague(league: LeagueRow): LeagueTemplatePayload {
   const s = (league.settings ?? {}) as Record<string, unknown>
+  const templateSettingsOverrides = sanitizeTemplateSettingsOverrides(s)
   const playoffStructure =
     s.playoff_structure && typeof s.playoff_structure === 'object'
       ? (s.playoff_structure as Record<string, unknown>)
       : {}
-  const leagueType = (s.league_type as string) ?? (league.isDynasty ? 'dynasty' : 'redraft')
-  const draftType = (s.draft_type as string) ?? 'snake'
+  const leagueType =
+    readString(s, ['league_type', 'leagueType'], league.isDynasty ? 'dynasty' : 'redraft') ??
+    (league.isDynasty ? 'dynasty' : 'redraft')
+  const draftType = readString(s, ['draft_type', 'draftType'], 'snake') ?? 'snake'
+  const visibilityRaw =
+    readString(
+      s,
+      ['visibility', 'league_privacy_visibility'],
+      DEFAULT_PRIVACY_SETTINGS.visibility
+    ) ?? DEFAULT_PRIVACY_SETTINGS.visibility
+  const visibility = visibilityRaw === 'public' || visibilityRaw === 'unlisted'
+    ? visibilityRaw
+    : DEFAULT_PRIVACY_SETTINGS.visibility
+  const orphanMode = readString(
+    s,
+    ['draft_orphan_drafter_mode'],
+    'cpu'
+  )
+  const orphanManagerEnabledFromSettings = readBoolean(
+    s,
+    ['draft_orphan_team_ai_manager_enabled', 'orphan_team_ai_manager_enabled'],
+    false
+  )
+  const orphanTeamAiManagerEnabled =
+    orphanManagerEnabledFromSettings && (orphanMode === 'ai' || orphanMode === 'cpu')
 
   return {
     sport: league.sport ?? 'NFL',
@@ -44,28 +126,68 @@ export function buildTemplatePayloadFromLeague(league: LeagueRow): LeagueTemplat
     scoringPreset: league.leagueVariant ?? league.scoring ?? null,
     leagueVariant: league.leagueVariant ?? null,
     draftSettings: {
-      rounds: (s.draft_rounds as number) ?? DEFAULT_DRAFT_SETTINGS.rounds,
-      timerSeconds: (s.draft_timer_seconds as number | null) ?? DEFAULT_DRAFT_SETTINGS.timerSeconds,
-      thirdRoundReversal: (s.third_round_reversal as boolean) ?? DEFAULT_DRAFT_SETTINGS.thirdRoundReversal,
-      auctionBudgetPerTeam: (s.auction_budget_per_team as number | null) ?? DEFAULT_DRAFT_SETTINGS.auctionBudgetPerTeam,
-      keeperMaxKeepers: (s.keeper_max_keepers as number | null) ?? DEFAULT_DRAFT_SETTINGS.keeperMaxKeepers,
-      devyRounds: Array.isArray(s.devy_rounds) ? (s.devy_rounds as number[]) : DEFAULT_DRAFT_SETTINGS.devyRounds,
-      c2cCollegeRounds: Array.isArray(s.c2c_college_rounds) ? (s.c2c_college_rounds as number[]) : DEFAULT_DRAFT_SETTINGS.c2cCollegeRounds,
+      rounds: readNumber(s, ['draft_rounds'], DEFAULT_DRAFT_SETTINGS.rounds) ?? DEFAULT_DRAFT_SETTINGS.rounds,
+      timerSeconds: readNumber(s, ['draft_timer_seconds'], DEFAULT_DRAFT_SETTINGS.timerSeconds),
+      thirdRoundReversal: readBoolean(
+        s,
+        ['draft_third_round_reversal', 'third_round_reversal'],
+        DEFAULT_DRAFT_SETTINGS.thirdRoundReversal
+      ),
+      auctionBudgetPerTeam: readNumber(
+        s,
+        ['auction_budget_per_team', 'auctionBudgetPerTeam'],
+        DEFAULT_DRAFT_SETTINGS.auctionBudgetPerTeam
+      ),
+      keeperMaxKeepers: readNumber(s, ['keeper_max_keepers'], DEFAULT_DRAFT_SETTINGS.keeperMaxKeepers),
+      devyRounds: readNumberArray(s, ['devy_rounds'], DEFAULT_DRAFT_SETTINGS.devyRounds),
+      c2cCollegeRounds: readNumberArray(
+        s,
+        ['c2c_college_rounds'],
+        DEFAULT_DRAFT_SETTINGS.c2cCollegeRounds
+      ),
     },
     waiverSettings: {
-      waiverType: (s.waiver_type as 'faab' | 'rolling' | 'reverse_standings' | 'fcfs' | 'standard') ?? DEFAULT_WAIVER_SETTINGS.waiverType,
+      waiverType: (readString(s, ['waiver_type'], DEFAULT_WAIVER_SETTINGS.waiverType) as 'faab' | 'rolling' | 'reverse_standings' | 'fcfs' | 'standard') ?? DEFAULT_WAIVER_SETTINGS.waiverType,
       processingDays: Array.isArray(s.waiver_processing_days) ? (s.waiver_processing_days as number[]) : DEFAULT_WAIVER_SETTINGS.processingDays,
-      processingTimeUtc: (s.waiver_processing_time_utc as string | null) ?? DEFAULT_WAIVER_SETTINGS.processingTimeUtc,
-      faabEnabled: (s.faab_enabled as boolean) ?? DEFAULT_WAIVER_SETTINGS.faabEnabled,
-      faabBudget: (s.faab_budget as number | null) ?? DEFAULT_WAIVER_SETTINGS.faabBudget,
-      faabResetRules: (s.faab_reset_rules as string | null) ?? DEFAULT_WAIVER_SETTINGS.faabResetRules,
-      claimPriorityBehavior: (s.waiver_claim_priority_behavior as string | null) ?? DEFAULT_WAIVER_SETTINGS.claimPriorityBehavior,
-      continuousWaiversBehavior: (s.waiver_continuous_waivers_behavior as boolean) ?? DEFAULT_WAIVER_SETTINGS.continuousWaiversBehavior,
-      freeAgentUnlockBehavior: (s.waiver_free_agent_unlock_behavior as string | null) ?? DEFAULT_WAIVER_SETTINGS.freeAgentUnlockBehavior,
-      gameLockBehavior: (s.waiver_game_lock_behavior as string | null) ?? DEFAULT_WAIVER_SETTINGS.gameLockBehavior,
-      dropLockBehavior: (s.waiver_drop_lock_behavior as string | null) ?? DEFAULT_WAIVER_SETTINGS.dropLockBehavior,
-      sameDayAddDropRules: (s.waiver_same_day_add_drop_rules as string | null) ?? DEFAULT_WAIVER_SETTINGS.sameDayAddDropRules,
-      maxClaimsPerPeriod: (s.waiver_max_claims_per_period as number | null) ?? DEFAULT_WAIVER_SETTINGS.maxClaimsPerPeriod,
+      processingTimeUtc: readString(s, ['waiver_processing_time_utc'], DEFAULT_WAIVER_SETTINGS.processingTimeUtc),
+      faabEnabled: readBoolean(s, ['faab_enabled'], DEFAULT_WAIVER_SETTINGS.faabEnabled),
+      faabBudget: readNumber(s, ['faab_budget'], DEFAULT_WAIVER_SETTINGS.faabBudget),
+      faabResetRules: readString(s, ['faab_reset_rules'], DEFAULT_WAIVER_SETTINGS.faabResetRules),
+      claimPriorityBehavior: readString(
+        s,
+        ['waiver_claim_priority_behavior'],
+        DEFAULT_WAIVER_SETTINGS.claimPriorityBehavior
+      ),
+      continuousWaiversBehavior: readBoolean(
+        s,
+        ['waiver_continuous_waivers_behavior'],
+        DEFAULT_WAIVER_SETTINGS.continuousWaiversBehavior
+      ),
+      freeAgentUnlockBehavior: readString(
+        s,
+        ['waiver_free_agent_unlock_behavior'],
+        DEFAULT_WAIVER_SETTINGS.freeAgentUnlockBehavior
+      ),
+      gameLockBehavior: readString(
+        s,
+        ['waiver_game_lock_behavior'],
+        DEFAULT_WAIVER_SETTINGS.gameLockBehavior
+      ),
+      dropLockBehavior: readString(
+        s,
+        ['waiver_drop_lock_behavior'],
+        DEFAULT_WAIVER_SETTINGS.dropLockBehavior
+      ),
+      sameDayAddDropRules: readString(
+        s,
+        ['waiver_same_day_add_drop_rules'],
+        DEFAULT_WAIVER_SETTINGS.sameDayAddDropRules
+      ),
+      maxClaimsPerPeriod: readNumber(
+        s,
+        ['waiver_max_claims_per_period'],
+        DEFAULT_WAIVER_SETTINGS.maxClaimsPerPeriod
+      ),
     },
     playoffSettings: {
       playoffTeamCount: (s.playoff_team_count as number) ?? (playoffStructure.playoff_team_count as number) ?? DEFAULT_PLAYOFF_SETTINGS.playoffTeamCount,
@@ -128,18 +250,43 @@ export function buildTemplatePayloadFromLeague(league: LeagueRow): LeagueTemplat
         DEFAULT_SCHEDULE_SETTINGS.scheduleGenerationStrategy,
     },
     aiSettings: {
-      aiAdpEnabled: (s.ai_adp_enabled as boolean) ?? DEFAULT_AI_SETTINGS.aiAdpEnabled,
-      orphanTeamAiManagerEnabled: (s.orphan_team_ai_manager_enabled as boolean) ?? DEFAULT_AI_SETTINGS.orphanTeamAiManagerEnabled,
-      draftHelperEnabled: (s.draft_helper_enabled as boolean) ?? DEFAULT_AI_SETTINGS.draftHelperEnabled,
+      aiAdpEnabled: readBoolean(
+        s,
+        ['draft_ai_adp_enabled', 'ai_adp_enabled'],
+        DEFAULT_AI_SETTINGS.aiAdpEnabled
+      ),
+      orphanTeamAiManagerEnabled: orphanTeamAiManagerEnabled || DEFAULT_AI_SETTINGS.orphanTeamAiManagerEnabled,
+      draftHelperEnabled: readBoolean(
+        s,
+        ['draft_helper_enabled', 'ai_feature_draft_assistant_enabled'],
+        DEFAULT_AI_SETTINGS.draftHelperEnabled
+      ),
     },
     automationSettings: {
-      draftNotificationsEnabled: (s.draft_notifications_enabled as boolean) ?? DEFAULT_AUTOMATION_SETTINGS.draftNotificationsEnabled,
-      autopickFromQueueEnabled: (s.autopick_from_queue_enabled as boolean) ?? DEFAULT_AUTOMATION_SETTINGS.autopickFromQueueEnabled,
-      slowDraftRemindersEnabled: (s.slow_draft_reminders_enabled as boolean) ?? DEFAULT_AUTOMATION_SETTINGS.slowDraftRemindersEnabled,
+      draftNotificationsEnabled: readBoolean(
+        s,
+        ['draft_notifications_enabled'],
+        DEFAULT_AUTOMATION_SETTINGS.draftNotificationsEnabled
+      ),
+      autopickFromQueueEnabled: readBoolean(
+        s,
+        ['autopick_from_queue_enabled', 'draft_auto_pick_enabled'],
+        DEFAULT_AUTOMATION_SETTINGS.autopickFromQueueEnabled
+      ),
+      slowDraftRemindersEnabled: readBoolean(
+        s,
+        ['slow_draft_reminders_enabled'],
+        DEFAULT_AUTOMATION_SETTINGS.slowDraftRemindersEnabled
+      ),
     },
     privacySettings: {
-      visibility: (s.visibility as 'private' | 'unlisted' | 'public') ?? DEFAULT_PRIVACY_SETTINGS.visibility,
-      allowInviteLink: (s.allow_invite_link as boolean) ?? DEFAULT_PRIVACY_SETTINGS.allowInviteLink,
+      visibility,
+      allowInviteLink: readBoolean(
+        s,
+        ['allow_invite_link', 'league_allow_invite_link'],
+        DEFAULT_PRIVACY_SETTINGS.allowInviteLink
+      ),
     },
+    templateSettingsOverrides,
   }
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import type { SubscriptionFeatureId } from "@/lib/subscription/types"
+import { EntitlementResolver } from "@/lib/subscription/EntitlementResolver"
 
 export const dynamic = "force-dynamic"
 
@@ -18,18 +20,13 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url)
-    const featureId = searchParams.get("feature") ?? undefined
-
-    // TODO: resolve from UserSubscription / Stripe when persisted; until then return stable shape for gating UI
-    const entitlement = {
-      plans: [] as string[],
-      status: "none" as const,
-      currentPeriodEnd: null as string | null,
-      gracePeriodEnd: null as string | null,
-    }
-
-    const hasAccess = false
-    const message = "Upgrade to access this feature."
+    const rawFeatureId = searchParams.get("feature")
+    const featureId = rawFeatureId ? (rawFeatureId as SubscriptionFeatureId) : undefined
+    const resolver = new EntitlementResolver()
+    const { entitlement, hasAccess, message } = await resolver.resolveForUser(
+      session.user.id,
+      featureId
+    )
 
     return NextResponse.json({
       entitlement,

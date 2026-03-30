@@ -1,7 +1,6 @@
 'use client'
 
-import { useSportRules } from '@/hooks/useSportRules'
-import { useSportPreset } from '@/hooks/useSportPreset'
+import type { LeagueCreationPresetPayload } from '@/hooks/useSportPreset'
 import { LEAGUE_TYPE_LABELS, DRAFT_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
 import {
   getLeagueVariantLabel,
@@ -20,11 +19,20 @@ import {
 
 export type LeagueSummaryPanelProps = {
   state: LeagueCreationWizardState
+  creationPreset?: LeagueCreationPresetPayload | null
 }
 
-function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+function SummaryRow({
+  label,
+  value,
+  testId,
+}: {
+  label: string
+  value: React.ReactNode
+  testId?: string
+}) {
   return (
-    <div className="flex justify-between gap-2 py-1.5 border-b border-white/10">
+    <div className="flex justify-between gap-2 py-1.5 border-b border-white/10" data-testid={testId}>
       <dt className="text-white/60">{label}</dt>
       <dd className="text-white/90 font-medium text-right max-w-[60%]">{value}</dd>
     </div>
@@ -44,14 +52,28 @@ function SummarySection({ title, children }: { title: string; children: React.Re
  * League Summary Review: displayed before creating the league. Shows sport, league type, draft type,
  * team count, scoring rules, AI settings, and automation settings for final confirmation.
  */
-export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
+function buildRosterSlotsLabel(
+  starterSlots: Record<string, unknown> | undefined,
+  benchSlots: number | null | undefined,
+  irSlots: number | null | undefined
+): string | null {
+  if (!starterSlots || typeof starterSlots !== 'object') return null
+  const starterLabels = Object.entries(starterSlots).flatMap(([slot, count]) => {
+    if (typeof count !== 'number' || count <= 0) return []
+    return [count > 1 ? `${slot}×${count}` : slot]
+  })
+  const labels = [...starterLabels]
+  if (typeof benchSlots === 'number' && benchSlots > 0) labels.push(benchSlots > 1 ? `BENCH×${benchSlots}` : 'BENCH')
+  if (typeof irSlots === 'number' && irSlots > 0) labels.push(irSlots > 1 ? `IR×${irSlots}` : 'IR')
+  return labels.length > 0 ? labels.join(', ') : null
+}
+
+export function LeagueSummaryPanel({ state, creationPreset }: LeagueSummaryPanelProps) {
   const effectiveVariant = resolveCreationVariantOrDefault({
     sport: state.sport,
     leagueType: state.leagueType,
     requestedVariant: state.leagueVariant ?? state.scoringPreset ?? null,
   })
-  const { rules } = useSportRules(state.sport, effectiveVariant)
-  const { preset: creationPreset } = useSportPreset(state.sport as any, effectiveVariant)
   const draftSettings = state.draftSettings ?? DEFAULT_DRAFT_SETTINGS
   const waiverSettings = state.waiverSettings ?? DEFAULT_WAIVER_SETTINGS
   const playoffSettings = state.playoffSettings ?? DEFAULT_PLAYOFF_SETTINGS
@@ -71,12 +93,11 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
         : sportText === 'NFL'
           ? 'NFL offensive + DST'
           : `${sportText} players`
-  const rosterSlotsLabel = rules
-    ? rules.roster.slots
-        .filter((s) => s.starterCount > 0 || s.slotName === 'BENCH' || s.slotName === 'IR')
-        .map((s) => (s.starterCount > 0 ? (s.starterCount > 1 ? `${s.slotName}×${s.starterCount}` : s.slotName) : s.slotName))
-        .join(', ')
-    : null
+  const rosterSlotsLabel = buildRosterSlotsLabel(
+    creationPreset?.roster?.starter_slots as Record<string, unknown> | undefined,
+    creationPreset?.roster?.bench_slots ?? null,
+    creationPreset?.roster?.IR_slots ?? null
+  )
   const scoringLabel = getLeagueVariantLabel(effectiveVariant)
   const presetContextLabel =
     isSoccer
@@ -113,6 +134,24 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
     `waiver_mode=${waiverSettings.waiverType}`,
     `trade_review_mode=${state.tradeReviewMode ?? String(defaultLeagueSettings?.trade_review_mode ?? 'commissioner')}`,
   ].join(' · ')
+  const scoringRulesPreview =
+    creationPreset?.scoringTemplate &&
+    Array.isArray((creationPreset.scoringTemplate as { rules?: unknown[] }).rules)
+      ? ((creationPreset.scoringTemplate as { rules: Array<{ statKey?: string; pointsValue?: number; enabled?: boolean }> }).rules
+          .filter((rule) => rule && rule.enabled !== false && typeof rule.statKey === 'string')
+          .slice(0, 4)
+          .map((rule) => `${String(rule.statKey)}=${Number(rule.pointsValue ?? 0)}`))
+      : []
+  const aiSummary = [
+    aiSettings.aiAdpEnabled ? 'AI ADP on' : 'AI ADP off',
+    aiSettings.orphanTeamAiManagerEnabled ? 'Orphan AI on' : 'Orphan AI off',
+    aiSettings.draftHelperEnabled ? 'Draft helper on' : 'Draft helper off',
+  ].join(' · ')
+  const automationSummary = [
+    automationSettings.draftNotificationsEnabled ? 'Notifications on' : 'Notifications off',
+    automationSettings.autopickFromQueueEnabled ? 'Queue autopick on' : 'Queue autopick off',
+    automationSettings.slowDraftRemindersEnabled ? 'Slow reminders on' : 'Slow reminders off',
+  ].join(' · ')
 
   return (
     <div className="space-y-6">
@@ -122,6 +161,32 @@ export function LeagueSummaryPanel({ state }: LeagueSummaryPanelProps) {
           Confirm your choices below. You can change most options later in league and draft settings.
         </p>
       </div>
+
+      <SummarySection title="League summary">
+        <SummaryRow label="Sport" value={state.sport} testId="league-summary-sport" />
+        <SummaryRow
+          label="League type"
+          value={LEAGUE_TYPE_LABELS[state.leagueType]}
+          testId="league-summary-league-type"
+        />
+        <SummaryRow
+          label="Draft type"
+          value={DRAFT_TYPE_LABELS[state.draftType]}
+          testId="league-summary-draft-type"
+        />
+        <SummaryRow label="Team count" value={state.teamCount} testId="league-summary-team-count" />
+        <SummaryRow
+          label="Scoring rules"
+          value={scoringRulesPreview.length > 0 ? scoringRulesPreview.join(', ') : scoringLabel}
+          testId="league-summary-scoring-rules"
+        />
+        <SummaryRow label="AI settings" value={aiSummary} testId="league-summary-ai-settings" />
+        <SummaryRow
+          label="Automation settings"
+          value={automationSummary}
+          testId="league-summary-automation-settings"
+        />
+      </SummarySection>
 
       <SummarySection title="Sport & format">
         <SummaryRow label="Sport" value={state.sport} />

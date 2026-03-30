@@ -2,4 +2,5 @@ export type { UserLeagueProfile, RecommendedLeagueWithExplanation } from "./type
 export {
   getUserLeagueProfile,
   getPersonalizedRecommendations,
+  summarizeRecommendationProfile,
 } from "./LeagueRecommendationEngine"

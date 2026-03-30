@@ -79,6 +79,37 @@ export interface PlayerComparisonResult {
   summaryLines: string[];
 }
 
+export interface DeterministicStatComparisonRow {
+  metricId: string;
+  label: string;
+  playerAValue: number | null;
+  playerBValue: number | null;
+  higherIsBetter: boolean;
+  winner: 'playerA' | 'playerB' | 'tie' | 'none';
+  edgeScore: number | null;
+}
+
+export interface TwoPlayerComparisonDeterministicOutput {
+  recommendedSide: 'playerA' | 'playerB' | 'tie';
+  recommendedPlayerName: string | null;
+  confidencePct: number;
+  basedOn: Array<'stats_comparison'>;
+  summary: string;
+  statComparisons: DeterministicStatComparisonRow[];
+}
+
+export interface TwoPlayerComparisonExplanation {
+  source: 'deterministic' | 'ai';
+  text: string;
+}
+
+export interface TwoPlayerComparisonEngineResult {
+  sport: string;
+  comparison: PlayerComparisonResult;
+  deterministic: TwoPlayerComparisonDeterministicOutput;
+  explanation: TwoPlayerComparisonExplanation;
+}
+
 // ——— Prompt 130: Multi-player comparison lab ———
 
 export type ScoringFormat = 'ppr' | 'half_ppr' | 'non_ppr';
@@ -144,6 +175,7 @@ export interface ComparisonAIInsight {
   deepseekAnalysis: string | null;
   grokNarrative: string | null;
   openaiSummary: string | null;
+  finalRecommendationSource?: 'deterministic' | 'ai';
   providerStatus: {
     deepseek: boolean;
     grok: boolean;

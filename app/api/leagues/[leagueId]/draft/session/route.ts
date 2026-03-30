@@ -13,10 +13,15 @@ import {
   buildSessionSnapshot,
   startDraftSession,
 } from '@/lib/live-draft-engine/DraftSessionService'
+import { runAuctionAutomationTick } from '@/lib/live-draft-engine/auction'
+import { runKeeperAutomationTick } from '@/lib/live-draft-engine/keeper'
+import { runSlowDraftAutomationTick } from '@/lib/live-draft-engine/slow-draft/SlowDraftRuntimeService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { dedupeInFlight } from '@/lib/api-performance'
+import { getProviderStatus } from '@/lib/provider-config'
+import { notifyDraftStartingSoon } from '@/lib/draft-notifications'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +40,11 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
+    const providerStatus = getProviderStatus()
     const shared = await dedupeInFlight(`draft:session:${leagueId}`, async () => {
+      await runKeeperAutomationTick(leagueId).catch(() => {})
+      await runSlowDraftAutomationTick(leagueId).catch(() => {})
+      await runAuctionAutomationTick(leagueId).catch(() => {})
       const [snapshot, uiSettings, orphanRosterIds, orderMode] = await Promise.all([
         buildSessionSnapshot(leagueId),
         getDraftUISettingsForLeague(leagueId),
@@ -62,6 +71,11 @@ export async function GET(
         orphanRosterIds: shared.orphanRosterIds,
         aiManagerEnabled: shared.uiSettings.orphanTeamAiManagerEnabled,
         orphanDrafterMode: shared.uiSettings.orphanDrafterMode,
+        orphanAiProviderAvailable: providerStatus.anyAi,
+        orphanDrafterEffectiveMode:
+          shared.uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
+            ? 'cpu'
+            : shared.uiSettings.orphanDrafterMode,
         draftOrderMode: shared.orderMode?.draftOrderMode,
         lotteryLastRunAt: shared.orderMode?.lotteryLastRunAt ?? undefined,
       },
@@ -105,6 +119,10 @@ export async function POST(
     if (action === 'start') {
       const started = await startDraftSession(leagueId)
       if (!started) return NextResponse.json({ error: 'Cannot start draft' }, { status: 400 })
+      void notifyDraftStartingSoon(leagueId)
+      await runKeeperAutomationTick(leagueId).catch(() => {})
+      await runSlowDraftAutomationTick(leagueId).catch(() => {})
+      const providerStatus = getProviderStatus()
       const [snapshot, uiSettings, orphanRosterIds] = await Promise.all([
         buildSessionSnapshot(leagueId),
         getDraftUISettingsForLeague(leagueId),
@@ -120,6 +138,11 @@ export async function POST(
           orphanRosterIds,
           aiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
           orphanDrafterMode: uiSettings.orphanDrafterMode,
+          orphanAiProviderAvailable: providerStatus.anyAi,
+          orphanDrafterEffectiveMode:
+            uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
+              ? 'cpu'
+              : uiSettings.orphanDrafterMode,
         },
       })
     }

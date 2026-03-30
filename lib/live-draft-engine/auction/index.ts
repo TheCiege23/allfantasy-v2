@@ -10,3 +10,5 @@ export {
   initializeAuctionForSession,
 } from './AuctionEngine'
 export type { AuctionConfig } from './AuctionEngine'
+export { runAuctionAutomationTick } from './AuctionAutomationService'
+export type { AuctionAutomationAction, AuctionAutomationTickResult } from './AuctionAutomationService'

@@ -10,8 +10,12 @@ import { DEFAULT_MOCK_CONFIG } from '@/lib/mock-draft/types'
 
 const SPORTS: { value: MockDraftSport; label: string }[] = [
   { value: 'NFL', label: 'NFL' },
+  { value: 'NHL', label: 'NHL' },
   { value: 'NBA', label: 'NBA' },
   { value: 'MLB', label: 'MLB' },
+  { value: 'NCAAB', label: 'NCAA Basketball' },
+  { value: 'NCAAF', label: 'NCAA Football' },
+  { value: 'SOCCER', label: 'Soccer' },
 ]
 
 const LEAGUE_TYPES: { value: MockLeagueType; label: string }[] = [
@@ -48,6 +52,13 @@ const POOL_OPTIONS: { value: MockPoolType; label: string }[] = [
   { value: 'rookies', label: 'Rookies only' },
 ]
 
+const ROOM_MODE_OPTIONS = [
+  { value: 'solo', label: 'Solo (you + CPU)' },
+  { value: 'mixed', label: 'Mixed (human + CPU)' },
+  { value: 'linked_public', label: 'Linked public (invite humans)' },
+  { value: 'cpu_only', label: 'CPU-only simulation room' },
+]
+
 export interface MockDraftSetupProps {
   /** Initial config (e.g. from league) */
   initialConfig?: Partial<MockDraftConfig>
@@ -74,6 +85,8 @@ export function MockDraftSetup({
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(initialConfig?.leagueId ?? null)
   const [poolType, setPoolType] = useState<MockPoolType>(initialConfig?.poolType ?? 'all')
   const [rosterSize, setRosterSize] = useState(initialConfig?.rosterSize ?? 16)
+  const [roomMode, setRoomMode] = useState<MockDraftConfig['roomMode']>(initialConfig?.roomMode ?? 'solo')
+  const [humanTeams, setHumanTeams] = useState(initialConfig?.humanTeams ?? 1)
 
   const handleUseLeague = (leagueId: string) => {
     if (leagueId === 'none') {
@@ -91,6 +104,47 @@ export function MockDraftSetup({
   }
 
   const handleStart = () => {
+    const clampedHumanTeams = Math.min(numTeams, Math.max(1, Number(humanTeams) || 1))
+    const slotConfig =
+      roomMode === 'cpu_only'
+        ? Array.from({ length: numTeams }, (_, idx) => ({
+            slot: idx + 1,
+            type: 'cpu' as const,
+            displayName: `CPU ${idx + 1}`,
+            userId: null,
+          }))
+        : roomMode === 'linked_public'
+          ? Array.from({ length: numTeams }, (_, idx) => ({
+              slot: idx + 1,
+              type: 'human' as const,
+              displayName: idx === 0 ? 'Host' : `Open Slot ${idx + 1}`,
+              userId: null,
+            }))
+          : roomMode === 'mixed'
+            ? Array.from({ length: numTeams }, (_, idx) => {
+                const slot = idx + 1
+                if (slot <= clampedHumanTeams) {
+                  return {
+                    slot,
+                    type: 'human' as const,
+                    displayName: slot === 1 ? 'Host' : `Open Slot ${slot}`,
+                    userId: null,
+                  }
+                }
+                return {
+                  slot,
+                  type: 'cpu' as const,
+                  displayName: `CPU ${slot}`,
+                  userId: null,
+                }
+              })
+            : Array.from({ length: numTeams }, (_, idx) => ({
+                slot: idx + 1,
+                type: idx === 0 ? ('human' as const) : ('cpu' as const),
+                displayName: idx === 0 ? 'Host' : `CPU ${idx + 1}`,
+                userId: null,
+              }))
+
     onStart({
       sport,
       leagueType,
@@ -103,17 +157,20 @@ export function MockDraftSetup({
       leagueId: selectedLeagueId || null,
       poolType,
       rosterSize,
+      roomMode,
+      humanTeams: clampedHumanTeams,
+      slotConfig,
     })
   }
 
   return (
-    <div className="rounded-2xl border border-white/12 bg-black/25 p-6 text-sm text-white/90">
+    <div className="rounded-2xl border border-white/12 bg-black/25 p-6 text-sm text-white/90" data-testid="mock-draft-setup">
       <h2 className="mb-4 text-lg font-semibold text-white">Mock Draft Setup</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label className="text-white/80">Sport</Label>
           <Select value={sport} onValueChange={(v) => setSport(v as MockDraftSport)}>
-            <SelectTrigger className="border-white/15 bg-black/40 text-white">
+            <SelectTrigger className="border-white/15 bg-black/40 text-white" data-testid="mock-draft-setup-sport-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -231,6 +288,34 @@ export function MockDraftSetup({
           </Select>
         </div>
         <div className="space-y-2">
+          <Label className="text-white/80">Room mode</Label>
+          <Select value={roomMode || 'solo'} onValueChange={(v) => setRoomMode(v as MockDraftConfig['roomMode'])}>
+            <SelectTrigger className="border-white/15 bg-black/40 text-white" data-testid="mock-draft-room-mode-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROOM_MODE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {(roomMode === 'mixed' || roomMode === 'linked_public') && (
+          <div className="space-y-2">
+            <Label className="text-white/80">Human teams</Label>
+            <Select value={String(humanTeams)} onValueChange={(v) => setHumanTeams(Number(v))}>
+              <SelectTrigger className="border-white/15 bg-black/40 text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: numTeams }, (_, i) => i + 1).map((n) => (
+                  <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="space-y-2">
           <Label className="text-white/80">Roster size</Label>
           <Select value={String(rosterSize)} onValueChange={(v) => setRosterSize(Number(v))}>
             <SelectTrigger className="border-white/15 bg-black/40 text-white">
@@ -260,6 +345,7 @@ export function MockDraftSetup({
         <Button
           onClick={handleStart}
           disabled={loading}
+          data-testid="mock-draft-setup-start"
           className="bg-cyan-600 text-white hover:bg-cyan-500"
         >
           {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}

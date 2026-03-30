@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Loader2,
   ArrowLeft,
+  Wand2,
 } from 'lucide-react'
 import type { DraftResultsPayload, ManagerRankingEntry, PickScoreEntry } from '@/lib/post-draft-manager-ranking'
 
@@ -32,12 +33,14 @@ export function DraftResultsClient({
   const [data, setData] = useState<DraftResultsPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [aiExplainEnabled, setAiExplainEnabled] = useState(false)
 
   const fetchResults = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft-results`)
+      const query = aiExplainEnabled ? '?aiExplain=1' : ''
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft-results${query}`)
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         setError(body.error ?? `Error ${res.status}`)
@@ -52,7 +55,7 @@ export function DraftResultsClient({
     } finally {
       setLoading(false)
     }
-  }, [leagueId])
+  }, [aiExplainEnabled, leagueId])
 
   useEffect(() => {
     fetchResults()
@@ -98,6 +101,20 @@ export function DraftResultsClient({
         <p className="mt-1 text-sm text-white/60">
           {leagueName} · {sport} · Manager rankings & grades
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setAiExplainEnabled((value) => !value)}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
+            data-testid="draft-results-ai-explanations-toggle"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+            {aiExplainEnabled ? 'AI explanations on' : 'AI explanations off'}
+          </button>
+          <span className="text-xs text-white/50">
+            Rankings stay deterministic; AI only rewrites explanation text.
+          </span>
+        </div>
       </header>
 
       {/* Best / Worst / Steal */}
@@ -292,11 +309,31 @@ function ManagerRankCard({ entry }: { entry: ManagerRankingEntry }) {
           <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
             <span className="text-white/50">Position</span>
             <span className="text-white/80">{entry.positionalScore.toFixed(1)}</span>
+            <span className="text-white/50">Depth</span>
+            <span className="text-white/80">{entry.positionalDepthScore.toFixed(1)}</span>
             <span className="text-white/50">Bench</span>
             <span className="text-white/80">{entry.benchScore.toFixed(1)}</span>
             <span className="text-white/50">Balance</span>
             <span className="text-white/80">{entry.balanceScore.toFixed(1)}</span>
+            <span className="text-white/50">Upside</span>
+            <span className="text-white/80">{entry.upsideScore.toFixed(1)}</span>
+            <span className="text-white/50">Reach ctrl</span>
+            <span className="text-white/80">{entry.reachPenaltyScore.toFixed(1)}</span>
+            <span className="text-white/50">Injury risk</span>
+            <span className="text-white/80">{entry.injuryRiskScore.toFixed(1)}</span>
+            <span className="text-white/50">Bye overlap</span>
+            <span className="text-white/80">{entry.byeWeekScore.toFixed(1)}</span>
           </div>
+          {entry.explanation && (
+            <p className="text-xs text-white/70">
+              {entry.explanation}
+              {entry.explanationSource === 'ai' ? (
+                <span className="ml-1 text-[10px] uppercase tracking-wide text-violet-300">AI</span>
+              ) : (
+                <span className="ml-1 text-[10px] uppercase tracking-wide text-cyan-300">Deterministic</span>
+              )}
+            </p>
+          )}
           {entry.bestPick && (
             <p className="text-xs text-white/60">
               Best pick: <span className="text-emerald-400">{entry.bestPick.playerName}</span> (#{entry.bestPick.overall}, +{entry.bestPick.valueScore} value)

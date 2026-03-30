@@ -12,6 +12,8 @@ import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionServic
 import { onTradeReaction } from '@/lib/commentary-engine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { prisma } from '@/lib/prisma'
+import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +49,15 @@ export async function POST(
   const action = (body.action ?? body.response ?? 'reject').toLowerCase()
 
   if (action === 'accept') {
+    const draftPickTradingAllowed = await isDraftPickTradingAllowedForLeague(leagueId)
+    if (!draftPickTradingAllowed) {
+      return NextResponse.json({ error: 'Draft pick trading is disabled in Tournament Mode leagues.' }, { status: 403 })
+    }
+    const uiSettings = await getDraftUISettingsForLeague(leagueId)
+    if (!uiSettings.pickTradeEnabled) {
+      return NextResponse.json({ error: 'Draft pick trading is disabled in draft settings.' }, { status: 403 })
+    }
+
     const slotOrder = (proposal.session?.slotOrder as { slot: number; rosterId: string; displayName: string }[]) ?? []
     const giveEntry = slotOrder.find((e: any) => e.slot === proposal.giveSlot)
     const receiveEntry = slotOrder.find((e: any) => e.slot === proposal.receiveSlot)

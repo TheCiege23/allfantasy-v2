@@ -26,7 +26,10 @@ export function resolvePickOwner(
   const slotEntry = slotOrder.find((e) => e.slot === slot)
   if (!slotEntry) return null
 
-  const traded = tradedPicks.find((t) => t.round === round && t.originalRosterId === slotEntry.rosterId)
+  // If multiple accepted trades exist for the same pick, the latest accepted record wins.
+  const traded = [...tradedPicks]
+    .reverse()
+    .find((t) => t.round === round && t.originalRosterId === slotEntry.rosterId)
   if (traded) {
     return {
       rosterId: traded.newRosterId,
@@ -35,7 +38,8 @@ export function resolvePickOwner(
         originalRosterId: traded.originalRosterId,
         previousOwnerName: traded.previousOwnerName,
         newOwnerName: traded.newOwnerName,
-        showNewOwnerInRed: true,
+        // UI decides whether to display red owner labels via settings.
+        showNewOwnerInRed: false,
         tintColor: undefined,
       },
     }

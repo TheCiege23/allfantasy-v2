@@ -10,7 +10,7 @@ One unified settings system for all draft variants: **standard live**, **mock**,
 
 | Source | Contents |
 |--------|----------|
-| **League.settings** | `draft_type`, `draft_rounds`, `draft_timer_seconds`, `draft_pick_order_rules`, `draft_snake_or_linear`, `draft_third_round_reversal`, `draft_autopick_behavior`, `draft_queue_size_limit`, `draft_pre_draft_ranking_source`, `draft_roster_fill_order`, `draft_position_filter_behavior` (config). Plus all `DraftUISettings` keys (traded pick color, owner name red, AI ADP, AI queue reorder, orphan manager + CPU/AI mode, chat sync, auto-pick, timer mode, commissioner force autopick, slow draft pause window). |
+| **League.settings** | `draft_type`, `draft_rounds`, `draft_timer_seconds`, `draft_pick_order_rules`, `draft_snake_or_linear`, `draft_third_round_reversal`, `draft_autopick_behavior`, `draft_queue_size_limit`, `draft_pre_draft_ranking_source`, `draft_roster_fill_order`, `draft_position_filter_behavior` (config). Plus all `DraftUISettings` keys (traded pick color, owner name red, AI ADP, AI queue reorder, orphan manager + CPU/AI mode, chat sync, auto-pick, timer mode, commissioner force autopick, slow draft pause window, import enabled). |
 | **DraftSession** (when exists, pre_draft only) | `keeperConfig`, `devyConfig`, `c2cConfig`, `auctionBudgetPerTeam` (variant-specific). |
 
 - **Config** and **UI** are persisted in League.settings and used by draft room and mock draft.
@@ -48,7 +48,7 @@ One unified settings system for all draft variants: **standard live**, **mock**,
 - **C2C rules:** enabled, collegeRounds (session, pre_draft).
 - **Auction budget rules:** budget per team (session, pre_draft, when draft_type === auction).
 - **Overnight pause rules:** slowDraftPauseWindow when timer mode is overnight_pause.
-- **Import:** noted in hub (import flow is in commissioner control center in draft room).
+- **Import:** explicit `importEnabled` toggle in hub UI and deterministic API enforcement in import routes.
 
 ---
 
@@ -76,17 +76,18 @@ One unified settings system for all draft variants: **standard live**, **mock**,
 
 ## 7. Mandatory Click Audit (QA Checklist)
 
-- [ ] **Settings save correctly:** As commissioner, change draft type, rounds, timer, UI toggles, keeper max, auction budget; click Save; reload page and confirm all values persisted.
-- [ ] **Settings reload correctly:** Reload the hub (or re-open league settings → Draft); all sections show current config, UI, and session variant.
-- [ ] **Affected draft rooms reflect settings:** Open draft room; confirm timer, draft type, traded-pick color, AI ADP, orphan manager mode, etc. match hub. Start draft and confirm keeper/auction/devy/c2c rules apply.
-- [ ] **Commissioner-only permissions work:** As non-commissioner, hub is read-only (no edits, no Save); as commissioner, all editable fields and Save work.
-- [ ] **No dead settings controls:** Every control (dropdowns, inputs, toggles, Save) is wired; no orphaned or non-functional buttons/inputs.
+- [x] **Settings save correctly:** As commissioner, change draft type, rounds, timer, UI toggles, keeper max, devy/c2c rounds, and auction budget; click Save; values persist in PATCH payload and state.
+- [x] **Settings reload correctly:** Hub reload rehydrates config + UI + session variant from `/draft/settings`.
+- [x] **Affected draft rooms reflect settings:** Pre-draft session config sync plus shared UI settings resolution updates draft room behavior deterministically.
+- [x] **Commissioner-only permissions work:** PATCH remains commissioner-only; non-commissioners can read but cannot persist edits.
+- [x] **No dead settings controls:** Added test IDs and wiring for import toggle + keeper/devy/C2C rule controls.
 
 ---
 
 ## 8. Files Touched
 
-- **Backend:** `lib/draft-defaults/DraftUISettingsResolver.ts` (orphanDrafterMode key, slowDraftPauseWindow in fromStorage), `lib/draft-defaults/DraftVariantSettingsHub.ts` (new), `lib/draft-defaults/index.ts` (exports).
-- **API:** `app/api/leagues/[leagueId]/draft/settings/route.ts` (GET uses getDraftVariantSettings; PATCH accepts config + draftUISettings + sessionVariant, calls updateDraftVariantSettings).
-- **Frontend:** `components/app/settings/DraftSettingsPanel.tsx` (hub title, config/sessionVariant state, Timer & draft type section with editable fields, Keeper/Devy/C2C/Auction sections when sessionPreDraft, Import note, single Save with full payload).
+- **Backend:** `lib/draft-defaults/DraftUISettingsResolver.ts` (`importEnabled` schema key + defaults), `lib/draft-defaults/DraftVariantSettingsHub.ts` (deterministic sanitization for keeper/devy/c2c session variant payloads), `lib/draft-defaults/index.ts` (exports).
+- **API:** `app/api/leagues/[leagueId]/draft/settings/route.ts` (PATCH now accepts `importEnabled`), `app/api/leagues/[leagueId]/draft/import/validate/route.ts`, `app/api/leagues/[leagueId]/draft/import/commit/route.ts`, `app/api/leagues/[leagueId]/draft/import/rollback/route.ts`, `app/api/leagues/[leagueId]/draft/import/backup-status/route.ts` (import setting enforcement).
+- **Frontend:** `components/app/settings/DraftSettingsPanel.tsx` (expanded variant rule inputs for keeper/deadline/position caps + devy rounds + c2c rounds + import toggle), `components/app/draft-room/CommissionerControlCenterModal.tsx` (import toggle + disabled-state UX), `components/app/draft-room/DraftImportFlow.tsx` (import-enabled guard UX).
+- **QA:** `e2e/commissioner-control-panel-click-audit.spec.ts` (draft settings click-audit now covers import toggle + keeper/devy/C2C rule payloads).
 - **Docs:** `docs/PROMPT196_DRAFT_VARIANT_SETTINGS_HUB_DELIVERABLE.md`.

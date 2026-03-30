@@ -1,344 +1,273 @@
 # PROMPT 172 — AllFantasy Draft Room UX Specification
 
-**Date:** 2025-03-14  
-**Purpose:** Premium live draft room and mock draft room UX definition.  
-**Supported sports:** NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer.  
-**Constraint:** No use of other platforms’ brand names, assets, copy, or proprietary styling.
+## Objective
+
+Define a premium live draft room and mock draft room UX that delivers modern, dense, highly usable draft workflows with AllFantasy AI and chat enhancements.
+
+Constraints:
+- Do not use another platform's brand names, assets, copy, or proprietary styling.
+- Keep a familiar fantasy draft workflow while preserving AllFantasy identity.
+- No implementation code in this document.
+
+## Supported Sports
+
+- NFL
+- NHL
+- NBA
+- MLB
+- NCAA Basketball (`NCAAB`)
+- NCAA Football (`NCAAF`)
+- Soccer (`SOCCER`)
+
+Use `lib/sport-scope.ts` as the single source of truth for sport validation and fallbacks.
 
 ---
 
-## 1. Route Map
+## Required Draft Room Layout
 
-| Route | Type | Purpose | Auth |
-|-------|------|---------|------|
-| `/app/league/[leagueId]/draft` | Live draft | Canonical live draft room for a league. | Member |
-| `/app/league/[leagueId]/draft/settings` | Sub-route or modal | Draft room settings (toggles, timer, chat sync). | Member (commissioner for some) |
-| `/mock-draft` | Mock | Mock draft lobby: new mock, recent mocks, share. | User |
-| `/mock-draft/setup` | Mock | Optional dedicated setup step (sport, type, teams, timer, AI). | User |
-| `/mock-draft/room/[draftId]` | Mock | Active mock draft room (single-user or future multi-user). | Owner / share |
-| `/mock-draft/share/[shareId]` | Mock | Public read-only shared mock draft view. | Public |
-| `/mock-draft/recap/[draftId]` | Mock | Post-draft recap for a saved mock. | User |
-| `/draft-helper` | Landing | SEO/tool landing; CTA to `/mock-draft` or league draft. | Public |
-| `/leagues/[leagueId]` (Draft tab) | League hub | Inline Draft tab; can deep-link to `/app/league/[leagueId]/draft`. | Member |
+### Top Bar
 
-**API routes (reference for UX):**
+Required content:
+- league name
+- draft type
+- sport
+- timer status
+- current pick indicator
+- current manager on the clock
+- commissioner controls (when authorized)
 
-- Draft session: `GET/POST /api/leagues/[leagueId]/draft/session` (or equivalent) — load/save draft state.
-- Picks: `GET /api/.../draft/picks`, `POST /api/.../draft/pick`.
-- Queue: `GET/PUT /api/.../draft/queue`.
-- Config: `GET /api/app/league/[id]/draft/config`.
-- ADP: `GET /api/mock-draft/adp` (sport, type, pool).
-- AI: `POST /api/mock-draft/ai-pick`, recommend-ai proxy.
-- Commissioner: `POST /api/commissioner/leagues/[leagueId]/draft` (pause/resume/undo/assign).
-- Chat: league chat channel scoped to draft when “draft chat ↔ league chat” on.
-- Mock: create, save, simulate, share, retrospective as in audit.
+Behavior requirements:
+- fixed and always visible in active draft states
+- deterministic back navigation available in live and mock rooms
+- reconnect/resync control visible when state freshness degrades
 
----
+### Manager Strip / Team Order Row
 
-## 2. Screen Inventory
+Required behavior:
+- show all managers in exact draft order
+- assign deterministic manager color identity
+- highlight active manager
+- support traded-pick color mode
+- traded pick tiles may inherit acquiring manager hue only when setting is enabled
+- no pick-color transfer on non-traded picks
+- clear manager card styling on mobile and desktop
 
-| Screen | Route / Context | Description |
-|--------|------------------|-------------|
-| **Live draft room** | `/app/league/[leagueId]/draft` | Single primary screen: top bar + manager strip + board + player panel + queue + chat + AI. Sub-views: board focus, player focus, queue focus. |
-| **Live draft settings** | Modal or `/app/league/[leagueId]/draft/settings` | Toggles (traded pick color, new owner name, AI ADP, AI queue reorder, orphan AI, chat sync, auto-pick, timer mode, soft/overnight pause). |
-| **Mock draft lobby** | `/mock-draft` | List of saved mocks, “New mock draft” CTA, league selector, share links. |
-| **Mock draft setup** | `/mock-draft/setup` or inline in lobby | Sport, league type, draft type, # teams, rounds, timer, AI on/off, league link (optional). |
-| **Mock draft room** | `/mock-draft/room/[draftId]` | Same layout as live draft room but mock context: no league chat sync, isolated chat, save/pause/restore. |
-| **Mock draft recap** | `/mock-draft/recap/[draftId]` | Post-draft summary: rounds, picks by team, grades, share CTA. |
-| **Shared mock view** | `/mock-draft/share/[shareId]` | Read-only board + picks; no queue/chat/edit. |
-| **Draft helper landing** | `/draft-helper` | Marketing/SEO; CTAs to start mock or go to league draft. |
-| **League hub (Draft tab)** | `/leagues/[leagueId]` tab=Draft | Entry to draft; shows “Open draft room” or pre-draft board/config. |
+### Draft Board
 
----
+Required behavior:
+- pick labels in `1.01`, `1.02`, etc.
+- drafted player shown per pick cell
+- bye week shown where applicable
+- traded-pick owner shown
+- optional traded-pick tile tint by acquiring manager color
+- optional "new owner name in red" display mode
+- no color transfer when traded-pick color mode is disabled
 
-## 3. Component Inventory
+### Player Panel
 
-### 3.1 Shell and layout
+Required behavior:
+- available players
+- ADP sorting
+- name sorting
+- team filter
+- position filter
+- search by player and team
+- bye week where appropriate
+- AI-adjusted ADP toggle
+- current drafted roster view
 
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **DraftRoomShell** | Overall layout: top bar, manager strip, main grid (board + panels), responsive breakpoints. | Live, Mock room |
-| **DraftTopBar** | League name, draft type, sport, timer status, current pick, manager on clock, commissioner controls (if applicable). | Live, Mock room |
-| **DraftManagerStrip** | Horizontal row of manager cards in draft order; assigned color; active highlight; traded-pick visual mode. | Live, Mock room |
-| **DraftMainGrid** | Responsive grid: board (primary), player panel, queue panel, chat panel, AI panel(s). | Live, Mock room |
+### Queue Panel
 
-### 3.2 Draft board
+Required behavior:
+- personal queue
+- drag/reorder queue
+- AI reorder queue toggle
+- auto-pick from queue
+- away mode
+- AI explanations for queue ordering
 
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **DraftBoard** | Grid of pick cells (e.g. 1.01, 1.02 …); round × slot. | Live, Mock room |
-| **DraftBoardCell** | Single cell: pick label, drafted player, bye week, traded-pick owner; optional color tint (traded-pick color mode); optional “new owner name in red.” | Live, Mock room |
-| **DraftBoardRoundHeader** | Round label (e.g. “Round 1”). | Live, Mock room |
-| **DraftBoardSlotHeader** | Slot/team column header (optional). | Live, Mock room |
+### Chat Panel
 
-### 3.3 Player panel
+Required behavior:
+- always visible during active live draft
+- league-scoped in live drafts
+- live-only league chat sync when enabled
+- mock chat remains isolated
+- supports GIFs, links, images, short videos, memes
+- supports `@mentions`
+- supports commissioner `@everyone` broadcast to selected managed leagues
+- supports AI handoff into private AI chat
+- supports last-active/last-seen where policy allows
 
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **PlayerPanel** | Container: filters, sort, search, list, current roster summary. | Live, Mock room |
-| **PlayerFilters** | Position filter, team filter, search (player/team). | Live, Mock room |
-| **PlayerSortControls** | ADP, name, optional custom sort. | Live, Mock room |
-| **PlayerList** | Scrollable list of available players; bye week where applicable; AI-adjusted ADP toggle support. | Live, Mock room |
-| **PlayerRow** | Single player: name, position, team, ADP, bye; actions: add to queue, draft (when on clock). | Live, Mock room |
-| **CurrentRosterView** | Current user (or selected manager) drafted roster. | Live, Mock room |
+### AI Panels / Actions
 
-### 3.4 Queue panel
+Required modules:
+- draft helper
+- best pick
+- positional need
+- roster construction advice
+- reach/steal warning
+- pick trade evaluation
+- orphan team AI manager
+- AI queue optimization
+- AI mock draft simulation mode
 
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **QueuePanel** | Container: queue list, “AI reorder,” “Auto-pick from queue,” “Away mode,” explanations. | Live, Mock room |
-| **QueueList** | Drag-and-drop ordered list of queued players. | Live, Mock room |
-| **QueueItem** | Single item: player, remove, drag handle; optional AI explanation. | Live, Mock room |
-| **QueueActions** | Buttons: AI reorder, Auto-pick from queue, Away mode. | Live, Mock room |
+### Settings / Toggles
 
-### 3.5 Chat panel
-
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **DraftChatPanel** | Container: message list, composer, “league chat” vs “mock only” badge. | Live, Mock room |
-| **DraftChatMessageList** | Messages; supports text, GIFs, links, images, short videos, memes; @mentions; last-active/last-seen where allowed. | Live, Mock room |
-| **DraftChatComposer** | Input, send, optional media; @mention trigger; “Hand off to AI” action. | Live, Mock room |
-| **CommissionerBroadcast** | Commissioner-only: @everyone to selected leagues they manage. | Live only |
-
-### 3.6 AI panels and actions
-
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **DraftHelperPanel** | Entry: “Draft helper” with sub-actions. | Live, Mock room |
-| **BestPickCard** | AI “best pick” suggestion + short reason. | Live, Mock room |
-| **PositionalNeedCard** | Positional need advice. | Live, Mock room |
-| **RosterConstructionCard** | Roster construction advice. | Live, Mock room |
-| **ReachStealWarningCard** | Reach/steal warning. | Live, Mock room |
-| **PickTradeEvaluationCard** | Pick trade evaluation (accept/decline context). | Live, Mock room |
-| **OrphanAIManagerToggle** | Enable/disable AI manager for orphan teams. | Live (commissioner) |
-| **AIQueueOptimizationCard** | “AI reorder queue” result summary. | Live, Mock room |
-| **AIMockSimulationMode** | Toggle or flow for “AI mock draft simulation” (run full mock with AI). | Mock room |
-| **HandOffToAIChat** | CTA to open private AI chat with draft context. | Live, Mock room |
-
-### 3.7 Commissioner and settings
-
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **CommissionerDraftControls** | Pause, resume, reset timer, undo pick, assign pick, reorder (when supported). | Live, commissioner |
-| **DraftRoomSettingsModal** | All toggles: traded pick color mode, show new owner name in red, AI ADP, AI queue reorder, orphan AI manager, draft chat ↔ league chat, auto-pick behavior, timer mode, pause overnight/soft timer. | Live, Mock room (user subset) |
-
-### 3.8 Mock-specific
-
-| Component | Responsibility | Used in |
-|-----------|----------------|--------|
-| **MockDraftLobby** | List saved mocks, new mock, share. | `/mock-draft` |
-| **MockDraftSetupForm** | Sport, type, teams, rounds, timer, AI; league link. | Mock setup |
-| **MockDraftRecapView** | Recap summary, share CTA. | Mock recap |
-| **SharedMockView** | Read-only board + picks. | Share page |
+Required toggles:
+- traded pick color mode
+- show new owner name in red
+- AI ADP on/off
+- AI queue reorder on/off
+- orphan team AI manager on/off
+- draft chat <-> league chat live sync on/off
+- auto-pick behavior
+- timer mode
+- overnight pause / soft timer options (where architecture supports)
 
 ---
 
-## 4. State Matrix
+## Route Map
 
-| State slice | Source | Scope | Persisted | Realtime |
-|-------------|--------|--------|-----------|----------|
-| **Draft session** | Backend / context | League or mock | Yes (live: backend; mock: MockDraft) | Yes (live) |
-| **Draft config** | Backend (draft/config, league settings) | League | Yes | No (refresh) |
-| **Picks** | Backend / event stream | Session | Yes | Yes (live) |
-| **Current pick index / on-clock** | Derived + server | Session | Yes | Yes |
-| **Timer** | Server-authoritative (live) or client (mock) | Session | Yes (live) | Yes (live) |
-| **Manager order** | Backend / config | Session | Yes | Yes (if reorder) |
-| **Traded picks** | Backend (league traded_picks) | League | Yes | Refresh |
-| **User queue** | Backend (draft/queue) | User + session | Yes | Optional |
-| **Available players / ADP** | Backend (adp, player pool) | Session | No (fetch) | No |
-| **AI suggestions** | Backend (ai-pick) | Ephemeral | No | No |
-| **Chat messages** | Backend (league chat or mock chat) | League or mock | Yes | Yes |
-| **Settings (toggles)** | Backend (user/league settings) | User or league | Yes | No |
-| **Commissioner controls** | Backend (commissioner draft POST) | League | Yes | Yes |
-| **UI view state** | Client | Tab/panel focus, modals, sort/filter | No (or localStorage) | No |
-| **Empty / loading / error** | Client + API | Per component | No | No |
+| Route | Purpose |
+|---|---|
+| `/app/league/[leagueId]/draft` | Canonical live draft room |
+| `/app/league/[leagueId]` | League entry point (Draft tab -> open room) |
+| `/mock-draft` | Mock lobby + setup + saved mocks |
+| `/mock-draft-simulator` | Active simulator workspace path |
+| `/mock-draft/join` | Invite/join flow |
+| `/mock-draft/share/[shareId]` | Shareable recap/read-only view |
 
 ---
 
-## 5. Interaction Matrix (Mandatory Click Audit)
+## Screen Inventory
 
-For each interaction: route, component, CTA, expected state change, backend dependency, realtime dependency, empty/loading/error, mobile/desktop.
-
-### 5.1 Top bar and session
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View league name | Draft room | DraftTopBar | — | — | Config/league | No | Show league name or “—” | — | — | Truncate | Full |
-| View draft type | Draft room | DraftTopBar | — | — | Config | No | “Snake” / “Linear” / “Auction” | — | — | Icon + short | Full label |
-| View sport | Draft room | DraftTopBar | — | — | Config | No | Sport code/name | — | — | Icon | Icon + label |
-| View timer | Draft room | DraftTopBar | — | Countdown or “Paused” | Session/timer API | Yes (live) | “—:—” or “Paused” | Skeleton | Stale/error message | Compact | Full |
-| View current pick | Draft room | DraftTopBar | — | e.g. “Pick 3.04” | Picks/session | Yes | “—”; “Draft complete” when done | — | — | Short | Full |
-| View manager on clock | Draft room | DraftTopBar | — | Manager name + highlight | Session | Yes | “—” | — | — | Truncate | Full |
-| Open commissioner controls | Draft room | DraftTopBar | “Commissioner” or icon | Open commissioner controls menu/modal | Commissioner role | No | Hidden if not commissioner | — | — | Bottom sheet | Dropdown/modal |
-| Pause draft | Draft room | CommissionerDraftControls | “Pause” | Draft paused; timer stops | POST commissioner draft | Yes | — | Spinner on button | Toast + retry | Same | Same |
-| Resume draft | Draft room | CommissionerDraftControls | “Resume” | Draft resumes; timer runs | POST commissioner draft | Yes | — | Spinner | Toast + retry | Same | Same |
-| Reset timer | Draft room | CommissionerDraftControls | “Reset timer” | Timer reset to full per-pick | POST commissioner draft | Yes | — | Spinner | Toast + retry | Same | Same |
-| Undo last pick | Draft room | CommissionerDraftControls | “Undo pick” | Last pick removed; order reverts | POST commissioner draft | Yes | Disabled if no picks | Spinner | Toast + retry | Same | Same |
-| Assign pick (missed) | Draft room | CommissionerDraftControls | “Assign pick” | Modal: assign player to slot | POST commissioner draft | Yes | — | Spinner | Toast + retry | Modal | Modal |
-
-### 5.2 Manager strip
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View managers in order | Draft room | DraftManagerStrip | — | Display order 1..N | Session/config | Yes (if reorder) | Placeholder “Team 1”… | Skeleton | — | Horizontal scroll | Full row |
-| View active manager | Draft room | DraftManagerStrip | — | Highlight current slot | Session | Yes | — | — | — | Ring + label | Same |
-| View traded-pick color | Draft room | DraftManagerStrip / cell | — | Tint per settings | Config (traded picks) | No | No tint | — | — | Same | Same |
-| Tap manager card | Draft room | DraftManagerStrip | Card | Optional: focus roster for that manager | Local | No | — | — | — | Expand or sheet | Tooltip or sidebar |
-
-### 5.3 Draft board
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View pick cells | Draft room | DraftBoard | — | Grid 1.01 … R.N | Picks | Yes | Empty cells | Skeleton grid | — | Scroll both axes | Full grid |
-| View drafted player in cell | Draft room | DraftBoardCell | — | Player name, position, team | Picks | Yes | “—” | — | — | Abbreviate | Full |
-| View bye week | Draft room | DraftBoardCell | — | e.g. “BYE 7” | ADP/player | No | — | — | — | Small badge | Same |
-| View traded-pick owner | Draft room | DraftBoardCell | — | New owner or tint (per settings) | Traded picks | No | Normal cell | — | — | Initials or tint | Name or tint |
-| Toggle traded-pick color mode | Settings | DraftRoomSettingsModal | “Traded pick color mode” | Cells tint by acquiring manager | User/league settings | No | — | — | — | Toggle | Toggle |
-| Toggle “new owner name in red” | Settings | DraftRoomSettingsModal | “Show new owner name in red” | Text indicator in cell | User/league settings | No | — | — | — | Toggle | Toggle |
-| Tap cell (optional) | Draft room | DraftBoardCell | Cell | Player detail popover/sheet | Picks + player | No | — | — | — | Bottom sheet | Popover |
-
-### 5.4 Player panel
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View available players | Draft room | PlayerList | — | Sorted/filtered list | ADP / player pool | No | “No players match” | List skeleton | Error message + retry | Scroll list | Same |
-| Sort by ADP | Draft room | PlayerSortControls | “ADP” | List re-sorted by ADP | — | No | — | — | — | Segmented control | Dropdown |
-| Sort by name | Draft room | PlayerSortControls | “Name” | List re-sorted by name | — | No | — | — | — | Same | Same |
-| Filter by position | Draft room | PlayerFilters | Position dropdown | List filtered | — | No | “No players” | — | — | Chips or sheet | Dropdown |
-| Filter by team | Draft room | PlayerFilters | Team dropdown | List filtered | — | No | “No players” | — | — | Same | Same |
-| Search player/team | Draft room | PlayerFilters | Search input | List filtered | — | No | “No results” | — | — | Full-width | Same |
-| Toggle AI-adjusted ADP | Draft room | PlayerPanel | “AI ADP” toggle | List shows AI-adjusted ADP when on | Config + optional API | No | — | — | — | Toggle | Toggle |
-| Add to queue | Draft room | PlayerRow | “Add to queue” | Player appended to queue | Queue API (optional) | Optional | — | Button loading | Toast | Icon | Button |
-| Draft player (on clock) | Draft room | PlayerRow | “Draft” | Pick recorded; board + roster update | POST pick | Yes | — | Button loading | Toast + retry | Primary button | Same |
-| View current roster | Draft room | CurrentRosterView | — | Show my (or selected) drafted roster | Picks | Yes | “No picks yet” | — | — | Collapsible | Sidebar or panel |
-
-### 5.5 Queue panel
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View queue | Draft room | QueueList | — | Ordered list | Queue API | Optional | “Queue is empty” | — | — | Scroll | Same |
-| Drag/reorder queue | Draft room | QueueItem | Drag handle | Order updated | PUT queue | Optional | — | — | Toast | Long-press drag | Drag |
-| Remove from queue | Draft room | QueueItem | Remove icon | Item removed | PUT queue | Optional | — | — | — | Tap | Click |
-| AI reorder queue | Draft room | QueueActions | “AI reorder” | Queue reordered by AI suggestion | POST ai-pick or queue/reorder | No | Disabled if empty | Spinner | Toast | Button | Same |
-| Toggle auto-pick from queue | Draft room | QueueActions | “Auto-pick from queue” | When on clock, top of queue auto-picked | Local + pick API | Yes | — | — | — | Toggle | Toggle |
-| Away mode | Draft room | QueueActions | “Away mode” | Auto-pick from queue + optional AI fallback | Local + pick API | Yes | — | — | — | Toggle | Toggle |
-| View queue explanation | Draft room | QueueItem / panel | “Why?” or icon | Show AI explanation for position | AI API (cached) | No | “—” | — | — | Expand row | Tooltip |
-
-### 5.6 Chat panel
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| View messages | Draft room | DraftChatMessageList | — | Chronological messages | Chat API | Yes | “No messages yet” | Skeleton | Error + retry | Scroll | Same |
-| Send text | Draft room | DraftChatComposer | Send | Message appended; delivered | POST chat | Yes | — | Send disabled | Toast | Same | Same |
-| Send GIF/link/image/video | Draft room | DraftChatComposer | Attach / paste | Message with media | POST chat + media | Yes | — | Upload state | Toast | Picker | Same |
-| @mention | Draft room | DraftChatComposer | “@” | Mention selector; message with mention | POST chat | Yes | — | — | — | Inline suggest | Same |
-| Commissioner @everyone | Draft room | CommissionerBroadcast | “@everyone” + leagues | Broadcast to selected leagues | POST chat/broadcast | Yes | — | Spinner | Toast | Modal | Modal |
-| Hand off to AI chat | Draft room | DraftChatComposer | “Hand off to AI” | Navigate or open private AI chat with draft context | AI context API | No | — | — | — | New view / sheet | Side panel or new tab |
-| View last-active / last-seen | Draft room | DraftChatMessageList | — | Timestamp where allowed | Chat presence | Yes | “—” | — | — | Small text | Same |
-| Mock chat (isolated) | Mock room | DraftChatPanel | — | Chat only in mock session; no league sync | Mock chat API | Yes | Same | Same | Same | Same | Same |
-
-### 5.7 AI panels and actions
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| Open draft helper | Draft room | DraftHelperPanel | “Draft helper” | Expand or open AI panel | — | No | — | — | — | Sheet | Panel |
-| View best pick | Draft room | BestPickCard | — | Show top suggestion + reason | POST ai-pick | No | “Ask for suggestion” | Card skeleton | Retry | Card | Same |
-| Refresh best pick | Draft room | BestPickCard | “Refresh” | New suggestion | POST ai-pick | No | — | Spinner | Toast | Icon | Same |
-| Positional need | Draft room | PositionalNeedCard | — | Show need by position | POST ai-pick / needs | No | “—” | Skeleton | — | Collapse | Same |
-| Roster construction | Draft room | RosterConstructionCard | — | Advice text | POST ai-pick | No | “—” | Skeleton | — | Same | Same |
-| Reach/steal warning | Draft room | ReachStealWarningCard | — | Warning + player if applicable | POST ai-pick / predict | No | “—” | — | — | Inline | Same |
-| Pick trade evaluation | Draft room | PickTradeEvaluationCard | — | Accept/decline context + value | POST trade eval | No | “—” | Skeleton | — | Card | Same |
-| Orphan AI manager | Settings / commissioner | OrphanAIManagerToggle | Toggle | Orphan teams use AI to pick | League settings | No | — | — | — | Toggle | Toggle |
-| AI queue optimization | Draft room | QueueActions + card | “AI reorder” | Queue reordered; optional explanation | POST ai-pick queue | No | — | Spinner | Toast | Same | Same |
-| AI mock simulation mode | Mock room | AIMockSimulationMode | Toggle / “Run AI mock” | Full mock run with AI picks | POST simulate | No | — | Progress | Toast | Same | Same |
-
-### 5.8 Settings and toggles
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| Open settings | Draft room | DraftTopBar or shell | “Settings” / gear | Open DraftRoomSettingsModal | — | No | — | — | — | Full-screen modal | Modal |
-| Traded pick color mode | Settings | DraftRoomSettingsModal | Toggle | Persist; board cells tint when on | PATCH settings | No | — | — | Toast | Toggle | Toggle |
-| Show new owner name in red | Settings | DraftRoomSettingsModal | Toggle | Persist; cells show red text when on | PATCH settings | No | — | — | — | Toggle | Toggle |
-| AI ADP on/off | Settings | DraftRoomSettingsModal | Toggle | Player list uses AI-adjusted ADP | PATCH settings | No | — | — | — | Toggle | Toggle |
-| AI queue reorder on/off | Settings | DraftRoomSettingsModal | Toggle | “AI reorder” available / default behavior | PATCH settings | No | — | — | — | Toggle | Toggle |
-| Orphan AI manager on/off | Settings | DraftRoomSettingsModal | Toggle | Commissioner: orphan slots use AI | PATCH league settings | No | — | — | — | Toggle | Toggle |
-| Draft chat ↔ league chat | Settings | DraftRoomSettingsModal | Toggle | Live draft chat syncs to league channel | PATCH settings | No | — | — | — | Toggle | Toggle |
-| Auto-pick behavior | Settings | DraftRoomSettingsModal | Select | Queue-first / BPA / need-based | PATCH settings | No | — | — | — | Picker | Dropdown |
-| Timer mode | Settings | DraftRoomSettingsModal | Select | Standard / soft / pause overnight (if supported) | PATCH config | No | — | — | — | Picker | Dropdown |
-| Save settings | Settings | DraftRoomSettingsModal | “Save” | All toggles persisted | PATCH | No | — | Button loading | Toast | Button | Same |
-| Cancel settings | Settings | DraftRoomSettingsModal | “Cancel” | Modal closed; no persist | — | No | — | — | — | Same | Same |
-
-### 5.9 Mock-specific
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| New mock draft | `/mock-draft` | MockDraftLobby | “New mock draft” | Navigate to setup or room | POST create | No | — | — | Toast | Same | Same |
-| Open saved mock | `/mock-draft` | MockDraftLobby | List item | Navigate to mock room or recap | GET mock | No | “No mocks yet” | — | — | Same | Same |
-| Start mock (from setup) | Mock setup | MockDraftSetupForm | “Start” | Create + enter room | POST create | No | — | Button loading | Toast | Same | Same |
-| Save mock (mid-draft) | Mock room | DraftTopBar or actions | “Save” | Persist picks to MockDraft | POST save | No | — | Spinner | Toast | Same | Same |
-| Copy share link | Mock lobby/recap | MockDraftLobby / recap | “Share” | Copy URL to clipboard | — | No | — | — | — | Same | Same |
-| View shared mock | `/mock-draft/share/[shareId]` | SharedMockView | — | Read-only board + picks | GET share | No | “Invalid link” | Skeleton | 404 message | Same | Same |
-
-### 5.10 Navigation and entry
-
-| Interaction | Route | Component | CTA | State change | Backend | Realtime | Empty | Loading | Error | Mobile | Desktop |
-|-------------|--------|-----------|-----|--------------|---------|----------|-------|---------|-------|--------|---------|
-| Open draft room from league | `/leagues/[leagueId]` | Draft tab / link | “Open draft room” | Navigate to `/app/league/[leagueId]/draft` | — | No | — | — | — | Same | Same |
-| Go to mock draft | `/draft-helper` or home | CTA | “Start mock draft” | Navigate to `/mock-draft` | — | No | — | — | — | Same | Same |
-| Leave draft room | Draft room | Shell | “Leave” / back | Navigate back; optional “Are you sure?” if on clock | — | No | — | — | — | Back + confirm | Same |
+- **Live Draft Room:** top bar, manager strip, board, player panel, queue panel, chat panel, AI helper, commissioner controls.
+- **Live Draft Settings Modal:** all draft/AI/chat/presentation toggles.
+- **Mock Lobby/Setup:** sport/type/teams/rounds/timer/AI options and saved drafts.
+- **Mock Active Room:** simulator board, isolated chat, AI actions, session controls.
+- **Mock Recap/Share:** results review, share link, restart/back navigation.
 
 ---
 
-## 6. Recommended Visual Hierarchy
+## Component Inventory
 
-1. **Primary (always visible)**  
-   - **Timer + current pick + manager on clock** — single line or compact block in top bar; highest emphasis (size/color) so everyone knows whose turn and how much time.
-
-2. **Secondary (glanceable)**  
-   - **Draft board** — main grid; pick labels (1.01, 1.02) and drafted player names; traded-pick tint or red owner text per settings.  
-   - **Manager strip** — draft order and “who is on the clock” at a glance; consistent with board column order.
-
-3. **Tertiary (task-focused)**  
-   - **Player panel** — primary action = “draft” or “add to queue”; list density high; filters/sort compact but clear.  
-   - **Queue panel** — ordered list; drag handle and “AI reorder” / “Auto-pick” prominent.  
-   - **Chat** — always visible; compact message list; composer sticky at bottom.
-
-4. **Supporting**  
-   - **AI panels** — cards (best pick, need, reach/steal, trade eval) in a rail or collapsible section; not covering board.  
-   - **Commissioner controls** — grouped in top bar or one “Commissioner” dropdown; destructive (undo) with confirmation.
-
-5. **Chrome**  
-   - **League name, draft type, sport** — top bar left; secondary to timer/pick.  
-   - **Settings** — gear or “Settings” in top bar; opens modal.
-
-6. **Color and emphasis**  
-   - **On-clock manager**: distinct highlight (ring, background, or accent).  
-   - **Traded picks**: tint = acquiring manager color when “traded pick color mode” on; optional red text for “new owner name.”  
-   - **Danger**: Undo pick, leave while on clock — use destructive style and confirm.  
-   - **Success**: Pick submitted, queue saved — brief success toast or checkmark.
+- **Shell and layout:** `DraftRoomShell`, `DraftTopBar`, `DraftManagerStrip`
+- **Board:** `DraftBoard`, `DraftBoardCell`, round navigation controls
+- **Players:** `PlayerPanel`, filter/sort/search controls, roster summary
+- **Queue:** `QueuePanel`, reorder controls, AI reorder action, autopick controls
+- **Chat:** `DraftChatPanel`, composer, mention handling, broadcast controls
+- **AI:** `DraftHelperPanel`, recommendation cards, queue optimization, trade evaluation
+- **Commissioner:** control center/modal, pause/resume/reset/undo/toggles
+- **Mock flow:** `MockDraftSetup`, `MockDraftSimulatorWrapper`, `MockDraftChatPanel`, `MockDraftRecap`
 
 ---
 
-## 7. Recommended Mobile Behavior
+## State Matrix
 
-- **Single-column or tabbed content**: Top bar and manager strip stay fixed or collapse to compact strip; main area = one of: Board | Players | Queue | Chat. Tabs or bottom nav to switch. Board can be “pinch/zoom” or horizontal scroll for rounds.
-- **Touch targets**: Buttons and list rows ≥ 44px; drag handle large enough for reorder.
-- **Modals**: Settings and commissioner actions as full-screen or bottom sheet; “Save” / “Cancel” sticky.
-- **Keyboard**: Composer and search get focus; optional “Done” to dismiss keyboard and keep context.
-- **Notifications**: Optional push when “on deck” or “on clock” (backend-dependent).
-- **Offline**: Show last-known state; queue and picks sync when back online; clear “Reconnecting” state.
-
----
-
-## 8. Recommended Desktop Behavior
-
-- **Multi-column layout**: Top bar full width; below: manager strip full width; main area = board (left, ~50–60%) + right column stack: player panel (scroll), queue (scroll), chat (scroll). AI cards in right column or collapsible rail.
-- **Board**: Full grid visible without horizontal scroll when rounds ≤ 20; otherwise horizontal scroll. Sticky round/slot headers.
-- **Hover**: Player row hover = “Add to queue” / “Draft” emphasis; queue item = drag handle and remove; cell = optional tooltip (player, bye, traded owner).
-- **Shortcuts** (optional): e.g. focus search, focus queue, “Draft top of queue,” open AI panel.
-- **Resize**: Panels resizable or breakpoints so chat/queue don’t disappear; minimum widths for list readability.
-- **Multiple windows**: Same session in two tabs stays in sync via realtime; no duplicate pick submission (server-authoritative).
+| Domain | Core states |
+|---|---|
+| Draft lifecycle | `pre_draft`, `in_progress`, `paused`, `completed` |
+| Draft type | `snake`, `linear`, `auction` |
+| Turn context | self on-clock, other on-clock, orphan on-clock |
+| Timer | running, paused, expired, none |
+| Connectivity | healthy, reconnecting, resyncing, stale |
+| Board ownership | original owner, traded owner, optional red owner text |
+| AI ADP | off, on, unavailable, low sample warning |
+| Queue | empty, populated, reordered, autopick enabled |
+| Chat mode | live league-synced, live isolated, mock isolated |
+| Device layout | mobile tabs/sticky sections, desktop multi-pane |
 
 ---
 
-*End of UX specification. No implementation code; design and interaction definitions only.*
+## Interaction Matrix (Mandatory Click Audit)
+
+For every interaction in live and mock draft rooms, define and validate:
+- route
+- component
+- CTA
+- expected state change
+- backend dependency
+- realtime dependency
+- empty state
+- loading state
+- error state
+- mobile behavior
+- desktop behavior
+
+### Required Interaction Categories
+
+- **Navigation:** open room, back actions, tab changes, round navigation
+- **Draft controls:** pause/resume/reset/undo/start/resync
+- **Board actions:** pick visibility, traded ownership, tint mode behavior
+- **Player actions:** filters, search, sorts, queue add, pick submit, AI ADP toggle
+- **Queue actions:** reorder, AI reorder, autopick/away mode
+- **Chat actions:** send text/media, mention, broadcast, AI handoff
+- **AI actions:** refresh helper, best pick use, trade eval, queue optimization
+- **Settings actions:** all toggle persist/reload behavior
+
+### Audit Output Schema (per interaction)
+
+| Field | Required value |
+|---|---|
+| Route | concrete route path |
+| Component | concrete component name |
+| CTA | exact action label/button |
+| Expected state change | deterministic before -> after |
+| Backend dependency | API/service endpoint or "none" |
+| Realtime dependency | websocket/polling/refresh or "none" |
+| Empty state | expected UX copy + affordance |
+| Loading state | expected spinner/skeleton/disabled behavior |
+| Error state | expected message + recovery CTA |
+| Mobile behavior | layout + interaction rule |
+| Desktop behavior | layout + interaction rule |
+
+---
+
+## Recommended Visual Hierarchy
+
+1. **First priority:** timer, current pick, on-clock manager in top bar.
+2. **Second priority:** draft board as dominant workspace.
+3. **Third priority:** manager strip identity and active highlight context.
+4. **Fourth priority:** player panel + queue panel for action throughput.
+5. **Fifth priority:** chat + AI assistant as contextual accelerators.
+6. **Sixth priority:** commissioner controls and settings grouped, not intrusive.
+
+Design language:
+- compact, dense information architecture
+- high legibility and strong contrast
+- restrained accent color system
+- predictable visual semantics for warnings/errors/destructive actions
+
+---
+
+## Recommended Mobile Behavior
+
+- sticky top bar and current-pick context
+- horizontal manager strip with clear active state
+- tabbed section switching (`Board`, `Players`, `Queue`, `AI`, `Chat`)
+- full-width, thumb-friendly action controls
+- bottom sheets for settings and commissioner controls
+- preserve all interaction affordances and `data-testid` hooks
+
+---
+
+## Recommended Desktop Behavior
+
+- persistent top bar and manager strip
+- board-first layout with dense multi-pane lower workspace
+- player, queue, chat, and AI panels visible without deep navigation
+- inline commissioner controls for fast intervention
+- predictable resize behavior and no hidden critical CTAs
+
+---
+
+## Definition of UX Completion
+
+The UX specification is considered complete when:
+- all required routes, screens, components, and states are defined
+- all required interactions are mapped with dependency and behavior rules
+- mobile and desktop behavior guidance is explicit
+- all seven supported sports are covered consistently
+- no external platform branding/copy/assets are used
+

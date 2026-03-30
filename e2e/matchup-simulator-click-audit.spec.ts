@@ -227,4 +227,149 @@ test.describe('@matchup-simulator click audit', () => {
     expect(matchupRequests.length).toBeGreaterThan(0)
     expect(simulationRequests.some((req) => req.sport === 'NBA' && req.persist === true)).toBe(true)
   })
+
+  test('prediction controls update deterministic output and AI toggle wiring', async ({ page }) => {
+    const simulationRequests: Array<Record<string, unknown>> = []
+    const deriveMean = (team: { mean?: number; lineup?: Array<{ projection?: number }> }, fallback: number) => {
+      const lineupMean = Array.isArray(team.lineup)
+        ? team.lineup.reduce((sum, slot) => sum + Number(slot.projection ?? 0), 0)
+        : 0
+      const explicitMean = Number(team.mean ?? NaN)
+      if (Number.isFinite(explicitMean)) return explicitMean
+      return lineupMean > 0 ? Number(lineupMean.toFixed(1)) : fallback
+    }
+
+    const parseProjectedPair = (label: string): [number, number] => {
+      const match = label.match(/([0-9]+(?:\.[0-9]+)?)\s*-\s*([0-9]+(?:\.[0-9]+)?)/)
+      expect(match).not.toBeNull()
+      return [Number(match![1]), Number(match![2])]
+    }
+
+    await page.route('**/api/simulation/matchup', async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>
+      simulationRequests.push(body)
+
+      const teamA = (body.teamA ?? {}) as { mean?: number; lineup?: Array<{ projection?: number }> }
+      const teamB = (body.teamB ?? {}) as { mean?: number; lineup?: Array<{ projection?: number }> }
+      const meanA = deriveMean(teamA, 102)
+      const meanB = deriveMean(teamB, 97)
+
+      const scoringRules = (body.scoringRules ?? {}) as {
+        pointMultiplier?: number
+        teamABonus?: number
+        teamBBonus?: number
+        varianceMultiplier?: number
+        preset?: 'standard' | 'aggressive' | 'conservative'
+      }
+
+      const pointMultiplier = Number(scoringRules.pointMultiplier ?? 1)
+      const teamABonus = Number(scoringRules.teamABonus ?? 0)
+      const teamBBonus = Number(scoringRules.teamBBonus ?? 0)
+      const varianceMultiplier = Number(scoringRules.varianceMultiplier ?? 1)
+
+      const projectedA = Number((meanA * pointMultiplier + teamABonus).toFixed(1))
+      const projectedB = Number((meanB * pointMultiplier + teamBBonus).toFixed(1))
+      const spread = Math.max(1, 14 * Math.max(0.65, varianceMultiplier))
+      const z = (projectedA - projectedB) / spread
+      const winA = 1 / (1 + Math.exp(-z))
+      const roundedWinA = Number(winA.toFixed(3))
+      const roundedWinB = Number((1 - winA).toFixed(3))
+      const confidenceBand = spread >= 20 ? 'wide' : spread <= 10 ? 'tight' : 'normal'
+
+      const response: Record<string, unknown> = {
+        simulationId: 'sim_prediction_controls',
+        winProbabilityA: roundedWinA,
+        winProbabilityB: roundedWinB,
+        marginMean: Number((projectedA - projectedB).toFixed(1)),
+        marginStdDev: Number((spread * 0.8).toFixed(1)),
+        projectedScoreA: projectedA,
+        projectedScoreB: projectedB,
+        scoreRangeA: [Math.max(0, projectedA - 10), projectedA + 10],
+        scoreRangeB: [Math.max(0, projectedB - 10), projectedB + 10],
+        upsetChance: Number((Math.min(roundedWinA, roundedWinB) * 100).toFixed(1)),
+        volatilityTag: 'medium',
+        iterations: 1500,
+        deterministicSeed: 192236,
+        prediction: {
+          projectedScoreA: projectedA,
+          projectedScoreB: projectedB,
+          winProbabilityA: roundedWinA,
+          winProbabilityB: roundedWinB,
+          confidenceBand,
+          appliedRules: {
+            pointMultiplier,
+            teamABonus,
+            teamBBonus,
+            varianceMultiplier,
+            preset: scoringRules.preset ?? 'standard',
+          },
+        },
+      }
+
+      if (body.includeInsights) {
+        response.providerInsights = {
+          deepseek: 'Deterministic spread and probability are aligned with the scoring rules profile.',
+          grok: 'The matchup shifts with the scoring environment and keeps a clear edge story.',
+          openai: 'This result explains how scoring and variance settings moved both projection and win odds.',
+        }
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response),
+      })
+    })
+
+    await page.goto('/app/matchup-simulation')
+    await page.getByTestId('matchup-open-simulator').click()
+    await page.getByTestId('matchup-compare-button').click()
+    await expect(page.getByTestId('matchup-prediction-engine-panel')).toBeVisible()
+
+    const baselineProjected = await page.getByTestId('matchup-prediction-projected-score').innerText()
+    const [baselineA, baselineB] = parseProjectedPair(baselineProjected)
+
+    await page.getByTestId('matchup-scoring-point-multiplier-input').fill('1.15')
+    await page.getByTestId('matchup-scoring-team-a-bonus-input').fill('4')
+    await page.getByTestId('matchup-scoring-team-b-bonus-input').fill('-2')
+    await page.getByTestId('matchup-scoring-variance-multiplier-input').fill('1.50')
+
+    const beforeRerun = simulationRequests.length
+    await page.getByTestId('matchup-rerun-button').click()
+    await expect.poll(() => simulationRequests.length).toBeGreaterThan(beforeRerun)
+
+    const latestRequest = simulationRequests.at(-1) as {
+      scoringRules?: {
+        pointMultiplier?: number
+        teamABonus?: number
+        teamBBonus?: number
+        varianceMultiplier?: number
+      }
+    }
+    expect(latestRequest.scoringRules?.pointMultiplier).toBeCloseTo(1.15, 2)
+    expect(latestRequest.scoringRules?.teamABonus).toBeCloseTo(4, 2)
+    expect(latestRequest.scoringRules?.teamBBonus).toBeCloseTo(-2, 2)
+    expect(latestRequest.scoringRules?.varianceMultiplier).toBeCloseTo(1.5, 2)
+
+    const adjustedProjected = await page.getByTestId('matchup-prediction-projected-score').innerText()
+    const [adjustedA, adjustedB] = parseProjectedPair(adjustedProjected)
+    expect(adjustedA).toBeGreaterThan(baselineA)
+    expect(adjustedB).toBeGreaterThan(baselineB)
+    await expect(page.getByTestId('matchup-prediction-confidence')).toContainText('wide')
+
+    await page.getByTestId('matchup-scoring-preset-select').selectOption('conservative')
+    await expect(page.getByTestId('matchup-scoring-point-multiplier-input')).toHaveValue('0.94')
+    await expect(page.getByTestId('matchup-scoring-variance-multiplier-input')).toHaveValue('0.9')
+
+    await page.getByTestId('matchup-ai-insight-toggle').click()
+    await expect(page.getByTestId('matchup-ai-insight-toggle')).toContainText('Enabled')
+
+    const beforeAiRerun = simulationRequests.length
+    await page.getByTestId('matchup-rerun-button').click()
+    await expect.poll(() => simulationRequests.length).toBeGreaterThan(beforeAiRerun)
+
+    const latestAiRequest = simulationRequests.at(-1) as { includeInsights?: boolean }
+    expect(latestAiRequest.includeInsights).toBe(true)
+    await expect(page.getByText('DeepSeek Distribution Read')).toBeVisible()
+  })
 })

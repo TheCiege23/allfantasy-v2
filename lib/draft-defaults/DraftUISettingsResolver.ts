@@ -32,6 +32,8 @@ export interface DraftUISettings {
   autoPickEnabled: boolean
   timerMode: TimerMode
   commissionerForceAutoPickEnabled: boolean
+  /** Allow commissioner pause/resume/reset timer controls in live draft room. */
+  commissionerPauseControlsEnabled?: boolean
   /** Slow draft: pause window when timerMode is overnight_pause. */
   slowDraftPauseWindow?: SlowDraftPauseWindow | null
   /** Allow randomizing draft order (e.g. at start of draft). */
@@ -40,6 +42,8 @@ export interface DraftUISettings {
   pickTradeEnabled: boolean
   /** Auction: when nominator doesn't act in time, system auto-nominates next player (deterministic). */
   auctionAutoNominationEnabled: boolean
+  /** Draft import flow availability for commissioner tools. */
+  importEnabled: boolean
 }
 
 const DRAFT_UI_DEFAULTS: DraftUISettings = {
@@ -53,9 +57,11 @@ const DRAFT_UI_DEFAULTS: DraftUISettings = {
   autoPickEnabled: false,
   timerMode: 'per_pick',
   commissionerForceAutoPickEnabled: false,
+  commissionerPauseControlsEnabled: true,
   draftOrderRandomizationEnabled: false,
   pickTradeEnabled: true,
   auctionAutoNominationEnabled: false,
+  importEnabled: true,
 }
 
 const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
@@ -69,10 +75,12 @@ const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
   autoPickEnabled: 'draft_auto_pick_enabled',
   timerMode: 'draft_timer_mode',
   commissionerForceAutoPickEnabled: 'draft_commissioner_force_autopick_enabled',
+  commissionerPauseControlsEnabled: 'draft_commissioner_pause_controls_enabled',
   slowDraftPauseWindow: 'draft_slow_pause_window',
   draftOrderRandomizationEnabled: 'draft_order_randomization_enabled',
   pickTradeEnabled: 'draft_pick_trade_enabled',
   auctionAutoNominationEnabled: 'draft_auction_auto_nomination_enabled',
+  importEnabled: 'draft_import_enabled',
 }
 
 function fromStorage(settings: Record<string, unknown>): DraftUISettings {
@@ -88,10 +96,12 @@ function fromStorage(settings: Record<string, unknown>): DraftUISettings {
     autoPickEnabled: settings[SETTINGS_KEYS.autoPickEnabled] as boolean ?? DRAFT_UI_DEFAULTS.autoPickEnabled,
     timerMode: (settings[SETTINGS_KEYS.timerMode] as TimerMode) ?? DRAFT_UI_DEFAULTS.timerMode,
     commissionerForceAutoPickEnabled: settings[SETTINGS_KEYS.commissionerForceAutoPickEnabled] as boolean ?? DRAFT_UI_DEFAULTS.commissionerForceAutoPickEnabled,
+    commissionerPauseControlsEnabled: settings[SETTINGS_KEYS.commissionerPauseControlsEnabled] as boolean ?? DRAFT_UI_DEFAULTS.commissionerPauseControlsEnabled,
     slowDraftPauseWindow: (settings[SETTINGS_KEYS.slowDraftPauseWindow] as SlowDraftPauseWindow | null | undefined) ?? undefined,
     draftOrderRandomizationEnabled: settings[SETTINGS_KEYS.draftOrderRandomizationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.draftOrderRandomizationEnabled,
     pickTradeEnabled: settings[SETTINGS_KEYS.pickTradeEnabled] as boolean ?? DRAFT_UI_DEFAULTS.pickTradeEnabled,
     auctionAutoNominationEnabled: settings[SETTINGS_KEYS.auctionAutoNominationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.auctionAutoNominationEnabled,
+    importEnabled: settings[SETTINGS_KEYS.importEnabled] as boolean ?? DRAFT_UI_DEFAULTS.importEnabled,
   }
 }
 
@@ -143,6 +153,8 @@ export async function updateDraftUISettings(
     next[SETTINGS_KEYS.timerMode] = patch.timerMode
   if (patch.commissionerForceAutoPickEnabled !== undefined)
     next[SETTINGS_KEYS.commissionerForceAutoPickEnabled] = patch.commissionerForceAutoPickEnabled
+  if (patch.commissionerPauseControlsEnabled !== undefined)
+    next[SETTINGS_KEYS.commissionerPauseControlsEnabled] = patch.commissionerPauseControlsEnabled
   if (patch.slowDraftPauseWindow !== undefined)
     next[SETTINGS_KEYS.slowDraftPauseWindow] = patch.slowDraftPauseWindow
   if (patch.draftOrderRandomizationEnabled !== undefined)
@@ -151,6 +163,8 @@ export async function updateDraftUISettings(
     next[SETTINGS_KEYS.pickTradeEnabled] = patch.pickTradeEnabled
   if (patch.auctionAutoNominationEnabled !== undefined)
     next[SETTINGS_KEYS.auctionAutoNominationEnabled] = patch.auctionAutoNominationEnabled
+  if (patch.importEnabled !== undefined)
+    next[SETTINGS_KEYS.importEnabled] = patch.importEnabled
 
   await prisma.league.update({
     where: { id: leagueId },

@@ -9,7 +9,13 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import type { QueueEntry } from '@/lib/live-draft-engine/types'
-import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
+import { normalizeDraftQueueSizeLimit } from '@/lib/draft-defaults/DraftQueueLimitResolver'
+import {
+  dedupeQueueEntries,
+  normalizeDraftedNameSet,
+  normalizeQueueEntries,
+  removeDraftedPlayersFromQueue,
+} from '@/lib/draft-queue-engine'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +35,12 @@ export async function GET(
 
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
-    select: { id: true },
+    select: {
+      id: true,
+      picks: {
+        select: { playerName: true },
+      },
+    },
   })
   if (!draftSession) {
     return NextResponse.json({ leagueId, queue: [] })
@@ -38,8 +49,20 @@ export async function GET(
   const row = await prisma.draftQueue.findUnique({
     where: { sessionId_userId: { sessionId: draftSession.id, userId } },
   })
-  const order = (row?.order as unknown as QueueEntry[]) ?? []
-  return NextResponse.json({ leagueId, queue: order })
+  const rawOrder = (row?.order as unknown as QueueEntry[]) ?? []
+  const draftedNames = normalizeDraftedNameSet(draftSession.picks)
+  const cleaned = removeDraftedPlayersFromQueue(dedupeQueueEntries(rawOrder), draftedNames)
+  if (row && cleaned.removedCount > 0) {
+    await prisma.draftQueue.update({
+      where: { sessionId_userId: { sessionId: draftSession.id, userId } },
+      data: { order: cleaned.queue as any, updatedAt: new Date() },
+    })
+  }
+  return NextResponse.json({
+    leagueId,
+    queue: cleaned.queue,
+    removedUnavailable: cleaned.removedCount,
+  })
 }
 
 export async function PUT(
@@ -64,7 +87,12 @@ export async function PUT(
 
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
-    select: { id: true },
+    select: {
+      id: true,
+      picks: {
+        select: { playerName: true },
+      },
+    },
   })
   if (!draftSession) {
     return NextResponse.json({ error: 'No draft session' }, { status: 404 })
@@ -74,12 +102,9 @@ export async function PUT(
   const draftConfig = await getDraftConfigForLeague(leagueId)
   const queueSizeLimit = normalizeDraftQueueSizeLimit(draftConfig?.queue_size_limit)
 
-  const normalized = trimDraftQueue(queue, queueSizeLimit).map((e: any) => ({
-    playerName: e.playerName ?? e.player_name ?? '',
-    position: e.position ?? '',
-    team: e.team ?? null,
-    playerId: e.playerId ?? e.player_id ?? null,
-  }))
+  const normalized = dedupeQueueEntries(
+    normalizeQueueEntries(queue, queueSizeLimit)
+  )
 
   const { getAllowedPositionsAndRosterSize } = await import('@/lib/live-draft-engine/RosterFitValidation')
   const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
@@ -99,11 +124,19 @@ export async function PUT(
     }
   }
 
+  const draftedNames = normalizeDraftedNameSet(draftSession.picks)
+  const cleaned = removeDraftedPlayersFromQueue(normalized, draftedNames)
+
   await prisma.draftQueue.upsert({
     where: { sessionId_userId: { sessionId: draftSession.id, userId } },
-    create: { sessionId: draftSession.id, userId, order: normalized as any },
-    update: { order: normalized as any, updatedAt: new Date() },
+    create: { sessionId: draftSession.id, userId, order: cleaned.queue as any },
+    update: { order: cleaned.queue as any, updatedAt: new Date() },
   })
 
-  return NextResponse.json({ ok: true, leagueId, queue: normalized })
+  return NextResponse.json({
+    ok: true,
+    leagueId,
+    queue: cleaned.queue,
+    removedUnavailable: cleaned.removedCount,
+  })
 }

@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import type { KeeperConfig } from '@/lib/live-draft-engine/keeper/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,18 +36,37 @@ export async function PATCH(
     return NextResponse.json({ error: 'Keeper config cannot be changed after draft has started' }, { status: 400 })
   }
 
-  const current = (draft.keeperConfig ?? (draft as any).keeperConfig) as Record<string, unknown> | null
+  const current = (draft.keeperConfig ?? (draft as any).keeperConfig) as KeeperConfig | null
   const next: Record<string, unknown> = current && typeof current === 'object' ? { ...current } : { maxKeepers: 0 }
 
   if (typeof body.maxKeepers === 'number' && body.maxKeepers >= 0) {
     next.maxKeepers = Math.min(50, Math.round(body.maxKeepers))
   }
-  if (body.deadline !== undefined) next.deadline = body.deadline ? String(body.deadline) : null
+  if (body.deadline !== undefined) {
+    if (!body.deadline) {
+      next.deadline = null
+    } else {
+      const parsed = new Date(String(body.deadline))
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: 'Invalid keeper deadline timestamp' }, { status: 400 })
+      }
+      next.deadline = parsed.toISOString()
+    }
+  }
   if (body.maxKeepersPerPosition !== undefined) {
-    next.maxKeepersPerPosition =
-      body.maxKeepersPerPosition && typeof body.maxKeepersPerPosition === 'object'
-        ? body.maxKeepersPerPosition
-        : undefined
+    if (body.maxKeepersPerPosition == null) {
+      next.maxKeepersPerPosition = undefined
+    } else if (typeof body.maxKeepersPerPosition === 'object' && !Array.isArray(body.maxKeepersPerPosition)) {
+      const normalized: Record<string, number> = {}
+      for (const [rawPos, rawCount] of Object.entries(body.maxKeepersPerPosition as Record<string, unknown>)) {
+        const pos = String(rawPos || '').trim().toUpperCase()
+        const count = Math.max(0, Math.min(10, Math.round(Number(rawCount) || 0)))
+        if (pos) normalized[pos] = count
+      }
+      next.maxKeepersPerPosition = normalized
+    } else {
+      return NextResponse.json({ error: 'maxKeepersPerPosition must be an object map' }, { status: 400 })
+    }
   }
 
   await prisma.draftSession.update({

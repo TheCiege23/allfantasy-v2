@@ -61,3 +61,11 @@ export {
   type PositionFilterOption,
   type DraftSportOption,
 } from './SportDraftUIResolver'
+
+export {
+  getManagerColorByIndex,
+  getManagerColorBySeed,
+  getManagerColorBySlot,
+  withAlpha,
+  type ManagerColorDescriptor,
+} from './ManagerColorResolver'

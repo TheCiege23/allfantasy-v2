@@ -10,6 +10,8 @@ import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISetting
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 import { prisma } from '@/lib/prisma'
+import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { getProviderStatus } from '@/lib/provider-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +32,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const [uiSettings, orphanRosterIds, recentLogs, rosters] = await Promise.all([
+  const [uiSettings, orphanRosterIds, recentLogs, rosters, snapshot] = await Promise.all([
     getDraftUISettingsForLeague(leagueId),
     getOrphanRosterIdsForLeague(leagueId),
     getRecentAuditEntries(leagueId, { limit: 15 }),
@@ -38,13 +40,28 @@ export async function GET(
       where: { leagueId },
       select: { id: true, platformUserId: true },
     }),
+    buildSessionSnapshot(leagueId),
   ])
 
   const orphanRosters = rosters.filter((r) => orphanRosterIds.includes(r.id)).map((r) => ({ rosterId: r.id, platformUserId: r.platformUserId }))
+  const providerStatus = getProviderStatus()
+  const effectiveMode =
+    uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
+      ? 'cpu'
+      : uiSettings.orphanDrafterMode
 
   return NextResponse.json({
     orphanTeamAiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
+    orphanDrafterMode: uiSettings.orphanDrafterMode,
+    orphanDrafterEffectiveMode: effectiveMode,
+    orphanAiProviderAvailable: providerStatus.anyAi,
     orphanRosterIds,
+    currentOnClockRosterId: snapshot?.currentPick?.rosterId ?? null,
+    isOrphanOnClock: Boolean(
+      snapshot?.currentPick?.rosterId &&
+      orphanRosterIds.includes(snapshot.currentPick.rosterId) &&
+      uiSettings.orphanTeamAiManagerEnabled
+    ),
     orphanRosters,
     recentActions: recentLogs.map((l) => ({
       id: l.id,

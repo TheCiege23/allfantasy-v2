@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Search, Trophy, Users, ChevronRight, Loader2 } from "lucide-react"
 import { getLeagueFilterOptions } from "@/lib/league-discovery/LeagueFilterResolver"
 import type { LeagueCard } from "@/lib/league-discovery/types"
+import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
 
 const SCORING_LABELS: Record<string, string> = {
@@ -15,6 +16,7 @@ const SCORING_LABELS: Record<string, string> = {
 }
 
 export default function LeagueDiscoveryClient() {
+  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
   const [query, setQuery] = useState("")
   const [sport, setSport] = useState("")
   const [leagueType, setLeagueType] = useState("")
@@ -201,7 +203,11 @@ export default function LeagueDiscoveryClient() {
                           {SCORING_LABELS[league.scoringMode] ?? league.scoringMode}
                         </span>
                         {league.isPaidLeague && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "color-mix(in srgb, #22c55e 12%, transparent)", color: "#22c55e" }}>
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full"
+                            style={{ background: "color-mix(in srgb, #22c55e 12%, transparent)", color: "#22c55e" }}
+                            title={paidBoundaryDisclosure}
+                          >
                             Paid
                           </span>
                         )}
@@ -216,6 +222,11 @@ export default function LeagueDiscoveryClient() {
                         </span>
                         <span>by {league.ownerName}</span>
                       </div>
+                      {league.isPaidLeague ? (
+                        <p className="mt-2 text-[11px]" style={{ color: "rgba(250, 204, 21, 0.75)" }}>
+                          Paid league dues and payouts are managed externally via FanCred.
+                        </p>
+                      ) : null}
                     </div>
                     <ChevronRight className="h-5 w-5 shrink-0" style={{ color: "var(--muted)" }} />
                   </div>

@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Clock, Plus, Share2, Repeat, History } from 'lucide-react'
+import Link from 'next/link'
+import { Clock, Plus, Share2, Repeat, History, PlaySquare } from 'lucide-react'
 import MockDraftSimulatorWrapper from '@/components/mock-draft/MockDraftSimulatorWrapper'
 import { MockDraftRecap } from '@/components/mock-draft'
 import type { MockDraftConfig } from '@/lib/mock-draft/types'
@@ -88,6 +89,8 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
       aiEnabled: Boolean(metadata.aiEnabled),
       rounds: Number(metadata.rounds || selectedDraft.rounds || 15),
       leagueId: (metadata.leagueId as string | null) ?? null,
+      roomMode: (metadata.roomMode as any) || 'solo',
+      humanTeams: Number(metadata.humanTeams || 1),
     }
   }, [selectedDraft])
 
@@ -114,6 +117,8 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
       aiEnabled: Boolean(metadata.aiEnabled),
       rounds: Number(metadata.rounds || draft.rounds || 15),
       leagueId: (metadata.leagueId as string | null) ?? null,
+      roomMode: (metadata.roomMode as any) || 'solo',
+      humanTeams: Number(metadata.humanTeams || 1),
     }
     setSelectedDraftId('new')
   }
@@ -178,6 +183,19 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
                         {metadata.numTeams || 12}-team - {draft.rounds} rounds - {formatDateInTimezone(draft.createdAt)}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-[10px] text-white/60">
+                        {draft.results.length > 0 && (
+                          <Link
+                            href={`/mock-draft/${encodeURIComponent(draft.id)}/replay`}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                            }}
+                            className="inline-flex items-center gap-1 rounded-full border border-white/20 px-1.5 py-0.5 hover:bg-white/10"
+                            data-testid={`mock-draft-replay-link-${draft.id}`}
+                          >
+                            <PlaySquare className="h-3 w-3" />
+                            Replay
+                          </Link>
+                        )}
                         {draft.shareId && (
                           <button
                             type="button"
@@ -226,6 +244,7 @@ export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLo
             results={selectedDraft.results}
             config={parsedConfig}
             userManagerName={userManagerName}
+            draftId={selectedDraft.id}
           />
         ) : (
           <MockDraftSimulatorWrapper

@@ -6,6 +6,11 @@ import { prisma } from '@/lib/prisma'
 
 const DEFAULT_LIMIT = 25
 const MAX_LIMIT = 100
+const DEFAULT_ACTIVITY_LOOKBACK_DAYS = 120
+
+function clampLimit(limit: number | undefined): number {
+  return Math.min(Math.max(limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+}
 
 export interface LeaderboardEntry {
   rank: number
@@ -143,7 +148,7 @@ async function batchResolveDraftGradeManagers(
 export async function getBestDraftGradesLeaderboard(options: {
   limit?: number
 }): Promise<LeaderboardResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const limit = clampLimit(options.limit)
 
   const grades = await prisma.draftGrade.findMany({
     select: { leagueId: true, rosterId: true, score: true, grade: true },
@@ -205,7 +210,7 @@ export async function getBestDraftGradesLeaderboard(options: {
 export async function getMostChampionshipsLeaderboard(options: {
   limit?: number
 }): Promise<LeaderboardResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const limit = clampLimit(options.limit)
 
   const profiles = await prisma.managerFranchiseProfile.findMany({
     where: { championshipCount: { gt: 0 } },
@@ -238,7 +243,7 @@ export async function getHighestWinPctLeaderboard(options: {
   limit?: number
   minGames?: number
 }): Promise<LeaderboardResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const limit = clampLimit(options.limit)
   const minLeagues = options.minGames ?? 5
 
   const profiles = await prisma.managerFranchiseProfile.findMany({
@@ -274,32 +279,138 @@ export async function getHighestWinPctLeaderboard(options: {
 }
 
 /**
- * Most active managers — from ManagerFranchiseProfile, ordered by totalLeaguesPlayed desc.
+ * Most active managers — deterministic event activity score.
+ * Sources:
+ * - LeagueChatMessage.userId
+ * - TradeOfferEvent.senderUserId / opponentUserId
+ * - WaiverTransaction.rosterId -> Roster.platformUserId
  */
 export async function getMostActiveLeaderboard(options: {
   limit?: number
+  lookbackDays?: number
 }): Promise<LeaderboardResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const limit = clampLimit(options.limit)
+  const lookbackDays = Math.max(7, Math.min(options.lookbackDays ?? DEFAULT_ACTIVITY_LOOKBACK_DAYS, 365))
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000)
 
-  const profiles = await prisma.managerFranchiseProfile.findMany({
-    orderBy: { totalLeaguesPlayed: 'desc' },
-    take: limit,
-    select: { managerId: true, totalLeaguesPlayed: true },
+  const [chatCounts, sentTradeCounts, opponentTradeCounts, waiverCounts] = await Promise.all([
+    prisma.leagueChatMessage.groupBy({
+      by: ['userId'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+    prisma.tradeOfferEvent.groupBy({
+      by: ['senderUserId'],
+      where: { createdAt: { gte: since }, senderUserId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.tradeOfferEvent.groupBy({
+      by: ['opponentUserId'],
+      where: { createdAt: { gte: since }, opponentUserId: { not: null } },
+      _count: { _all: true },
+    }),
+    prisma.waiverTransaction.groupBy({
+      by: ['rosterId'],
+      where: { processedAt: { gte: since } },
+      _count: { _all: true },
+    }),
+  ])
+
+  const waiverRosterIds = [...new Set(waiverCounts.map((row) => row.rosterId).filter(Boolean))]
+  const waiverRosters =
+    waiverRosterIds.length > 0
+      ? await prisma.roster.findMany({
+          where: { id: { in: waiverRosterIds } },
+          select: { id: true, platformUserId: true },
+        })
+      : []
+  const rosterToManager = new Map(
+    waiverRosters
+      .filter((row) => !!row.platformUserId)
+      .map((row) => [row.id, row.platformUserId as string])
+  )
+
+  const byManager = new Map<
+    string,
+    { chatCount: number; tradeCount: number; waiverCount: number; totalActions: number; activityScore: number }
+  >()
+  const touchManager = (managerId: string) => {
+    const normalized = String(managerId ?? '').trim()
+    if (!normalized) return null
+    const current =
+      byManager.get(normalized) ??
+      { chatCount: 0, tradeCount: 0, waiverCount: 0, totalActions: 0, activityScore: 0 }
+    byManager.set(normalized, current)
+    return current
+  }
+
+  for (const row of chatCounts) {
+    const current = touchManager(String(row.userId))
+    if (!current) continue
+    current.chatCount += row._count._all
+  }
+  for (const row of sentTradeCounts) {
+    const current = touchManager(String(row.senderUserId ?? ''))
+    if (!current) continue
+    current.tradeCount += row._count._all
+  }
+  for (const row of opponentTradeCounts) {
+    const current = touchManager(String(row.opponentUserId ?? ''))
+    if (!current) continue
+    current.tradeCount += row._count._all
+  }
+  for (const row of waiverCounts) {
+    const managerId = rosterToManager.get(row.rosterId)
+    if (!managerId) continue
+    const current = touchManager(managerId)
+    if (!current) continue
+    current.waiverCount += row._count._all
+  }
+
+  const rows: Array<{
+    managerId: string
+    chatCount: number
+    tradeCount: number
+    waiverCount: number
+    totalActions: number
+    activityScore: number
+  }> = []
+  byManager.forEach((value, managerId) => {
+    const totalActions = value.chatCount + value.tradeCount + value.waiverCount
+    if (totalActions <= 0) return
+    // Weight trades/waivers slightly higher than chat to reward cross-surface engagement.
+    const activityScore = value.chatCount + value.tradeCount * 3 + value.waiverCount * 2
+    rows.push({
+      managerId,
+      chatCount: value.chatCount,
+      tradeCount: value.tradeCount,
+      waiverCount: value.waiverCount,
+      totalActions,
+      activityScore,
+    })
   })
 
-  const displayNames = await getDisplayNames(profiles.map((p) => p.managerId))
+  rows.sort((a, b) => {
+    if (b.activityScore !== a.activityScore) return b.activityScore - a.activityScore
+    if (b.totalActions !== a.totalActions) return b.totalActions - a.totalActions
+    return a.managerId.localeCompare(b.managerId)
+  })
 
-  const entries: LeaderboardEntry[] = profiles.map((p, i) => ({
-    rank: i + 1,
-    managerId: p.managerId,
-    displayName: displayNames.get(p.managerId) ?? null,
-    value: p.totalLeaguesPlayed ?? 0,
-    extra: { count: p.totalLeaguesPlayed ?? 0 },
+  const displayNames = await getDisplayNames(rows.slice(0, limit).map((row) => row.managerId))
+  const entries: LeaderboardEntry[] = rows.slice(0, limit).map((row, index) => ({
+    rank: index + 1,
+    managerId: row.managerId,
+    displayName: displayNames.get(row.managerId) ?? null,
+    value: row.activityScore,
+    extra: {
+      count: row.totalActions,
+      grade: `${row.chatCount} chat · ${row.tradeCount} trade · ${row.waiverCount} waiver`,
+    },
   }))
 
   return {
     entries,
-    total: await prisma.managerFranchiseProfile.count(),
+    total: rows.length,
     generatedAt: new Date().toISOString(),
   }
 }
@@ -311,7 +422,7 @@ export async function getMostActiveLeaderboard(options: {
 export async function getTopUsersLeaderboard(options: {
   limit?: number
 }): Promise<LeaderboardResult> {
-  const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT)
+  const limit = clampLimit(options.limit)
 
   const profiles = await prisma.managerFranchiseProfile.findMany({
     orderBy: [

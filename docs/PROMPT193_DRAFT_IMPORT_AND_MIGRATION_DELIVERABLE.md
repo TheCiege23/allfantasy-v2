@@ -2,7 +2,15 @@
 
 ## Overview
 
-Draft import and migration: **deterministic, rules-based** mapping and validation. AI is not required for import correctness. Supports import of draft order, completed picks, pick ownership/traded picks, keeper state, and league metadata from a generic JSON payload.
+Draft import and migration is now fully wired as a deterministic, rules-based flow (no AI dependency for correctness). It imports:
+
+- draft order
+- completed picks
+- pick ownership / traded picks
+- keeper state (config + selections)
+- draft metadata (team count, rounds, type, 3RR)
+
+The flow supports dry-run validation, preview, commit, duplicate prevention, rollback, and cancel from the commissioner control center.
 
 **Supported sports:** NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, Soccer (sport-aware where league context is used).
 
@@ -18,7 +26,7 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 | `lib/draft-import/ImportMappingLayer.ts` | mapPayloadToPreview: resolves rosterId/displayName from league context; maps draftOrder, picks, tradedPicks, keeperConfig, keeperSelections. |
 | `lib/draft-import/ImportValidationEngine.ts` | validateRawPayload (structure), validatePreview (duplicates, ranges, roster refs). |
 | `lib/draft-import/DraftImportService.ts` | parseImportPayload, runDraftImportDryRun (parse → map → validate). |
-| `lib/draft-import/ImportCommitFlow.ts` | createImportBackup, commitImport (backup + transaction apply), rollbackImport, hasImportBackup. |
+| `lib/draft-import/ImportCommitFlow.ts` | createImportBackup, commitImport (backup + transaction apply + duplicate import guard), rollbackImport, hasImportBackup. |
 | `lib/draft-import/leagueContext.ts` | buildLeagueImportContext from league rosters + teams. |
 | `lib/draft-import/index.ts` | Re-exports. |
 
@@ -36,7 +44,7 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 | Route | Method | Purpose |
 |-------|--------|---------|
 | `/api/leagues/[leagueId]/draft/import/validate` | POST | Dry-run: body `{ payload }` (JSON object or string). Returns `{ valid, report, preview }`. |
-| `/api/leagues/[leagueId]/draft/import/commit` | POST | Commissioner only. Body `{ preview }`. Creates backup then applies in transaction. |
+| `/api/leagues/[leagueId]/draft/import/commit` | POST | Commissioner only. Body `{ preview }`. Revalidates preview deterministically, prevents duplicate import, creates backup, then applies in transaction. |
 | `/api/leagues/[leagueId]/draft/import/rollback` | POST | Commissioner only. Restores session and picks from last backup; deletes backup. |
 | `/api/leagues/[leagueId]/draft/import/backup-status` | GET | Returns `{ hasBackup }`. |
 
@@ -45,9 +53,10 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 ## 4. UI Flow
 
 - **Commissioner control center (draft room):** New section **Import** with button **Import draft data**. When opened, shows **DraftImportFlow**:
-  1. **Paste JSON** (textarea) with `draftOrder`, `picks`, and optionally `tradedPicks`, `keeperConfig`, `keeperSelections`, `metadata`.
+  1. **Upload JSON file** or **paste JSON** with `draftOrder`, `picks`, and optional `tradedPicks`, `keeperConfig`, `keeperSelections`, `metadata`.
   2. **Validate (dry run):** Calls validate API; shows parse errors, validation errors/warnings, and preview summary (pick count, traded picks, keepers, slots).
-  3. **Commit import:** Enabled when valid; creates backup and applies preview. Success message and panel close; Resync runs.
+  3. **Preview details:** Shows mapped draft-order rows and mapped picks before commit.
+  4. **Commit import:** Enabled only when validation can proceed; creates backup and applies preview. Panel closes and resync runs.
   4. **Cancel:** Closes import panel without committing.
   5. **Rollback last import:** Shown when backup exists; restores previous state and clears backup.
 - **Components:** `DraftImportFlow.tsx` (used inside CommissionerControlCenterModal); modal receives `leagueId` and passes it to the flow.
@@ -56,10 +65,19 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 
 ## 5. Validation Notes (Deterministic)
 
-- **Raw payload:** Must be object; `picks`/`draftOrder`/`tradedPicks` must be arrays if present.
-- **Mapping:** Resolves rosterId from displayName/teamName/ownerName using league rosters and teams (index or name match). Unresolved slots get placeholder ids; warnings added.
-- **Preview validation:** teamCount 1–50; pick overall in [1, teamCount*rounds]; no duplicate overall; no duplicate player per roster; rosterId in slot order (warning if not); overwrite warning if session already has picks.
-- **Keeper:** If keeperSelections without keeperConfig, warning. No AI; all rules-based.
+- **Raw payload:** Must be an object and contain import data (`draftOrder`, `picks`, `tradedPicks`, `keeperConfig`, `keeperSelections`, or `metadata`).
+- **Source normalization:** Supports common aliases (`draft_order`, `completed_picks`, `traded_picks`, `leagueMetadata`, etc.) and normalizes into the canonical import shape.
+- **Mapping:** Resolves roster IDs using rosterId, slot fallback, and normalized display/team/owner names from league context.
+- **Preview validation:**
+  - team count and rounds bounds
+  - slot order uniqueness and slot range
+  - overall/round/slot consistency
+  - duplicate overalls / duplicate players per roster
+  - traded pick round + ownership consistency
+  - keeper round-cost and roster consistency
+- **Commit validation:** Preview is revalidated at commit-time server-side before writes.
+- **Duplicate prevention:** Commit rejects imports that exactly match current session state.
+- **Overwrite signaling:** Warns when import replaces existing picks outside pre-draft.
 
 ---
 
@@ -72,6 +90,7 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 | Resolve rosterId from names | ✅ (league context) | — |
 | Validation (duplicates, ranges, refs) | ✅ | — |
 | Preview summary | ✅ | — |
+| Commit revalidation + duplicate prevention | ✅ | — |
 | Backup and commit in transaction | ✅ | — |
 | Rollback from backup | ✅ | — |
 | Error reporting | ✅ | — |
@@ -81,12 +100,12 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 
 ## 7. QA Checklist (Mandatory Click Audit)
 
-- [ ] **Upload/import flow works:** Commissioner opens control center → Import draft data → paste JSON → Validate shows preview/errors.
-- [ ] **Preview works:** After validate, summary shows (pick count, traded picks, keepers, slots); errors/warnings listed; Commit enabled only when valid.
-- [ ] **Validation errors display correctly:** Invalid JSON, missing fields, duplicate overall/player, out-of-range overall show with code and message.
-- [ ] **Commit import works:** Valid preview → Commit import → success message; draft session and picks updated; backup created.
-- [ ] **Rollback or cancel works:** Rollback last import restores previous state and removes backup; Cancel closes panel without committing.
-- [ ] **No dead import steps or buttons:** Validate, Commit, Cancel, Rollback all actionable when appropriate; no broken links or disabled-without-reason.
+- [x] **Upload/import flow works:** Commissioner opens control center -> Import draft data -> uploads/pastes JSON -> Validate returns preview/errors.
+- [x] **Preview works:** Summary, draft order preview, and picks preview render before commit.
+- [x] **Validation errors display correctly:** Invalid JSON and duplicate-overall validation path verified in dedicated E2E click audit.
+- [x] **Commit import works:** Valid preview -> Commit import -> board/session reflect imported picks; backup created.
+- [x] **Rollback or cancel works:** Rollback restores prior state and removes backup; Cancel closes panel without committing.
+- [x] **No dead import steps or buttons:** Validate, Commit, Cancel, Upload, and Rollback are all wired and actionable.
 
 ---
 
@@ -135,4 +154,5 @@ Draft import and migration: **deterministic, rules-based** mapping and validatio
 - **Backend:** `lib/draft-import/*` (types, ImportErrorReport, DraftImportPreview, ImportMappingLayer, ImportValidationEngine, DraftImportService, ImportCommitFlow, leagueContext, index); `app/api/leagues/[leagueId]/draft/import/validate/route.ts`, `commit/route.ts`, `rollback/route.ts`, `backup-status/route.ts`.
 - **Schema:** `prisma/schema.prisma` (DraftImportBackup), `prisma/migrations/20260324000000_add_draft_import_backup/migration.sql`.
 - **Frontend:** `components/app/draft-room/DraftImportFlow.tsx`, `CommissionerControlCenterModal.tsx` (Import section + DraftImportFlow).
+- **E2E:** `e2e/draft-import-click-audit.spec.ts`.
 - **Docs:** `docs/PROMPT193_DRAFT_IMPORT_AND_MIGRATION_DELIVERABLE.md`.

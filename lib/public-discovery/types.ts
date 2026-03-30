@@ -5,7 +5,7 @@
 
 export type DiscoverySource = "fantasy" | "bracket" | "creator"
 
-export type DiscoverySort = "popularity" | "newest" | "filling_fast"
+export type DiscoverySort = "ranking_match" | "popularity" | "newest" | "filling_fast"
 
 export type DiscoveryFormat = "all" | "fantasy" | "bracket" | "creator"
 
@@ -21,7 +21,7 @@ export type DiscoveryLeagueStyle =
 export type LeagueStyleFilter = "all" | DiscoveryLeagueStyle
 
 export type DraftTypeFilter = "all" | "snake" | "linear" | "auction"
-export type DraftStatusFilter = "all" | "pre_draft" | "in_progress" | "completed"
+export type DraftStatusFilter = "all" | "pre_draft" | "in_progress" | "paused" | "completed"
 export type VisibilityFilter = "public" | "all"
 
 export interface DiscoveryCard {
@@ -51,6 +51,8 @@ export interface DiscoveryCard {
   leagueStyle?: DiscoveryLeagueStyle | null
   /** Draft type when available (snake | linear | auction). */
   draftType: string | null
+  /** Draft session status when available (pre_draft | in_progress | paused | completed). */
+  draftStatus?: string | null
   /** Team/slot count (same as maxMembers). */
   teamCount: number
   /** Draft or join deadline when available (ISO). */
@@ -69,6 +71,10 @@ export interface DiscoveryCard {
   inviteOnlyByTier?: boolean
   /** Whether the current viewer can join directly without an invite override. */
   canJoinByRanking?: boolean
+  /** Ranking-fit score used for discovery ordering (higher = better fit). */
+  rankingEffectScore?: number
+  /** Absolute tier distance between viewer and league tier. */
+  rankingTierDelta?: number
 }
 
 export interface DiscoverLeaguesInput {

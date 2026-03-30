@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { getCoachAdvice } from '@/lib/fantasy-coach';
-import type { AdviceType } from '@/lib/fantasy-coach/types';
 import { authOptions } from '@/lib/auth';
 import { assertLeagueMember } from '@/lib/league-access';
 import { logAiOutput } from '@/lib/ai/output-logger';
 import { normalizeToSupportedSport } from '@/lib/sport-scope';
+import { getAICoachResponse, normalizeAdviceType } from '@/lib/ai-coach';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +21,31 @@ export async function POST(req: Request) {
     week?: number;
     teamName?: string;
     sport?: string;
+    matchupData?: {
+      opponentName?: string;
+      opponentProjection?: number;
+      teamProjection?: number;
+      spread?: number;
+      notes?: string;
+    };
+    leagueSettings?: {
+      sport?: string;
+      scoringFormat?: string;
+      teamCount?: number;
+      rosterSlots?: string[];
+    };
+    roster?: {
+      playerName: string;
+      position?: string;
+      team?: string;
+      projectedPoints?: number;
+      slot?: string;
+    }[];
+    playerStats?: {
+      playerName: string;
+      position?: string;
+      projectedPoints?: number;
+    }[];
   };
   try {
     body = await req.json();
@@ -29,14 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const type = (body.type ?? 'lineup') as string;
-  const validTypes: AdviceType[] = ['lineup', 'trade', 'waiver'];
-  if (!validTypes.includes(type as AdviceType)) {
-    return NextResponse.json(
-      { error: 'Invalid type', allowed: validTypes },
-      { status: 400 }
-    );
-  }
+  const type = normalizeAdviceType(body.type);
 
   if (body.leagueId) {
     try {
@@ -47,28 +64,44 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await getCoachAdvice(type as AdviceType, {
+    const result = await getAICoachResponse({
+      type,
       leagueId: body.leagueId,
-      leagueName: body.leagueName,
       week: body.week,
       teamName: body.teamName,
-      sport: body.sport ? normalizeToSupportedSport(body.sport) : undefined,
+      leagueSettings: {
+        ...body.leagueSettings,
+        sport: body.sport ? normalizeToSupportedSport(body.sport) : body.leagueSettings?.sport,
+      },
+      matchupData: body.matchupData,
+      roster: body.roster,
+      playerStats: body.playerStats,
     });
 
     await logAiOutput({
-      provider: 'openai',
+      provider: result.explanation.source === 'ai' ? 'openai' : 'deterministic',
       role: 'narrative',
-      taskType: type === 'lineup' ? 'start_sit_assistant' : `coach_${type}`,
+      taskType: `coach_${type}`,
       targetType: 'user',
       targetId: session.user.id,
       contentJson: result,
       meta: {
         leagueId: body.leagueId ?? null,
         type,
+        explanationSource: result.explanation.source,
       },
     });
 
-    return NextResponse.json(result);
+    // Backward-compatible top-level fields plus richer deterministic/AI split payload.
+    return NextResponse.json({
+      type: result.type,
+      summary: result.explanation.summary,
+      bullets: result.explanation.bullets,
+      challenge: result.explanation.challenge,
+      tone: result.explanation.tone,
+      recommendation: result.recommendation,
+      explanation: result.explanation,
+    });
   } catch (e) {
     console.error('[coach/advice]', e);
     return NextResponse.json(

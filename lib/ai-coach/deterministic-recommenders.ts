@@ -6,6 +6,7 @@
 import type { CoachAdviceType, AICoachInput, CoachRecommendation } from './types'
 import { getStrategyRecommendation } from '@/lib/fantasy-coach'
 import type { AdviceType } from '@/lib/fantasy-coach/types'
+import { optimizeLineupDeterministic } from '@/lib/lineup-optimizer-engine'
 
 function toStrategyType(type: CoachAdviceType): AdviceType {
   if (type === 'start_sit' || type === 'lineup_optimization') return 'lineup'
@@ -21,7 +22,11 @@ function buildContextSummary(input: AICoachInput): string {
   if (input.leagueId) parts.push(`League: ${input.leagueId}`)
   if (input.week != null) parts.push(`Week ${input.week}`)
   if (input.leagueSettings?.sport) parts.push(`Sport: ${input.leagueSettings.sport}`)
+  if (input.matchupData?.opponentName) parts.push(`Opponent: ${input.matchupData.opponentName}`)
+  if (input.matchupData?.teamProjection != null) parts.push(`Team projection: ${input.matchupData.teamProjection}`)
+  if (input.matchupData?.opponentProjection != null) parts.push(`Opponent projection: ${input.matchupData.opponentProjection}`)
   if (input.roster?.length) parts.push(`Roster: ${input.roster.length} players`)
+  if (input.playerStats?.length) parts.push(`Player stats rows: ${input.playerStats.length}`)
   return parts.length ? parts.join('. ') : 'No context.'
 }
 
@@ -80,7 +85,49 @@ async function recommendStartSit(input: AICoachInput): Promise<CoachRecommendati
  * Lineup optimization: same as start/sit with emphasis on optimal flex and ordering.
  */
 async function recommendLineupOptimization(input: AICoachInput): Promise<CoachRecommendation> {
-  const rec = await recommendStartSit(input)
+  const contextSummary = buildContextSummary(input)
+  const roster = input.roster ?? []
+  const optimized = optimizeLineupDeterministic({
+    sport: input.leagueSettings?.sport,
+    players: roster
+      .filter((player) => player.projectedPoints != null && player.position)
+      .map((player, index) => ({
+        id: `${player.playerName}-${index}`,
+        name: player.playerName,
+        positions: [player.position ?? 'UTIL'],
+        projectedPoints: Number(player.projectedPoints ?? 0),
+        team: player.team,
+      })),
+    slots:
+      input.leagueSettings?.rosterSlots?.map((slotCode, index) => ({
+        id: `${slotCode}-${index + 1}`,
+        code: slotCode,
+      })) ?? undefined,
+  })
+
+  const items: CoachRecommendation['items'] = optimized.starters.map((starter) => ({
+    label: `Start ${starter.playerName} in ${starter.slotCode}`,
+    detail: starter.playerTeam,
+    value: starter.projectedPoints,
+  }))
+  optimized.bench.slice(0, 5).forEach((benchPlayer) => {
+    items.push({
+      label: `Bench ${benchPlayer.playerName}`,
+      value: benchPlayer.projectedPoints,
+    })
+  })
+
+  const rec: CoachRecommendation = {
+    type: 'lineup_optimization',
+    headline:
+      optimized.starters.length > 0
+        ? `Optimal lineup projects ${optimized.totalProjectedPoints.toFixed(1)} points.`
+        : 'No eligible projected players found to optimize your lineup.',
+    items,
+    summaryNumbers: { projectedLineupTotal: optimized.totalProjectedPoints },
+    contextSummary: `${contextSummary}. ${optimized.deterministicNotes.join(' ')}`.trim(),
+  }
+
   return {
     ...rec,
     type: 'lineup_optimization',

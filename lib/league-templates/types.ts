@@ -31,6 +31,11 @@ export interface LeagueTemplatePayload {
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
   privacySettings: WizardPrivacySettings
+  /**
+   * Optional full league settings snapshot captured from an existing league template source.
+   * Applied at create-time before wizard field overrides.
+   */
+  templateSettingsOverrides?: Record<string, unknown>
 }
 
 export type LeagueTemplatePayloadJson = Record<string, unknown>

@@ -61,20 +61,30 @@ export function UserStatsClient({
     {
       label: "Wins",
       value: String(s.wins),
-      sub: s.losses > 0 ? `${s.losses} losses · ${winPct}% win rate` : null,
+      sub: s.losses > 0 ? `${winPct}% win rate` : null,
       icon: Trophy,
+      testId: "user-stats-card-wins",
+    },
+    {
+      label: "Losses",
+      value: String(s.losses),
+      sub: s.ties > 0 ? `${s.ties} ties` : null,
+      icon: Target,
+      testId: "user-stats-card-losses",
     },
     {
       label: "Championships",
       value: String(s.championships),
       sub: s.seasonsPlayed > 0 ? `Across ${s.seasonsPlayed} seasons` : null,
       icon: Award,
+      testId: "user-stats-card-championships",
     },
     {
       label: "Playoff appearances",
       value: String(s.playoffAppearances),
       sub: s.leaguesPlayed > 0 ? `In ${s.leaguesPlayed} leagues` : null,
-      icon: Target,
+      icon: Trophy,
+      testId: "user-stats-card-playoffs",
     },
     {
       label: "Draft grades",
@@ -87,6 +97,7 @@ export function UserStatsClient({
           ? `Average score: ${Math.round(s.draftGrades.averageScore)}`
           : null,
       icon: TrendingUp,
+      testId: "user-stats-card-draft-grades",
     },
     {
       label: "Trade success",
@@ -96,15 +107,17 @@ export function UserStatsClient({
           : "—",
       sub: tradeRate != null ? `${tradeRate}% acceptance rate` : null,
       icon: MessageSquare,
+      testId: "user-stats-card-trade-success",
     },
   ]
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
-        {cards.map(({ label, value, sub, icon: Icon }) => (
+        {cards.map(({ label, value, sub, icon: Icon, testId }) => (
           <div
             key={label}
+            data-testid={testId}
             className="rounded-xl border p-4"
             style={{
               borderColor: "var(--border)",

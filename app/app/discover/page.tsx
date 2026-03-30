@@ -17,12 +17,20 @@ export default function DiscoverPage() {
             Trending and recommended leagues, orphan teams, and filters by sport, type, and paid/free.
           </p>
         </div>
-        <Link
-          href="/join"
-          className="shrink-0 rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition"
-        >
-          Join with code
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/orphan-teams"
+            className="shrink-0 rounded-xl border border-violet-400/30 bg-violet-500/15 px-4 py-2.5 text-sm font-medium text-violet-100 hover:bg-violet-500/25 transition"
+          >
+            Orphan marketplace
+          </Link>
+          <Link
+            href="/join"
+            className="shrink-0 rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition"
+          >
+            Join with code
+          </Link>
+        </div>
       </div>
       <LeagueDiscoveryClientUnified />
       <section className="mt-10 pt-8 border-t border-white/10">

@@ -15,7 +15,11 @@ import {
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
 import type { CoachEvaluationResult } from '@/lib/fantasy-coach/types';
 import { ActionRecommendationCards } from './ActionRecommendationCards';
-import { CoachAdvicePanel, type CoachAdviceRequester } from './CoachAdvicePanel';
+import {
+  CoachAdvicePanel,
+  type CoachAdviceRequester,
+  type LineupOptimizationRequester,
+} from './CoachAdvicePanel';
 import { WeeklyAdvicePanel } from './WeeklyAdvicePanel';
 
 type CoachEvaluationLoaderInput = {
@@ -38,6 +42,7 @@ export interface CoachDashboardProps {
   initialWeek?: number;
   loadEvaluation?: CoachEvaluationLoader;
   requestAdvice?: CoachAdviceRequester;
+  requestLineupOptimization?: LineupOptimizationRequester;
 }
 
 async function requestCoachEvaluation(
@@ -82,6 +87,7 @@ export function CoachDashboard({
   initialWeek = 1,
   loadEvaluation = requestCoachEvaluation,
   requestAdvice,
+  requestLineupOptimization,
 }: CoachDashboardProps) {
   const [sport, setSport] = useState(initialSport ?? SUPPORTED_SPORTS[0]);
   const [teamNameInput, setTeamNameInput] = useState(initialTeamName ?? leagueName ?? 'My Team');
@@ -248,6 +254,7 @@ export function CoachDashboard({
             teamName={deferredTeamName || data.teamSnapshot.teamName}
             sport={sport}
             requestAdvice={requestAdvice}
+            requestLineupOptimization={requestLineupOptimization}
           />
 
           <WeeklyAdvicePanel

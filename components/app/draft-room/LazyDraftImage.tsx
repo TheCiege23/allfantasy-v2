@@ -13,6 +13,7 @@ export type LazyDraftImageProps = {
   /** Root margin for IO (e.g. "100px" to load slightly before visible) */
   rootMargin?: string
   onError?: () => void
+  testId?: string
 }
 
 /**
@@ -28,6 +29,7 @@ export function LazyDraftImage({
   lazy = true,
   rootMargin = '100px',
   onError,
+  testId,
 }: LazyDraftImageProps) {
   const [inView, setInView] = useState(false)
   const [errored, setErrored] = useState(false)
@@ -76,6 +78,7 @@ export function LazyDraftImage({
           alt={alt}
           width={width}
           height={height}
+          data-testid={testId}
           className={`flex-shrink-0 ${className}`}
           loading="lazy"
           decoding="async"

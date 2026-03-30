@@ -15,6 +15,9 @@ import {
   type AIToolResponseContract,
 } from '@/lib/ai-tool-registry'
 import type { AIContextEnvelope } from '@/lib/unified-ai/types'
+import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
+import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
+import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 
 function extractSportsContextMeta(envelope: AIContextEnvelope): {
   source?: string
@@ -112,6 +115,15 @@ export async function POST(req: Request) {
     userMessage: (typeof body.userMessage === 'string' ? body.userMessage : typeof body.message === 'string' ? body.message : '') as string,
     userId: session.user.id,
   }
+  const leagueId = typeof contract.leagueId === 'string' ? contract.leagueId : null
+  const conversationId = buildChimmyConversationId({
+    userId: session.user.id,
+    leagueId,
+    explicitConversationId:
+      typeof (body as { conversationId?: unknown }).conversationId === 'string'
+        ? (body as { conversationId: string }).conversationId
+        : null,
+  })
   const validation = validateToolRequest(
     contract.tool,
     (contract as { deterministicContext?: Record<string, unknown> }).deterministicContext ?? undefined,
@@ -132,7 +144,26 @@ export async function POST(req: Request) {
     )
   }
 
-  const unified = requestContractToUnified(contract, session.user.id)
+  const memorySection =
+    contract.userMessage.trim().length > 0
+      ? await getChimmyMemoryContext({
+          userId: session.user.id,
+          leagueId,
+          conversationId,
+        })
+          .then((ctx) => ctx.promptSection || '')
+          .catch(() => '')
+      : ''
+
+  const enrichedContract = {
+    ...contract,
+    userMessage:
+      memorySection.trim().length > 0
+        ? `${contract.userMessage}\n\n---\n\nMEMORY CONTEXT:\n${memorySection}`
+        : contract.userMessage,
+  }
+
+  const unified = requestContractToUnified(enrichedContract, session.user.id)
   if (!unified.envelope.userMessage && !unified.envelope.deterministicPayload) {
     return NextResponse.json(
       {
@@ -159,5 +190,46 @@ export async function POST(req: Request) {
   }
 
   const responseContract = unifiedResponseToContract(result.response)
-  return NextResponse.json(attachSportsDebugTrace(responseContract, unified.envelope))
+  const responseWithTrace = attachSportsDebugTrace(responseContract, unified.envelope)
+
+  const persistTasks = [
+    appendChatHistory({
+      conversationId,
+      role: 'user',
+      content: contract.userMessage,
+      userId: session.user.id,
+      leagueId,
+    }),
+    appendChatHistory({
+      conversationId,
+      role: 'assistant',
+      content: responseContract.aiExplanation,
+      userId: session.user.id,
+      leagueId,
+      meta: {
+        confidence: responseContract.confidence ?? null,
+      },
+    }),
+    rememberChimmyUserMessageMemory({
+      userId: session.user.id,
+      leagueId,
+      sport: contract.sport,
+      message: contract.userMessage,
+    }),
+    rememberChimmyAssistantMemory({
+      userId: session.user.id,
+      leagueId,
+      answer: responseContract.aiExplanation,
+      confidence: responseContract.confidence ?? null,
+    }),
+  ]
+  await Promise.allSettled(persistTasks)
+
+  return NextResponse.json({
+    ...responseWithTrace,
+    debugTrace: {
+      ...(responseWithTrace.debugTrace ?? {}),
+      conversationId,
+    },
+  })
 }

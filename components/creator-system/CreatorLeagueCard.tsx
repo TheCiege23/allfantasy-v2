@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Lock, Share2, Trophy, Users } from 'lucide-react'
 import type { CreatorLeagueDto } from '@/lib/creator-system/types'
+import { trackDiscoveryJoinClick } from '@/lib/discovery-analytics/client'
 
 export interface CreatorLeagueCardProps {
   league: CreatorLeagueDto
@@ -131,6 +132,15 @@ export function CreatorLeagueCard({
             <Link
               href={joinHref}
               data-testid={`creator-league-join-${league.id}`}
+              onClick={() =>
+                trackDiscoveryJoinClick({
+                  leagueId: league.id,
+                  source: 'creator',
+                  leagueName: league.name,
+                  sport: league.sport ?? null,
+                  joinUrl: joinHref,
+                })
+              }
               className="rounded-xl px-4 py-2 text-sm font-semibold"
               style={{ background: 'var(--accent)', color: 'var(--bg)' }}
             >

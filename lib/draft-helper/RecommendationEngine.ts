@@ -3,11 +3,13 @@
  * Uses only provided player pool and draft state; no invented players or stats.
  */
 
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n))
 }
 
-const POSITION_TARGETS: Record<string, { starter: number; ideal: number }> = {
+const FOOTBALL_POSITION_TARGETS: Record<string, { starter: number; ideal: number }> = {
   QB: { starter: 1, ideal: 2 }, RB: { starter: 2, ideal: 5 }, WR: { starter: 2, ideal: 5 },
   TE: { starter: 1, ideal: 2 }, K: { starter: 1, ideal: 1 }, DEF: { starter: 1, ideal: 1 },
 }
@@ -24,7 +26,7 @@ export interface RecommendationPlayer {
 
 export interface RecommendationInput {
   available: RecommendationPlayer[]
-  teamRoster: { position: string }[]
+  teamRoster: Array<{ position: string; team?: string | null; byeWeek?: number | null }>
   rosterSlots?: string[]
   round: number
   pick: number
@@ -51,9 +53,14 @@ export interface RecommendationResult {
   reachWarning: string | null
   valueWarning: string | null
   scarcityInsight: string | null
+  stackInsight: string | null
+  correlationInsight: string | null
+  formatInsight: string | null
   byeNote: string | null
   explanation: string
+  evidence: string[]
   caveats: string[]
+  uncertainty: string | null
 }
 
 function getAdp(p: RecommendationPlayer, overall: number, aiAdpByKey?: Record<string, number>, key?: string): number {
@@ -62,8 +69,9 @@ function getAdp(p: RecommendationPlayer, overall: number, aiAdpByKey?: Record<st
 }
 
 function defaultTargetsForSport(sport: string): Record<string, { starter: number; ideal: number }> {
-  switch (sport.toUpperCase()) {
+  switch (normalizeToSupportedSport(sport)) {
     case 'NBA':
+    case 'NCAAB':
       return {
         PG: { starter: 1, ideal: 2 },
         SG: { starter: 1, ideal: 2 },
@@ -81,19 +89,99 @@ function defaultTargetsForSport(sport: string): Record<string, { starter: number
         OF: { starter: 3, ideal: 5 },
         P: { starter: 3, ideal: 6 },
       }
+    case 'NHL':
+      return {
+        C: { starter: 2, ideal: 3 },
+        LW: { starter: 2, ideal: 3 },
+        RW: { starter: 2, ideal: 3 },
+        D: { starter: 2, ideal: 4 },
+        G: { starter: 1, ideal: 2 },
+      }
+    case 'SOCCER':
+      return {
+        GKP: { starter: 1, ideal: 1 },
+        DEF: { starter: 3, ideal: 5 },
+        MID: { starter: 3, ideal: 5 },
+        FWD: { starter: 2, ideal: 4 },
+      }
     default:
-      return POSITION_TARGETS
+      return FOOTBALL_POSITION_TARGETS
   }
 }
 
 function normalizeSlot(slot: string, sport: string): string {
   const normalized = String(slot || '').toUpperCase().trim()
+  const normalizedSport = normalizeToSupportedSport(sport)
   if (!normalized) return ''
   if (normalized === 'SUPERFLEX') return 'SUPER_FLEX'
-  if (sport.toUpperCase() === 'NFL' && (normalized === 'DST' || normalized === 'D/ST')) return 'DEF'
-  if (sport.toUpperCase() === 'MLB' && ['SP', 'RP'].includes(normalized)) return 'P'
-  if (sport.toUpperCase() === 'MLB' && ['LF', 'CF', 'RF'].includes(normalized)) return 'OF'
+  if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && (normalized === 'DST' || normalized === 'D/ST')) return 'DEF'
+  if (normalizedSport === 'MLB' && ['SP', 'RP'].includes(normalized)) return 'P'
+  if (normalizedSport === 'MLB' && ['LF', 'CF', 'RF'].includes(normalized)) return 'OF'
+  if (normalizedSport === 'SOCCER' && normalized === 'GK') return 'GKP'
+  if (normalizedSport === 'SOCCER' && (normalized === 'ST' || normalized === 'FW')) return 'FWD'
+  if (normalizedSport === 'SOCCER' && normalized === 'MF') return 'MID'
+  if (normalizedSport === 'SOCCER' && normalized === 'DF') return 'DEF'
   return normalized
+}
+
+function resolveFormatInsight(input: {
+  sport: string
+  isDynasty: boolean
+  isSF: boolean
+  rosterSlots: string[]
+  recommendationPosition: string
+}): string | null {
+  const normalizedSport = normalizeToSupportedSport(input.sport)
+  const recommendationPosition = normalizeSlot(input.recommendationPosition, normalizedSport)
+  const normalizedSlots = input.rosterSlots.map((s) => normalizeSlot(s, normalizedSport))
+  const notes: string[] = []
+  if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && input.isSF && recommendationPosition === 'QB') {
+    notes.push('Superflex increases QB urgency at this stage')
+  }
+  if (normalizedSlots.includes('FLEX') && ['RB', 'WR', 'TE'].includes(recommendationPosition)) {
+    notes.push('FLEX lineup structure supports this position')
+  }
+  if ((normalizedSport === 'NBA' || normalizedSport === 'NCAAB') && normalizedSlots.includes('UTIL')) {
+    notes.push('UTIL slot keeps this pick flexible for rotations')
+  }
+  if (input.isDynasty) {
+    notes.push('Dynasty context favors multi-year value over one-week variance')
+  }
+  return notes.length > 0 ? `${notes.slice(0, 2).join('. ')}.` : null
+}
+
+function resolveCorrelationInsights(input: {
+  sport: string
+  recommendation: RecommendationPlayer
+  teamRoster: Array<{ position: string; team?: string | null }>
+}): { stackInsight: string | null; correlationInsight: string | null } {
+  const normalizedSport = normalizeToSupportedSport(input.sport)
+  const recommendedTeam = String(input.recommendation.team || '').toUpperCase()
+  if (!recommendedTeam) return { stackInsight: null, correlationInsight: null }
+
+  const sameTeamRoster = input.teamRoster.filter((p) => String(p.team || '').toUpperCase() === recommendedTeam)
+  const sameTeamCount = sameTeamRoster.length
+  const recommendationPos = normalizeSlot(input.recommendation.position, normalizedSport)
+
+  let stackInsight: string | null = null
+  if (normalizedSport === 'NFL' || normalizedSport === 'NCAAF') {
+    const hasTeamQb = sameTeamRoster.some((p) => normalizeSlot(p.position, normalizedSport) === 'QB')
+    const hasTeamPassCatcher = sameTeamRoster.some((p) => ['WR', 'TE', 'RB'].includes(normalizeSlot(p.position, normalizedSport)))
+    if (recommendationPos === 'QB' && hasTeamPassCatcher) {
+      stackInsight = `Stack path: ${input.recommendation.name} pairs with your existing ${recommendedTeam} skill position player(s).`
+    } else if (['WR', 'TE', 'RB'].includes(recommendationPos) && hasTeamQb) {
+      stackInsight = `Stack path: ${input.recommendation.name} correlates with your ${recommendedTeam} QB.`
+    }
+  }
+
+  let correlationInsight: string | null = null
+  if (sameTeamCount >= 2) {
+    correlationInsight = `Correlation watch: you already roster ${sameTeamCount} players from ${recommendedTeam}; balance upside with diversification.`
+  } else if (sameTeamCount === 1 && ['NFL', 'NCAAF', 'NHL', 'SOCCER'].includes(normalizedSport)) {
+    correlationInsight = `${input.recommendation.name} creates mild same-team correlation with your current build.`
+  }
+
+  return { stackInsight, correlationInsight }
 }
 
 function buildPositionTargets(
@@ -204,17 +292,30 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
       reachWarning: null,
       valueWarning: null,
       scarcityInsight: null,
+      stackInsight: null,
+      correlationInsight: null,
+      formatInsight: null,
       byeNote: null,
       explanation: 'No available players in pool.',
+      evidence: [],
       caveats: ['No players available.'],
+      uncertainty: 'High uncertainty: no available players in the deterministic pool.',
     }
   }
 
-  const normalizedSport = sport.toUpperCase()
+  const normalizedSport = normalizeToSupportedSport(sport)
   const needs = computeNeeds(teamRoster, rosterSlots, isSF, available, normalizedSport)
   const overall = (round - 1) * totalTeams + pick
   const playerKey = (p: RecommendationPlayer) =>
     `${(p.name || '').toLowerCase()}|${(p.position || '').toLowerCase()}|${(p.team || '').toLowerCase()}`
+
+  const withAdpCount = available.filter((p) => {
+    const key = playerKey(p)
+    return p.adp != null || (aiAdpByKey != null && aiAdpByKey[key] != null)
+  }).length
+  if (withAdpCount < Math.max(6, Math.ceil(Math.min(available.length, 30) * 0.4))) {
+    caveats.push('Limited ADP coverage in this pool; confidence is reduced.')
+  }
 
   const scored = available.slice(0, 80).map((p) => {
     const pos = normalizeSlot(p.position, normalizedSport)
@@ -247,33 +348,59 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
       reachWarning: null,
       valueWarning: null,
       scarcityInsight: null,
+      stackInsight: null,
+      correlationInsight: null,
+      formatInsight: null,
       byeNote: null,
       explanation: 'Could not rank available players.',
+      evidence: [],
       caveats,
+      uncertainty: 'High uncertainty: deterministic ranking failed for this board state.',
     }
   }
 
   let reachWarning: string | null = null
   let valueWarning: string | null = null
-  if (best.adp > overall + 2) reachWarning = `${best.player.name} is typically drafted later (ADP ~${Math.round(best.adp)}). This is a reach at pick ${overall}.`
-  else if (best.adp < overall - 3) valueWarning = `Strong value: ${best.player.name} usually goes before pick ${overall} (ADP ~${Math.round(best.adp)}).`
+  if (best.adp > overall + 4) reachWarning = `${best.player.name} is typically drafted later (ADP ~${Math.round(best.adp)}). This is a reach at pick ${overall}.`
+  else if (best.adp < overall - 4) valueWarning = `Strong value: ${best.player.name} usually goes before pick ${overall} (ADP ~${Math.round(best.adp)}).`
 
   const pos = String(best.player.position || '').toUpperCase()
   const samePosCount = available.filter((a) => String(a.position || '').toUpperCase() === pos).length
   let scarcityInsight: string | null = null
-  if (samePosCount <= 3 && (best.needScore ?? 0) > 50) scarcityInsight = `Few ${pos}s left in pool; consider securing one.`
+  const scarcityThreshold = Math.max(3, Math.ceil(totalTeams * 0.35))
+  if (samePosCount <= scarcityThreshold && (best.needScore ?? 0) > 45) {
+    scarcityInsight = `Positional scarcity: only ${samePosCount} ${pos} options remain in your visible pool.`
+  }
+
+  const { stackInsight, correlationInsight } = resolveCorrelationInsights({
+    sport: normalizedSport,
+    recommendation: best.player,
+    teamRoster,
+  })
+  const formatInsight = resolveFormatInsight({
+    sport: normalizedSport,
+    isDynasty,
+    isSF,
+    rosterSlots,
+    recommendationPosition: pos,
+  })
 
   let byeNote: string | null = null
-  if (normalizedSport === 'NFL') {
+  if (normalizedSport === 'NFL' || normalizedSport === 'NCAAF') {
     const bye = best.player.byeWeek ?? (byeByKey ? byeByKey[playerKey(best.player)] : null)
-    if (bye != null) byeNote = `Bye week ${bye}; plan coverage if needed.`
+    if (bye != null) {
+      const sameByeCount = teamRoster.filter((p) => p.byeWeek != null && Number(p.byeWeek) === Number(bye)).length
+      byeNote = sameByeCount >= 2
+        ? `Bye week ${bye}; you already have ${sameByeCount} players on that bye, so add coverage depth.`
+        : `Bye week ${bye}; plan coverage if needed.`
+    }
   }
 
   const reasonParts: string[] = []
   if ((needs[pos] ?? 0) >= 70) reasonParts.push(`fills critical ${pos} need`)
   else if ((needs[pos] ?? 0) >= 40) reasonParts.push(`improves ${pos} depth`)
   if (best.adpEdge > 5) reasonParts.push('good value vs ADP')
-  if (normalizedSport === 'NFL' && isSF && pos === 'QB') reasonParts.push('Superflex QB premium')
+  if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && isSF && pos === 'QB') reasonParts.push('Superflex QB premium')
   const reason = reasonParts.length ? reasonParts.join('; ') : 'Best fit for roster and draft position'
 
   const alternatives = scored.slice(1, 4).map((item, idx) => ({
@@ -282,7 +409,22 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     confidence: item.confidence,
   }))
 
-  const explanation = `Recommend ${best.player.name} (${pos}): ${reason}. ${reachWarning ? ' ' + reachWarning : ''} ${valueWarning ? ' ' + valueWarning : ''}`.trim()
+  const explanation = `Recommend ${best.player.name} (${pos}): ${reason}.${formatInsight ? ` ${formatInsight}` : ''}${reachWarning ? ` ${reachWarning}` : ''}${valueWarning ? ` ${valueWarning}` : ''}`.trim()
+  const adpDelta = Number((overall - best.adp).toFixed(1))
+  const evidence = [
+    `Context: Round ${round}, Pick ${pick} (overall ${overall}).`,
+    `Need score (${pos}): ${Math.round(best.needScore)}/100.`,
+    `Market edge: ${adpDelta >= 0 ? '+' : ''}${adpDelta} picks vs ADP.`,
+    `Position supply in pool: ${samePosCount} ${pos} candidates.`,
+  ]
+  if (stackInsight) evidence.push(`Stack signal: ${stackInsight}`)
+  if (formatInsight) evidence.push(`Format signal: ${formatInsight}`)
+  const uncertainty =
+    caveats.length > 0
+      ? `Uncertainty: ${caveats[0]}`
+      : withAdpCount < 12
+        ? 'Uncertainty: moderate due to limited market samples.'
+        : null
 
   return {
     recommendation: {
@@ -296,8 +438,13 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     reachWarning,
     valueWarning,
     scarcityInsight,
+    stackInsight,
+    correlationInsight,
+    formatInsight,
     byeNote,
     explanation,
+    evidence,
     caveats,
+    uncertainty,
   }
 }

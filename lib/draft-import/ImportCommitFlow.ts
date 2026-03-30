@@ -12,6 +12,48 @@ export interface ImportCommitResult {
   backupId?: string
 }
 
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function buildImportFingerprint(input: {
+  slotOrder: Array<{ slot: number; rosterId: string; displayName?: string | null }>
+  picks: Array<{ overall: number; round: number; slot: number; rosterId: string; playerName: string; position: string; team?: string | null }>
+  tradedPicks?: Array<{ round: number; originalRosterId: string; newRosterId: string }>
+  keeperSelections?: Array<{ rosterId: string; roundCost: number; playerName: string; position: string }>
+  keeperConfig?: unknown
+}): string {
+  const normalized = {
+    slotOrder: [...input.slotOrder]
+      .map((entry) => [entry.slot, entry.rosterId, normalizeText(entry.displayName ?? '')] as const)
+      .sort((a, b) => a[0] - b[0]),
+    picks: [...input.picks]
+      .map((pick) => [
+        pick.overall,
+        pick.round,
+        pick.slot,
+        pick.rosterId,
+        normalizeText(pick.playerName),
+        normalizeText(pick.position),
+        normalizeText(pick.team ?? ''),
+      ] as const)
+      .sort((a, b) => a[0] - b[0]),
+    tradedPicks: [...(input.tradedPicks ?? [])]
+      .map((pick) => [pick.round, pick.originalRosterId, pick.newRosterId] as const)
+      .sort((a, b) => (a[0] - b[0]) || a[1].localeCompare(b[1])),
+    keeperSelections: [...(input.keeperSelections ?? [])]
+      .map((selection) => [
+        selection.rosterId,
+        selection.roundCost,
+        normalizeText(selection.playerName),
+        normalizeText(selection.position),
+      ] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]) || a[1] - b[1] || a[2].localeCompare(b[2])),
+    keeperConfig: input.keeperConfig ?? null,
+  }
+  return JSON.stringify(normalized)
+}
+
 /**
  * Create backup of current draft session state (for rollback). Returns backup id.
  */
@@ -71,6 +113,35 @@ export async function commitImport(
     include: { picks: true },
   })
   if (!session) return { success: false, error: 'Draft session not found' }
+  if (!Array.isArray(preview.slotOrder) || preview.slotOrder.length < 1) {
+    return { success: false, error: 'Import preview must include slotOrder with at least one slot.' }
+  }
+
+  const currentFingerprint = buildImportFingerprint({
+    slotOrder: (session.slotOrder as Array<{ slot: number; rosterId: string; displayName?: string | null }>) ?? [],
+    picks: session.picks.map((pick) => ({
+      overall: pick.overall,
+      round: pick.round,
+      slot: pick.slot,
+      rosterId: pick.rosterId,
+      playerName: pick.playerName,
+      position: pick.position,
+      team: pick.team,
+    })),
+    tradedPicks: (session.tradedPicks as Array<{ round: number; originalRosterId: string; newRosterId: string }>) ?? [],
+    keeperSelections: (session.keeperSelections as Array<{ rosterId: string; roundCost: number; playerName: string; position: string }>) ?? [],
+    keeperConfig: session.keeperConfig,
+  })
+  const incomingFingerprint = buildImportFingerprint({
+    slotOrder: preview.slotOrder,
+    picks: preview.picks,
+    tradedPicks: preview.tradedPicks,
+    keeperSelections: preview.keeperSelections,
+    keeperConfig: preview.keeperConfig,
+  })
+  if (currentFingerprint === incomingFingerprint) {
+    return { success: false, error: 'Duplicate import detected: imported draft state matches current session.' }
+  }
 
   let backupId: string | null = null
   if (options.backupBeforeCommit) {
@@ -84,9 +155,10 @@ export async function commitImport(
       await (tx as any).draftPick.deleteMany({ where: { sessionId: sess.id } })
       const sessionId = sess.id
       const teamCount = preview.slotOrder.length
-      const rounds = preview.metadata?.rounds ?? preview.picks.length ? Math.max(...preview.picks.map((p) => p.round)) : sess.rounds
-      const draftType = preview.metadata?.draftType ?? sess.draftType
-      const thirdRoundReversal = preview.metadata?.thirdRoundReversal ?? sess.thirdRoundReversal
+      const importedMaxRound = preview.picks.length > 0 ? Math.max(...preview.picks.map((pick) => pick.round)) : 0
+      const rounds = preview.metadata?.rounds ?? (importedMaxRound > 0 ? importedMaxRound : sess.rounds)
+      const safeRounds = Math.max(1, Math.trunc(Number(rounds) || sess.rounds || 1))
+      const safeTeamCount = Math.max(1, Math.trunc(Number(preview.metadata?.teamCount ?? teamCount) || teamCount))
       for (const p of preview.picks) {
         await (tx as any).draftPick.create({
           data: {
@@ -108,6 +180,11 @@ export async function commitImport(
           },
         })
       }
+      const nextStatus = preview.picks.length < 1
+        ? 'pre_draft'
+        : preview.picks.length >= safeTeamCount * safeRounds
+          ? 'completed'
+          : 'in_progress'
       await (tx as any).draftSession.update({
         where: { id: sessionId },
         data: {
@@ -115,11 +192,11 @@ export async function commitImport(
           tradedPicks: (preview.tradedPicks ?? []) as any,
           keeperConfig: preview.keeperConfig ?? (sess.keeperConfig as any),
           keeperSelections: preview.keeperSelections ?? (sess.keeperSelections as any),
-          rounds: typeof rounds === 'number' ? rounds : sess.rounds,
-          teamCount: preview.metadata?.teamCount ?? teamCount,
+          rounds: safeRounds,
+          teamCount: safeTeamCount,
           draftType: preview.metadata?.draftType ?? sess.draftType,
           thirdRoundReversal: preview.metadata?.thirdRoundReversal ?? sess.thirdRoundReversal,
-          status: preview.picks.length >= teamCount * rounds ? 'completed' : 'pre_draft',
+          status: nextStatus,
           version: { increment: 1 },
           updatedAt: new Date(),
         },

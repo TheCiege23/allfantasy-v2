@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,6 @@ import { Loader2, Users } from 'lucide-react'
 
 export default function MockDraftJoinPage() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const token = searchParams.get('token')
   const [draft, setDraft] = useState<{
     id: string
@@ -60,9 +59,6 @@ export default function MockDraftJoinPage() {
       }
       setJoined(data.joined)
       if (data.draft) setDraft(data.draft)
-      if (data.draft?.id) {
-        router.replace(`/mock-draft?draftId=${data.draft.id}`)
-      }
     } finally {
       setJoining(false)
     }
@@ -112,7 +108,7 @@ export default function MockDraftJoinPage() {
           <p className="mb-4 text-amber-400">This draft has already started.</p>
         )}
         {joined && (
-          <p className="mb-4 text-green-400">You joined. Redirecting...</p>
+          <p className="mb-4 text-green-400">You joined successfully.</p>
         )}
         {draft?.status === 'pre_draft' && !joined && (
           <Button
@@ -125,12 +121,22 @@ export default function MockDraftJoinPage() {
           </Button>
         )}
         {draft?.id && (
-          <Link
-            href={`/mock-draft?draftId=${draft.id}`}
-            className="mt-4 inline-block text-sm text-cyan-400 hover:underline"
-          >
-            Open draft room
-          </Link>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href={`/mock-draft?draftId=${draft.id}`}
+              className="inline-block text-sm text-cyan-400 hover:underline"
+            >
+              Open draft room
+            </Link>
+            <span className="text-white/35">·</span>
+            <Link
+              href={`/mock-draft/${encodeURIComponent(draft.id)}/replay`}
+              className="inline-block text-sm text-purple-300 hover:underline"
+              data-testid="mock-draft-join-open-replay"
+            >
+              Open replay timeline
+            </Link>
+          </div>
         )}
       </div>
     </div>

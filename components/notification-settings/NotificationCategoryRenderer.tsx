@@ -79,18 +79,19 @@ export function NotificationCategoryRenderer({
               />
               <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.inApp}</span>
             </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={prefs.email}
-                onChange={(e) => onToggleChannel("email", e.target.checked)}
-                disabled={!deliveryAvailability.email}
-                className="h-3.5 w-3.5 rounded"
-                style={{ accentColor: "var(--accent-cyan)" }}
-                aria-label={`${label} ${DELIVERY_LABELS.email}`}
-              />
-              <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.email}</span>
-            </label>
+            {deliveryAvailability.email && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={prefs.email}
+                  onChange={(e) => onToggleChannel("email", e.target.checked)}
+                  className="h-3.5 w-3.5 rounded"
+                  style={{ accentColor: "var(--accent-cyan)" }}
+                  aria-label={`${label} ${DELIVERY_LABELS.email}`}
+                />
+                <span style={{ color: "var(--text)" }}>{DELIVERY_LABELS.email}</span>
+              </label>
+            )}
             {deliveryAvailability.sms && (
               <label className="flex items-center gap-2 text-sm">
                 <input

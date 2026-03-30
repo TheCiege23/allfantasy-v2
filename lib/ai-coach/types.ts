@@ -14,7 +14,19 @@ export interface AICoachInput {
   teamName?: string
   leagueId?: string
   week?: number
-  leagueSettings?: { sport?: string }
+  leagueSettings?: {
+    sport?: string
+    scoringFormat?: string
+    teamCount?: number
+    rosterSlots?: string[]
+  }
+  matchupData?: {
+    opponentName?: string
+    opponentProjection?: number
+    teamProjection?: number
+    spread?: number
+    notes?: string
+  }
   roster?: {
     playerName: string
     position?: string
@@ -35,4 +47,18 @@ export interface CoachRecommendation {
   items: { label: string; detail?: string; value?: number }[]
   summaryNumbers?: { projectedLineupTotal?: number }
   contextSummary: string
+}
+
+export interface CoachExplanation {
+  summary: string
+  bullets: string[]
+  challenge: string
+  tone: 'motivational' | 'cautious' | 'celebration' | 'neutral'
+  source: 'ai' | 'deterministic'
+}
+
+export interface AICoachResponse {
+  type: CoachAdviceType
+  recommendation: CoachRecommendation
+  explanation: CoachExplanation
 }

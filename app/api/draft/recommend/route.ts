@@ -6,9 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEngine'
+import { runDraftAIAssist } from '@/lib/draft-ai-engine'
 import { resolveSportForAI } from '@/lib/ai/AISportContextResolver'
 import { resolveSportVariantContext } from '@/lib/league-defaults-orchestrator/SportVariantContextResolver'
+import { buildDraftExecutionMetadata } from '@/lib/draft-automation-policy'
+import { buildDraftRecommendationContext } from '@/lib/ai/SportAwareRecommendationService'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,9 +31,12 @@ export async function POST(req: NextRequest) {
       : typeof body.league_variant === 'string'
         ? body.league_variant
         : null
-  const sport = resolveSportVariantContext(resolveSportForAI(body as Record<string, unknown>), leagueVariant).sport
+  const variantContext = resolveSportVariantContext(resolveSportForAI(body as Record<string, unknown>), leagueVariant)
+  const sport = variantContext.sport
   const isDynasty = Boolean(body.isDynasty)
   const isSF = Boolean(body.isSF)
+  const isIdp = variantContext.isNflIdp || Boolean(body.idp) || Boolean(body.is_idp)
+  const includeAIExplanation = Boolean(body.includeAIExplanation ?? body.includeAiExplanation)
   const mode = body.mode === 'bpa' ? 'bpa' : 'needs'
   const aiAdpByKey = body.aiAdpByKey && typeof body.aiAdpByKey === 'object' ? body.aiAdpByKey : undefined
   const byeByKey = body.byeByKey && typeof body.byeByKey === 'object' ? body.byeByKey : undefined
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
     byeWeek: p.byeWeek ?? null,
   }))
 
-  const result = computeDraftRecommendation({
+  const result = await runDraftAIAssist({
     available: normalized,
     teamRoster,
     rosterSlots,
@@ -62,17 +67,49 @@ export async function POST(req: NextRequest) {
         p.byeWeek,
       ])
     ) : undefined),
+  }, {
+    explanation: includeAIExplanation,
+    sport,
+    idp: isIdp,
+    recommendationContext: buildDraftRecommendationContext({
+      sport,
+      format: isDynasty ? 'dynasty' : 'redraft',
+      superflex: isSF,
+      idp: isIdp,
+      numTeams: totalTeams,
+      leagueName: typeof body.leagueName === 'string' ? body.leagueName : undefined,
+    }),
+    leagueId: typeof body.leagueId === 'string' ? body.leagueId : undefined,
   })
+
+  const aiUsed = Boolean(result.aiExplanationUsed)
+  const fallbackToDeterministic = includeAIExplanation && !aiUsed
 
   return NextResponse.json({
     ok: true,
-    recommendation: result.recommendation,
-    alternatives: result.alternatives,
-    reachWarning: result.reachWarning,
-    valueWarning: result.valueWarning,
-    scarcityInsight: result.scarcityInsight,
-    byeNote: result.byeNote,
-    explanation: result.explanation,
-    caveats: result.caveats,
+    recommendation: result.recommendation.recommendation,
+    alternatives: result.recommendation.alternatives,
+    reachWarning: result.recommendation.reachWarning,
+    valueWarning: result.recommendation.valueWarning,
+    scarcityInsight: result.recommendation.scarcityInsight,
+    stackInsight: result.recommendation.stackInsight,
+    correlationInsight: result.recommendation.correlationInsight,
+    formatInsight: result.recommendation.formatInsight,
+    byeNote: result.recommendation.byeNote,
+    explanation: result.explanation ?? result.recommendation.explanation,
+    evidence: result.recommendation.evidence,
+    caveats: result.recommendation.caveats,
+    uncertainty: result.recommendation.uncertainty,
+    execution: buildDraftExecutionMetadata({
+      feature: 'draft_helper_recommendation_engine',
+      aiUsed,
+      aiEligible: true,
+      reasonCode: aiUsed
+        ? 'ai_explanation_applied'
+        : includeAIExplanation
+          ? 'ai_explanation_unavailable'
+          : 'deterministic_rules_engine',
+      fallbackToDeterministic,
+    }),
   })
 }

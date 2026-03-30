@@ -4,6 +4,7 @@
 
 import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { MockDraftStatus, MockSlotConfigEntry, MockDraftSettings } from './types'
 
 const DEFAULT_SETTINGS: MockDraftSettings = {
@@ -16,12 +17,16 @@ const DEFAULT_SETTINGS: MockDraftSettings = {
   aiEnabled: true,
   scoringFormat: 'default',
   poolType: 'all',
+  roomMode: 'solo',
+  humanTeams: 1,
+  keepersEnabled: false,
+  keepers: [],
 }
 
 function parseMetadata(metadata: unknown): MockDraftSettings {
   const values = (metadata || {}) as Record<string, unknown>
   return {
-    sport: String(values.sport ?? DEFAULT_SETTINGS.sport),
+    sport: normalizeToSupportedSport(String(values.sport ?? DEFAULT_SETTINGS.sport)),
     leagueType: String(values.leagueType ?? DEFAULT_SETTINGS.leagueType),
     draftType: String(values.draftType ?? DEFAULT_SETTINGS.draftType),
     numTeams: Math.min(16, Math.max(8, Number(values.numTeams) ?? DEFAULT_SETTINGS.numTeams)),
@@ -32,6 +37,13 @@ function parseMetadata(metadata: unknown): MockDraftSettings {
     leagueId: (values.leagueId as string) ?? undefined,
     rosterSize: values.rosterSize != null ? Number(values.rosterSize) : undefined,
     poolType: String(values.poolType ?? DEFAULT_SETTINGS.poolType),
+    roomMode: String(values.roomMode ?? DEFAULT_SETTINGS.roomMode) as any,
+    humanTeams: Math.min(
+      Math.min(16, Math.max(8, Number(values.numTeams) ?? DEFAULT_SETTINGS.numTeams)),
+      Math.max(1, Number(values.humanTeams) || 1)
+    ),
+    keepersEnabled: Boolean(values.keepersEnabled ?? false),
+    keepers: Array.isArray(values.keepers) ? (values.keepers as any[]) : [],
   }
 }
 

@@ -18,6 +18,31 @@ import type {
   ProviderStatusState,
 } from "@/lib/provider-diagnostics";
 
+type DraftAutomationMatrixEntry = {
+  feature: string;
+  lane: "deterministic_required" | "rules_engine" | "scheduled_cached" | "ai_optional" | string;
+  aiOptional: boolean;
+  description: string;
+};
+
+type DraftAutomationDiagnosticsPayload = {
+  generatedAt: string;
+  providerStatus: {
+    openai: boolean;
+    deepseek: boolean;
+    xai: boolean;
+    clearsports: boolean;
+    anyAi: boolean;
+  };
+  usage24h: {
+    draftCalls: number;
+    draftErrors: number;
+    draftAiCalls: number;
+    deterministicSharePct: number;
+  } | null;
+  executionMatrix: DraftAutomationMatrixEntry[];
+};
+
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI",
   deepseek: "DeepSeek",
@@ -25,6 +50,29 @@ const PROVIDER_LABELS: Record<string, string> = {
   grok: "xAI (Grok)",
   clearsports: "ClearSports",
 };
+
+function laneLabel(lane: string) {
+  if (lane === "deterministic_required") return "Deterministic";
+  if (lane === "rules_engine") return "Rules engine";
+  if (lane === "scheduled_cached") return "Scheduled/cache";
+  if (lane === "ai_optional") return "AI optional";
+  return lane.replaceAll("_", " ");
+}
+
+function laneClassName(lane: string) {
+  if (lane === "deterministic_required") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+  if (lane === "rules_engine") return "border-cyan-500/30 bg-cyan-500/10 text-cyan-300";
+  if (lane === "scheduled_cached") return "border-indigo-500/30 bg-indigo-500/10 text-indigo-300";
+  if (lane === "ai_optional") return "border-violet-500/30 bg-violet-500/10 text-violet-300";
+  return "border-white/20 bg-white/5 text-white/70";
+}
+
+function formatFeatureName(feature: string) {
+  return feature
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 function StatusBadge({ state }: { state: ProviderStatusState }) {
   const configs: Record<
@@ -87,8 +135,10 @@ function formatLatencyTrend(trend: string) {
 
 export default function AdminProviderDiagnostics() {
   const [data, setData] = useState<ProviderDiagnosticsPayload | null>(null);
+  const [draftAutomation, setDraftAutomation] = useState<DraftAutomationDiagnosticsPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftAutomationError, setDraftAutomationError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [failuresOpen, setFailuresOpen] = useState(false);
   const [fallbacksOpen, setFallbacksOpen] = useState(false);
@@ -96,17 +146,40 @@ export default function AdminProviderDiagnostics() {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setDraftAutomationError(null);
     try {
-      const res = await fetch("/api/admin/providers/diagnostics", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || json?.details || "Failed to load");
-      setData(json);
+      const [providerRes, draftAutomationRes] = await Promise.all([
+        fetch("/api/admin/providers/diagnostics", {
+          cache: "no-store",
+          credentials: "include",
+        }),
+        fetch("/api/admin/draft-automation/diagnostics", {
+          cache: "no-store",
+          credentials: "include",
+        }),
+      ]);
+
+      const providerJson = await providerRes.json().catch(() => ({}));
+      if (!providerRes.ok) {
+        throw new Error(providerJson?.error || providerJson?.details || "Failed to load provider diagnostics");
+      }
+      setData(providerJson);
+
+      const draftAutomationJson = await draftAutomationRes.json().catch(() => ({}));
+      if (!draftAutomationRes.ok) {
+        setDraftAutomation(null);
+        setDraftAutomationError(
+          draftAutomationJson?.error ||
+            draftAutomationJson?.details ||
+            "Draft automation diagnostics unavailable"
+        );
+      } else {
+        setDraftAutomation(draftAutomationJson);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load diagnostics");
       setData(null);
+      setDraftAutomation(null);
     } finally {
       setLoading(false);
     }
@@ -165,6 +238,101 @@ export default function AdminProviderDiagnostics() {
 
       {data && (
         <>
+          <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+            <div className="px-4 py-3 border-b border-white/5 bg-white/[0.03]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-white/90">Draft automation policy</h3>
+                  <p className="text-xs text-white/50 mt-0.5">
+                    Deterministic-first vs AI optional lanes and 24h usage balance
+                  </p>
+                </div>
+                <span className="text-xs text-white/50">
+                  {draftAutomation ? `Generated ${formatTime(new Date(draftAutomation.generatedAt).getTime())}` : "Not loaded"}
+                </span>
+              </div>
+            </div>
+            <div className="p-4 space-y-4">
+              {draftAutomationError && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {draftAutomationError}
+                </div>
+              )}
+
+              {draftAutomation?.usage24h && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                    <p className="text-[11px] text-white/50">Draft calls (24h)</p>
+                    <p className="mt-1 text-lg font-semibold text-white/90">
+                      {draftAutomation.usage24h.draftCalls.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-violet-500/20 bg-violet-500/10 p-3">
+                    <p className="text-[11px] text-violet-200/70">AI draft calls (24h)</p>
+                    <p className="mt-1 text-lg font-semibold text-violet-200">
+                      {draftAutomation.usage24h.draftAiCalls.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+                    <p className="text-[11px] text-emerald-200/70">Deterministic share</p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-200">
+                      {draftAutomation.usage24h.deterministicSharePct}%
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3">
+                    <p className="text-[11px] text-red-200/70">Draft errors (24h)</p>
+                    <p className="mt-1 text-lg font-semibold text-red-200">
+                      {draftAutomation.usage24h.draftErrors.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {draftAutomation?.executionMatrix?.length ? (
+                <div className="overflow-x-auto rounded-lg border border-white/10">
+                  <table className="min-w-full divide-y divide-white/10">
+                    <thead className="bg-white/[0.03]">
+                      <tr className="text-left text-[11px] uppercase tracking-wide text-white/50">
+                        <th className="px-3 py-2">Feature</th>
+                        <th className="px-3 py-2">Lane</th>
+                        <th className="px-3 py-2">AI optional</th>
+                        <th className="px-3 py-2">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-xs text-white/80">
+                      {draftAutomation.executionMatrix.map((entry) => (
+                        <tr key={entry.feature} className="align-top">
+                          <td className="px-3 py-2 font-medium text-white/90 whitespace-nowrap">
+                            {formatFeatureName(entry.feature)}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${laneClassName(entry.lane)}`}
+                            >
+                              {laneLabel(entry.lane)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] ${
+                                entry.aiOptional
+                                  ? "border-violet-500/30 bg-violet-500/10 text-violet-300"
+                                  : "border-white/20 bg-white/5 text-white/60"
+                              }`}
+                            >
+                              {entry.aiOptional ? "Yes" : "No"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-white/65">{entry.description}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
           <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
             <div className="px-4 py-3 flex items-center gap-2 border-b border-white/5 bg-white/[0.03]">
               <Activity className="h-4 w-4 text-white/50" />

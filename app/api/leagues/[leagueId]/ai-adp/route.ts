@@ -11,6 +11,7 @@ import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { getAiAdpForLeague } from '@/lib/ai-adp-engine'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { prisma } from '@/lib/prisma'
+import { resolveAiAdpFormatKeyFromSettings } from '@/lib/ai-adp-engine/segment-resolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,9 +47,7 @@ export async function GET(
   const sport = String(league.sport ?? 'NFL')
   const isDynasty = !!league.isDynasty
   const settings = (league.settings as Record<string, unknown>) ?? {}
-  const formatKey = settings.draft_pre_draft_ranking_source
-    ? String(settings.draft_pre_draft_ranking_source).toLowerCase()
-    : 'default'
+  const formatKey = resolveAiAdpFormatKeyFromSettings(settings)
 
   const result = await getAiAdpForLeague(sport, isDynasty, formatKey)
   if (!result) {
@@ -59,6 +58,8 @@ export async function GET(
       totalPicks: 0,
       computedAt: null,
       segment: null,
+      stale: true,
+      ageHours: null,
       message: enabled
         ? 'AI ADP is enabled but no snapshot for this segment yet. Run the daily AI ADP job or use standard ADP until then.'
         : null,
@@ -74,5 +75,10 @@ export async function GET(
     computedAt: result.computedAt?.toISOString() ?? null,
     segment: result.segment,
     lowSampleThreshold: result.lowSampleThreshold,
+    stale: result.stale,
+    ageHours: result.ageHours,
+    message: result.stale
+      ? 'AI ADP snapshot is stale. Order still uses latest available AI ADP and refreshes after the next daily job.'
+      : null,
   })
 }

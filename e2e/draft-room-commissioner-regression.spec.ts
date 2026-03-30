@@ -32,6 +32,7 @@ async function mockDraftSettingsApi(page: Page, leagueId: string) {
             draft_type: 'snake',
             rounds: 15,
             timer_seconds: 90,
+            slow_timer_seconds: 3600,
             snake_or_linear: 'snake',
             pick_order_rules: 'snake',
             third_round_reversal: false,
@@ -50,7 +51,7 @@ async function mockDraftSettingsApi(page: Page, leagueId: string) {
           draftOrderMode: 'randomize',
           lotteryConfig: null,
           orphanStatus: {
-            orphanRosterIds: [],
+            orphanRosterIds: ['roster-orphan-1'],
             orphanTeamAiManagerEnabled: false,
             recentActions: [],
           },
@@ -71,6 +72,7 @@ async function mockDraftSettingsApi(page: Page, leagueId: string) {
             draft_type: 'snake',
             rounds: 15,
             timer_seconds: 90,
+            slow_timer_seconds: 3600,
             snake_or_linear: 'snake',
             pick_order_rules: 'snake',
             third_round_reversal: false,
@@ -110,13 +112,14 @@ test.describe('@draft-room commissioner and queue regressions', () => {
     await expect(page.getByRole('heading', { name: /e2e draft settings harness/i })).toBeVisible()
     await expect(page.getByText(/draft variant settings hub/i)).toBeVisible()
 
-    const aiQueueReorderToggle = page
-      .getByRole('checkbox', { name: 'AI queue reorder enabled', exact: true })
+    const aiQueueReorderToggle = page.getByTestId('commissioner-draft-ai-queue-reorder-toggle')
     const autoPickToggle = page
       .getByRole('checkbox', { name: 'Auto-pick enabled', exact: true })
+    const orphanAiToggle = page.getByTestId('commissioner-draft-ai-manager-toggle')
 
     await aiQueueReorderToggle.check()
     await autoPickToggle.check()
+    await orphanAiToggle.check()
 
     await page.getByRole('button', { name: /save draft variant settings/i }).click()
 
@@ -126,10 +129,14 @@ test.describe('@draft-room commissioner and queue regressions', () => {
     const latestPatch = patches[patches.length - 1]
     expect(latestPatch.aiQueueReorderEnabled).toBe(true)
     expect(latestPatch.autoPickEnabled).toBe(true)
+    expect(latestPatch.orphanTeamAiManagerEnabled).toBe(true)
+    expect(latestPatch.orphanDrafterMode).toBe('ai')
 
     await page.reload()
     await expect(aiQueueReorderToggle).toBeChecked()
     await expect(autoPickToggle).toBeChecked()
+    await expect(orphanAiToggle).toBeChecked()
+    await expect(page.getByText(/Orphan rosters:\s*1/i)).toBeVisible()
   })
 
   test('draft queue toggles and queue actions work in browser', async ({ page }) => {

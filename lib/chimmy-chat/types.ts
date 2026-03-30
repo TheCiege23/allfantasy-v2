@@ -4,6 +4,7 @@ export type AIInsightType = "matchup" | "playoff" | "dynasty" | "trade" | "waive
 
 export type AIContextSource =
   | "messages_ai"
+  | "messages_dm_ai"
   | "trade_analyzer"
   | "waiver_tool"
   | "draft_tool"
@@ -31,6 +32,10 @@ export type AIChatContext = {
   sport?: SupportedSport
   season?: number
   week?: number
+  conversationId?: string
+  privateMode?: boolean
+  targetUsername?: string
+  strategyMode?: string
   source?: AIContextSource
 }
 

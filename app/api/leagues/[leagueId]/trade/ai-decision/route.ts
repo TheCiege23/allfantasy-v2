@@ -1,8 +1,8 @@
 /**
- * POST: Deterministic AI manager trade decision for an orphan roster.
- * Body: { rosterId, proposalSummary, partnerRosterId?, assetsGiven?, assetsReceived? }
- * Returns: { decision: 'accept' | 'reject' | 'counter', reason } and logs the decision.
- * Does not execute the trade on platform; commissioner or platform flow executes.
+ * POST: Deterministic AI manager trade actions for orphan rosters.
+ * Supports:
+ * - intent=respond: evaluate accept/reject/counter (optional applyDecision for proposalId)
+ * - intent=send: create deterministic outbound proposal draft (optional createProposal)
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -11,9 +11,51 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
-import { logAction } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
+import {
+  evaluateDeterministicTradeDecision,
+  logAction,
+} from '@/lib/orphan-ai-manager/OrphanAIManagerService'
+import { getDraftSessionByLeague, buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { appendDraftPickTrades } from '@/lib/live-draft-engine/DraftPickTradeService'
+import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
+import { getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
+import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety'
+import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
+
+function toInt(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.trunc(n) : null
+}
+
+function computeUpcomingOwnedPicks(params: {
+  totalPicks: number
+  pickedOverall: Set<number>
+  teamCount: number
+  draftType: 'snake' | 'linear' | 'auction'
+  thirdRoundReversal: boolean
+  slotOrder: Array<{ slot: number; rosterId: string; displayName: string }>
+  tradedPicks: Array<{ round: number; originalRosterId: string; newRosterId: string; previousOwnerName: string; newOwnerName: string }>
+  ownerRosterId: string
+}) {
+  const picks: Array<{ overall: number; round: number; slot: number }> = []
+  for (let overall = 1; overall <= params.totalPicks; overall += 1) {
+    if (params.pickedOverall.has(overall)) continue
+    const round = Math.ceil(overall / params.teamCount)
+    const slot = getSlotInRoundForOverall({
+      overall,
+      teamCount: params.teamCount,
+      draftType: params.draftType,
+      thirdRoundReversal: params.thirdRoundReversal,
+    })
+    const owner = resolvePickOwner(round, slot, params.slotOrder, params.tradedPicks)
+    if (owner?.rosterId === params.ownerRosterId) {
+      picks.push({ overall, round, slot })
+    }
+  }
+  return picks
+}
 
 export async function POST(
   req: NextRequest,
@@ -36,8 +78,21 @@ export async function POST(
   if (!uiSettings.orphanTeamAiManagerEnabled) {
     return NextResponse.json({ error: 'Orphan team AI manager is not enabled.' }, { status: 400 })
   }
+  if (!uiSettings.pickTradeEnabled) {
+    return NextResponse.json({ error: 'Draft pick trading is disabled in draft settings.' }, { status: 400 })
+  }
+  const draftPickTradingAllowed = await isDraftPickTradingAllowedForLeague(leagueId)
+  if (!draftPickTradingAllowed) {
+    return NextResponse.json({ error: 'Draft pick trading is disabled for this league.' }, { status: 403 })
+  }
+
+  const draftSession = await getDraftSessionByLeague(leagueId)
+  if (!draftSession || draftSession.status !== 'in_progress') {
+    return NextResponse.json({ error: 'No draft in progress.' }, { status: 400 })
+  }
 
   const body = await req.json().catch(() => ({}))
+  const intent = String(body.intent ?? body.actionType ?? 'respond').toLowerCase()
   const rosterId = body.rosterId ?? body.roster_id
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
@@ -46,44 +101,306 @@ export async function POST(
     return NextResponse.json({ error: 'Roster is not an orphan; AI manager only acts for orphan rosters.' }, { status: 400 })
   }
 
-  const proposalSummary = body.proposalSummary ?? body.proposal_summary ?? ''
-  const partnerRosterId = body.partnerRosterId ?? body.partner_roster_id ?? null
-  const assetsGiven = body.assetsGiven ?? body.assets_given ?? []
-  const assetsReceived = body.assetsReceived ?? body.assets_received ?? []
+  if (intent === 'send') {
+    const targetRosterId = String(body.targetRosterId ?? body.partnerRosterId ?? body.target_roster_id ?? '').trim()
+    if (!targetRosterId) {
+      return NextResponse.json({ error: 'targetRosterId required for send intent' }, { status: 400 })
+    }
+    if (targetRosterId === rosterId) {
+      return NextResponse.json({ error: 'targetRosterId cannot match rosterId' }, { status: 400 })
+    }
 
-  // Deterministic rule: no arbitrary trade execution. Use simple safety checks.
-  // Reject if proposal is empty or missing required context; otherwise return a conservative decision with reason.
-  const hasContext = proposalSummary?.trim().length > 0 || (Array.isArray(assetsGiven) && Array.isArray(assetsReceived) && (assetsGiven.length > 0 || assetsReceived.length > 0))
-  let decision: 'accept' | 'reject' | 'counter' = 'reject'
-  let reason = 'Trade evaluation requires league-specific rules and fairness analysis; defaulting to reject for safety.'
+    const slotOrder = ((draftSession as any).slotOrder ?? []) as Array<{ slot: number; rosterId: string; displayName: string }>
+    const tradedPicks = (Array.isArray((draftSession as any).tradedPicks) ? (draftSession as any).tradedPicks : []) as Array<{
+      round: number
+      originalRosterId: string
+      newRosterId: string
+      previousOwnerName: string
+      newOwnerName: string
+    }>
+    const teamCount = Number((draftSession as any).teamCount ?? 12)
+    const rounds = Number((draftSession as any).rounds ?? 15)
+    const pickedOverall = new Set<number>(((draftSession as any).picks ?? []).map((p: { overall: number }) => p.overall))
+    const totalPicks = Math.max(1, teamCount * rounds)
 
-  if (hasContext) {
-    // Placeholder: in a full implementation you would run trade engine (runTradeAnalysis or equivalent) for the orphan roster
-    // and derive accept/reject/counter from fairness score and league rules. Here we keep deterministic reject with reason.
-    reason = 'AI manager trade decisions use deterministic analysis; this proposal was not evaluated (evaluate via trade analyzer and apply manually if desired).'
+    const orphanUpcoming = computeUpcomingOwnedPicks({
+      totalPicks,
+      pickedOverall,
+      teamCount,
+      draftType: ((draftSession as any).draftType ?? 'snake') as 'snake' | 'linear' | 'auction',
+      thirdRoundReversal: Boolean((draftSession as any).thirdRoundReversal),
+      slotOrder,
+      tradedPicks,
+      ownerRosterId: rosterId,
+    })
+    const targetUpcoming = computeUpcomingOwnedPicks({
+      totalPicks,
+      pickedOverall,
+      teamCount,
+      draftType: ((draftSession as any).draftType ?? 'snake') as 'snake' | 'linear' | 'auction',
+      thirdRoundReversal: Boolean((draftSession as any).thirdRoundReversal),
+      slotOrder,
+      tradedPicks,
+      ownerRosterId: targetRosterId,
+    })
+    if (orphanUpcoming.length === 0 || targetUpcoming.length === 0) {
+      return NextResponse.json({ error: 'Unable to build proposal from remaining pick inventory.' }, { status: 400 })
+    }
+
+    const givePick = orphanUpcoming[0]
+    const receivePick =
+      targetUpcoming.find((pick) => Math.abs(pick.overall - givePick.overall) <= teamCount)
+      ?? targetUpcoming[0]
+
+    const proposerName = slotOrder.find((s) => s.rosterId === rosterId)?.displayName ?? 'AI Orphan Manager'
+    const receiverName = slotOrder.find((s) => s.rosterId === targetRosterId)?.displayName ?? 'Manager'
+    const summary = `AI manager suggests ${proposerName} send ${givePick.round}.${String(givePick.slot).padStart(2, '0')} for ${receiverName}'s ${receivePick.round}.${String(receivePick.slot).padStart(2, '0')}.`
+    const createProposal = Boolean(body.createProposal ?? body.applyDecision ?? false)
+
+    let createdProposalId: string | null = null
+    if (createProposal) {
+      const created = await (prisma as any).draftPickTradeProposal.create({
+        data: {
+          sessionId: draftSession.id,
+          proposerRosterId: rosterId,
+          receiverRosterId: targetRosterId,
+          giveRound: givePick.round,
+          giveSlot: givePick.slot,
+          giveOriginalRosterId: rosterId,
+          receiveRound: receivePick.round,
+          receiveSlot: receivePick.slot,
+          receiveOriginalRosterId: targetRosterId,
+          proposerName,
+          receiverName,
+          status: 'pending',
+        },
+        select: { id: true },
+      })
+      createdProposalId = created.id
+    }
+
+    await logAction({
+      leagueId,
+      rosterId,
+      action: 'trade_send',
+      payload: {
+        intent,
+        targetRosterId,
+        proposal: {
+          giveRound: givePick.round,
+          giveSlot: givePick.slot,
+          receiveRound: receivePick.round,
+          receiveSlot: receivePick.slot,
+          proposerName,
+          receiverName,
+        },
+        createdProposalId,
+      },
+      reason: summary,
+      triggeredBy: userId,
+    })
+
+    return NextResponse.json({
+      ok: true,
+      intent,
+      decision: 'send',
+      reason: summary,
+      proposal: {
+        giveRound: givePick.round,
+        giveSlot: givePick.slot,
+        receiveRound: receivePick.round,
+        receiveSlot: receivePick.slot,
+        proposerName,
+        receiverName,
+      },
+      createdProposalId,
+      logged: true,
+    })
   }
 
-  const d = decision as 'accept' | 'reject' | 'counter'
-  const action = d === 'accept' ? 'trade_accept' : d === 'counter' ? 'trade_counter' : 'trade_reject'
+  const proposalId = String(body.proposalId ?? body.proposal_id ?? '').trim()
+  let giveRound = toInt(body.giveRound)
+  let giveSlot = toInt(body.giveSlot)
+  let receiveRound = toInt(body.receiveRound)
+  let receiveSlot = toInt(body.receiveSlot)
+  let proposalStatus: string | null = null
+
+  if (proposalId) {
+    const proposal = await (prisma as any).draftPickTradeProposal.findFirst({
+      where: { id: proposalId, sessionId: draftSession.id },
+      select: {
+        id: true,
+        status: true,
+        proposerRosterId: true,
+        receiverRosterId: true,
+        giveRound: true,
+        giveSlot: true,
+        receiveRound: true,
+        receiveSlot: true,
+      },
+    })
+    if (!proposal) return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
+    if (proposal.receiverRosterId !== rosterId && proposal.proposerRosterId !== rosterId) {
+      return NextResponse.json({ error: 'Proposal does not involve this orphan roster' }, { status: 400 })
+    }
+    proposalStatus = proposal.status
+    giveRound = proposal.giveRound
+    giveSlot = proposal.giveSlot
+    receiveRound = proposal.receiveRound
+    receiveSlot = proposal.receiveSlot
+  }
+
+  if (
+    giveRound == null ||
+    giveSlot == null ||
+    receiveRound == null ||
+    receiveSlot == null ||
+    giveRound < 1 ||
+    giveSlot < 1 ||
+    receiveRound < 1 ||
+    receiveSlot < 1
+  ) {
+    return NextResponse.json(
+      { error: 'Trade context required: proposalId or giveRound/giveSlot/receiveRound/receiveSlot.' },
+      { status: 400 }
+    )
+  }
+
+  const result = evaluateDeterministicTradeDecision({
+    giveRound,
+    giveSlot,
+    receiveRound,
+    receiveSlot,
+    teamCount: Number((draftSession as any).teamCount ?? 12),
+  })
+
+  const applyDecision = Boolean(body.applyDecision ?? body.apply_decision ?? false)
+  let applied = false
+
+  if (applyDecision && proposalId && proposalStatus === 'pending') {
+    if (result.decision === 'accept') {
+      const slotOrder = ((draftSession as any).slotOrder ?? []) as Array<{ slot: number; rosterId: string; displayName: string }>
+      const giveEntry = slotOrder.find((entry) => entry.slot === giveSlot)
+      const receiveEntry = slotOrder.find((entry) => entry.slot === receiveSlot)
+      const previousGive = giveEntry?.displayName ?? 'Team'
+      const previousReceive = receiveEntry?.displayName ?? 'Team'
+
+      const proposal = await (prisma as any).draftPickTradeProposal.findUnique({
+        where: { id: proposalId },
+      })
+      if (proposal) {
+        const appendResult = await appendDraftPickTrades(leagueId, [
+          {
+            round: proposal.giveRound,
+            originalRosterId: proposal.giveOriginalRosterId,
+            previousOwnerName: previousGive,
+            newRosterId: proposal.receiverRosterId,
+            newOwnerName: previousReceive,
+          },
+          {
+            round: proposal.receiveRound,
+            originalRosterId: proposal.receiveOriginalRosterId,
+            previousOwnerName: previousReceive,
+            newRosterId: proposal.proposerRosterId,
+            newOwnerName: previousGive,
+          },
+        ] as any)
+        if (appendResult.success) {
+          await (prisma as any).draftPickTradeProposal.update({
+            where: { id: proposalId },
+            data: {
+              status: 'accepted',
+              respondedAt: new Date(),
+              responsePayload: {
+                by: 'ai_manager',
+                decision: result.decision,
+                reason: result.reason,
+              },
+              updatedAt: new Date(),
+            },
+          })
+          applied = true
+        }
+      }
+    } else if (result.decision === 'reject') {
+      await (prisma as any).draftPickTradeProposal.update({
+        where: { id: proposalId },
+        data: {
+          status: 'rejected',
+          respondedAt: new Date(),
+          responsePayload: {
+            by: 'ai_manager',
+            decision: result.decision,
+            reason: result.reason,
+          },
+          updatedAt: new Date(),
+        },
+      })
+      applied = true
+    } else if (result.decision === 'counter') {
+      await (prisma as any).draftPickTradeProposal.update({
+        where: { id: proposalId },
+        data: {
+          status: 'countered',
+          respondedAt: new Date(),
+          responsePayload: {
+            by: 'ai_manager',
+            decision: result.decision,
+            reason: result.reason,
+            suggestedCounterPackage: result.review.suggestedCounterPackage,
+            counterReasons: result.review.counterReasons,
+          },
+          updatedAt: new Date(),
+        },
+      })
+      applied = true
+    }
+  }
+
   await logAction({
     leagueId,
     rosterId,
-    action,
+    action: result.action,
     payload: {
-      proposalSummary: String(proposalSummary).slice(0, 500),
-      partnerRosterId,
-      assetsGiven,
-      assetsReceived,
-      decision,
+      intent,
+      proposalId: proposalId || undefined,
+      proposalStatus: proposalStatus ?? undefined,
+      tradeContext: {
+        giveRound,
+        giveSlot,
+        receiveRound,
+        receiveSlot,
+      },
+      decision: result.decision,
+      applyDecision,
+      applied,
+      review: {
+        summary: result.review.summary,
+        reasons: result.review.reasons,
+        declineReasons: result.review.declineReasons,
+        counterReasons: result.review.counterReasons,
+        suggestedCounterPackage: result.review.suggestedCounterPackage,
+      },
     },
-    reason,
+    reason: result.reason,
     triggeredBy: userId,
   })
 
+  const updatedSession = applied ? await buildSessionSnapshot(leagueId) : null
   return NextResponse.json({
     ok: true,
-    decision,
-    reason,
+    intent,
+    decision: result.decision,
+    action: result.action,
+    reason: result.reason,
+    summary: result.review.summary,
+    reasons: result.review.reasons,
+    declineReasons: result.review.declineReasons,
+    counterReasons: result.review.counterReasons,
+    suggestedCounterPackage: result.review.suggestedCounterPackage,
+    applyDecision,
+    applied,
+    session: updatedSession,
     logged: true,
   })
 }

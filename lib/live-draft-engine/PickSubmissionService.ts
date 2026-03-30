@@ -3,16 +3,21 @@
  * Uses transaction to avoid race conditions (duplicate picks, wrong order).
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getRosterIdForOverall } from './DraftOrderService'
 import { computeTimerEndAt } from './DraftTimerService'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { getManagerColorBySeed } from '@/lib/draft-room'
+import { completeDraftSession } from './DraftSessionService'
 import { recordTrendSignalByPlayerId } from '@/lib/player-trend/signal-integration'
 import { resolveSportForTrend } from '@/lib/player-trend/SportTrendContextResolver'
 import type { SlotOrderEntry } from './types'
+import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
+import type { KeeperConfig, KeeperSelection } from './keeper/types'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -22,14 +27,14 @@ export interface SubmitPickInput {
   byeWeek?: number | null
   playerId?: string | null
   rosterId?: string | null
-  source?: 'user' | 'auto' | 'commissioner'
+  source?: 'user' | 'auto' | 'commissioner' | 'keeper' | 'devy' | 'college' | 'promoted_devy'
   tradedPicks?: { round: number; originalRosterId: string; previousOwnerName: string; newRosterId: string; newOwnerName: string }[]
 }
 
 export interface SubmitPickResult {
   success: boolean
   error?: string
-  snapshot?: { sessionId: string; overall: number; pickLabel: string }
+  snapshot?: { sessionId: string; overall: number; pickLabel: string; rosterId: string }
 }
 
 /**
@@ -74,6 +79,29 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!validation.valid) return { success: false, error: validation.error }
 
+  const keeperConfig = (session.keeperConfig ?? (session as any).keeperConfig) as KeeperConfig | null
+  const keeperSelections = (session.keeperSelections ?? (session as any).keeperSelections) as KeeperSelection[] | null
+  if (keeperConfig?.maxKeepers && Array.isArray(keeperSelections) && keeperSelections.length > 0) {
+    const keeperLocks = buildKeeperLocks(
+      keeperSelections,
+      slotOrder,
+      tradedPicks,
+      teamCount,
+      session.rounds,
+      session.draftType as 'snake' | 'linear' | 'auction',
+      session.thirdRoundReversal
+    )
+    const lock = keeperLocks.find((item) => item.round === round && item.slot === slot)
+    if (lock && input.source !== 'keeper') {
+      return { success: false, error: 'This slot is keeper-locked and will be auto-applied.' }
+    }
+    if (lock && input.source === 'keeper') {
+      if (lock.playerName.trim().toLowerCase() !== input.playerName.trim().toLowerCase()) {
+        return { success: false, error: 'Keeper lock mismatch for this slot.' }
+      }
+    }
+  }
+
   const rosterFit = await validateRosterFitForDraftPick({
     leagueId: input.leagueId,
     rosterId: effectiveRosterId,
@@ -102,7 +130,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     if (!c2cValidation.valid) return { success: false, error: c2cValidation.error }
   } else if (devyConfig?.enabled) {
     const devyValidation = await validateDevyEligibilityAsync(
-      { currentRound: roundForEligibility, playerName: input.playerName, devyConfig },
+      { currentRound: roundForEligibility, playerName: input.playerName, position: input.position, devyConfig },
       prisma
     )
     if (!devyValidation.valid) return { success: false, error: devyValidation.error }
@@ -110,49 +138,70 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 
   const owner = resolvePickOwner(round, slot, slotOrder, input.tradedPicks ?? tradedPicks)
   const displayName = owner?.displayName ?? current.displayName
-  const tradedPickMeta = owner?.tradedPickMeta ?? null
+  const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
+  let tradedPickMeta = owner?.tradedPickMeta ? { ...owner.tradedPickMeta } : null
+  if (tradedPickMeta) {
+    tradedPickMeta.showNewOwnerInRed = Boolean(uiSettings.tradedPickOwnerNameRedEnabled)
+    if (uiSettings.tradedPickColorModeEnabled) {
+      const seed = String(tradedPickMeta.newOwnerName ?? owner?.rosterId ?? displayName ?? 'manager')
+      tradedPickMeta.tintColor = getManagerColorBySeed(seed).tintHex
+    } else {
+      delete tradedPickMeta.tintColor
+    }
+  }
 
   const timerSeconds = session.timerSeconds ?? 90
   const nextTimerEndAt = computeTimerEndAt(timerSeconds)
 
-  const pick = await prisma.$transaction(async (tx) => {
-    const locked = await (tx as any).draftSession.findUnique({
-      where: { id: session.id },
-      include: { picks: { orderBy: { overall: 'asc' } } },
+  let pick: any
+  try {
+    pick = await prisma.$transaction(async (tx) => {
+      const locked = await (tx as any).draftSession.findUnique({
+        where: { id: session.id },
+        include: { picks: { orderBy: { overall: 'asc' } } },
+      })
+      if (!locked || locked.picks.length !== picksCount) {
+        throw new Error('Draft state changed; please retry')
+      }
+      const created = await (tx as any).draftPick.create({
+        data: {
+          sessionId: session.id,
+          sportType: (session as any).sportType ?? null,
+          overall,
+          round,
+          slot,
+          rosterId: effectiveRosterId,
+          displayName,
+          playerName: input.playerName.trim(),
+          position: input.position,
+          team: input.team ?? null,
+          byeWeek: input.byeWeek ?? null,
+          playerId: input.playerId ?? null,
+          tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
+          source: input.source ?? 'user',
+        },
+      })
+      await (tx as any).draftSession.update({
+        where: { id: session.id },
+        data: {
+          timerEndAt: nextTimerEndAt,
+          pausedRemainingSeconds: null,
+          status: 'in_progress',
+          version: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      })
+      return created
     })
-    if (!locked || locked.picks.length !== picksCount) {
-      throw new Error('Draft state changed; please retry')
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return { success: false, error: 'Draft state changed; please retry' }
     }
-    const created = await (tx as any).draftPick.create({
-      data: {
-        sessionId: session.id,
-        sportType: (session as any).sportType ?? null,
-        overall,
-        round,
-        slot,
-        rosterId: effectiveRosterId,
-        displayName,
-        playerName: input.playerName.trim(),
-        position: input.position,
-        team: input.team ?? null,
-        byeWeek: input.byeWeek ?? null,
-        playerId: input.playerId ?? null,
-        tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
-        source: input.source ?? 'user',
-      },
-    })
-    await (tx as any).draftSession.update({
-      where: { id: session.id },
-      data: {
-        timerEndAt: nextTimerEndAt,
-        pausedRemainingSeconds: null,
-        status: 'in_progress',
-        version: { increment: 1 },
-        updatedAt: new Date(),
-      },
-    })
-    return created
-  })
+    if (error instanceof Error && /Draft state changed/.test(error.message)) {
+      return { success: false, error: 'Draft state changed; please retry' }
+    }
+    throw error
+  }
 
   const pickLabel = `${round}.${slot.toString().padStart(2, '0')}`
 
@@ -199,8 +248,12 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     // non-fatal
   }
 
+  if (overall >= totalPicks) {
+    await completeDraftSession(input.leagueId).catch(() => {})
+  }
+
   return {
     success: true,
-    snapshot: { sessionId: session.id, overall: pick.overall, pickLabel },
+    snapshot: { sessionId: session.id, overall: pick.overall, pickLabel, rosterId: effectiveRosterId },
   }
 }

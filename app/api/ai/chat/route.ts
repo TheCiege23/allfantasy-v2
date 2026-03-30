@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { checkAiRateLimit } from '@/lib/ai-protection'
 import { logAiFailure } from '@/lib/error-tracking'
-import { getOpenAIConfig } from '@/lib/openai-client'
+import { openaiChatTextStream } from '@/lib/openai-client'
 import { getUniversalAIContext } from '@/lib/ai-player-context'
 import { getPlayerAnalyticsBatch, computeAthleticGrade, computeCollegeProductionGrade, type PlayerAnalytics } from '@/lib/player-analytics'
 import { logUserEventByUsername } from '@/lib/user-events'
@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
 import { isAIAssistantEnabled } from '@/lib/feature-toggle'
+import { runCostControlledOpenAIText } from '@/lib/ai-cost-control'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -347,32 +348,112 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       { role: 'user', content: message },
     ]
 
-    const { apiKey, baseUrl, model } = getOpenAIConfig()
+    const streamRequested =
+      request.nextUrl.searchParams.get('stream') === '1' ||
+      (typeof (body as Record<string, unknown>).stream === 'boolean' &&
+        (body as Record<string, unknown>).stream === true)
 
-    const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model || process.env.OPENAI_MODEL || 'gpt-4o',
+    if (streamRequested) {
+      const streamResult = await openaiChatTextStream({
         messages,
         temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    })
+        maxTokens: 1000,
+      })
+      if (!streamResult.ok) {
+        return NextResponse.json(
+          { error: 'Failed to process chat', details: streamResult.details },
+          { status: 500 }
+        )
+      }
 
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '')
-      console.error('AI Chat OpenAI error:', { status: resp.status, errText: errText.slice(0, 500) })
-      return NextResponse.json(
-        { error: 'Failed to process chat', details: errText.slice(0, 500) },
-        { status: 500 }
-      )
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const writeEvent = (event: string, payload: Record<string, unknown>) => {
+            controller.enqueue(
+              encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
+            )
+          }
+
+          let responseText = ''
+          try {
+            writeEvent('start', { provider: 'openai', model: streamResult.model })
+            for await (const chunk of streamResult.stream) {
+              responseText += chunk
+              writeEvent('chunk', { delta: chunk })
+            }
+
+            if (!responseText.trim()) {
+              writeEvent('error', { error: 'No response from AI' })
+              controller.close()
+              return
+            }
+
+            logUserEventByUsername(sleeperUsername, 'ai_chat_used', {
+              hasLegacyContext: !!legacyContext,
+            })
+            await logAiOutput({
+              provider: 'openai',
+              role: 'narrative',
+              taskType: 'ai_chat',
+              targetType: 'user',
+              targetId: sleeperUsername,
+              model: streamResult.model,
+              contentText: responseText,
+              meta: {
+                hasLegacyContext: !!legacyContext,
+              },
+            })
+
+            writeEvent('done', {
+              success: true,
+              response: responseText,
+              legacy_context: {
+                included: true,
+                display_name: legacyContext.display_name,
+                archetype: legacyContext.archetype,
+              },
+              rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
+            })
+            controller.close()
+          } catch (streamError) {
+            writeEvent('error', {
+              error: streamError instanceof Error ? streamError.message : 'Streaming failed',
+            })
+            controller.close()
+          }
+        },
+      })
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      })
     }
 
-    const completion = await resp.json().catch(() => null)
-    const responseText = completion?.choices?.[0]?.message?.content
+    const completion = await runCostControlledOpenAIText({
+      feature: 'ai_chat',
+      enableAI: true,
+      fallbackText: null,
+      messages,
+      temperature: 0.7,
+      maxTokens: 1000,
+      cacheTtlMs: 30_000,
+      repeatCooldownMs: 6_000,
+      cacheContext: {
+        sleeperUsername,
+        resolvedSport,
+        leagueId: leagueId ?? null,
+      },
+    })
+    const responseText = completion.text
 
-    if (!responseText) {
+    if (!completion.ok || !responseText?.trim()) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }
 
@@ -386,7 +467,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       taskType: 'ai_chat',
       targetType: 'user',
       targetId: sleeperUsername,
-      model: completion?.model || model,
+      model: completion.model,
       contentText: responseText,
       meta: {
         hasLegacyContext: !!legacyContext,

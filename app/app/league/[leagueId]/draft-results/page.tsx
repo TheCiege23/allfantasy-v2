@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { prisma } from '@/lib/prisma'
 import { DraftResultsClient } from '@/components/app/draft-results/DraftResultsClient'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,7 +51,7 @@ export default async function DraftResultsPage({
       <DraftResultsClient
         leagueId={leagueId}
         leagueName={league.name ?? 'League'}
-        sport={String(league.sport ?? 'NFL')}
+        sport={normalizeToSupportedSport(league.sport)}
         isGuillotine={isGuillotine}
       />
     </div>

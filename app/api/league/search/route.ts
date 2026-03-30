@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams
-    const leagueName = sp.get("leagueName") ?? sp.get("q") ?? null
+    const query = sp.get("q") ?? null
+    const leagueName = sp.get("leagueName") ?? null
     const commissioner = sp.get("commissioner") ?? null
     const sport = sp.get("sport") ?? null
     const leagueType = sp.get("leagueType") ?? null
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
     const offset = sp.get("offset")
 
     const result = await searchLeagues({
+      query: query || undefined,
       leagueName: leagueName || undefined,
       commissioner: commissioner || undefined,
       sport: sport || undefined,

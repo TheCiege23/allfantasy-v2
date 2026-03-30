@@ -142,6 +142,11 @@ export interface LeagueCreationWizardState {
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
   privacySettings: WizardPrivacySettings
+  /**
+   * Optional full settings snapshot from a saved template.
+   * These keys are merged into League.settings on create before wizard-level overrides.
+   */
+  templateSettingsOverrides?: Record<string, unknown>
 }
 
 export const WIZARD_STEP_ORDER: WizardStepId[] = [
@@ -151,9 +156,6 @@ export const WIZARD_STEP_ORDER: WizardStepId[] = [
   'team_setup',
   'scoring',
   'draft_settings',
-  'waiver_settings',
-  'playoff_settings',
-  'schedule_settings',
   'ai_settings',
   'automation',
   'privacy',

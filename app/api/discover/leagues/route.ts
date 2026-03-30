@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import type {
+  DraftStatusFilter,
+  DraftTypeFilter,
   DiscoveryFormat,
   DiscoverySort,
   EntryFeeFilter,
@@ -48,6 +50,8 @@ export async function GET(req: NextRequest) {
     const sort = (sp.get("sort") as DiscoverySort) ?? "popularity"
     const entryFee = (sp.get("entryFee") as EntryFeeFilter) ?? "all"
     const visibility = (sp.get("visibility") as VisibilityFilter) ?? "public"
+    const draftType = (sp.get("draftType") as DraftTypeFilter) ?? "all"
+    const draftStatus = (sp.get("draftStatus") as DraftStatusFilter) ?? "all"
     const teamCountMin = parseIntParam(sp, "teamCountMin")
     const teamCountMax = parseIntParam(sp, "teamCountMax")
     const aiEnabled = sp.get("aiEnabled") === "true"
@@ -63,6 +67,8 @@ export async function GET(req: NextRequest) {
         sort,
         entryFee,
         visibility,
+        draftType,
+        draftStatus,
         teamCountMin: teamCountMin ?? null,
         teamCountMax: teamCountMax ?? null,
         aiEnabled: aiEnabled || null,

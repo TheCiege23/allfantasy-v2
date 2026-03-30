@@ -56,6 +56,7 @@ export function validatePickSubmission(input: ValidatePickInput): PickValidation
 export interface ValidateDevyInput {
   currentRound: number
   playerName: string
+  position?: string
   devyConfig: { enabled: boolean; devyRounds: number[] } | null
 }
 
@@ -86,24 +87,27 @@ export async function validateDevyEligibilityAsync(
   if (!input.devyConfig?.enabled || !Array.isArray(input.devyConfig.devyRounds)) {
     return { valid: true }
   }
-  if (!input.devyConfig.devyRounds.includes(input.currentRound)) {
-    return { valid: true }
-  }
   const name = input.playerName?.trim()
   if (!name) return { valid: false, error: 'Player name is required for devy pick' }
   const normalized = name.toLowerCase()
   const devy = await prisma.devyPlayer.findFirst({
     where: {
       devyEligible: true,
-      graduatedToNFL: false,
       OR: [
         { normalizedName: normalized },
         { name: { equals: name, mode: 'insensitive' } },
       ],
     },
   })
-  if (!devy) {
-    return { valid: false, error: 'This round is devy-only. Select a devy-eligible (college) player.' }
+  const isDevyRound = input.devyConfig.devyRounds.includes(input.currentRound)
+  if (isDevyRound) {
+    if (!devy || devy.graduatedToNFL) {
+      return { valid: false, error: 'This round is devy-only. Select a devy-eligible (college) player.' }
+    }
+    return { valid: true }
+  }
+  if (devy && !devy.graduatedToNFL) {
+    return { valid: false, error: 'This round is pro-only. Select a major-league player, not a devy asset.' }
   }
   return { valid: true }
 }
@@ -148,7 +152,7 @@ export async function validateC2CEligibilityAsync(
   }
 
   if (collegePlayer) {
-    return { valid: false, error: 'This round is pro-only (C2C). Select an NFL player, not a college player.' }
+    return { valid: false, error: 'This round is pro-only (C2C). Select a pro player, not a college player.' }
   }
   return { valid: true }
 }

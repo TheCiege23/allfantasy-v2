@@ -2,8 +2,9 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { Bot, AlertTriangle, Info } from 'lucide-react'
+import { Bot, AlertTriangle, Info, MessageCircle, RefreshCw } from 'lucide-react'
 import { useAIDraftAssistant, type FetchSuggestionParams } from '@/hooks/useAIDraftAssistant'
+import { buildAskChimmyAboutPickPrompt, getDraftAIChatUrl } from '@/lib/draft-room/DraftToAIContextBridge'
 
 export interface AIDraftAssistantPanelProps {
   /** When non-null, fetch suggestion for this pick/context */
@@ -25,12 +26,38 @@ export function AIDraftAssistantPanel({
     compareOptions,
     positionalRunWarning,
     rosterWarning,
+    reachWarning,
+    valueWarning,
+    scarcityInsight,
+    stackInsight,
+    correlationInsight,
+    formatInsight,
+    byeNote,
+    evidence,
+    caveats,
+    uncertainty,
     strategyMetaContext,
     loading,
     error,
     fetchSuggestion,
     clear,
   } = useAIDraftAssistant()
+
+  const chimmyPrompt = buildAskChimmyAboutPickPrompt({
+    sport: params?.sport,
+    round: params?.round,
+    pick: params?.pick,
+    leagueName: params?.leagueName,
+    rosterPositions: params?.rosterSlots,
+    recommendedPlayer: bestPick?.player,
+    recommendedPosition: bestPick?.position,
+    explanation: explanation || bestPick?.reason,
+  })
+  const chimmyHref = getDraftAIChatUrl(chimmyPrompt, {
+    leagueId: params?.leagueId,
+    insightType: 'draft',
+    sport: params?.sport,
+  })
 
   useEffect(() => {
     if (!params || !autoFetch) return
@@ -54,6 +81,16 @@ export function AIDraftAssistantPanel({
             Suggestions only - not a guarantee. You decide.
           </p>
         </div>
+        <button
+          type="button"
+          disabled={!params || loading}
+          onClick={() => params && fetchSuggestion(params)}
+          className="ml-auto rounded-lg border border-white/15 bg-black/20 p-1.5 text-white/70 hover:bg-white/10 disabled:opacity-50"
+          data-testid="mock-draft-ai-assistant-refresh"
+          aria-label="Refresh AI suggestion"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {error && (
@@ -143,6 +180,50 @@ export function AIDraftAssistantPanel({
               {rosterWarning}
             </div>
           )}
+          {(reachWarning || valueWarning || scarcityInsight || stackInsight || correlationInsight || formatInsight || byeNote) && (
+            <div className="mt-2 space-y-1.5">
+              {reachWarning && <p className="text-[11px] text-amber-200">{reachWarning}</p>}
+              {valueWarning && <p className="text-[11px] text-emerald-200">{valueWarning}</p>}
+              {scarcityInsight && <p className="text-[11px] text-cyan-200">{scarcityInsight}</p>}
+              {stackInsight && <p className="text-[11px] text-violet-200">{stackInsight}</p>}
+              {correlationInsight && <p className="text-[11px] text-indigo-200">{correlationInsight}</p>}
+              {formatInsight && <p className="text-[11px] text-sky-200">{formatInsight}</p>}
+              {byeNote && <p className="text-[11px] text-amber-200">{byeNote}</p>}
+            </div>
+          )}
+          {evidence.length > 0 && (
+            <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-white/55">Evidence</p>
+              <ul className="list-inside list-disc space-y-1 text-[11px] text-white/75">
+                {evidence.slice(0, 4).map((item, idx) => (
+                  <li key={`ev-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {caveats.length > 0 && (
+            <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-amber-200/90">Caveats</p>
+              <ul className="list-inside list-disc space-y-1 text-[11px] text-amber-100/85">
+                {caveats.slice(0, 3).map((item, idx) => (
+                  <li key={`cv-${idx}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {uncertainty && (
+            <p className="mt-2 text-[11px] text-amber-200/90">{uncertainty}</p>
+          )}
+          <a
+            href={chimmyHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="mock-draft-ai-assistant-ask-chimmy"
+            className="mt-3 inline-flex items-center gap-1.5 rounded border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[11px] text-cyan-100 hover:bg-cyan-500/20"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            Ask Chimmy about this pick
+          </a>
         </>
       )}
 

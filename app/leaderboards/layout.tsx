@@ -3,7 +3,7 @@ import { Metadata } from "next"
 export const metadata: Metadata = {
   title: "Leaderboards – AllFantasy",
   description:
-    "Platform leaderboards: top users, best drafters, win %, most championships, and most active managers.",
+    "Platform leaderboards: best draft grades, most championships, highest win percentage, and most active managers.",
 }
 
 export default function LeaderboardsLayout({

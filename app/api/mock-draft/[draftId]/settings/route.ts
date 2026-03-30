@@ -48,6 +48,10 @@ export async function PATCH(
     leagueId: body.leagueId,
     rosterSize: body.rosterSize,
     poolType: body.poolType,
+    roomMode: body.roomMode,
+    humanTeams: body.humanTeams,
+    keepersEnabled: body.keepersEnabled,
+    keepers: body.keepers,
     slotConfig: body.slotConfig,
   })
   if (!ok) return NextResponse.json({ error: 'Draft not found or not editable' }, { status: 400 })

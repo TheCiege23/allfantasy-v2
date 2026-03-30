@@ -5,11 +5,13 @@
 import type { WaiverRosterPlayer } from '@/lib/waiver-engine'
 import type { TeamNeedsMap } from '@/lib/waiver-engine/team-needs'
 import type { ScoredWaiverTarget } from '@/lib/waiver-engine/waiver-scoring'
+import type { SupportedSport } from '@/lib/sport-scope'
 
 export type { UserGoal } from '@/lib/waiver-engine/team-needs'
 
 /** Input for the waiver AI suggestion engine. */
 export type WaiverAIEngineInput = {
+  sport?: SupportedSport | string
   roster?: WaiverRosterPlayer[] | null
   teamNeeds?: TeamNeedsMap | null
   rosterPositions?: string[]
@@ -40,4 +42,22 @@ export type WaiverAIEngineInput = {
 /** Result of suggestWaiverPickups. */
 export type WaiverSuggestionsResult = {
   suggestions: ScoredWaiverTarget[]
+}
+
+/** Input for deterministic+AI waiver service. */
+export type WaiverAIServiceInput = WaiverAIEngineInput & {
+  includeAIExplanation?: boolean
+}
+
+/** Output for deterministic+AI waiver service. */
+export type WaiverAIServiceOutput = {
+  sport: SupportedSport
+  deterministic: {
+    suggestions: ScoredWaiverTarget[]
+    basedOn: Array<'available_players' | 'team_needs'>
+  }
+  explanation: {
+    source: 'deterministic' | 'ai'
+    text: string
+  }
 }

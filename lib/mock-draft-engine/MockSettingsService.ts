@@ -24,6 +24,10 @@ export async function getMockDraftSettings(draftId: string, userId?: string): Pr
     leagueId: (m.leagueId as string) ?? undefined,
     rosterSize: m.rosterSize != null ? Number(m.rosterSize) : undefined,
     poolType: String(m.poolType ?? 'all'),
+    roomMode: String(m.roomMode ?? 'solo') as any,
+    humanTeams: m.humanTeams != null ? Number(m.humanTeams) : 1,
+    keepersEnabled: Boolean(m.keepersEnabled ?? false),
+    keepers: Array.isArray(m.keepers) ? (m.keepers as any[]) : [],
   }
 }
 
@@ -51,6 +55,10 @@ export async function updateMockDraftSettings(
     ...(partial.leagueId !== undefined && { leagueId: partial.leagueId }),
     ...(partial.rosterSize != null && { rosterSize: partial.rosterSize }),
     ...(partial.poolType != null && { poolType: partial.poolType }),
+    ...(partial.roomMode != null && { roomMode: partial.roomMode }),
+    ...(partial.humanTeams != null && { humanTeams: partial.humanTeams }),
+    ...(partial.keepersEnabled != null && { keepersEnabled: partial.keepersEnabled }),
+    ...(partial.keepers != null && { keepers: partial.keepers }),
   }
   await prisma.mockDraft.update({
     where: { id: draftId },

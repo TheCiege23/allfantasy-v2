@@ -9,6 +9,9 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { commitImport } from '@/lib/draft-import'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import type { DraftImportPreview } from '@/lib/draft-import'
+import { validatePreview } from '@/lib/draft-import'
+import { prisma } from '@/lib/prisma'
+import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,11 +31,32 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+  const uiSettings = await getDraftUISettingsForLeague(leagueId)
+  if (!uiSettings.importEnabled) {
+    return NextResponse.json({ error: 'Draft import is disabled by commissioner settings.' }, { status: 403 })
+  }
 
   const body = await req.json().catch(() => ({}))
   const preview = body.preview as DraftImportPreview | undefined
   if (!preview?.slotOrder || !Array.isArray(preview.picks)) {
     return NextResponse.json({ error: 'preview with slotOrder and picks required' }, { status: 400 })
+  }
+  const existingSession = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: {
+      status: true,
+      picks: { select: { id: true } },
+    },
+  })
+  if (!existingSession) {
+    return NextResponse.json({ error: 'Draft session not found' }, { status: 404 })
+  }
+  const report = validatePreview(preview, existingSession.picks.length, existingSession.status)
+  if (!report.canProceed) {
+    return NextResponse.json({
+      error: 'Import preview failed deterministic validation.',
+      report,
+    }, { status: 400 })
   }
 
   const result = await commitImport(leagueId, preview, { backupBeforeCommit: true })

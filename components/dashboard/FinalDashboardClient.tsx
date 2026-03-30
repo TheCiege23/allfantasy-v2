@@ -24,6 +24,7 @@ import { groupLeaguesBySport } from '@/lib/dashboard'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useLeagueList } from '@/hooks/useLeagueList'
+import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 import { ErrorBoundary } from '@/components/error-handling'
 import { RetentionStreakWidget, ReturnPromptCards, WeeklySummaryCard } from '@/components/onboarding-retention'
 import { DailyCheckInCard } from '@/components/daily-checkin/DailyCheckInCard'
@@ -43,6 +44,7 @@ export default function FinalDashboardClient() {
   const { balance, loading: tokensLoading, error: tokensError, refetch: refetchTokens } = useTokenBalance()
   const { isActiveOrGrace, loading: entitlementLoading } = useEntitlement()
   const { leagues, loading: leaguesLoading, error: leaguesError, refetch: refetchLeagues } = useLeagueList(status === 'authenticated')
+  const { enabled: aiAssistantEnabled, loading: aiAssistantLoading } = useAIAssistantAvailability()
 
   const groups = useMemo(() => groupLeaguesBySport(leagues), [leagues])
   const leaguesFlat = useMemo(() => groups.flatMap((g) => g.leagues), [groups])
@@ -86,6 +88,13 @@ export default function FinalDashboardClient() {
     sport: firstLeague?.sport ? AIProductLayer.resolveSupportedSport(String(firstLeague.sport)) : undefined,
     source: 'dashboard',
   })
+  const chimmyCtaHref = aiAssistantEnabled ? chimmyHref : aiSuggestionsHref
+  const chimmyCtaTitle = aiAssistantEnabled ? 'Chimmy AI' : 'AI temporarily unavailable'
+  const chimmyCtaSubtitle = aiAssistantEnabled
+    ? 'Ask about your leagues'
+    : aiAssistantLoading
+      ? 'Checking AI availability...'
+      : 'Open deterministic suggestions instead'
 
   if (status === 'loading') {
     return (
@@ -402,15 +411,16 @@ export default function FinalDashboardClient() {
       {/* Chimmy — compact secondary */}
       <section>
         <Link
-          href={chimmyHref}
+          href={chimmyCtaHref}
+          data-testid="dashboard-chimmy-entry"
           className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 min-h-[56px] hover:bg-white/[0.05] active:scale-[0.99] transition"
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-white/80">
             <MessageSquare className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-white">Chimmy AI</p>
-            <p className="text-xs text-white/45">Ask about your leagues</p>
+            <p className="text-sm font-medium text-white">{chimmyCtaTitle}</p>
+            <p className="text-xs text-white/45">{chimmyCtaSubtitle}</p>
           </div>
           <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
         </Link>

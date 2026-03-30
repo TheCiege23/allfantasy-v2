@@ -9,7 +9,12 @@ import { buildPlayerMedia } from '@/lib/player-media'
 import type { PlayerAssetModel, TeamDisplayModel } from './types'
 
 const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
-const FALLBACK_HEADSHOT_PLACEHOLDER = '' // no global placeholder URL; use initials in UI
+const FALLBACK_HEADSHOT_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="#1f2937"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="28" font-weight="700">AF</text></svg>'
+)}`
+const FALLBACK_TEAM_LOGO_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="14" fill="#0f172a"/><rect x="10" y="10" width="76" height="76" rx="10" fill="#1e293b"/><text x="50%" y="53%" dominant-baseline="middle" text-anchor="middle" fill="#93c5fd" font-family="Arial, sans-serif" font-size="24" font-weight="700">TM</text></svg>'
+)}`
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const memoryCache = new Map<string, { data: PlayerAssetModel; expiresAt: number }>()
@@ -66,8 +71,10 @@ export function resolvePlayerAssets(
   }
 
   const data: PlayerAssetModel = {
-    headshotUrl: headshotUrl || null,
-    teamLogoUrl: teamLogoUrl || null,
+    headshotUrl: headshotUrl || FALLBACK_HEADSHOT_PLACEHOLDER,
+    teamLogoUrl: teamLogoUrl || FALLBACK_TEAM_LOGO_PLACEHOLDER,
+    headshotFallbackUrl: FALLBACK_HEADSHOT_PLACEHOLDER,
+    teamLogoFallbackUrl: FALLBACK_TEAM_LOGO_PLACEHOLDER,
     headshotFallbackUsed: !headshotUrl,
     teamLogoFallbackUsed: !teamLogoUrl,
   }

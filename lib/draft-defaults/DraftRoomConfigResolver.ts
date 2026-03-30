@@ -11,6 +11,8 @@ export interface DraftRoomConfig {
   draft_type: 'snake' | 'linear' | 'auction'
   rounds: number
   timer_seconds: number | null
+  /** Slow draft timer length in seconds (used when timer mode is slow/overnight). */
+  slow_timer_seconds?: number | null
   pick_order_rules: string
   snake_or_linear: string
   third_round_reversal: boolean
@@ -48,6 +50,10 @@ export async function getDraftConfigForLeague(leagueId: string): Promise<DraftRo
     draft_type: fromSettings<DraftRoomConfig['draft_type']>('draft_type', defaults.draft_type),
     rounds: fromSettings<number>('draft_rounds', defaults.rounds_default),
     timer_seconds: fromSettings<number | null>('draft_timer_seconds', defaults.timer_seconds_default),
+    slow_timer_seconds: fromSettings<number | null>(
+      'draft_slow_timer_seconds',
+      Math.max(3600, Number(fromSettings<number | null>('draft_timer_seconds', defaults.timer_seconds_default) ?? 90))
+    ),
     pick_order_rules: fromSettings<string>('draft_pick_order_rules', defaults.pick_order_rules),
     snake_or_linear: fromSettings<string>('draft_snake_or_linear', defaults.snake_or_linear_behavior ?? defaults.pick_order_rules),
     third_round_reversal: fromSettings<boolean>('draft_third_round_reversal', defaults.third_round_reversal ?? false),

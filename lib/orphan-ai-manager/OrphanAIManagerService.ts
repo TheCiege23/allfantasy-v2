@@ -11,8 +11,9 @@ import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { computeCPUPick } from '@/lib/automated-drafter/CPUDrafterService'
-import { computeAIDrafterPick } from '@/lib/automated-drafter/AIDrafterService'
+import { computeAIDrafterPick, isAIDrafterProviderAvailable } from '@/lib/automated-drafter/AIDrafterService'
 import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { buildDraftTradeAiReview, type DraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
 import type { LeagueSport } from '@prisma/client'
 
 export type AiManagerAuditAction = 'draft_pick' | 'trade_accept' | 'trade_reject' | 'trade_counter' | 'trade_send'
@@ -49,6 +50,130 @@ export interface ExecuteDraftPickForOrphanResult {
   error?: string
   pick?: { playerName: string; position: string; overall: number; round: number; slot: number }
   reason?: string
+  requestedMode?: 'cpu' | 'ai'
+  executedMode?: 'cpu' | 'ai'
+  aiProviderAvailable?: boolean
+  usedFallback?: boolean
+}
+
+export type OrphanAiTradeDecision = 'accept' | 'reject' | 'counter'
+
+export interface DeterministicOrphanTradeDecisionInput {
+  giveRound: number
+  giveSlot: number
+  receiveRound: number
+  receiveSlot: number
+  teamCount: number
+}
+
+export interface DeterministicOrphanTradeDecisionResult {
+  decision: OrphanAiTradeDecision
+  action: 'trade_accept' | 'trade_reject' | 'trade_counter'
+  reason: string
+  review: DraftTradeAiReview
+}
+
+type StrategyProfile = {
+  id: 'balanced' | 'value_hunter' | 'upside_chaser' | 'positional_anchor'
+  label: string
+  defaultMode: 'needs' | 'bpa'
+  preferredPositions: string[]
+}
+
+const STRATEGY_PROFILES: StrategyProfile[] = [
+  {
+    id: 'balanced',
+    label: 'Balanced Builder',
+    defaultMode: 'needs',
+    preferredPositions: ['RB', 'WR', 'QB', 'TE'],
+  },
+  {
+    id: 'value_hunter',
+    label: 'Value Hunter',
+    defaultMode: 'bpa',
+    preferredPositions: ['WR', 'RB', 'TE', 'QB'],
+  },
+  {
+    id: 'upside_chaser',
+    label: 'Upside Chaser',
+    defaultMode: 'needs',
+    preferredPositions: ['WR', 'QB', 'RB', 'TE'],
+  },
+  {
+    id: 'positional_anchor',
+    label: 'Positional Anchor',
+    defaultMode: 'needs',
+    preferredPositions: ['QB', 'TE', 'RB', 'WR'],
+  },
+]
+
+function hashDeterministic(input: string): number {
+  let hash = 0
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
+
+function resolveStrategyProfile(rosterId: string, sport: string): StrategyProfile {
+  const hash = hashDeterministic(`${rosterId}:${sport}`)
+  return STRATEGY_PROFILES[hash % STRATEGY_PROFILES.length] ?? STRATEGY_PROFILES[0]
+}
+
+function scoreAvailablePlayerForProfile(
+  player: { name: string; position: string; adp: number | null },
+  profile: StrategyProfile
+): number {
+  const pos = String(player.position ?? '').toUpperCase()
+  const prefIdx = profile.preferredPositions.findIndex((p) => p === pos)
+  const positionScore = prefIdx >= 0 ? (profile.preferredPositions.length - prefIdx) * 28 : 0
+  const adpScore = player.adp != null && Number.isFinite(player.adp) ? Math.max(0, 220 - player.adp) : 40
+  return positionScore + adpScore
+}
+
+function buildDeterministicQueuePreview(
+  available: Array<{ name: string; position: string; team: string | null; adp: number | null; byeWeek: number | null }>,
+  profile: StrategyProfile
+) {
+  return [...available]
+    .map((player, idx) => ({
+      idx,
+      player,
+      score: scoreAvailablePlayerForProfile(player, profile),
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      return a.idx - b.idx
+    })
+    .slice(0, 8)
+    .map((entry) => entry.player)
+}
+
+export function evaluateDeterministicTradeDecision(
+  input: DeterministicOrphanTradeDecisionInput
+): DeterministicOrphanTradeDecisionResult {
+  const review = buildDraftTradeAiReview({
+    giveRound: input.giveRound,
+    giveSlot: input.giveSlot,
+    receiveRound: input.receiveRound,
+    receiveSlot: input.receiveSlot,
+    teamCount: input.teamCount,
+  })
+
+  const decision = review.verdict as OrphanAiTradeDecision
+  const action = decision === 'accept'
+    ? 'trade_accept'
+    : decision === 'counter'
+      ? 'trade_counter'
+      : 'trade_reject'
+  const reason = review.summary || review.reasons[0] || 'Deterministic trade review completed.'
+
+  return {
+    decision,
+    action,
+    reason,
+    review,
+  }
 }
 
 /**
@@ -129,7 +254,11 @@ export async function executeDraftPickForOrphan(
     )
   })()
 
-  const drafterMode = uiSettings.orphanDrafterMode ?? 'cpu'
+  const requestedMode = uiSettings.orphanDrafterMode ?? 'cpu'
+  const aiProviderAvailable = isAIDrafterProviderAvailable()
+  const shouldAttemptAIMode = requestedMode === 'ai' && aiProviderAvailable
+  const strategyProfile = resolveStrategyProfile(currentRosterId, String(sport))
+  const queuePreview = buildDeterministicQueuePreview(available, strategyProfile)
   const cpuInput = {
     available,
     teamRoster,
@@ -140,18 +269,20 @@ export async function executeDraftPickForOrphan(
     sport: String(sport),
     isDynasty: league.isDynasty ?? false,
     isSF: isSuperflex,
-    mode: 'needs' as const,
-    queueFirst: [], // Orphan has no user queue; can be extended if roster-level queue exists
+    mode: strategyProfile.defaultMode,
+    // Deterministic strategy queue gives each orphan AI manager a stable "brain."
+    queueFirst: queuePreview,
   }
 
-  const pickResult =
-    drafterMode === 'ai'
-      ? await computeAIDrafterPick(cpuInput, { useAIProvider: true })
-      : computeCPUPick(cpuInput)
+  const pickResult = shouldAttemptAIMode
+    ? await computeAIDrafterPick(cpuInput, { useAIProvider: true })
+    : computeCPUPick(cpuInput)
 
   if (!pickResult) {
     return { success: false, error: 'Could not compute pick (no available players or recommendation).' }
   }
+  const executedMode = pickResult.drafterMode === 'ai' ? 'ai' : 'cpu'
+  const usedFallback = requestedMode === 'ai' && executedMode === 'cpu'
 
   const submitResult = await submitPick({
     leagueId,
@@ -166,7 +297,17 @@ export async function executeDraftPickForOrphan(
     return { success: false, error: submitResult.error }
   }
 
-  const reason = [pickResult.reason, pickResult.narrative].filter(Boolean).join(' ').trim() || pickResult.reason
+  const reasonBits = [
+    usedFallback
+      ? aiProviderAvailable
+        ? 'AI mode fell back to deterministic CPU execution for this pick.'
+        : 'AI providers unavailable; deterministic CPU fallback executed.'
+      : null,
+    `${strategyProfile.label} profile.`,
+    pickResult.reason,
+    pickResult.narrative,
+  ].filter(Boolean)
+  const reason = reasonBits.join(' ').trim() || pickResult.reason
   await logAction({
     leagueId,
     rosterId: currentRosterId,
@@ -179,8 +320,22 @@ export async function executeDraftPickForOrphan(
       slot: snapshot.currentPick.slot,
       overall: snapshot.currentPick.overall,
       confidence: pickResult.confidence,
-      drafterMode: pickResult.drafterMode,
+      requestedMode,
+      drafterMode: executedMode,
+      aiProviderAvailable,
+      usedFallback,
       narrative: pickResult.narrative ?? undefined,
+      strategyProfile: {
+        id: strategyProfile.id,
+        label: strategyProfile.label,
+        defaultMode: strategyProfile.defaultMode,
+        preferredPositions: strategyProfile.preferredPositions,
+      },
+      queuePreview: queuePreview.slice(0, 3).map((p) => ({
+        name: p.name,
+        position: p.position,
+        team: p.team,
+      })),
     },
     reason,
     triggeredBy: triggeredByUserId,
@@ -206,6 +361,10 @@ export async function executeDraftPickForOrphan(
       slot: snapshot.currentPick.slot,
     },
     reason,
+    requestedMode,
+    executedMode,
+    aiProviderAvailable,
+    usedFallback,
   }
 }
 

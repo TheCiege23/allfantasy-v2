@@ -3,6 +3,58 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { createMockDraftSession } from '@/lib/mock-draft-engine/MockDraftSessionService'
 import { prisma } from '@/lib/prisma'
+import type { MockRoomMode, MockSlotConfigEntry } from '@/lib/mock-draft-engine/types'
+
+function buildSlotConfigForMode(params: {
+  roomMode: string
+  numTeams: number
+  ownerUserId: string
+  humanTeams: number
+}): MockSlotConfigEntry[] {
+  const { roomMode, numTeams, ownerUserId, humanTeams } = params
+  if (roomMode === 'cpu_only') {
+    return Array.from({ length: numTeams }, (_, idx) => ({
+      slot: idx + 1,
+      type: 'cpu',
+      userId: null,
+      displayName: `CPU ${idx + 1}`,
+    }))
+  }
+  if (roomMode === 'linked_public') {
+    return Array.from({ length: numTeams }, (_, idx) => ({
+      slot: idx + 1,
+      type: 'human',
+      userId: idx === 0 ? ownerUserId : null,
+      displayName: idx === 0 ? 'Host' : `Open Slot ${idx + 1}`,
+    }))
+  }
+  if (roomMode === 'mixed') {
+    return Array.from({ length: numTeams }, (_, idx) => {
+      const slot = idx + 1
+      const isHuman = slot <= humanTeams
+      if (isHuman) {
+        return {
+          slot,
+          type: 'human',
+          userId: slot === 1 ? ownerUserId : null,
+          displayName: slot === 1 ? 'Host' : `Open Slot ${slot}`,
+        }
+      }
+      return {
+        slot,
+        type: 'cpu',
+        userId: null,
+        displayName: `CPU ${slot}`,
+      }
+    })
+  }
+  return Array.from({ length: numTeams }, (_, idx) => ({
+    slot: idx + 1,
+    type: idx === 0 ? 'human' : 'cpu',
+    userId: idx === 0 ? ownerUserId : null,
+    displayName: idx === 0 ? 'Host' : `CPU ${idx + 1}`,
+  }))
+}
 
 // Create mock draft. Uses mock-draft-engine when slotConfig or useSession provided (invite link, human/CPU slots).
 export async function POST(req: NextRequest) {
@@ -24,7 +76,24 @@ export async function POST(req: NextRequest) {
     const scoringFormat = String(body?.scoringFormat || 'default')
     const poolType = String(body?.poolType || 'all')
     const rosterSize = body?.rosterSize != null ? Number(body.rosterSize) : undefined
-    const slotConfig = Array.isArray(body?.slotConfig) ? body.slotConfig : undefined
+    const roomModeRaw = String(body?.roomMode || 'solo')
+    const roomMode: MockRoomMode =
+      roomModeRaw === 'mixed' || roomModeRaw === 'linked_public' || roomModeRaw === 'cpu_only'
+        ? roomModeRaw
+        : 'solo'
+    const humanTeams = Math.min(numTeams, Math.max(1, Number(body?.humanTeams) || 1))
+    const keepersEnabled = Boolean(body?.keepersEnabled)
+    const keepers = Array.isArray(body?.keepers) ? body.keepers : []
+    const slotConfig = Array.isArray(body?.slotConfig)
+      ? body.slotConfig
+      : body?.useSession
+        ? buildSlotConfigForMode({
+            roomMode,
+            numTeams,
+            ownerUserId: session.user.id,
+            humanTeams,
+          })
+        : undefined
 
     if (slotConfig !== undefined || body?.useSession) {
       const snapshot = await createMockDraftSession(session.user.id, {
@@ -41,6 +110,10 @@ export async function POST(req: NextRequest) {
           leagueId: leagueId || undefined,
           poolType,
           rosterSize,
+          roomMode,
+          humanTeams,
+          keepersEnabled,
+          keepers,
         },
         slotConfig,
       })
@@ -66,6 +139,10 @@ export async function POST(req: NextRequest) {
       scoringFormat,
       poolType,
       rosterSize,
+      roomMode,
+      humanTeams,
+      keepersEnabled,
+      keepers,
       source: body?.source || 'mock-draft-setup',
     }
 

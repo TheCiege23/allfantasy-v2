@@ -23,6 +23,7 @@ import ReputationPanel from '@/components/app/settings/ReputationPanel'
 import GMEconomyPanel from '@/components/app/settings/GMEconomyPanel'
 import RulesInfoPanel from '@/components/app/settings/RulesInfoPanel'
 import LeagueTemplatesPanel from '@/components/app/settings/LeagueTemplatesPanel'
+import LeagueImportPanel from '@/components/app/settings/LeagueImportPanel'
 import PreviousLeaguesPanel from '@/components/app/settings/PreviousLeaguesPanel'
 import ResetLeaguePanel from '@/components/app/settings/ResetLeaguePanel'
 import DeleteLeaguePanel from '@/components/app/settings/DeleteLeaguePanel'
@@ -36,6 +37,7 @@ import type { LeagueTabProps } from '@/components/app/tabs/types'
 const SUBTABS_BASE = [
   'General',
   'Templates',
+  'League Import',
   'Privacy & invites',
   'Team Settings',
   'Roster Settings',
@@ -133,6 +135,7 @@ export default function LeagueSettingsTab({
 
       {active === 'General' && <GeneralSettingsPanel leagueId={leagueId} />}
       {active === 'Templates' && <LeagueTemplatesPanel leagueId={leagueId} />}
+      {active === 'League Import' && <LeagueImportPanel leagueId={leagueId} />}
       {active === 'Privacy & invites' && <LeaguePrivacyAndInvitesPanel leagueId={leagueId} />}
       {active === 'Team Settings' && <TeamSettingsPanel />}
       {active === 'Roster Settings' && <RosterSettingsPanel leagueId={leagueId} />}

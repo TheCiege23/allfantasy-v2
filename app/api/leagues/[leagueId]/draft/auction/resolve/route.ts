@@ -11,6 +11,7 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { resolveAuctionWin } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
+import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,16 +30,29 @@ export async function POST(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
-  const forceByCommissioner = Boolean(body.forceByCommissioner ?? body.force_by_commissioner)
-  if (forceByCommissioner) {
+  const forceByCommissioner = Boolean(body.forceByCommissioner ?? body.force_by_commissioner ?? false)
+  const draftSession = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { status: true, timerEndAt: true, draftType: true },
+  })
+  if (!draftSession || draftSession.draftType !== 'auction') {
+    return NextResponse.json({ error: 'Auction session not found' }, { status: 404 })
+  }
+  if (draftSession.status !== 'in_progress') {
+    return NextResponse.json({ error: 'Draft is not in progress' }, { status: 400 })
+  }
+  const timerExpired =
+    draftSession.timerEndAt != null && draftSession.timerEndAt.getTime() <= Date.now()
+  const requiresCommissioner = forceByCommissioner || !timerExpired
+  if (requiresCommissioner) {
     try {
       await assertCommissioner(leagueId, userId)
     } catch {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Only commissioners can resolve before timer expiry' }, { status: 403 })
     }
   }
 
-  const result = await resolveAuctionWin(leagueId)
+  const result = await resolveAuctionWin(leagueId, { force: requiresCommissioner, now: new Date() })
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }

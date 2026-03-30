@@ -99,7 +99,7 @@ export function DraftRoomShell({
               {auctionStrip}
             </div>
           )}
-          <div className="p-2.5 sm:p-3 min-h-[200px] text-sm">
+          <div key={mobileTab} className="p-3 sm:p-3.5 min-h-[220px] text-sm transition-opacity duration-150">
             {mobileTab === 'board' && draftBoard}
             {mobileTab === 'players' && playerPanel}
             {mobileTab === 'queue' && queuePanel}

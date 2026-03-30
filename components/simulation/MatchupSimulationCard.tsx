@@ -3,6 +3,10 @@
 import Link from 'next/link'
 import { useMemo, useState, useEffect, useCallback } from 'react'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import type {
+  MatchupPredictionEngineOutput,
+  MatchupPredictionScoringRulesInput,
+} from '@/lib/matchup-prediction-engine'
 import {
   getMatchupAIChatUrl,
   buildMatchupSummaryForAI,
@@ -26,6 +30,7 @@ export type MatchupSimulationResult = {
   upsetChance: number
   volatilityTag: 'low' | 'medium' | 'high'
   iterations?: number
+  prediction?: MatchupPredictionEngineOutput | null
 }
 
 export type MatchupSimulationCardProps = {
@@ -45,6 +50,7 @@ export type MatchupSimulationCardProps = {
   weekOrPeriod?: number
   teamAId?: string
   teamBId?: string
+  scoringRules?: MatchupPredictionScoringRulesInput
   persist?: boolean
   className?: string
 }
@@ -79,6 +85,7 @@ export function MatchupSimulationCard({
   weekOrPeriod,
   teamAId,
   teamBId,
+  scoringRules,
   persist = false,
   className = '',
 }: MatchupSimulationCardProps) {
@@ -101,6 +108,7 @@ export function MatchupSimulationCard({
         leagueId,
         weekOrPeriod,
         persist,
+        scoringRules,
         teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev, teamId: teamAId },
         teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev, teamId: teamBId },
       }),
@@ -116,6 +124,7 @@ export function MatchupSimulationCard({
     leagueId,
     persist,
     sport,
+    scoringRules,
     teamA?.mean,
     teamA?.stdDev,
     teamAId,
@@ -148,6 +157,7 @@ export function MatchupSimulationCard({
         leagueId,
         weekOrPeriod,
         persist,
+        scoringRules,
         teamA: { mean: teamA?.mean ?? 0, stdDev: teamA?.stdDev, teamId: teamAId },
         teamB: { mean: teamB?.mean ?? 0, stdDev: teamB?.stdDev, teamId: teamBId },
       }),
@@ -165,6 +175,7 @@ export function MatchupSimulationCard({
     persist,
     resultProp,
     sport,
+    scoringRules,
     teamA?.mean,
     teamA?.stdDev,
     teamAId,
@@ -347,6 +358,20 @@ export function MatchupSimulationCard({
         <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5">
           <span className="text-[10px] text-amber-300/90">Upset chance (underdog)</span>
           <span className="text-[11px] font-semibold text-amber-400">{display.upsetChance}%</span>
+        </div>
+      )}
+
+      {result?.prediction && (
+        <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-cyan-200/90">
+            Deterministic prediction engine
+          </p>
+          <p className="mt-1 text-[11px] text-cyan-50/90">
+            {result.prediction.projectedScoreA.toFixed(1)} -{' '}
+            {result.prediction.projectedScoreB.toFixed(1)} projected •{' '}
+            {(result.prediction.winProbabilityA * 100).toFixed(1)}% /{' '}
+            {(result.prediction.winProbabilityB * 100).toFixed(1)}% win
+          </p>
         </div>
       )}
 

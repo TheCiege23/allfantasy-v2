@@ -7,9 +7,15 @@ type DraftRoomHarnessClientProps = {
   leagueId: string
   sport: string
   formatType?: string
+  isCommissioner?: boolean
 }
 
-export function DraftRoomHarnessClient({ leagueId, sport, formatType }: DraftRoomHarnessClientProps) {
+export function DraftRoomHarnessClient({
+  leagueId,
+  sport,
+  formatType,
+  isCommissioner = true,
+}: DraftRoomHarnessClientProps) {
   const [open, setOpen] = useState(false)
 
   if (!open) {
@@ -46,7 +52,7 @@ export function DraftRoomHarnessClient({ leagueId, sport, formatType }: DraftRoo
         leagueName="E2E Draft Room"
         sport={sport}
         isDynasty={false}
-        isCommissioner={true}
+        isCommissioner={isCommissioner}
         formatType={formatType}
       />
     </div>

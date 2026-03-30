@@ -9,11 +9,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { getDraftResults } from '@/lib/post-draft-manager-ranking'
+import { maybeEnhanceDraftResultsWithAi } from '@/lib/post-draft-manager-ranking/aiExplanationService'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -34,7 +35,12 @@ export async function GET(
         { status: 404 }
       )
     }
-    return NextResponse.json(payload)
+    const url = new URL(req.url)
+    const aiExplain = ['1', 'true', 'yes', 'on'].includes(
+      (url.searchParams.get('aiExplain') ?? '').toLowerCase()
+    )
+    const responsePayload = await maybeEnhanceDraftResultsWithAi(payload, aiExplain)
+    return NextResponse.json(responsePayload)
   } catch (e) {
     console.error('[draft-results]', e)
     return NextResponse.json(

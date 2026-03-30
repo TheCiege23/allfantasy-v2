@@ -16,9 +16,13 @@ export type KeeperPanelProps = {
 
 type KeeperApiState = {
   config: { maxKeepers: number; deadline?: string | null; maxKeepersPerPosition?: Record<string, number> }
+  deadlineLocked?: boolean
+  sessionStatus?: string
   selections: Array<{ rosterId: string; roundCost: number; playerName: string; position: string; team: string | null; playerId: string | null; commissionerOverride?: boolean }>
   locks: unknown[]
   mySelections: Array<{ rosterId: string; roundCost: number; playerName: string; position: string; team: string | null }>
+  myCarryover?: string[]
+  carryoverByRoster?: Record<string, string[]>
   currentUserRosterId: string | undefined
 }
 
@@ -46,6 +50,7 @@ export function KeeperPanel({
 
   const [configMaxKeepers, setConfigMaxKeepers] = useState(3)
   const [configDeadline, setConfigDeadline] = useState('')
+  const [configPositionCapsInput, setConfigPositionCapsInput] = useState('{}')
 
   const fetchKeepers = useCallback(async () => {
     setLoading(true)
@@ -60,13 +65,21 @@ export function KeeperPanel({
       }
       setData({
         config: json.config ?? { maxKeepers: 0 },
+        deadlineLocked: Boolean(json.deadlineLocked),
+        sessionStatus: json.sessionStatus ?? 'pre_draft',
         selections: json.selections ?? [],
         locks: json.locks ?? [],
         mySelections: json.mySelections ?? [],
+        myCarryover: Array.isArray(json.myCarryover) ? json.myCarryover : [],
+        carryoverByRoster:
+          json.carryoverByRoster && typeof json.carryoverByRoster === 'object'
+            ? json.carryoverByRoster
+            : {},
         currentUserRosterId: json.currentUserRosterId,
       })
       setConfigMaxKeepers(json.config?.maxKeepers ?? 3)
       setConfigDeadline(json.config?.deadline ? String(json.config.deadline).slice(0, 16) : '')
+      setConfigPositionCapsInput(JSON.stringify(json.config?.maxKeepersPerPosition ?? {}, null, 0))
     } finally {
       setLoading(false)
     }
@@ -78,7 +91,6 @@ export function KeeperPanel({
 
   const effectiveRosterId = isCommissioner && commissionerRosterId ? commissionerRosterId : (currentUserRosterId ?? data?.currentUserRosterId ?? '')
   const canAdd = data?.config?.maxKeepers != null && data.config.maxKeepers > 0 && effectiveRosterId && addPlayerName.trim() && addRoundCost >= 1 && addRoundCost <= rounds
-  const isPreDraft = true
 
   const handleAddKeeper = useCallback(async () => {
     if (!canAdd || actionLoading) return
@@ -137,12 +149,29 @@ export function KeeperPanel({
     setConfigSaving(true)
     setError(null)
     try {
+      let parsedPositionCaps: Record<string, number> | null = null
+      const capsRaw = configPositionCapsInput.trim()
+      if (capsRaw) {
+        try {
+          const parsed = JSON.parse(capsRaw) as Record<string, unknown>
+          parsedPositionCaps = {}
+          for (const [rawPos, rawCount] of Object.entries(parsed ?? {})) {
+            const pos = String(rawPos || '').trim().toUpperCase()
+            const count = Math.max(0, Math.min(10, Math.round(Number(rawCount) || 0)))
+            if (pos) parsedPositionCaps[pos] = count
+          }
+        } catch {
+          setError('Position caps must be valid JSON (example: {"QB":1,"RB":2})')
+          return
+        }
+      }
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/keepers/config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           maxKeepers: configMaxKeepers,
           deadline: configDeadline.trim() || null,
+          maxKeepersPerPosition: parsedPositionCaps,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -155,7 +184,7 @@ export function KeeperPanel({
     } finally {
       setConfigSaving(false)
     }
-  }, [leagueId, isCommissioner, configSaving, configMaxKeepers, configDeadline, fetchKeepers, onSessionUpdate])
+  }, [leagueId, isCommissioner, configSaving, configMaxKeepers, configDeadline, configPositionCapsInput, fetchKeepers, onSessionUpdate])
 
   if (loading) {
     return (
@@ -178,7 +207,13 @@ export function KeeperPanel({
 
   const maxKeepers = data?.config?.maxKeepers ?? 0
   const mySelections = data?.mySelections ?? []
-  const canEdit = isPreDraft && maxKeepers > 0
+  const isPreDraftStatus = (data?.sessionStatus ?? 'pre_draft') === 'pre_draft'
+  const deadlineLocked = Boolean(data?.deadlineLocked)
+  const canEdit = isPreDraftStatus && maxKeepers > 0 && (!deadlineLocked || isCommissioner)
+  const effectiveRosterCarryover =
+    effectiveRosterId && data?.carryoverByRoster
+      ? data.carryoverByRoster[effectiveRosterId] ?? []
+      : data?.myCarryover ?? []
 
   return (
     <div className="flex h-full flex-col overflow-auto p-3 text-sm">
@@ -192,6 +227,16 @@ export function KeeperPanel({
             Max {maxKeepers} keeper{maxKeepers !== 1 ? 's' : ''} per team.
             {data.config?.deadline ? ` Deadline: ${formatInTimezone(data.config.deadline)}` : ''}
           </p>
+          {deadlineLocked && (
+            <p className="mb-2 text-amber-300 text-xs" data-testid="draft-keeper-deadline-locked">
+              Keeper deadline has passed. {isCommissioner ? 'Commissioner can still override.' : 'Selections are locked.'}
+            </p>
+          )}
+          {!isPreDraftStatus && (
+            <p className="mb-2 text-amber-300 text-xs" data-testid="draft-keeper-draft-started-lock">
+              Draft already started. Keeper edits are disabled.
+            </p>
+          )}
           {error && <p className="mb-2 text-red-400 text-xs">{error}</p>}
 
           {isCommissioner && (
@@ -205,6 +250,7 @@ export function KeeperPanel({
                     min={0}
                     max={50}
                     value={configMaxKeepers}
+                    data-testid="draft-keeper-config-max-keepers"
                     onChange={(e) => setConfigMaxKeepers(Math.max(0, Math.min(50, parseInt(e.target.value, 10) || 0)))}
                     className="ml-2 w-14 rounded border border-white/20 bg-black/40 px-1 py-0.5 text-white"
                   />
@@ -214,14 +260,27 @@ export function KeeperPanel({
                   <input
                     type="datetime-local"
                     value={configDeadline}
+                    data-testid="draft-keeper-config-deadline"
                     onChange={(e) => setConfigDeadline(e.target.value)}
                     className="ml-2 rounded border border-white/20 bg-black/40 px-1 py-0.5 text-white"
+                  />
+                </label>
+                <label className="text-white/70">
+                  Position caps JSON
+                  <input
+                    type="text"
+                    value={configPositionCapsInput}
+                    data-testid="draft-keeper-config-position-caps"
+                    onChange={(e) => setConfigPositionCapsInput(e.target.value)}
+                    className="ml-2 w-44 rounded border border-white/20 bg-black/40 px-1 py-0.5 text-white"
+                    placeholder='{"QB":1,"RB":2}'
                   />
                 </label>
                 <button
                   type="button"
                   onClick={handleSaveConfig}
                   disabled={configSaving}
+                  data-testid="draft-keeper-config-save"
                   className="rounded bg-cyan-600 px-2 py-1 text-white hover:bg-cyan-500 disabled:opacity-50"
                 >
                   {configSaving ? 'Saving…' : 'Save'}
@@ -234,10 +293,16 @@ export function KeeperPanel({
             <h4 className="mb-2 font-medium text-white/90">My keepers</h4>
             <ul className="space-y-1">
               {mySelections.length === 0 ? (
-                <li className="text-white/50">None selected.</li>
+                <li className="text-white/50" data-testid="draft-keeper-empty">
+                  None selected.
+                </li>
               ) : (
                 mySelections.map((s, i) => (
-                  <li key={`${s.rosterId}-${s.playerName}-${s.roundCost}-${i}`} className="flex items-center justify-between gap-2 rounded bg-white/5 py-1.5 px-2">
+                  <li
+                    key={`${s.rosterId}-${s.playerName}-${s.roundCost}-${i}`}
+                    className="flex items-center justify-between gap-2 rounded bg-white/5 py-1.5 px-2"
+                    data-testid={`draft-keeper-row-${i}`}
+                  >
                     <span className="truncate text-white">
                       {s.playerName} · Rd{s.roundCost} · {s.position}
                       {s.team ? ` · ${s.team}` : ''}
@@ -247,6 +312,7 @@ export function KeeperPanel({
                         type="button"
                         onClick={() => handleRemove(s.rosterId, s.playerName)}
                         disabled={!!actionLoading}
+                        data-testid={`draft-keeper-remove-${i}`}
                         className="shrink-0 rounded p-1 text-red-400 hover:bg-red-500/20 disabled:opacity-50"
                         aria-label={`Remove ${s.playerName}`}
                       >
@@ -259,6 +325,23 @@ export function KeeperPanel({
             </ul>
           </section>
 
+          <section className="mb-4 rounded-lg border border-white/10 bg-black/20 p-3">
+            <h4 className="mb-2 font-medium text-white/90">Roster carryover visibility</h4>
+            {effectiveRosterCarryover.length === 0 ? (
+              <p className="text-white/55 text-xs" data-testid="draft-keeper-carryover-empty">
+                No carryover roster player names were detected.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5" data-testid="draft-keeper-carryover-list">
+                {effectiveRosterCarryover.slice(0, 24).map((name) => (
+                  <span key={name} className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/80">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+
           {canEdit && (
             <section className="rounded-lg border border-white/10 bg-black/20 p-3">
               <h4 className="mb-2 flex items-center gap-1 font-medium text-white/90">
@@ -269,6 +352,7 @@ export function KeeperPanel({
                   <label className="text-white/70">Roster</label>
                   <select
                     value={(commissionerRosterId || currentUserRosterId) ?? ''}
+                    data-testid="draft-keeper-select-roster"
                     onChange={(e) => setCommissionerRosterId(e.target.value)}
                     className="ml-2 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                   >
@@ -282,6 +366,7 @@ export function KeeperPanel({
                     <input
                       type="checkbox"
                       checked={commissionerOverride}
+                      data-testid="draft-keeper-commissioner-override"
                       onChange={(e) => setCommissionerOverride(e.target.checked)}
                     />
                     Override eligibility
@@ -293,6 +378,7 @@ export function KeeperPanel({
                   type="text"
                   placeholder="Player name"
                   value={addPlayerName}
+                  data-testid="draft-keeper-add-player-name"
                   onChange={(e) => setAddPlayerName(e.target.value)}
                   className="min-w-[100px] rounded border border-white/20 bg-black/40 px-2 py-1 text-white placeholder:text-white/40"
                 />
@@ -300,13 +386,15 @@ export function KeeperPanel({
                   type="text"
                   placeholder="Pos"
                   value={addPosition}
-                  onChange={(e) => setAddPosition(e.target.value)}
+                  data-testid="draft-keeper-add-position"
+                  onChange={(e) => setAddPosition(e.target.value.toUpperCase())}
                   className="w-12 rounded border border-white/20 bg-black/40 px-1 py-1 text-white placeholder:text-white/40"
                 />
                 <input
                   type="text"
                   placeholder="Team"
                   value={addTeam}
+                  data-testid="draft-keeper-add-team"
                   onChange={(e) => setAddTeam(e.target.value)}
                   className="w-14 rounded border border-white/20 bg-black/40 px-1 py-1 text-white placeholder:text-white/40"
                 />
@@ -314,6 +402,7 @@ export function KeeperPanel({
                   Round
                   <select
                     value={addRoundCost}
+                    data-testid="draft-keeper-add-round-cost"
                     onChange={(e) => setAddRoundCost(parseInt(e.target.value, 10))}
                     className="ml-1 rounded border border-white/20 bg-black/40 px-1 py-1 text-white"
                   >
@@ -328,6 +417,7 @@ export function KeeperPanel({
                   type="button"
                   onClick={handleAddKeeper}
                   disabled={!canAdd || !!actionLoading}
+                  data-testid="draft-keeper-add-submit"
                   className="rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-500 disabled:opacity-50"
                 >
                   {actionLoading === 'add' ? 'Adding…' : 'Add'}

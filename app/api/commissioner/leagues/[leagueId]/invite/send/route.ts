@@ -99,19 +99,33 @@ export async function POST(
   }
 
   if (type === "username") {
-    const profile = await prisma.userProfile.findFirst({
+    const appUser = await prisma.appUser.findFirst({
       where: {
-        OR: [
-          { displayName: { contains: username, mode: "insensitive" } },
-          { sleeperUsername: { contains: username, mode: "insensitive" } },
-        ],
+        username: { equals: username, mode: "insensitive" },
       },
-      select: { userId: true, displayName: true },
+      select: { id: true, username: true, displayName: true },
     })
+    const profile = appUser
+      ? null
+      : await prisma.userProfile.findFirst({
+          where: {
+            OR: [
+              { displayName: { contains: username, mode: "insensitive" } },
+              { sleeperUsername: { contains: username, mode: "insensitive" } },
+            ],
+          },
+          select: { userId: true, displayName: true, sleeperUsername: true },
+        })
+    const resolvedTarget =
+      appUser?.username ??
+      appUser?.displayName ??
+      profile?.displayName ??
+      profile?.sleeperUsername ??
+      null
     return NextResponse.json({
       ok: true,
       inviteUrl,
-      sentTo: profile?.displayName ?? undefined,
+      sentTo: resolvedTarget ?? undefined,
       message: "Share the link below with this user.",
     })
   }

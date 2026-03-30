@@ -7,6 +7,11 @@ import { runMatchupSimulation } from '@/lib/simulation-engine/MatchupSimulator'
 import { getDefaultScoreStdDev } from '@/lib/simulation-engine/SportSimulationResolver'
 import { percentiles } from '@/lib/simulation-engine/ScoreDistributionModel'
 import { getMatchupSimulationInsight } from '@/lib/simulation-engine/MatchupSimulationInsightAI'
+import {
+  predictMatchupDeterministic,
+  type MatchupPredictionScoringRulesInput,
+} from '@/lib/matchup-prediction-engine'
+import { generateMatchupStory } from '@/lib/matchup-story-engine'
 import type {
   MatchupLineupSlotInput,
   MatchupScheduleFactorsInput,
@@ -35,6 +40,8 @@ type MatchupRequestBody = {
   weekOrPeriod?: number
   persist?: boolean
   includeInsights?: boolean
+  includeStoryNarrative?: boolean
+  scoringRules?: MatchupPredictionScoringRulesInput
   deterministicSeed?: string
 }
 
@@ -127,6 +134,15 @@ export async function POST(req: NextRequest) {
       deterministicSeed: out.deterministicSeed ?? null,
     }
 
+    responseBody.prediction = predictMatchupDeterministic({
+      sport,
+      projectedScoreA: out.expectedScoreA,
+      projectedScoreB: out.expectedScoreB,
+      stdDevA: out.teamSummaryA?.derivedStdDev ?? body.teamA?.stdDev ?? getDefaultScoreStdDev(sport),
+      stdDevB: out.teamSummaryB?.derivedStdDev ?? body.teamB?.stdDev ?? getDefaultScoreStdDev(sport),
+      scoringRules: body.scoringRules,
+    })
+
     if (body.includeInsights) {
       const providerInsights = await getMatchupSimulationInsight(
         {
@@ -140,6 +156,30 @@ export async function POST(req: NextRequest) {
 
       if (providerInsights) {
         responseBody.providerInsights = providerInsights
+      }
+    }
+
+    if (body.includeStoryNarrative) {
+      const storyResult = await generateMatchupStory({
+        sport,
+        teamAName,
+        teamBName,
+        projectedScoreA: out.expectedScoreA,
+        projectedScoreB: out.expectedScoreB,
+        winProbabilityA: out.winProbabilityA,
+        winProbabilityB: out.winProbabilityB,
+        upsetChance: out.upsetChance,
+        volatilityTag: out.volatilityTag,
+      })
+
+      if (storyResult.ok) {
+        responseBody.storyNarrative = {
+          text: storyResult.narrative,
+          source: storyResult.source,
+          model: storyResult.model,
+        }
+      } else {
+        responseBody.storyNarrative = null
       }
     }
 

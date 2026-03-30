@@ -37,6 +37,34 @@ export default function DiscoverLeaguesPage() {
           Browse public leagues, creator communities, and brackets ranked to your current AllFantasy level.
           Commissioner invites can still unlock leagues outside your normal range.
         </p>
+        <section className="mb-8">
+          <h2 className="text-base font-semibold mb-3" style={{ color: "var(--text)" }}>
+            Popular league hubs
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/fantasy-football/leagues"
+              className="rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+            >
+              Fantasy football leagues
+            </Link>
+            <Link
+              href="/fantasy-basketball/leagues"
+              className="rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+            >
+              Fantasy basketball leagues
+            </Link>
+            <Link
+              href="/fantasy-baseball/leagues"
+              className="rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+            >
+              Fantasy baseball leagues
+            </Link>
+          </div>
+        </section>
         <PublicLeagueDiscoveryPage />
       </div>
     </div>

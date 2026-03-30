@@ -52,6 +52,23 @@ export interface KeeperOutcomeEntry {
   team: string | null
 }
 
+export interface TeamGradeExplanationEntry {
+  rank: number
+  rosterId: string
+  displayName: string
+  grade: string
+  score: number
+  explanation: string
+}
+
+export interface PostDraftRecapSections {
+  leagueNarrativeRecap: string
+  strategyRecap: string
+  bestWorstValueExplanation: string
+  chimmyDraftDebrief: string
+  teamGradeExplanations: TeamGradeExplanationEntry[]
+}
+
 export interface PostDraftSummary {
   leagueId: string
   leagueName: string | null

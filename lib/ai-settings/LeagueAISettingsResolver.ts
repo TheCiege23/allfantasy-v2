@@ -40,7 +40,10 @@ const DEFAULTS: LeagueAISettings = {
   aiDraftManagerOrphanEnabled: false,
 }
 
-function fromStorage(settings: Record<string, unknown>, orphanFromDraft: boolean): LeagueAISettings {
+function fromStorage(
+  settings: Record<string, unknown>,
+  orphanFromDraft: { orphanTeamAiManagerEnabled: boolean; orphanDrafterMode: 'cpu' | 'ai' }
+): LeagueAISettings {
   return {
     tradeAnalyzerEnabled: (settings[SETTINGS_KEYS.tradeAnalyzerEnabled] as boolean) ?? DEFAULTS.tradeAnalyzerEnabled,
     waiverAiEnabled: (settings[SETTINGS_KEYS.waiverAiEnabled] as boolean) ?? DEFAULTS.waiverAiEnabled,
@@ -49,7 +52,8 @@ function fromStorage(settings: Record<string, unknown>, orphanFromDraft: boolean
     matchupSimulatorEnabled: (settings[SETTINGS_KEYS.matchupSimulatorEnabled] as boolean) ?? DEFAULTS.matchupSimulatorEnabled,
     fantasyCoachEnabled: (settings[SETTINGS_KEYS.fantasyCoachEnabled] as boolean) ?? DEFAULTS.fantasyCoachEnabled,
     aiChatChimmyEnabled: (settings[SETTINGS_KEYS.aiChatChimmyEnabled] as boolean) ?? DEFAULTS.aiChatChimmyEnabled,
-    aiDraftManagerOrphanEnabled: orphanFromDraft,
+    aiDraftManagerOrphanEnabled:
+      orphanFromDraft.orphanTeamAiManagerEnabled && orphanFromDraft.orphanDrafterMode === 'ai',
   }
 }
 
@@ -65,7 +69,10 @@ export async function getLeagueAISettings(leagueId: string): Promise<LeagueAISet
     getDraftUISettingsForLeague(leagueId),
   ])
   const settings = (league?.settings as Record<string, unknown>) ?? {}
-  return fromStorage(settings, draftUI.orphanTeamAiManagerEnabled)
+  return fromStorage(settings, {
+    orphanTeamAiManagerEnabled: draftUI.orphanTeamAiManagerEnabled,
+    orphanDrafterMode: draftUI.orphanDrafterMode,
+  })
 }
 
 /**
@@ -102,6 +109,7 @@ export async function updateLeagueAISettings(
   if (patch.aiDraftManagerOrphanEnabled !== undefined) {
     await updateDraftUISettings(leagueId, {
       orphanTeamAiManagerEnabled: patch.aiDraftManagerOrphanEnabled,
+      orphanDrafterMode: patch.aiDraftManagerOrphanEnabled ? 'ai' : 'cpu',
     })
   }
 
@@ -111,7 +119,10 @@ export async function updateLeagueAISettings(
   })
 
   const draftUI = await getDraftUISettingsForLeague(leagueId)
-  return fromStorage(next, draftUI.orphanTeamAiManagerEnabled)
+  return fromStorage(next, {
+    orphanTeamAiManagerEnabled: draftUI.orphanTeamAiManagerEnabled,
+    orphanDrafterMode: draftUI.orphanDrafterMode,
+  })
 }
 
 /**

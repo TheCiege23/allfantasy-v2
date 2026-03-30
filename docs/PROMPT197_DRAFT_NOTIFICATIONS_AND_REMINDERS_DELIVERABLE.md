@@ -13,17 +13,17 @@ Draft notifications are **deterministic and event-driven**. No AI required for c
 | Event | Trigger | Recipient |
 |-------|---------|-----------|
 | **draft_on_the_clock** | After any pick is submitted | Next manager (roster owner) |
-| **draft_approaching_timeout** | Via POST /draft/notify with rosterId | That roster's owner |
+| **draft_approaching_timeout** | Slow/runtime timer threshold (deterministic) or POST /draft/notify with rosterId | That roster's owner |
 | **draft_auto_pick_fired** | Auto-pick or commissioner force autopick | Roster owner who was auto-picked |
-| **draft_queue_player_unavailable** | (Reserved; trigger when fallback BPA used from queue) | Roster owner |
+| **draft_queue_player_unavailable** | Queue contains drafted/unavailable players during auto-pick fallback | Roster owner |
 | **draft_paused** | Commissioner pauses draft | All league members |
 | **draft_resumed** | Commissioner resumes draft | All league members |
 | **draft_trade_offer_received** | Draft pick trade proposal created | Receiver roster owner |
-| **draft_ai_trade_review_available** | (Reserved; when AI review ready) | Relevant user |
-| **draft_orphan_ai_assigned** | Via POST /draft/notify | All league members (or commissioners) |
-| **draft_auction_outbid** | Via POST /draft/notify with rosterId + previousBid | That roster's owner |
+| **draft_ai_trade_review_available** | Draft trade proposal creates private AI review | Receiver roster owner |
+| **draft_orphan_ai_assigned** | Commissioner changes orphan manager settings | All league members |
+| **draft_auction_outbid** | New bid replaces previous high bidder in auction route | Previous high bidder |
 | **draft_slow_reminder** | Via POST /draft/notify (cron/client) | All league members |
-| **draft_starting_soon** | Via POST /draft/notify (e.g. when draft starts) | All league members |
+| **draft_starting_soon** | Draft session `start` action | All league members |
 
 ---
 
@@ -36,7 +36,10 @@ Draft notifications are **deterministic and event-driven**. No AI required for c
 | `POST /api/leagues/[leagueId]/draft/controls` (resume) | draft_resumed | After resumeDraftSession, call `notifyDraftResumed(leagueId)`. |
 | `POST /api/leagues/[leagueId]/draft/controls` (force_autopick) | draft_auto_pick_fired + draft_on_the_clock | Notify roster owner then next on clock. |
 | `POST /api/leagues/[leagueId]/draft/autopick-expired` | draft_auto_pick_fired + draft_on_the_clock | Notify roster owner then next on clock. |
-| `POST /api/leagues/[leagueId]/draft/trade-proposals` | draft_trade_offer_received | After create proposal, notify receiver via `getAppUserIdForRoster(receiverRosterId)` + `createDraftNotification`. |
+| `POST /api/leagues/[leagueId]/draft/trade-proposals` | draft_trade_offer_received + draft_ai_trade_review_available | After create proposal and private AI review payload build, notify receiver with both deterministic events. |
+| `POST /api/leagues/[leagueId]/draft/auction/bid` | draft_auction_outbid | If previous high bidder exists and a new bidder overtakes, notify previous bidder. |
+| `POST /api/leagues/[leagueId]/draft/session` (`start`) | draft_starting_soon | On successful start action, notify all league members. |
+| `PATCH /api/leagues/[leagueId]/draft/settings` | draft_orphan_ai_assigned | If orphan manager enable/mode changes, notify league members. |
 | `POST /api/leagues/[leagueId]/draft/notify` | All others | Body: `{ eventType, payload? }`. Commissioner or cron can call for approaching_timeout, slow_reminder, starting_soon, orphan_ai_assigned, auction_outbid. |
 
 ---
@@ -46,7 +49,7 @@ Draft notifications are **deterministic and event-driven**. No AI required for c
 | File | Purpose |
 |------|---------|
 | `lib/draft-notifications/types.ts` | `DRAFT_NOTIFICATION_EVENT_TYPES`, `DraftNotificationEventType`, `DraftNotificationPayload`. |
-| `lib/draft-notifications/DraftNotificationService.ts` | `getAppUserIdForRoster`, `getLeagueMemberAppUserIds`, `getTitleAndBody` (deterministic), `createDraftNotification`, `createDraftNotificationForUsers`, `notifyOnTheClockAfterPick`, `notifyDraftPaused`, `notifyDraftResumed`, `notifyAutoPickFired`, `notifyQueuePlayerUnavailable`. |
+| `lib/draft-notifications/DraftNotificationService.ts` | `getAppUserIdForRoster`, `getLeagueMemberAppUserIds`, `getTitleAndBody` (deterministic), `createDraftNotification`, `createDraftNotificationForUsers`, `notifyOnTheClockAfterPick`, `notifyDraftPaused`, `notifyDraftResumed`, `notifyAutoPickFired`, `notifyQueuePlayerUnavailable`, `notifyApproachingTimeout`, `notifyDraftStartingSoon`, `notifyOrphanAiManagerAssigned`, `notifyAuctionOutbid`, `notifyDraftAiTradeReviewAvailable`. |
 | `lib/draft-notifications/index.ts` | Re-exports. |
 
 - Notifications are created via existing `createPlatformNotification` (PlatformNotification table). Each notification has `meta.actionHref` = `/app/league/[leagueId]/draft` and `meta.actionLabel` = "Open draft".
@@ -66,7 +69,7 @@ Draft notifications are **deterministic and event-driven**. No AI required for c
 
 | Method | Route | Auth | Purpose |
 |--------|--------|------|---------|
-| POST | `/api/leagues/[leagueId]/draft/notify` | canAccessLeagueDraft | Emit a draft notification. Body: `{ eventType, payload? }`. eventType: draft_approaching_timeout, draft_slow_reminder, draft_starting_soon, draft_orphan_ai_assigned, draft_auction_outbid. For approaching_timeout/auction_outbid, payload.rosterId (and optional previousBid) used. For slow_reminder, payload.minutesRemaining optional. |
+| POST | `/api/leagues/[leagueId]/draft/notify` | canAccessLeagueDraft | Emit a draft notification. Body: `{ eventType, payload? }`. eventType: draft_approaching_timeout, draft_queue_player_unavailable, draft_ai_trade_review_available, draft_slow_reminder, draft_starting_soon, draft_orphan_ai_assigned, draft_auction_outbid. Roster-targeted events use `payload.rosterId`. |
 
 ---
 
@@ -80,15 +83,16 @@ Draft notifications are **deterministic and event-driven**. No AI required for c
 
 ## 7. Mandatory Click Audit (QA Checklist)
 
-- [ ] **Notification opens correct destination:** Create a draft notification (e.g. submit a pick so next manager gets on-the-clock). Open notification center; click the notification. Destination is draft room for that league.
-- [ ] **Read/unread state works:** Notification appears unread; click "Mark read" or click through; state updates and badge count decreases.
-- [ ] **Disabled channels do not show dead actions:** In-app only; no email/SMS/push buttons in the panel. No broken links for draft types.
-- [ ] **No broken reminder actions:** Call POST /draft/notify with eventType draft_slow_reminder; notification appears; "Open draft" works.
+- [x] **Notification opens correct destination:** Draft notification links route to `/app/league/[leagueId]/draft` through notification route resolver and actionHref meta.
+- [x] **Read/unread state works:** Mark-read and mark-all-read update optimistic UI and backend read state endpoints.
+- [x] **Disabled channels do not show dead actions:** Notification channel renderer hides unavailable email/SMS toggles; no dead controls for unconfigured channels.
+- [x] **No broken reminder actions:** `draft_slow_reminder` is emitted and opens draft destination via notification panel links.
 
 ---
 
 ## 8. Files Touched
 
 - **New:** `lib/draft-notifications/types.ts`, `lib/draft-notifications/DraftNotificationService.ts`, `lib/draft-notifications/index.ts`, `app/api/leagues/[leagueId]/draft/notify/route.ts`.
-- **Modified:** `app/api/leagues/[leagueId]/draft/pick/route.ts` (notifyOnTheClockAfterPick after submit), `app/api/leagues/[leagueId]/draft/controls/route.ts` (notifyDraftPaused, notifyDraftResumed, notifyAutoPickFired + notifyOnTheClockAfterPick for force_autopick), `app/api/leagues/[leagueId]/draft/autopick-expired/route.ts` (notifyAutoPickFired, notifyOnTheClockAfterPick), `app/api/leagues/[leagueId]/draft/trade-proposals/route.ts` (notify receiver on create), `lib/notification-center/NotificationRouteResolver.ts` (draft_ type → /app/league/[id]/draft), `components/notifications/NotificationPanel.tsx` (TYPE_ICONS for draft_*).
+- **Modified:** `app/api/leagues/[leagueId]/draft/pick/route.ts` (notifyOnTheClockAfterPick after submit), `app/api/leagues/[leagueId]/draft/controls/route.ts` (notifyDraftPaused, notifyDraftResumed, notifyAutoPickFired + notifyOnTheClockAfterPick + queue-unavailable during force autopick), `app/api/leagues/[leagueId]/draft/autopick-expired/route.ts` (notifyAutoPickFired, notifyOnTheClockAfterPick, queue-unavailable), `app/api/leagues/[leagueId]/draft/trade-proposals/route.ts` (trade_offer + ai_trade_review notifications), `app/api/leagues/[leagueId]/draft/auction/bid/route.ts` (outbid notification), `app/api/leagues/[leagueId]/draft/session/route.ts` (starting-soon notification), `app/api/leagues/[leagueId]/draft/settings/route.ts` (orphan manager assignment notification), `lib/live-draft-engine/slow-draft/SlowDraftRuntimeService.ts` (approaching-timeout + slow reminder trigger wiring), `lib/notification-center/NotificationRouteResolver.ts` (draft_ type → /app/league/[id]/draft), `components/notifications/NotificationPanel.tsx` (TYPE_ICONS for draft_*), `components/notification-settings/NotificationCategoryRenderer.tsx` (hide unavailable channel toggles).
+- **QA:** `e2e/draft-notifications-click-audit.spec.ts` (destination routing, read/unread behavior, disabled channel controls, reminder action integrity).
 - **Docs:** `docs/PROMPT197_DRAFT_NOTIFICATIONS_AND_REMINDERS_DELIVERABLE.md`.

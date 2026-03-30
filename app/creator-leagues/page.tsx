@@ -30,7 +30,7 @@ export default function CreatorLeaguesPage() {
         </h1>
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
           Join leagues hosted by verified creators and influencers. Each card shows the creator, league name, sport,
-          league type, and teams filled.
+          league type, teams filled, and join action. Explore creator profiles and live creator stats before joining.
         </p>
         <CreatorLeaguesClient />
         <div className="mt-10 pt-6 border-t" style={{ borderColor: "var(--border)" }}>

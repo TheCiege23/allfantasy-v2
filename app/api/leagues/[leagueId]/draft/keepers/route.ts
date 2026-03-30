@@ -11,6 +11,11 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { validateKeeperSelection } from '@/lib/live-draft-engine/keeper/KeeperRuleEngine'
 import type { KeeperConfig, KeeperSelection } from '@/lib/live-draft-engine/keeper/types'
+import {
+  getCarryoverByRosterForLeague,
+  isKeeperDeadlineLocked,
+  isKeeperEligibleFromCarryover,
+} from '@/lib/live-draft-engine/keeper/KeeperCarryover'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -31,16 +36,28 @@ export async function GET(
 
   const snapshot = await buildSessionSnapshot(leagueId)
   if (!snapshot) return NextResponse.json({ error: 'No draft session' }, { status: 404 })
+  const draftSession = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { status: true },
+  })
 
   const keeper = (snapshot as any).keeper
+  const config = (keeper?.config ?? { maxKeepers: 0 }) as KeeperConfig
+  const deadlineLocked = isKeeperDeadlineLocked(config)
   const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   const mySelections = keeper?.selections?.filter((s: any) => s.rosterId === currentUserRosterId) ?? []
+  const carryoverByRoster = await getCarryoverByRosterForLeague(leagueId)
+  const myCarryover = currentUserRosterId ? carryoverByRoster[currentUserRosterId] ?? [] : []
 
   return NextResponse.json({
-    config: keeper?.config ?? { maxKeepers: 0 },
+    config,
+    deadlineLocked,
+    sessionStatus: draftSession?.status ?? snapshot.status,
     selections: keeper?.selections ?? [],
     locks: keeper?.locks ?? [],
     mySelections,
+    carryoverByRoster,
+    myCarryover,
     currentUserRosterId: currentUserRosterId ?? undefined,
   })
 }
@@ -76,15 +93,13 @@ export async function POST(
   }
 
   const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
-  if (rosterId !== currentUserRosterId && !commissionerOverride) {
-    try {
-      await assertCommissioner(leagueId, userId)
-    } catch {
-      return NextResponse.json({ error: 'You can only set keepers for your own roster' }, { status: 403 })
-    }
-  }
-
   const isCommissioner = await assertCommissioner(leagueId, userId).then(() => true).catch(() => false)
+  if (rosterId !== currentUserRosterId && !isCommissioner) {
+    return NextResponse.json({ error: 'You can only set keepers for your own roster' }, { status: 403 })
+  }
+  if (commissionerOverride && !isCommissioner) {
+    return NextResponse.json({ error: 'Only commissioner can apply override' }, { status: 403 })
+  }
 
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
@@ -97,20 +112,47 @@ export async function POST(
   const config = (draftSession.keeperConfig ?? (draftSession as any).keeperConfig) as KeeperConfig | null
   const existing = (draftSession.keeperSelections ?? (draftSession as any).keeperSelections) as KeeperSelection[] | undefined
   const existingList = Array.isArray(existing) ? existing : []
+  const deadlineLocked = isKeeperDeadlineLocked(config)
+  if (deadlineLocked && !(isCommissioner && commissionerOverride)) {
+    return NextResponse.json({ error: 'Keeper deadline has passed. Commissioner override is required.' }, { status: 400 })
+  }
+
+  const parsedRound = Math.round(Number(roundCost))
+  if (!Number.isFinite(parsedRound) || parsedRound < 1) {
+    return NextResponse.json({ error: 'Round cost must be a positive integer' }, { status: 400 })
+  }
 
   const newSelection: KeeperSelection = {
     rosterId,
-    roundCost: Number(roundCost),
+    roundCost: parsedRound,
     playerName: String(playerName).trim(),
-    position: String(position).trim() || '—',
+    position: String(position).trim().toUpperCase() || '—',
     team: team != null ? String(team).trim() || null : null,
     playerId: playerId != null ? String(playerId).trim() || null : null,
     commissionerOverride: isCommissioner && commissionerOverride,
   }
 
+  if (!(isCommissioner && commissionerOverride)) {
+    const carryoverByRoster = await getCarryoverByRosterForLeague(leagueId)
+    const eligibility = isKeeperEligibleFromCarryover(rosterId, newSelection.playerName, carryoverByRoster)
+    if (eligibility.requiresCarryoverData && !eligibility.eligible) {
+      return NextResponse.json(
+        { error: 'Player is not eligible for keeper carryover on this roster.' },
+        { status: 400 }
+      )
+    }
+  }
+
+  const filteredExisting = existingList.filter((s) => {
+    if (s.rosterId !== rosterId) return true
+    const samePlayer = s.playerName.trim().toLowerCase() === newSelection.playerName.toLowerCase()
+    const sameRound = s.roundCost === newSelection.roundCost
+    return !samePlayer && !sameRound
+  })
+
   const validation = validateKeeperSelection({
     config,
-    existingSelections: existingList,
+    existingSelections: filteredExisting,
     newSelection,
     rounds: draftSession.rounds,
     teamCount: draftSession.teamCount,
@@ -120,13 +162,7 @@ export async function POST(
     return NextResponse.json({ error: validation.error }, { status: 400 })
   }
 
-  const withoutThisPlayer = existingList.filter(
-    (s) => !(s.rosterId === rosterId && s.playerName.trim().toLowerCase() === newSelection.playerName.toLowerCase())
-  )
-  const withoutThisRound = withoutThisPlayer.filter(
-    (s) => !(s.rosterId === rosterId && s.roundCost === newSelection.roundCost)
-  )
-  const nextSelections = [...withoutThisRound, newSelection]
+  const nextSelections = [...filteredExisting, newSelection]
 
   await prisma.draftSession.update({
     where: { id: draftSession.id },

@@ -73,12 +73,15 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
     try {
       const payload: Record<string, unknown> = {}
       if (ui) {
+        const cpuManagersEnabled =
+          ui.orphanTeamAiManagerEnabled && (ui.orphanDrafterMode ?? 'cpu') === 'cpu'
         payload.autoPickEnabled = ui.autoPickEnabled
         payload.timerMode = ui.timerMode
         payload.slowDraftPauseWindow = ui.slowDraftPauseWindow
         payload.commissionerForceAutoPickEnabled = ui.commissionerForceAutoPickEnabled
-        payload.orphanTeamAiManagerEnabled = ui.orphanTeamAiManagerEnabled
-        payload.orphanDrafterMode = ui.orphanDrafterMode
+        payload.commissionerPauseControlsEnabled = ui.commissionerPauseControlsEnabled
+        payload.orphanTeamAiManagerEnabled = cpuManagersEnabled
+        payload.orphanDrafterMode = 'cpu'
         payload.auctionAutoNominationEnabled = ui.auctionAutoNominationEnabled
       }
       if (config) payload.timer_seconds = config.timer_seconds
@@ -147,7 +150,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
       <div>
         <h3 className="text-sm font-semibold text-white">Automation Settings</h3>
         <p className="mt-1 text-xs text-white/65">
-          Deterministic automation only — no AI API required. Commissioners control timers, queue autopick, CPU managers, and draft pause.
+          Deterministic automation only — no AI API required. Commissioners control timers, queue auto-pick, CPU empty-team automation, overnight pauses, pause controls, and auction automation.
         </p>
       </div>
 
@@ -164,6 +167,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
                 value={effectiveConfig?.timer_seconds ?? ''}
                 onChange={(e) => setConfig((prev) => ({ ...(prev ?? {}), timer_seconds: e.target.value === '' ? null : parseInt(e.target.value, 10) }))}
                 placeholder="e.g. 90"
+                data-testid="commissioner-automation-autopick-timer-input"
                 className="w-24 rounded border border-white/20 bg-black/40 px-2 py-1.5 text-sm text-white"
               />
             ) : (
@@ -181,6 +185,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
               checked={effectiveUI.autoPickEnabled}
               onChange={(e) => setUIField('autoPickEnabled', e.target.checked)}
               disabled={!isCommissioner}
+              data-testid="commissioner-automation-queue-autopick-toggle"
               className="rounded border-white/20"
             />
             Enable queue autopick
@@ -189,29 +194,26 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
 
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">CPU managers for empty teams</h4>
-          <p className="mt-1 text-xs text-white/50">Rules-based drafting for orphan/empty teams — no AI API. Use CPU mode for fully deterministic behavior.</p>
+          <p className="mt-1 text-xs text-white/50">Rules-based drafting for orphan/empty teams. This panel enforces CPU mode only.</p>
           <label className="mt-2 flex items-center gap-2 text-sm text-white/90">
             <input
               type="checkbox"
-              checked={effectiveUI.orphanTeamAiManagerEnabled}
-              onChange={(e) => setUIField('orphanTeamAiManagerEnabled', e.target.checked)}
+              checked={effectiveUI.orphanTeamAiManagerEnabled && (effectiveUI.orphanDrafterMode ?? 'cpu') === 'cpu'}
+              onChange={(e) => {
+                const enabled = e.target.checked
+                setUIField('orphanTeamAiManagerEnabled', enabled)
+                setUIField('orphanDrafterMode', 'cpu')
+              }}
               disabled={!isCommissioner}
+              data-testid="commissioner-automation-cpu-empty-team-toggle"
               className="rounded border-white/20"
             />
-            Enable CPU/manager for empty teams
+            Enable CPU managers for empty teams
           </label>
-          {effectiveUI.orphanTeamAiManagerEnabled && isCommissioner && (
-            <div className="mt-2 flex items-center gap-2 text-sm">
-              <span className="text-white/60">Mode:</span>
-              <select
-                value={effectiveUI.orphanDrafterMode ?? 'cpu'}
-                onChange={(e) => setUIField('orphanDrafterMode', e.target.value as 'cpu' | 'ai')}
-                className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
-              >
-                <option value="cpu">CPU (deterministic, no API)</option>
-                <option value="ai">AI (optional, fallback to CPU)</option>
-              </select>
-            </div>
+          {effectiveUI.orphanTeamAiManagerEnabled && (effectiveUI.orphanDrafterMode ?? 'cpu') === 'ai' && (
+            <p className="mt-2 text-xs text-amber-300">
+              AI empty-team manager is currently active from AI settings. Enable the CPU toggle above to switch automation back to deterministic CPU mode.
+            </p>
           )}
         </div>
 
@@ -223,6 +225,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
               value={effectiveUI.timerMode}
               onChange={(e) => setUIField('timerMode', e.target.value as TimerMode)}
               disabled={!isCommissioner}
+              data-testid="commissioner-automation-timer-mode-select"
               className="rounded border border-white/20 bg-black/40 px-2 py-1 text-sm text-white"
             >
               {TIMER_MODE_OPTIONS.map((o) => (
@@ -239,6 +242,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
                   placeholder="22:00"
                   value={effectiveUI.slowDraftPauseWindow?.start ?? ''}
                   onChange={(e) => setUIField('slowDraftPauseWindow', { ...(effectiveUI.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), start: e.target.value })}
+                  data-testid="commissioner-automation-overnight-start-input"
                   className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                 />
               </label>
@@ -249,6 +253,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
                   placeholder="08:00"
                   value={effectiveUI.slowDraftPauseWindow?.end ?? ''}
                   onChange={(e) => setUIField('slowDraftPauseWindow', { ...(effectiveUI.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), end: e.target.value })}
+                  data-testid="commissioner-automation-overnight-end-input"
                   className="w-16 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                 />
               </label>
@@ -259,6 +264,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
                   placeholder="America/New_York"
                   value={effectiveUI.slowDraftPauseWindow?.timezone ?? ''}
                   onChange={(e) => setUIField('slowDraftPauseWindow', { ...(effectiveUI.slowDraftPauseWindow ?? { start: '', end: '', timezone: 'America/New_York' }), timezone: e.target.value })}
+                  data-testid="commissioner-automation-overnight-timezone-input"
                   className="w-40 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                 />
               </label>
@@ -268,16 +274,28 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
 
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-white/70">Draft pause controls</h4>
-          <p className="mt-1 text-xs text-white/50">Allow commissioner to force auto-pick and use pause/resume in the draft room.</p>
+          <p className="mt-1 text-xs text-white/50">Allow commissioner pause/resume/reset-timer controls in the draft room control center.</p>
+          <label className="mt-2 flex items-center gap-2 text-sm text-white/90">
+            <input
+              type="checkbox"
+              checked={effectiveUI.commissionerPauseControlsEnabled ?? true}
+              onChange={(e) => setUIField('commissionerPauseControlsEnabled', e.target.checked)}
+              disabled={!isCommissioner}
+              data-testid="commissioner-automation-pause-controls-toggle"
+              className="rounded border-white/20"
+            />
+            Enable commissioner draft pause controls
+          </label>
           <label className="mt-2 flex items-center gap-2 text-sm text-white/90">
             <input
               type="checkbox"
               checked={effectiveUI.commissionerForceAutoPickEnabled}
               onChange={(e) => setUIField('commissionerForceAutoPickEnabled', e.target.checked)}
               disabled={!isCommissioner}
+              data-testid="commissioner-automation-force-autopick-toggle"
               className="rounded border-white/20"
             />
-            Commissioner can force auto-pick and pause/resume draft
+            Enable commissioner force auto-pick
           </label>
         </div>
 
@@ -290,6 +308,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
               checked={effectiveUI.auctionAutoNominationEnabled}
               onChange={(e) => setUIField('auctionAutoNominationEnabled', e.target.checked)}
               disabled={!isCommissioner}
+              data-testid="commissioner-automation-auction-auto-nomination-toggle"
               className="rounded border-white/20"
             />
             Enable auction auto-nomination
@@ -303,6 +322,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
             type="button"
             onClick={handleSave}
             disabled={saving}
+            data-testid="commissioner-automation-save"
             className="rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-4 py-2 text-xs font-medium text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save automation settings'}

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { TokenBalanceResolver } from "@/lib/tokens/TokenBalanceResolver"
 
 export const dynamic = "force-dynamic"
 
@@ -16,13 +17,12 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // TODO: resolve from platform token/balance table when implemented; until then return stable shape
-    const balance = 0
-    const updatedAt = new Date().toISOString()
+    const resolver = new TokenBalanceResolver()
+    const snapshot = await resolver.resolveForUser(session.user.id)
 
     return NextResponse.json({
-      balance: Number(balance),
-      updatedAt: String(updatedAt),
+      balance: Number(snapshot.balance),
+      updatedAt: String(snapshot.updatedAt),
     })
   } catch (e) {
     console.error("[tokens/balance GET]", e instanceof Error ? e.message : e)

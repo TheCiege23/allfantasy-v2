@@ -21,6 +21,9 @@ export type RawDraftPlayerLike = {
   full_name?: string | null
   position?: string | null
   pos?: string | null
+  secondaryPositions?: string[] | null
+  positionEligibility?: string[] | null
+  eligiblePositions?: string[] | null
   team?: string | null
   teamAbbr?: string | null
   playerId?: string | null
@@ -65,13 +68,31 @@ export function normalizeDraftPlayer(
   const school = raw.school ?? (isDevy ? collegeOrPipeline : null)
   const draftEligibleYear = raw.draftEligibleYear != null ? Number(raw.draftEligibleYear) : null
   const graduatedToNFL = Boolean(raw.graduatedToNFL)
+  const secondaryPositions = Array.isArray(raw.secondaryPositions)
+    ? raw.secondaryPositions.map((p) => String(p).trim()).filter(Boolean)
+    : []
+  const explicitEligibility = Array.isArray(raw.positionEligibility)
+    ? raw.positionEligibility
+    : Array.isArray(raw.eligiblePositions)
+      ? raw.eligiblePositions
+      : []
+  const positionEligibility = Array.from(
+    new Set(
+      [position, ...secondaryPositions, ...explicitEligibility]
+        .map((p) => String(p ?? '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+  )
 
   const assets = resolvePlayerAssets(playerId || null, teamStr, sportNorm)
   const team = buildTeamDisplayModel(teamStr, sportNorm)
 
   const metadata: PlayerDraftMetadataModel = {
     position: position || '—',
+    secondaryPositions: secondaryPositions.length > 0 ? secondaryPositions : undefined,
+    positionEligibility: positionEligibility.length > 0 ? positionEligibility : undefined,
     teamAbbreviation: teamStr,
+    teamAffiliation: teamStr ?? (school != null ? String(school).trim() : null),
     byeWeek: bye,
     injuryStatus: injuryStatus != null ? String(injuryStatus).trim() : null,
     collegeOrPipeline: collegeOrPipeline != null ? String(collegeOrPipeline).trim() : (school != null ? String(school).trim() : null),

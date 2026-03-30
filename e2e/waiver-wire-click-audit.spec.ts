@@ -148,6 +148,11 @@ test.describe('@waiver waiver wire click audit', () => {
     await expect(page.getByTestId('waiver-player-detail-link-player-1')).toHaveAttribute('href', /\/player-comparison\?/)
     await expect(page.getByTestId('waiver-ai-help-link')).toHaveAttribute('href', /\/messages\?tab=ai/)
     await expect(page.getByTestId('waiver-ai-help-link')).toHaveAttribute('href', /insightType=waiver/)
+    await page.getByTestId('waiver-ai-engine-analyze').click()
+    await expect(page.getByTestId('waiver-ai-engine-results')).toBeVisible()
+    await page.getByTestId('waiver-ai-engine-explanation-toggle').click()
+    await page.getByTestId('waiver-ai-engine-analyze').click()
+    await expect(page.getByTestId('waiver-ai-engine-results')).toContainText('Source: ai')
 
     await closeHarness(page)
   })

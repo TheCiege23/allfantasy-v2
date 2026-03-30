@@ -54,9 +54,12 @@ export async function getLeagueChatMessages(
       body: m.message || '',
       createdAt: m.createdAt.toISOString(),
     }
-    const meta = (m as { imageUrl?: string | null; metadata?: Record<string, unknown> }).imageUrl
-      ? { ...((m as { metadata?: Record<string, unknown> }).metadata ?? {}), imageUrl: (m as { imageUrl?: string | null }).imageUrl }
-      : ((m as { metadata?: Record<string, unknown> }).metadata ?? undefined)
+    const baseMeta = ((m as { metadata?: Record<string, unknown> }).metadata ?? {}) as Record<string, unknown>
+    const withImage = (m as { imageUrl?: string | null }).imageUrl
+      ? { ...baseMeta, imageUrl: (m as { imageUrl?: string | null }).imageUrl }
+      : baseMeta
+    const withPresence = { ...withImage, lastActiveAt: m.createdAt.toISOString() }
+    const meta = Object.keys(withPresence).length > 0 ? withPresence : undefined
     return meta ? { ...base, metadata: meta } : base
   })
 }
@@ -108,9 +111,11 @@ export async function createLeagueChatMessage(
     createdAt: created.createdAt.toISOString(),
   }
   if (created.imageUrl || (created as { metadata?: Record<string, unknown> }).metadata) {
+    const baseMeta = ((created as { metadata?: Record<string, unknown> }).metadata ?? {}) as Record<string, unknown>
     out.metadata = {
-      ...((created as { metadata?: Record<string, unknown> }).metadata ?? {}),
+      ...baseMeta,
       ...(created.imageUrl && { imageUrl: created.imageUrl }),
+      lastActiveAt: created.createdAt.toISOString(),
     }
   }
   return out

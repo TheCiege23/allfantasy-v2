@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { comparePlayers, comparePlayersMulti, type ScoringFormat } from '@/lib/player-comparison-lab';
+import { comparePlayersMulti, runTwoPlayerComparisonEngine, type ScoringFormat } from '@/lib/player-comparison-lab';
 import type { LeagueScoringSettings } from '@/lib/player-comparison-lab/types';
 
 export async function GET(req: NextRequest) {
   const playerA = req.nextUrl.searchParams.get('playerA')?.trim();
   const playerB = req.nextUrl.searchParams.get('playerB')?.trim();
+  const sport = req.nextUrl.searchParams.get('sport');
+  const scoringFormatRaw = req.nextUrl.searchParams.get('scoringFormat');
+  const includeAIExplanation =
+    req.nextUrl.searchParams.get('includeAIExplanation') === 'true' ||
+    req.nextUrl.searchParams.get('includeAiExplanation') === 'true';
+
+  const scoringFormat =
+    scoringFormatRaw && SCORING_FORMATS.includes(scoringFormatRaw as ScoringFormat)
+      ? (scoringFormatRaw as ScoringFormat)
+      : undefined;
 
   if (!playerA || !playerB) {
     return NextResponse.json(
@@ -14,14 +24,28 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await comparePlayers(playerA, playerB);
+    const result = await runTwoPlayerComparisonEngine({
+      playerAName: playerA,
+      playerBName: playerB,
+      sport,
+      scoringFormat,
+      includeAIExplanation,
+    });
     if (!result) {
       return NextResponse.json(
         { error: 'Could not resolve one or both players' },
         { status: 404 }
       );
     }
-    return NextResponse.json(result);
+    return NextResponse.json({
+      playerA: result.comparison.playerA,
+      playerB: result.comparison.playerB,
+      chartSeries: result.comparison.chartSeries,
+      summaryLines: result.comparison.summaryLines,
+      deterministic: result.deterministic,
+      explanation: result.explanation,
+      sport: result.sport,
+    });
   } catch (e) {
     console.error('[player-comparison]', e);
     return NextResponse.json(
@@ -39,6 +63,8 @@ export async function POST(req: NextRequest) {
     sport?: string | null;
     scoringFormat?: string | null;
     leagueScoringSettings?: LeagueScoringSettings | null;
+    includeAIExplanation?: boolean | null;
+    includeAiExplanation?: boolean | null;
   };
   try {
     body = await req.json();
@@ -64,6 +90,7 @@ export async function POST(req: NextRequest) {
     typeof body.leagueScoringSettings === 'object'
       ? body.leagueScoringSettings
       : null;
+  const includeAIExplanation = Boolean(body.includeAIExplanation ?? body.includeAiExplanation);
 
   try {
     const result = await comparePlayersMulti(players, {
@@ -77,7 +104,55 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-    return NextResponse.json(result);
+
+    let twoPlayerEngine:
+      | {
+          sport: string;
+          deterministic: {
+            recommendedSide: 'playerA' | 'playerB' | 'tie';
+            recommendedPlayerName: string | null;
+            confidencePct: number;
+            basedOn: Array<'stats_comparison'>;
+            summary: string;
+            statComparisons: Array<{
+              metricId: string;
+              label: string;
+              playerAValue: number | null;
+              playerBValue: number | null;
+              higherIsBetter: boolean;
+              winner: 'playerA' | 'playerB' | 'tie' | 'none';
+              edgeScore: number | null;
+            }>;
+          };
+          explanation: {
+            source: 'deterministic' | 'ai';
+            text: string;
+          };
+        }
+      | null = null;
+
+    if (players.length === 2) {
+      const engine = await runTwoPlayerComparisonEngine({
+        playerAName: players[0],
+        playerBName: players[1],
+        sport: sport ?? undefined,
+        scoringFormat,
+        leagueScoringSettings,
+        includeAIExplanation,
+      });
+      if (engine) {
+        twoPlayerEngine = {
+          sport: engine.sport,
+          deterministic: engine.deterministic,
+          explanation: engine.explanation,
+        };
+      }
+    }
+
+    return NextResponse.json({
+      ...result,
+      twoPlayerEngine,
+    });
   } catch (e) {
     console.error('[player-comparison POST]', e);
     return NextResponse.json(

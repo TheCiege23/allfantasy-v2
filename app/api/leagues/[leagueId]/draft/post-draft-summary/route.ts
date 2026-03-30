@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
-import { buildPostDraftSummary } from '@/lib/post-draft'
+import { buildPostDraftSummary, ensurePostDraftFinalized } from '@/lib/post-draft'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +26,7 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
+    await ensurePostDraftFinalized(leagueId).catch(() => {})
     const summary = await buildPostDraftSummary(leagueId)
     if (!summary) return NextResponse.json({ error: 'Draft not completed or no session' }, { status: 404 })
     return NextResponse.json(summary)

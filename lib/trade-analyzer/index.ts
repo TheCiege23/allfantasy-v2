@@ -7,6 +7,13 @@ export {
   buildTradeSummaryForAI,
 } from "./TradeToAIContextBridge"
 export {
+  analyzeTradeWithOptionalAI,
+  type TradeAnalyzerAIInput,
+  type TradeAnalyzerAIOutput,
+  type TradeAnalyzerAssetInput,
+  type TradeAnalyzerSideInput,
+} from "./TradeAnalyzerAIService"
+export {
   TRADE_ANALYZER_SPORTS,
   getSportDisplayLabel,
   getSportOptions,

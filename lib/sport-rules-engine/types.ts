@@ -60,9 +60,10 @@ export interface PlayerPoolRules {
 export interface DraftOptionRules {
   sport: string
   formatType: string
-  /** Allowed draft types: snake, linear, auction, slow_draft. */
-  allowedDraftTypes: ('snake' | 'linear' | 'auction' | 'slow_draft')[]
-  defaultDraftType: 'snake' | 'linear' | 'auction'
+  /** Allowed draft types for this sport. */
+  allowedDraftTypes: ('snake' | 'linear' | 'auction' | 'slow_draft' | 'mock_draft')[]
+  /** Default draft type to pre-select for this sport. */
+  defaultDraftType: 'snake' | 'linear' | 'auction' | 'slow_draft'
   roundsDefault: number
   roundsMin: number
   roundsMax: number

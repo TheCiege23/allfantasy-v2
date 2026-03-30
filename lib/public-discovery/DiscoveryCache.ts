@@ -6,6 +6,7 @@
 import type { DiscoveryCard } from "./types"
 
 const TTL_MS = 60 * 1000 // 60 seconds
+const MAX_CACHE_ENTRIES = 300
 
 interface CacheEntry<T> {
   data: T
@@ -15,6 +16,14 @@ interface CacheEntry<T> {
 const bracketCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
 const creatorCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
 const fantasyCache = new Map<string, CacheEntry<DiscoveryCard[]>>()
+const computedDiscoveryListCache = new Map<
+  string,
+  CacheEntry<{
+    cards: DiscoveryCard[]
+    viewerTier: number
+    hiddenByTierPolicy: number
+  }>
+>()
 
 function now() {
   return Date.now()
@@ -31,6 +40,10 @@ function getCached<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
 
 function setCached<T>(map: Map<string, CacheEntry<T>>, key: string, data: T): void {
   map.set(key, { data, expiresAt: now() + TTL_MS })
+  if (map.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = map.keys().next().value
+    if (oldestKey) map.delete(oldestKey)
+  }
 }
 
 /** Cache key for bracket leagues: baseUrl + sport + query (query changes DB filter). */
@@ -62,10 +75,7 @@ export function setCachedBracketCards(
   query: string | null,
   cards: DiscoveryCard[]
 ): void {
-  bracketCache.set(getBracketCacheKey(baseUrl, sport, query), {
-    data: cards,
-    expiresAt: now() + TTL_MS,
-  })
+  setCached(bracketCache, getBracketCacheKey(baseUrl, sport, query), cards)
 }
 
 export function getCachedCreatorCards(baseUrl: string, sport: string | null): DiscoveryCard[] | null {
@@ -77,10 +87,7 @@ export function setCachedCreatorCards(
   sport: string | null,
   cards: DiscoveryCard[]
 ): void {
-  creatorCache.set(getCreatorCacheKey(baseUrl, sport), {
-    data: cards,
-    expiresAt: now() + TTL_MS,
-  })
+  setCached(creatorCache, getCreatorCacheKey(baseUrl, sport), cards)
 }
 
 export function getCachedFantasyCards(
@@ -97,10 +104,36 @@ export function setCachedFantasyCards(
   query: string | null,
   cards: DiscoveryCard[]
 ): void {
-  fantasyCache.set(getFantasyCacheKey(baseUrl, sport, query), {
-    data: cards,
-    expiresAt: now() + TTL_MS,
-  })
+  setCached(fantasyCache, getFantasyCacheKey(baseUrl, sport, query), cards)
+}
+
+/** Cache key for computed discovery lists (post-filter/sort, pre-pagination). */
+export function getComputedDiscoveryListCacheKey(
+  baseUrl: string,
+  keyPayload: Record<string, unknown>
+): string {
+  return `computed:${baseUrl}:${JSON.stringify(keyPayload)}`
+}
+
+export function getCachedComputedDiscoveryList(
+  key: string
+): {
+  cards: DiscoveryCard[]
+  viewerTier: number
+  hiddenByTierPolicy: number
+} | null {
+  return getCached(computedDiscoveryListCache, key)
+}
+
+export function setCachedComputedDiscoveryList(
+  key: string,
+  value: {
+    cards: DiscoveryCard[]
+    viewerTier: number
+    hiddenByTierPolicy: number
+  }
+): void {
+  setCached(computedDiscoveryListCache, key, value)
 }
 
 /** Optional: clear caches (e.g. after league create/update in admin). */
@@ -108,4 +141,5 @@ export function clearDiscoveryCache(): void {
   bracketCache.clear()
   creatorCache.clear()
   fantasyCache.clear()
+  computedDiscoveryListCache.clear()
 }

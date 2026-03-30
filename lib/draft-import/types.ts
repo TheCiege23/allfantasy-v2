@@ -43,6 +43,7 @@ export interface RawPickEntry {
   byeWeek?: number | null
   playerId?: string | null
   amount?: number | null
+  source?: string | null
 }
 
 /** External payload: traded pick. */

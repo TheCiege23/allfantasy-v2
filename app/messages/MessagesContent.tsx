@@ -91,6 +91,7 @@ import {
 import { useUserTimezone } from "@/hooks/useUserTimezone"
 import { ChimmyChatShell } from "@/components/chimmy"
 import { readAIContextFromSearchParams, resolveMessagesTab } from "@/lib/chimmy-chat"
+import type { AIChatContext } from "@/lib/chimmy-chat"
 import { buildChimmyToolDisplayContext } from "@/lib/chimmy-interface"
 
 const TABS = [
@@ -99,6 +100,24 @@ const TABS = [
   { id: "ai" as const, label: "AI Chatbot" },
 ]
 
+function buildDmAISeedPrompt(messages: PlatformChatMessage[]): string {
+  const lines = messages
+    .slice(-10)
+    .map((msg) => `${msg.senderName}: ${msg.body}`)
+    .filter((line) => line.trim().length > 0)
+  if (lines.length === 0) {
+    return "Help me with trade, waiver, and draft strategy based on this direct conversation."
+  }
+  return [
+    "Use this direct conversation as context and help with the best next fantasy move.",
+    "",
+    "Recent messages:",
+    ...lines,
+    "",
+    "Give one clear recommendation and a backup option.",
+  ].join("\n")
+}
+
 export default function MessagesContent() {
   const { formatInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
@@ -106,16 +125,7 @@ export default function MessagesContent() {
   const threadIdFromUrl = searchParams.get("thread")
   const messageIdFromUrl = searchParams.get("message")
   const startUsernameFromUrl = searchParams.get("start")
-  const aiContext = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
-  const chimmyToolContext = useMemo(
-    () =>
-      buildChimmyToolDisplayContext({
-        source: aiContext.source ?? null,
-        leagueName: aiContext.leagueName ?? null,
-        sport: aiContext.sport ?? null,
-      }),
-    [aiContext.leagueName, aiContext.source, aiContext.sport]
-  )
+  const aiContextFromUrl = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
 
   const [threads, setThreads] = useState<PlatformChatThread[]>([])
   const [loadingThreads, setLoadingThreads] = useState(true)
@@ -171,6 +181,7 @@ export default function MessagesContent() {
   const [addParticipantUsernames, setAddParticipantUsernames] = useState("")
   const [addingParticipants, setAddingParticipants] = useState(false)
   const [addParticipantError, setAddParticipantError] = useState<string | null>(null)
+  const [aiDmContext, setAiDmContext] = useState<AIChatContext | null>(null)
   const [threadActionError, setThreadActionError] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(messageIdFromUrl)
   const [hiddenBlockedMessageCount, setHiddenBlockedMessageCount] = useState(0)
@@ -252,6 +263,49 @@ export default function MessagesContent() {
     () => threads.find((t) => t.id === selectedThreadId) ?? null,
     [threads, selectedThreadId]
   )
+  const selectedThreadContext = (selectedThread?.context || {}) as Record<string, unknown>
+  const selectedDmTargetUsername =
+    typeof selectedThreadContext.otherUsername === "string" && selectedThreadContext.otherUsername.trim().length > 0
+      ? selectedThreadContext.otherUsername.trim()
+      : null
+  const aiContext = useMemo<AIChatContext>(
+    () => ({
+      ...aiContextFromUrl,
+      ...aiDmContext,
+      source: aiDmContext?.source ?? aiContextFromUrl.source,
+    }),
+    [aiContextFromUrl, aiDmContext]
+  )
+  const chimmyToolContext = useMemo(
+    () =>
+      buildChimmyToolDisplayContext({
+        source: aiContext.source ?? null,
+        leagueName: aiContext.leagueName ?? null,
+        sport: aiContext.sport ?? null,
+      }),
+    [aiContext.leagueName, aiContext.source, aiContext.sport]
+  )
+  const handleOpenDmAi = useCallback(() => {
+    if (!selectedThreadId) return
+    const nextAiContext: AIChatContext = {
+      source: "messages_dm_ai",
+      conversationId: selectedThreadId,
+      privateMode: selectedThread?.threadType === "dm",
+      targetUsername: selectedDmTargetUsername ?? undefined,
+      prompt: buildDmAISeedPrompt(messages),
+      strategyMode: "dm_chat_review",
+      leagueId:
+        typeof selectedThreadContext.leagueId === "string" && selectedThreadContext.leagueId.trim().length > 0
+          ? selectedThreadContext.leagueId.trim()
+          : undefined,
+      sport:
+        typeof selectedThreadContext.sport === "string" && selectedThreadContext.sport.trim().length > 0
+          ? (selectedThreadContext.sport.trim() as AIChatContext["sport"])
+          : undefined,
+    }
+    setAiDmContext(nextAiContext)
+    handleSelectTab("ai")
+  }, [handleSelectTab, messages, selectedDmTargetUsername, selectedThread?.threadType, selectedThreadContext, selectedThreadId])
   const blockedUserIdSet = useMemo(() => new Set(blockedUsers.map((b) => b.userId)), [blockedUsers])
   const selectedThreadBlockedDirect = useMemo(
     () => isBlockedDirectConversation(selectedThread, blockedUserIdSet),
@@ -752,6 +806,11 @@ export default function MessagesContent() {
             sport={aiContext.sport ?? null}
             season={aiContext.season ?? null}
             week={aiContext.week ?? null}
+            conversationId={aiContext.conversationId ?? null}
+            privateMode={Boolean(aiContext.privateMode)}
+            targetUsername={aiContext.targetUsername ?? null}
+            strategyMode={aiContext.strategyMode ?? null}
+            source={aiContext.source}
             toolContext={chimmyToolContext}
             className="min-h-[520px]"
           />
@@ -872,6 +931,19 @@ export default function MessagesContent() {
                       {selectedThread ? getConversationDisplayTitle(selectedThread) : "Conversation"}
                     </span>
                     <div className="ml-auto flex items-center gap-1">
+                      {activeTab === "dm" && (
+                        <button
+                          type="button"
+                          onClick={handleOpenDmAi}
+                          data-testid="messages-dm-ai-chat-button"
+                          className="rounded-lg border px-2 py-1.5 text-[11px]"
+                          style={{ borderColor: "var(--border)", color: "var(--accent-cyan-strong)" }}
+                          title="Ask Chimmy about this conversation"
+                          aria-label="Ask Chimmy about this conversation"
+                        >
+                          Ask AI
+                        </button>
+                      )}
                       {selectedThread?.threadType === "group" && (
                         <>
                           <button

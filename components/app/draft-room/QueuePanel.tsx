@@ -12,6 +12,8 @@ export type QueuePanelProps = {
   onDraftFromQueue?: (entry: QueueEntry) => void
   onAiReorder?: () => void
   aiReorderLoading?: boolean
+  aiReorderEnabled?: boolean
+  onAiReorderEnabledChange?: (value: boolean) => void
   autoPickFromQueue: boolean
   onAutoPickFromQueueChange: (value: boolean) => void
   awayMode: boolean
@@ -20,6 +22,10 @@ export type QueuePanelProps = {
   nextQueuedAvailable?: QueueEntry | null
   /** Explanation from last AI reorder */
   aiReorderExplanation?: string | null
+  /** Execution mode metadata from backend */
+  aiReorderExecutionMode?: string | null
+  /** Global commissioner setting for allowing auto-pick behaviors */
+  autoPickEnabled?: boolean
 }
 
 export function QueuePanel({
@@ -30,12 +36,16 @@ export function QueuePanel({
   onDraftFromQueue,
   onAiReorder,
   aiReorderLoading = false,
+  aiReorderEnabled = true,
+  onAiReorderEnabledChange,
   autoPickFromQueue,
   onAutoPickFromQueueChange,
   awayMode,
   onAwayModeChange,
   nextQueuedAvailable,
   aiReorderExplanation,
+  aiReorderExecutionMode,
+  autoPickEnabled = true,
 }: QueuePanelProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
@@ -49,22 +59,37 @@ export function QueuePanel({
       </div>
       <div className="flex flex-wrap gap-2 border-b border-white/8 p-2.5">
         {onAiReorder && (
-          <button
-            type="button"
-            onClick={onAiReorder}
-            disabled={aiReorderLoading || queue.length < 2}
-            data-testid="draft-queue-ai-reorder"
-            className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
-          >
-            <Zap className="h-3.5 w-3.5" />
-            {aiReorderLoading ? 'Reordering…' : 'AI reorder'}
-          </button>
+          <>
+            {onAiReorderEnabledChange && (
+              <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-cyan-100/85 touch-manipulation">
+                <input
+                  type="checkbox"
+                  checked={aiReorderEnabled}
+                  onChange={(e) => onAiReorderEnabledChange(e.target.checked)}
+                  data-testid="draft-queue-ai-reorder-toggle"
+                  className="rounded border-cyan-300/40 w-4 h-4"
+                />
+                AI explanation for reorder
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={onAiReorder}
+              disabled={aiReorderLoading || !aiReorderEnabled || queue.length < 2}
+              data-testid="draft-queue-ai-reorder"
+              className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              {aiReorderLoading ? 'Reordering…' : 'Auto reorder'}
+            </button>
+          </>
         )}
         <label className="min-h-[44px] flex cursor-pointer items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-[11px] text-white/75 touch-manipulation">
           <input
             type="checkbox"
             checked={autoPickFromQueue}
             onChange={(e) => onAutoPickFromQueueChange(e.target.checked)}
+            disabled={!autoPickEnabled}
             data-testid="draft-queue-autopick-toggle"
             className="rounded border-white/20 w-4 h-4"
           />
@@ -75,6 +100,7 @@ export function QueuePanel({
             type="checkbox"
             checked={awayMode}
             onChange={(e) => onAwayModeChange(e.target.checked)}
+            disabled={!autoPickEnabled}
             data-testid="draft-queue-away-toggle"
             className="rounded border-white/20 w-4 h-4"
           />
@@ -82,9 +108,19 @@ export function QueuePanel({
           Away mode
         </label>
       </div>
+      {!autoPickEnabled && (
+        <p className="border-b border-white/8 px-2 py-1.5 text-[10px] text-amber-200/90" data-testid="draft-queue-autopick-disabled-note">
+          Commissioner has disabled auto-pick for this draft.
+        </p>
+      )}
       {aiReorderExplanation && (
         <p className="border-b border-white/8 px-2 py-1.5 text-[10px] text-cyan-100/90" title="AI reorder explanation">
           {aiReorderExplanation}
+        </p>
+      )}
+      {aiReorderExecutionMode && (
+        <p className="border-b border-white/8 px-2 py-1.5 text-[10px] text-white/60" data-testid="draft-queue-execution-mode">
+          Execution: {aiReorderExecutionMode === 'ai_explained' ? 'rules engine + AI explanation' : 'instant rules automation'}
         </p>
       )}
       <div className="flex-1 overflow-auto overscroll-contain p-2.5">

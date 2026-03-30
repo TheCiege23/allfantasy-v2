@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getStripeClient } from "@/lib/stripe-client"
 import { getBaseUrl } from "@/lib/get-base-url"
+import {
+  assertNoLeagueSettlementIntent,
+  isMonetizationComplianceError,
+} from "@/lib/monetization/compliance-guardrails"
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +26,12 @@ export async function POST(req: NextRequest) {
     if (!["first_bracket_fee", "unlimited_unlock"].includes(paymentType)) {
       return NextResponse.json({ error: "Invalid paymentType" }, { status: 400 })
     }
+
+    assertNoLeagueSettlementIntent(String(paymentType), {
+      route: "/api/bracket/stripe/checkout",
+      paymentType: String(paymentType),
+      leagueId: String(leagueId ?? ""),
+    })
 
     const member = await (prisma as any).bracketLeagueMember.findUnique({
       where: {
@@ -134,6 +144,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: checkoutSession.url })
   } catch (err: any) {
+    if (isMonetizationComplianceError(err)) {
+      return NextResponse.json(
+        { error: err.message, code: err.code },
+        { status: err.statusCode }
+      )
+    }
     console.error("Stripe checkout error:", err)
     return NextResponse.json({ error: "Checkout failed" }, { status: 500 })
   }

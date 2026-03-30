@@ -27,6 +27,7 @@ import { parseOptionalNumber } from "@/lib/waiver-wire/WaiverClaimFlowController
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
+import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 
 type WaiverSettings = {
   leagueId?: string
@@ -63,9 +64,89 @@ type Transaction = {
   isDefensiveDrop?: boolean
 }
 
+type WaiverEngineSuggestion = {
+  playerId: string
+  playerName: string
+  position: string
+  team: string | null
+  compositeScore: number
+  recommendation: string
+  faabBid: number | null
+  topDrivers: Array<{ label: string; detail: string }>
+}
+
+type WaiverEngineAnalysis = {
+  sport: string
+  deterministic: {
+    basedOn: string[]
+    suggestions: WaiverEngineSuggestion[]
+  }
+  explanation: {
+    source: "deterministic" | "ai"
+    text: string
+  }
+}
+
+type RosterSnapshotPlayer = {
+  id: string
+  name: string
+  position: string
+  team: string | null
+  slot: "starter" | "bench" | "ir" | "taxi"
+  age: number | null
+  value: number
+}
+
+const POSITION_BASE_VALUE: Record<string, number> = {
+  QB: 2400,
+  RB: 3000,
+  WR: 2900,
+  TE: 2200,
+  K: 900,
+  DEF: 1000,
+  DST: 1000,
+  PG: 2600,
+  SG: 2500,
+  SF: 2500,
+  PF: 2500,
+  C: 2650,
+  SP: 2800,
+  RP: 1800,
+  P: 2600,
+  G: 2400,
+  F: 2400,
+  UTIL: 2200,
+  GKP: 1800,
+  GK: 1800,
+  MID: 2600,
+  FWD: 2700,
+  DM: 2200,
+  DEFENDER: 2100,
+}
+
+function estimateWaiverCandidateValue(position: string | null, trendScore: number, watchlisted: boolean): number {
+  const normalizedPosition = String(position ?? "").toUpperCase()
+  const base = POSITION_BASE_VALUE[normalizedPosition] ?? 2200
+  const trendBoost = Math.max(0, trendScore) * 240
+  const watchlistBoost = watchlisted ? 260 : 0
+  return Math.round(base + trendBoost + watchlistBoost)
+}
+
+function getFallbackNeedPositionsForSport(sport: string | null | undefined): string[] {
+  const normalizedSport = String(sport ?? DEFAULT_SPORT).toUpperCase()
+  if (normalizedSport === "NBA") return ["PG", "SG", "SF", "PF", "C"]
+  if (normalizedSport === "MLB") return ["SP", "RP", "1B", "2B", "3B", "SS", "OF"]
+  if (normalizedSport === "NHL") return ["C", "LW", "RW", "D", "G"]
+  if (normalizedSport === "SOCCER") return ["GK", "DEF", "MID", "FWD"]
+  if (normalizedSport === "NCAAB") return ["PG", "SG", "SF", "PF", "C"]
+  if (normalizedSport === "NCAAF") return ["QB", "RB", "WR", "TE"]
+  return ["QB", "RB", "WR", "TE"]
+}
+
 export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const defaultFilterState = getDefaultWaiverFilterState()
   const { formatInTimezone } = useUserTimezone()
+  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const [settings, setSettings] = useState<WaiverSettings | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [claims, setClaims] = useState<Claim[]>([])
@@ -91,7 +172,13 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const [drawerPlayer, setDrawerPlayer] = useState<Player | null>(null)
   const [pendingEdits, setPendingEdits] = useState<Record<string, { faabBid: string; priority: string; dropPlayerId: string }>>({})
   const [rosterPlayers, setRosterPlayers] = useState<Array<{ id: string; name: string | null }>>([])
+  const [rosterSnapshotPlayers, setRosterSnapshotPlayers] = useState<RosterSnapshotPlayer[]>([])
+  const [starterAllowedPositions, setStarterAllowedPositions] = useState<string[]>([])
   const [watchlistPlayerIds, setWatchlistPlayerIds] = useState<string[]>([])
+  const [waiverAiIncludeExplanation, setWaiverAiIncludeExplanation] = useState(false)
+  const [waiverAiLoading, setWaiverAiLoading] = useState(false)
+  const [waiverAiError, setWaiverAiError] = useState("")
+  const [waiverAiAnalysis, setWaiverAiAnalysis] = useState<WaiverEngineAnalysis | null>(null)
 
   const load = useCallback(async () => {
     if (!leagueId) return
@@ -127,17 +214,47 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         | { starters?: number; bench?: number; ir?: number; taxi?: number; devy?: number }
         | null
         | undefined
+      const starterPositions = Array.isArray(rosterData?.starterAllowedPositions)
+        ? (rosterData.starterAllowedPositions as unknown[])
+            .map((position) => String(position ?? "").toUpperCase())
+            .filter(Boolean)
+        : []
+      setStarterAllowedPositions(starterPositions)
       const capacityFromSlots = slotLimits
         ? Object.values(slotLimits).reduce((sum, value) => sum + (Number(value) || 0), 0)
         : 0
       setRosterCapacity(capacityFromSlots > 0 ? capacityFromSlots : null)
       const raw = Array.isArray(roster) ? roster : (roster as any)?.players ?? []
-      const withNames = raw.map((p: any) => {
+      const withNames: Array<{ id: string; name: string | null }> = raw.map((p: any) => {
         const id = typeof p === "string" ? p : p?.id ?? p?.player_id ?? ""
         const name = typeof p === "object" && p != null ? (p?.name ?? p?.displayName ?? null) : null
         return { id: String(id), name: name != null ? String(name) : null }
       }).filter((x: { id: string }) => x.id)
       setRosterPlayers(withNames)
+      const normalizedSnapshot = withNames.map((player: { id: string; name: string | null }, idx: number): RosterSnapshotPlayer => {
+        const source =
+          Array.isArray(raw) && typeof raw[idx] === "object" && raw[idx] != null
+            ? (raw[idx] as Record<string, unknown>)
+            : {}
+        const rawSlot = String(source.slot ?? source.rosterSlot ?? source.depthChartSlot ?? "").toLowerCase()
+        const slot: RosterSnapshotPlayer["slot"] =
+          rawSlot.includes("ir") ? "ir" : rawSlot.includes("taxi") ? "taxi" : rawSlot.includes("starter") ? "starter" : "bench"
+        const position = String(source.position ?? source.pos ?? source.primaryPosition ?? "").toUpperCase() || "UTIL"
+        const trendFallback = 0
+        const inferredValue =
+          Number(source.value ?? (source as any)?.assetValue?.marketValue ?? (source as any)?.assetValue?.impactValue ?? 0) ||
+          estimateWaiverCandidateValue(position, trendFallback, false)
+        return {
+          id: player.id,
+          name: player.name ?? player.id,
+          position,
+          team: source.team != null ? String(source.team) : source.teamAbbr != null ? String(source.teamAbbr) : null,
+          slot,
+          age: typeof source.age === "number" ? source.age : null,
+          value: Math.max(200, Number.isFinite(inferredValue) ? Number(inferredValue) : 1200),
+        }
+      })
+      setRosterSnapshotPlayers(normalizedSnapshot)
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to load waiver wire data."
       setLoadError(message)
@@ -173,6 +290,12 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       // Non-blocking watchlist persistence.
     }
   }, [leagueId, watchlistPlayerIds])
+
+  useEffect(() => {
+    if (!aiAssistantEnabled && waiverAiIncludeExplanation) {
+      setWaiverAiIncludeExplanation(false)
+    }
+  }, [aiAssistantEnabled, waiverAiIncludeExplanation])
 
   const submitClaimForPlayer = async (player: Player, opts: { dropPlayerId: string | null; faabBid: number | null; priorityOrder: number | null }) => {
     if (claimLoading) return
@@ -324,6 +447,137 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
     .filter((p) => watchlistIdSet.has(p.id))
     .map((p) => p.name)
     .slice(0, 3)
+  const waiverAiHelpHref = aiAssistantEnabled
+    ? getWaiverAIChatUrl(
+        buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined, {
+          waiverType: getWaiverTypeLabel(settings?.waiverType ?? null),
+          pendingClaims: claims.length,
+          watchlistCount: watchlistPlayerIds.length,
+          topTargets: topWatchlistTargets,
+        }),
+        {
+          leagueId,
+          insightType: 'waiver',
+          sport: settings?.sport ?? DEFAULT_SPORT,
+        }
+      )
+    : "#waiver-ai-engine-panel"
+  const inferredNeedPositions = useMemo(() => {
+    const positionCounts = new Map<string, number>()
+    for (const player of rosterSnapshotPlayers) {
+      if (!player.position) continue
+      positionCounts.set(player.position, (positionCounts.get(player.position) ?? 0) + 1)
+    }
+
+    const starterPositions = starterAllowedPositions.length > 0
+      ? starterAllowedPositions
+      : getFallbackNeedPositionsForSport(settings?.sport)
+    const uniqueStarterPositions = Array.from(new Set(starterPositions))
+    const scored = uniqueStarterPositions.map((position) => ({
+      position,
+      count: positionCounts.get(position) ?? 0,
+    }))
+    scored.sort((a, b) => a.count - b.count)
+    const needs = scored.filter((entry) => entry.count <= 1).map((entry) => entry.position)
+    return needs.slice(0, 4)
+  }, [rosterSnapshotPlayers, starterAllowedPositions, settings?.sport])
+
+  const inferredTeamNeedsPayload = useMemo(() => {
+    const weakestSlots = inferredNeedPositions.map((position, index) => ({
+      slot: position,
+      position,
+      currentPlayer: null,
+      currentValue: 0,
+      leagueMedianValue: 3000,
+      gap: Math.max(800, 2800 - index * 350),
+      gapPpg: 2.5 - index * 0.3,
+    }))
+
+    return {
+      weakestSlots,
+      biggestNeed: weakestSlots[0] ?? null,
+      byeWeekClusters: [],
+      positionalDepth: inferredNeedPositions.map((position, index) => ({
+        position,
+        count: 1,
+        leagueMedianCount: 2,
+        totalValue: Math.max(1000, 2400 - index * 220),
+        leagueMedianValue: 4200,
+        depthRating: Math.max(20, 38 - index * 4),
+      })),
+      dropCandidates: [],
+    }
+  }, [inferredNeedPositions])
+
+  const analyzeWaiversWithEngine = useCallback(async () => {
+    setWaiverAiLoading(true)
+    setWaiverAiError("")
+    setWaiverAiAnalysis(null)
+    const candidatePool = (activeTab === "trending" ? trendingPlayers : filteredPlayers).slice(0, 60)
+    if (candidatePool.length === 0) {
+      setWaiverAiError("No waiver candidates available for analysis.")
+      setWaiverAiLoading(false)
+      return
+    }
+
+    try {
+      const payload = {
+        leagueId,
+        sport: String(settings?.sport ?? DEFAULT_SPORT).toUpperCase(),
+        includeAIExplanation: waiverAiIncludeExplanation,
+        goal: "balanced" as const,
+        leagueSettings: {
+          numTeams: 12,
+          isDynasty: String(settings?.formatType ?? "").toLowerCase().includes("dynasty"),
+        },
+        teamNeeds: inferredTeamNeedsPayload,
+        roster: rosterSnapshotPlayers,
+        availablePlayers: candidatePool.map((player) => ({
+          playerId: player.id,
+          playerName: player.name,
+          position: player.position ?? "UTIL",
+          team: player.team,
+          value: estimateWaiverCandidateValue(
+            player.position,
+            trendScoreByPlayerId.get(player.id) ?? 0,
+            watchlistIdSet.has(player.id)
+          ),
+          source: "waiver-wire-ui",
+        })),
+        maxResults: 8,
+      }
+
+      const response = await fetch("/api/waiver-ai/engine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const message = typeof json?.error === "string" ? json.error : "Failed to analyze waivers with engine."
+        setWaiverAiError(message)
+        return
+      }
+      setWaiverAiAnalysis(json.analysis ?? null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to analyze waivers with engine."
+      setWaiverAiError(message)
+    } finally {
+      setWaiverAiLoading(false)
+    }
+  }, [
+    activeTab,
+    filteredPlayers,
+    inferredTeamNeedsPayload,
+    leagueId,
+    rosterSnapshotPlayers,
+    settings?.formatType,
+    settings?.sport,
+    trendScoreByPlayerId,
+    trendingPlayers,
+    waiverAiIncludeExplanation,
+    watchlistIdSet,
+  ])
 
   if (loading) {
     return (
@@ -705,6 +959,103 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </div>
       )}
 
+      <section id="waiver-ai-engine-panel" className="rounded-xl border border-cyan-500/20 bg-black/20 p-4" data-testid="waiver-ai-engine-panel">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-cyan-100">Waiver AI Engine</h2>
+            <p className="mt-1 text-xs text-white/60">
+              Deterministic waiver pickups scored from available players and team-needs context, with optional AI explanation.
+            </p>
+            {!aiAssistantEnabled && !aiAvailabilityLoading && (
+              <p className="mt-1 text-[11px] text-amber-200">
+                AI assistant is disabled. Deterministic waiver scoring remains available.
+              </p>
+            )}
+          </div>
+          <label className="inline-flex items-center gap-2 text-xs text-white/75">
+            <input
+              type="checkbox"
+              checked={waiverAiIncludeExplanation}
+              onChange={(event) => setWaiverAiIncludeExplanation(event.target.checked)}
+              disabled={!aiAssistantEnabled}
+              className="rounded border-white/30 bg-black/40"
+              data-testid="waiver-ai-engine-explanation-toggle"
+            />
+            AI explanation {!aiAssistantEnabled && !aiAvailabilityLoading ? '(disabled)' : ''}
+          </label>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void analyzeWaiversWithEngine()}
+            disabled={waiverAiLoading || players.length === 0}
+            data-testid="waiver-ai-engine-analyze"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/20 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {waiverAiLoading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Analyzing
+              </>
+            ) : (
+              "Analyze waivers"
+            )}
+          </button>
+          {inferredNeedPositions.length > 0 && (
+            <span className="text-[11px] text-white/55" data-testid="waiver-ai-engine-needs">
+              Need focus: {inferredNeedPositions.join(", ")}
+            </span>
+          )}
+        </div>
+
+        {waiverAiError && (
+          <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-200" data-testid="waiver-ai-engine-error">
+            {waiverAiError}
+          </p>
+        )}
+
+        {waiverAiAnalysis && (
+          <div className="mt-3 space-y-3" data-testid="waiver-ai-engine-results">
+            <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+              <div className="mb-1 flex items-center gap-2 text-xs text-white/65">
+                <span>
+                  Explanation source:{" "}
+                  <span className="font-medium text-cyan-200">{waiverAiAnalysis.explanation.source}</span>
+                </span>
+                <span className="text-white/35">|</span>
+                <span>Sport: {waiverAiAnalysis.sport}</span>
+              </div>
+              <p className="text-sm text-white/85">{waiverAiAnalysis.explanation.text}</p>
+            </div>
+            <ul className="space-y-2">
+              {waiverAiAnalysis.deterministic.suggestions.slice(0, 5).map((suggestion, index) => (
+                <li
+                  key={`${suggestion.playerId}-${index}`}
+                  className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2"
+                  data-testid={`waiver-ai-engine-suggestion-${index + 1}`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-white">
+                      #{index + 1} {suggestion.playerName} ({suggestion.position})
+                    </span>
+                    <span className="text-cyan-200">
+                      {suggestion.recommendation} · Score {suggestion.compositeScore}
+                      {suggestion.faabBid != null ? ` · FAAB ${suggestion.faabBid}%` : ""}
+                    </span>
+                  </div>
+                  {suggestion.topDrivers.length > 0 && (
+                    <p className="mt-1 text-[11px] text-white/60">
+                      {suggestion.topDrivers.map((driver) => driver.label).join(" · ")}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
         <h2 className="mb-2 text-sm font-semibold text-white">League waiver rules</h2>
         <p className="mb-3 text-xs text-white/55">{waiverRuleSummary}</p>
@@ -757,24 +1108,12 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         </p>
         <div className="mt-3 pt-3 border-t border-white/10">
           <Link
-            href={getWaiverAIChatUrl(
-              buildWaiverSummaryForAI(undefined, settings?.sport ?? undefined, {
-                waiverType: getWaiverTypeLabel(settings?.waiverType ?? null),
-                pendingClaims: claims.length,
-                watchlistCount: watchlistPlayerIds.length,
-                topTargets: topWatchlistTargets,
-              }),
-              {
-                leagueId,
-                insightType: 'waiver',
-                sport: settings?.sport ?? DEFAULT_SPORT,
-              }
-            )}
+            href={waiverAiHelpHref}
             data-testid="waiver-ai-help-link"
             className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 transition-colors"
           >
             <MessageSquare className="h-3.5 w-3.5" />
-            Get AI waiver help
+            {aiAssistantEnabled ? "Get AI waiver help" : "Open deterministic waiver guidance"}
           </Link>
         </div>
       </section>

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -7,9 +9,11 @@ import {
   getAllowedDraftTypesForLeagueType,
 } from '@/lib/league-creation-wizard/league-type-registry'
 import type { DraftTypeId, LeagueTypeId } from '@/lib/league-creation-wizard/types'
+import { useSportRules } from '@/hooks/useSportRules'
 import { StepHeader } from './StepHelp'
 
 export type DraftTypeSelectorProps = {
+  sport: string
   leagueType: LeagueTypeId
   value: DraftTypeId
   onChange: (draftType: DraftTypeId) => void
@@ -20,7 +24,7 @@ const DRAFT_TYPE_TOOLTIPS: Record<DraftTypeId, string> = {
   linear: 'Same pick order every round (1, 2, 3…).',
   auction: 'Each team has a budget; bid on players. Highest bid wins.',
   slow_draft: 'No live timer; picks can take hours or days. Good for busy leagues.',
-  mock_draft: 'Practice draft only; not used for league creation.',
+  mock_draft: 'Practice draft engine mode tied to mock-draft flows and recap tools.',
 }
 
 const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
@@ -28,7 +32,7 @@ const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
   linear: 'The same draft order repeats every round.',
   auction: 'Each manager gets a budget and bids on every player.',
   slow_draft: 'Async format with longer pick windows.',
-  mock_draft: 'Practice-only flow for testing draft strategy.',
+  mock_draft: 'Practice-first draft flow that integrates with the mock draft engine stack.',
 }
 
 const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
@@ -40,10 +44,18 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
 }
 
 /**
- * Draft type selection (snake, linear, auction, slow draft). Integrates with the live draft engine.
+ * Draft type selection (snake, linear, auction, slow draft, mock draft).
+ * Integrates with live draft engines and mock draft engine paths.
  */
-export function DraftTypeSelector({ leagueType, value, onChange }: DraftTypeSelectorProps) {
-  const allowed = getAllowedDraftTypesForLeagueType(leagueType)
+export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftTypeSelectorProps) {
+  const { rules } = useSportRules(sport, null)
+  const [showAdvancedSelector, setShowAdvancedSelector] = useState(false)
+  const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType)
+  const allowedBySport = rules?.draft.allowedDraftTypes ?? allowedByLeagueType
+  const allowed = (() => {
+    const intersected = allowedByLeagueType.filter((id) => allowedBySport.includes(id))
+    return intersected.length > 0 ? intersected : allowedByLeagueType
+  })()
   const safeValue = allowed.includes(value) ? value : allowed[0]!
   return (
     <div className="space-y-6">
@@ -52,13 +64,16 @@ export function DraftTypeSelector({ leagueType, value, onChange }: DraftTypeSele
         description="You can change it later in settings."
         help={
           <>
-            <strong>Snake</strong> — Rounds go 1–12, 12–1, 1–12… <strong>Linear</strong> — Same order every round. <strong>Auction</strong> — Budget (e.g. $200); bid on players. <strong>Slow draft</strong> — Asynchronous; each manager has a time window per pick.
+            <strong>Snake</strong> — Rounds go 1–12, 12–1, 1–12… <strong>Linear</strong> — Same order every round. <strong>Auction</strong> — Budget (e.g. $200); bid on players. <strong>Slow draft</strong> — Asynchronous; each manager has a time window per pick. <strong>Mock draft</strong> — Practice flow backed by mock draft runtime and recap.
           </>
         }
         helpTitle="Draft type explained"
       />
       <div className="space-y-3">
         <Label className="text-cyan-300">Type</Label>
+        <p className="text-xs text-white/60">
+          {String(sport).toUpperCase()} supports: {allowed.map((id) => DRAFT_TYPE_LABELS[id]).join(', ')}
+        </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {allowed.map((id) => (
             <button
@@ -98,19 +113,32 @@ export function DraftTypeSelector({ leagueType, value, onChange }: DraftTypeSele
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-white/70">Advanced selector</Label>
-        <Select value={safeValue} onValueChange={(v) => onChange(v as DraftTypeId)}>
-          <SelectTrigger className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white" title={DRAFT_TYPE_TOOLTIPS[safeValue]}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {allowed.map((id) => (
-              <SelectItem key={id} value={id} title={DRAFT_TYPE_TOOLTIPS[id]}>
-                {DRAFT_TYPE_LABELS[id]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <button
+          type="button"
+          onClick={() => setShowAdvancedSelector((v) => !v)}
+          className="flex items-center gap-2 text-sm text-white/70 hover:text-white/90 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 rounded px-1 py-0.5"
+          aria-expanded={showAdvancedSelector}
+        >
+          {showAdvancedSelector ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          Advanced selector
+        </button>
+        {showAdvancedSelector && (
+          <>
+            <Label className="text-white/70">Advanced selector</Label>
+            <Select value={safeValue} onValueChange={(v) => onChange(v as DraftTypeId)}>
+              <SelectTrigger className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white" title={DRAFT_TYPE_TOOLTIPS[safeValue]}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allowed.map((id) => (
+                  <SelectItem key={id} value={id} title={DRAFT_TYPE_TOOLTIPS[id]}>
+                    {DRAFT_TYPE_LABELS[id]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
     </div>
   )

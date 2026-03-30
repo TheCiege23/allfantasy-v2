@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Search, User, Plus } from 'lucide-react'
 import { applyDraftFilters, DRAFT_ROOM_MESSAGES, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
@@ -48,6 +48,8 @@ export type PlayerPanelProps = {
   aiAdpUnavailable?: boolean
   /** Optional message when AI ADP is enabled but unavailable */
   aiAdpUnavailableMessage?: string | null
+  /** When true, AI ADP snapshot is older than freshness window */
+  aiAdpStaleWarning?: boolean
   /** When true, segment or entries have low sample size (show warning) */
   aiAdpLowSampleWarning?: boolean
   /** Auction: when true, show Nominate as primary action (instead of Draft) */
@@ -62,6 +64,8 @@ export type PlayerPanelProps = {
   currentRound?: number
   /** When 'IDP', position filter includes Offense, DL, LB, DB, DE, DT, CB, S, IDP FLEX */
   formatType?: string
+  /** Optional external selection target (e.g. from helper recommendation click). */
+  selectedPlayerTarget?: { name: string; position: string; team?: string | null } | null
 }
 
 type SortKey = 'adp' | 'name'
@@ -188,6 +192,7 @@ function PlayerPanelInner({
   loading = false,
   aiAdpUnavailable = false,
   aiAdpUnavailableMessage = null,
+  aiAdpStaleWarning = false,
   aiAdpLowSampleWarning = false,
   canNominate = false,
   onNominate,
@@ -195,6 +200,7 @@ function PlayerPanelInner({
   c2cConfig,
   currentRound,
   formatType,
+  selectedPlayerTarget = null,
 }: PlayerPanelProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
@@ -220,6 +226,7 @@ function PlayerPanelInner({
   }, [players])
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
     let list = players.filter((p) => !draftedNames.has(p.name))
@@ -261,12 +268,47 @@ function PlayerPanelInner({
     return list
   }, [players, draftedNames, searchQuery, positionFilter, teamFilter, poolFilter, devyConfig?.enabled, c2cConfig?.enabled, sortBy, useAiAdp])
 
+  useEffect(() => {
+    if (!showPoolFilter || currentRound == null) return
+    if (c2cConfig?.enabled) {
+      setPoolFilter(isCollegeRound ? 'College' : 'Pro')
+      return
+    }
+    if (devyConfig?.enabled) {
+      setPoolFilter(isDevyRound ? 'Devy' : 'Pro')
+    }
+  }, [showPoolFilter, currentRound, c2cConfig?.enabled, devyConfig?.enabled, isCollegeRound, isDevyRound])
+
+  useEffect(() => {
+    if (!selectedPlayerTarget?.name) return
+    const match = players.find(
+      (p) =>
+        p.name.toLowerCase() === selectedPlayerTarget.name.toLowerCase() &&
+        p.position.toLowerCase() === (selectedPlayerTarget.position || '').toLowerCase()
+    )
+    if (!match) return
+    setShowRosterView(false)
+    setSelectedPlayer(match)
+    setSearchQuery(match.name)
+  }, [selectedPlayerTarget?.name, selectedPlayerTarget?.position, players])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onFocusSearch = () => {
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+    window.addEventListener('af:draft-player-search-focus', onFocusSearch)
+    return () => window.removeEventListener('af:draft-player-search-focus', onFocusSearch)
+  }, [])
+
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-player-panel">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-2.5">
         <div className="flex flex-1 min-h-[44px] items-center gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 touch-manipulation">
           <Search className="h-4 w-4 shrink-0 text-white/50" />
           <input
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -376,6 +418,11 @@ function PlayerPanelInner({
             AI ADP data not ready
           </span>
         )}
+        {useAiAdp && aiAdpStaleWarning && !aiAdpUnavailable && (
+          <span className="text-[10px] text-amber-300/90" title="AI ADP is stale and will refresh after the daily job">
+            Stale snapshot
+          </span>
+        )}
         {useAiAdp && aiAdpLowSampleWarning && !aiAdpUnavailable && (
           <span className="text-[10px] text-amber-400/90" title="Some ADP values based on few drafts">
             Low sample
@@ -415,7 +462,9 @@ function PlayerPanelInner({
               <p className="text-white/75">
                 {selectedPlayer.position}
                 {selectedPlayer.team ? ` · ${selectedPlayer.team}` : ''}
-                {selectedPlayer.adp != null ? ` · ADP ${selectedPlayer.adp}` : ''}
+                {(useAiAdp ? selectedPlayer.aiAdp : selectedPlayer.adp) != null
+                  ? ` · ${useAiAdp ? 'AI ADP' : 'ADP'} ${useAiAdp ? selectedPlayer.aiAdp : selectedPlayer.adp}`
+                  : ''}
               </p>
             </div>
             <button

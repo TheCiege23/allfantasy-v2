@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { Loader2, Trophy, Award, Target, Zap } from "lucide-react"
 
-type BoardId = "top" | "draft_grades" | "championships" | "win_pct" | "active"
+type BoardId = "draft_grades" | "championships" | "win_pct" | "active"
 
 interface LeaderboardEntry {
   rank: number
@@ -21,21 +21,19 @@ interface LeaderboardResult {
 }
 
 const BOARDS: { id: BoardId; label: string; icon: typeof Trophy; valueLabel: string }[] = [
-  { id: "top", label: "Top users", icon: Trophy, valueLabel: "Prestige" },
-  { id: "draft_grades", label: "Best drafters", icon: Award, valueLabel: "Avg grade" },
+  { id: "draft_grades", label: "Best draft grades", icon: Award, valueLabel: "Avg grade" },
   { id: "championships", label: "Most championships", icon: Trophy, valueLabel: "Championships" },
-  { id: "win_pct", label: "Win %", icon: Target, valueLabel: "Win %" },
-  { id: "active", label: "Most active", icon: Zap, valueLabel: "Leagues" },
+  { id: "win_pct", label: "Highest win %", icon: Target, valueLabel: "Win %" },
+  { id: "active", label: "Most active managers", icon: Zap, valueLabel: "Activity score" },
 ]
 
 function formatValue(boardId: BoardId, value: number): string {
   if (boardId === "win_pct") return `${value.toFixed(1)}%`
-  if (boardId === "top") return String(value)
   return String(value)
 }
 
 export default function LeaderboardsPage() {
-  const [activeBoard, setActiveBoard] = useState<BoardId>("top")
+  const [activeBoard, setActiveBoard] = useState<BoardId>("draft_grades")
   const [data, setData] = useState<LeaderboardResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,7 +59,7 @@ export default function LeaderboardsPage() {
   }, [activeBoard, fetchBoard])
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6" data-testid="leaderboards-page">
       <div className="mb-6">
         <Link
           href="/"
@@ -73,7 +71,7 @@ export default function LeaderboardsPage() {
           Platform leaderboards
         </h1>
         <p className="mt-1 text-sm text-white/60">
-          Top users, best drafters, win %, and most active. Compete on the board.
+          Best draft grades, most championships, highest win %, and most active managers.
         </p>
       </div>
 
@@ -85,6 +83,7 @@ export default function LeaderboardsPage() {
               key={b.id}
               type="button"
               onClick={() => setActiveBoard(b.id)}
+              data-testid={`leaderboards-tab-${b.id}`}
               className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                 activeBoard === b.id
                   ? "border-cyan-500/50 bg-cyan-500/15 text-cyan-200"
@@ -98,7 +97,7 @@ export default function LeaderboardsPage() {
         })}
       </div>
 
-      <section className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-6">
+      <section className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-6" data-testid="leaderboards-panel">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-white/50" />
@@ -118,16 +117,17 @@ export default function LeaderboardsPage() {
                 return (
                   <>
                     <Icon className="h-4 w-4" />
-                    <span>{b.label}</span>
+                    <span data-testid="leaderboards-current-board">{b.label}</span>
                     <span className="ml-auto">{data.total} managers</span>
                   </>
                 )
               })()}
             </div>
-            <ul className="mt-4 divide-y divide-white/10">
+            <ul className="mt-4 divide-y divide-white/10" data-testid="leaderboards-list">
               {data.entries.map((e) => (
                 <li
                   key={`${e.managerId}-${e.rank}`}
+                  data-testid={`leaderboards-row-${e.rank}`}
                   className="flex items-center gap-4 py-3 first:pt-0"
                 >
                   <span
@@ -149,7 +149,7 @@ export default function LeaderboardsPage() {
                     </span>
                     {e.extra?.count != null && e.extra.count > 0 && (
                       <span className="ml-2 text-xs text-white/50">
-                        ({e.extra.count} {activeBoard === "active" ? "leagues" : activeBoard === "top" ? "championships" : "seasons"})
+                        ({e.extra.count} {activeBoard === "active" ? "actions" : activeBoard === "championships" ? "titles" : "seasons"})
                       </span>
                     )}
                     {e.extra?.grade && (
@@ -169,8 +169,8 @@ export default function LeaderboardsPage() {
       </section>
 
       <p className="mt-4 text-center text-xs text-white/40">
-        Data from imported leagues and franchise profiles. Link your Sleeper account and sync
-        leagues to appear on leaderboards.
+        Deterministic metrics from draft grades, season outcomes, and manager activity events.
+        Link and sync your leagues to improve leaderboard coverage.
       </p>
     </main>
   )

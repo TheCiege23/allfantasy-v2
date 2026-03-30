@@ -1,5 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
+import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 function safeStr(v: unknown, max = 500) {
@@ -7,12 +9,33 @@ function safeStr(v: unknown, max = 500) {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function sanitizeMeta(value: unknown): Record<string, unknown> | unknown[] | null {
+  if (!value || typeof value !== "object") return null;
+  try {
+    const serialized = JSON.stringify(value);
+    if (!serialized) return null;
+    if (serialized.length <= 10_000) {
+      return JSON.parse(serialized) as Record<string, unknown> | unknown[];
+    }
+    return {
+      _truncated: true,
+      _approxSize: serialized.length,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "AnalyticsTrack" })(async (req: Request) => {
   try {
     const body = await req.json().catch(() => null);
+    const session = (await getServerSession(authOptions as any).catch(() => null)) as
+      | { user?: { id?: string } }
+      | null;
 
-    const event = safeStr(body?.event, 64);
-    if (!event) return NextResponse.json({ ok: false, error: "Missing event" }, { status: 400 });
+    const event = safeStr(body?.event, 64).trim();
+    // Fail soft: malformed/partial beacons should not surface as API failures.
+    if (!event) return NextResponse.json({ ok: true, dropped: true, reason: "missing_event" });
 
     const sessionId = safeStr(body?.sessionId, 128) || null;
     const path = safeStr(body?.path, 500) || null;
@@ -20,12 +43,9 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
     const userAgent = safeStr(req.headers.get("user-agent"), 500) || null;
 
     const toolKey = safeStr(body?.toolKey, 128) || null;
-    const userId = safeStr(body?.userId, 128) || null;
+    const userId = safeStr(body?.userId, 128) || safeStr(session?.user?.id, 128) || null;
 
-    const meta =
-      body?.meta && typeof body.meta === "object"
-        ? JSON.parse(JSON.stringify(body.meta).slice(0, 10_000))
-        : null;
+    const meta = sanitizeMeta(body?.meta);
 
     await prisma.analyticsEvent.create({
       data: {
@@ -41,7 +61,7 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
     });
 
     return NextResponse.json({ ok: true });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ ok: true });
   }
 })

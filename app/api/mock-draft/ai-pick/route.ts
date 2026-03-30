@@ -8,6 +8,7 @@ import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getStrategyMetaReports } from '@/lib/strategy-meta'
 import { getInsightBundle } from '@/lib/ai-simulation-integration'
+import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEngine'
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
@@ -621,20 +622,62 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'dm-suggestion') {
-      const suggestions = scored.ranked.slice(0, 3).map((item, idx) => ({
-        player: item.player.name,
-        position: item.player.position,
-        team: item.player.team || null,
-        adp: item.player.adp,
-        reason:
-          idx === 0
-            ? 'Best blend of roster fit, market value, and current signals'
-            : idx === 1
-              ? 'Alternative with strong upside if top option is sniped'
-              : 'Leverage/value fallback with acceptable risk profile',
-        confidence: item.confidence,
-        type: idx === 0 ? 'primary' : idx === 1 ? 'pivot' : 'value',
-      }))
+      const deterministic = computeDraftRecommendation({
+        available: safeAvailable.map((p) => ({
+          name: p.name,
+          position: p.position,
+          team: p.team ?? null,
+          adp: p.adp ?? null,
+          byeWeek: null,
+        })),
+        teamRoster,
+        rosterSlots: effectiveRosterSlots,
+        round,
+        pick,
+        totalTeams,
+        sport: normalizedSport,
+        isDynasty,
+        isSF: scoringProfile.isSuperflex,
+        mode: mode === 'bpa' ? 'bpa' : 'needs',
+      })
+      const deterministicSuggestions = [
+        ...(deterministic.recommendation
+          ? [{
+              player: deterministic.recommendation.player.name,
+              position: deterministic.recommendation.player.position,
+              team: deterministic.recommendation.player.team ?? null,
+              adp: deterministic.recommendation.player.adp ?? null,
+              reason: deterministic.recommendation.reason,
+              confidence: deterministic.recommendation.confidence,
+              type: 'primary' as const,
+            }]
+          : []),
+        ...deterministic.alternatives.map((item, idx) => ({
+          player: item.player.name,
+          position: item.player.position,
+          team: item.player.team ?? null,
+          adp: item.player.adp ?? null,
+          reason: item.reason,
+          confidence: item.confidence,
+          type: (idx === 0 ? 'pivot' : 'value') as 'pivot' | 'value',
+        })),
+      ].slice(0, 3)
+      const suggestions = deterministicSuggestions.length > 0
+        ? deterministicSuggestions
+        : scored.ranked.slice(0, 3).map((item, idx) => ({
+            player: item.player.name,
+            position: item.player.position,
+            team: item.player.team || null,
+            adp: item.player.adp,
+            reason:
+              idx === 0
+                ? 'Best blend of roster fit, market value, and current signals'
+                : idx === 1
+                  ? 'Alternative with strong upside if top option is sniped'
+                  : 'Leverage/value fallback with acceptable risk profile',
+            confidence: item.confidence,
+            type: idx === 0 ? 'primary' : idx === 1 ? 'pivot' : 'value',
+          }))
 
       const topNeeds = Object.entries(scored.needs)
         .sort(([, a], [, b]) => b - a)
@@ -673,6 +716,18 @@ Return exactly 2 concise sentences with clear action and fallback.`
       return NextResponse.json({
         legacyEnvelope: legacyMeta,
         suggestions,
+        recommendation: deterministic.recommendation,
+        alternatives: deterministic.alternatives,
+        reachWarning: deterministic.reachWarning,
+        valueWarning: deterministic.valueWarning,
+        scarcityInsight: deterministic.scarcityInsight,
+        stackInsight: deterministic.stackInsight,
+        correlationInsight: deterministic.correlationInsight,
+        formatInsight: deterministic.formatInsight,
+        byeNote: deterministic.byeNote,
+        evidence: deterministic.evidence,
+        caveats: deterministic.caveats,
+        uncertainty: deterministic.uncertainty,
         needs: Object.fromEntries(topNeeds),
         rosterCounts: teamRoster.reduce((acc: Record<string, number>, p: { position: string }) => {
           const pos = normalizePositionForSport(p.position, normalizedSport)

@@ -24,6 +24,16 @@ function arrayOfNumbers(x: unknown): number[] {
   return x.filter((v) => typeof v === 'number' && !Number.isNaN(v))
 }
 
+function readNumberFrom(input: Record<string, unknown>, keys: string[]): number | null {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(input, key)) {
+      const value = num(input[key])
+      if (value != null) return value
+    }
+  }
+  return null
+}
+
 /**
  * Validate league/draft settings. Returns errors that block save; warnings are advisory.
  */
@@ -33,6 +43,7 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
 
   const draftType = (input.draft_type ?? input.draftType ?? '') as string
   const leagueType = String(input.league_type ?? input.leagueType ?? '').toLowerCase()
+  const leagueVariant = String(input.league_variant ?? input.leagueVariant ?? '').toLowerCase()
 
   // --- Auction: draft_type === 'auction' requires a positive budget ---
   const auctionBudget =
@@ -49,21 +60,35 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
 
   // --- Devy: league_type === 'devy' or devyConfig.enabled requires non-empty devy rounds/slots ---
   const devyConfig = input.devyConfig ?? input.devy_config
+  const devyConfigObj =
+    devyConfig && typeof devyConfig === 'object' ? (devyConfig as Record<string, unknown>) : null
   const devyRounds =
-    Array.isArray((devyConfig as { devyRounds?: number[] })?.devyRounds)
-      ? (devyConfig as { devyRounds: number[] }).devyRounds
-      : Array.isArray((devyConfig as { devy_rounds?: number[] })?.devy_rounds)
-        ? (devyConfig as { devy_rounds: number[] }).devy_rounds
+    Array.isArray(devyConfigObj?.devyRounds)
+      ? (devyConfigObj.devyRounds as number[])
+      : Array.isArray(devyConfigObj?.devy_rounds)
+        ? (devyConfigObj.devy_rounds as number[])
         : input.draftSettings && typeof input.draftSettings === 'object'
           ? arrayOfNumbers((input.draftSettings as Record<string, unknown>).devyRounds)
           : arrayOfNumbers(input.devy_rounds ?? input.devyRounds)
+  const devySlots =
+    readNumberFrom(input, ['devy_slots', 'devySlots']) ??
+    (input.roster && typeof input.roster === 'object'
+      ? readNumberFrom(input.roster as Record<string, unknown>, ['devy_slots', 'devySlots'])
+      : null) ??
+    (devyConfigObj
+      ? readNumberFrom(devyConfigObj, ['slots', 'devySlots', 'devy_slots', 'poolSize'])
+      : null)
   const isDevyLeague =
     String(leagueType).toLowerCase() === 'devy' ||
-    (devyConfig && typeof devyConfig === 'object' && Boolean((devyConfig as { enabled?: boolean }).enabled))
+    leagueVariant === 'devy_dynasty' ||
+    Boolean(devyConfigObj?.enabled)
   if (isDevyLeague) {
     const rounds = Array.isArray(devyRounds) ? devyRounds : []
     if (rounds.length === 0) {
       errors.push('Devy league requires at least one devy round (devyRounds / devy_rounds or devyConfig.devyRounds).')
+    }
+    if (devySlots == null || devySlots <= 0) {
+      errors.push('Devy league requires at least one devy slot (devy_slots / devySlots or devyConfig.slots).')
     }
     const rosterModeDevy = (input.roster_mode ?? input.rosterMode ?? '') as string
     if (String(rosterModeDevy).toLowerCase() === 'redraft') {
@@ -73,21 +98,46 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
 
   // --- C2C: league_type === 'c2c' or c2cConfig.enabled requires non-empty college rounds/pool ---
   const c2cConfig = input.c2cConfig ?? input.c2c_config
+  const c2cConfigObj =
+    c2cConfig && typeof c2cConfig === 'object' ? (c2cConfig as Record<string, unknown>) : null
   const collegeRounds =
-    Array.isArray((c2cConfig as { collegeRounds?: number[] })?.collegeRounds)
-      ? (c2cConfig as { collegeRounds: number[] }).collegeRounds
-      : Array.isArray((c2cConfig as { college_rounds?: number[] })?.college_rounds)
-        ? (c2cConfig as { college_rounds: number[] }).college_rounds
+    Array.isArray(c2cConfigObj?.collegeRounds)
+      ? (c2cConfigObj.collegeRounds as number[])
+      : Array.isArray(c2cConfigObj?.college_rounds)
+        ? (c2cConfigObj.college_rounds as number[])
         : input.draftSettings && typeof input.draftSettings === 'object'
           ? arrayOfNumbers((input.draftSettings as Record<string, unknown>).c2cCollegeRounds)
           : arrayOfNumbers(input.c2c_college_rounds ?? input.c2cCollegeRounds)
+  const collegePoolSize =
+    readNumberFrom(input, [
+      'c2c_college_roster_size',
+      'c2cCollegeRosterSize',
+      'c2c_college_slots',
+      'c2cCollegeSlots',
+      'college_pool_size',
+      'collegePoolSize',
+    ]) ??
+    (c2cConfigObj
+      ? readNumberFrom(c2cConfigObj, [
+          'collegeRosterSize',
+          'college_roster_size',
+          'collegeSlots',
+          'college_slots',
+          'collegePoolSize',
+          'college_pool_size',
+        ])
+      : null)
   const isC2CLeague =
     String(leagueType).toLowerCase() === 'c2c' ||
-    (c2cConfig && typeof c2cConfig === 'object' && Boolean((c2cConfig as { enabled?: boolean }).enabled))
+    leagueVariant === 'merged_devy_c2c' ||
+    Boolean(c2cConfigObj?.enabled)
   if (isC2CLeague) {
     const rounds = Array.isArray(collegeRounds) ? collegeRounds : []
     if (rounds.length === 0) {
       errors.push('C2C league requires at least one college round (collegeRounds / c2cCollegeRounds or c2cConfig.collegeRounds).')
+    }
+    if (collegePoolSize == null || collegePoolSize <= 0) {
+      errors.push('C2C league requires a college pool capacity (c2c_college_roster_size / c2cCollegeRosterSize or c2cConfig.collegeRosterSize).')
     }
     const rosterModeC2C = (input.roster_mode ?? input.rosterMode ?? '') as string
     if (String(rosterModeC2C).toLowerCase() === 'redraft') {
@@ -148,4 +198,13 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
  */
 export function validate(input: LeagueSettingsInput): LeagueSettingsValidationResult {
   return validateLeagueSettings(input)
+}
+
+/**
+ * OO entry-point for callers that prefer explicit validator service naming.
+ */
+export class LeagueSettingsValidator {
+  static validate(input: LeagueSettingsInput): LeagueSettingsValidationResult {
+    return validateLeagueSettings(input)
+  }
 }

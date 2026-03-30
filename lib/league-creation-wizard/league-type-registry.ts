@@ -111,16 +111,17 @@ export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): Leag
   return all
 }
 
-/** Guillotine: snake, linear, auction only (no slow_draft). 3RR applies only to snake (UI). */
-const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction']
+/** Guillotine: snake, linear, auction, and mock draft only (no slow_draft). 3RR applies only to snake (UI). */
+const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mock_draft']
 
 /**
- * Draft types allowed for a league type. Mock draft is separate product; others available for redraft/dynasty/keeper etc.
- * Guillotine supports only snake, linear, auction.
+ * Draft types allowed for a league type.
+ * Mock draft stays available across league types as a practice engine mode.
+ * Guillotine supports snake/linear/auction and mock draft only.
  */
 export function getAllowedDraftTypesForLeagueType(leagueType: LeagueTypeId): DraftTypeId[] {
   if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
-  return ['snake', 'linear', 'auction', 'slow_draft']
+  return ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
 }
 
 /** Roster modes allowed for Guillotine (redraft / best_ball only). */

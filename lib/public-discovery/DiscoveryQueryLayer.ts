@@ -89,6 +89,62 @@ function resolvePaidFlag(raw: Record<string, unknown>): boolean {
   return false
 }
 
+function readString(raw: Record<string, unknown>, key: string): string | null {
+  const value = raw[key]
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeDraftType(value: string | null): string | null {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  if (normalized === "snake" || normalized === "linear" || normalized === "auction" || normalized === "slow_draft" || normalized === "mock_draft") {
+    return normalized
+  }
+  return normalized.length > 0 ? normalized : null
+}
+
+function normalizeDraftStatus(value: string | null): string | null {
+  if (!value) return null
+  const normalized = value.trim().toLowerCase()
+  if (
+    normalized === "pre_draft" ||
+    normalized === "in_progress" ||
+    normalized === "paused" ||
+    normalized === "completed"
+  ) {
+    return normalized
+  }
+  return normalized.length > 0 ? normalized : null
+}
+
+function resolveAiFeatures(raw: Record<string, unknown>): string[] {
+  const explicit = raw.aiFeatures
+  if (Array.isArray(explicit)) {
+    const values = explicit.map((feature) => String(feature).trim()).filter(Boolean)
+    if (values.length > 0) return values.slice(0, 4)
+  }
+
+  const featureMap: Array<{ key: string; label: string }> = [
+    { key: "ai_adp_enabled", label: "AI ADP" },
+    { key: "draft_helper_enabled", label: "Draft helper" },
+    { key: "orphan_team_ai_manager_enabled", label: "AI manager" },
+    { key: "ai_feature_trade_analyzer_enabled", label: "Trade analyzer" },
+    { key: "ai_feature_waiver_ai_enabled", label: "Waiver AI" },
+    { key: "ai_feature_player_comparison_enabled", label: "Player compare" },
+    { key: "ai_feature_matchup_simulator_enabled", label: "Matchup AI" },
+    { key: "ai_feature_fantasy_coach_enabled", label: "Fantasy coach" },
+    { key: "ai_feature_ai_chat_chimmy_enabled", label: "Chimmy chat" },
+  ]
+
+  const enabled = featureMap
+    .filter((feature) => raw[feature.key] === true)
+    .map((feature) => feature.label)
+
+  return enabled.slice(0, 4)
+}
+
 function isFantasyLeagueDiscoverable(settings: Record<string, unknown>): boolean {
   const visibility = String(settings[LEAGUE_VISIBILITY_KEY] ?? "").trim().toLowerCase()
   const hasPublicDashboard = settings[LEAGUE_PUBLIC_DASHBOARD_KEY] === true
@@ -115,15 +171,25 @@ function normalizeSportFilter(sport: string | null): LeagueSport | null {
 export async function queryPublicFantasyLeagueCards(options: {
   sport: string | null
   query: string | null
+  candidateLeagueIds?: string[] | null
   baseUrl?: string
   take?: number
 }): Promise<DiscoveryCard[]> {
   const baseUrl = resolveBaseUrl(options.baseUrl)
   const sport = normalizeSportFilter(options.sport)
   const query = typeof options.query === "string" ? options.query.trim().toLowerCase() : null
+  const candidateLeagueIds = Array.isArray(options.candidateLeagueIds)
+    ? [...new Set(options.candidateLeagueIds.map((id) => String(id).trim()).filter(Boolean))]
+    : null
+  if (candidateLeagueIds != null && candidateLeagueIds.length === 0) return []
+
+  const where = {
+    ...(sport ? { sport } : {}),
+    ...(candidateLeagueIds ? { id: { in: candidateLeagueIds } } : {}),
+  }
 
   const leagues = await prisma.league.findMany({
-    where: sport ? { sport } : undefined,
+    where,
     select: {
       id: true,
       userId: true,
@@ -137,6 +203,14 @@ export async function queryPublicFantasyLeagueCards(options: {
       settings: true,
       createdAt: true,
       updatedAt: true,
+      draftSessions: {
+        orderBy: [{ updatedAt: "desc" }],
+        take: 1,
+        select: {
+          draftType: true,
+          status: true,
+        },
+      },
       user: {
         select: {
           username: true,
@@ -185,6 +259,17 @@ export async function queryPublicFantasyLeagueCards(options: {
         settings,
       })
       const leagueTier = extractLeagueCareerTier(settings, 1)
+      const latestDraftSession = league.draftSessions[0]
+      const draftType =
+        normalizeDraftType(latestDraftSession?.draftType ?? null) ??
+        normalizeDraftType(readString(settings, "draft_type")) ??
+        normalizeDraftType(readString(settings, "draftType")) ??
+        null
+      const draftStatus =
+        normalizeDraftStatus(latestDraftSession?.status ?? null) ??
+        normalizeDraftStatus(readString(settings, "draft_status")) ??
+        normalizeDraftStatus(readString(settings, "draftStatus")) ??
+        null
 
       return {
         source: "fantasy",
@@ -209,16 +294,15 @@ export async function queryPublicFantasyLeagueCards(options: {
         fillPct: buildFillPct(memberCount, maxMembers),
         leagueType: "fantasy",
         leagueStyle,
-        draftType: null,
+        draftType,
+        draftStatus,
         teamCount: maxMembers,
         draftDate:
           typeof settings.draftDate === "string" && settings.draftDate.trim()
             ? String(settings.draftDate)
             : null,
         commissionerName: league.user?.displayName ?? league.user?.username ?? "Commissioner",
-        aiFeatures: Array.isArray(settings.aiFeatures)
-          ? settings.aiFeatures.map((feature) => String(feature)).filter(Boolean).slice(0, 3)
-          : [],
+        aiFeatures: resolveAiFeatures(settings),
         leagueTier,
       }
     })
@@ -316,6 +400,7 @@ export async function queryPublicBracketLeagueCards(options: {
       leagueType: "bracket",
       leagueStyle: "bracket",
       draftType: null,
+      draftStatus: null,
       teamCount: maxMembers,
       draftDate: league.deadline ? league.deadline.toISOString() : null,
       commissionerName: league.owner?.displayName ?? "Commissioner",
@@ -406,9 +491,29 @@ export async function queryPublicCreatorLeagueCards(options: {
         })
       : Promise.resolve([]),
   ])
+  const linkedFantasySessions = linkedLeagueIds.length
+    ? await prisma.draftSession.findMany({
+        where: { leagueId: { in: [...new Set(linkedLeagueIds)] } },
+        select: {
+          leagueId: true,
+          status: true,
+          draftType: true,
+          updatedAt: true,
+        },
+        orderBy: [{ updatedAt: "desc" }],
+      })
+    : []
 
   const fantasyLeagueById = new Map(linkedFantasyLeagues.map((league) => [league.id, league]))
   const bracketLeagueById = new Map(linkedBracketLeagues.map((league) => [league.id, league]))
+  const fantasySessionByLeagueId = new Map<string, { status: string; draftType: string }>()
+  for (const session of linkedFantasySessions) {
+    if (fantasySessionByLeagueId.has(session.leagueId)) continue
+    fantasySessionByLeagueId.set(session.leagueId, {
+      status: session.status,
+      draftType: session.draftType,
+    })
+  }
   const query = typeof options.query === "string" ? options.query.trim().toLowerCase() : null
 
   return leagues
@@ -429,6 +534,8 @@ export async function queryPublicCreatorLeagueCards(options: {
 
       const linkedFantasySettings = toRecord(linkedFantasyLeague?.settings)
       const linkedBracketRules = toRecord(linkedBracketLeague?.scoringRules)
+      const linkedSession =
+        linkedFantasyLeague?.id != null ? fantasySessionByLeagueId.get(linkedFantasyLeague.id) ?? null : null
       const maxMembers = Math.max(2, Number(league.maxMembers ?? 100) || 100)
       const memberCount = Number(league.memberCount ?? 0)
       const leagueStyle = resolveCreatorLeagueStyle({
@@ -439,6 +546,21 @@ export async function queryPublicCreatorLeagueCards(options: {
         String(league.type).toUpperCase() === "BRACKET"
           ? extractLeagueCareerTier(linkedBracketRules, 1)
           : extractLeagueCareerTier(linkedFantasySettings, 1)
+
+      const draftType =
+        String(league.type).toUpperCase() === "BRACKET"
+          ? null
+          : normalizeDraftType(linkedSession?.draftType ?? null) ??
+            normalizeDraftType(readString(linkedFantasySettings, "draft_type")) ??
+            normalizeDraftType(readString(linkedFantasySettings, "draftType")) ??
+            null
+      const draftStatus =
+        String(league.type).toUpperCase() === "BRACKET"
+          ? null
+          : normalizeDraftStatus(linkedSession?.status ?? null) ??
+            normalizeDraftStatus(readString(linkedFantasySettings, "draft_status")) ??
+            normalizeDraftStatus(readString(linkedFantasySettings, "draftStatus")) ??
+            null
 
       return {
         source: "creator",
@@ -467,12 +589,16 @@ export async function queryPublicCreatorLeagueCards(options: {
         fillPct: buildFillPct(memberCount, maxMembers),
         leagueType: "creator",
         leagueStyle,
-        draftType: null,
+        draftType,
+        draftStatus,
         teamCount: maxMembers,
         draftDate: league.joinDeadline ? league.joinDeadline.toISOString() : null,
         commissionerName:
           league.creator.user?.displayName ?? league.creator.displayName ?? league.creator.handle ?? "Creator",
-        aiFeatures: [],
+        aiFeatures:
+          String(league.type).toUpperCase() === "BRACKET"
+            ? []
+            : resolveAiFeatures(linkedFantasySettings),
         creatorLeagueType: league.type,
         isCreatorVerified: !!league.creator.verifiedAt,
         leagueTier,

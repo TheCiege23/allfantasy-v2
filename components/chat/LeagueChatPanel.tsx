@@ -71,7 +71,9 @@ import {
 } from "@/lib/rich-message"
 import type { AttachmentPreview, GifSearchResult } from "@/lib/rich-message"
 import { readAIContextFromSearchParams } from "@/lib/chimmy-chat"
+import type { AIChatContext } from "@/lib/chimmy-chat"
 import { buildChimmyToolDisplayContext } from "@/lib/chimmy-interface"
+import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 
 type Props = {
   leagueId: string
@@ -80,6 +82,24 @@ type Props = {
   defaultOpen?: boolean
   onClose?: () => void
   className?: string
+}
+
+function buildDmAISeedPrompt(messages: PlatformChatMessage[]): string {
+  const lines = messages
+    .slice(-10)
+    .map((msg) => `${msg.senderName}: ${msg.body}`)
+    .filter((line) => line.trim().length > 0)
+  if (lines.length === 0) {
+    return "Help me with trade, waiver, and draft strategy based on this direct conversation."
+  }
+  return [
+    "Use this direct conversation as context and help with the best next fantasy move.",
+    "",
+    "Recent messages:",
+    ...lines,
+    "",
+    "Give one clear recommendation and a backup option.",
+  ].join("\n")
 }
 
 export default function LeagueChatPanel({
@@ -91,6 +111,7 @@ export default function LeagueChatPanel({
   className = "",
 }: Props) {
   const { data: session } = useSession()
+  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const currentUserId = (session?.user as { id?: string })?.id ?? null
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<ChatTabId>("league")
@@ -119,6 +140,7 @@ export default function LeagueChatPanel({
   const [gifSearchResults, setGifSearchResults] = useState<GifSearchResult[]>([])
   const [mediaViewerUrl, setMediaViewerUrl] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
+  const [aiDmContext, setAiDmContext] = useState<AIChatContext | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -143,7 +165,15 @@ export default function LeagueChatPanel({
     return typeof sport === "string" && sport.trim().length > 0 ? sport : undefined
   }, [resolvedLeagueThreadId, threads])
 
-  const aiContext = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const aiContextFromUrl = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const aiContext = useMemo<AIChatContext>(
+    () => ({
+      ...aiContextFromUrl,
+      ...aiDmContext,
+      source: aiDmContext?.source ?? aiContextFromUrl.source,
+    }),
+    [aiContextFromUrl, aiDmContext]
+  )
   const chimmyToolContext = useMemo(
     () =>
       buildChimmyToolDisplayContext({
@@ -462,6 +492,15 @@ export default function LeagueChatPanel({
     () => threads.filter((t) => t.threadType === "dm" || t.threadType === "group"),
     [threads]
   )
+  const selectedDmThread = useMemo(
+    () => dmThreads.find((thread) => thread.id === dmThreadId) ?? null,
+    [dmThreadId, dmThreads]
+  )
+  const selectedDmContext = (selectedDmThread?.context || {}) as Record<string, unknown>
+  const selectedDmTargetUsername =
+    typeof selectedDmContext.otherUsername === "string" && selectedDmContext.otherUsername.trim().length > 0
+      ? selectedDmContext.otherUsername.trim()
+      : null
 
   const loadDmMessages = useCallback(async (threadId: string, options?: { silent?: boolean }) => {
     if (!options?.silent) setLoadingDm(true)
@@ -548,6 +587,28 @@ export default function LeagueChatPanel({
       setDmSending(false)
     }
   }, [dmInput, dmSending, dmThreadId])
+
+  const handleOpenDmAi = useCallback(() => {
+    if (!dmThreadId) return
+    const nextAiContext: AIChatContext = {
+      source: "messages_dm_ai",
+      conversationId: dmThreadId,
+      privateMode: selectedDmThread?.threadType === "dm",
+      targetUsername: selectedDmTargetUsername ?? undefined,
+      prompt: buildDmAISeedPrompt(dmMessages),
+      strategyMode: "dm_chat_review",
+      leagueId:
+        typeof selectedDmContext.leagueId === "string" && selectedDmContext.leagueId.trim().length > 0
+          ? selectedDmContext.leagueId.trim()
+          : undefined,
+      sport:
+        typeof selectedDmContext.sport === "string" && selectedDmContext.sport.trim().length > 0
+          ? (selectedDmContext.sport.trim() as AIChatContext["sport"])
+          : undefined,
+    }
+    setAiDmContext(nextAiContext)
+    setActiveTab("ai")
+  }, [dmMessages, dmThreadId, selectedDmContext, selectedDmTargetUsername, selectedDmThread?.threadType])
 
   const statsBotPlaceholder = useMemo(
     () => placeholderStatsBotUpdate(leagueId),
@@ -1005,6 +1066,17 @@ export default function LeagueChatPanel({
             <div className="flex flex-col min-h-0 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
               {dmThreadId ? (
                 <>
+                  <div className="flex items-center justify-end border-b px-2 py-1.5" style={{ borderColor: "var(--border)" }}>
+                    <button
+                      type="button"
+                      onClick={handleOpenDmAi}
+                      data-testid="league-chat-dm-ai-chat-button"
+                      className="rounded-md border px-2 py-1 text-[10px]"
+                      style={{ borderColor: "var(--border)", color: "var(--accent-cyan-strong)" }}
+                    >
+                      {aiAssistantEnabled ? "Ask AI about this chat" : "Open AI fallback guidance"}
+                    </button>
+                  </div>
                   <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
                     {loadingDm ? (
                       <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--muted)" }} /></div>
@@ -1097,20 +1169,56 @@ export default function LeagueChatPanel({
 
       {activeTab === "ai" && (
         <div className="flex-1 min-h-0 p-2">
-          <ChimmyChatShell
-            initialPrompt={aiContext.prompt ?? ""}
-            clearUrlPromptAfterUse
-            leagueName={leagueName}
-            leagueId={aiContext.leagueId ?? leagueId}
-            insightType={aiContext.insightType}
-            teamId={aiContext.teamId ?? null}
-            sport={aiContext.sport ?? resolvedSport ?? null}
-            season={aiContext.season ?? null}
-            week={aiContext.week ?? null}
-            toolContext={chimmyToolContext}
-            compact
-            className="min-h-[360px] h-full"
-          />
+          {aiAssistantEnabled || aiAvailabilityLoading ? (
+            <ChimmyChatShell
+              initialPrompt={aiContext.prompt ?? ""}
+              clearUrlPromptAfterUse
+              leagueName={leagueName}
+              leagueId={aiContext.leagueId ?? leagueId}
+              insightType={aiContext.insightType}
+              teamId={aiContext.teamId ?? null}
+              sport={aiContext.sport ?? resolvedSport ?? null}
+              season={aiContext.season ?? null}
+              week={aiContext.week ?? null}
+              conversationId={aiContext.conversationId ?? null}
+              privateMode={Boolean(aiContext.privateMode)}
+              targetUsername={aiContext.targetUsername ?? null}
+              strategyMode={aiContext.strategyMode ?? null}
+              source={aiContext.source}
+              toolContext={chimmyToolContext}
+              compact
+              className="min-h-[360px] h-full"
+            />
+          ) : (
+            <div
+              data-testid="league-chat-ai-fallback"
+              className="min-h-[360px] rounded-xl border p-4"
+              style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+            >
+              <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                AI chat is temporarily unavailable
+              </h3>
+              <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                League chat and direct messages still work. Use deterministic tools while AI is offline.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Link
+                  href={`/waiver-ai?leagueId=${encodeURIComponent(leagueId)}`}
+                  className="rounded-md border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                >
+                  Open waiver planner
+                </Link>
+                <Link
+                  href={`/trade-finder?leagueId=${encodeURIComponent(leagueId)}`}
+                  className="rounded-md border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                >
+                  Open trade finder
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {mediaViewerUrl && (
