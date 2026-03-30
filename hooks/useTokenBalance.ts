@@ -8,6 +8,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
+import { POST_PURCHASE_SYNC_EVENT } from '@/lib/state-consistency/post-purchase-sync-events'
+import { addStateRefreshListener } from '@/lib/state-consistency/state-events'
 import { fetchWithRetry, getErrorMessage, logError } from '@/lib/error-handling'
 
 export interface TokenBalanceState {
@@ -44,15 +46,37 @@ export function useTokenBalance() {
   }, [fetchBalance])
 
   useEffect(() => {
-    const onFocus = () => {
+    const onForeground = () => {
       const now = Date.now()
       if (now - lastFocusRefetch.current < FOCUS_REFETCH_THROTTLE_MS) return
       lastFocusRefetch.current = now
-      fetchBalance()
+      void fetchBalance()
     }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      onForeground()
+    }
+    window.addEventListener('focus', onForeground)
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', onForeground)
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [fetchBalance])
+
+  useEffect(() => {
+    const onPostPurchaseSync = () => {
+      void fetchBalance()
+    }
+    window.addEventListener(POST_PURCHASE_SYNC_EVENT, onPostPurchaseSync as EventListener)
+    return () =>
+      window.removeEventListener(
+        POST_PURCHASE_SYNC_EVENT,
+        onPostPurchaseSync as EventListener
+      )
+  }, [fetchBalance])
+
+  useEffect(() => addStateRefreshListener(['tokens', 'all'], () => void fetchBalance()), [fetchBalance])
 
   return { balance: data?.balance ?? 0, updatedAt: data?.updatedAt ?? '', loading, error, refetch: fetchBalance }
 }

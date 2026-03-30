@@ -7,6 +7,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
+import { POST_PURCHASE_SYNC_EVENT } from '@/lib/state-consistency/post-purchase-sync-events'
+import { addStateRefreshListener } from '@/lib/state-consistency/state-events'
+import { trackSubscriptionStateViewed } from '@/lib/monetization-analytics'
 import type { SubscriptionFeatureId, SubscriptionPlanId } from '@/lib/subscription/types'
 import {
   buildFeatureUpgradePath,
@@ -21,6 +24,11 @@ export interface EntitlementState {
   message: string
   requiredPlan?: string | null
   upgradePath?: string
+  bundleInheritance?: {
+    hasAllAccess: boolean
+    inheritedPlanIds: string[]
+    effectivePlanIds: string[]
+  } | null
 }
 
 export interface UseEntitlementResult {
@@ -46,6 +54,7 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
   const [hasFeatureAccess, setHasFeatureAccess] = useState<boolean | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const lastFocusRefetch = useRef(0)
+  const trackedLifecycleViews = useRef<Set<string>>(new Set())
 
   const fetchEntitlement = useCallback(async () => {
     setLoading(true)
@@ -71,6 +80,7 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
           upgradePath:
             data.upgradePath ??
             (featureId ? buildFeatureUpgradePath(featureId) : '/pricing'),
+          bundleInheritance: data.bundleInheritance ?? null,
         })
       } else {
         setEntitlement(null)
@@ -89,15 +99,54 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
   }, [fetchEntitlement])
 
   useEffect(() => {
-    const onFocus = () => {
+    const onForeground = () => {
       const now = Date.now()
       if (now - lastFocusRefetch.current < FOCUS_REFETCH_THROTTLE_MS) return
       lastFocusRefetch.current = now
       void fetchEntitlement()
     }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      onForeground()
+    }
+    window.addEventListener('focus', onForeground)
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', onForeground)
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [fetchEntitlement])
+
+  useEffect(() => {
+    const onPostPurchaseSync = () => {
+      void fetchEntitlement()
+    }
+    window.addEventListener(POST_PURCHASE_SYNC_EVENT, onPostPurchaseSync as EventListener)
+    return () =>
+      window.removeEventListener(
+        POST_PURCHASE_SYNC_EVENT,
+        onPostPurchaseSync as EventListener
+      )
+  }, [fetchEntitlement])
+
+  useEffect(
+    () => addStateRefreshListener(['subscriptions', 'auth', 'all'], () => void fetchEntitlement()),
+    [fetchEntitlement]
+  )
+
+  useEffect(() => {
+    const status = entitlement?.status
+    if (!status || (status !== 'past_due' && status !== 'expired')) return
+    const path = typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+    const key = `${path}:${featureId ?? 'none'}:${status}`
+    if (trackedLifecycleViews.current.has(key)) return
+    trackedLifecycleViews.current.add(key)
+    trackSubscriptionStateViewed({
+      status,
+      surface: 'use_entitlement',
+      featureId: featureId ?? null,
+    })
+  }, [entitlement?.status, featureId])
 
   const isActiveOrGrace = entitlement?.status === 'active' || entitlement?.status === 'grace'
   const featureAccess =

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { dispatchStateRefreshEvent } from '@/lib/state-consistency/state-events'
 
 export interface AISuggestion {
   player: string
@@ -226,6 +227,20 @@ export function useAIDraftAssistant() {
         loading: false,
         error: null,
       })
+      dispatchStateRefreshEvent({
+        domain: 'ai',
+        reason: 'draft_assistant_response',
+        leagueId: params.leagueId ?? null,
+        source: 'useAIDraftAssistant',
+      })
+      if (params.leagueId) {
+        dispatchStateRefreshEvent({
+          domain: 'drafts',
+          reason: 'draft_assistant_response',
+          leagueId: params.leagueId,
+          source: 'useAIDraftAssistant',
+        })
+      }
     } catch (error: any) {
       setState((current) => ({
         ...current,

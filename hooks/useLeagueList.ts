@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
+import { addStateRefreshListener } from '@/lib/state-consistency/state-events'
 import { fetchWithRetry, getErrorMessage, logError } from '@/lib/error-handling'
 import type { LeagueForGrouping } from '@/lib/dashboard'
 
@@ -59,14 +60,27 @@ export function useLeagueList(enabled: boolean = true): UseLeagueListResult {
 
   useEffect(() => {
     if (!enabled) return
-    const onFocus = () => {
+    const onForeground = () => {
       const now = Date.now()
       if (now - lastFocusRefetch.current < FOCUS_REFETCH_THROTTLE_MS) return
       lastFocusRefetch.current = now
       void fetchList()
     }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      onForeground()
+    }
+    window.addEventListener('focus', onForeground)
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', onForeground)
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [enabled, fetchList])
+
+  useEffect(() => {
+    if (!enabled) return
+    return addStateRefreshListener(['leagues', 'auth', 'all'], () => void fetchList())
   }, [enabled, fetchList])
 
   return { leagues, loading, error, refetch: fetchList }

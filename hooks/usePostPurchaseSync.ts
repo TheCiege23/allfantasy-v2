@@ -5,31 +5,107 @@
  * PROMPT 267 — Monetization analytics: purchase_return_success when user returns from checkout with success.
  */
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
-import { trackPurchaseReturnSuccess } from '@/lib/monetization-analytics'
+import {
+  resolvePlanTierFromSku,
+  trackPurchaseReturnSuccess,
+  trackSubscriptionPurchaseSuccess,
+  trackTokenPurchaseSuccess,
+} from '@/lib/monetization-analytics'
+import { dispatchPostPurchaseSyncEvent } from '@/lib/state-consistency/post-purchase-sync-events'
+import { dispatchStateRefreshEvent } from '@/lib/state-consistency/state-events'
 
 /** Query param keys that indicate success (subscription or token purchase). */
 const SUCCESS_PARAMS = ['checkout', 'success', 'tokens', 'purchased'] as const
 /** Values that indicate success. */
-const SUCCESS_VALUES = ['success', 'sub', '1', 'true'] as const
+const SUCCESS_VALUES = ['success', 'sub', '1', 'true', 'complete', 'completed', 'paid', 'purchased'] as const
 /** Param that indicates cancelled checkout. */
 const CANCEL_PARAM = 'checkout'
-const CANCEL_VALUE = 'cancelled'
+const CANCEL_VALUES = ['cancelled', 'canceled', 'cancel'] as const
+/** Values that indicate return failure. */
+const FAILURE_VALUES = ['failed', 'failure', 'error'] as const
 
-function isSuccess(searchParams: URLSearchParams): boolean {
+const SYNC_RETRY_MS = 1200
+const AUTO_SYNC_MAX_ATTEMPTS = 4
+
+type SearchParamsLike = Pick<URLSearchParams, 'get' | 'has'>
+
+type PurchaseReturnIntent = 'none' | 'success' | 'cancelled' | 'failed'
+
+type PostPurchaseSyncApiResponse = {
+  syncStatus?: 'synced' | 'pending' | 'no_session'
+  syncMessage?: string
+  sessionId?: string | null
+  syncEvidence?: {
+    subscription?: boolean
+    tokens?: boolean
+  }
+  entitlement?: {
+    plans?: string[]
+  }
+  tokenBalance?: {
+    balance?: number
+  }
+}
+
+export type PostPurchaseSyncPhase =
+  | 'idle'
+  | 'syncing'
+  | 'success'
+  | 'pending'
+  | 'cancelled'
+  | 'failed'
+
+function isSuccess(searchParams: SearchParamsLike): boolean {
+  if (getSessionId(searchParams)) return true
   for (const key of SUCCESS_PARAMS) {
     const v = searchParams.get(key)
-    if (v && SUCCESS_VALUES.includes(v as (typeof SUCCESS_VALUES)[number])) return true
+    if (!v) continue
+    if (SUCCESS_VALUES.includes(v.toLowerCase() as (typeof SUCCESS_VALUES)[number])) return true
   }
   return false
 }
 
-function isCancel(searchParams: URLSearchParams): boolean {
-  return searchParams.get(CANCEL_PARAM) === CANCEL_VALUE
+function isCancel(searchParams: SearchParamsLike): boolean {
+  const checkout = searchParams.get(CANCEL_PARAM)
+  return checkout
+    ? CANCEL_VALUES.includes(checkout.toLowerCase() as (typeof CANCEL_VALUES)[number])
+    : false
+}
+
+function isFailure(searchParams: SearchParamsLike): boolean {
+  const checkout = searchParams.get(CANCEL_PARAM)
+  if (checkout && FAILURE_VALUES.includes(checkout.toLowerCase() as (typeof FAILURE_VALUES)[number])) {
+    return true
+  }
+  const status = searchParams.get('status')
+  if (status && FAILURE_VALUES.includes(status.toLowerCase() as (typeof FAILURE_VALUES)[number])) {
+    return true
+  }
+  const error = searchParams.get('error')
+  return Boolean(error && error.trim())
+}
+
+function resolveIntent(searchParams: SearchParamsLike): PurchaseReturnIntent {
+  if (isCancel(searchParams)) return 'cancelled'
+  if (isFailure(searchParams)) return 'failed'
+  if (isSuccess(searchParams)) return 'success'
+  return 'none'
+}
+
+function getSessionId(searchParams: SearchParamsLike): string | null {
+  const raw = searchParams.get('session_id') ?? searchParams.get('sessionId')
+  if (!raw) return null
+  const value = raw.trim()
+  return value.length ? value : null
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Remove success/cancel query params from URL without reload. */
@@ -37,13 +113,29 @@ function clearPurchaseParams(): void {
   if (typeof window === 'undefined') return
   const url = new URL(window.location.href)
   let changed = false
-  SUCCESS_PARAMS.forEach((k) => {
+  const keys = [
+    ...SUCCESS_PARAMS,
+    'session_id',
+    'sessionId',
+    'status',
+    'error',
+    'cancel',
+    'purchase',
+    'payment',
+  ]
+  keys.forEach((k) => {
     if (url.searchParams.has(k)) {
       url.searchParams.delete(k)
       changed = true
     }
   })
-  if (url.searchParams.get(CANCEL_PARAM) === CANCEL_VALUE) {
+  const checkout = url.searchParams.get(CANCEL_PARAM)?.toLowerCase()
+  if (
+    checkout &&
+    [...CANCEL_VALUES, ...FAILURE_VALUES, ...SUCCESS_VALUES].includes(
+      checkout as (typeof CANCEL_VALUES)[number]
+    )
+  ) {
     url.searchParams.delete(CANCEL_PARAM)
     changed = true
   }
@@ -57,12 +149,42 @@ export interface UsePostPurchaseSyncOptions {
   showSuccessToast?: boolean
   /** Show toast on cancel. Default true. */
   showCancelToast?: boolean
+  /** Show toast on failure. Default true. */
+  showFailureToast?: boolean
   /** Custom success message (subscription). */
   successMessage?: string
   /** Custom success message for token purchase. */
   tokenSuccessMessage?: string
+  /** Message for pending sync while webhook finalizes. */
+  pendingMessage?: string
+  /** Message for cancelled return. */
+  cancelMessage?: string
+  /** Message for failed return. */
+  failureMessage?: string
+  /** Auto-retry pending session sync. Default true. */
+  autoRetryPending?: boolean
   /** Called when success params are processed (for showing a banner). */
   onSuccess?: () => void
+  /** Called when cancel params are processed. */
+  onCancel?: () => void
+  /** Called when failure params are processed. */
+  onFailure?: () => void
+}
+
+export type PostPurchaseSyncState = {
+  phase: PostPurchaseSyncPhase
+  message: string | null
+  sessionId: string | null
+  syncEvidence: {
+    subscription: boolean
+    tokens: boolean
+  }
+}
+
+export type UsePostPurchaseSyncResult = {
+  state: PostPurchaseSyncState
+  retrySync: () => Promise<void>
+  isSyncing: boolean
 }
 
 /**
@@ -71,55 +193,274 @@ export interface UsePostPurchaseSyncOptions {
  * - Cancel: optional toast, clear params.
  * Idempotent: clearing params prevents double-toast on re-render.
  */
-export function usePostPurchaseSync(options: UsePostPurchaseSyncOptions = {}) {
+export function usePostPurchaseSync(options: UsePostPurchaseSyncOptions = {}): UsePostPurchaseSyncResult {
   const searchParams = useSearchParams()
   const { refetch: refetchEntitlement } = useEntitlement()
   const { refetch: refetchTokens } = useTokenBalance()
   const {
     showSuccessToast = true,
     showCancelToast = true,
+    showFailureToast = true,
     successMessage = 'Purchase complete. Your plan and balance are updated.',
     tokenSuccessMessage = 'Tokens added. Your balance is updated.',
+    pendingMessage = 'Purchase is still finalizing. Try sync again in a moment.',
+    cancelMessage = 'Checkout cancelled.',
+    failureMessage = 'Purchase could not be completed. Please retry checkout.',
+    autoRetryPending = true,
     onSuccess,
+    onCancel,
+    onFailure,
   } = options
 
-  const didRun = useRef(false)
+  const [state, setState] = useState<PostPurchaseSyncState>({
+    phase: 'idle',
+    message: null,
+    sessionId: null,
+    syncEvidence: { subscription: false, tokens: false },
+  })
+  const handledKeysRef = useRef<Set<string>>(new Set())
+  const latestIntentRef = useRef<PurchaseReturnIntent>('none')
+  const latestSessionIdRef = useRef<string | null>(null)
+  const successToastShownRef = useRef(false)
+  const cancelToastShownRef = useRef(false)
+  const failureToastShownRef = useRef(false)
 
-  useEffect(() => {
-    const success = isSuccess(searchParams)
-    const cancel = isCancel(searchParams)
+  const performServerSync = useCallback(
+    async (sessionId: string | null): Promise<PostPurchaseSyncApiResponse | null> => {
+      const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+      try {
+        const res = await fetch(`/api/monetization/post-purchase-sync${query}`, {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        if (!res.ok) return null
+        return (await res.json().catch(() => null)) as PostPurchaseSyncApiResponse | null
+      } catch {
+        return null
+      }
+    },
+    []
+  )
 
-    if (success) {
-      if (!didRun.current) {
+  const executeSuccessSync = useCallback(
+    async (sessionId: string | null) => {
+      setState({
+        phase: 'syncing',
+        message: 'Refreshing your access state...',
+        sessionId,
+        syncEvidence: { subscription: false, tokens: false },
+      })
+
+      const attempts = sessionId && autoRetryPending ? AUTO_SYNC_MAX_ATTEMPTS : 1
+      let lastResponse: PostPurchaseSyncApiResponse | null = null
+
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const response = await performServerSync(sessionId)
+        lastResponse = response
+        await Promise.all([refetchEntitlement(), refetchTokens()])
+
+        const syncStatus = response?.syncStatus ?? (sessionId ? 'pending' : 'no_session')
+        const evidence = {
+          subscription: Boolean(response?.syncEvidence?.subscription),
+          tokens: Boolean(response?.syncEvidence?.tokens),
+        }
+
+        if (syncStatus === 'synced' || syncStatus === 'no_session') {
+          const successCopy = evidence.tokens && !evidence.subscription
+            ? tokenSuccessMessage
+            : successMessage
+          const returnPath = typeof window !== 'undefined' ? window.location.pathname : ''
+          const effectivePlanTiers = (response?.entitlement?.plans ?? []).map((plan) =>
+            resolvePlanTierFromSku(plan)
+          )
+
+          setState({
+            phase: 'success',
+            message: successCopy,
+            sessionId,
+            syncEvidence: evidence,
+          })
+
+          if (syncStatus === 'synced') {
+            if (evidence.subscription) {
+              trackSubscriptionPurchaseSuccess({
+                returnPath,
+                sessionId,
+                effectivePlanTiers,
+              })
+            }
+            if (evidence.tokens) {
+              trackTokenPurchaseSuccess({
+                returnPath,
+                sessionId,
+                balanceAfter: response?.tokenBalance?.balance ?? null,
+              })
+            }
+          }
+
+          if (showSuccessToast && !successToastShownRef.current) {
+            toast.success(successCopy)
+            successToastShownRef.current = true
+          }
+
+          onSuccess?.()
+          clearPurchaseParams()
+          dispatchPostPurchaseSyncEvent({
+            phase: 'success',
+            sessionId,
+          })
+          dispatchStateRefreshEvent({
+            domain: 'subscriptions',
+            reason: 'checkout_return_success',
+            source: 'usePostPurchaseSync',
+          })
+          dispatchStateRefreshEvent({
+            domain: 'tokens',
+            reason: 'checkout_return_success',
+            source: 'usePostPurchaseSync',
+          })
+          return
+        }
+
+        if (attempt < attempts) {
+          await sleep(SYNC_RETRY_MS)
+        }
+      }
+
+      setState({
+        phase: 'pending',
+        message: lastResponse?.syncMessage ?? pendingMessage,
+        sessionId,
+        syncEvidence: {
+          subscription: Boolean(lastResponse?.syncEvidence?.subscription),
+          tokens: Boolean(lastResponse?.syncEvidence?.tokens),
+        },
+      })
+      clearPurchaseParams()
+      dispatchPostPurchaseSyncEvent({
+        phase: 'pending',
+        sessionId,
+      })
+      dispatchStateRefreshEvent({
+        domain: 'subscriptions',
+        reason: 'checkout_return_pending',
+        source: 'usePostPurchaseSync',
+      })
+      dispatchStateRefreshEvent({
+        domain: 'tokens',
+        reason: 'checkout_return_pending',
+        source: 'usePostPurchaseSync',
+      })
+    },
+    [
+      autoRetryPending,
+      onSuccess,
+      pendingMessage,
+      performServerSync,
+      refetchEntitlement,
+      refetchTokens,
+      showSuccessToast,
+      successMessage,
+      tokenSuccessMessage,
+    ]
+  )
+
+  const executeIntent = useCallback(
+    async (intent: PurchaseReturnIntent, sessionId: string | null) => {
+      latestIntentRef.current = intent
+      latestSessionIdRef.current = sessionId
+
+      if (intent === 'success') {
         const returnPath = typeof window !== 'undefined' ? window.location.pathname : ''
         trackPurchaseReturnSuccess({ returnPath })
-        if (showSuccessToast) {
-          const isTokenPage = typeof window !== 'undefined' && window.location.pathname.includes('/tokens')
-          toast.success(isTokenPage ? tokenSuccessMessage : successMessage)
+        await executeSuccessSync(sessionId)
+        return
+      }
+
+      if (intent === 'cancelled') {
+        setState({
+          phase: 'cancelled',
+          message: cancelMessage,
+          sessionId,
+          syncEvidence: { subscription: false, tokens: false },
+        })
+        if (showCancelToast && !cancelToastShownRef.current) {
+          toast.info(cancelMessage)
+          cancelToastShownRef.current = true
         }
-        onSuccess?.()
-        didRun.current = true
+        onCancel?.()
+        clearPurchaseParams()
+        dispatchPostPurchaseSyncEvent({
+          phase: 'cancelled',
+          sessionId,
+        })
+        return
       }
-      refetchEntitlement()
-      refetchTokens()
-      clearPurchaseParams()
-    } else if (cancel) {
-      if (showCancelToast && !didRun.current) {
-        toast.info('Checkout cancelled.')
-        didRun.current = true
+
+      if (intent === 'failed') {
+        setState({
+          phase: 'failed',
+          message: failureMessage,
+          sessionId,
+          syncEvidence: { subscription: false, tokens: false },
+        })
+        if (showFailureToast && !failureToastShownRef.current) {
+          toast.error(failureMessage)
+          failureToastShownRef.current = true
+        }
+        onFailure?.()
+        clearPurchaseParams()
+        dispatchPostPurchaseSyncEvent({
+          phase: 'failed',
+          sessionId,
+        })
       }
-      clearPurchaseParams()
+    },
+    [
+      cancelMessage,
+      executeSuccessSync,
+      failureMessage,
+      onCancel,
+      onFailure,
+      showCancelToast,
+      showFailureToast,
+    ]
+  )
+
+  const retrySync = useCallback(async () => {
+    const sessionId = latestSessionIdRef.current ?? state.sessionId
+    if (!sessionId) {
+      await Promise.all([refetchEntitlement(), refetchTokens()])
+      setState((prev) => ({
+        ...prev,
+        phase: 'failed',
+        message: 'Unable to retry without a checkout session id. Please start checkout again.',
+      }))
+      return
     }
-  }, [
-    searchParams,
-    refetchEntitlement,
-    refetchTokens,
-    showSuccessToast,
-    showCancelToast,
-    successMessage,
-    tokenSuccessMessage,
-    onSuccess,
-  ])
+    await executeSuccessSync(sessionId)
+  }, [executeSuccessSync, refetchEntitlement, refetchTokens, state.sessionId])
+
+  const intentKey = useMemo(() => {
+    const intent = resolveIntent(searchParams)
+    const sessionId = getSessionId(searchParams)
+    return `${intent}:${sessionId ?? ''}:${searchParams.toString()}`
+  }, [searchParams])
+
+  useEffect(() => {
+    const intent = resolveIntent(searchParams)
+    const sessionId = getSessionId(searchParams)
+    if (intent === 'none') return
+    if (handledKeysRef.current.has(intentKey)) return
+    handledKeysRef.current.add(intentKey)
+    void executeIntent(intent, sessionId)
+  }, [executeIntent, intentKey, searchParams])
+
+  return {
+    state,
+    retrySync,
+    isSyncing: state.phase === 'syncing',
+  }
 }
 
 /**

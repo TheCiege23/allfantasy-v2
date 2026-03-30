@@ -7,6 +7,7 @@ This folder documents how app state is kept consistent across auth, leagues, dra
 - **Stale data**: User-scoped data (tokens, entitlement) refetches on window focus (throttled) so returning from another tab shows up-to-date state.
 - **Desync**: Single source of truth for “when do we refetch?” so new features don’t forget refresh logic.
 - **Missing refresh**: Post-purchase and post-action flows call `refetch()` or use `usePostPurchaseSync` where applicable.
+- **Cross-domain sync**: Lightweight event bus (`state-events.ts`) lets one domain nudge another to refresh (e.g. AI chat spend -> token balance).
 
 ## Refresh behavior
 
@@ -16,18 +17,22 @@ This folder documents how app state is kept consistent across auth, leagues, dra
 | **Tokens**     | `useTokenBalance()`            | Mount, window focus (5s throttle), refetch / post-purchase |
 | **Entitlement**| `useEntitlement()`             | Mount, window focus (5s throttle), refetch / post-purchase |
 | **League list**| `useLeagueList()`              | Mount, window focus (5s throttle); dashboard stays fresh after create/join |
-| **Leagues**    | `useLeagueSectionData()`      | Mount, manual `reload()`; server cache invalidation via `lib/trade-engine/caching.ts` |
-| **Drafts**     | League section / draft APIs   | Mount, manual reload                 |
-| **Chat / AI**  | Per-thread or per-request     | No global client cache; refetch by re-opening or re-requesting |
+| **Leagues**    | `useLeagueSectionData()`      | Mount, focus/visibility (5s throttle), manual `reload()`, state-event refresh, server cache invalidation |
+| **Drafts**     | League section / draft APIs   | Mount, focus/visibility (5s throttle), manual reload, state-event refresh |
+| **Chat / AI**  | `useAIChat()` + per-request   | Context reset on scope change; emits state-event refresh after successful responses |
 
 ## Code references
 
-- **Entry point**: `lib/state-consistency/index.ts` — re-exports throttle constant, REFRESH_TRIGGERS_DOC, and invalidation helpers.
+- **Entry point**: `lib/state-consistency/index.ts` — re-exports throttle constant, REFRESH_TRIGGERS_DOC, state-event helpers, and invalidation helpers.
+- **Event bus**: `lib/state-consistency/state-events.ts` — `dispatchStateRefreshEvent` / `addStateRefreshListener`.
 - **Focus throttle constant**: `lib/state-consistency/refresh-triggers.ts` — `FOCUS_REFETCH_THROTTLE_MS` (5000).
 - **Tokens**: `hooks/useTokenBalance.ts` — focus refetch (PROMPT 268).
 - **Entitlement**: `hooks/useEntitlement.ts` — focus refetch (PROMPT 273).
 - **League list**: `hooks/useLeagueList.ts` — focus refetch so dashboard list stays fresh after create/join.
+- **League sections**: `hooks/useLeagueSectionData.ts` — focus/visibility refetch and league/draft state-event listeners.
 - **Post-purchase**: `hooks/usePostPurchaseSync.ts` — refetches entitlement + tokens when URL has success params.
+- **Chat / AI bridge**: `hooks/useAIChat.ts`, `hooks/useAIDraftAssistant.ts` — emit state refresh events after successful AI actions.
+- **Auth sync**: `hooks/useSettingsProfile.ts` — refreshes next-auth session after profile save and emits auth state refresh event.
 - **League invalidation**: `lib/trade-engine/caching.ts` — `invalidateLeagueCache`, `handleInvalidationTrigger`. Call after roster/trade/waiver/settings mutations (e.g. `app/api/leagues/roster/save/route.ts`).
 
 ## Adding new global user state

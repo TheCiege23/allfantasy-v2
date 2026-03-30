@@ -30,14 +30,18 @@ export const FOCUS_REFETCH_THROTTLE_MS = 5000
  *
  * - Leagues / section data
  *   - Hook: useLeagueSectionData(leagueId, sectionPath) in hooks/useLeagueSectionData.ts
- *   - Refreshed: on mount (when leagueId/sectionPath change); manual reload() only. No window-focus refetch (avoids extra traffic with many league tabs).
+ *   - Refreshed: on mount (when leagueId/sectionPath change); on window focus/visibility (throttled); manual reload().
+ *   - Also listens to state refresh events for leagues/drafts (supports same-tab mutation sync).
  *   - Server/API: league data invalidated via lib/trade-engine/caching.ts (invalidateLeagueCache, handleInvalidationTrigger for trade/waiver/roster/settings).
  *
  * - Drafts
- *   - Same as leagues: section "draft" or draft-specific APIs; manual reload or real-time where implemented.
+ *   - Same as leagues: section "draft" or draft-specific APIs; focus/visibility refresh + manual reload or real-time where implemented.
  *
  * - Chat / AI
  *   - No central client cache; per-thread or per-request fetch. Refetch by re-requesting or opening thread.
+ *   - useAIChat clears local thread state when conversation context changes.
+ *   - Global event bus can nudge consumers after successful chat/AI actions:
+ *     lib/state-consistency/state-events.ts -> dispatchStateRefreshEvent().
  *
  * When adding new user-scoped global state (e.g. credits, preferences), consider:
  * - Refetch on mount.
@@ -50,8 +54,9 @@ export const REFRESH_TRIGGERS_DOC = {
   tokens: 'useTokenBalance: mount, window focus (throttled), refetch/post-purchase.',
   entitlement: 'useEntitlement: mount, window focus (throttled), refetch/post-purchase.',
   leagueList: 'useLeagueList: mount, window focus (throttled); keeps dashboard list fresh after create/join.',
-  leagues: 'useLeagueSectionData: mount + manual reload; trade-engine invalidation for server caches.',
-  drafts: 'League section or draft APIs; manual reload.',
-  chat: 'Per-thread fetch; no global client cache.',
-  ai: 'Per-request or per-session; no global client cache.',
+  leagues: 'useLeagueSectionData: mount, focus/visibility (throttled), manual reload, state-event listeners; plus server cache invalidation.',
+  drafts: 'Draft sections/APIs: mount, focus/visibility (throttled), manual reload, state-event listeners.',
+  chat: 'Per-thread fetch; useAIChat resets thread state by context and emits refresh events.',
+  ai: 'Per-request/session fetch; AI hooks emit refresh events after successful actions.',
+  events: 'dispatchStateRefreshEvent/addStateRefreshListener provide cross-domain invalidation signals for auth/leagues/drafts/chat/ai/tokens/subscriptions.',
 } as const

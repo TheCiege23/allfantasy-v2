@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSession } from "next-auth/react"
+import { dispatchStateRefreshEvent } from "@/lib/state-consistency/state-events"
 import type { UserProfileForSettings, ProfileUpdatePayload } from "@/lib/user-settings/types"
 
 const REQUEST_TIMEOUT_MS = 12_000
@@ -23,6 +25,7 @@ async function fetchJsonWithTimeout(
 }
 
 export function useSettingsProfile() {
+  const { update: updateSession } = useSession()
   const [profile, setProfile] = useState<UserProfileForSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,6 +88,16 @@ export function useSettingsProfile() {
           return false
         }
         await fetchProfile()
+        try {
+          await updateSession?.()
+        } catch {
+          // Non-fatal: settings save succeeded even if session refresh fails.
+        }
+        dispatchStateRefreshEvent({
+          domain: "auth",
+          reason: "profile_update",
+          source: "useSettingsProfile",
+        })
         return true
       } catch {
         setError("Failed to save")

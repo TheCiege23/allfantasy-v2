@@ -1,6 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
+import { addStateRefreshListener, type StateRefreshDomain } from '@/lib/state-consistency/state-events'
 
 export type LeagueSectionResult<T = unknown> = {
   data: T | null
@@ -16,6 +18,14 @@ export function useLeagueSectionData<T = unknown>(
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const lastFocusRefetch = useRef(0)
+  const sectionDomains = useMemo<StateRefreshDomain[]>(() => {
+    const normalizedSection = sectionPath.toLowerCase()
+    if (normalizedSection.includes('draft')) {
+      return ['drafts', 'leagues', 'all']
+    }
+    return ['leagues', 'all']
+  }, [sectionPath])
 
   const load = useCallback(async () => {
     if (!leagueId || !sectionPath) {
@@ -49,6 +59,35 @@ export function useLeagueSectionData<T = unknown>(
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    const onForeground = () => {
+      if (!leagueId || !sectionPath) return
+      const now = Date.now()
+      if (now - lastFocusRefetch.current < FOCUS_REFETCH_THROTTLE_MS) return
+      lastFocusRefetch.current = now
+      void load()
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      onForeground()
+    }
+    window.addEventListener('focus', onForeground)
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', onForeground)
+      window.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [leagueId, load, sectionPath])
+
+  useEffect(
+    () =>
+      addStateRefreshListener(sectionDomains, (detail) => {
+        if (detail.leagueId && leagueId && detail.leagueId !== leagueId) return
+        void load()
+      }),
+    [leagueId, load, sectionDomains]
+  )
 
   return { data, loading, error, reload: load }
 }

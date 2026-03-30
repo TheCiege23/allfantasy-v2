@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
+import { dispatchStateRefreshEvent } from "@/lib/state-consistency/state-events"
 
 export type RosterSectionKey = "starters" | "bench" | "ir" | "taxi" | "devy"
 
@@ -533,6 +534,12 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
         }
         setExistingPlayerData(rosterData)
         setLastSavedAt(Date.now())
+        dispatchStateRefreshEvent({
+          domain: "leagues",
+          reason: "roster_save",
+          leagueId: options.leagueId,
+          source: "useRosterManager",
+        })
         void loadAvailablePlayers()
       } catch (err: any) {
         setSaveError(err?.message || "Unable to save lineup.")
