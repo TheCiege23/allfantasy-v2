@@ -16,6 +16,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
+import { buildAgentPrompt, inferAgentFromMessage } from '@/lib/agents/pipeline'
 import {
   TokenInsufficientBalanceError,
   TokenSpendConfirmationRequiredError,
@@ -389,7 +390,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (insightSources.length > 0) dataSources.push(...insightSources)
   if (memorySection) dataSources.push('ai_memory', 'chat_history')
 
-  const userMessage = buildUserMessage({
+  const baseUserMessage = buildUserMessage({
     message,
     conversation,
     screenshotSummary,
@@ -451,6 +452,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     privateMode,
     targetUsername,
   })
+
+  const specialistAgent = inferAgentFromMessage(
+    [message, strategyMode, insightType].filter(Boolean).join('\n')
+  )
+  const recentConversationContext = conversation
+    .slice(-6)
+    .map((turn) => `${turn.role}: ${turn.content}`)
+    .join('\n')
+  let userMessage = baseUserMessage
+  try {
+    userMessage = await buildAgentPrompt({
+      agent: specialistAgent,
+      userMessage: baseUserMessage,
+      sport,
+      deterministicContext,
+      conversationContext: recentConversationContext || undefined,
+    })
+    dataSources.push(`agent_prompt_${specialistAgent}`)
+  } catch {
+    userMessage = baseUserMessage
+  }
 
   const validation = validateToolRequest('chimmy_chat', deterministicContext, {
     leagueSettings,
@@ -624,6 +646,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const meta = {
     assistant: 'Chimmy',
     conversationId,
+    agent: specialistAgent,
     confidencePct: responseContract.confidence ?? undefined,
     providerStatus,
     recommendedTool,

@@ -42,6 +42,7 @@
     "backfill:platform-core": "tsx scripts/backfill-platform-core.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@headlessui/react": "^2.2.9",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/client": "^5.22.0",
