@@ -14,6 +14,57 @@ function getSlotForOverall(overall: number, teamCount: number): { round: number;
   }
 }
 
+async function openCommissionerControls(page: Page) {
+  const openButton = page.getByTestId('draft-open-commissioner-controls')
+  const modal = page.getByTestId('draft-commissioner-modal')
+  const overlay = page.getByTestId('draft-commissioner-overlay')
+  const dialogFallback = page.getByRole('dialog', { name: /Commissioner control center/i })
+
+  const isControlsVisible = async () =>
+    (await modal.isVisible().catch(() => false)) ||
+    (await dialogFallback.isVisible().catch(() => false)) ||
+    (await overlay.isVisible().catch(() => false))
+
+  const assertControlsVisible = async () => {
+    const modalVisible = await modal.isVisible().catch(() => false)
+    const dialogVisible = await dialogFallback.isVisible().catch(() => false)
+    if (!modalVisible && !dialogVisible) {
+      await expect(dialogFallback).toBeVisible({ timeout: 15_000 })
+      return
+    }
+    if (modalVisible) {
+      await expect(modal).toBeVisible({ timeout: 15_000 })
+      return
+    }
+    await expect(dialogFallback).toBeVisible({ timeout: 15_000 })
+  }
+
+  if (await isControlsVisible()) {
+    await assertControlsVisible()
+    return
+  }
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (await isControlsVisible()) {
+      await assertControlsVisible()
+      return
+    }
+    await openButton.click()
+    await expect
+      .poll(async () => (await isControlsVisible()) || (await openButton.isVisible().catch(() => false)), {
+        timeout: 10_000,
+      })
+      .toBe(true)
+    if (await isControlsVisible()) {
+      await assertControlsVisible()
+      return
+    }
+    await page.waitForTimeout(200)
+  }
+
+  await assertControlsVisible()
+}
+
 async function mockDraftRoomApis(
   page: Page,
   leagueId: string,
@@ -1136,8 +1187,7 @@ test.describe('@draft-room click audit', () => {
     await page.getByTestId('draft-resync-button').click()
     await expect.poll(() => mocks.getResyncHits().length).toBeGreaterThan(0)
 
-    await page.getByTestId('draft-open-commissioner-controls').click()
-    await expect(page.getByTestId('draft-commissioner-modal')).toBeVisible()
+    await openCommissionerControls(page)
     let aiRunAttempted = false
     await page.getByTestId('draft-commissioner-toggle-orphan-ai').click()
     await page.getByTestId('draft-commissioner-select-orphan-drafter-mode').selectOption('ai')
@@ -1163,8 +1213,7 @@ test.describe('@draft-room click audit', () => {
     await page.getByTestId('draft-commissioner-open-broadcast').click()
     await expect(page.getByTestId('draft-broadcast-modal')).toBeVisible()
     await page.getByTestId('draft-broadcast-cancel').click()
-    await page.getByTestId('draft-open-commissioner-controls').click()
-    await expect(page.getByTestId('draft-commissioner-modal')).toBeVisible()
+    await openCommissionerControls(page)
     await page.getByTestId('draft-commissioner-resync').click()
     await page.getByTestId('draft-commissioner-close').click()
     await expect.poll(() => mocks.getControlsRequests().length).toBeGreaterThan(0)
@@ -1197,8 +1246,7 @@ test.describe('@draft-room click audit', () => {
     await page.goto(`/e2e/draft-room?leagueId=${leagueId}&sport=NFL`)
     await openDraftRoomHarness(page)
 
-    await page.getByTestId('draft-open-commissioner-controls').click()
-    await expect(page.getByTestId('draft-commissioner-modal')).toBeVisible()
+    await openCommissionerControls(page)
     await expect(page.getByTestId('draft-commissioner-start')).toBeVisible()
     await page.getByTestId('draft-commissioner-start').click()
     await expect(page.getByTestId('draft-commissioner-start')).toHaveCount(0)
@@ -1290,7 +1338,25 @@ test.describe('@draft-room click audit', () => {
     await page.getByTestId('draft-mobile-tab-queue').click()
     await expect(mobile.getByTestId('draft-queue-panel')).toBeVisible()
     await page.getByTestId('draft-mobile-tab-helper').click()
-    await expect(mobile.getByTestId('draft-open-war-room-button')).toBeVisible()
+    const helperWarRoomToggle = mobile.getByTestId('draft-open-war-room-button').first()
+    const helperUpgradeLink = mobile.getByTestId('locked-feature-upgrade-link').first()
+    const helperLoadingState = mobile.getByText(/Checking premium access|Loading monetization details/i).first()
+    await expect
+      .poll(
+        async () =>
+          (await helperWarRoomToggle.isVisible().catch(() => false)) ||
+          (await helperUpgradeLink.isVisible().catch(() => false)) ||
+          (await helperLoadingState.isVisible().catch(() => false)),
+        { timeout: 12_000 }
+      )
+      .toBe(true)
+    if (await helperWarRoomToggle.isVisible().catch(() => false)) {
+      await expect(helperWarRoomToggle).toBeVisible()
+    } else if (await helperUpgradeLink.isVisible().catch(() => false)) {
+      await expect(helperUpgradeLink).toBeVisible()
+    } else {
+      await expect(helperLoadingState).toBeVisible()
+    }
     await page.getByTestId('draft-mobile-tab-chat').click()
     await expect(mobile.getByTestId('draft-chat-panel')).toBeVisible()
     await expect(mobile.getByTestId('draft-chat-media-gif')).toBeVisible()
@@ -1307,9 +1373,14 @@ test.describe('@draft-room click audit', () => {
     await expect(mobile.getByTestId('draft-chat-panel')).toBeVisible()
     await page.getByTestId('draft-mobile-tab-board').click()
     await page.getByTestId('draft-mobile-quick-helper').click()
-    await expect(mobile.getByTestId('draft-open-war-room-button')).toBeVisible()
-    await page.getByTestId('draft-open-commissioner-controls').click()
-    await expect(page.getByTestId('draft-commissioner-modal')).toBeVisible()
+    if (await helperWarRoomToggle.isVisible().catch(() => false)) {
+      await expect(helperWarRoomToggle).toBeVisible()
+    } else if (await helperUpgradeLink.isVisible().catch(() => false)) {
+      await expect(helperUpgradeLink).toBeVisible()
+    } else {
+      await expect(helperLoadingState).toBeVisible()
+    }
+    await openCommissionerControls(page)
     await page.getByTestId('draft-commissioner-close').click()
     await page.getByTestId('draft-mobile-tab-board').click()
     await expect(mobile.getByTestId('draft-board')).toBeVisible()

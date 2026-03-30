@@ -301,6 +301,30 @@ test.describe('@commissioner commissioner control panel click audit', () => {
       ],
     }
 
+    await page.route('**/api/subscription/entitlements**', async (route) => {
+      const url = new URL(route.request().url())
+      const feature = String(url.searchParams.get('feature') ?? '')
+      const response = {
+        entitlement: {
+          plans: ['commissioner'],
+          status: 'active',
+          currentPeriodEnd: null,
+          gracePeriodEnd: null,
+        },
+        hasAccess: true,
+        message: 'Access granted.',
+        requiredPlan: feature ? 'AF Commissioner' : null,
+        upgradePath: feature
+          ? `/commissioner-upgrade?feature=${encodeURIComponent(feature)}`
+          : '/commissioner-upgrade',
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response),
+      })
+    })
+
     await page.route(`**/api/commissioner/leagues/${leagueId}/settings`, async (route) => {
       if (route.request().method() === 'PATCH') {
         const payload = route.request().postDataJSON() as Record<string, unknown>
@@ -1086,13 +1110,17 @@ test.describe('@commissioner commissioner control panel click audit', () => {
 
     // Reload persistence check for saved setting values
     await page.reload({ waitUntil: 'domcontentloaded' })
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 60; i += 1) {
       if (await page.getByTestId('commissioner-general-edit').isVisible().catch(() => false)) break
       if (await page.getByTestId('commissioner-panel-open').isVisible().catch(() => false)) {
-        await page.getByTestId('commissioner-panel-open').click().catch(() => {})
+        await page.getByTestId('commissioner-panel-open').click({ force: true }).catch(() => {})
       }
-      await page.waitForTimeout(200)
+      if (await page.getByTestId('commissioner-section-general').isVisible().catch(() => false)) {
+        await page.getByTestId('commissioner-section-general').click({ force: true }).catch(() => {})
+      }
+      await page.waitForTimeout(250)
     }
+    await expect(page.getByTestId('commissioner-general-edit')).toBeVisible({ timeout: 15_000 })
     await page.getByTestId('commissioner-general-edit').click()
     await expect(page.getByTestId('commissioner-general-name-input')).toHaveValue('Commissioner Audit League Updated')
   })

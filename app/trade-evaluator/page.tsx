@@ -33,6 +33,7 @@ import { useUserTimezone } from '@/hooks/useUserTimezone'
 import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 import { ErrorStateRenderer } from '@/components/ui-states'
 import { resolveRecoveryActions } from '@/lib/ui-state'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 
 interface PlayerInput {
   name: string
@@ -116,7 +117,7 @@ const defaultTeam: TeamInput = {
 
 const SPORT_OPTIONS = getSportOptions()
 
-type SetTeamFn = (t: TeamInput) => void
+type SetTeamFn = React.Dispatch<React.SetStateAction<TeamInput>>
 
 function TradeEvaluatorInner() {
   const { formatInTimezone } = useUserTimezone()
@@ -224,6 +225,7 @@ function TradeEvaluatorInner() {
             qb_format: qbFormat,
           },
           asOfDate: asOfDate || undefined,
+          confirmTokenSpend: true,
         }),
       })
 
@@ -247,64 +249,68 @@ function TradeEvaluatorInner() {
 
   const addPlayer = (team: 'sender' | 'receiver') => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_players: addPlayerSlot(sender.gives_players, { ...defaultPlayer }) })
+      setSender((prev) => ({ ...prev, gives_players: addPlayerSlot(prev.gives_players, { ...defaultPlayer }) }))
     } else {
-      setReceiver({ ...receiver, gives_players: addPlayerSlot(receiver.gives_players, { ...defaultPlayer }) })
+      setReceiver((prev) => ({ ...prev, gives_players: addPlayerSlot(prev.gives_players, { ...defaultPlayer }) }))
     }
   }
 
   const removePlayer = (team: 'sender' | 'receiver', index: number) => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_players: removeAssetAtIndex(sender.gives_players, index) })
+      setSender((prev) => ({ ...prev, gives_players: removeAssetAtIndex(prev.gives_players, index) }))
     } else {
-      setReceiver({ ...receiver, gives_players: removeAssetAtIndex(receiver.gives_players, index) })
+      setReceiver((prev) => ({ ...prev, gives_players: removeAssetAtIndex(prev.gives_players, index) }))
     }
   }
 
   const updatePlayer = (team: 'sender' | 'receiver', index: number, field: keyof PlayerInput, value: string) => {
     if (team === 'sender') {
-      const players = [...sender.gives_players]
-      players[index] = { ...players[index], [field]: value }
-      setSender({ ...sender, gives_players: players })
+      setSender((prev) => {
+        const players = [...prev.gives_players]
+        players[index] = { ...players[index], [field]: value }
+        return { ...prev, gives_players: players }
+      })
     } else {
-      const players = [...receiver.gives_players]
-      players[index] = { ...players[index], [field]: value }
-      setReceiver({ ...receiver, gives_players: players })
+      setReceiver((prev) => {
+        const players = [...prev.gives_players]
+        players[index] = { ...players[index], [field]: value }
+        return { ...prev, gives_players: players }
+      })
     }
   }
 
   const addPick = (team: 'sender' | 'receiver') => {
     if (!pickSupportEnabled) return
     if (team === 'sender') {
-      setSender({ ...sender, gives_picks: [...sender.gives_picks, { ...defaultPick }] })
+      setSender((prev) => ({ ...prev, gives_picks: [...prev.gives_picks, { ...defaultPick }] }))
     } else {
-      setReceiver({ ...receiver, gives_picks: [...receiver.gives_picks, { ...defaultPick }] })
+      setReceiver((prev) => ({ ...prev, gives_picks: [...prev.gives_picks, { ...defaultPick }] }))
     }
   }
 
   const removePick = (team: 'sender' | 'receiver', index: number) => {
     if (team === 'sender') {
-      setSender({ ...sender, gives_picks: removeAssetAtIndex(sender.gives_picks, index) })
+      setSender((prev) => ({ ...prev, gives_picks: removeAssetAtIndex(prev.gives_picks, index) }))
     } else {
-      setReceiver({ ...receiver, gives_picks: removeAssetAtIndex(receiver.gives_picks, index) })
+      setReceiver((prev) => ({ ...prev, gives_picks: removeAssetAtIndex(prev.gives_picks, index) }))
     }
   }
 
   const clearTeamAssets = (team: 'sender' | 'receiver') => {
     if (team === 'sender') {
-      setSender({
-        ...sender,
+      setSender((prev) => ({
+        ...prev,
         gives_players: [{ ...defaultPlayer }],
         gives_picks: [],
         gives_faab: 0,
-      })
+      }))
     } else {
-      setReceiver({
-        ...receiver,
+      setReceiver((prev) => ({
+        ...prev,
         gives_players: [{ ...defaultPlayer }],
         gives_picks: [],
         gives_faab: 0,
-      })
+      }))
     }
     setResult(null)
     setLastAnalyzedSignature(null)
@@ -313,13 +319,17 @@ function TradeEvaluatorInner() {
 
   const updatePick = (team: 'sender' | 'receiver', index: number, field: keyof PickInput, value: string) => {
     if (team === 'sender') {
-      const picks = [...sender.gives_picks]
-      picks[index] = { ...picks[index], [field]: value } as PickInput
-      setSender({ ...sender, gives_picks: picks })
+      setSender((prev) => {
+        const picks = [...prev.gives_picks]
+        picks[index] = { ...picks[index], [field]: value } as PickInput
+        return { ...prev, gives_picks: picks }
+      })
     } else {
-      const picks = [...receiver.gives_picks]
-      picks[index] = { ...picks[index], [field]: value } as PickInput
-      setReceiver({ ...receiver, gives_picks: picks })
+      setReceiver((prev) => {
+        const picks = [...prev.gives_picks]
+        picks[index] = { ...picks[index], [field]: value } as PickInput
+        return { ...prev, gives_picks: picks }
+      })
     }
   }
 
@@ -391,7 +401,7 @@ function TradeEvaluatorInner() {
             id={`trade-${teamKey}-manager-name`}
             type="text"
             value={team.manager_name}
-            onChange={(e) => setTeam({ ...team, manager_name: e.target.value })}
+            onChange={(e) => setTeam((prev) => ({ ...prev, manager_name: e.target.value }))}
             className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
             placeholder="e.g., Dynasty Destroyers"
           />
@@ -403,7 +413,7 @@ function TradeEvaluatorInner() {
             id={`trade-${teamKey}-record-rank`}
             type="text"
             value={team.record_or_rank}
-            onChange={(e) => setTeam({ ...team, record_or_rank: e.target.value })}
+            onChange={(e) => setTeam((prev) => ({ ...prev, record_or_rank: e.target.value }))}
             className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
             placeholder="e.g., 3rd place, 8-4"
           />
@@ -538,7 +548,7 @@ function TradeEvaluatorInner() {
             id={`trade-${teamKey}-faab`}
             type="number"
             value={team.gives_faab}
-            onChange={(e) => setTeam({ ...team, gives_faab: Number(e.target.value) })}
+            onChange={(e) => setTeam((prev) => ({ ...prev, gives_faab: Number(e.target.value) }))}
             className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
             placeholder="$0"
             min={0}
@@ -549,7 +559,7 @@ function TradeEvaluatorInner() {
           <input
             type="checkbox"
             checked={team.is_af_pro}
-            onChange={(e) => setTeam({ ...team, is_af_pro: e.target.checked })}
+            onChange={(e) => setTeam((prev) => ({ ...prev, is_af_pro: e.target.checked }))}
             aria-label={`${teamKey} AF Pro member`}
             className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-400"
           />
@@ -623,6 +633,14 @@ function TradeEvaluatorInner() {
             Add players and picks to each side, then click Evaluate Trade. Supports NFL, NBA, MLB, NHL, NCAA Football, NCAA Basketball, and Soccer.
           </p>
         </div>
+
+        <InContextMonetizationCard
+          title="Trade Analyzer access"
+          featureId="trade_analyzer"
+          tokenRuleCodes={['ai_trade_analyzer_full_review']}
+          className="mb-6"
+          testIdPrefix="trade-monetization"
+        />
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid md:grid-cols-2 gap-6">
