@@ -16,10 +16,12 @@
 
 ### 3. Filters (sport, type, paid/free)
 - **Sport:** All sports from `SUPPORTED_SPORTS` (NFL, NHL, NBA, MLB, NCAAB, NCAAF, SOCCER).
-- **Type:** All | Bracket | Creator (format).
+- **Type:** All | Fantasy | Bracket | Creator (format).
 - **Paid/Free:** All | Free | Paid (entryFee).
 - **Sort:** Popular | Newest | Filling fast.
-- **UI:** Filter bar in “Browse public leagues” plus search.
+- **Style:** Any style | Dynasty | Redraft | Best Ball | Keeper | Survivor | Bracket | Community.
+- **UI:** Filter bar in “Browse public leagues” plus search and one-tap clear filters.
+- **Behavior:** filter changes are now state-consistent (no stale refetches); sport filter also scopes Trending, Recommendations, and Orphan sections.
 
 ### 4. Trending leagues
 - **API:** `GET /api/discover/trending` (existing) — popularity-sorted, optional sport, limit.

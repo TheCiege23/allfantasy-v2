@@ -6,7 +6,13 @@ import { Search, Trophy, TrendingUp, Sparkles, UserPlus, ChevronRight, Loader2, 
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { trackDiscoveryJoinClick } from '@/lib/discovery-analytics/client'
 import { getFanCredBoundaryDisclosureShort } from '@/lib/legal/FanCredBoundaryDisclosure'
-import type { DiscoveryCard } from '@/lib/public-discovery/types'
+import type {
+  DiscoveryCard,
+  DiscoveryFormat,
+  DiscoverySort,
+  EntryFeeFilter,
+  LeagueStyleFilter,
+} from '@/lib/public-discovery/types'
 
 const SORT_OPTIONS = [
   { value: 'popularity', label: 'Popular' },
@@ -15,8 +21,19 @@ const SORT_OPTIONS = [
 ]
 const FORMAT_OPTIONS = [
   { value: 'all', label: 'All' },
+  { value: 'fantasy', label: 'Fantasy' },
   { value: 'bracket', label: 'Bracket' },
   { value: 'creator', label: 'Creator' },
+]
+const STYLE_OPTIONS = [
+  { value: 'all', label: 'Any style' },
+  { value: 'dynasty', label: 'Dynasty' },
+  { value: 'redraft', label: 'Redraft' },
+  { value: 'best_ball', label: 'Best Ball' },
+  { value: 'keeper', label: 'Keeper' },
+  { value: 'survivor', label: 'Survivor' },
+  { value: 'bracket', label: 'Bracket' },
+  { value: 'community', label: 'Community' },
 ]
 const ENTRY_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -135,24 +152,32 @@ export default function LeagueDiscoveryClientUnified() {
   const [loadingOrphans, setLoadingOrphans] = useState(true)
   const [loadingBrowse, setLoadingBrowse] = useState(false)
   const [sport, setSport] = useState('')
-  const [format, setFormat] = useState('all')
-  const [entryFee, setEntryFee] = useState('all')
-  const [sort, setSort] = useState('popularity')
-  const [query, setQuery] = useState('')
+  const [format, setFormat] = useState<DiscoveryFormat>('all')
+  const [style, setStyle] = useState<LeagueStyleFilter>('all')
+  const [entryFee, setEntryFee] = useState<EntryFeeFilter>('all')
+  const [sort, setSort] = useState<DiscoverySort>('popularity')
+  const [searchInput, setSearchInput] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
   const [recommendationAiExplainEnabled, setRecommendationAiExplainEnabled] = useState(false)
   const [page, setPage] = useState(1)
   const limit = 12
 
   useEffect(() => {
-    fetch('/api/discover/trending?limit=6')
+    setLoadingTrending(true)
+    const params = new URLSearchParams()
+    params.set('limit', '6')
+    if (sport) params.set('sport', sport)
+    fetch(`/api/discover/trending?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setTrending(d.leagues ?? []))
       .finally(() => setLoadingTrending(false))
-  }, [])
+  }, [sport])
 
   useEffect(() => {
+    setLoadingRec(true)
     const params = new URLSearchParams()
     params.set('limit', '6')
+    if (sport) params.set('sport', sport)
     if (recommendationAiExplainEnabled) params.set('aiExplain', '1')
     fetch(`/api/discover/recommendations?${params.toString()}`)
       .then((r) => r.json())
@@ -171,30 +196,30 @@ export default function LeagueDiscoveryClientUnified() {
         )
       })
       .finally(() => setLoadingRec(false))
-  }, [recommendationAiExplainEnabled])
-
-  const [orphanSport, setOrphanSport] = useState('')
+  }, [recommendationAiExplainEnabled, sport])
 
   useEffect(() => {
+    setLoadingOrphans(true)
     const params = new URLSearchParams()
     params.set('limit', '6')
-    if (orphanSport) params.set('sport', orphanSport)
+    if (sport) params.set('sport', sport)
     fetch(`/api/discover/orphans?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setOrphans(d.leagues ?? []))
       .finally(() => setLoadingOrphans(false))
-  }, [orphanSport])
+  }, [sport])
 
   const fetchBrowse = useCallback(
-    (p: number) => {
+    (requestedPage: number) => {
       setLoadingBrowse(true)
       const params = new URLSearchParams()
-      if (query.trim()) params.set('q', query.trim())
+      if (appliedQuery.trim()) params.set('q', appliedQuery.trim())
       if (sport) params.set('sport', sport)
       if (format !== 'all') params.set('format', format)
+      if (style !== 'all') params.set('style', style)
       if (entryFee !== 'all') params.set('entryFee', entryFee)
       params.set('sort', sort)
-      params.set('page', String(p))
+      params.set('page', String(requestedPage))
       params.set('limit', String(limit))
       fetch(`/api/discover/leagues?${params.toString()}`)
         .then((r) => r.json())
@@ -205,17 +230,12 @@ export default function LeagueDiscoveryClientUnified() {
         })
         .finally(() => setLoadingBrowse(false))
     },
-    [query, sport, format, entryFee, sort]
+    [appliedQuery, sport, format, style, entryFee, sort]
   )
 
   useEffect(() => {
     fetchBrowse(page)
   }, [page, fetchBrowse])
-
-  const onFilterChange = () => {
-    setPage(1)
-    fetchBrowse(1)
-  }
 
   return (
     <div className="space-y-8">
@@ -302,17 +322,11 @@ export default function LeagueDiscoveryClientUnified() {
             <UserPlus className="h-4 w-4 text-violet-400" />
             Orphan teams
           </h2>
-          <select
-            value={orphanSport}
-            onChange={(e) => setOrphanSport(e.target.value)}
-            className="rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-white"
-            aria-label="Filter by sport"
-          >
-            <option value="">All sports</option>
-            {SUPPORTED_SPORTS.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          {sport ? (
+            <span className="rounded-lg border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] text-white/70">
+              Sport filter: {sport}
+            </span>
+          ) : null}
         </div>
         <p className="text-xs text-white/50 mb-3">Leagues seeking a manager. Join and take over an open team.</p>
         {loadingOrphans ? (
@@ -339,7 +353,8 @@ export default function LeagueDiscoveryClientUnified() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            onFilterChange()
+            setPage(1)
+            setAppliedQuery(searchInput.trim())
           }}
           className="space-y-3 mb-4"
         >
@@ -349,8 +364,8 @@ export default function LeagueDiscoveryClientUnified() {
               <input
                 type="search"
                 placeholder="Search leagues..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full rounded-lg border border-white/10 bg-black/30 pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-white/40"
                 aria-label="Search"
               />
@@ -365,7 +380,10 @@ export default function LeagueDiscoveryClientUnified() {
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={sport}
-              onChange={(e) => { setSport(e.target.value); onFilterChange() }}
+              onChange={(e) => {
+                setSport(e.target.value)
+                setPage(1)
+              }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white min-h-[40px]"
               aria-label="Sport"
             >
@@ -376,7 +394,10 @@ export default function LeagueDiscoveryClientUnified() {
             </select>
             <select
               value={format}
-              onChange={(e) => { setFormat(e.target.value); onFilterChange() }}
+              onChange={(e) => {
+                setFormat(e.target.value as DiscoveryFormat)
+                setPage(1)
+              }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white min-h-[40px]"
               aria-label="Type"
             >
@@ -385,8 +406,24 @@ export default function LeagueDiscoveryClientUnified() {
               ))}
             </select>
             <select
+              value={style}
+              onChange={(e) => {
+                setStyle(e.target.value as LeagueStyleFilter)
+                setPage(1)
+              }}
+              className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white min-h-[40px]"
+              aria-label="League style"
+            >
+              {STYLE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <select
               value={entryFee}
-              onChange={(e) => { setEntryFee(e.target.value); onFilterChange() }}
+              onChange={(e) => {
+                setEntryFee(e.target.value as EntryFeeFilter)
+                setPage(1)
+              }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white min-h-[40px]"
               aria-label="Paid / Free"
             >
@@ -396,7 +433,10 @@ export default function LeagueDiscoveryClientUnified() {
             </select>
             <select
               value={sort}
-              onChange={(e) => { setSort(e.target.value); onFilterChange() }}
+              onChange={(e) => {
+                setSort(e.target.value as DiscoverySort)
+                setPage(1)
+              }}
               className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white min-h-[40px]"
               aria-label="Sort"
             >
@@ -404,6 +444,23 @@ export default function LeagueDiscoveryClientUnified() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={() => {
+                setSport('')
+                setFormat('all')
+                setStyle('all')
+                setEntryFee('all')
+                setSort('popularity')
+                setSearchInput('')
+                setAppliedQuery('')
+                setPage(1)
+              }}
+              className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm text-white/75 hover:bg-white/[0.08]"
+              data-testid="discovery-clear-filters-button"
+            >
+              Clear filters
+            </button>
           </div>
         </form>
         {loadingBrowse ? (
