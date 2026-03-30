@@ -19,6 +19,7 @@ import ChimmyQuickPrompts from './ChimmyQuickPrompts'
 import ChimmyToolContext from './ChimmyToolContext'
 import ChimmyProviderIndicator from './ChimmyProviderIndicator'
 import ChimmyVoiceReadyControls from './ChimmyVoiceReadyControls'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 
 export type ChimmyChatMessage = {
   role: 'user' | 'assistant'
@@ -523,6 +524,13 @@ export default function ChimmyChatShell({
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        <InContextMonetizationCard
+          title="Chimmy message access"
+          featureId="ai_chat"
+          tokenRuleCodes={['ai_chimmy_chat_message']}
+          className="mb-2"
+          testIdPrefix="chimmy-monetization"
+        />
         {toolContext && (
           <ChimmyToolContext
             toolName={toolContext.toolName}

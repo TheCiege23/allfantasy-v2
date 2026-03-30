@@ -68,6 +68,9 @@ export function SubscriptionEntitlementHarnessClient() {
           <div className="mt-2 space-y-2 text-sm">
             <p data-testid="entitlement-status">Status: {entitlement?.status ?? 'none'}</p>
             <p data-testid="entitlement-plans">Plans: {(entitlement?.plans ?? []).join(', ') || 'none'}</p>
+            <p data-testid="entitlement-effective-plans">
+              Effective plans: {(entitlement?.bundleInheritance?.effectivePlanIds ?? entitlement?.plans ?? []).join(', ') || 'none'}
+            </p>
             <p data-testid="entitlement-message">{entitlement?.message ?? 'Upgrade to access this feature.'}</p>
           </div>
         )}
@@ -78,9 +81,13 @@ export function SubscriptionEntitlementHarnessClient() {
         {!loading && !featureAccess ? (
           <LockedFeatureCard
             featureName="AI Chat"
+            featureId="ai_chat"
             requiredPlan="AF Pro"
             upgradeHref={upgradePath}
             statusMessage={entitlement?.message}
+            tokenCost={1}
+            tokenHref="/tokens?ruleCode=ai_chimmy_chat_message"
+            entitlementStatus={entitlement?.status ?? 'none'}
             className="mt-3"
           />
         ) : (

@@ -3,41 +3,34 @@ import type {
   SubscriptionFeatureId,
   SubscriptionPlanId,
 } from "@/lib/subscription/types"
+import {
+  buildMonetizationUpgradePathForFeature,
+  getPremiumMonetizationForFeature,
+  listPremiumFeatureMonetizationMatrix,
+} from "@/lib/monetization/feature-monetization-matrix"
 
-export const PRO_FEATURES: readonly SubscriptionFeatureId[] = [
-  "trade_analyzer",
-  "ai_chat",
-  "ai_waivers",
-  "planning_tools",
-  "player_ai_recommendations",
-  "matchup_explanations",
-  "player_comparison_explanations",
-  "guillotine_ai",
-  "salary_cap_ai",
-  "survivor_ai",
-  "zombie_ai",
-]
+const PREMIUM_MONETIZATION_FEATURES = listPremiumFeatureMonetizationMatrix()
 
-export const COMMISSIONER_FEATURES: readonly SubscriptionFeatureId[] = [
-  "advanced_scoring",
-  "advanced_playoff_setup",
-  "ai_collusion_detection",
-  "ai_tanking_detection",
-  "storyline_creation",
-  "league_rankings",
-  "draft_rankings",
-  "ai_team_managers",
-  "commissioner_automation",
-]
+export const PRO_FEATURES: readonly SubscriptionFeatureId[] = PREMIUM_MONETIZATION_FEATURES
+  .filter((entry) => entry.requiredPlanId === "pro")
+  .map((entry) => entry.key)
 
-export const WAR_ROOM_FEATURES: readonly SubscriptionFeatureId[] = [
-  "draft_strategy_build",
-  "draft_prep",
-  "future_planning",
-  "multi_year_strategy",
-  "draft_board_intelligence",
-  "roster_construction_planning",
-  "ai_planning_3_5_year",
+export const COMMISSIONER_FEATURES: readonly SubscriptionFeatureId[] = PREMIUM_MONETIZATION_FEATURES
+  .filter((entry) => entry.requiredPlanId === "commissioner")
+  .map((entry) => entry.key)
+
+export const WAR_ROOM_FEATURES: readonly SubscriptionFeatureId[] = PREMIUM_MONETIZATION_FEATURES
+  .filter((entry) => entry.requiredPlanId === "war_room")
+  .map((entry) => entry.key)
+
+const SUBSCRIPTION_FEATURE_ID_SET = new Set<SubscriptionFeatureId>(
+  PREMIUM_MONETIZATION_FEATURES.map((entry) => entry.key)
+)
+
+export const ALL_ACCESS_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
+  "pro",
+  "commissioner",
+  "war_room",
 ]
 
 export function isActiveOrGraceStatus(status: EntitlementStatus): boolean {
@@ -47,10 +40,7 @@ export function isActiveOrGraceStatus(status: EntitlementStatus): boolean {
 export function getRequiredPlanForFeature(
   featureId: SubscriptionFeatureId
 ): SubscriptionPlanId | null {
-  if (PRO_FEATURES.includes(featureId)) return "pro"
-  if (COMMISSIONER_FEATURES.includes(featureId)) return "commissioner"
-  if (WAR_ROOM_FEATURES.includes(featureId)) return "war_room"
-  return null
+  return getPremiumMonetizationForFeature(featureId)?.requiredPlanId ?? null
 }
 
 export function getDisplayPlanName(planId: SubscriptionPlanId): string {
@@ -69,11 +59,24 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
 export function expandPlansWithBundle(plans: readonly SubscriptionPlanId[]): SubscriptionPlanId[] {
   const expanded = new Set<SubscriptionPlanId>(plans)
   if (expanded.has("all_access")) {
-    expanded.add("pro")
-    expanded.add("commissioner")
-    expanded.add("war_room")
+    for (const includedPlan of ALL_ACCESS_INCLUDED_PLAN_IDS) {
+      expanded.add(includedPlan)
+    }
   }
   return Array.from(expanded)
+}
+
+export function resolveBundleInheritance(plans: readonly SubscriptionPlanId[]): {
+  hasAllAccess: boolean
+  inheritedPlanIds: SubscriptionPlanId[]
+  effectivePlanIds: SubscriptionPlanId[]
+} {
+  const hasAllAccess = plans.includes("all_access")
+  return {
+    hasAllAccess,
+    inheritedPlanIds: hasAllAccess ? [...ALL_ACCESS_INCLUDED_PLAN_IDS] : [],
+    effectivePlanIds: expandPlansWithBundle(plans),
+  }
 }
 
 export function hasFeatureAccessForPlans(
@@ -89,16 +92,10 @@ export function hasFeatureAccessForPlans(
 }
 
 export function buildFeatureUpgradePath(featureId: SubscriptionFeatureId): string {
-  const requiredPlan = getRequiredPlanForFeature(featureId)
-  if (!requiredPlan) return "/pricing"
-  return `/pricing?plan=${encodeURIComponent(requiredPlan)}&feature=${encodeURIComponent(featureId)}`
+  return buildMonetizationUpgradePathForFeature(featureId)
 }
 
 export function isSubscriptionFeatureId(value: unknown): value is SubscriptionFeatureId {
   if (typeof value !== "string") return false
-  return (
-    PRO_FEATURES.includes(value as SubscriptionFeatureId) ||
-    COMMISSIONER_FEATURES.includes(value as SubscriptionFeatureId) ||
-    WAR_ROOM_FEATURES.includes(value as SubscriptionFeatureId)
-  )
+  return SUBSCRIPTION_FEATURE_ID_SET.has(value as SubscriptionFeatureId)
 }

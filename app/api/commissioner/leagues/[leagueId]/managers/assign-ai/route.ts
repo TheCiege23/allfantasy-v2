@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { updateDraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 
 type SessionWithUser = { user?: { id?: string } } | null
 
@@ -25,6 +26,12 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  const gate = await requireFeatureEntitlement({
+    userId,
+    featureId: 'ai_team_managers',
+  })
+  if (!gate.ok) return gate.response
 
   const body = await req.json().catch(() => ({}))
   const rosterId = typeof body?.rosterId === 'string' ? body.rosterId.trim() : ''

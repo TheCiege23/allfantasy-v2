@@ -10,6 +10,9 @@ const LONG_DISCLOSURE = [
   "No gambling, betting, or in-app prize payout systems are offered in AllFantasy.",
 ].join(" ")
 
+const COMMISSIONER_SETUP_NOTICE =
+  "Commissioners are responsible for setting up FanCred, collecting league dues, and managing payout distribution for paid leagues."
+
 const DISCLOSURE_CHECKLIST = [
   "Paid league dues are handled externally through FanCred.",
   "Commissioners are responsible for FanCred setup and payout operations.",
@@ -21,6 +24,7 @@ export type FanCredBoundaryDisclosure = {
   version: string
   short: string
   long: string
+  commissionerSetup: string
   checklist: readonly string[]
 }
 
@@ -36,11 +40,16 @@ export function getFanCredBoundaryChecklist(): readonly string[] {
   return DISCLOSURE_CHECKLIST
 }
 
+export function getFanCredCommissionerSetupNotice(): string {
+  return COMMISSIONER_SETUP_NOTICE
+}
+
 export function getFanCredBoundaryDisclosure(): FanCredBoundaryDisclosure {
   return {
     version: FANCRED_BOUNDARY_DISCLOSURE_VERSION,
     short: SHORT_DISCLOSURE,
     long: LONG_DISCLOSURE,
+    commissionerSetup: COMMISSIONER_SETUP_NOTICE,
     checklist: DISCLOSURE_CHECKLIST,
   }
 }

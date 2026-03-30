@@ -16,6 +16,13 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
+import {
+  TokenInsufficientBalanceError,
+  TokenSpendConfirmationRequiredError,
+  TokenSpendService,
+  TokenSpendRuleNotFoundError,
+  type TokenSpendPreview,
+} from '@/lib/tokens/TokenSpendService'
 
 type ConversationTurn = {
   role: 'user' | 'assistant'
@@ -263,6 +270,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     getUserId: async () => userId,
   })
   if (limitRes) return limitRes
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   let formData: FormData
   try {
@@ -272,6 +282,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const message = ((formData.get('message') as string) ?? '').trim()
+  const confirmTokenSpend = String(formData.get('confirmTokenSpend') ?? '')
+    .trim()
+    .toLowerCase() === 'true'
   const explicitConversationId = ((formData.get('conversationId') as string) ?? '').trim() || undefined
   const privateMode = formData.get('privateMode') === 'true'
   const targetUsername = ((formData.get('targetUsername') as string) ?? '').trim() || undefined
@@ -452,6 +465,88 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
   }
 
+  const spendService = new TokenSpendService()
+  let tokenPreview: TokenSpendPreview
+  try {
+    tokenPreview = await spendService.previewSpend(userId, 'ai_chimmy_chat_message')
+  } catch (error) {
+    if (error instanceof TokenSpendRuleNotFoundError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: 'token_spend_rule_missing',
+        },
+        { status: 500 }
+      )
+    }
+    return NextResponse.json({ error: 'Unable to preview token spend.' }, { status: 500 })
+  }
+  if (!confirmTokenSpend) {
+    return NextResponse.json(
+      {
+        error: 'Token spend confirmation required before sending to Chimmy.',
+        code: 'token_confirmation_required',
+        preview: tokenPreview,
+      },
+      { status: 409 }
+    )
+  }
+
+  let spendLedger: { id: string; balanceAfter: number } | null = null
+  try {
+    const ledger = await spendService.spendTokensForRule({
+      userId,
+      ruleCode: 'ai_chimmy_chat_message',
+      confirmed: confirmTokenSpend,
+      sourceType: 'chimmy_chat',
+      sourceId: conversationId,
+      description: 'Chimmy chat message',
+      metadata: {
+        conversationId,
+        leagueId: leagueId ?? null,
+        sport,
+        source: source ?? null,
+      },
+    })
+    spendLedger = {
+      id: ledger.id,
+      balanceAfter: ledger.balanceAfter,
+    }
+  } catch (error) {
+    if (error instanceof TokenInsufficientBalanceError) {
+      return NextResponse.json(
+        {
+          error: 'Insufficient token balance',
+          code: 'insufficient_token_balance',
+          requiredTokens: error.requiredTokens,
+          currentBalance: error.currentBalance,
+        },
+        { status: 402 }
+      )
+    }
+    if (error instanceof TokenSpendConfirmationRequiredError) {
+      return NextResponse.json(
+        {
+          error: 'Token spend confirmation required.',
+          code: 'token_confirmation_required',
+          requiredTokens: error.tokenCost,
+          ruleCode: error.ruleCode,
+        },
+        { status: 409 }
+      )
+    }
+    if (error instanceof TokenSpendRuleNotFoundError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: 'token_spend_rule_missing',
+        },
+        { status: 500 }
+      )
+    }
+    return NextResponse.json({ error: 'Unable to process token spend.' }, { status: 500 })
+  }
+
   const unifiedRequest = requestContractToUnified(
     {
       tool: 'chimmy_chat',
@@ -467,8 +562,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userId
   )
 
-  const run = await runUnifiedOrchestration(unifiedRequest)
+  let run: Awaited<ReturnType<typeof runUnifiedOrchestration>>
+  try {
+    run = await runUnifiedOrchestration(unifiedRequest)
+  } catch (error) {
+    if (spendLedger?.id) {
+      await spendService
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: spendLedger.id,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'chimmy_chat_refund',
+          sourceId: spendLedger.id,
+          idempotencyKey: `refund:chimmy_chat:${spendLedger.id}`,
+          description: 'Auto refund after failed Chimmy request.',
+          metadata: { conversationId, leagueId: leagueId ?? null },
+        })
+        .catch(() => null)
+    }
+    return NextResponse.json({ error: 'Unable to process Chimmy request.' }, { status: 500 })
+  }
   if (!run.ok) {
+    if (spendLedger?.id) {
+      await spendService
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: spendLedger.id,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'chimmy_chat_refund',
+          sourceId: spendLedger.id,
+          idempotencyKey: `refund:chimmy_chat:${spendLedger.id}`,
+          description: 'Auto refund after failed Chimmy request.',
+          metadata: { conversationId, leagueId: leagueId ?? null },
+        })
+        .catch(() => null)
+    }
     return NextResponse.json(
       {
         error: run.error.userMessage || 'Unable to process Chimmy request.',
@@ -500,6 +628,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     providerStatus,
     recommendedTool,
     dataSources: dataSources.length ? dataSources : undefined,
+    tokenSpend: spendLedger
+      ? {
+          ruleCode: tokenPreview.ruleCode,
+          tokenCost: tokenPreview.tokenCost,
+          balanceAfter: spendLedger.balanceAfter,
+          ledgerId: spendLedger.id,
+        }
+      : undefined,
     quantData,
     trendData,
     responseStructure,

@@ -7,8 +7,7 @@ export const dynamic = "force-dynamic"
 
 /**
  * GET /api/tokens/balance
- * Returns current user's token balance for UI (useTokenBalance hook).
- * When platform token balance is persisted, resolve from DB here.
+ * Returns current user's persisted token balance + lifetime stats for UI widgets.
  */
 export async function GET() {
   try {
@@ -22,6 +21,9 @@ export async function GET() {
 
     return NextResponse.json({
       balance: Number(snapshot.balance),
+      lifetimePurchased: Number(snapshot.lifetimePurchased ?? 0),
+      lifetimeSpent: Number(snapshot.lifetimeSpent ?? 0),
+      lifetimeRefunded: Number(snapshot.lifetimeRefunded ?? 0),
       updatedAt: String(snapshot.updatedAt),
     })
   } catch (e) {

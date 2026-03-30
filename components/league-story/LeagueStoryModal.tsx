@@ -159,7 +159,11 @@ export function LeagueStoryModal({
       })
       const data = (await res.json().catch(() => ({}))) as StoryCreateResponse & { error?: string }
       if (!res.ok) {
-        setError(data.error || 'Failed to generate story')
+        const gateMessage =
+          typeof (data as { message?: unknown }).message === 'string'
+            ? ((data as { message?: string }).message ?? '')
+            : ''
+        setError(gateMessage || data.error || 'Failed to generate story')
         return
       }
       setStory(data.story ?? null)

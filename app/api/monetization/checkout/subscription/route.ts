@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getBaseUrl } from "@/lib/get-base-url"
-import { getStripeClient } from "@/lib/stripe-client"
 import {
   assertNoLeagueSettlementIntent,
   isMonetizationComplianceError,
 } from "@/lib/monetization/compliance-guardrails"
 import {
   getMonetizationCatalogItemBySku,
-  getMonetizationStripePriceIdForSku,
   type MonetizationSku,
 } from "@/lib/monetization/catalog"
-import { buildCheckoutReturnUrls, resolveSafeReturnPath } from "@/lib/monetization/checkout-urls"
+import { resolveSafeReturnPath } from "@/lib/monetization/checkout-urls"
+import { buildStripeCheckoutDestinationForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 
 type CheckoutSubscriptionBody = {
   sku?: string
@@ -45,40 +43,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid subscription sku" }, { status: 400 })
     }
 
-    const priceId = getMonetizationStripePriceIdForSku(item.sku)
-    if (!priceId) {
+    const returnPath = resolveSafeReturnPath(body?.returnPath, "/pricing")
+    const destination = buildStripeCheckoutDestinationForSku({
+      sku: item.sku,
+      userId: session.user.id,
+      userEmail: session.user.email ?? null,
+      returnPath,
+    })
+    if (!destination || destination.purchaseType !== "subscription") {
       return NextResponse.json(
-        { error: "Stripe price not configured for this subscription sku" },
-        { status: 500 }
+        {
+          error:
+            "Checkout is temporarily unavailable for this subscription plan. Please try again shortly.",
+        },
+        { status: 503 }
       )
     }
 
-    const baseUrl = getBaseUrl()
-    const returnPath = resolveSafeReturnPath(body?.returnPath, "/pricing")
-    const { successUrl, cancelUrl } = buildCheckoutReturnUrls(baseUrl, returnPath)
-
-    const stripe = getStripeClient()
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      line_items: [{ price: priceId, quantity: 1 }],
-      customer_email: session.user.email ?? undefined,
-      metadata: {
-        purchaseType: "subscription",
-        sku: item.sku,
-        userId: session.user.id,
-      },
-    })
-
-    if (!checkoutSession.url) {
-      return NextResponse.json({ error: "Failed to create checkout session" }, { status: 500 })
-    }
-
     return NextResponse.json({
-      url: checkoutSession.url,
-      sessionId: checkoutSession.id,
+      url: destination.url,
       sku: item.sku,
+      purchaseType: "subscription",
     })
   } catch (error) {
     if (isMonetizationComplianceError(error)) {

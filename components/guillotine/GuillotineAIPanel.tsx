@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
-import { useEntitlement } from '@/hooks/useEntitlement'
-import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 export type GuillotineAIPanelType = 'draft' | 'survival' | 'waiver' | 'recap' | 'orphan'
 
@@ -81,9 +80,6 @@ export function GuillotineAIPanel({
     type: string
   } | null>(null)
 
-  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
-    useEntitlement('guillotine_ai')
-
   const runAI = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -111,7 +107,6 @@ export function GuillotineAIPanel({
     }
   }, [leagueId, type, weekOrPeriod])
 
-  const canUseAI = featureAccess
   if (deterministicSummaryProp == null && isGuillotineLeague === false) return null
 
   return (
@@ -153,14 +148,11 @@ export function GuillotineAIPanel({
         ))}
       </div>
 
-      {/* Gated AI button */}
-      {entitlementLoading ? (
-        <p className="text-sm text-white/50">Checking access…</p>
-      ) : (
+      <FeatureGate featureId="guillotine_ai" featureNameOverride="Guillotine AI" className="mt-2">
         <button
           type="button"
           onClick={runAI}
-          disabled={!canUseAI || loading}
+          disabled={loading}
           className="rounded-lg bg-cyan-500/80 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
@@ -172,17 +164,7 @@ export function GuillotineAIPanel({
             <>Get AI strategy: {TYPE_LABELS[type]}</>
           )}
         </button>
-      )}
-
-      {!canUseAI && !entitlementLoading && (
-        <LockedFeatureCard
-          featureName="Guillotine AI"
-          requiredPlan="AF Pro"
-          upgradeHref={upgradePath}
-          statusMessage={entitlement?.message}
-          className="mt-3"
-        />
-      )}
+      </FeatureGate>
 
       {error && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/20 p-2 text-sm text-amber-200">

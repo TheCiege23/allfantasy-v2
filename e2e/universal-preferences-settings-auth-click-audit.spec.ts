@@ -112,6 +112,12 @@ test.describe("@db @preferences universal preferences auth click audit", () => {
   test.describe.configure({ timeout: 180_000, mode: "serial" })
 
   test("audits header + settings + mobile toggles with persistence", async ({ page }) => {
+    const runAuthedSettingsE2E = process.env.PLAYWRIGHT_ENABLE_AUTH_DB_E2E === "1"
+    test.skip(
+      !runAuthedSettingsE2E,
+      "Set PLAYWRIGHT_ENABLE_AUTH_DB_E2E=1 in a DB-configured environment to run authenticated settings E2E."
+    )
+
     const credentials = makeCredentials()
     const profilePatchPayloads: Array<Record<string, unknown>> = []
 

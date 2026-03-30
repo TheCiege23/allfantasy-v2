@@ -8,6 +8,7 @@ import {
   getDisplayPlanName,
   getRequiredPlanForFeature,
   isSubscriptionFeatureId,
+  resolveBundleInheritance,
 } from "@/lib/subscription/feature-access"
 
 export const dynamic = "force-dynamic"
@@ -42,9 +43,11 @@ export async function GET(req: Request) {
     const requiredPlanId = featureId ? getRequiredPlanForFeature(featureId) : null
     const requiredPlan = requiredPlanId ? getDisplayPlanName(requiredPlanId) : null
     const upgradePath = featureId ? buildFeatureUpgradePath(featureId) : "/pricing"
+    const bundleInheritance = resolveBundleInheritance(entitlement.plans)
 
     return NextResponse.json({
       entitlement,
+      bundleInheritance,
       hasAccess: Boolean(hasAccess),
       message: String(message ?? "Upgrade to access this feature."),
       requiredPlan,

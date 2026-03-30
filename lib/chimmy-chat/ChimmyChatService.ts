@@ -1,10 +1,12 @@
 import type { AIChatContext, ChimmyMessageMeta, ChimmyThreadMessage } from "./types"
+import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
 
 type SendChimmyMessageInput = {
   message: string
   imageFile?: File | null
   conversation?: ChimmyThreadMessage[]
   context?: AIChatContext
+  confirmTokenSpend?: boolean
 }
 
 type SendChimmyMessageResult = {
@@ -63,8 +65,36 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
 }
 
 export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<SendChimmyMessageResult> {
+  const shouldConfirmTokenSpend = input.confirmTokenSpend ?? true
+  if (shouldConfirmTokenSpend) {
+    try {
+      const { confirmed, preview } = await confirmTokenSpend("ai_chimmy_chat_message")
+      if (!preview.canSpend) {
+        return {
+          ok: false,
+          response: "You do not have enough tokens for this Chimmy request.",
+          error: `Need ${preview.tokenCost} token${preview.tokenCost === 1 ? "" : "s"}. Current balance: ${preview.currentBalance}.`,
+        }
+      }
+      if (!confirmed) {
+        return {
+          ok: false,
+          response: "Token spend cancelled.",
+          error: "Token spend cancelled by user.",
+        }
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        response: "Unable to preview token spend right now.",
+        error: error instanceof Error ? error.message : "Token spend preview failed",
+      }
+    }
+  }
+
   const formData = new FormData()
   formData.append("message", input.message)
+  formData.append("confirmTokenSpend", "true")
 
   if (input.imageFile) formData.append("image", input.imageFile)
   if (input.context?.leagueId) formData.append("leagueId", input.context.leagueId)

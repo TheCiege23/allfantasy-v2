@@ -6,6 +6,7 @@ test.describe('@commissioner ai commissioner click audit', () => {
   test('wires commissioner settings, alert actions, and AI explain end-to-end', async ({ page }) => {
     const leagueId = `e2e-ai-commissioner-${Date.now()}`
     const season = 2026
+    page.on('dialog', (dialog) => dialog.accept())
 
     interface MockAlert {
       alertId: string
@@ -330,10 +331,106 @@ test.describe('@commissioner ai commissioner click audit', () => {
         body: JSON.stringify(buildOverview()),
       })
     })
+    await page.route('**/api/subscription/entitlements**', async (route) => {
+      const url = new URL(route.request().url())
+      const feature = String(url.searchParams.get('feature') ?? '')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entitlement: {
+            plans: ['commissioner'],
+            status: 'active',
+            currentPeriodEnd: null,
+            gracePeriodEnd: null,
+          },
+          hasAccess: true,
+          message: 'Access granted.',
+          requiredPlan: feature ? 'AF Commissioner' : null,
+          upgradePath: feature
+            ? `/upgrade?plan=commissioner&feature=${encodeURIComponent(feature)}`
+            : '/commissioner-upgrade',
+        }),
+      })
+    })
+    await page.route('**/api/monetization/context**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entitlement: {
+            plans: ['commissioner'],
+            status: 'active',
+            currentPeriodEnd: null,
+            gracePeriodEnd: null,
+          },
+          entitlementMessage: 'Access granted.',
+          feature: {
+            featureId: 'commissioner_automation',
+            hasAccess: true,
+            requiredPlan: 'AF Commissioner',
+            upgradePath: '/upgrade?plan=commissioner&feature=commissioner_automation',
+            message: 'Access granted.',
+          },
+          tokenBalance: {
+            balance: 25,
+            lifetimePurchased: 0,
+            lifetimeSpent: 0,
+            lifetimeRefunded: 0,
+            updatedAt: new Date().toISOString(),
+          },
+          tokenPreviews: [
+            {
+              ruleCode: 'commissioner_ai_cycle_run',
+              preview: {
+                ruleCode: 'commissioner_ai_cycle_run',
+                featureLabel: 'AI Commissioner cycle run',
+                tokenCost: 3,
+                currentBalance: 25,
+                canSpend: true,
+                requiresConfirmation: true,
+              },
+              error: null,
+            },
+            {
+              ruleCode: 'commissioner_ai_chat_question',
+              preview: {
+                ruleCode: 'commissioner_ai_chat_question',
+                featureLabel: 'AI Commissioner question',
+                tokenCost: 1,
+                currentBalance: 25,
+                canSpend: true,
+                requiresConfirmation: true,
+              },
+              error: null,
+            },
+          ],
+        }),
+      })
+    })
+    await page.route('**/api/tokens/spend/preview?**', async (route) => {
+      const url = new URL(route.request().url())
+      const ruleCode = String(url.searchParams.get('ruleCode') ?? '')
+      const tokenCost = ruleCode === 'commissioner_ai_cycle_run' ? 3 : 1
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          preview: {
+            ruleCode,
+            featureLabel: ruleCode,
+            tokenCost,
+            currentBalance: 25,
+            canSpend: true,
+            requiresConfirmation: true,
+          },
+        }),
+      })
+    })
 
     await page.goto(`/e2e/commissioner?leagueId=${leagueId}`)
     await expect(page.getByRole('heading', { name: /e2e commissioner harness/i })).toBeVisible()
-    await expect(page.getByRole('heading', { name: /ai commissioner/i })).toBeVisible()
+    await expect(page.getByRole('heading', { name: /ai commissioner/i })).toBeVisible({ timeout: 20_000 })
 
     await page.getByTestId('ai-commissioner-sport').selectOption('NBA')
     await page.getByTestId('ai-commissioner-season').fill('2026')
@@ -346,6 +443,8 @@ test.describe('@commissioner ai commissioner click audit', () => {
     expect(configPatches.some((p) => p.remindersEnabled === false)).toBe(true)
 
     await page.getByTestId('ai-commissioner-run').click()
+    await expect(page.getByTestId('commissioner-token-preflight-modal')).toBeVisible()
+    await page.getByTestId('commissioner-token-preflight-confirm').click()
     await expect.poll(() => runPosts.length).toBeGreaterThan(0)
     await expect(page.getByText(/lineup lock reminders are active/i)).toBeVisible()
 
@@ -363,6 +462,8 @@ test.describe('@commissioner ai commissioner click audit', () => {
       'Summarize waiver results and controversial trades.'
     )
     await page.getByTestId('ai-commissioner-chat-button').click()
+    await expect(page.getByTestId('commissioner-token-preflight-modal')).toBeVisible()
+    await page.getByTestId('commissioner-token-preflight-confirm').click()
     await expect.poll(() => chatPosts.length).toBeGreaterThan(0)
     expect(String(chatPosts[0]?.question ?? '')).toMatch(/waiver results and controversial trades/i)
     expect(typeof chatPosts[0]?.sport).toBe('string')

@@ -17,6 +17,7 @@ import type {
   ProviderDiagnosticsEntry,
   ProviderStatusState,
 } from "@/lib/provider-diagnostics";
+import AdminCheckoutLinkMappingPanel from "./AdminCheckoutLinkMappingPanel";
 
 type DraftAutomationMatrixEntry = {
   feature: string;
@@ -238,6 +239,8 @@ export default function AdminProviderDiagnostics() {
 
       {data && (
         <>
+          <AdminCheckoutLinkMappingPanel />
+
           <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
             <div className="px-4 py-3 border-b border-white/5 bg-white/[0.03]">
               <div className="flex items-center justify-between gap-2">

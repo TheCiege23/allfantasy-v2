@@ -28,6 +28,7 @@ import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
 import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
+import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
 
 type WaiverSettings = {
   leagueId?: string
@@ -525,6 +526,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         leagueId,
         sport: String(settings?.sport ?? DEFAULT_SPORT).toUpperCase(),
         includeAIExplanation: waiverAiIncludeExplanation,
+        confirmTokenSpend: true,
         goal: "balanced" as const,
         leagueSettings: {
           numTeams: 12,
@@ -960,6 +962,13 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       )}
 
       <section id="waiver-ai-engine-panel" className="rounded-xl border border-cyan-500/20 bg-black/20 p-4" data-testid="waiver-ai-engine-panel">
+        <InContextMonetizationCard
+          title="Waiver AI access"
+          featureId="ai_waivers"
+          tokenRuleCodes={["ai_waiver_engine_run"]}
+          className="mb-3"
+          testIdPrefix="waiver-monetization"
+        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-cyan-100">Waiver AI Engine</h2>

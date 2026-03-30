@@ -25,31 +25,31 @@ export const AI_ACTION_CONFIG: Record<AiProtectionAction, AiActionConfig> = {
   chat: {
     maxRequests: 20,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 500,
+    estimatedTokenCost: 1,
     cacheTtlMs: 0,
   },
   chimmy: {
     maxRequests: 30,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 800,
+    estimatedTokenCost: 1,
     cacheTtlMs: 0,
   },
   trade_eval: {
     maxRequests: 15,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 600,
+    estimatedTokenCost: 3,
     cacheTtlMs: 120_000, // 2 min for identical trade inputs
   },
   waiver: {
     maxRequests: 15,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 700,
+    estimatedTokenCost: 1,
     cacheTtlMs: 60_000,
   },
   orchestrate: {
     maxRequests: 40,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 1000,
+    estimatedTokenCost: 6,
     cacheTtlMs: 0,
   },
 }
@@ -58,7 +58,7 @@ export function getAiActionConfig(action: AiProtectionAction): AiActionConfig {
   return AI_ACTION_CONFIG[action] ?? {
     maxRequests: 15,
     windowMs: DEFAULT_WINDOW_MS,
-    estimatedTokenCost: 500,
+    estimatedTokenCost: 1,
     cacheTtlMs: 0,
   }
 }

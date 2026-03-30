@@ -31,6 +31,74 @@ test.describe("@player-comparison-lab click audit", () => {
     const compareBodies: Array<Record<string, unknown>> = []
     const insightBodies: Array<Record<string, unknown>> = []
 
+    await page.route("**/api/subscription/entitlements**", async (route) => {
+      const url = new URL(route.request().url())
+      const feature = String(url.searchParams.get("feature") ?? "")
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          entitlement: {
+            plans: ["pro"],
+            status: "active",
+            currentPeriodEnd: null,
+            gracePeriodEnd: null,
+          },
+          hasAccess: true,
+          message: "Access granted.",
+          requiredPlan: feature ? "AF Pro" : null,
+          upgradePath: feature
+            ? `/upgrade?plan=pro&feature=${encodeURIComponent(feature)}`
+            : "/upgrade?plan=pro",
+        }),
+      })
+    })
+
+    await page.route("**/api/monetization/context**", async (route) => {
+      const url = new URL(route.request().url())
+      const feature = String(url.searchParams.get("feature") ?? "player_ai_recommendations")
+      const ruleCodes = url.searchParams.getAll("ruleCode")
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          entitlement: {
+            plans: ["pro"],
+            status: "active",
+            currentPeriodEnd: null,
+            gracePeriodEnd: null,
+          },
+          entitlementMessage: "Access granted.",
+          feature: {
+            featureId: feature,
+            hasAccess: true,
+            requiredPlan: "AF Pro",
+            upgradePath: `/upgrade?plan=pro&feature=${encodeURIComponent(feature)}`,
+            message: "Access granted.",
+          },
+          tokenBalance: {
+            balance: 8,
+            lifetimePurchased: 0,
+            lifetimeSpent: 0,
+            lifetimeRefunded: 0,
+            updatedAt: new Date().toISOString(),
+          },
+          tokenPreviews: ruleCodes.map((ruleCode) => ({
+            ruleCode,
+            preview: {
+              ruleCode,
+              featureLabel: "Player AI action",
+              tokenCost: 1,
+              currentBalance: 8,
+              canSpend: true,
+              requiresConfirmation: true,
+            },
+            error: null,
+          })),
+        }),
+      })
+    })
+
     await page.route("**/api/instant/player-search**", async (route) => {
       const url = new URL(route.request().url())
       const q = (url.searchParams.get("q") ?? "").toLowerCase()

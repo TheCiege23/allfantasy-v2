@@ -2,13 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Shield, Megaphone, UserPlus, RotateCcw, Settings2, Loader2, Pause, Play, Undo2, Bot, CheckCircle2, XCircle } from 'lucide-react'
+import { Shield, Megaphone, UserPlus, RotateCcw, Settings2, Loader2, Pause, Play, Undo2, Bot, CheckCircle2, XCircle, Crown } from 'lucide-react'
 import CommissionerBroadcastForm from '@/components/chat/CommissionerBroadcastForm'
 import { LeagueRecruitmentTools } from '@/components/app/recruitment'
+import { CommissionerMonetizationOverview } from '@/components/app/commissioner/CommissionerMonetizationOverview'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { useEntitlement } from '@/hooks/useEntitlement'
+import { buildFeatureUpgradePath } from '@/lib/subscription/feature-access'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 type DraftSessionStatus = 'pre_draft' | 'in_progress' | 'paused' | 'completed'
 
@@ -54,6 +58,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
   const [showOverrideForm, setShowOverrideForm] = useState(false)
   const [overridePick, setOverridePick] = useState({ playerName: '', position: '', rosterId: '' })
   const [confirmResetDraft, setConfirmResetDraft] = useState(false)
+  const { hasAccess } = useEntitlement()
 
   const loadData = useCallback(async () => {
     if (!leagueId) {
@@ -129,12 +134,15 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
 
   const baseUrl = `/app/league/${leagueId}`
   const draftControlsUrl = `/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`
-  const settingsTabs = [
+  const freeSettingsTabs = [
     { tab: 'General', label: 'General' },
     { tab: 'Member Settings', label: 'Members' },
-    { tab: 'Scoring Settings', label: 'Scoring' },
     { tab: 'Draft Settings', label: 'Draft' },
-    { tab: 'Automation Settings', label: 'Automation' },
+  ]
+  const premiumSettingsTabs: Array<{ tab: string; label: string; featureId: SubscriptionFeatureId }> = [
+    { tab: 'Scoring Settings', label: 'Advanced scoring', featureId: 'advanced_scoring' },
+    { tab: 'Playoff Settings', label: 'Advanced playoffs', featureId: 'advanced_playoff_setup' },
+    { tab: 'Automation Settings', label: 'AI automation', featureId: 'commissioner_automation' },
   ]
   const draftStatus = draftSession?.status
   const canPause = draftStatus === 'in_progress'
@@ -144,6 +152,11 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
   const selectedManager = useMemo(
     () => managers.find((manager) => manager.rosterId === selectedRosterId) ?? null,
     [managers, selectedRosterId]
+  )
+  const premiumActionHref = useCallback(
+    (featureId: SubscriptionFeatureId, unlockedHref: string) =>
+      hasAccess(featureId) ? unlockedHref : buildFeatureUpgradePath(featureId),
+    [hasAccess]
   )
 
   const runDraftControl = async (action: string, body?: Record<string, unknown>) => {
@@ -269,20 +282,40 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
         <Shield className="h-4 w-4 text-amber-400" />
         <h3 className="text-sm font-semibold text-white">Commissioner Controls</h3>
       </div>
-      <p className="text-xs text-white/65">Advanced league operations for commissioners: draft flow, manager control, and broadcast messaging.</p>
+      <p className="text-xs text-white/65">Core commissioner operations stay free. Premium AI and advanced setup tools are clearly labeled.</p>
+
+      <CommissionerMonetizationOverview compact />
 
       <div>
         <h4 className="text-xs font-semibold text-white/80 mb-2 flex items-center gap-1.5">
           <Settings2 className="h-3.5 w-3.5" /> Edit settings
         </h4>
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-200/85">Free settings</p>
         <div className="flex flex-wrap gap-2">
-          {settingsTabs.map(({ tab, label }) => (
+          {freeSettingsTabs.map(({ tab, label }) => (
             <Link
               key={tab}
               href={`${baseUrl}?tab=Settings&settingsTab=${encodeURIComponent(tab)}`}
               data-testid={`commissioner-controls-open-settings-${tab.toLowerCase().replace(/\s+/g, '-')}`}
               className="inline-flex items-center rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/90 hover:bg-white/10"
             >
+              {label}
+            </Link>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-amber-200/85">AF Commissioner premium settings</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {premiumSettingsTabs.map(({ tab, label, featureId }) => (
+            <Link
+              key={tab}
+              href={premiumActionHref(
+                featureId,
+                `${baseUrl}?tab=Settings&settingsTab=${encodeURIComponent(tab)}`
+              )}
+              data-testid={`commissioner-controls-premium-settings-${featureId}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+            >
+              <Crown className="h-3.5 w-3.5" />
               {label}
             </Link>
           ))}
@@ -463,6 +496,9 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
         <h4 className="text-xs font-semibold text-white/80 mb-2 flex items-center gap-1.5">
           <UserPlus className="h-3.5 w-3.5" /> Replace managers / assign AI manager
         </h4>
+        <p className="mb-2 text-xs text-white/60">
+          Replacing or orphaning managers is free. AI team manager assignment is an AF Commissioner premium tool.
+        </p>
         {managers.length === 0 ? (
           <p className="text-xs text-white/50">No manager rosters loaded.</p>
         ) : (
@@ -506,17 +542,28 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
               >
                 Mark orphan
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={assignAiManager}
-                disabled={busyAction !== null || !selectedRosterId}
-                data-testid="commissioner-controls-manager-assign-ai"
-                className="border-cyan-500/40 text-cyan-200"
-              >
-                <Bot className="mr-1.5 h-3.5 w-3.5" />
-                Assign AI manager
-              </Button>
+              {hasAccess('ai_team_managers') ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={assignAiManager}
+                  disabled={busyAction !== null || !selectedRosterId}
+                  data-testid="commissioner-controls-manager-assign-ai"
+                  className="border-cyan-500/40 text-cyan-200"
+                >
+                  <Bot className="mr-1.5 h-3.5 w-3.5" />
+                  Assign AI manager
+                </Button>
+              ) : (
+                <Link
+                  href={buildFeatureUpgradePath('ai_team_managers')}
+                  data-testid="commissioner-controls-manager-assign-ai-upgrade"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+                >
+                  <Crown className="h-3.5 w-3.5" />
+                  Upgrade for AI team managers
+                </Link>
+              )}
             </div>
             {selectedManager && (
               <p className="text-xs text-white/60">

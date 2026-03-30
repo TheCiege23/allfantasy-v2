@@ -41,7 +41,7 @@ describe("POST /api/subscription/feature-gate contract", () => {
       allowed: false,
       message: "AF Pro is required.",
       requiredPlan: "AF Pro",
-      upgradePath: "/pricing?plan=pro&feature=ai_chat",
+      upgradePath: "/upgrade?plan=pro&feature=ai_chat",
       entitlement: {
         plans: [],
         status: "none",
@@ -68,7 +68,7 @@ describe("POST /api/subscription/feature-gate contract", () => {
       allowed: true,
       message: "Access granted.",
       requiredPlan: "AF Pro",
-      upgradePath: "/pricing?plan=pro&feature=ai_chat",
+      upgradePath: "/upgrade?plan=pro&feature=ai_chat",
       entitlement: {
         plans: ["pro"],
         status: "active",

@@ -23,6 +23,7 @@ import { PlayerStatCards } from './PlayerStatCards';
 import { CategoryWinnerHighlights } from './CategoryWinnerHighlights';
 import { AIExplanationPanel } from './AIExplanationPanel';
 import { SideBySideChart } from './SideBySideChart';
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard';
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 6;
@@ -219,6 +220,7 @@ export function PlayerComparisonPage() {
         playerScores: comparison.playerScores,
         sport: comparison.sport,
         scoringFormat: comparison.scoringFormat,
+        confirmTokenSpend: true,
       }),
     });
     const data = await res.json();
@@ -255,6 +257,16 @@ export function PlayerComparisonPage() {
       <p className="text-sm text-white/60">
         Compare 2–6 players using market value, projections, consistency, and AI insights.
       </p>
+
+      <InContextMonetizationCard
+        title="Player AI recommendation access"
+        featureId="player_ai_recommendations"
+        tokenRuleCodes={[
+          'ai_lineup_recommendation_explanation_single',
+          'ai_player_comparison_quick_explanation',
+        ]}
+        testIdPrefix="player-comparison-monetization"
+      />
 
       <Card className="border-white/10 bg-white/5">
         <CardHeader>

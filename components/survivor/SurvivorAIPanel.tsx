@@ -5,8 +5,7 @@ import Link from 'next/link'
 import { Sparkles, MessageSquare, HelpCircle, Loader2, AlertCircle } from 'lucide-react'
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
-import { useEntitlement } from '@/hooks/useEntitlement'
-import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 type SurvivorAIPanelType =
   | 'host_intro'
@@ -70,8 +69,6 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     type: string
   } | null>(null)
 
-  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
-    useEntitlement('survivor_ai')
   const chatHref = summary.myTribeSource
     ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
     : `/app/league/${leagueId}?tab=Chat`
@@ -106,9 +103,6 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
       setLoading(false)
     }
   }, [leagueId, type, summary.currentWeek])
-
-  const canUseAI = featureAccess
-  const showUpgrade = !entitlementLoading && !canUseAI
 
   return (
     <div className="space-y-6">
@@ -145,26 +139,18 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
           </select>
         </div>
 
-        {showUpgrade ? (
-          <LockedFeatureCard
-            featureName="Survivor AI"
-            requiredPlan="AF Pro"
-            upgradeHref={upgradePath}
-            statusMessage={entitlement?.message}
-            className="mb-3"
-          />
-        ) : null}
-
-        <button
-          type="button"
-          onClick={runAI}
-          disabled={loading || showUpgrade}
-          className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
-          data-testid="survivor-ai-generate-button"
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Generate
-        </button>
+        <FeatureGate featureId="survivor_ai" featureNameOverride="Survivor AI" className="mb-3">
+          <button
+            type="button"
+            onClick={runAI}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
+            data-testid="survivor-ai-generate-button"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Generate
+          </button>
+        </FeatureGate>
 
         {error && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-sm text-rose-200">

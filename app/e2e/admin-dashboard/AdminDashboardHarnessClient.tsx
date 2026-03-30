@@ -9,6 +9,7 @@ import AdminUsers from "@/app/admin/components/AdminUsers"
 import AdminLeagueOverview from "@/app/admin/components/AdminLeagueOverview"
 import AdminModerationPanel from "@/app/admin/components/AdminModerationPanel"
 import AdminSystemPanel from "@/app/admin/components/AdminSystemPanel"
+import AdminProviderDiagnostics from "@/app/admin/components/AdminProviderDiagnostics"
 
 const ALLOWED_TABS: AdminTab[] = [
   "overview",
@@ -17,6 +18,7 @@ const ALLOWED_TABS: AdminTab[] = [
   "leagues",
   "moderation",
   "system",
+  "providers",
 ]
 
 export function AdminDashboardHarnessClient() {
@@ -59,6 +61,7 @@ export function AdminDashboardHarnessClient() {
       {activeTab === "leagues" && <AdminLeagueOverview />}
       {activeTab === "moderation" && <AdminModerationPanel />}
       {activeTab === "system" && <AdminSystemPanel />}
+      {activeTab === "providers" && <AdminProviderDiagnostics />}
     </AdminLayout>
   )
 }

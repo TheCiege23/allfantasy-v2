@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const getServerSessionMock = vi.fn()
-const assertUserHasFeatureMock = vi.fn()
+const requireFeatureEntitlementMock = vi.fn()
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
@@ -30,18 +30,19 @@ vi.mock("@/lib/openai-client", () => ({
   openaiChatText: vi.fn(),
 }))
 
-vi.mock("@/lib/subscription/FeatureGateService", () => ({
-  FeatureGateService: class {
-    assertUserHasFeature = assertUserHasFeatureMock
-  },
-  isFeatureGateAccessError: (error: unknown) =>
-    Boolean((error as { code?: string })?.code === "feature_not_entitled"),
+vi.mock("@/lib/subscription/entitlement-middleware", () => ({
+  requireFeatureEntitlement: requireFeatureEntitlementMock,
 }))
 
 describe("POST /api/player-comparison/insight contract", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    assertUserHasFeatureMock.mockResolvedValue(undefined)
+    requireFeatureEntitlementMock.mockResolvedValue({
+      ok: true,
+      decision: {},
+      tokenSpend: null,
+      tokenPreview: null,
+    })
   })
 
   it("returns 401 when unauthenticated", async () => {
@@ -58,12 +59,21 @@ describe("POST /api/player-comparison/insight contract", () => {
 
   it("returns 403 when feature gate denies access", async () => {
     getServerSessionMock.mockResolvedValueOnce({ user: { id: "user-1" } })
-    assertUserHasFeatureMock.mockRejectedValueOnce({
-      code: "feature_not_entitled",
-      statusCode: 403,
-      message: "AF Pro is required.",
-      requiredPlan: "AF Pro",
-      upgradePath: "/pricing?plan=pro",
+    requireFeatureEntitlementMock.mockResolvedValueOnce({
+      ok: false,
+      response: new Response(
+        JSON.stringify({
+          error: "Premium feature",
+          code: "feature_not_entitled",
+          message: "AF Pro is required.",
+          requiredPlan: "AF Pro",
+          upgradePath: "/upgrade?plan=pro",
+        }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }
+      ),
     })
     const { POST } = await import("@/app/api/player-comparison/insight/route")
     const req = new Request("http://localhost/api/player-comparison/insight", {

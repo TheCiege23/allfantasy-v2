@@ -6,6 +6,8 @@ import {
   getMonetizationCatalogItemBySku,
   type MonetizationSku,
 } from "@/lib/monetization/catalog"
+import { parseStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
+import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
 
 export const runtime = "nodejs"
 
@@ -28,11 +30,34 @@ function normalizePurchaseType(value: string | undefined): string | null {
 
 function resolveCheckoutPurchaseType(session: Stripe.Checkout.Session): string | null {
   const metadata = (session.metadata ?? {}) as Record<string, string | undefined>
+  const fromClientReference = parseStripeCheckoutClientReferenceId(session.client_reference_id)
   return (
     normalizePurchaseType(metadata.purchaseType) ??
     normalizePurchaseType(metadata.purchase_type) ??
-    normalizePurchaseType(metadata.paymentType)
+    normalizePurchaseType(metadata.paymentType) ??
+    normalizePurchaseType(fromClientReference?.purchaseType)
   )
+}
+
+function resolveCheckoutContext(
+  session: Stripe.Checkout.Session
+): { userId: string; sku: MonetizationSku } | null {
+  const metadata = (session.metadata ?? {}) as Record<string, string | undefined>
+  const metadataUserId = metadata.userId?.trim()
+  const metadataSku = metadata.sku?.trim().toLowerCase()
+  if (metadataUserId && metadataSku) {
+    return {
+      userId: metadataUserId,
+      sku: metadataSku as MonetizationSku,
+    }
+  }
+
+  const fromClientReference = parseStripeCheckoutClientReferenceId(session.client_reference_id)
+  if (!fromClientReference) return null
+  return {
+    userId: fromClientReference.userId,
+    sku: fromClientReference.sku,
+  }
 }
 
 function toErrorMessage(error: unknown): string {
@@ -51,14 +76,12 @@ function addBillingInterval(base: Date, interval: "month" | "year"): Date {
 }
 
 async function persistSubscriptionEntitlementFromCheckout(
-  session: Stripe.Checkout.Session
+  session: Stripe.Checkout.Session,
+  context: { userId: string; sku: MonetizationSku } | null
 ): Promise<void> {
-  const metadata = (session.metadata ?? {}) as Record<string, string | undefined>
-  const userId = metadata.userId?.trim()
-  const sku = metadata.sku?.trim().toLowerCase()
-  if (!userId || !sku) return
+  if (!context?.userId || !context?.sku) return
 
-  const item = getMonetizationCatalogItemBySku(sku as MonetizationSku)
+  const item = getMonetizationCatalogItemBySku(context.sku)
   if (!item || item.type !== "subscription" || !item.planFamily || !item.interval) return
 
   const plans = (prisma as any).subscriptionPlan
@@ -99,7 +122,7 @@ async function persistSubscriptionEntitlementFromCheckout(
   })
 
   const baseData = {
-    userId,
+    userId: context.userId,
     subscriptionPlanId: plan.id,
     status: "active",
     source: "stripe",
@@ -147,8 +170,36 @@ async function persistSubscriptionEntitlementFromCheckout(
   })
 }
 
+async function persistTokenPurchaseFromCheckout(
+  session: Stripe.Checkout.Session,
+  context: { userId: string; sku: MonetizationSku } | null
+): Promise<void> {
+  if (!context?.userId || !context?.sku) return
+
+  const item = getMonetizationCatalogItemBySku(context.sku)
+  if (!item || item.type !== "token_pack") return
+
+  const service = new TokenSpendService()
+  await service.grantTokensFromPackagePurchase({
+    userId: context.userId,
+    packageSku: item.sku,
+    sourceType: "stripe_checkout",
+    sourceId: session.id,
+    idempotencyKey: `stripe_checkout:${session.id}:${item.sku}`,
+    description: `Stripe purchase: ${item.title}`,
+    metadata: {
+      checkoutSessionId: session.id,
+      stripeCustomerId: typeof session.customer === "string" ? session.customer : null,
+      purchaseType: "tokens",
+      sku: item.sku,
+      tokenAmount: item.tokenAmount ?? null,
+    },
+  })
+}
+
 async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<string | null> {
   const purchaseType = resolveCheckoutPurchaseType(session)
+  const checkoutContext = resolveCheckoutContext(session)
 
   if (!purchaseType) {
     console.warn("[stripe webhook] checkout.session.completed missing purchaseType metadata", {
@@ -159,7 +210,9 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
 
   if (SUPPORTED_PURCHASE_TYPES.has(purchaseType)) {
     if (purchaseType === "subscription") {
-      await persistSubscriptionEntitlementFromCheckout(session)
+      await persistSubscriptionEntitlementFromCheckout(session, checkoutContext)
+    } else if (purchaseType === "tokens") {
+      await persistTokenPurchaseFromCheckout(session, checkoutContext)
     }
     return purchaseType
   }

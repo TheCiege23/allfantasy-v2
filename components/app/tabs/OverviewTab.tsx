@@ -10,6 +10,7 @@ import { MetricCard, SmartDataView } from '@/components/app/league/SmartDataView
 import { LeagueDramaWidget } from '@/components/app/league/LeagueDramaWidget'
 import { ShareLeagueLinkCard } from '@/components/social/ShareLeagueLinkCard'
 import { LeagueStoryModal } from '@/components/league-story/LeagueStoryModal'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 import { GuillotineHome } from '@/components/guillotine/GuillotineHome'
 import { SalaryCapHome } from '@/components/salary-cap/SalaryCapHome'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
@@ -115,6 +116,12 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
     <TabDataState title="Overview" loading={loading} error={error} onReload={() => void reload()}>
       <div className="space-y-4">
         <ShareLeagueLinkCard leagueId={leagueId} />
+        <InContextMonetizationCard
+          title="Story generation access"
+          featureId="storyline_creation"
+          tokenRuleCodes={['ai_storyline_creation']}
+          testIdPrefix="league-story-monetization"
+        />
         <button
           type="button"
           data-testid="league-story-open-button"

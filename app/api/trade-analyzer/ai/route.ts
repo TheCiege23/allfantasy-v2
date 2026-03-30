@@ -5,10 +5,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
 import { analyzeTradeWithOptionalAI } from '@/lib/trade-analyzer'
-import {
-  FeatureGateService,
-  isFeatureGateAccessError,
-} from '@/lib/subscription/FeatureGateService'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
+import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 const AssetSchema = z.object({
   name: z.string().min(1),
@@ -26,6 +24,7 @@ const TradeAnalyzerAIRequestSchema = z.object({
   leagueFormat: z.string().optional(),
   leagueId: z.string().optional(),
   includeAI: z.boolean().optional().default(false),
+  confirmTokenSpend: z.boolean().optional().default(false),
   sender: SideSchema,
   receiver: SideSchema,
 })
@@ -35,15 +34,15 @@ export const dynamic = 'force-dynamic'
 export const POST = withApiUsage({
   endpoint: '/api/trade-analyzer/ai',
   tool: 'TradeAnalyzerAI',
-})(async (request: NextRequest) => {
+})(async (request: NextRequest, _ctx?: unknown) => {
+  let userId: string | null = null
+  let tokenFallbackLedgerId: string | null = null
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-    if (!session?.user?.id) {
+    userId = session?.user?.id ?? null
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const gate = new FeatureGateService()
-    await gate.assertUserHasFeature(session.user.id, 'trade_analyzer')
 
     let parsedInput: z.infer<typeof TradeAnalyzerAIRequestSchema>
     try {
@@ -61,11 +60,29 @@ export const POST = withApiUsage({
 
     if (parsedInput.leagueId) {
       try {
-        await assertLeagueMember(parsedInput.leagueId, session.user.id)
+        await assertLeagueMember(parsedInput.leagueId, userId)
       } catch {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
+
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'trade_analyzer',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean(parsedInput.confirmTokenSpend),
+      tokenRuleCode: 'ai_trade_analyzer_full_review',
+      tokenSourceType: 'trade_analyzer_ai',
+      tokenSourceId: `${parsedInput.leagueId ?? 'trade'}:${Date.now()}`,
+      tokenDescription: 'Trade analyzer full review',
+      tokenMetadata: {
+        leagueId: parsedInput.leagueId ?? null,
+        sport: parsedInput.sport ?? null,
+        includeAI: parsedInput.includeAI,
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
 
     const analysis = await analyzeTradeWithOptionalAI({
       sport: parsedInput.sport,
@@ -78,19 +95,29 @@ export const POST = withApiUsage({
     return NextResponse.json({
       success: true,
       analysis,
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_trade_analyzer_full_review',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
     })
   } catch (error) {
-    if (isFeatureGateAccessError(error)) {
-      return NextResponse.json(
-        {
-          error: 'Premium feature',
-          code: error.code,
-          message: error.message,
-          requiredPlan: error.requiredPlan,
-          upgradePath: error.upgradePath,
-        },
-        { status: error.statusCode }
-      )
+    if (tokenFallbackLedgerId && userId) {
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'trade_analyzer_ai_refund',
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:trade_analyzer_ai:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed trade analyzer request.',
+          metadata: {},
+        })
+        .catch(() => null)
     }
     console.error('[trade-analyzer/ai]', error)
     return NextResponse.json(

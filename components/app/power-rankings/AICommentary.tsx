@@ -37,16 +37,27 @@ export function AICommentary({
   const [commentary, setCommentary] = useState(initialCommentary);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upgradePath, setUpgradePath] = useState<string | null>(null);
 
   const fetchCommentary = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setUpgradePath(null);
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/power-rankings/commentary?week=${week}`
+        `/api/leagues/${encodeURIComponent(leagueId)}/power-rankings/commentary?week=${week}`,
+        { method: 'POST' }
       );
-      if (!res.ok) throw new Error('Failed to load commentary');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = typeof data?.message === 'string' && data.message.trim().length > 0
+          ? data.message
+          : typeof data?.error === 'string' && data.error.trim().length > 0
+            ? data.error
+            : 'Failed to load commentary';
+        setUpgradePath(typeof data?.upgradePath === 'string' ? data.upgradePath : null);
+        throw new Error(message);
+      }
       setCommentary(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed');
@@ -77,7 +88,25 @@ export function AICommentary({
             Generating…
           </div>
         )}
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && (
+          <div className="rounded-lg border border-red-400/35 bg-red-500/10 px-3 py-2">
+            <p className="text-sm text-red-200">{error}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              <a
+                href={upgradePath || '/commissioner-upgrade?feature=league_rankings'}
+                className="inline-flex rounded border border-amber-400/35 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20"
+              >
+                View plans
+              </a>
+              <a
+                href="/tokens?ruleCode=ai_league_rankings_explanation"
+                className="inline-flex rounded border border-cyan-400/35 bg-cyan-500/10 px-2 py-1 text-cyan-100 hover:bg-cyan-500/20"
+              >
+                Buy tokens
+              </a>
+            </div>
+          </div>
+        )}
         {showSummary && commentary && (
           <div className="space-y-3 text-sm text-white/85">
             {commentary.rankingSummary && (

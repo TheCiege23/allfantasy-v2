@@ -1,6 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getServerSession } from 'next-auth'
 import {
   STRUCTURED_TRADE_EVAL_SYSTEM_PROMPT,
   StructuredTradeEvalResponseSchema,
@@ -41,6 +42,10 @@ import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { logAiOutput } from '@/lib/ai/output-logger'
 import { logAiFailure } from '@/lib/error-tracking'
 import { isToolTradeAnalyzerEnabled } from '@/lib/feature-toggle'
+import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league-access'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
+import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 const PlayerInputSchema = z.object({
   name: z.string(),
@@ -94,6 +99,7 @@ const TradeRequestSchema = z.object({
   trade_id: z.string().optional(),
   league_id: z.string().optional(),
   leagueId: z.string().optional(),
+  confirmTokenSpend: z.boolean().optional().default(false),
   sleeperUser: SleeperUserSchema.optional(),
   sender: TeamInputSchema,
   receiver: TeamInputSchema,
@@ -248,6 +254,8 @@ function resolvePickData(p: string | { year: number; round: number; projected_ra
 }
 
 export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "TradeEvaluator" })(async (request: NextRequest) => {
+  let userId: string | null = null
+  let tokenFallbackLedgerId: string | null = null
   try {
     if (!(await isToolTradeAnalyzerEnabled())) {
       return NextResponse.json(
@@ -256,8 +264,22 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       )
     }
 
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    userId = session?.user?.id ?? null
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const data = TradeRequestSchema.parse(body)
+
+    if (data.league_id) {
+      try {
+        await assertLeagueMember(data.league_id, userId)
+      } catch {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
 
     const sId = (data.sender.team_id || data.sender.manager_name || '').trim().toLowerCase()
     const rId = (data.receiver.team_id || data.receiver.manager_name || '').trim().toLowerCase()
@@ -285,6 +307,24 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       )
     }
 
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'trade_analyzer',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean(data.confirmTokenSpend),
+      tokenRuleCode: 'ai_trade_analyzer_full_review',
+      tokenSourceType: 'trade_evaluator',
+      tokenSourceId: `${data.league_id ?? 'trade'}:${Date.now()}`,
+      tokenDescription: 'Trade evaluator full review',
+      tokenMetadata: {
+        leagueId: data.league_id ?? null,
+        sport: data.league?.sport ?? null,
+        format: data.league?.format ?? null,
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
+
     const cacheKey = config.cacheTtlMs
       ? buildCacheKey('/api/trade-evaluator', {
           leagueId: data.league_id ?? '',
@@ -295,7 +335,19 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
         })
       : null
     const cached = cacheKey ? getCachedResponse<Record<string, unknown>>(cacheKey) : null
-    if (cached) return NextResponse.json(cached)
+    if (cached) {
+      return NextResponse.json({
+        ...cached,
+        tokenSpend: gate.tokenSpend
+          ? {
+              ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_trade_analyzer_full_review',
+              tokenCost: gate.tokenPreview?.tokenCost ?? null,
+              balanceAfter: gate.tokenSpend.balanceAfter,
+              ledgerId: gate.tokenSpend.id,
+            }
+          : null,
+      })
+    }
 
     const isSF = data.league?.qb_format === 'sf'
     const biasMode = data.sender.is_af_pro && data.receiver.is_af_pro ? 'neutral' : 'protect_receiver'
@@ -1359,6 +1411,14 @@ Fairness score: ${fairnessScore}/100
         schemaValid: false,
         warning: 'Response partially validated — AI output did not match strict schema',
         rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
+        tokenSpend: gate.tokenSpend
+          ? {
+              ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_trade_analyzer_full_review',
+              tokenCost: gate.tokenPreview?.tokenCost ?? null,
+              balanceAfter: gate.tokenSpend.balanceAfter,
+              ledgerId: gate.tokenSpend.id,
+            }
+          : null,
         ...(confidenceInfo && { historicalAnalysis: confidenceInfo }),
         ...(dualModeGrades && { dualModeGrades }),
         tradeInsights,
@@ -1576,6 +1636,14 @@ Fairness score: ${fairnessScore}/100
       evaluation: evalData,
       schemaValid: true,
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_trade_analyzer_full_review',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
       ...(confidenceInfo && { historicalAnalysis: confidenceInfo }),
       ...(dualModeGrades && { dualModeGrades }),
       tradeInsights,
@@ -1592,9 +1660,25 @@ Fairness score: ${fairnessScore}/100
       ...(grokTrendResult && { trendIntelligence: grokTrendResult }),
       aiProviders,
     }
-    if (cacheKey && config.cacheTtlMs) setCachedResponse(cacheKey, payload, config.cacheTtlMs)
+    if (cacheKey && config.cacheTtlMs) {
+      setCachedResponse(cacheKey, { ...payload, tokenSpend: null }, config.cacheTtlMs)
+    }
     return NextResponse.json(payload)
   } catch (error) {
+    if (tokenFallbackLedgerId && userId) {
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'trade_evaluator_refund',
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:trade_evaluator:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed trade evaluator request.',
+          metadata: {},
+        })
+        .catch(() => null)
+    }
     logAiFailure(error, { tool: 'TradeEvaluator', endpoint: '/api/trade-evaluator' })
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid request format', details: error.errors }, { status: 400 })

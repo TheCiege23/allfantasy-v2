@@ -31,6 +31,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
     let chatCalls = 0
     const chatBodies: string[] = []
     let forcedErrorUsed = false
+    page.on('dialog', (dialog) => dialog.accept())
 
     await page.addInitScript(() => {
       ;(window as any).__copiedTexts = []
@@ -128,6 +129,23 @@ test.describe('@chimmy chimmy interface click audit', () => {
           grok: true,
           openclaw: true,
           openclawGrowth: true,
+        }),
+      })
+    })
+
+    await page.route('**/api/tokens/spend/preview?**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          preview: {
+            ruleCode: 'ai_chimmy_chat_message',
+            featureLabel: 'Chimmy chat message',
+            tokenCost: 1,
+            currentBalance: 20,
+            canSpend: true,
+            requiresConfirmation: true,
+          },
         }),
       })
     })

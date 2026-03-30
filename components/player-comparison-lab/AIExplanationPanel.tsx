@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver';
 import type { ComparisonAIInsight } from '@/lib/player-comparison-lab/types';
-import { useEntitlement } from '@/hooks/useEntitlement';
-import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard';
+import { FeatureGate } from '@/components/subscription/FeatureGate';
 
 export interface AIExplanationPanelProps {
   playerNames: string[];
@@ -27,13 +26,6 @@ export function AIExplanationPanel({
   const [insight, setInsight] = useState<ComparisonAIInsight | null>(initialInsight ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const {
-    featureAccess,
-    loading: entitlementLoading,
-    entitlement,
-    upgradePath,
-  } = useEntitlement('player_comparison_explanations');
-
   useEffect(() => {
     setInsight(initialInsight ?? null);
   }, [initialInsight]);
@@ -66,16 +58,11 @@ export function AIExplanationPanel({
         <CardTitle className="text-lg text-white">AI explanation</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {entitlementLoading ? (
-          <p className="text-sm text-white/60">Checking premium access...</p>
-        ) : !featureAccess ? (
-          <LockedFeatureCard
-            featureName="AI comparison explanations"
-            requiredPlan="AF Pro"
-            upgradeHref={upgradePath}
-            statusMessage={entitlement?.message}
-          />
-        ) : (
+        <FeatureGate
+          featureId="player_comparison_explanations"
+          featureNameOverride="AI comparison explanations"
+          className="mb-2"
+        >
           <>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -117,7 +104,7 @@ export function AIExplanationPanel({
               </Button>
             )}
           </>
-        )}
+        </FeatureGate>
         {error && <p className="text-sm text-red-400">{error}</p>}
         {insight?.finalRecommendation && (
           <div className="space-y-3" data-testid="comparison-ai-insight-output">

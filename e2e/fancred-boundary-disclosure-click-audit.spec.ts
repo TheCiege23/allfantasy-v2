@@ -137,16 +137,32 @@ test.describe('@monetization fancred boundary disclosure click audit', () => {
     await mockBracketPaidSettingsHarnessApis(page)
     await page.goto('/e2e/bracket-paid-settings')
 
-    await page.getByTestId('bracket-settings-toggle-button').click()
-    await expect(page.getByTestId('bracket-settings-rules')).toBeVisible()
-    await expect(page.getByTestId('bracket-settings-rules')).toContainText(
+    const settingsToggle = page.getByTestId('bracket-settings-toggle-button')
+    const settingsRules = page.getByTestId('bracket-settings-rules')
+    await expect(settingsToggle).toBeVisible({ timeout: 15_000 })
+    await settingsToggle.click()
+    if (!(await settingsRules.isVisible())) {
+      await settingsToggle.click()
+    }
+    await expect(settingsRules).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('bracket-settings-paid-boundary-notice')).toBeVisible()
+    await expect(page.getByTestId('bracket-settings-commissioner-setup-notice')).toBeVisible()
+    await expect(settingsRules).toContainText(
       'Paid league dues and payouts are handled externally via FanCred.'
+    )
+    await expect(settingsRules).not.toContainText(
+      'AllFantasy handles payouts'
     )
 
     const fanCredLink = page.getByRole('link', { name: /Pay League Dues on FanCred/i })
     await expect(fanCredLink).toBeVisible()
     await expect(fanCredLink).toHaveAttribute('href', /fancred/)
     await expect(fanCredLink).toHaveAttribute('target', '_blank')
+
+    const commissionerSetupLink = page.getByTestId('commissioner-fancred-setup-link')
+    await expect(commissionerSetupLink).toBeVisible()
+    await expect(commissionerSetupLink).toHaveAttribute('href', /fancred/)
+    await expect(commissionerSetupLink).toHaveAttribute('target', '_blank')
   })
 
   test('discovery paid badge and join CTA show boundary tooltip copy', async ({ page }) => {

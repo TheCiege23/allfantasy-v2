@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league-access'
 import { getDramaEventById } from '@/lib/drama-engine/DramaQueryService'
 import { buildDramaNarrative } from '@/lib/drama-engine/AIDramaNarrativeAdapter'
 import { buildAIRelationshipContext } from '@/lib/relationship-insights'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,8 +19,32 @@ export async function POST(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+    try {
+      await assertLeagueMember(leagueId, userId)
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'storyline_creation',
+      allowTokenFallback: true,
+      confirmTokenSpend: true,
+      tokenRuleCode: 'ai_storyline_creation',
+      tokenSourceType: 'league_drama_tell_story',
+      tokenSourceId: `${leagueId}:${Date.now()}`,
+      tokenDescription: 'League drama story narration',
+      tokenMetadata: {
+        leagueId,
+      },
+    })
+    if (!gate.ok) return gate.response
 
     const body = await req.json().catch(() => ({}))
     const eventId = body.eventId
@@ -58,6 +86,14 @@ export async function POST(
       headline: event.headline,
       dramaType: event.dramaType,
       relationshipContextUsed: Boolean(relationshipContext),
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_storyline_creation',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
     })
   } catch (e) {
     console.error('[drama/tell-story POST]', e)

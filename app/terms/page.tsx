@@ -96,8 +96,9 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">8. Paid vs. Free Leagues; Subscriptions and Tokens</h2>
         <p>
           AllFantasy may offer free and paid features (e.g., subscriptions, in-app tokens, or premium tiers). Paid features are
-          subject to the pricing and payment terms disclosed at the time of purchase. We do not run your fantasy leagues or handle
-          league dues; any money you pay to third parties (e.g., league dues, payouts) is between you and them. Refunds for our
+          subject to the pricing and payment terms disclosed at the time of purchase. AllFantasy does not collect league dues,
+          host prize pools, or distribute league payouts. If your league is paid, commissioners are responsible for configuring and
+          managing FanCred for any dues and payout activity, and those transactions remain external to AllFantasy. Refunds for our
           own subscriptions or tokens are governed by our then-current refund policy.
         </p>
       </section>

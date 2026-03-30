@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         explanationGate = {
           requiredPlan: 'AF Pro',
           message: 'Sign in and upgrade to AF Pro for AI player comparison explanations.',
-          upgradePath: '/pricing?plan=pro&feature=player_comparison_explanations',
+          upgradePath: '/upgrade?plan=pro&feature=player_comparison_explanations',
         };
       } else {
         const gate = new FeatureGateService();
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         explanationGate = {
           requiredPlan: 'AF Pro',
           message: 'Sign in and upgrade to AF Pro for AI player comparison explanations.',
-          upgradePath: '/pricing?plan=pro&feature=player_comparison_explanations',
+          upgradePath: '/upgrade?plan=pro&feature=player_comparison_explanations',
         };
       } else {
         const gate = new FeatureGateService();

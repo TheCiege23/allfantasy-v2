@@ -50,8 +50,10 @@ export default async function DisclaimerPage({ searchParams }: DisclaimerPagePro
         <p>
           AllFantasy does not collect, hold, or distribute league dues or entry fees. Any payments between
           league members (e.g., dues, payouts) are solely between users and/or handled by third-party
-          services. We are not responsible for those transactions. If we provide links or references to
-          third-party payment or league-management services, their terms and policies apply.
+          services such as FanCred. Commissioners are responsible for setting up and managing those
+          external payment flows. AllFantasy does not host prize pools or payout systems. If we provide
+          links or references to third-party payment or league-management services, their terms and
+          policies apply.
         </p>
       </section>
 

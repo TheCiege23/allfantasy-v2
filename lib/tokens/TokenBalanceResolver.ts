@@ -1,14 +1,16 @@
+import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
+
 export type TokenBalanceSnapshot = {
   balance: number
+  lifetimePurchased: number
+  lifetimeSpent: number
+  lifetimeRefunded: number
   updatedAt: string
 }
 
 export class TokenBalanceResolver {
-  async resolveForUser(_userId: string): Promise<TokenBalanceSnapshot> {
-    // Phase-1 bridge: stable route contract before persisted token account/ledger lands.
-    return {
-      balance: 0,
-      updatedAt: new Date().toISOString(),
-    }
+  async resolveForUser(userId: string): Promise<TokenBalanceSnapshot> {
+    const service = new TokenSpendService()
+    return service.getBalance(userId)
   }
 }

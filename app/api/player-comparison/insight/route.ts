@@ -13,15 +13,16 @@ import {
   isXaiAvailable,
 } from '@/lib/provider-config'
 import {
-  FeatureGateService,
-  isFeatureGateAccessError,
-} from '@/lib/subscription/FeatureGateService'
+  requireFeatureEntitlement,
+} from '@/lib/subscription/entitlement-middleware'
+import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 type InsightBody = {
   playerA?: string
   playerB?: string
   players?: string[]
   summaryLines?: string[]
+  confirmTokenSpend?: boolean
   sport?: string | null
   scoringFormat?: string | null
   matrix?: Array<{
@@ -104,17 +105,17 @@ function buildDeterministicFallback(playersList: string[], summaryLines: string[
 }
 
 export async function POST(req: Request) {
+  let userId: string | null = null
+  let tokenFallbackLedgerId: string | null = null
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-    if (!session?.user?.id) {
+    userId = session?.user?.id ?? null
+    if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'Sign in to use AI player comparison explanations.' },
         { status: 401 }
       )
     }
-
-    const gate = new FeatureGateService()
-    await gate.assertUserHasFeature(session.user.id, 'player_comparison_explanations')
 
     let body: InsightBody
     try {
@@ -127,6 +128,24 @@ export async function POST(req: Request) {
     if (playersList.length < 2) {
       return NextResponse.json({ error: 'Provide at least 2 players' }, { status: 400 })
     }
+
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'player_comparison_explanations',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean(body.confirmTokenSpend),
+      tokenRuleCode: 'ai_player_comparison_quick_explanation',
+      tokenSourceType: 'player_comparison_insight',
+      tokenSourceId: `${playersList.slice(0, 2).join('::')}:${Date.now()}`,
+      tokenDescription: 'Player comparison quick explanation',
+      tokenMetadata: {
+        sport: body.sport ?? null,
+        scoringFormat: body.scoringFormat ?? null,
+        players: playersList.slice(0, 6),
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
 
     const providerStatus = {
       deepseek: isDeepSeekAvailable(),
@@ -220,19 +239,29 @@ export async function POST(req: Request) {
         openai: openaiSummary,
       },
       providerStatus,
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_player_comparison_quick_explanation',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
     })
   } catch (error) {
-    if (isFeatureGateAccessError(error)) {
-      return NextResponse.json(
-        {
-          error: 'Premium feature',
-          code: error.code,
-          message: error.message,
-          requiredPlan: error.requiredPlan,
-          upgradePath: error.upgradePath,
-        },
-        { status: error.statusCode }
-      )
+    if (tokenFallbackLedgerId && userId) {
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'player_comparison_insight_refund',
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:player_comparison_insight:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed player comparison insight request.',
+          metadata: {},
+        })
+        .catch(() => null)
     }
     console.error('[player-comparison/insight]', error)
     return NextResponse.json({ error: 'Insight generation failed' }, { status: 500 })

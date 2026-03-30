@@ -6,10 +6,8 @@ import { assertLeagueMember } from '@/lib/league-access'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { runWaiverAIService } from '@/lib/waiver-ai-engine'
-import {
-  FeatureGateService,
-  isFeatureGateAccessError,
-} from '@/lib/subscription/FeatureGateService'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
+import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
   (typeof SUPPORTED_SPORTS)[number],
@@ -120,6 +118,7 @@ const RequestSchema = z.object({
   sport: z.enum(SUPPORTED_SPORTS_ENUM).optional(),
   leagueId: z.string().min(1).optional(),
   includeAIExplanation: z.boolean().optional(),
+  confirmTokenSpend: z.boolean().optional().default(false),
   roster: z.array(RosterPlayerSchema).optional(),
   teamNeeds: TeamNeedsSchema.optional(),
   rosterPositions: z.array(z.string()).optional(),
@@ -136,15 +135,15 @@ export const dynamic = 'force-dynamic'
 export const POST = withApiUsage({
   endpoint: '/api/waiver-ai/engine',
   tool: 'WaiverAiEngine',
-})(async (request: NextRequest) => {
+})(async (request: NextRequest, _ctx?: unknown) => {
+  let userId: string | null = null
+  let tokenFallbackLedgerId: string | null = null
   try {
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-    if (!session?.user?.id) {
+    userId = session?.user?.id ?? null
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const gate = new FeatureGateService()
-    await gate.assertUserHasFeature(session.user.id, 'ai_waivers')
 
     let rawBody: unknown
     try {
@@ -164,26 +163,57 @@ export const POST = withApiUsage({
     const input = parsed.data
     if (input.leagueId) {
       try {
-        await assertLeagueMember(input.leagueId, session.user.id)
+        await assertLeagueMember(input.leagueId, userId)
       } catch {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     }
 
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'ai_waivers',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean(input.confirmTokenSpend),
+      tokenRuleCode: 'ai_waiver_engine_run',
+      tokenSourceType: 'waiver_ai_engine',
+      tokenSourceId: `${input.leagueId ?? 'waiver'}:${Date.now()}`,
+      tokenDescription: 'Waiver AI engine run',
+      tokenMetadata: {
+        leagueId: input.leagueId ?? null,
+        sport: input.sport ?? null,
+        includeAIExplanation: Boolean(input.includeAIExplanation),
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
+
     const analysis = await runWaiverAIService(input)
-    return NextResponse.json({ success: true, analysis })
+    return NextResponse.json({
+      success: true,
+      analysis,
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_waiver_engine_run',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
+    })
   } catch (error) {
-    if (isFeatureGateAccessError(error)) {
-      return NextResponse.json(
-        {
-          error: 'Premium feature',
-          code: error.code,
-          message: error.message,
-          requiredPlan: error.requiredPlan,
-          upgradePath: error.upgradePath,
-        },
-        { status: error.statusCode }
-      )
+    if (tokenFallbackLedgerId && userId) {
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'waiver_ai_engine_refund',
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:waiver_ai_engine:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed waiver AI request.',
+          metadata: {},
+        })
+        .catch(() => null)
     }
     console.error('[waiver-ai/engine]', error)
     return NextResponse.json({ error: 'Waiver AI failed' }, { status: 500 })

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Loader2, Globe, Lock, Trophy, Goal } from "lucide-react"
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from "@/lib/sport-scope"
 import { getRoundPointsSummary } from "@/lib/bracket-challenge"
-import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
+import { CommissionerFanCredSetupNotice } from "@/components/legal/CommissionerFanCredSetupNotice"
 
 const SCORING_OPTIONS = [
   { value: "momentum", label: "Standard (1-2-4-8-16-32)" },
@@ -40,7 +40,6 @@ const CHALLENGE_TYPE_OPTIONS = [
 type ChallengeType = (typeof CHALLENGE_TYPE_OPTIONS)[number]["id"]
 
 export default function NewBracketLeaguePage() {
-  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
   const now = new Date()
   const defaultSeason = now.getFullYear()
   const searchParams = useSearchParams()
@@ -384,17 +383,7 @@ export default function NewBracketLeaguePage() {
             </div>
           </div>
 
-          <div
-            className="rounded-xl p-3 text-xs"
-            style={{
-              background: "rgba(234, 179, 8, 0.1)",
-              border: "1px solid rgba(234, 179, 8, 0.25)",
-              color: "rgba(254, 243, 199, 0.92)",
-            }}
-            data-testid="bracket-create-paid-boundary-copy"
-          >
-            {paidBoundaryDisclosure}
-          </div>
+          <CommissionerFanCredSetupNotice dataTestId="bracket-create-paid-boundary-copy" />
 
           {showAgeConfirm && (
             <div className="rounded-xl p-4 space-y-3" style={{ background: "color-mix(in srgb, var(--accent) 12%, transparent)", border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' }}>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Shield, Users, FileEdit, Clock, ListChecks, MessageSquare, Settings2, Link2, Loader2, Award, TrendingUp, Heart, Pause, Play, RotateCcw, Undo2, Bot, Megaphone } from 'lucide-react'
+import { Shield, Users, FileEdit, Clock, ListChecks, MessageSquare, Settings2, Link2, Loader2, Award, TrendingUp, Heart, Pause, Play, RotateCcw, Undo2, Bot, Megaphone, Crown } from 'lucide-react'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import TabDataState from '@/components/app/tabs/TabDataState'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,11 @@ import { toast } from 'sonner'
 import CommissionerBroadcastForm from '@/components/chat/CommissionerBroadcastForm'
 import { LeagueRecruitmentTools } from '@/components/app/recruitment'
 import AICommissionerPanel from '@/components/app/commissioner/AICommissionerPanel'
+import { CommissionerMonetizationOverview } from '@/components/app/commissioner/CommissionerMonetizationOverview'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useEntitlement } from '@/hooks/useEntitlement'
+import { buildFeatureUpgradePath } from '@/lib/subscription/feature-access'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 type DraftSessionStatus = 'pre_draft' | 'in_progress' | 'paused' | 'completed'
 interface SlotOrderEntry { slot: number; rosterId: string; displayName: string }
@@ -77,6 +82,7 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const base = `/api/commissioner/leagues/${encodeURIComponent(leagueId)}`
   const draftControlsUrl = `/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`
   const leagueBase = `/app/league/${encodeURIComponent(leagueId)}`
+  const { hasAccess } = useEntitlement()
 
   useEffect(() => {
     let active = true
@@ -296,6 +302,11 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
   const canDraftControls = draftStatus === 'in_progress' || draftStatus === 'paused'
   const hasPicks = Array.isArray(session?.picks) && session.picks.length > 0
   const threadId = commissionerSettings?.settings?.leagueChatThreadId ?? null
+  const premiumActionHref = useCallback(
+    (featureId: SubscriptionFeatureId, unlockedHref: string) =>
+      hasAccess(featureId) ? unlockedHref : buildFeatureUpgradePath(featureId),
+    [hasAccess]
+  )
 
   return (
     <TabDataState title="Commissioner" loading={loading} error={error}>
@@ -307,6 +318,8 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
             <p className="text-xs text-white/60">You have commissioner access. Changes apply only within this league and cannot bypass global lock rules.</p>
           </div>
         </div>
+
+        <CommissionerMonetizationOverview />
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -357,13 +370,22 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           )}
         </section>
 
-        <AICommissionerPanel leagueId={leagueId} />
+        <FeatureGate
+          featureId="commissioner_automation"
+          featureNameOverride="AI Commissioner"
+          tokenRuleCodeOverride="commissioner_ai_cycle_run"
+        >
+          <AICommissionerPanel leagueId={leagueId} />
+        </FeatureGate>
 
         <section className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
             <FileEdit className="h-4 w-4" /> Edit settings & managers
           </h2>
-          <p className="mt-1 text-xs text-white/60">Edit league name, scoring, draft, waiver, and other settings. Replace managers or assign AI to orphan teams.</p>
+          <p className="mt-1 text-xs text-white/60">
+            Free tools stay open for core operations. Premium commissioner tools are labeled and route to upgrade when locked.
+          </p>
+          <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.08em] text-emerald-200/85">Free tools</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               href={`${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('General')}`}
@@ -377,11 +399,52 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
             >
               <Users className="h-3.5 w-3.5" /> Replace managers
             </Link>
+          </div>
+          <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.08em] text-amber-200/85">AF Commissioner premium</p>
+          <div className="mt-2 flex flex-wrap gap-2">
             <Link
-              href={`${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Draft Settings')}`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20"
+              href={premiumActionHref(
+                'advanced_scoring',
+                `${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Scoring Settings')}`
+              )}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+              data-testid="commissioner-tab-advanced-scoring-link"
             >
-              <Bot className="h-3.5 w-3.5" /> Assign AI manager (Draft)
+              <Crown className="h-3.5 w-3.5" /> Advanced scoring
+            </Link>
+            <Link
+              href={premiumActionHref(
+                'advanced_playoff_setup',
+                `${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Playoff Settings')}`
+              )}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+              data-testid="commissioner-tab-advanced-playoff-link"
+            >
+              <Crown className="h-3.5 w-3.5" /> Advanced playoffs
+            </Link>
+            <Link
+              href={premiumActionHref(
+                'ai_team_managers',
+                `${leagueBase}?tab=Settings&settingsTab=${encodeURIComponent('Draft Settings')}`
+              )}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/20"
+              data-testid="commissioner-tab-ai-team-managers-link"
+            >
+              <Bot className="h-3.5 w-3.5" /> AI team managers
+            </Link>
+            <Link
+              href={premiumActionHref('league_rankings', `${leagueBase}?tab=Power Rankings`)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+              data-testid="commissioner-tab-league-rankings-link"
+            >
+              <Crown className="h-3.5 w-3.5" /> League rankings
+            </Link>
+            <Link
+              href={premiumActionHref('draft_rankings', `${leagueBase}?tab=Draft`)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 hover:bg-amber-500/20"
+              data-testid="commissioner-tab-draft-rankings-link"
+            >
+              <Crown className="h-3.5 w-3.5" /> Draft rankings
             </Link>
           </div>
         </section>

@@ -2,26 +2,28 @@ import { NextResponse } from "next/server"
 import { getFanCredBoundaryDisclosure } from "@/lib/legal/FanCredBoundaryDisclosure"
 import {
   getMonetizationCatalog,
-  getMonetizationStripePriceIdForSku,
   type MonetizationCatalogItem,
 } from "@/lib/monetization/catalog"
+import { getStripeCheckoutLinkForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
+import { listFeatureMonetizationMatrix } from "@/lib/monetization/feature-monetization-matrix"
 
 type ApiMonetizationCatalogItem = MonetizationCatalogItem & {
-  stripePriceId: string | null
   stripePriceConfigured: boolean
+  checkoutProvider: "stripe_checkout_link"
 }
 
 function mapCatalogItem(item: MonetizationCatalogItem): ApiMonetizationCatalogItem {
-  const stripePriceId = getMonetizationStripePriceIdForSku(item.sku)
+  const checkoutLink = getStripeCheckoutLinkForSku(item.sku)
   return {
     ...item,
-    stripePriceId,
-    stripePriceConfigured: Boolean(stripePriceId),
+    stripePriceConfigured: Boolean(checkoutLink),
+    checkoutProvider: "stripe_checkout_link",
   }
 }
 
 export async function GET() {
   const catalog = getMonetizationCatalog()
+  const featureMatrix = listFeatureMonetizationMatrix()
 
   return NextResponse.json(
     {
@@ -30,6 +32,7 @@ export async function GET() {
         tokenPacks: catalog.tokenPacks.map(mapCatalogItem),
         all: catalog.all.map(mapCatalogItem),
       },
+      featureMatrix,
       fancredBoundary: getFanCredBoundaryDisclosure(),
       generatedAt: new Date().toISOString(),
     },

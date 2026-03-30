@@ -6,6 +6,7 @@ import TabDataState from '@/components/app/tabs/TabDataState';
 import type { PowerRankingsOutput } from '@/lib/league-power-rankings/types';
 import { RankingTable } from './RankingTable';
 import { AICommentary } from './AICommentary';
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard';
 import {
   Select,
   SelectContent,
@@ -70,6 +71,12 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
           data-audit="rankings-tab-content"
           data-testid="power-rankings-content"
         >
+          <InContextMonetizationCard
+            title="League rankings AI commentary access"
+            featureId="league_rankings"
+            tokenRuleCodes={['ai_league_rankings_explanation']}
+            testIdPrefix="rankings-monetization"
+          />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-white">
               Week {data.week} Power Rankings

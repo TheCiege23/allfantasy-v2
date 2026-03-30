@@ -1,8 +1,9 @@
 /**
  * Token enforcement for AI: check balance before allowing a request.
- * When platform token balance is persisted, resolve from DB and deduct here.
- * Until then, all requests are allowed (no deduction).
+ * Uses persisted token balance from UserTokenBalance.
  */
+
+import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
 
 export type TokenCheckResult = {
   allowed: boolean
@@ -17,12 +18,34 @@ export type TokenCheckResult = {
  * Returns { allowed: true } when balance is not yet implemented.
  */
 export async function checkTokenBalance(
-  _userId: string | null,
-  _estimatedCost: number = 0
+  userId: string | null,
+  estimatedCost: number = 0
 ): Promise<TokenCheckResult> {
-  // TODO: when GET /api/tokens/balance is backed by DB, fetch balance here
-  // and return { allowed: balance >= estimatedCost, remaining: balance - estimatedCost }.
-  return { allowed: true }
+  if (!userId) {
+    return {
+      allowed: false,
+      remaining: 0,
+      message: "Sign in to use token-metered AI features.",
+    }
+  }
+
+  const required = Math.max(0, Math.trunc(estimatedCost))
+  if (required <= 0) {
+    return { allowed: true }
+  }
+
+  const service = new TokenSpendService()
+  const snapshot = await service.getBalance(userId)
+  const remaining = Math.max(0, snapshot.balance - required)
+  if (snapshot.balance < required) {
+    return {
+      allowed: false,
+      remaining,
+      message: `Need ${required} tokens. Current balance: ${snapshot.balance}.`,
+    }
+  }
+
+  return { allowed: true, remaining }
 }
 
 /**
@@ -33,6 +56,7 @@ export async function deductTokens(
   _userId: string | null,
   _cost: number
 ): Promise<{ ok: boolean }> {
-  // TODO: persist deduction when token balance table exists
+  // Route-level token deductions must use TokenSpendService.spendTokensForRule()
+  // with explicit user confirmation and a centralized spend rule.
   return { ok: true }
 }

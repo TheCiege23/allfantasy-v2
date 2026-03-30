@@ -16,7 +16,7 @@ export const DISCLAIMER_PAGE_SECTIONS: LegalContentSection[] = [
   },
   {
     heading: "League Dues and Payments",
-    body: "AllFantasy does not process league dues or payouts directly.",
+    body: "AllFantasy does not process league dues, host prize pools, or distribute payouts directly; paid-league payments are external (e.g., FanCred).",
   },
   {
     heading: "AI Tools and Guidance",

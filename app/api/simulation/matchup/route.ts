@@ -3,10 +3,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
 import { runMatchupSimulation } from '@/lib/simulation-engine/MatchupSimulator'
 import { getDefaultScoreStdDev } from '@/lib/simulation-engine/SportSimulationResolver'
 import { percentiles } from '@/lib/simulation-engine/ScoreDistributionModel'
 import { getMatchupSimulationInsight } from '@/lib/simulation-engine/MatchupSimulationInsightAI'
+import { authOptions } from '@/lib/auth'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import {
   predictMatchupDeterministic,
   type MatchupPredictionScoringRulesInput,
@@ -41,6 +44,7 @@ type MatchupRequestBody = {
   persist?: boolean
   includeInsights?: boolean
   includeStoryNarrative?: boolean
+  confirmTokenSpend?: boolean
   scoringRules?: MatchupPredictionScoringRulesInput
   deterministicSeed?: string
 }
@@ -68,6 +72,51 @@ export async function POST(req: NextRequest) {
   const persist = Boolean(body.persist && body.leagueId)
   const teamAName = String(body.teamAName ?? body.teamA?.teamId ?? 'Team A')
   const teamBName = String(body.teamBName ?? body.teamB?.teamId ?? 'Team B')
+  const includeInsights = Boolean(body.includeInsights)
+  let tokenFallbackSpend:
+    | {
+        id: string
+        cost: number
+        ruleCode: string
+      }
+    | null = null
+
+  if (includeInsights) {
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        {
+          error: 'Unauthorized',
+          message: 'Sign in and upgrade to AF Pro for matchup AI explanations.',
+        },
+        { status: 401 }
+      )
+    }
+
+    const gate = await requireFeatureEntitlement({
+      userId: session.user.id,
+      featureId: 'matchup_explanations',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean(body.confirmTokenSpend),
+      tokenRuleCode: 'ai_matchup_explanation_single',
+      tokenSourceType: 'matchup_simulation_ai_explanation',
+      tokenSourceId: `${body.leagueId ?? 'matchup'}:${weekOrPeriod}:${Date.now()}`,
+      tokenDescription: 'Matchup simulation AI explanation fallback',
+      tokenMetadata: {
+        leagueId: body.leagueId ?? null,
+        sport,
+        weekOrPeriod,
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) {
+      tokenFallbackSpend = {
+        id: gate.tokenSpend.id,
+        cost: Math.abs(gate.tokenSpend.tokenDelta),
+        ruleCode: gate.tokenSpend.spendRuleCode ?? 'ai_matchup_explanation_single',
+      }
+    }
+  }
 
   try {
     const out = await runMatchupSimulation(
@@ -143,7 +192,7 @@ export async function POST(req: NextRequest) {
       scoringRules: body.scoringRules,
     })
 
-    if (body.includeInsights) {
+    if (includeInsights) {
       const providerInsights = await getMatchupSimulationInsight(
         {
           ...out,
@@ -157,6 +206,9 @@ export async function POST(req: NextRequest) {
       if (providerInsights) {
         responseBody.providerInsights = providerInsights
       }
+    }
+    if (tokenFallbackSpend) {
+      responseBody.tokenFallbackSpend = tokenFallbackSpend
     }
 
     if (body.includeStoryNarrative) {

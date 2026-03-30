@@ -5,6 +5,8 @@ import { Sparkles, RefreshCw, MessageCircle, AlertTriangle } from 'lucide-react'
 import { getDraftAIChatUrl, buildAskChimmyAboutPickPrompt } from '@/lib/draft-room/DraftToAIContextBridge'
 import { DRAFT_WAR_ROOM_LEGACY_URL, getWarRoomPanelDescription, getWarRoomPanelTitle } from '@/lib/draft-room'
 import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -125,6 +127,21 @@ export function DraftHelperPanel({
         {executionMode === 'ai_explained'
           ? 'Execution: instant recommendation + AI explanation'
           : 'Execution: instant automated recommendation'}
+      </div>
+      <div className="border-b border-white/8 px-2 py-2">
+        <InContextMonetizationCard
+          title="Draft prep access"
+          featureId="draft_prep"
+          tokenRuleCodes={['ai_draft_pick_explanation']}
+          className="mb-2"
+          testIdPrefix="draft-prep-monetization"
+        />
+        <InContextMonetizationCard
+          title="War Room strategy build access"
+          featureId="draft_strategy_build"
+          tokenRuleCodes={['ai_draft_helper_session_recommendation']}
+          testIdPrefix="draft-helper-monetization"
+        />
       </div>
       <div className="flex-1 overflow-auto p-2">
         {error && (
@@ -263,29 +280,37 @@ export function DraftHelperPanel({
           </p>
         )}
         <div className="mt-2 border-t border-white/8 pt-2">
-          <button
-            type="button"
-            data-testid="draft-open-war-room-button"
-            onClick={() => setWarRoomOpen((open) => !open)}
-            className="rounded border border-violet-400/35 bg-violet-500/10 px-2.5 py-1.5 text-[10px] text-violet-100 hover:bg-violet-500/20"
+          <FeatureGate
+            featureId="draft_strategy_build"
+            featureNameOverride="Draft War Room"
+            className="mb-2"
           >
-            {warRoomOpen ? 'Close war room' : 'Open war room'}
-          </button>
-          {warRoomOpen && (
-            <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/8 px-2.5 py-2 text-[10px]" data-testid="draft-war-room-panel">
-              <p className="font-medium text-violet-100">{getWarRoomPanelTitle('league_draft')}</p>
-              <p className="mt-1 text-violet-200/90">{getWarRoomPanelDescription('league_draft')}</p>
-              <a
-                href={DRAFT_WAR_ROOM_LEGACY_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-testid="draft-war-room-link"
-                className="mt-2 inline-flex rounded border border-violet-300/35 px-2 py-1 text-violet-100 hover:bg-violet-500/20"
+            <>
+              <button
+                type="button"
+                data-testid="draft-open-war-room-button"
+                onClick={() => setWarRoomOpen((open) => !open)}
+                className="rounded border border-violet-400/35 bg-violet-500/10 px-2.5 py-1.5 text-[10px] text-violet-100 hover:bg-violet-500/20"
               >
-                Launch war room
-              </a>
-            </div>
-          )}
+                {warRoomOpen ? 'Close war room' : 'Open war room'}
+              </button>
+              {warRoomOpen && (
+                <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/8 px-2.5 py-2 text-[10px]" data-testid="draft-war-room-panel">
+                  <p className="font-medium text-violet-100">{getWarRoomPanelTitle('league_draft')}</p>
+                  <p className="mt-1 text-violet-200/90">{getWarRoomPanelDescription('league_draft')}</p>
+                  <a
+                    href={DRAFT_WAR_ROOM_LEGACY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="draft-war-room-link"
+                    className="mt-2 inline-flex rounded border border-violet-300/35 px-2 py-1 text-violet-100 hover:bg-violet-500/20"
+                  >
+                    Launch war room
+                  </a>
+                </div>
+              )}
+            </>
+          </FeatureGate>
         </div>
       </div>
     </section>

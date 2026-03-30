@@ -12,7 +12,8 @@ import { useBracketLive } from "@/lib/hooks/useBracketLive"
 import CopyJoinCode from "@/app/brackets/leagues/[leagueId]/CopyJoinCode"
 import CreateEntryButton from "@/app/brackets/leagues/[leagueId]/CreateEntryButton"
 import { LeagueInviteShareButtons } from "./LeagueInviteShareButtons"
-import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
+import { PaidLeagueNotice } from "@/components/legal/PaidLeagueNotice"
+import { CommissionerFanCredSetupNotice } from "@/components/legal/CommissionerFanCredSetupNotice"
 
 type Member = {
   id: string
@@ -524,7 +525,7 @@ function SettingsPanel({
   members?: Member[]
   currentUserId?: string
 }) {
-  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
+  const isPaidLeague = Boolean(scoringRules?.isPaidLeague)
   const [scoringMode, setScoringMode] = useState<ScoringMode>(initialScoringMode)
   const [saving, setSaving] = useState(false)
   const [roundPoints, setRoundPoints] = useState<Record<number, number>>(
@@ -601,6 +602,21 @@ function SettingsPanel({
 
   return (
     <div className="space-y-3" id="settings-rules" data-testid="bracket-settings-rules">
+      {isPaidLeague ? (
+        <>
+          <PaidLeagueNotice
+            compact
+            showFanCredCta
+            ctaLabel="Pay League Dues on FanCred →"
+            ctaTestId="bracket-settings-fancred-link"
+            dataTestId="bracket-settings-paid-boundary-notice"
+          />
+          <CommissionerFanCredSetupNotice
+            dataTestId="bracket-settings-commissioner-setup-notice"
+            showFanCredLink
+          />
+        </>
+      ) : null}
       <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="px-4 py-3 flex items-center gap-4 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
           <div className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.6)' }}>
@@ -895,21 +911,6 @@ function SettingsPanel({
           valueMap={{ true: "hidden_until_lock", false: "visible" }}
         />
       </div>
-
-      <a
-        href={process.env.NEXT_PUBLIC_FANCRED_URL || "https://fancred.com"}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block rounded-xl p-3 text-center transition-all hover:opacity-80"
-        style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}
-      >
-        <div className="text-xs font-semibold" style={{ color: '#818cf8' }}>
-          Pay League Dues on FanCred &rarr;
-        </div>
-        <div className="text-[9px] mt-1" style={{ color: 'rgba(255,255,255,0.25)' }}>
-          {paidBoundaryDisclosure}
-        </div>
-      </a>
 
       <DonateSection />
     </div>

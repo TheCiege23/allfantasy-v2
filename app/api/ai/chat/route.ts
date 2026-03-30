@@ -16,10 +16,8 @@ import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
 import { isAIAssistantEnabled } from '@/lib/feature-toggle'
 import { runCostControlledOpenAIText } from '@/lib/ai-cost-control'
-import {
-  FeatureGateService,
-  isFeatureGateAccessError,
-} from '@/lib/subscription/FeatureGateService'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
+import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -29,6 +27,7 @@ const ContextScopeSchema = z.object({
 const ChatRequestSchema = z.object({
   context_scope: ContextScopeSchema,
   message: z.string().min(1).max(2000),
+  confirmTokenSpend: z.boolean().optional().default(false),
   conversation_history: z
     .array(
       z.object({
@@ -255,6 +254,8 @@ Reference their history and patterns when giving recommendations.`
 }
 
 export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(async (request: NextRequest) => {
+  let userId: string | null = null
+  let tokenFallbackLedgerId: string | null = null
   try {
     if (!(await isAIAssistantEnabled())) {
       return NextResponse.json(
@@ -267,9 +268,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
-    const gate = new FeatureGateService()
-    await gate.assertUserHasFeature(session.user.id, 'ai_chat')
+    userId = session.user.id
 
     const body = await request.json()
     const parseResult = ChatRequestSchema.safeParse(body)
@@ -360,6 +359,43 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       (typeof (body as Record<string, unknown>).stream === 'boolean' &&
         (body as Record<string, unknown>).stream === true)
 
+    const gate = await requireFeatureEntitlement({
+      userId,
+      featureId: 'ai_chat',
+      allowTokenFallback: true,
+      confirmTokenSpend: Boolean((body as Record<string, unknown>).confirmTokenSpend),
+      tokenRuleCode: 'ai_chimmy_chat_message',
+      tokenSourceType: 'ai_chat_message',
+      tokenSourceId: `${leagueId ?? sleeperUsername}:${Date.now()}`,
+      tokenDescription: 'AI chat message',
+      tokenMetadata: {
+        leagueId: leagueId ?? null,
+        sport: resolvedSport,
+        streamRequested,
+      },
+    })
+    if (!gate.ok) return gate.response
+    if (gate.tokenSpend) tokenFallbackLedgerId = gate.tokenSpend.id
+
+    const refundTokenFallbackIfNeeded = async (sourceType: string) => {
+      if (!tokenFallbackLedgerId || !userId) return
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType,
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:ai_chat:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed AI chat request.',
+          metadata: {
+            sleeperUsername,
+            leagueId: leagueId ?? null,
+          },
+        })
+        .catch(() => null)
+    }
+
     if (streamRequested) {
       const streamResult = await openaiChatTextStream({
         messages,
@@ -367,6 +403,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
         maxTokens: 1000,
       })
       if (!streamResult.ok) {
+        await refundTokenFallbackIfNeeded('ai_chat_stream_bootstrap_refund')
         return NextResponse.json(
           { error: 'Failed to process chat', details: streamResult.details },
           { status: 500 }
@@ -391,6 +428,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
             }
 
             if (!responseText.trim()) {
+              await refundTokenFallbackIfNeeded('ai_chat_stream_empty_refund')
               writeEvent('error', { error: 'No response from AI' })
               controller.close()
               return
@@ -415,6 +453,14 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
             writeEvent('done', {
               success: true,
               response: responseText,
+              tokenSpend: gate.tokenSpend
+                ? {
+                    ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_chimmy_chat_message',
+                    tokenCost: gate.tokenPreview?.tokenCost ?? null,
+                    balanceAfter: gate.tokenSpend.balanceAfter,
+                    ledgerId: gate.tokenSpend.id,
+                  }
+                : null,
               legacy_context: {
                 included: true,
                 display_name: legacyContext.display_name,
@@ -424,6 +470,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
             })
             controller.close()
           } catch (streamError) {
+            await refundTokenFallbackIfNeeded('ai_chat_stream_execution_refund')
             writeEvent('error', {
               error: streamError instanceof Error ? streamError.message : 'Streaming failed',
             })
@@ -461,6 +508,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     const responseText = completion.text
 
     if (!completion.ok || !responseText?.trim()) {
+      await refundTokenFallbackIfNeeded('ai_chat_completion_refund')
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }
 
@@ -484,6 +532,14 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     return NextResponse.json({
       success: true,
       response: responseText,
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? 'ai_chimmy_chat_message',
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
       legacy_context: {
         included: true,
         display_name: legacyContext.display_name,
@@ -492,17 +548,19 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
     })
   } catch (error) {
-    if (isFeatureGateAccessError(error)) {
-      return NextResponse.json(
-        {
-          error: 'Premium feature',
-          code: error.code,
-          message: error.message,
-          requiredPlan: error.requiredPlan,
-          upgradePath: error.upgradePath,
-        },
-        { status: error.statusCode }
-      )
+    if (tokenFallbackLedgerId && userId) {
+      await new TokenSpendService()
+        .refundSpendByLedger({
+          userId,
+          spendLedgerId: tokenFallbackLedgerId,
+          refundRuleCode: 'feature_execution_failed',
+          sourceType: 'ai_chat_uncaught_refund',
+          sourceId: tokenFallbackLedgerId,
+          idempotencyKey: `refund:ai_chat:${tokenFallbackLedgerId}`,
+          description: 'Auto refund after failed AI chat request.',
+          metadata: {},
+        })
+        .catch(() => null)
     }
     logAiFailure(error, { tool: 'AiChat', endpoint: '/api/ai/chat', provider: 'openai' })
     return NextResponse.json({ error: 'Failed to process chat', details: String(error) }, { status: 500 })

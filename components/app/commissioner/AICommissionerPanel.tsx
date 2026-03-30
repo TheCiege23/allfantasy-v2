@@ -9,6 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
+import { previewTokenSpend, type TokenSpendClientPreview } from '@/lib/tokens/client-confirm'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
+import { TokenSpendPreflightModal } from '@/components/monetization/TokenSpendPreflightModal'
 
 type AlertSeverity = 'low' | 'medium' | 'high' | 'critical'
 type AlertStatus = 'open' | 'approved' | 'dismissed' | 'resolved' | 'snoozed'
@@ -112,6 +115,8 @@ interface OverviewPayload {
   actionLogs: ActionLogView[]
 }
 
+type PendingCommissionerAction = 'run_cycle' | 'ask_question'
+
 function sportLabel(sport: SupportedSport): string {
   if (sport === 'NCAAB') return 'NCAA Basketball'
   if (sport === 'NCAAF') return 'NCAA Football'
@@ -146,6 +151,10 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
   const [commissionerQuestion, setCommissionerQuestion] = useState('Explain league rules for this week.')
   const [commissionerAnswer, setCommissionerAnswer] = useState<string>('')
   const [chatting, setChatting] = useState(false)
+  const [runCycleTokenCost, setRunCycleTokenCost] = useState<number | null>(null)
+  const [chatTokenCost, setChatTokenCost] = useState<number | null>(null)
+  const [tokenModalPreview, setTokenModalPreview] = useState<TokenSpendClientPreview | null>(null)
+  const [pendingAction, setPendingAction] = useState<PendingCommissionerAction | null>(null)
 
   const canRun = !loading && !running && !savingConfig
   const hasOpenAlerts = (payload?.alerts ?? []).some((alert) => alert.status === 'open')
@@ -208,6 +217,29 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     void loadInsights()
   }, [loadInsights])
 
+  useEffect(() => {
+    let cancelled = false
+    const loadTokenCosts = async () => {
+      try {
+        const [runPreview, chatPreview] = await Promise.all([
+          previewTokenSpend('commissioner_ai_cycle_run'),
+          previewTokenSpend('commissioner_ai_chat_question'),
+        ])
+        if (cancelled) return
+        setRunCycleTokenCost(runPreview.tokenCost)
+        setChatTokenCost(chatPreview.tokenCost)
+      } catch {
+        if (cancelled) return
+        setRunCycleTokenCost(null)
+        setChatTokenCost(null)
+      }
+    }
+    void loadTokenCosts()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const refreshAll = useCallback(async () => {
     await load()
     await loadInsights()
@@ -242,7 +274,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     }
   }, [draft, leagueId, sport])
 
-  const runCycle = useCallback(async () => {
+  const executeRunCycle = useCallback(async () => {
     setRunning(true)
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/run`, {
@@ -251,6 +283,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
         body: JSON.stringify({
           sport,
           season: season.trim() ? Number.parseInt(season.trim(), 10) : undefined,
+          confirmTokenSpend: true,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string; createdAlerts?: Array<unknown> }
@@ -349,9 +382,10 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     [leagueId]
   )
 
-  const askAICommissioner = useCallback(async () => {
+  const executeAskAICommissioner = useCallback(async () => {
     const question = commissionerQuestion.trim()
     if (!question) return
+
     setChatting(true)
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/chat`, {
@@ -361,6 +395,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
           question,
           sport,
           season: season.trim() ? Number.parseInt(season.trim(), 10) : undefined,
+          confirmTokenSpend: true,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string; answer?: string }
@@ -372,6 +407,40 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
       setChatting(false)
     }
   }, [commissionerQuestion, leagueId, season, sport])
+
+  const requestTokenPreflight = useCallback(
+    async (action: PendingCommissionerAction, ruleCode: string) => {
+      try {
+        const preview = await previewTokenSpend(ruleCode)
+        setTokenModalPreview(preview)
+        setPendingAction(action)
+      } catch (e: any) {
+        toast.error(e?.message || 'Unable to preview token spend')
+      }
+    },
+    []
+  )
+
+  const runCycle = useCallback(async () => {
+    await requestTokenPreflight('run_cycle', 'commissioner_ai_cycle_run')
+  }, [requestTokenPreflight])
+
+  const askAICommissioner = useCallback(async () => {
+    if (!commissionerQuestion.trim()) return
+    await requestTokenPreflight('ask_question', 'commissioner_ai_chat_question')
+  }, [commissionerQuestion, requestTokenPreflight])
+
+  const handleTokenModalConfirm = useCallback(async () => {
+    if (!tokenModalPreview?.canSpend || !pendingAction) return
+    setTokenModalPreview(null)
+    const nextAction = pendingAction
+    setPendingAction(null)
+    if (nextAction === 'run_cycle') {
+      await executeRunCycle()
+      return
+    }
+    await executeAskAICommissioner()
+  }, [executeAskAICommissioner, executeRunCycle, pendingAction, tokenModalPreview?.canSpend])
 
   const alertSummary = useMemo(() => {
     const alerts = payload?.alerts ?? []
@@ -405,6 +474,20 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
           Back to settings
         </Link>
       </div>
+
+      <InContextMonetizationCard
+        title="AI Commissioner Access"
+        featureId="commissioner_automation"
+        tokenRuleCodes={[
+          'commissioner_ai_cycle_run',
+          'commissioner_ai_chat_question',
+          'ai_storyline_creation',
+          'commissioner_ai_collusion_detection_scan',
+          'commissioner_ai_tanking_detection_scan',
+        ]}
+        className="mb-1"
+        testIdPrefix="commissioner-monetization"
+      />
 
       <div className="grid gap-3 md:grid-cols-5">
         <div className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">
@@ -476,7 +559,11 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
             data-testid="ai-commissioner-run"
           >
             {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            <span className="ml-1">{running ? 'Running...' : 'Run AI cycle'}</span>
+            <span className="ml-1">
+              {running
+                ? 'Running...'
+                : `Run AI cycle${runCycleTokenCost ? ` (${runCycleTokenCost} token${runCycleTokenCost === 1 ? '' : 's'})` : ''}`}
+            </span>
           </Button>
         </div>
         <label className="md:col-span-3 flex items-center gap-2 text-xs text-white/75">
@@ -732,7 +819,11 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
               disabled={chatting || !commissionerQuestion.trim()}
               data-testid="ai-commissioner-chat-button"
             >
-              {chatting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ask'}
+              {chatting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                `Ask${chatTokenCost ? ` (${chatTokenCost} token${chatTokenCost === 1 ? '' : 's'})` : ''}`
+              )}
             </Button>
           </div>
           {commissionerAnswer ? (
@@ -893,6 +984,21 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
           </article>
         ))}
       </div>
+
+      <TokenSpendPreflightModal
+        open={Boolean(tokenModalPreview)}
+        preview={tokenModalPreview}
+        title={pendingAction === 'run_cycle' ? 'Confirm AI Commissioner cycle run' : 'Confirm AI Commissioner question'}
+        confirmLabel={pendingAction === 'run_cycle' ? 'Run cycle now' : 'Ask question'}
+        onClose={() => {
+          setTokenModalPreview(null)
+          setPendingAction(null)
+        }}
+        onConfirm={() => {
+          void handleTokenModalConfirm()
+        }}
+        testIdPrefix="commissioner-token-preflight"
+      />
 
       {!loading && payload ? (
         <div className="rounded-xl border border-white/10 bg-black/20 p-3">

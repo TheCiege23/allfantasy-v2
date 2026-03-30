@@ -39,6 +39,7 @@ import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaul
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
 import { canAddToQueue, getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
+import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 
 export type DraftRoomPageClientProps = {
   leagueId: string
@@ -493,6 +494,7 @@ export function DraftRoomPageClient({
 
   const fetchRecommendation = useCallback(async () => {
     if (!session?.currentPick || !session.teamCount) return
+    const currentPick = session.currentPick
     const myRoster = session.picks?.filter((p) => p.rosterId === currentUserRosterId).map((p) => ({
       position: p.position,
       team: p.team ?? null,
@@ -533,25 +535,46 @@ export function DraftRoomPageClient({
           aiAdpByKey[key] = a.adp
         }
       }
-      const res = await fetch('/api/draft/recommend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          available,
-          teamRoster: myRoster,
-          rosterSlots: effectiveRosterSlots,
-          round: session.currentPick.round,
-          pick: session.currentPick.slot,
-          totalTeams: session.teamCount,
-          sport: effectiveDraftSport,
-          isDynasty,
-          isSF: isSuperflexFormat,
-          mode: 'needs',
-          includeAIExplanation: draftAiExplanationEnabled,
-          aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
+      const requestRecommendation = async (confirmTokenSpendForFallback: boolean) => {
+        const res = await fetch('/api/draft/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            available,
+            teamRoster: myRoster,
+            rosterSlots: effectiveRosterSlots,
+            round: currentPick.round,
+            pick: currentPick.slot,
+            totalTeams: session.teamCount,
+            sport: effectiveDraftSport,
+            isDynasty,
+            isSF: isSuperflexFormat,
+            mode: 'needs',
+            includeAIExplanation: draftAiExplanationEnabled,
+            leagueId,
+            leagueName,
+            confirmTokenSpend: confirmTokenSpendForFallback,
+            aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        return { res, data }
+      }
+
+      let { res, data } = await requestRecommendation(false)
+      if (
+        !res.ok &&
+        data?.code === 'token_confirmation_required' &&
+        typeof data?.preview?.ruleCode === 'string'
+      ) {
+        const confirmation = await confirmTokenSpend(data.preview.ruleCode)
+        if (!confirmation.confirmed) {
+          setRecommendationError('Token confirmation cancelled. Draft AI explanation was not unlocked.')
+          return
+        }
+        ;({ res, data } = await requestRecommendation(true))
+      }
+
       if (res.ok && data.ok) {
         setRecommendationResult({
           recommendation: data.recommendation ?? null,

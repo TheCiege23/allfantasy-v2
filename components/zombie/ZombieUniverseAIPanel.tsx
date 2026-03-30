@@ -2,8 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
-import { useEntitlement } from '@/hooks/useEntitlement'
-import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 type ZombieUniverseAIType =
   | 'promotion_relegation_outlook'
@@ -36,9 +35,6 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
     movementProjections: { rosterId: string; reason: string }[]
     rosterDisplayNames: Record<string, string>
   } | null>(null)
-
-  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
-    useEntitlement('zombie_ai')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -83,18 +79,7 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
           Promotion/relegation outlook, level storylines, and league health. Requires zombie AI entitlement.
         </p>
 
-        {entitlementLoading && <p className="text-sm text-white/50">Checking access…</p>}
-        {!entitlementLoading && !featureAccess && (
-          <LockedFeatureCard
-            featureName="Zombie Universe AI"
-            requiredPlan="AF Pro"
-            upgradeHref={upgradePath}
-            statusMessage={entitlement?.message}
-            className="mb-3"
-          />
-        )}
-
-        {featureAccess && (
+        <FeatureGate featureId="zombie_ai" featureNameOverride="Zombie Universe AI" className="mb-3">
           <>
             <div className="mb-4">
               <label className="mb-2 block text-xs text-white/50">Topic</label>
@@ -120,7 +105,7 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
               Generate
             </button>
           </>
-        )}
+        </FeatureGate>
 
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/20 p-3 text-sm text-rose-200">

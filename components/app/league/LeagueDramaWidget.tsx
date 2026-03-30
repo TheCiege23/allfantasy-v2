@@ -95,13 +95,25 @@ export function LeagueDramaWidget({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ eventId }),
     })
-      .then((r) => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(
+            typeof data?.message === 'string'
+              ? data.message
+              : typeof data?.error === 'string'
+                ? data.error
+                : 'Could not load story.'
+          )
+        }
+        return data
+      })
       .then((data) => {
         setStoryNarrative(data?.narrative ?? 'No story available.')
         setStoryLoading(null)
       })
-      .catch(() => {
-        setStoryNarrative('Could not load story.')
+      .catch((error) => {
+        setStoryNarrative(error instanceof Error ? error.message : 'Could not load story.')
         setStoryLoading(null)
       })
   }, [leagueId, storyEventId, storyNarrative])

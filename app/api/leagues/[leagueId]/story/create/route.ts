@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth"
 import { assertLeagueMember } from "@/lib/league-access"
 import { createLeagueStory, getStoryVariant, storyToMediaShape } from "@/lib/league-story-creator"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
+import { requireFeatureEntitlement } from "@/lib/subscription/entitlement-middleware"
 import type { StoryStyle, StoryType } from "@/lib/league-story-creator/types"
 
 const STORY_TYPES: StoryType[] = [
@@ -46,6 +47,21 @@ export async function POST(
     } catch {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
+
+    const gate = await requireFeatureEntitlement({
+      userId: session.user.id,
+      featureId: "storyline_creation",
+      allowTokenFallback: true,
+      confirmTokenSpend: true,
+      tokenRuleCode: "ai_storyline_creation",
+      tokenSourceType: "league_story_create",
+      tokenSourceId: `${leagueId}:${Date.now()}`,
+      tokenDescription: "League story creation",
+      tokenMetadata: {
+        leagueId,
+      },
+    })
+    if (!gate.ok) return gate.response
 
     const body = await req.json().catch(() => ({}))
     const storyType = body.storyType as string
@@ -111,6 +127,14 @@ export async function POST(
         grok: "narrative_framing",
         openai: "final_user_story",
       },
+      tokenSpend: gate.tokenSpend
+        ? {
+            ruleCode: gate.tokenPreview?.ruleCode ?? "ai_storyline_creation",
+            tokenCost: gate.tokenPreview?.tokenCost ?? null,
+            balanceAfter: gate.tokenSpend.balanceAfter,
+            ledgerId: gate.tokenSpend.id,
+          }
+        : null,
       generatedAt: new Date().toISOString(),
     })
   } catch (e) {

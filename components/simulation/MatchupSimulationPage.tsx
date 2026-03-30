@@ -43,6 +43,7 @@ import type {
 import { SimulationChart } from './SimulationChart'
 import { UpsideDownsideCards } from './UpsideDownsideCards'
 import { WinProbabilityMeter } from './WinProbabilityMeter'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 
 type MatchupResult = {
   winProbabilityA: number
@@ -786,6 +787,13 @@ export function MatchupSimulationPage({
           Back
         </Button>
       </div>
+
+      <InContextMonetizationCard
+        title="Matchup AI explanation access"
+        featureId="matchup_explanations"
+        tokenRuleCodes={['ai_matchup_explanation_single']}
+        testIdPrefix="matchup-monetization"
+      />
 
       <Card className="border-white/10 bg-white/5">
         <CardHeader className="space-y-4">

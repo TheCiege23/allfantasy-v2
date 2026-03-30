@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.describe.configure({ timeout: 180_000 })
+
 function buildCatalogPayload() {
   const subscriptions = [
     {
@@ -197,6 +199,12 @@ async function mockPricingApis(page: Page) {
   })
 }
 
+async function waitForPricingReady(page: Page) {
+  await expect(page.getByText('Loading pricing catalog...')).toHaveCount(0, { timeout: 20_000 })
+  await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByTestId('pricing-token-cta-af_tokens_10')).toBeVisible({ timeout: 20_000 })
+}
+
 test.describe('@monetization checkout click audit', () => {
   test('desktop subscription CTA dispatches checkout payload and redirects', async ({ page }) => {
     await mockPricingApis(page)
@@ -225,6 +233,7 @@ test.describe('@monetization checkout click audit', () => {
 
     await page.setViewportSize({ width: 1366, height: 900 })
     await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+    await waitForPricingReady(page)
     await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeVisible()
 
     await page.getByTestId('pricing-subscription-cta-af_pro_monthly').click()
@@ -264,6 +273,7 @@ test.describe('@monetization checkout click audit', () => {
 
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+    await waitForPricingReady(page)
     await expect(page.getByTestId('pricing-token-cta-af_tokens_10')).toBeVisible()
 
     await page.getByTestId('pricing-token-cta-af_tokens_10').click()
@@ -287,10 +297,166 @@ test.describe('@monetization checkout click audit', () => {
     })
 
     await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+    await waitForPricingReady(page)
     await page.getByTestId('pricing-subscription-cta-af_pro_monthly').click()
 
     await expect(page.getByText('Checkout is temporarily unavailable for this plan.')).toBeVisible()
     await expect(page).toHaveURL(/\/pricing/)
     await expect(page.getByTestId('pricing-token-cta-af_tokens_10')).toBeVisible()
+  })
+
+  test('full product matrix CTAs map to correct checkout routes', async ({ page }) => {
+    await mockPricingApis(page)
+    const seenSubscriptionSkus = new Set<string>()
+    const seenTokenSkus = new Set<string>()
+
+    await page.route('**/api/monetization/checkout/subscription', async (route) => {
+      const body = route.request().postDataJSON() as { sku?: string; returnPath?: string }
+      if (body?.sku) seenSubscriptionSkus.add(body.sku)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          url: `http://localhost:3000/e2e/checkout-success?sku=${encodeURIComponent(String(body?.sku ?? ''))}`,
+          sku: body?.sku,
+          purchaseType: 'subscription',
+        }),
+      })
+    })
+
+    await page.route('**/api/monetization/checkout/tokens', async (route) => {
+      const body = route.request().postDataJSON() as { sku?: string; returnPath?: string }
+      if (body?.sku) seenTokenSkus.add(body.sku)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          url: `http://localhost:3000/e2e/checkout-success?sku=${encodeURIComponent(String(body?.sku ?? ''))}`,
+          sku: body?.sku,
+          purchaseType: 'tokens',
+        }),
+      })
+    })
+
+    await page.route('**/e2e/checkout-success**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>checkout success</body></html>',
+      })
+    })
+
+    const subscriptionSkus = [
+      'af_pro_monthly',
+      'af_pro_yearly',
+      'af_commissioner_monthly',
+      'af_commissioner_yearly',
+      'af_war_room_monthly',
+      'af_war_room_yearly',
+      'af_all_access_monthly',
+      'af_all_access_yearly',
+    ]
+    const tokenSkus = ['af_tokens_5', 'af_tokens_10', 'af_tokens_25']
+
+    await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+    await waitForPricingReady(page)
+    await expect(page.getByRole('heading', { name: 'AF Pro' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AF Commissioner' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AF War Room' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AF All-Access' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Checkout monthly' })).toHaveCount(4)
+    await expect(page.getByRole('button', { name: 'Checkout yearly' })).toHaveCount(4)
+    await expect(page.getByText('AllFantasy AI Tokens (5)')).toBeVisible()
+    await expect(page.getByText('AllFantasy AI Tokens (10)')).toBeVisible()
+    await expect(page.getByText('AllFantasy AI Tokens (25)')).toBeVisible()
+
+    for (const sku of subscriptionSkus) {
+      const cta = page.getByTestId(`pricing-subscription-cta-${sku}`)
+      await expect(cta).toBeEnabled()
+      await cta.click()
+      await page.waitForURL('**/e2e/checkout-success?sku=*')
+      await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+      await waitForPricingReady(page)
+    }
+
+    for (const sku of tokenSkus) {
+      const cta = page.getByTestId(`pricing-token-cta-${sku}`)
+      await expect(cta).toBeEnabled()
+      await cta.click()
+      await page.waitForURL('**/e2e/checkout-success?sku=*')
+      await page.goto('/pricing', { waitUntil: 'domcontentloaded' })
+      await waitForPricingReady(page)
+    }
+
+    expect(Array.from(seenSubscriptionSkus).sort()).toEqual(subscriptionSkus.slice().sort())
+    expect(Array.from(seenTokenSkus).sort()).toEqual(tokenSkus.slice().sort())
+  })
+
+  test('purchase entry pages render and checkout CTAs remain wired', async ({ page }) => {
+    await mockPricingApis(page)
+    const recordedReturnPaths: string[] = []
+
+    await page.route('**/api/monetization/checkout/subscription', async (route) => {
+      const body = route.request().postDataJSON() as { sku?: string; returnPath?: string }
+      if (body?.returnPath) recordedReturnPaths.push(body.returnPath)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          url: 'http://localhost:3000/e2e/entry-checkout-success',
+          sku: body?.sku,
+          purchaseType: 'subscription',
+        }),
+      })
+    })
+    await page.route('**/api/monetization/checkout/tokens', async (route) => {
+      const body = route.request().postDataJSON() as { sku?: string; returnPath?: string }
+      if (body?.returnPath) recordedReturnPaths.push(body.returnPath)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          url: 'http://localhost:3000/e2e/entry-checkout-success',
+          sku: body?.sku,
+          purchaseType: 'tokens',
+        }),
+      })
+    })
+    await page.route('**/e2e/entry-checkout-success', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<html><body>ok</body></html>',
+      })
+    })
+
+    const entryPages = [
+      { url: '/upgrade?plan=pro', returnPath: '/upgrade' },
+      { url: '/commissioner-upgrade', returnPath: '/commissioner-upgrade' },
+      { url: '/war-room', returnPath: '/war-room' },
+      { url: '/pro', returnPath: '/pro' },
+      { url: '/all-access', returnPath: '/all-access' },
+    ]
+
+    for (const entry of entryPages) {
+      await page.goto(entry.url, { waitUntil: 'domcontentloaded' })
+      await waitForPricingReady(page)
+      await expect(page.getByTestId('monetization-fancred-link')).toBeVisible()
+      await expect(page.getByTestId('monetization-fancred-link')).toHaveAttribute(
+        'href',
+        /fancred\.com/
+      )
+      await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeVisible()
+      await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeEnabled()
+      await expect(page.getByTestId('pricing-token-cta-af_tokens_10')).toBeVisible()
+      await expect(page.getByTestId('pricing-token-cta-af_tokens_10')).toBeEnabled()
+
+      await page.getByTestId('pricing-subscription-cta-af_pro_monthly').click()
+      await page.waitForURL('**/e2e/entry-checkout-success')
+    }
+
+    for (const expected of entryPages.map((entry) => entry.returnPath)) {
+      expect(recordedReturnPaths).toContain(expected)
+    }
   })
 })

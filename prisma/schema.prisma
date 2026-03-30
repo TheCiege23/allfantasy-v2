@@ -2399,6 +2399,8 @@ model AppUser {
   platformMessageReports       PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
   platformUserReportsCreated   PlatformUserReport[]       @relation("PlatformUserReportReporter")
   platformUserReportsAgainst   PlatformUserReport[]       @relation("PlatformUserReportReported")
+  tokenBalance                  UserTokenBalance?
+  tokenLedgerEntries            TokenLedger[]
   walletAccount                 PlatformWalletAccount?
   walletLedgerEntries           WalletLedgerEntry[]
   referralCodes                 ReferralCode[]
@@ -6657,6 +6659,115 @@ model UserSubscription {
   @@index([currentPeriodEnd])
   @@index([gracePeriodEnd])
   @@map("user_subscriptions")
+}
+
+/// Token package catalog for one-time token purchases.
+model TokenPackage {
+  id            String   @id @default(uuid())
+  sku           String   @unique @db.VarChar(64)
+  title         String   @db.VarChar(128)
+  description   String?  @db.Text
+  tokenAmount   Int
+  priceUsdCents Int
+  isActive      Boolean  @default(true)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ledgerEntries TokenLedger[]
+
+  @@index([isActive])
+  @@map("token_packages")
+}
+
+/// User-level AI token balance snapshot.
+model UserTokenBalance {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  balance           Int      @default(0)
+  lifetimePurchased Int      @default(0)
+  lifetimeSpent     Int      @default(0)
+  lifetimeRefunded  Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user    AppUser      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries TokenLedger[]
+
+  @@index([balance])
+  @@map("user_token_balances")
+}
+
+/// Centralized per-feature spend pricing for token deductions.
+model TokenSpendRule {
+  id                   String   @id @default(uuid())
+  code                 String   @unique @db.VarChar(64)
+  category             String   @db.VarChar(32) // ai_feature | commissioner_function
+  featureLabel         String   @db.VarChar(128)
+  description          String?  @db.Text
+  tokenCost            Int
+  requiresConfirmation Boolean  @default(true)
+  isActive             Boolean  @default(true)
+  metadata             Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  ledgerEntries TokenLedger[]
+
+  @@index([isActive])
+  @@index([category, isActive])
+  @@map("token_spend_rules")
+}
+
+/// Refund policy metadata used when auto-refunding failed executions.
+model TokenRefundRule {
+  id            String   @id @default(uuid())
+  code          String   @unique @db.VarChar(64)
+  description   String?  @db.Text
+  maxAgeMinutes Int?
+  isActive      Boolean  @default(true)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ledgerEntries TokenLedger[]
+
+  @@index([isActive])
+  @@map("token_refund_rules")
+}
+
+/// Immutable ledger of all token credits/debits/refunds.
+model TokenLedger {
+  id                 String   @id @default(uuid())
+  userId             String
+  userTokenBalanceId String
+  entryType          String   @db.VarChar(32) // purchase | spend | refund | adjustment
+  tokenDelta         Int
+  balanceBefore      Int
+  balanceAfter       Int
+  tokenPackageSku    String?  @db.VarChar(64)
+  spendRuleCode      String?  @db.VarChar(64)
+  refundRuleCode     String?  @db.VarChar(64)
+  sourceType         String?  @db.VarChar(64)
+  sourceId           String?  @db.VarChar(128)
+  idempotencyKey     String?  @unique @db.VarChar(191)
+  description        String?  @db.Text
+  metadata           Json?
+  createdAt          DateTime @default(now())
+
+  user         AppUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenBalance UserTokenBalance @relation(fields: [userTokenBalanceId], references: [id], onDelete: Cascade)
+  tokenPackage TokenPackage?    @relation(fields: [tokenPackageSku], references: [sku], onDelete: SetNull)
+  spendRule    TokenSpendRule?  @relation(fields: [spendRuleCode], references: [code], onDelete: SetNull)
+  refundRule   TokenRefundRule? @relation(fields: [refundRuleCode], references: [code], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([entryType, createdAt])
+  @@index([tokenPackageSku])
+  @@index([spendRuleCode])
+  @@index([refundRuleCode])
+  @@index([sourceType, sourceId])
+  @@map("token_ledger")
 }
 
 model PlatformWalletAccount {

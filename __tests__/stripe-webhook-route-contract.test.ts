@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { buildStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 
 const constructEventMock = vi.hoisted(() => vi.fn())
 const getStripeClientMock = vi.hoisted(() =>
@@ -165,6 +166,49 @@ describe("Stripe webhook route contracts", () => {
     )
     expect(subscriptionPlanUpsertMock).not.toHaveBeenCalled()
     expect(userSubscriptionUpsertMock).not.toHaveBeenCalled()
+  })
+
+  it("resolves purchase context from client_reference_id when metadata is missing", async () => {
+    constructEventMock.mockReturnValueOnce({
+      id: "evt_client_ref_1",
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_client_ref_1",
+          mode: "subscription",
+          subscription: "sub_client_ref_1",
+          customer: "cus_client_ref_1",
+          metadata: {},
+          client_reference_id: buildStripeCheckoutClientReferenceId({
+            userId: "user-ref-1",
+            sku: "af_pro_monthly",
+            purchaseType: "subscription",
+          }),
+        },
+      },
+    })
+
+    const { POST } = await import("@/app/api/stripe/webhook/route")
+    const req = new Request("http://localhost/api/stripe/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": "sig_test" },
+      body: "{}",
+    })
+    const res = await POST(req as any)
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      received: true,
+      purchaseType: "subscription",
+    })
+    expect(userSubscriptionUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          userId: "user-ref-1",
+          sku: "af_pro_monthly",
+        }),
+      })
+    )
   })
 
   it("persists error status when processing fails", async () => {

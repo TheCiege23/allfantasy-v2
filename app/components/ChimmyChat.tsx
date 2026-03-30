@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface';
+import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
 
 const HEART_EMOJI = '\u{1F496}';
 
@@ -154,6 +155,20 @@ export default function ChimmyChat() {
   const sendMessage = async () => {
     if (!input.trim() && !imageFile) return;
 
+    try {
+      const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
+      if (!preview.canSpend) {
+        toast.error(
+          `Need ${preview.tokenCost} token${preview.tokenCost === 1 ? '' : 's'} for this action. Current balance: ${preview.currentBalance}.`
+        );
+        return;
+      }
+      if (!confirmed) return;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to preview token spend.');
+      return;
+    }
+
     const userMessage: ChatMessage = {
       role: 'user',
       content: input || 'Analyze this screenshot and tell me what to do.',
@@ -172,6 +187,7 @@ export default function ChimmyChat() {
       formData.append('message', outgoingText || '');
       if (imageFile) formData.append('image', imageFile);
       formData.append('messages', JSON.stringify(nextMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }))));
+      formData.append('confirmTokenSpend', 'true');
 
       const res = await fetch('/api/chat/chimmy', {
         method: 'POST',

@@ -1,17 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { parseStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 
 const getServerSessionMock = vi.hoisted(() => vi.fn())
-const checkoutCreateMock = vi.hoisted(() => vi.fn())
-const getBaseUrlMock = vi.hoisted(() => vi.fn(() => "http://localhost:3000"))
-const getStripeClientMock = vi.hoisted(() =>
-  vi.fn(() => ({
-    checkout: {
-      sessions: {
-        create: checkoutCreateMock,
-      },
-    },
-  }))
-)
 
 vi.mock("next-auth", () => ({
   getServerSession: getServerSessionMock,
@@ -21,27 +11,15 @@ vi.mock("@/lib/auth", () => ({
   authOptions: {},
 }))
 
-vi.mock("@/lib/get-base-url", () => ({
-  getBaseUrl: getBaseUrlMock,
-}))
-
-vi.mock("@/lib/stripe-client", () => ({
-  getStripeClient: getStripeClientMock,
-}))
-
 describe("Monetization checkout routes", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getServerSessionMock.mockResolvedValue({ user: { id: "user-1", email: "user@test.dev" } })
-    checkoutCreateMock.mockResolvedValue({
-      id: "cs_test_123",
-      url: "https://checkout.stripe.test/session/cs_test_123",
-    })
-    process.env.STRIPE_PRICE_AF_PRO_MONTHLY = "price_pro_monthly_123"
-    process.env.STRIPE_PRICE_AF_TOKENS_10 = "price_tokens_10_123"
+    process.env.STRIPE_CHECKOUT_LINK_AF_PRO_MONTHLY = "https://buy.stripe.com/test_pro_monthly"
+    process.env.STRIPE_CHECKOUT_LINK_AF_TOKENS_10 = "https://buy.stripe.com/test_tokens_10"
   })
 
-  it("creates subscription checkout for valid subscription sku", async () => {
+  it("resolves subscription checkout link for valid subscription sku", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/subscription/route")
     const req = new Request("http://localhost/api/monetization/checkout/subscription", {
       method: "POST",
@@ -51,21 +29,22 @@ describe("Monetization checkout routes", () => {
     const res = await POST(req)
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({
-      url: "https://checkout.stripe.test/session/cs_test_123",
-      sessionId: "cs_test_123",
+    const payload = await res.json()
+    expect(payload).toMatchObject({
       sku: "af_pro_monthly",
-    })
-
-    expect(checkoutCreateMock).toHaveBeenCalledTimes(1)
-    const checkoutArg = checkoutCreateMock.mock.calls[0][0]
-    expect(checkoutArg.mode).toBe("subscription")
-    expect(checkoutArg.line_items[0].price).toBe("price_pro_monthly_123")
-    expect(checkoutArg.success_url).toContain("/pricing?from=upgrade&checkout=success")
-    expect(checkoutArg.metadata).toMatchObject({
       purchaseType: "subscription",
-      sku: "af_pro_monthly",
+    })
+    const checkoutUrl = new URL(String(payload.url))
+    expect(checkoutUrl.origin + checkoutUrl.pathname).toBe("https://buy.stripe.com/test_pro_monthly")
+    expect(checkoutUrl.searchParams.get("prefilled_email")).toBe("user@test.dev")
+    expect(checkoutUrl.searchParams.get("af_return_path")).toBe("/pricing?from=upgrade")
+    const clientReference = parseStripeCheckoutClientReferenceId(
+      checkoutUrl.searchParams.get("client_reference_id")
+    )
+    expect(clientReference).toMatchObject({
       userId: "user-1",
+      sku: "af_pro_monthly",
+      purchaseType: "subscription",
     })
   })
 
@@ -81,7 +60,7 @@ describe("Monetization checkout routes", () => {
     await expect(res.json()).resolves.toMatchObject({ error: "Invalid subscription sku" })
   })
 
-  it("creates token checkout for valid token pack sku", async () => {
+  it("resolves token checkout link for valid token pack sku", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/tokens/route")
     const req = new Request("http://localhost/api/monetization/checkout/tokens", {
       method: "POST",
@@ -91,23 +70,21 @@ describe("Monetization checkout routes", () => {
     const res = await POST(req)
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({
-      url: "https://checkout.stripe.test/session/cs_test_123",
-      sessionId: "cs_test_123",
+    const payload = await res.json()
+    expect(payload).toMatchObject({
       sku: "af_tokens_10",
       tokenAmount: 10,
-    })
-
-    expect(checkoutCreateMock).toHaveBeenCalledTimes(1)
-    const checkoutArg = checkoutCreateMock.mock.calls[0][0]
-    expect(checkoutArg.mode).toBe("payment")
-    expect(checkoutArg.line_items[0].price).toBe("price_tokens_10_123")
-    expect(checkoutArg.success_url).toBe("http://localhost:3000/pricing?checkout=success")
-    expect(checkoutArg.metadata).toMatchObject({
       purchaseType: "tokens",
+    })
+    const checkoutUrl = new URL(String(payload.url))
+    expect(checkoutUrl.origin + checkoutUrl.pathname).toBe("https://buy.stripe.com/test_tokens_10")
+    const clientReference = parseStripeCheckoutClientReferenceId(
+      checkoutUrl.searchParams.get("client_reference_id")
+    )
+    expect(clientReference).toMatchObject({
       sku: "af_tokens_10",
-      tokenAmount: "10",
       userId: "user-1",
+      purchaseType: "tokens",
     })
   })
 
@@ -160,6 +137,21 @@ describe("Monetization checkout routes", () => {
     expect(prizeRes.status).toBe(400)
     await expect(prizeRes.json()).resolves.toMatchObject({
       code: "in_app_prize_pool_not_allowed",
+    })
+  })
+
+  it("fails safely when checkout link mapping is missing", async () => {
+    delete process.env.STRIPE_CHECKOUT_LINK_AF_PRO_MONTHLY
+    const { POST } = await import("@/app/api/monetization/checkout/subscription/route")
+    const req = new Request("http://localhost/api/monetization/checkout/subscription", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sku: "af_pro_monthly" }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(503)
+    await expect(res.json()).resolves.toMatchObject({
+      error: expect.stringContaining("temporarily unavailable"),
     })
   })
 })

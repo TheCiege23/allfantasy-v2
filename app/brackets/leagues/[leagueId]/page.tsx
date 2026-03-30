@@ -10,7 +10,7 @@ import { LeagueCreatorBadge } from "@/components/creator/LeagueCreatorBadge"
 import { DiscoveryViewTracker } from "@/components/discovery/DiscoveryViewTracker"
 import { Settings, ArrowLeft } from "lucide-react"
 import { resolveBracketChallengeLabel, resolveBracketSportUI } from "@/lib/bracket-challenge"
-import { getFanCredBoundaryDisclosureShort } from "@/lib/legal/FanCredBoundaryDisclosure"
+import { PaidLeagueNotice } from "@/components/legal/PaidLeagueNotice"
 
 export default async function LeagueDetailPage({
   params,
@@ -98,7 +98,6 @@ export default async function LeagueDetailPage({
   const rules = (league.scoringRules || {}) as any
   const scoringMode = String(rules.scoringMode || 'standard')
   const isPaidLeague = Boolean(rules.isPaidLeague)
-  const paidBoundaryDisclosure = getFanCredBoundaryDisclosureShort()
   const sportUI = resolveBracketSportUI(league.tournament?.sport ?? null)
   const challengeLabel = resolveBracketChallengeLabel({
     bracketType: rules?.bracketType,
@@ -139,9 +138,12 @@ export default async function LeagueDetailPage({
                   <span>{league.tournament?.season}</span>
                 </div>
                 {isPaidLeague ? (
-                  <p className="mt-1 text-[11px]" style={{ color: "rgba(250, 204, 21, 0.8)" }}>
-                    Paid league · {paidBoundaryDisclosure}
-                  </p>
+                  <PaidLeagueNotice
+                    compact
+                    showFanCredCta
+                    dataTestId="bracket-league-paid-boundary-notice"
+                    className="mt-2"
+                  />
                 ) : null}
                 <LeagueCreatorBadge leagueId={league.id} />
               </div>

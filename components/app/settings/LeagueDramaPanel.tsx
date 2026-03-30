@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Zap, RefreshCw } from 'lucide-react'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 
 export default function LeagueDramaPanel({ leagueId }: LeagueTabProps) {
   const router = useRouter()
@@ -54,6 +55,13 @@ export default function LeagueDramaPanel({ leagueId }: LeagueTabProps) {
       <p className="mt-2 text-xs text-white/65">
         Generate storyline events (revenge games, upsets, rivalry clashes, streaks, playoff bubble, etc.) from matchups and rivalries. Storylines appear on the league Overview tab.
       </p>
+      <InContextMonetizationCard
+        title="Storyline generation access"
+        featureId="storyline_creation"
+        tokenRuleCodes={['ai_storyline_creation']}
+        className="mt-3"
+        testIdPrefix="league-drama-monetization"
+      />
       <div className="mt-3 grid gap-2 md:grid-cols-2">
         <select
           value={sport}
