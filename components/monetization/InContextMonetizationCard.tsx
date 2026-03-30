@@ -9,10 +9,8 @@ import {
   resolvePlanTierFromSku,
   trackInsufficientTokenFlowViewed,
   trackLockedFeatureConversionClick,
-  trackLockedFeatureViewed,
   trackTokenPurchaseClicked,
   trackUpgradeEntryClicked,
-  trackUpgradePromptOpened,
 } from '@/lib/monetization-analytics'
 
 function planLabel(plan: string): string {
@@ -63,18 +61,6 @@ export function InContextMonetizationCard({
   useEffect(() => {
     if (loading || !feature || feature.hasAccess || didTrackPrompt.current) return
     didTrackPrompt.current = true
-    trackUpgradePromptOpened({
-      surface: 'in_context_monetization_card',
-      featureId: feature.featureId,
-      requiredPlan: feature.requiredPlan,
-      entitlementStatus: entitlement?.status ?? 'none',
-    })
-    trackLockedFeatureViewed({
-      surface: 'in_context_monetization_card',
-      featureId: feature.featureId,
-      requiredPlan: feature.requiredPlan,
-      entitlementStatus: entitlement?.status ?? 'none',
-    })
   }, [entitlement?.status, feature, loading])
 
   useEffect(() => {
