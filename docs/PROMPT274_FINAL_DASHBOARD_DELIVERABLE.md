@@ -1,59 +1,63 @@
 # PROMPT 274 — Final User Dashboard (Sleeper-Level UX)
 
-**Objective:** Build the main dashboard to feel elite. Style: clean, mobile-first, fast, no clutter.
+**Objective:** Build the main dashboard to feel elite while staying clean, mobile-first, fast, and uncluttered.
 
 ---
 
-## What’s included
+## Delivered
 
-| Area | Implementation |
-|------|----------------|
-| **Active leagues by sport** | Grouped list (up to 6 visible), “View all” and “Create” links; each row: name, size, chevron. |
-| **Upcoming drafts** | Single card linking to first league’s draft or mock draft; label reflects league name when present. |
-| **Live matchups** | Single card linking to first league’s Matchups tab or matchup simulation; “Scores & projections” subtext. |
-| **AI suggestions** | One prominent card (cyan accent) → Start/sit, waivers, trade tips (`/app/coach`). |
-| **Token balance** | In top status strip; tappable to `/wallet`; shows balance or loading. |
-| **Subscription status** | In top status strip; Pro/Free; tappable to `/pricing`. |
-| **Quick actions** | Four: Start/Sit, Trade, Draft, Waivers — 2×2 grid (mobile), equal-width; large tap targets. |
-| **Chimmy** | One compact row under AI suggestions → `/chimmy`. |
-| **Footer** | Minimal: Referrals, Share, Discover leagues. |
+| Requirement | Implementation |
+|---|---|
+| **Active leagues by sport** | Grouped by sport with emoji headers, per-sport counts, and direct league links. |
+| **Upcoming drafts** | Real draft-session signals from `DraftSession` (upcoming/live/paused), with per-league draft links. |
+| **Live matchups** | Real matchup signals from `WeeklyMatchup` (latest week per league + matchup counts), with per-league matchup links. |
+| **AI suggestions** | Primary AI advisor card + trade/waiver suggestion cards + Chimmy CTA with availability fallback. |
+| **Token balance** | Top status card linked to `/tokens`, with loading/error-safe state. |
+| **Subscription status** | Top status card linked to `/pricing`, showing active plan or free status. |
+| **Quick actions** | Start/Sit, Trade, Draft, Waivers in compact 2x2 mobile grid with strong tap targets. |
 
 ---
 
-## Design choices
+## Architecture and Logic
 
-- **Mobile-first:** Single column, max-width 512px; 2×2 quick actions; list-based leagues.
-- **Clean:** No extra cards; referral/share moved to footer; consistent borders and bg (white/[0.03], white/[0.06]).
-- **Fast:** No new heavy fetches; uses existing `useLeagueList`, `useTokenBalance`, `useEntitlement`; minimal re-renders.
-- **No clutter:** Removed duplicate “Create AI post” and “Invite & earn” as primary sections; single “AI suggestions” and one Chimmy row; footer for secondary links.
+### 1) New dashboard signals API
+
+- **File:** `app/api/dashboard/home/signals/route.ts`
+- **Purpose:** Single aggregated request for dashboard live sections.
+- **Behavior:**
+  - Auth-gated by session.
+  - Accepts `leagueId` query params (up to 24).
+  - Validates league ownership against the authenticated user.
+  - Returns:
+    - `upcomingDrafts` from `DraftSession` (`pre_draft`, `in_progress`, `paused`)
+    - `liveMatchups` from `WeeklyMatchup` (latest week per league with matchup counts)
+
+### 2) New client hook for live sections
+
+- **File:** `hooks/useDashboardHomeSignals.ts`
+- **Purpose:** Keep draft/matchup dashboard sections synchronized.
+- **Behavior:**
+  - Fetches `/api/dashboard/home/signals` using current league IDs.
+  - Refetch on mount, focus, visibility-resume, and global state refresh events.
+  - Handles loading/error/fallback states without blocking the rest of dashboard UI.
+
+### 3) Final dashboard UI rewrite
+
+- **File:** `components/dashboard/FinalDashboardClient.tsx`
+- **Behavior and UX:**
+  - Compact hero with one refresh action (`Refresh`) for all dashboard state.
+  - Two status cards: tokens + subscription.
+  - 2x2 quick actions above fold.
+  - Active leagues by sport section.
+  - Upcoming drafts section powered by real signal data.
+  - Live matchups section powered by real signal data.
+  - AI suggestions block with Chimmy fallback behavior.
+  - Removed non-essential sections to keep the home surface clean and fast.
 
 ---
 
-## File changed
+## Notes
 
-- **`components/dashboard/FinalDashboardClient.tsx`** — Full rewrite:
-  - Status strip (tokens + subscription) with wallet/pricing links.
-  - Quick actions with explicit icon colors (Tailwind-safe).
-  - Leagues: flat list up to 6, “View all X leagues” when more.
-  - Upcoming drafts: one card (first league draft or mock).
-  - Live matchups: one card (first league matchups or simulation).
-  - AI suggestions: one cyan-accent card.
-  - Chimmy: one compact row.
-  - Footer: Referrals, Share, Discover.
+- Sport handling remains compatible with platform-wide supported sports (NFL, NHL, NBA, MLB, NCAAB, NCAAF, Soccer) via existing sport grouping and normalization.
+- Dashboard remains mobile-first and intentionally dense, with minimal visual noise and direct action routing.
 
----
-
-## Logic
-
-- **Auth:** Unauthenticated users see sign-in/sign-up CTA; authenticated see full dashboard.
-- **Leagues:** `useLeagueList(true)` when authenticated; `groupLeaguesBySport` then flatten; show first 6, link “View all” to `/leagues`.
-- **Drafts:** Link = first league draft if `leagues.length > 0`, else mock draft; label = league name or “Mock draft”.
-- **Live matchups:** Link = first league with `?tab=Matchups` if leagues exist, else `/app/matchup-simulation`.
-- **Quick actions:** Start/Sit → `/app/coach`, Trade → `/trade-evaluator`, Draft → `/mock-draft`, Waivers → `/waiver-ai`.
-
----
-
-## Summary
-
-- **Final dashboard UI + logic** implemented in `FinalDashboardClient.tsx`.
-- **Sleeper-level UX:** Clean, mobile-first, fast, minimal clutter; all requested areas (leagues, drafts, live matchups, AI, tokens, subscription, quick actions) covered in one cohesive layout.
