@@ -3,26 +3,27 @@ import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 function safeStr(v: unknown, max = 500) {
   const s = typeof v === "string" ? v : "";
   return s.length > max ? s.slice(0, max) : s;
 }
 
-function sanitizeMeta(value: unknown): Record<string, unknown> | unknown[] | null {
-  if (!value || typeof value !== "object") return null;
+function sanitizeMeta(value: unknown): Prisma.InputJsonValue | undefined {
+  if (!value || typeof value !== "object") return undefined;
   try {
     const serialized = JSON.stringify(value);
-    if (!serialized) return null;
+    if (!serialized) return undefined;
     if (serialized.length <= 10_000) {
-      return JSON.parse(serialized) as Record<string, unknown> | unknown[];
+      return JSON.parse(serialized) as Prisma.InputJsonValue;
     }
     return {
       _truncated: true,
       _approxSize: serialized.length,
-    };
+    } as Prisma.InputJsonValue;
   } catch {
-    return null;
+    return undefined;
   }
 }
 

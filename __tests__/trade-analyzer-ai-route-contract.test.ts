@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getServerSessionMock = vi.fn()
 const assertLeagueMemberMock = vi.fn()
 const analyzeTradeWithOptionalAIMock = vi.fn()
+const assertUserHasFeatureMock = vi.fn()
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -24,9 +25,18 @@ vi.mock('@/lib/telemetry/usage', () => ({
   withApiUsage: () => (handler: any) => handler,
 }))
 
+vi.mock('@/lib/subscription/FeatureGateService', () => ({
+  FeatureGateService: class {
+    assertUserHasFeature = assertUserHasFeatureMock
+  },
+  isFeatureGateAccessError: (error: unknown) =>
+    Boolean((error as { code?: string })?.code === 'feature_not_entitled'),
+}))
+
 describe('POST /api/trade-analyzer/ai contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    assertUserHasFeatureMock.mockResolvedValue(undefined)
   })
 
   it('returns 401 when unauthenticated', async () => {

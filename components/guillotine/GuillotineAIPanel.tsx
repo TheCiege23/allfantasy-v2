@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { useEntitlement } from '@/hooks/useEntitlement'
+import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
 
 export type GuillotineAIPanelType = 'draft' | 'survival' | 'waiver' | 'recap' | 'orphan'
 
@@ -80,7 +81,8 @@ export function GuillotineAIPanel({
     type: string
   } | null>(null)
 
-  const { hasAccess, loading: entitlementLoading } = useEntitlement('guillotine_ai')
+  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
+    useEntitlement('guillotine_ai')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -109,7 +111,7 @@ export function GuillotineAIPanel({
     }
   }, [leagueId, type, weekOrPeriod])
 
-  const canUseAI = hasAccess
+  const canUseAI = featureAccess
   if (deterministicSummaryProp == null && isGuillotineLeague === false) return null
 
   return (
@@ -173,7 +175,13 @@ export function GuillotineAIPanel({
       )}
 
       {!canUseAI && !entitlementLoading && (
-        <p className="mt-2 text-xs text-amber-300">Upgrade to access Guillotine AI.</p>
+        <LockedFeatureCard
+          featureName="Guillotine AI"
+          requiredPlan="AF Pro"
+          upgradeHref={upgradePath}
+          statusMessage={entitlement?.message}
+          className="mt-3"
+        />
       )}
 
       {error && (

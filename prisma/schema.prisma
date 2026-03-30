@@ -2393,6 +2393,7 @@ model AppUser {
   socialContentAssets           SocialContentAsset[]
   socialPublishTargets          SocialPublishTarget[]
   shareableMoments              ShareableMoment[]
+  userSubscriptions             UserSubscription[]
   platformBlockedUsers          PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
   platformBlockedBy             PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
   platformMessageReports       PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
@@ -6607,6 +6608,55 @@ model StripeWebhookEvent {
   @@index([status])
   @@index([processedAt])
   @@map("stripe_webhook_events")
+}
+
+/// Subscription plan catalog. Backed by monetization SKU families (AF Pro, Commissioner, War Room, All-Access).
+model SubscriptionPlan {
+  id          String   @id @default(uuid())
+  code        String   @unique @db.VarChar(64) // af_pro | af_commissioner | af_war_room | af_all_access
+  name        String   @db.VarChar(128)
+  description String?  @db.Text
+  isBundle    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions UserSubscription[]
+
+  @@index([isActive])
+  @@map("subscription_plans")
+}
+
+/// User subscription grants from Stripe checkout/webhook lifecycle.
+model UserSubscription {
+  id                      String    @id @default(uuid())
+  userId                  String
+  subscriptionPlanId      String
+  status                  String    @default("active") @db.VarChar(32) // active | grace | past_due | canceled | expired
+  source                  String    @default("stripe") @db.VarChar(32)
+  sku                     String?   @db.VarChar(64)
+  stripeCustomerId        String?   @db.VarChar(128)
+  stripeSubscriptionId    String?   @unique @db.VarChar(128)
+  stripeCheckoutSessionId String?   @db.VarChar(128)
+  currentPeriodStart      DateTime?
+  currentPeriodEnd        DateTime?
+  gracePeriodEnd          DateTime?
+  canceledAt              DateTime?
+  expiresAt               DateTime?
+  metadata                Json?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  user AppUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([subscriptionPlanId, status])
+  @@index([currentPeriodEnd])
+  @@index([gracePeriodEnd])
+  @@map("user_subscriptions")
 }
 
 model PlatformWalletAccount {

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { getStripeClient, getStripeWebhookSecret } from "@/lib/stripe-client"
 import { prisma } from "@/lib/prisma"
 import Stripe from "stripe"
+import {
+  getMonetizationCatalogItemBySku,
+  type MonetizationSku,
+} from "@/lib/monetization/catalog"
 
 export const runtime = "nodejs"
 
@@ -36,6 +40,113 @@ function toErrorMessage(error: unknown): string {
   return String(error ?? "Unknown webhook error").slice(0, 2000)
 }
 
+function addBillingInterval(base: Date, interval: "month" | "year"): Date {
+  const next = new Date(base)
+  if (interval === "year") {
+    next.setUTCFullYear(next.getUTCFullYear() + 1)
+  } else {
+    next.setUTCMonth(next.getUTCMonth() + 1)
+  }
+  return next
+}
+
+async function persistSubscriptionEntitlementFromCheckout(
+  session: Stripe.Checkout.Session
+): Promise<void> {
+  const metadata = (session.metadata ?? {}) as Record<string, string | undefined>
+  const userId = metadata.userId?.trim()
+  const sku = metadata.sku?.trim().toLowerCase()
+  if (!userId || !sku) return
+
+  const item = getMonetizationCatalogItemBySku(sku as MonetizationSku)
+  if (!item || item.type !== "subscription" || !item.planFamily || !item.interval) return
+
+  const plans = (prisma as any).subscriptionPlan
+  const subscriptions = (prisma as any).userSubscription
+  if (!plans || !subscriptions) return
+
+  const now = new Date()
+  const currentPeriodEnd = addBillingInterval(now, item.interval)
+  const stripeSubscriptionId =
+    typeof session.subscription === "string" ? session.subscription : null
+
+  const plan = await plans.upsert({
+    where: { code: item.planFamily },
+    update: {
+      name: item.title.replace(" Monthly", "").replace(" Yearly", ""),
+      description: item.description,
+      isBundle: item.planFamily === "af_all_access",
+      isActive: true,
+      metadata: {
+        sku: item.sku,
+        interval: item.interval,
+        amountUsd: item.amountUsd,
+      },
+    },
+    create: {
+      code: item.planFamily,
+      name: item.title.replace(" Monthly", "").replace(" Yearly", ""),
+      description: item.description,
+      isBundle: item.planFamily === "af_all_access",
+      isActive: true,
+      metadata: {
+        sku: item.sku,
+        interval: item.interval,
+        amountUsd: item.amountUsd,
+      },
+    },
+    select: { id: true },
+  })
+
+  const baseData = {
+    userId,
+    subscriptionPlanId: plan.id,
+    status: "active",
+    source: "stripe",
+    sku: item.sku,
+    stripeCustomerId:
+      typeof session.customer === "string" ? session.customer : null,
+    stripeCheckoutSessionId: session.id,
+    currentPeriodStart: now,
+    currentPeriodEnd,
+    gracePeriodEnd: null,
+    canceledAt: null,
+    expiresAt: null,
+    metadata: {
+      purchaseType: "subscription",
+      stripeSessionMode: session.mode ?? "subscription",
+    },
+  }
+
+  if (stripeSubscriptionId) {
+    await subscriptions.upsert({
+      where: { stripeSubscriptionId },
+      update: baseData,
+      create: {
+        ...baseData,
+        stripeSubscriptionId,
+      },
+    })
+    return
+  }
+
+  const existingByCheckout = await subscriptions.findFirst({
+    where: { stripeCheckoutSessionId: session.id },
+    select: { id: true },
+  })
+  if (existingByCheckout?.id) {
+    await subscriptions.update({
+      where: { id: existingByCheckout.id },
+      data: baseData,
+    })
+    return
+  }
+
+  await subscriptions.create({
+    data: baseData,
+  })
+}
+
 async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<string | null> {
   const purchaseType = resolveCheckoutPurchaseType(session)
 
@@ -47,8 +158,9 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
   }
 
   if (SUPPORTED_PURCHASE_TYPES.has(purchaseType)) {
-    // Phase-1.75 baseline: event routing is segmented by purchaseType.
-    // Persistence for subscription/token grants is added in Phase-2/3.
+    if (purchaseType === "subscription") {
+      await persistSubscriptionEntitlementFromCheckout(session)
+    }
     return purchaseType
   }
 

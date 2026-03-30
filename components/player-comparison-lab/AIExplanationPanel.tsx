@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver';
 import type { ComparisonAIInsight } from '@/lib/player-comparison-lab/types';
+import { useEntitlement } from '@/hooks/useEntitlement';
+import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard';
 
 export interface AIExplanationPanelProps {
   playerNames: string[];
@@ -25,6 +27,12 @@ export function AIExplanationPanel({
   const [insight, setInsight] = useState<ComparisonAIInsight | null>(initialInsight ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const {
+    featureAccess,
+    loading: entitlementLoading,
+    entitlement,
+    upgradePath,
+  } = useEntitlement('player_comparison_explanations');
 
   useEffect(() => {
     setInsight(initialInsight ?? null);
@@ -58,44 +66,57 @@ export function AIExplanationPanel({
         <CardTitle className="text-lg text-white">AI explanation</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={handleRetry}
-            disabled={loading}
-            className="gap-2 border-white/20"
-            data-audit="retry-analysis-button"
-            data-testid="retry-analysis-button"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
+        {entitlementLoading ? (
+          <p className="text-sm text-white/60">Checking premium access...</p>
+        ) : !featureAccess ? (
+          <LockedFeatureCard
+            featureName="AI comparison explanations"
+            requiredPlan="AF Pro"
+            upgradeHref={upgradePath}
+            statusMessage={entitlement?.message}
+          />
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRetry}
+                disabled={loading}
+                className="gap-2 border-white/20"
+                data-audit="retry-analysis-button"
+                data-testid="retry-analysis-button"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Retry analysis
+              </Button>
+              <Button variant="outline" className="gap-2 border-white/20" asChild>
+                <a href={chimmyHref} data-audit="open-in-chimmy-link" data-testid="open-in-chimmy-link">
+                  <ExternalLink className="h-4 w-4" />
+                  Open in Chimmy
+                </a>
+              </Button>
+            </div>
+            {!insight?.finalRecommendation && !loading && (
+              <Button
+                onClick={handleRetry}
+                disabled={loading}
+                className="gap-2"
+                data-audit="ai-insight-button"
+                data-testid="ai-insight-button"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Get AI insight
+              </Button>
             )}
-            Retry analysis
-          </Button>
-          <Button variant="outline" className="gap-2 border-white/20" asChild>
-            <a href={chimmyHref} data-audit="open-in-chimmy-link" data-testid="open-in-chimmy-link">
-              <ExternalLink className="h-4 w-4" />
-              Open in Chimmy
-            </a>
-          </Button>
-        </div>
-        {!insight?.finalRecommendation && !loading && (
-          <Button
-            onClick={handleRetry}
-            disabled={loading}
-            className="gap-2"
-            data-audit="ai-insight-button"
-            data-testid="ai-insight-button"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Get AI insight
-          </Button>
+          </>
         )}
         {error && <p className="text-sm text-red-400">{error}</p>}
         {insight?.finalRecommendation && (

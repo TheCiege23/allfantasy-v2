@@ -11,7 +11,9 @@ export default async function MockDraftReplayPage({
 }: {
   params: { draftId: string }
 }) {
-  const session = await getServerSession(authOptions as any)
+  const session = (await getServerSession(authOptions as any)) as
+    | { user?: { id?: string } }
+    | null
   if (!session?.user?.id) {
     redirect('/login?callbackUrl=/mock-draft')
   }

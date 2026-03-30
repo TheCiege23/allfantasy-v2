@@ -1,78 +1,84 @@
-import { NextResponse } from 'next/server';
-import { deepseekChat } from '@/lib/deepseek-client';
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { deepseekChat } from '@/lib/deepseek-client'
 import {
   xaiChatJson,
   parseTextFromXaiChatCompletion,
-} from '@/lib/xai-client';
-import { openaiChatText } from '@/lib/openai-client';
+} from '@/lib/xai-client'
+import { openaiChatText } from '@/lib/openai-client'
 import {
   isDeepSeekAvailable,
   isOpenAIAvailable,
   isXaiAvailable,
-} from '@/lib/provider-config';
+} from '@/lib/provider-config'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
 
 type InsightBody = {
-  playerA?: string;
-  playerB?: string;
-  players?: string[];
-  summaryLines?: string[];
-  sport?: string | null;
-  scoringFormat?: string | null;
+  playerA?: string
+  playerB?: string
+  players?: string[]
+  summaryLines?: string[]
+  sport?: string | null
+  scoringFormat?: string | null
   matrix?: Array<{
-    label?: string;
-    winnerName?: string | null;
-    valuesByPlayer?: Record<string, number | null>;
-  }>;
-  categoryWinners?: Array<{ label?: string; winnerName?: string; value?: number | null }>;
+    label?: string
+    winnerName?: string | null
+    valuesByPlayer?: Record<string, number | null>
+  }>
+  categoryWinners?: Array<{ label?: string; winnerName?: string; value?: number | null }>
   playerScores?: Array<{
-    playerName?: string;
-    vorpDifference?: number | null;
-    projectionDelta?: number | null;
-    consistencyScore?: number | null;
-    volatilityScore?: number | null;
-  }>;
-};
+    playerName?: string
+    vorpDifference?: number | null
+    projectionDelta?: number | null
+    consistencyScore?: number | null
+    volatilityScore?: number | null
+  }>
+}
 
 function formatNum(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return 'n/a';
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  if (value == null || !Number.isFinite(value)) return 'n/a'
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
 
 function buildDeterministicBrief(body: InsightBody): {
-  playersList: string[];
-  summaryLines: string[];
-  deterministicBrief: string;
+  playersList: string[]
+  summaryLines: string[]
+  deterministicBrief: string
 } {
-  const summaryLines = Array.isArray(body.summaryLines) ? body.summaryLines : [];
+  const summaryLines = Array.isArray(body.summaryLines) ? body.summaryLines : []
   const playersList =
     Array.isArray(body.players) && body.players.length >= 2
       ? body.players.map((p) => String(p).trim()).filter(Boolean)
-      : ([body.playerA?.trim(), body.playerB?.trim()].filter(Boolean) as string[]);
+      : ([body.playerA?.trim(), body.playerB?.trim()].filter(Boolean) as string[])
 
-  const matrixRows = Array.isArray(body.matrix) ? body.matrix : [];
+  const matrixRows = Array.isArray(body.matrix) ? body.matrix : []
   const matrixLines = matrixRows
     .slice(0, 10)
     .map((row) => {
-      const winner = row.winnerName ?? 'n/a';
-      const valuesByPlayer = row.valuesByPlayer ?? {};
+      const winner = row.winnerName ?? 'n/a'
+      const valuesByPlayer = row.valuesByPlayer ?? {}
       const valuesText = Object.entries(valuesByPlayer)
         .map(([name, value]) => `${name}: ${formatNum(value)}`)
-        .join(' | ');
-      return `${row.label ?? 'Dimension'} -> winner: ${winner}; values: ${valuesText}`;
-    });
+        .join(' | ')
+      return `${row.label ?? 'Dimension'} -> winner: ${winner}; values: ${valuesText}`
+    })
 
-  const scoreRows = Array.isArray(body.playerScores) ? body.playerScores : [];
+  const scoreRows = Array.isArray(body.playerScores) ? body.playerScores : []
   const scoreLines = scoreRows.map(
     (row) =>
       `${row.playerName ?? 'Player'} | VORP diff ${formatNum(row.vorpDifference)} | projection delta ${formatNum(
         row.projectionDelta
       )} | consistency ${formatNum(row.consistencyScore)} | volatility ${formatNum(row.volatilityScore)}`
-  );
+  )
 
-  const winners = Array.isArray(body.categoryWinners) ? body.categoryWinners : [];
+  const winners = Array.isArray(body.categoryWinners) ? body.categoryWinners : []
   const winnerLines = winners
     .slice(0, 8)
-    .map((winner) => `${winner.label ?? 'Dimension'}: ${winner.winnerName ?? 'n/a'} (${formatNum(winner.value)})`);
+    .map((winner) => `${winner.label ?? 'Dimension'}: ${winner.winnerName ?? 'n/a'} (${formatNum(winner.value)})`)
 
   const deterministicBrief = [
     `Sport: ${body.sport ?? 'unknown'} | Scoring: ${body.scoringFormat ?? 'unknown'}`,
@@ -85,43 +91,54 @@ function buildDeterministicBrief(body: InsightBody): {
     ...(scoreLines.length > 0 ? scoreLines.map((line) => `- ${line}`) : ['- n/a']),
     'Comparison matrix rows:',
     ...(matrixLines.length > 0 ? matrixLines.map((line) => `- ${line}`) : ['- n/a']),
-  ].join('\n');
+  ].join('\n')
 
-  return { playersList, summaryLines, deterministicBrief };
+  return { playersList, summaryLines, deterministicBrief }
 }
 
 function buildDeterministicFallback(playersList: string[], summaryLines: string[]): string {
-  const header = playersList.length > 0 ? `Players: ${playersList.join(', ')}` : 'Player comparison';
-  const lead = summaryLines[0] ?? 'Deterministic comparison generated successfully.';
-  const second = summaryLines[1] ?? 'Use category winners and VORP/projection deltas to break close decisions.';
-  return `${header}. ${lead} ${second}`.trim();
+  const header = playersList.length > 0 ? `Players: ${playersList.join(', ')}` : 'Player comparison'
+  const lead = summaryLines[0] ?? 'Deterministic comparison generated successfully.'
+  const second = summaryLines[1] ?? 'Use category winners and VORP/projection deltas to break close decisions.'
+  return `${header}. ${lead} ${second}`.trim()
 }
 
 export async function POST(req: Request) {
-  let body: InsightBody;
   try {
-    body = (await req.json()) as InsightBody;
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized', message: 'Sign in to use AI player comparison explanations.' },
+        { status: 401 }
+      )
+    }
 
-  const { playersList, summaryLines, deterministicBrief } = buildDeterministicBrief(body);
-  if (playersList.length < 2) {
-    return NextResponse.json({ error: 'Provide at least 2 players' }, { status: 400 });
-  }
+    const gate = new FeatureGateService()
+    await gate.assertUserHasFeature(session.user.id, 'player_comparison_explanations')
 
-  const providerStatus = {
-    deepseek: isDeepSeekAvailable(),
-    grok: isXaiAvailable(),
-    openai: isOpenAIAvailable(),
-  };
+    let body: InsightBody
+    try {
+      body = (await req.json()) as InsightBody
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    }
 
-  let deepseekAnalysis: string | null = null;
-  let grokNarrative: string | null = null;
-  let openaiSummary: string | null = null;
-  const deterministicFallback = buildDeterministicFallback(playersList, summaryLines);
+    const { playersList, summaryLines, deterministicBrief } = buildDeterministicBrief(body)
+    if (playersList.length < 2) {
+      return NextResponse.json({ error: 'Provide at least 2 players' }, { status: 400 })
+    }
 
-  try {
+    const providerStatus = {
+      deepseek: isDeepSeekAvailable(),
+      grok: isXaiAvailable(),
+      openai: isOpenAIAvailable(),
+    }
+
+    let deepseekAnalysis: string | null = null
+    let grokNarrative: string | null = null
+    let openaiSummary: string | null = null
+    const deterministicFallback = buildDeterministicFallback(playersList, summaryLines)
+
     if (providerStatus.deepseek) {
       const deepseek = await deepseekChat({
         systemPrompt:
@@ -134,8 +151,8 @@ export async function POST(req: Request) {
         ].join('\n'),
         temperature: 0.2,
         maxTokens: 350,
-      });
-      deepseekAnalysis = deepseek.content?.trim() || null;
+      })
+      deepseekAnalysis = deepseek.content?.trim() || null
     }
 
     if (providerStatus.grok) {
@@ -160,8 +177,8 @@ export async function POST(req: Request) {
             ].join('\n'),
           },
         ],
-      });
-      grokNarrative = grok.ok ? parseTextFromXaiChatCompletion(grok.json)?.trim() ?? null : null;
+      })
+      grokNarrative = grok.ok ? parseTextFromXaiChatCompletion(grok.json)?.trim() ?? null : null
     }
 
     if (providerStatus.openai) {
@@ -184,27 +201,40 @@ export async function POST(req: Request) {
             ].join('\n'),
           },
         ],
-      });
-      openaiSummary = openai.ok ? openai.text.trim() : null;
+      })
+      openaiSummary = openai.ok ? openai.text.trim() : null
     }
+
+    const finalRecommendation =
+      openaiSummary ??
+      deepseekAnalysis ??
+      grokNarrative ??
+      deterministicFallback
+
+    return NextResponse.json({
+      recommendation: finalRecommendation,
+      finalRecommendation,
+      providerAnalyses: {
+        deepseek: deepseekAnalysis,
+        grok: grokNarrative,
+        openai: openaiSummary,
+      },
+      providerStatus,
+    })
   } catch (error) {
-    console.error('[player-comparison/insight]', error);
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          code: error.code,
+          message: error.message,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
+    console.error('[player-comparison/insight]', error)
+    return NextResponse.json({ error: 'Insight generation failed' }, { status: 500 })
   }
-
-  const finalRecommendation =
-    openaiSummary ??
-    deepseekAnalysis ??
-    grokNarrative ??
-    deterministicFallback;
-
-  return NextResponse.json({
-    recommendation: finalRecommendation,
-    finalRecommendation,
-    providerAnalyses: {
-      deepseek: deepseekAnalysis,
-      grok: grokNarrative,
-      openai: openaiSummary,
-    },
-    providerStatus,
-  });
 }

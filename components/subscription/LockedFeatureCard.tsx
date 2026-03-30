@@ -10,6 +10,8 @@ import { Lock } from 'lucide-react'
 export interface LockedFeatureCardProps {
   featureName: string
   requiredPlan: string
+  upgradeHref?: string
+  statusMessage?: string
   /** Optional: token cost for single-use fallback; when set, show "Or use N tokens" link */
   tokenCost?: number
   onUpgradeClick?: () => void
@@ -21,6 +23,8 @@ export interface LockedFeatureCardProps {
 export function LockedFeatureCard({
   featureName,
   requiredPlan,
+  upgradeHref = '/pricing',
+  statusMessage,
   tokenCost,
   onUpgradeClick,
   onTokenClick,
@@ -39,20 +43,30 @@ export function LockedFeatureCard({
       <p className="mt-2 text-sm text-white/70">
         This feature requires {requiredPlan}. Subscribe to unlock it, or use tokens for a one-time use.
       </p>
+      {statusMessage ? (
+        <p
+          className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+          data-testid="locked-feature-status-message"
+        >
+          {statusMessage}
+        </p>
+      ) : null}
       <div className="mt-4 flex flex-col gap-2">
         {onUpgradeClick ? (
           <button
             type="button"
             onClick={onUpgradeClick}
             className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
+            data-testid="locked-feature-upgrade-button"
           >
             <Lock className="h-4 w-4" />
             Unlock with {requiredPlan}
           </button>
         ) : (
           <Link
-            href="/pricing"
+            href={upgradeHref}
             className="flex items-center justify-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-medium text-white hover:bg-cyan-500 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
+            data-testid="locked-feature-upgrade-link"
           >
             <Lock className="h-4 w-4" />
             View plans

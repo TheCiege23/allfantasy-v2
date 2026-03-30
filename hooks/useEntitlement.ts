@@ -7,7 +7,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { FOCUS_REFETCH_THROTTLE_MS } from '@/lib/state-consistency/refresh-triggers'
-import type { SubscriptionFeatureId } from '@/lib/subscription/types'
+import type { SubscriptionFeatureId, SubscriptionPlanId } from '@/lib/subscription/types'
+import {
+  buildFeatureUpgradePath,
+  hasFeatureAccessForPlans,
+} from '@/lib/subscription/feature-access'
 
 export interface EntitlementState {
   plans: string[]
@@ -15,14 +19,26 @@ export interface EntitlementState {
   currentPeriodEnd: string | null
   gracePeriodEnd: string | null
   message: string
+  requiredPlan?: string | null
+  upgradePath?: string
 }
 
 export interface UseEntitlementResult {
   entitlement: EntitlementState | null
   loading: boolean
+  featureAccess: boolean
   hasAccess: (featureId: SubscriptionFeatureId) => boolean
   isActiveOrGrace: boolean
+  upgradePath: string
   refetch: () => Promise<void>
+}
+
+const ALLOWED_PLAN_IDS = new Set<SubscriptionPlanId>(['pro', 'commissioner', 'war_room', 'all_access'])
+
+function toPlanIds(plans: string[] | undefined): SubscriptionPlanId[] {
+  return (plans ?? []).filter((plan): plan is SubscriptionPlanId =>
+    ALLOWED_PLAN_IDS.has(plan as SubscriptionPlanId)
+  )
 }
 
 export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlementResult {
@@ -51,6 +67,10 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
           currentPeriodEnd: data.entitlement.currentPeriodEnd ?? null,
           gracePeriodEnd: data.entitlement.gracePeriodEnd ?? null,
           message: data.message ?? 'Upgrade to access this feature.',
+          requiredPlan: data.requiredPlan ?? null,
+          upgradePath:
+            data.upgradePath ??
+            (featureId ? buildFeatureUpgradePath(featureId) : '/pricing'),
         })
       } else {
         setEntitlement(null)
@@ -80,22 +100,39 @@ export function useEntitlement(featureId?: SubscriptionFeatureId): UseEntitlemen
   }, [fetchEntitlement])
 
   const isActiveOrGrace = entitlement?.status === 'active' || entitlement?.status === 'grace'
+  const featureAccess =
+    hasFeatureAccess ??
+    (featureId && entitlement
+      ? hasFeatureAccessForPlans(
+          toPlanIds(entitlement.plans),
+          entitlement.status,
+          featureId
+        )
+      : false)
+  const upgradePath =
+    entitlement?.upgradePath ??
+    (featureId ? buildFeatureUpgradePath(featureId) : '/pricing')
 
   const hasAccess = useCallback(
     (fid: SubscriptionFeatureId): boolean => {
       if (fid === featureId && hasFeatureAccess !== undefined) return hasFeatureAccess
-      if (!entitlement || !isActiveOrGrace) return false
-      const pro = ['trade_analyzer', 'ai_chat', 'ai_waivers', 'planning_tools', 'player_ai_recommendations', 'matchup_explanations', 'player_comparison_explanations', 'guillotine_ai', 'salary_cap_ai', 'survivor_ai', 'zombie_ai']
-      const comm = ['advanced_scoring', 'advanced_playoff_setup', 'ai_collusion_detection', 'ai_tanking_detection', 'storyline_creation', 'league_rankings', 'draft_rankings', 'ai_team_managers', 'commissioner_automation']
-      const war = ['draft_strategy_build', 'draft_prep', 'future_planning', 'multi_year_strategy', 'draft_board_intelligence', 'roster_construction_planning', 'ai_planning_3_5_year']
-      const plans = entitlement.plans
-      if (pro.includes(fid)) return plans.includes('pro') || plans.includes('all_access')
-      if (comm.includes(fid)) return plans.includes('commissioner') || plans.includes('all_access')
-      if (war.includes(fid)) return plans.includes('war_room') || plans.includes('all_access')
-      return false
+      if (!entitlement) return false
+      return hasFeatureAccessForPlans(
+        toPlanIds(entitlement.plans),
+        entitlement.status,
+        fid
+      )
     },
-    [entitlement, featureId, hasFeatureAccess, isActiveOrGrace]
+    [entitlement, featureId, hasFeatureAccess]
   )
 
-  return { entitlement, loading, hasAccess, isActiveOrGrace, refetch: fetchEntitlement }
+  return {
+    entitlement,
+    loading,
+    featureAccess,
+    hasAccess,
+    isActiveOrGrace,
+    upgradePath,
+    refetch: fetchEntitlement,
+  }
 }

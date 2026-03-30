@@ -16,6 +16,10 @@ import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
 import { isAIAssistantEnabled } from '@/lib/feature-toggle'
 import { runCostControlledOpenAIText } from '@/lib/ai-cost-control'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
 
 const ContextScopeSchema = z.object({
   sleeper_username: z.string(),
@@ -264,6 +268,9 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const gate = new FeatureGateService()
+    await gate.assertUserHasFeature(session.user.id, 'ai_chat')
+
     const body = await request.json()
     const parseResult = ChatRequestSchema.safeParse(body)
     if (!parseResult.success) {
@@ -485,6 +492,18 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
     })
   } catch (error) {
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          code: error.code,
+          message: error.message,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
     logAiFailure(error, { tool: 'AiChat', endpoint: '/api/ai/chat', provider: 'openai' })
     return NextResponse.json({ error: 'Failed to process chat', details: String(error) }, { status: 500 })
   }

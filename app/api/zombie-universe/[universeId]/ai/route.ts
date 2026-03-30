@@ -11,6 +11,10 @@ import { prisma } from '@/lib/prisma'
 import { buildZombieUniverseAIContext } from '@/lib/zombie/ai/ZombieAIContext'
 import type { ZombieUniverseAIType } from '@/lib/zombie/ai/ZombieAIContext'
 import { generateZombieUniverseAI } from '@/lib/zombie/ai/ZombieAIService'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,22 +27,6 @@ const VALID_TYPES: ZombieUniverseAIType[] = [
   'commissioner_anomaly_summary',
 ]
 
-async function hasZombieAIAccess(userId: string): Promise<boolean> {
-  try {
-    const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
-    const res = await fetch(`${base}/api/subscription/entitlements?feature=zombie_ai`, { headers: { cookie: '' } })
-    const data = await res.json().catch(() => ({}))
-    if ((data as { hasAccess?: boolean }).hasAccess) return true
-    const fallback = await fetch(`${base}/api/subscription/entitlements?feature=ai_chat`, { headers: { cookie: '' } })
-    const fallbackData = await fallback.json().catch(() => ({}))
-    return Boolean((fallbackData as { hasAccess?: boolean }).hasAccess)
-  } catch {
-    return false
-  }
-}
-
-const ALLOW_WHEN_ENTITLEMENTS_OPEN = true
-
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ universeId: string }> }
@@ -46,6 +34,25 @@ export async function POST(
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const gate = new FeatureGateService()
+  try {
+    await gate.assertUserHasFeature(userId, 'zombie_ai')
+  } catch (error) {
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          message: error.message,
+          code: error.code,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
+    throw error
+  }
 
   const { universeId } = await ctx.params
   if (!universeId) return NextResponse.json({ error: 'Missing universeId' }, { status: 400 })
@@ -60,16 +67,6 @@ export async function POST(
   const type = (typeof body.type === 'string' ? body.type : 'promotion_relegation_outlook') as ZombieUniverseAIType
   if (!VALID_TYPES.includes(type)) {
     return NextResponse.json({ error: 'Invalid type', validTypes: VALID_TYPES }, { status: 400 })
-  }
-
-  if (!ALLOW_WHEN_ENTITLEMENTS_OPEN) {
-    const hasAccess = await hasZombieAIAccess(userId)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Premium feature', message: 'Upgrade to access Zombie Universe AI.' },
-        { status: 403 }
-      )
-    }
   }
 
   const deterministic = await buildZombieUniverseAIContext({ universeId, userId })

@@ -94,18 +94,18 @@ function normalizeSlots(input: {
   sport: SupportedSport
   slots?: OptimizerSlotInput[]
 }): NormalizedSlot[] {
-  const slotInputs = (input.slots?.length ? input.slots : DEFAULT_SLOT_CODES[input.sport].map((code) => ({ code }))).map(
-    (slot, index) => ({
-      ...slot,
-      id: slot.id?.trim() || `${slot.code}-${index + 1}`,
-      code: normalizePositionToken(slot.code),
-      label: slot.label?.trim() || normalizePositionToken(slot.code),
-      required: slot.required !== false,
-      allowedPositions: slot.allowedPositions?.length
-        ? parsePositions(slot.allowedPositions)
-        : slotAllowedPositions(slot.code),
-    })
-  )
+  const fallbackSlots: OptimizerSlotInput[] = DEFAULT_SLOT_CODES[input.sport].map((code) => ({ code }))
+  const sourceSlots: OptimizerSlotInput[] = input.slots?.length ? input.slots : fallbackSlots
+  const slotInputs = sourceSlots.map((slot, index) => ({
+    ...slot,
+    id: slot.id?.trim() || `${slot.code}-${index + 1}`,
+    code: normalizePositionToken(slot.code),
+    label: slot.label?.trim() || normalizePositionToken(slot.code),
+    required: slot.required !== false,
+    allowedPositions: slot.allowedPositions?.length
+      ? parsePositions(slot.allowedPositions)
+      : slotAllowedPositions(slot.code),
+  }))
 
   return slotInputs.map((slot) => ({
     id: slot.id,

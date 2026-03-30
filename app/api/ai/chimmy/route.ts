@@ -115,7 +115,10 @@ export async function POST(req: Request) {
     userMessage: (typeof body.userMessage === 'string' ? body.userMessage : typeof body.message === 'string' ? body.message : '') as string,
     userId: session.user.id,
   }
-  const leagueId = typeof contract.leagueId === 'string' ? contract.leagueId : null
+  const leagueId =
+    typeof (body as { leagueId?: unknown }).leagueId === 'string'
+      ? ((body as { leagueId: string }).leagueId || null)
+      : null
   const conversationId = buildChimmyConversationId({
     userId: session.user.id,
     leagueId,

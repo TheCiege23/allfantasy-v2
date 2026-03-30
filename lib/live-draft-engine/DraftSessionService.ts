@@ -426,13 +426,7 @@ export async function setTimerSeconds(
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session) return false
   const sec = Math.max(0, Math.min(86400, Math.round(seconds)))
-  const data: {
-    timerSeconds: number
-    timerEndAt?: Date
-    pausedRemainingSeconds?: number | null
-    auctionState?: unknown
-    version: { increment: number }
-  } = {
+  const data: Prisma.DraftSessionUpdateInput = {
     timerSeconds: sec,
     version: { increment: 1 },
   }
@@ -448,7 +442,7 @@ export async function setTimerSeconds(
       data.auctionState = {
         ...(session.auctionState as Record<string, unknown>),
         bidTimerEndAt: data.timerEndAt.toISOString(),
-      } as any
+      } as Prisma.InputJsonValue
     }
   }
   await prisma.draftSession.update({

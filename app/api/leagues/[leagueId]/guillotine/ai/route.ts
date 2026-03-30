@@ -12,32 +12,12 @@ import { isGuillotineLeague } from '@/lib/guillotine/GuillotineLeagueConfig'
 import { buildGuillotineAIContext } from '@/lib/guillotine/ai/GuillotineAIContext'
 import { generateGuillotineAI } from '@/lib/guillotine/ai/GuillotineAIService'
 import type { GuillotineAIType } from '@/lib/guillotine/ai/GuillotineAIService'
-import type { SubscriptionFeatureId } from '@/lib/subscription/types'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
 
 export const dynamic = 'force-dynamic'
-
-/** Server-side entitlement check. When subscription is wired, resolve from DB/Stripe. */
-async function hasGuillotineAIAccess(userId: string): Promise<boolean> {
-  try {
-    const res = await fetch(
-      `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/api/subscription/entitlements?feature=guillotine_ai`,
-      { headers: { cookie: '' } }
-    )
-    const data = await res.json().catch(() => ({}))
-    if (data.hasAccess) return true
-    const fallback = await fetch(
-      `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/api/subscription/entitlements?feature=ai_chat`,
-      { headers: { cookie: '' } }
-    )
-    const fallbackData = await fallback.json().catch(() => ({}))
-    return Boolean(fallbackData.hasAccess)
-  } catch {
-    return false
-  }
-}
-
-/** For now: allow AI if entitlements endpoint is not enforcing (hasAccess false for everyone). Remove when subscription is enforced. */
-const ALLOW_WHEN_ENTITLEMENTS_OPEN = true
 
 export async function POST(
   req: NextRequest,
@@ -46,6 +26,25 @@ export async function POST(
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const gate = new FeatureGateService()
+  try {
+    await gate.assertUserHasFeature(userId, 'guillotine_ai')
+  } catch (error) {
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          message: error.message,
+          code: error.code,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
+    throw error
+  }
 
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
@@ -64,16 +63,6 @@ export async function POST(
   }
   const weekOrPeriod = Math.max(1, parseInt(String(body.week ?? body.weekOrPeriod ?? 1), 10) || 1)
   const userRosterId = body.userRosterId ?? undefined
-
-  if (!ALLOW_WHEN_ENTITLEMENTS_OPEN) {
-    const hasAccess = await hasGuillotineAIAccess(userId)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Premium feature', message: 'Upgrade to access Guillotine AI.' },
-        { status: 403 }
-      )
-    }
-  }
 
   const deterministic = await buildGuillotineAIContext({
     leagueId,

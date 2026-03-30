@@ -13,6 +13,10 @@ import { buildSurvivorAIContext } from '@/lib/survivor/ai/SurvivorAIContext'
 import type { SurvivorAIType } from '@/lib/survivor/ai/SurvivorAIContext'
 import { generateSurvivorAI } from '@/lib/survivor/ai/SurvivorAIService'
 import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,24 +34,6 @@ const VALID_TYPES: SurvivorAIType[] = [
   'bestball_help',
 ]
 
-/** Server-side entitlement check. When subscription is wired, resolve from DB/Stripe. */
-async function hasSurvivorAIAccess(userId: string): Promise<boolean> {
-  try {
-    const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
-    const res = await fetch(`${base}/api/subscription/entitlements?feature=survivor_ai`, { headers: { cookie: '' } })
-    const data = await res.json().catch(() => ({}))
-    if (data.hasAccess) return true
-    const fallback = await fetch(`${base}/api/subscription/entitlements?feature=ai_chat`, { headers: { cookie: '' } })
-    const fallbackData = await fallback.json().catch(() => ({}))
-    return Boolean(fallbackData.hasAccess)
-  } catch {
-    return false
-  }
-}
-
-/** Allow AI when entitlements endpoint is not enforcing (same as guillotine). */
-const ALLOW_WHEN_ENTITLEMENTS_OPEN = true
-
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ leagueId: string }> }
@@ -55,6 +41,25 @@ export async function POST(
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const gate = new FeatureGateService()
+  try {
+    await gate.assertUserHasFeature(userId, 'survivor_ai')
+  } catch (error) {
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          message: error.message,
+          code: error.code,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
+    throw error
+  }
 
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
@@ -74,16 +79,6 @@ export async function POST(
   const requestedWeek =
     requestedWeekRaw != null ? Math.max(1, parseInt(String(requestedWeekRaw), 10) || 1) : null
   const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
-
-  if (!ALLOW_WHEN_ENTITLEMENTS_OPEN) {
-    const hasAccess = await hasSurvivorAIAccess(userId)
-    if (!hasAccess) {
-      return NextResponse.json(
-        { error: 'Premium feature', message: 'Upgrade to access Survivor AI.' },
-        { status: 403 }
-      )
-    }
-  }
 
   const deterministic = await buildSurvivorAIContext({
     leagueId,

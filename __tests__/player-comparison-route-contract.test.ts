@@ -2,15 +2,38 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const runTwoPlayerComparisonEngineMock = vi.fn();
 const comparePlayersMultiMock = vi.fn();
+const getServerSessionMock = vi.fn();
+const evaluateUserFeatureAccessMock = vi.fn();
 
 vi.mock('@/lib/player-comparison-lab', () => ({
   runTwoPlayerComparisonEngine: runTwoPlayerComparisonEngineMock,
   comparePlayersMulti: comparePlayersMultiMock,
 }));
 
+vi.mock('next-auth', () => ({
+  getServerSession: getServerSessionMock,
+}));
+
+vi.mock('@/lib/auth', () => ({
+  authOptions: {},
+}));
+
+vi.mock('@/lib/subscription/FeatureGateService', () => ({
+  FeatureGateService: class {
+    evaluateUserFeatureAccess = evaluateUserFeatureAccessMock
+  },
+}));
+
 describe('GET /api/player-comparison contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getServerSessionMock.mockResolvedValue({ user: { id: 'user-1' } });
+    evaluateUserFeatureAccessMock.mockResolvedValue({
+      allowed: true,
+      requiredPlan: 'AF Pro',
+      message: 'Access granted.',
+      upgradePath: '/pricing',
+    });
   });
 
   it('returns 400 when player params are missing', async () => {
@@ -69,6 +92,13 @@ describe('GET /api/player-comparison contract', () => {
 describe('POST /api/player-comparison contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getServerSessionMock.mockResolvedValue({ user: { id: 'user-1' } });
+    evaluateUserFeatureAccessMock.mockResolvedValue({
+      allowed: true,
+      requiredPlan: 'AF Pro',
+      message: 'Access granted.',
+      upgradePath: '/pricing',
+    });
   });
 
   it('returns comparison payload with twoPlayerEngine for two players', async () => {

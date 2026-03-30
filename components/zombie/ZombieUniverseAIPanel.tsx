@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { useEntitlement } from '@/hooks/useEntitlement'
+import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
 
 type ZombieUniverseAIType =
   | 'promotion_relegation_outlook'
@@ -36,7 +37,8 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
     rosterDisplayNames: Record<string, string>
   } | null>(null)
 
-  const { hasAccess, loading: entitlementLoading } = useEntitlement('zombie_ai')
+  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
+    useEntitlement('zombie_ai')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -82,13 +84,17 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
         </p>
 
         {entitlementLoading && <p className="text-sm text-white/50">Checking access…</p>}
-        {!entitlementLoading && !hasAccess('zombie_ai') && (
-          <p className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-sm text-amber-200">
-            Unlock Zombie AI for universe-wide narrative tools.
-          </p>
+        {!entitlementLoading && !featureAccess && (
+          <LockedFeatureCard
+            featureName="Zombie Universe AI"
+            requiredPlan="AF Pro"
+            upgradeHref={upgradePath}
+            statusMessage={entitlement?.message}
+            className="mb-3"
+          />
         )}
 
-        {hasAccess('zombie_ai') && (
+        {featureAccess && (
           <>
             <div className="mb-4">
               <label className="mb-2 block text-xs text-white/50">Topic</label>

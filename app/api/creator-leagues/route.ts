@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
       ),
       getCreators({
         visibility: "public",
-        sport,
+        sport: sport ?? undefined,
         limit: creatorLimit,
         baseUrl,
         viewerTier,

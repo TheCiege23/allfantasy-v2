@@ -196,7 +196,7 @@ export async function GET(
               name: p.full_name,
               position: p.position ?? '—',
               team: p.team_abbreviation ?? null,
-              playerId: p.external_source_id ?? p.player_id,
+              playerId: p.external_source_id ?? (p as { player_id?: string | null }).player_id ?? null,
               adp: null,
               bye: null,
               ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
@@ -220,9 +220,9 @@ export async function GET(
         name: p.full_name,
         position: p.position,
         team: p.team_abbreviation,
-        playerId: p.external_source_id ?? p.player_id,
+        playerId: p.external_source_id ?? (p as { player_id?: string | null }).player_id ?? null,
         injuryStatus: p.injury_status,
-        status: p.status,
+        status: (p as { status?: string | null }).status ?? null,
         ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
       }))
       }

@@ -6,6 +6,7 @@ import { Sparkles, MessageSquare, HelpCircle, Loader2, AlertCircle } from 'lucid
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
 import { useEntitlement } from '@/hooks/useEntitlement'
+import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
 
 type SurvivorAIPanelType =
   | 'host_intro'
@@ -69,7 +70,8 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     type: string
   } | null>(null)
 
-  const { hasAccess, loading: entitlementLoading } = useEntitlement('survivor_ai')
+  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
+    useEntitlement('survivor_ai')
   const chatHref = summary.myTribeSource
     ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
     : `/app/league/${leagueId}?tab=Chat`
@@ -105,7 +107,7 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     }
   }, [leagueId, type, summary.currentWeek])
 
-  const canUseAI = hasAccess
+  const canUseAI = featureAccess
   const showUpgrade = !entitlementLoading && !canUseAI
 
   return (
@@ -143,17 +145,22 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
           </select>
         </div>
 
-        {showUpgrade && (
-          <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm text-amber-200">
-            Survivor AI is a premium feature. Upgrade to generate host posts and strategy.
-          </p>
-        )}
+        {showUpgrade ? (
+          <LockedFeatureCard
+            featureName="Survivor AI"
+            requiredPlan="AF Pro"
+            upgradeHref={upgradePath}
+            statusMessage={entitlement?.message}
+            className="mb-3"
+          />
+        ) : null}
 
         <button
           type="button"
           onClick={runAI}
-          disabled={loading}
+          disabled={loading || showUpgrade}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
+          data-testid="survivor-ai-generate-button"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           Generate

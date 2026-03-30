@@ -3,8 +3,13 @@ import { z } from 'zod'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { generateMatchupStory } from '@/lib/matchup-story-engine'
 
+const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
+  (typeof SUPPORTED_SPORTS)[number],
+  ...(typeof SUPPORTED_SPORTS)[number][],
+]
+
 const RequestSchema = z.object({
-  sport: z.enum(SUPPORTED_SPORTS).optional(),
+  sport: z.enum(SUPPORTED_SPORTS_ENUM).optional(),
   teamAName: z.string().min(1),
   teamBName: z.string().min(1),
   projectedScoreA: z.number().finite(),

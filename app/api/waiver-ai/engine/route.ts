@@ -6,6 +6,15 @@ import { assertLeagueMember } from '@/lib/league-access'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { runWaiverAIService } from '@/lib/waiver-ai-engine'
+import {
+  FeatureGateService,
+  isFeatureGateAccessError,
+} from '@/lib/subscription/FeatureGateService'
+
+const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
+  (typeof SUPPORTED_SPORTS)[number],
+  ...(typeof SUPPORTED_SPORTS)[number][],
+]
 
 const LeagueSettingsSchema = z.object({
   isSF: z.boolean().optional(),
@@ -108,7 +117,7 @@ const TeamNeedsSchema = z.object({
 })
 
 const RequestSchema = z.object({
-  sport: z.enum(SUPPORTED_SPORTS).optional(),
+  sport: z.enum(SUPPORTED_SPORTS_ENUM).optional(),
   leagueId: z.string().min(1).optional(),
   includeAIExplanation: z.boolean().optional(),
   roster: z.array(RosterPlayerSchema).optional(),
@@ -128,35 +137,55 @@ export const POST = withApiUsage({
   endpoint: '/api/waiver-ai/engine',
   tool: 'WaiverAiEngine',
 })(async (request: NextRequest) => {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  let rawBody: unknown
   try {
-    rawBody = await request.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-  }
-
-  const parsed = RequestSchema.safeParse(rawBody)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Invalid request payload', issues: parsed.error.issues },
-      { status: 400 }
-    )
-  }
-
-  const input = parsed.data
-  if (input.leagueId) {
-    try {
-      await assertLeagueMember(input.leagueId, session.user.id)
-    } catch {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-  }
 
-  const analysis = await runWaiverAIService(input)
-  return NextResponse.json({ success: true, analysis })
+    const gate = new FeatureGateService()
+    await gate.assertUserHasFeature(session.user.id, 'ai_waivers')
+
+    let rawBody: unknown
+    try {
+      rawBody = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+    }
+
+    const parsed = RequestSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request payload', issues: parsed.error.issues },
+        { status: 400 }
+      )
+    }
+
+    const input = parsed.data
+    if (input.leagueId) {
+      try {
+        await assertLeagueMember(input.leagueId, session.user.id)
+      } catch {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
+    const analysis = await runWaiverAIService(input)
+    return NextResponse.json({ success: true, analysis })
+  } catch (error) {
+    if (isFeatureGateAccessError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Premium feature',
+          code: error.code,
+          message: error.message,
+          requiredPlan: error.requiredPlan,
+          upgradePath: error.upgradePath,
+        },
+        { status: error.statusCode }
+      )
+    }
+    console.error('[waiver-ai/engine]', error)
+    return NextResponse.json({ error: 'Waiver AI failed' }, { status: 500 })
+  }
 })

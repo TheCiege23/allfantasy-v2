@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { Sparkles, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import type { SalaryCapSummary } from './types'
+import { LockedFeatureCard } from '@/components/subscription/LockedFeatureCard'
 
 export type SalaryCapAIPanelType =
   | 'startup_auction'
@@ -42,8 +43,9 @@ export function SalaryCapAIPanel({
     type: string
   } | null>(null)
 
-  const { hasAccess, loading: entitlementLoading } = useEntitlement('salary_cap_ai')
-  const canUseAI = hasAccess('salary_cap_ai')
+  const { featureAccess, loading: entitlementLoading, entitlement, upgradePath } =
+    useEntitlement('salary_cap_ai')
+  const canUseAI = featureAccess
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -147,7 +149,13 @@ export function SalaryCapAIPanel({
         )}
 
         {!canUseAI && !entitlementLoading && (
-          <p className="mt-2 text-xs text-amber-300">Upgrade to access Salary Cap AI.</p>
+          <LockedFeatureCard
+            featureName="Salary Cap AI"
+            requiredPlan="AF Pro"
+            upgradeHref={upgradePath}
+            statusMessage={entitlement?.message}
+            className="mt-3"
+          />
         )}
 
         {error && (

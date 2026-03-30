@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { comparePlayersMulti, runTwoPlayerComparisonEngine, type ScoringFormat } from '@/lib/player-comparison-lab';
 import type { LeagueScoringSettings } from '@/lib/player-comparison-lab/types';
+import { FeatureGateService } from '@/lib/subscription/FeatureGateService';
 
 export async function GET(req: NextRequest) {
   const playerA = req.nextUrl.searchParams.get('playerA')?.trim();
   const playerB = req.nextUrl.searchParams.get('playerB')?.trim();
   const sport = req.nextUrl.searchParams.get('sport');
   const scoringFormatRaw = req.nextUrl.searchParams.get('scoringFormat');
-  const includeAIExplanation =
+  let includeAIExplanation =
     req.nextUrl.searchParams.get('includeAIExplanation') === 'true' ||
     req.nextUrl.searchParams.get('includeAiExplanation') === 'true';
+  let explanationGate: {
+    requiredPlan: string | null;
+    message: string;
+    upgradePath: string;
+  } | null = null;
 
   const scoringFormat =
     scoringFormatRaw && SCORING_FORMATS.includes(scoringFormatRaw as ScoringFormat)
@@ -24,6 +32,29 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    if (includeAIExplanation) {
+      const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+      if (!session?.user?.id) {
+        includeAIExplanation = false;
+        explanationGate = {
+          requiredPlan: 'AF Pro',
+          message: 'Sign in and upgrade to AF Pro for AI player comparison explanations.',
+          upgradePath: '/pricing?plan=pro&feature=player_comparison_explanations',
+        };
+      } else {
+        const gate = new FeatureGateService();
+        const decision = await gate.evaluateUserFeatureAccess(session.user.id, 'player_comparison_explanations');
+        if (!decision.allowed) {
+          includeAIExplanation = false;
+          explanationGate = {
+            requiredPlan: decision.requiredPlan,
+            message: decision.message,
+            upgradePath: decision.upgradePath,
+          };
+        }
+      }
+    }
+
     const result = await runTwoPlayerComparisonEngine({
       playerAName: playerA,
       playerBName: playerB,
@@ -44,6 +75,7 @@ export async function GET(req: NextRequest) {
       summaryLines: result.comparison.summaryLines,
       deterministic: result.deterministic,
       explanation: result.explanation,
+      explanationGate,
       sport: result.sport,
     });
   } catch (e) {
@@ -90,9 +122,37 @@ export async function POST(req: NextRequest) {
     typeof body.leagueScoringSettings === 'object'
       ? body.leagueScoringSettings
       : null;
-  const includeAIExplanation = Boolean(body.includeAIExplanation ?? body.includeAiExplanation);
+  let includeAIExplanation = Boolean(body.includeAIExplanation ?? body.includeAiExplanation);
+  let explanationGate: {
+    requiredPlan: string | null;
+    message: string;
+    upgradePath: string;
+  } | null = null;
 
   try {
+    if (includeAIExplanation) {
+      const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+      if (!session?.user?.id) {
+        includeAIExplanation = false;
+        explanationGate = {
+          requiredPlan: 'AF Pro',
+          message: 'Sign in and upgrade to AF Pro for AI player comparison explanations.',
+          upgradePath: '/pricing?plan=pro&feature=player_comparison_explanations',
+        };
+      } else {
+        const gate = new FeatureGateService();
+        const decision = await gate.evaluateUserFeatureAccess(session.user.id, 'player_comparison_explanations');
+        if (!decision.allowed) {
+          includeAIExplanation = false;
+          explanationGate = {
+            requiredPlan: decision.requiredPlan,
+            message: decision.message,
+            upgradePath: decision.upgradePath,
+          };
+        }
+      }
+    }
+
     const result = await comparePlayersMulti(players, {
       sport: sport ?? undefined,
       scoringFormat,
@@ -151,6 +211,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...result,
+      explanationGate,
       twoPlayerEngine,
     });
   } catch (e) {
