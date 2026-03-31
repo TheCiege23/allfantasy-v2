@@ -4,6 +4,29 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
 import { dispatchStateRefreshEvent } from "@/lib/state-consistency/state-events"
 import { sendChimmyMessage } from "@/lib/chimmy-chat/ChimmyChatService"
+import type { AIContextSource } from "@/lib/chimmy-chat/types"
+import { isSupportedSport, type SupportedSport } from "@/lib/sport-scope"
+
+const AI_CONTEXT_SOURCES = new Set<AIContextSource>([
+  "messages_ai",
+  "messages_dm_ai",
+  "trade_analyzer",
+  "waiver_tool",
+  "draft_tool",
+  "matchup_tool",
+  "league_forecast",
+  "lineup_tool",
+  "dashboard",
+  "dashboard_widget",
+  "tool_hub",
+  "ai_hub",
+  "quick_action",
+  "top_bar",
+  "right_rail",
+  "search",
+  "fallback",
+  "unknown",
+])
 
 export type AIChatMessage = { role: "user" | "assistant"; content: string }
 
@@ -24,6 +47,15 @@ export function useAIChat(options?: {
     riskMode?: string
   }
 }) {
+  const normalizedSport: SupportedSport | undefined =
+    options?.sport && isSupportedSport(options.sport)
+      ? (options.sport.toUpperCase() as SupportedSport)
+      : undefined
+  const normalizedSource: AIContextSource | undefined =
+    options?.source && AI_CONTEXT_SOURCES.has(options.source as AIContextSource)
+      ? (options.source as AIContextSource)
+      : undefined
+
   const [messages, setMessages] = useState<AIChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -103,14 +135,14 @@ export function useAIChat(options?: {
             context: {
               leagueId: options.leagueId,
               sleeperUsername: options?.contextScope?.sleeper_username,
-              sport: options.sport,
+              sport: normalizedSport,
               leagueFormat: options.leagueFormat,
               scoring: options.scoring,
               conversationId: options.conversationId,
               privateMode: options.privateMode,
               targetUsername: options.targetUsername,
               strategyMode: options.strategyMode,
-              source: options.source,
+              source: normalizedSource,
               memory: options.memory,
             },
           })
@@ -273,9 +305,10 @@ export function useAIChat(options?: {
       options?.leagueId,
       options?.leagueFormat,
       options?.memory,
+      normalizedSport,
+      normalizedSource,
       options?.privateMode,
       options?.scoring,
-      options?.source,
       options?.sport,
       options?.strategyMode,
       options?.targetUsername,

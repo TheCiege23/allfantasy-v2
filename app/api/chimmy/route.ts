@@ -122,6 +122,39 @@ function buildAnthropicSuccessPayload(body: Awaited<ReturnType<typeof runAgentPi
   }
 }
 
+function normalizeAnthropicMemory(
+  memory: z.infer<typeof ChimmyJsonRequestSchema>['userContext']['memory']
+): UserContext['memory'] {
+  if (!memory) return undefined
+
+  const tone =
+    memory.tone === 'strategic' || memory.tone === 'casual' || memory.tone === 'analytical'
+      ? memory.tone
+      : undefined
+  const detailLevel =
+    memory.detailLevel === 'concise' ||
+    memory.detailLevel === 'standard' ||
+    memory.detailLevel === 'detailed'
+      ? memory.detailLevel
+      : undefined
+  const riskMode =
+    memory.riskMode === 'conservative' ||
+    memory.riskMode === 'balanced' ||
+    memory.riskMode === 'aggressive'
+      ? memory.riskMode
+      : undefined
+
+  if (!tone && !detailLevel && !riskMode) {
+    return undefined
+  }
+
+  return {
+    tone,
+    detailLevel,
+    riskMode,
+  }
+}
+
 function buildAnthropicUserContext(
   payload: z.infer<typeof ChimmyJsonRequestSchema>,
   userId: string,
@@ -138,7 +171,7 @@ function buildAnthropicUserContext(
     week: payload.userContext.week ?? null,
     source: payload.userContext.source ?? null,
     conversation: payload.conversation ?? [],
-    memory: payload.userContext.memory,
+    memory: normalizeAnthropicMemory(payload.userContext.memory),
   }
 }
 
