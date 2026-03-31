@@ -18,7 +18,10 @@ const MODELS = {
   orchestrator: process.env.ANTHROPIC_MODEL_ORCHESTRATOR?.trim() || 'claude-sonnet-4-6',
 } as const
 
-const PROMPT_DIR = path.join(process.cwd(), 'lib', 'agents', 'prompts')
+const PROMPT_DIR_CANDIDATES = [
+  path.resolve(process.cwd(), 'lib', 'agents', 'prompts'),
+  path.resolve(process.cwd(), 'src', 'lib', 'agents', 'prompts'),
+] as const
 const promptCache = new Map<string, string>()
 
 export type Format = 'dynasty' | 'keeper' | 'redraft'
@@ -158,11 +161,39 @@ async function loadPrompt(promptKey: PromptKey): Promise<string> {
     return promptCache.get(fileName) as string
   }
 
-  const filePath = path.join(PROMPT_DIR, fileName)
-  const text = await fs.readFile(filePath, 'utf8')
-  const normalized = text.trim()
-  promptCache.set(fileName, normalized)
-  return normalized
+  const filePaths = PROMPT_DIR_CANDIDATES.map((dir) => path.join(dir, fileName))
+  let lastError: unknown = null
+
+  for (const filePath of filePaths) {
+    try {
+      const text = await fs.readFile(filePath, 'utf8')
+      const normalized = text.trim()
+      promptCache.set(fileName, normalized)
+      return normalized
+    } catch (error) {
+      lastError = error
+      const details =
+        error instanceof Error
+          ? {
+              message: error.message,
+              stack: error.stack,
+            }
+          : error
+      console.error('[anthropic-pipeline] Failed to read prompt file:', {
+        promptKey,
+        fileName,
+        filePath,
+        cwd: process.cwd(),
+        error: details,
+      })
+    }
+  }
+
+  const attemptedPaths = filePaths.join(', ')
+  throw new Error(
+    `Unable to load prompt "${promptKey}" (${fileName}). Attempted paths: ${attemptedPaths}. ` +
+      `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+  )
 }
 
 type ClaudeCallResult = {
@@ -334,23 +365,51 @@ export async function runAgentPipeline(
   userMessage: string,
   ctx: UserContext
 ): Promise<AgentResponse> {
-  const trimmedMessage = userMessage.trim()
-  const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
+  try {
+    const trimmedMessage = userMessage.trim()
+    const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
 
-  if (wordCount <= 8) {
-    const quickResult = await runSpecialist('quick_ask', { userMessage: trimmedMessage }, ctx)
-    return {
-      result: quickResult.text,
-      intent: 'quick_ask',
-      model: quickResult.model,
-      tokensUsed: quickResult.tokensUsed,
+    if (wordCount <= 8) {
+      const quickResult = await runSpecialist('quick_ask', { userMessage: trimmedMessage }, ctx)
+      return {
+        result: quickResult.text,
+        intent: 'quick_ask',
+        model: quickResult.model,
+        tokensUsed: quickResult.tokensUsed,
+      }
     }
-  }
 
-  const classification = await classifyIntent(trimmedMessage, ctx)
+    const classification = await classifyIntent(trimmedMessage, ctx)
 
-  if (classification.result.isQuickAsk) {
-    const quickResult = await runSpecialist(
+    if (classification.result.isQuickAsk) {
+      const quickResult = await runSpecialist(
+        classification.result.intent,
+        {
+          ...classification.result.payload,
+          userMessage: trimmedMessage,
+        },
+        ctx
+      )
+      return {
+        result: quickResult.text,
+        intent: classification.result.intent,
+        model: quickResult.model,
+        tokensUsed: classification.tokensUsed + quickResult.tokensUsed,
+      }
+    }
+
+    if (isProOnlyIntent(classification.result.intent) && ctx.tier !== 'pro') {
+      return {
+        result:
+          'This feature requires AF Pro. Upgrade to unlock full trade analysis, waiver recommendations, draft assistance, and dynasty projections.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+        upgradeRequired: true,
+      }
+    }
+
+    const specialistResult = await runSpecialist(
       classification.result.intent,
       {
         ...classification.result.payload,
@@ -358,38 +417,27 @@ export async function runAgentPipeline(
       },
       ctx
     )
+
     return {
-      result: quickResult.text,
+      result: specialistResult.text,
       intent: classification.result.intent,
-      model: quickResult.model,
-      tokensUsed: classification.tokensUsed + quickResult.tokensUsed,
+      model: specialistResult.model,
+      tokensUsed: classification.tokensUsed + specialistResult.tokensUsed,
     }
-  }
-
-  if (isProOnlyIntent(classification.result.intent) && ctx.tier !== 'pro') {
-    return {
-      result:
-        'This feature requires AF Pro. Upgrade to unlock full trade analysis, waiver recommendations, draft assistance, and dynasty projections.',
-      intent: classification.result.intent,
-      model: MODELS.orchestrator,
-      tokensUsed: 0,
-      upgradeRequired: true,
-    }
-  }
-
-  const specialistResult = await runSpecialist(
-    classification.result.intent,
-    {
-      ...classification.result.payload,
-      userMessage: trimmedMessage,
-    },
-    ctx
-  )
-
-  return {
-    result: specialistResult.text,
-    intent: classification.result.intent,
-    model: specialistResult.model,
-    tokensUsed: classification.tokensUsed + specialistResult.tokensUsed,
+  } catch (error) {
+    console.error('[anthropic-pipeline] runAgentPipeline failed:', {
+      userId: ctx.userId,
+      tier: ctx.tier,
+      sport: ctx.sport ?? null,
+      leagueFormat: ctx.leagueFormat ?? null,
+      promptDirCandidates: PROMPT_DIR_CANDIDATES,
+      error: error instanceof Error
+        ? {
+            message: error.message,
+            stack: error.stack,
+          }
+        : error,
+    })
+    throw error
   }
 }

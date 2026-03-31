@@ -431,6 +431,19 @@ export async function POST(req: NextRequest) {
       leagueId: parseResult.data.userContext.leagueId ?? undefined,
     })
 
+    console.error('[api/chimmy] Anthropic pipeline execution failed:', {
+      userId,
+      leagueId: parseResult.data.userContext.leagueId ?? null,
+      source: parseResult.data.userContext.source ?? 'api_chimmy_json',
+      error:
+        error instanceof Error
+          ? {
+              message: error.message,
+              stack: error.stack,
+            }
+          : error,
+    })
+
     const message = error instanceof Error ? error.message : 'Agent pipeline failed'
     return NextResponse.json(
       buildCompatibilityPayload({ error: message }, 500),
