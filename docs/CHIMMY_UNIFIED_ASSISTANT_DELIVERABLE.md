@@ -10,7 +10,7 @@ Chimmy is the **unified calm AI assistant** for AllFantasy: the primary face of 
 |-------|--------|-------------|
 | **messages** | `ChimmyChatShell` | Array of `{ role: 'user' \| 'assistant', content, imageUrl?, meta? }`. Append on send and on API response. |
 | **input** | `ChimmyChatShell` | Current input text. Cleared after send. Can be initialized from `initialPrompt` (e.g. URL `?prompt=`). |
-| **isTyping** | `ChimmyChatShell` | True while POST `/api/chat/chimmy` is in flight. Drives loading indicator in thread. |
+| **isTyping** | `ChimmyChatShell` | True while POST `/api/chimmy` is in flight. Drives loading indicator in thread. |
 | **voiceEnabled** | `ChimmyChatShell` | TTS on/off. Toggle in `ChimmyVoiceBar`. |
 | **isVoicePlaying** | `ChimmyChatShell` | Driven by `speakChimmy` / `isChimmyVoicePlaying()` from `lib/chimmy-interface`. Used for Listen/Stop in voice bar and last assistant bubble. |
 | **lastMeta** | `ChimmyChatShell` | From last assistant message `meta` (e.g. `providerStatus`). Passed to `ChimmyProviderStatus`. |
@@ -21,7 +21,7 @@ Chimmy is the **unified calm AI assistant** for AllFantasy: the primary face of 
 **Flow (send):**
 
 1. User submits (or follow-up chip): append user message (and optional image) to `messages`, clear `input` and `imageFile`/`imagePreview`, set `isTyping = true`.
-2. POST `/api/chat/chimmy` (FormData: message, image, messages).
+2. POST `/api/chimmy` (preferred client entry point; JSON compatibility payload including message, optional image data URL, and conversation context).
 3. On success: append assistant message with `content` and `meta`; set `lastMeta` from `meta.providerStatus`; set `isTyping = false`. If `voiceEnabled`, call `speakChimmy(reply)`.
 4. On error: append or show error; set `isTyping = false`.
 
@@ -111,7 +111,7 @@ Tool-to-Chimmy handoff:
 
 ## 6. Backend
 
-- **Chimmy API**: Existing POST `/api/chat/chimmy` is unchanged; accepts message, optional image, messages; returns `response` and `meta` (e.g. providerStatus, confidencePct, dataSources).
+- **Chimmy API**: Preferred client calls use POST `/api/chimmy`; it forwards into the existing dedicated POST `/api/chat/chimmy` handler and returns `response`, `result`, `meta`, and `upgradeRequired`.
 - **Saved threads**: Not implemented; `onSaveConversation` is a hook for future API/storage.
 
 ---

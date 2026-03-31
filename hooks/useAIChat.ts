@@ -3,18 +3,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
 import { dispatchStateRefreshEvent } from "@/lib/state-consistency/state-events"
+import { sendChimmyMessage } from "@/lib/chimmy-chat/ChimmyChatService"
 
 export type AIChatMessage = { role: "user" | "assistant"; content: string }
 
 export function useAIChat(options?: {
   leagueId?: string
   sport?: string
+  leagueFormat?: string
+  scoring?: string
   conversationId?: string
   privateMode?: boolean
   targetUsername?: string
   strategyMode?: string
   source?: string
   contextScope?: { sleeper_username?: string }
+  memory?: {
+    tone?: string
+    detailLevel?: string
+    riskMode?: string
+  }
 }) {
   const [messages, setMessages] = useState<AIChatMessage[]>([])
   const [loading, setLoading] = useState(false)
@@ -88,37 +96,33 @@ export function useAIChat(options?: {
         let data: any
         let streamedAssistantHandled = false
         if (options?.leagueId) {
-          const formData = new FormData()
-          formData.append("message", trimmed)
-          formData.append("messages", JSON.stringify(conversation))
-          formData.append("leagueId", options.leagueId)
-          if (options.sport) {
-            formData.append("sport", options.sport)
-          }
-          if (options.conversationId) {
-            formData.append("conversationId", options.conversationId)
-          }
-          if (options.privateMode) {
-            formData.append("privateMode", "true")
-          }
-          if (options.targetUsername) {
-            formData.append("targetUsername", options.targetUsername)
-          }
-          if (options.strategyMode) {
-            formData.append("strategyMode", options.strategyMode)
-          }
-          if (options.source) {
-            formData.append("source", options.source)
-          }
-          if (options?.contextScope?.sleeper_username) {
-            formData.append("sleeperUsername", options.contextScope.sleeper_username)
-          }
-          formData.append("confirmTokenSpend", "true")
-          res = await fetch("/api/chat/chimmy", {
-            method: "POST",
-            body: formData,
+          const chimmyResult = await sendChimmyMessage({
+            message: trimmed,
+            conversation,
+            confirmTokenSpend: false,
+            context: {
+              leagueId: options.leagueId,
+              sleeperUsername: options?.contextScope?.sleeper_username,
+              sport: options.sport,
+              leagueFormat: options.leagueFormat,
+              scoring: options.scoring,
+              conversationId: options.conversationId,
+              privateMode: options.privateMode,
+              targetUsername: options.targetUsername,
+              strategyMode: options.strategyMode,
+              source: options.source,
+              memory: options.memory,
+            },
           })
-          data = await res.json().catch(() => ({}))
+          data = {
+            response: chimmyResult.response,
+            meta: chimmyResult.meta,
+            error: chimmyResult.error,
+          }
+          res = new Response(JSON.stringify(data), {
+            status: chimmyResult.ok ? 200 : 400,
+            headers: { "Content-Type": "application/json" },
+          })
         } else {
           res = await fetch("/api/ai/chat?stream=1", {
             method: "POST",
@@ -267,7 +271,10 @@ export function useAIChat(options?: {
       options?.contextScope,
       options?.conversationId,
       options?.leagueId,
+      options?.leagueFormat,
+      options?.memory,
       options?.privateMode,
+      options?.scoring,
       options?.source,
       options?.sport,
       options?.strategyMode,

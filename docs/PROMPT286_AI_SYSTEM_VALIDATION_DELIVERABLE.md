@@ -28,13 +28,14 @@ Ensure AI works everywhere: **draft**, **chat**, **trades**, **waivers**, **war 
 
 | Endpoint | Method | Purpose | Auth |
 |----------|--------|---------|------|
-| `/api/chat/chimmy` | POST | Main Chimmy chat: messages, tools (trade_analyzer, waiver_ai, rankings, mock_draft), context enrichment, multi-provider (OpenAI, xAI, DeepSeek). | Session |
+| `/api/chimmy` | POST | Preferred Chimmy client entry point. Accepts JSON compatibility payloads and forwards into the dedicated Chimmy chat handler with messages, tools, context enrichment, and multi-provider orchestration. | Session |
+| `/api/chat/chimmy` | POST | Dedicated Chimmy handler used underneath `/api/chimmy`; still supports form/messages requests directly. | Session |
 | `/api/ai/chimmy` | POST | Alternative Chimmy/orchestration entry. | Session |
 | `/api/ai/chat` | POST | Generic AI chat (if used by other surfaces). | Session |
 
 **Entry points (UI):** `/chimmy` page, AF Legacy Chat tab, in-app Chimmy entry.
 
-**Verification:** At least one of OpenAI, DeepSeek, or Grok available. `POST /api/chat/chimmy` with `{ messages: [{ role: 'user', content: 'Hi' }] }` should return assistant content or structured error.
+**Verification:** At least one of OpenAI, DeepSeek, or Grok available. `POST /api/chimmy` with `{ "message": "Hi", "userContext": { "sport": "NFL" } }` should return assistant content or structured error.
 
 ---
 
@@ -127,7 +128,7 @@ Use this for dashboards, admin checks, or automated “AI system check” to ens
 |------|------------------|------------|
 | Draft (mock) | Mock draft simulator, `useAIDraftAssistant` | `POST /api/mock-draft/ai-pick` |
 | Draft (live) | Draft room (commissioner orphan pick) | `POST /api/leagues/[leagueId]/draft/ai-pick` |
-| Chat | Chimmy UI (`ChimmyChat`) | `POST /api/chat/chimmy` |
+| Chat | Chimmy UI (`ChimmyChat`) | `POST /api/chimmy` |
 | Trades | `/trade-evaluator` page | `POST /api/trade-evaluator` |
 | Waivers | `/waiver-ai` page | `POST /api/waiver-ai` |
 | War room | Same as draft (mock-draft war room) | `POST /api/mock-draft/ai-pick`, needs, predict-board |

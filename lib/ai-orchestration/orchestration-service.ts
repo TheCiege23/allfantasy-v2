@@ -263,12 +263,15 @@ function buildDeterministicFallbackResult(params: {
 function toModelOutput(result: ProviderChatResult): ModelOutput {
   return {
     model: result.provider,
+    modelName: result.model,
     raw: result.text,
     structured: result.json && typeof result.json === 'object'
       ? (result.json as Record<string, unknown>)
       : null,
     error: result.error,
     skipped: result.status !== 'ok',
+    tokensPrompt: result.tokensPrompt,
+    tokensCompletion: result.tokensCompletion,
   }
 }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getServerSession } from 'next-auth'
 import OpenAI from 'openai'
 import { authOptions } from '@/lib/auth'
@@ -17,6 +18,7 @@ import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 import { buildAgentPrompt, inferAgentFromMessage } from '@/lib/agents/pipeline'
+import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import {
   TokenInsufficientBalanceError,
   TokenSpendConfirmationRequiredError,
@@ -32,14 +34,105 @@ type ConversationTurn = {
 
 type ToolKey = 'trade_analyzer' | 'trade_finder' | 'waiver_ai' | 'rankings' | 'mock_draft' | 'none'
 
-const VALID_INSIGHT_TYPES: Set<InsightType> = new Set([
+const INSIGHT_TYPE_VALUES = [
   'matchup',
   'playoff',
   'dynasty',
   'trade',
   'waiver',
   'draft',
+] as const satisfies readonly InsightType[]
+
+const MAX_MESSAGE_CHARS = 4_000
+const MAX_CONVERSATION_TURNS = 20
+const MAX_CONVERSATION_CONTEXT_TURNS = 10
+const MAX_CONVERSATION_CONTENT_CHARS = 4_000
+const MAX_GENERIC_FIELD_CHARS = 120
+const MAX_USERNAME_CHARS = 80
+const MAX_SOURCE_CHARS = 64
+const MAX_STRATEGY_MODE_CHARS = 48
+const MAX_SPORT_CHARS = 32
+const MAX_LEAGUE_FORMAT_CHARS = 48
+const MAX_SCORING_CHARS = 48
+const MAX_TONE_CHARS = 48
+const MAX_DETAIL_LEVEL_CHARS = 32
+const MAX_RISK_MODE_CHARS = 32
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024
+const ALLOWED_SCREENSHOT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
 ])
+
+const ConversationTurnSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().trim().min(1).max(MAX_CONVERSATION_CONTENT_CHARS),
+})
+
+const optionalTrimmedStringField = (maxLength: number) =>
+  z.preprocess((value) => {
+    if (value == null) return undefined
+    if (typeof value !== 'string') return value
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : undefined
+  }, z.string().max(maxLength).optional())
+
+const booleanFormField = z.preprocess((value) => {
+  if (value == null || value === '') return false
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return value
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'true') return true
+  if (normalized === 'false') return false
+  return value
+}, z.boolean())
+
+function optionalIntFormField(min: number, max: number) {
+  return z.preprocess((value) => {
+    if (value == null || value === '') return undefined
+    if (typeof value === 'number') return value
+    if (typeof value !== 'string') return value
+
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    return Number(trimmed)
+  }, z.number().int().min(min).max(max).optional())
+}
+
+const ChimmyFormSchema = z.object({
+  message: z.preprocess((value) => {
+    if (value == null) return ''
+    if (typeof value !== 'string') return value
+    return value.trim()
+  }, z.string().max(MAX_MESSAGE_CHARS)),
+  confirmTokenSpend: booleanFormField,
+  conversationId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
+  privateMode: booleanFormField,
+  targetUsername: optionalTrimmedStringField(MAX_USERNAME_CHARS),
+  strategyMode: optionalTrimmedStringField(MAX_STRATEGY_MODE_CHARS),
+  source: optionalTrimmedStringField(MAX_SOURCE_CHARS),
+  leagueId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
+  sleeperUsername: optionalTrimmedStringField(MAX_USERNAME_CHARS),
+  teamId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
+  sport: optionalTrimmedStringField(MAX_SPORT_CHARS),
+  leagueFormat: optionalTrimmedStringField(MAX_LEAGUE_FORMAT_CHARS),
+  scoring: optionalTrimmedStringField(MAX_SCORING_CHARS),
+  tone: optionalTrimmedStringField(MAX_TONE_CHARS),
+  detailLevel: optionalTrimmedStringField(MAX_DETAIL_LEVEL_CHARS),
+  riskMode: optionalTrimmedStringField(MAX_RISK_MODE_CHARS),
+  season: optionalIntFormField(1900, 3000),
+  week: optionalIntFormField(1, 100),
+  insightType: z.preprocess((value) => {
+    if (value == null) return undefined
+    if (typeof value !== 'string') return value
+    const trimmed = value.trim().toLowerCase()
+    return trimmed.length > 0 ? trimmed : undefined
+  }, z.enum(INSIGHT_TYPE_VALUES).optional()),
+  conversation: z.array(ConversationTurnSchema).max(MAX_CONVERSATION_TURNS),
+  hasImage: z.boolean(),
+})
 
 const SPORTS_KEYWORDS = [
   'trade', 'waiver', 'draft', 'player', 'pick', 'roster', 'lineup',
@@ -57,22 +150,58 @@ function hasSportsContent(text: string, hasImage: boolean): boolean {
   return SPORTS_KEYWORDS.some((keyword) => lower.includes(keyword))
 }
 
-function parseConversation(raw: unknown): ConversationTurn[] {
-  if (typeof raw !== 'string' || raw.trim().length === 0) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((item): item is ConversationTurn => {
-        if (!item || typeof item !== 'object') return false
-        const role = (item as Record<string, unknown>).role
-        const content = (item as Record<string, unknown>).content
-        return (role === 'user' || role === 'assistant') && typeof content === 'string'
-      })
-      .slice(-10)
-  } catch {
-    return []
+function parseConversationPayload(raw: FormDataEntryValue | null): unknown {
+  if (raw == null) return []
+  if (typeof raw !== 'string') {
+    throw new Error('Conversation payload must be a JSON string.')
   }
+
+  if (raw.trim().length === 0) return []
+  try {
+    return JSON.parse(raw)
+  } catch {
+    throw new Error('Conversation payload must be valid JSON.')
+  }
+}
+
+function validateScreenshotFile(raw: FormDataEntryValue | null): {
+  file: File | null
+  hasImage: boolean
+  error?: string
+} {
+  if (raw == null) {
+    return { file: null, hasImage: false }
+  }
+
+  if (!(raw instanceof File)) {
+    return {
+      file: null,
+      hasImage: false,
+      error: 'Image must be uploaded as a file.',
+    }
+  }
+
+  if (raw.size <= 0) {
+    return { file: null, hasImage: false }
+  }
+
+  if (!ALLOWED_SCREENSHOT_TYPES.has(raw.type)) {
+    return {
+      file: null,
+      hasImage: false,
+      error: 'Unsupported image type. Use JPEG, PNG, GIF, or WebP.',
+    }
+  }
+
+  if (raw.size > MAX_SCREENSHOT_BYTES) {
+    return {
+      file: null,
+      hasImage: false,
+      error: 'Image too large (max 5MB).',
+    }
+  }
+
+  return { file: raw, hasImage: true }
 }
 
 function extractFirstSentence(text: string): string {
@@ -170,6 +299,63 @@ function buildResponseStructure(
   }
 }
 
+function resolveUsageLogModel(args: {
+  providerUsed?: string | null
+  modelOutputs?: Array<{
+    model?: string
+    modelName?: string
+    skipped?: boolean
+  }>
+}): string {
+  const outputs = Array.isArray(args.modelOutputs) ? args.modelOutputs : []
+  const selectedOutput =
+    (args.providerUsed
+      ? outputs.find((output) => output.model === args.providerUsed && output.skipped !== true)
+      : undefined) ??
+    outputs.find((output) => output.skipped !== true) ??
+    outputs[0]
+
+  return selectedOutput?.modelName || selectedOutput?.model || args.providerUsed || 'unknown'
+}
+
+function resolveUsageLogTokensUsed(modelOutputs?: Array<{
+  tokensPrompt?: number
+  tokensCompletion?: number
+}>): number {
+  if (!Array.isArray(modelOutputs) || modelOutputs.length === 0) {
+    return 0
+  }
+
+  return modelOutputs.reduce((sum, output) => {
+    return sum + Math.max(0, output.tokensPrompt ?? 0) + Math.max(0, output.tokensCompletion ?? 0)
+  }, 0)
+}
+
+async function logUsageToSupabase(args: {
+  userId: string
+  intent: string
+  tokensUsed: number
+  model: string
+}) {
+  if (!isSupabaseConfigured) return
+
+  try {
+    const { error } = await supabase.from('usage_logs').insert({
+      user_id: args.userId,
+      intent: args.intent,
+      tokens_used: args.tokensUsed,
+      model: args.model,
+      created_at: new Date().toISOString(),
+    })
+
+    if (error) {
+      console.error('[chat/chimmy] Failed to write usage log:', error.message)
+    }
+  } catch (error) {
+    console.error('[chat/chimmy] Failed to write usage log:', error)
+  }
+}
+
 function getVisionClient(): OpenAI | null {
   const key = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY
   if (!key) return null
@@ -223,7 +409,12 @@ function buildUserMessage(input: {
   screenshotSummary?: string
   insightSummary?: string
   memorySection?: string
+  leagueFormat?: string
+  scoring?: string
   strategyMode?: string
+  tone?: string
+  detailLevel?: string
+  riskMode?: string
   privateMode: boolean
   targetUsername?: string
 }): string {
@@ -232,6 +423,33 @@ function buildUserMessage(input: {
 
   if (input.strategyMode) {
     parts.push(`STRATEGY MODE:\n${input.strategyMode}`)
+  }
+
+  if (input.leagueFormat || input.scoring) {
+    const leagueContext = [
+      input.leagueFormat ? `Format: ${input.leagueFormat}` : null,
+      input.scoring ? `Scoring: ${input.scoring}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    if (leagueContext) {
+      parts.push(`LEAGUE CONTEXT:\n${leagueContext}`)
+    }
+  }
+
+  if (input.tone || input.detailLevel || input.riskMode) {
+    const preferenceContext = [
+      input.tone ? `Tone: ${input.tone}` : null,
+      input.detailLevel ? `Detail Level: ${input.detailLevel}` : null,
+      input.riskMode ? `Risk Mode: ${input.riskMode}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n')
+
+    if (preferenceContext) {
+      parts.push(`RESPONSE PREFERENCES:\n${preferenceContext}`)
+    }
   }
 
   if (input.privateMode && input.targetUsername) {
@@ -282,33 +500,86 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid request format.' }, { status: 400 })
   }
 
-  const message = ((formData.get('message') as string) ?? '').trim()
-  const confirmTokenSpend = String(formData.get('confirmTokenSpend') ?? '')
-    .trim()
-    .toLowerCase() === 'true'
-  const explicitConversationId = ((formData.get('conversationId') as string) ?? '').trim() || undefined
-  const privateMode = formData.get('privateMode') === 'true'
-  const targetUsername = ((formData.get('targetUsername') as string) ?? '').trim() || undefined
-  const strategyMode = ((formData.get('strategyMode') as string) ?? '').trim() || undefined
-  const source = ((formData.get('source') as string) ?? '').trim() || undefined
-  const leagueId = ((formData.get('leagueId') as string) ?? '').trim() || undefined
-  const sleeperUsername = ((formData.get('sleeperUsername') as string) ?? '').trim() || undefined
-  const teamId = ((formData.get('teamId') as string) ?? '').trim() || undefined
-  const sportRaw = ((formData.get('sport') as string) ?? '').trim()
+  const imageValidation = validateScreenshotFile(formData.get('image'))
+  if (imageValidation.error) {
+    return NextResponse.json({ error: imageValidation.error }, { status: 400 })
+  }
+
+  let conversationPayload: unknown
+  try {
+    conversationPayload = parseConversationPayload(
+      formData.get('messages') ?? formData.get('conversation')
+    )
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Conversation payload is invalid.',
+      },
+      { status: 400 }
+    )
+  }
+
+  const parseResult = ChimmyFormSchema.safeParse({
+    message: formData.get('message'),
+    confirmTokenSpend: formData.get('confirmTokenSpend'),
+    conversationId: formData.get('conversationId'),
+    privateMode: formData.get('privateMode'),
+    targetUsername: formData.get('targetUsername'),
+    strategyMode: formData.get('strategyMode'),
+    source: formData.get('source'),
+    leagueId: formData.get('leagueId'),
+    sleeperUsername: formData.get('sleeperUsername'),
+    teamId: formData.get('teamId'),
+    sport: formData.get('sport'),
+    leagueFormat: formData.get('leagueFormat'),
+    scoring: formData.get('scoring'),
+    tone: formData.get('tone'),
+    detailLevel: formData.get('detailLevel'),
+    riskMode: formData.get('riskMode'),
+    season: formData.get('season'),
+    week: formData.get('week'),
+    insightType: formData.get('insightType'),
+    conversation: conversationPayload,
+    hasImage: imageValidation.hasImage,
+  })
+
+  if (!parseResult.success) {
+    return NextResponse.json(
+      {
+        error: 'Invalid request format.',
+        details: parseResult.error.flatten(),
+      },
+      { status: 400 }
+    )
+  }
+
+  const {
+    message,
+    confirmTokenSpend,
+    conversationId: explicitConversationId,
+    privateMode,
+    targetUsername,
+    strategyMode,
+    source,
+    leagueId,
+    sleeperUsername,
+    teamId,
+    sport: sportRaw,
+    leagueFormat,
+    scoring,
+    tone,
+    detailLevel,
+    riskMode,
+    season,
+    week,
+    insightType,
+    conversation: parsedConversation,
+    hasImage,
+  } = parseResult.data
+  const conversation = parsedConversation.slice(-MAX_CONVERSATION_CONTEXT_TURNS)
+  const imageFile = imageValidation.file
   const sport = normalizeToSupportedSport(sportRaw || undefined)
-  const seasonRaw = Number((formData.get('season') as string) ?? '')
-  const weekRaw = Number((formData.get('week') as string) ?? '')
-  const season = Number.isFinite(seasonRaw) && seasonRaw > 0 ? Math.floor(seasonRaw) : undefined
-  const week = Number.isFinite(weekRaw) && weekRaw > 0 ? Math.floor(weekRaw) : undefined
-
-  const rawInsightType = ((formData.get('insightType') as string) ?? '').trim().toLowerCase()
-  const insightType = VALID_INSIGHT_TYPES.has(rawInsightType as InsightType)
-    ? (rawInsightType as InsightType)
-    : undefined
-
-  const conversation = parseConversation(formData.get('messages') ?? formData.get('conversation'))
-  const imageFile = formData.get('image') as File | null
-  const hasImage = Boolean(imageFile && imageFile.size > 0 && imageFile.type?.startsWith('image/'))
+  const effectiveStrategyMode = strategyMode ?? riskMode
   const conversationId = buildChimmyConversationId({
     userId,
     leagueId: leagueId ?? null,
@@ -396,7 +667,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     screenshotSummary,
     insightSummary,
     memorySection,
-    strategyMode,
+    leagueFormat,
+    scoring,
+    strategyMode: effectiveStrategyMode,
+    tone,
+    detailLevel,
+    riskMode,
     privateMode,
     targetUsername,
   })
@@ -412,7 +688,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       insightType,
       privateMode,
       targetUsername,
-      strategyMode,
+      strategyMode: effectiveStrategyMode,
+      leagueFormat,
+      scoring,
+      tone,
+      detailLevel,
+      riskMode,
       source,
       conversationId,
     }),
@@ -451,10 +732,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     source,
     privateMode,
     targetUsername,
+    leagueFormat,
+    scoring,
+    tone,
+    detailLevel,
+    riskMode,
   })
 
   const specialistAgent = inferAgentFromMessage(
-    [message, strategyMode, insightType].filter(Boolean).join('\n')
+    [message, effectiveStrategyMode, leagueFormat, insightType].filter(Boolean).join('\n')
   )
   const recentConversationContext = conversation
     .slice(-6)
@@ -642,6 +928,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     responseContract.actionPlan,
     responseContract.uncertainty
   )
+  await logUsageToSupabase({
+    userId,
+    intent: specialistAgent,
+    tokensUsed: resolveUsageLogTokensUsed(run.response.modelOutputs),
+    model: resolveUsageLogModel({
+      providerUsed: responseContract.debugTrace?.providerUsed ?? null,
+      modelOutputs: run.response.modelOutputs,
+    }),
+  })
 
   const meta = {
     assistant: 'Chimmy',

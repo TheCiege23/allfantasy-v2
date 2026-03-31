@@ -23,6 +23,21 @@ function toConversationPayload(conversation: ChimmyThreadMessage[] = []) {
   }))
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result.length > 0) {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error("Failed to encode image upload."))
+    }
+    reader.onerror = () => reject(new Error("Failed to read image upload."))
+    reader.readAsDataURL(file)
+  })
+}
+
 function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
   if (!rawMeta || typeof rawMeta !== "object" || Array.isArray(rawMeta)) return undefined
   const meta = rawMeta as Record<string, unknown>
@@ -92,32 +107,51 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     }
   }
 
-  const formData = new FormData()
-  formData.append("message", input.message)
-  formData.append("confirmTokenSpend", "true")
-
-  if (input.imageFile) formData.append("image", input.imageFile)
-  if (input.context?.leagueId) formData.append("leagueId", input.context.leagueId)
-  if (input.context?.sleeperUsername) formData.append("sleeperUsername", input.context.sleeperUsername)
-  if (input.context?.insightType) formData.append("insightType", input.context.insightType)
-  if (input.context?.teamId) formData.append("teamId", input.context.teamId)
-  if (input.context?.sport) formData.append("sport", input.context.sport)
-  if (typeof input.context?.season === "number") formData.append("season", String(input.context.season))
-  if (typeof input.context?.week === "number") formData.append("week", String(input.context.week))
-  if (input.context?.conversationId) formData.append("conversationId", input.context.conversationId)
-  if (input.context?.privateMode) formData.append("privateMode", "true")
-  if (input.context?.targetUsername) formData.append("targetUsername", input.context.targetUsername)
-  if (input.context?.strategyMode) formData.append("strategyMode", input.context.strategyMode)
-  if (input.context?.source) formData.append("source", input.context.source)
-
   const conversation = toConversationPayload(input.conversation)
-  if (conversation.length > 0) {
-    formData.append("messages", JSON.stringify(conversation))
+  const imageDataUrl =
+    input.imageFile && input.imageFile.size > 0 ? await fileToDataUrl(input.imageFile) : undefined
+  const payload = {
+    message: input.message,
+    confirmTokenSpend: true,
+    conversation: conversation.length > 0 ? conversation : undefined,
+    image: imageDataUrl
+      ? {
+          dataUrl: imageDataUrl,
+          name: input.imageFile?.name || undefined,
+          type: input.imageFile?.type || undefined,
+        }
+      : undefined,
+    userContext: {
+      leagueId: input.context?.leagueId,
+      sleeperUsername: input.context?.sleeperUsername,
+      insightType: input.context?.insightType,
+      teamId: input.context?.teamId,
+      sport: input.context?.sport,
+      leagueFormat: input.context?.leagueFormat,
+      scoring: input.context?.scoring,
+      season: input.context?.season,
+      week: input.context?.week,
+      conversationId: input.context?.conversationId,
+      privateMode: input.context?.privateMode,
+      targetUsername: input.context?.targetUsername,
+      strategyMode: input.context?.strategyMode,
+      source: input.context?.source,
+      memory: input.context?.memory,
+    },
   }
 
-  const res = await fetch("/api/chat/chimmy", { method: "POST", body: formData })
+  const res = await fetch("/api/chimmy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
   const data = await res.json().catch(() => ({}))
-  const response = typeof data?.response === "string" ? data.response : ""
+  const response =
+    typeof data?.result === "string"
+      ? data.result
+      : typeof data?.response === "string"
+        ? data.response
+        : ""
   const error =
     typeof data?.error === "string"
       ? data.error

@@ -27,6 +27,7 @@ export {
   isToolWaiverAIEnabled,
   isToolTradeAnalyzerEnabled,
   isToolRankingsEnabled,
+  isAnthropicChimmyEnabled,
   isExperimentalLegacyImportEnabled,
   isExperimentalDynastyEnabled,
   getPlatformConfigSnapshot,

@@ -11,6 +11,14 @@ import { FEATURE_KEYS } from "./constants"
 let cache: { snapshot: Awaited<ReturnType<typeof getFeatureTogglesSnapshot>>; at: number } | null = null
 const CACHE_MS = 30 * 1000 // 30s
 
+function getEnvBoolean(name: string): boolean | null {
+  const raw = process.env[name]?.trim().toLowerCase()
+  if (!raw) return null
+  if (['1', 'true', 'yes', 'on'].includes(raw)) return true
+  if (['0', 'false', 'no', 'off'].includes(raw)) return false
+  return null
+}
+
 async function getSnapshot() {
   const now = Date.now()
   if (cache && now - cache.at < CACHE_MS) return cache.snapshot
@@ -75,6 +83,13 @@ export async function isToolTradeAnalyzerEnabled(): Promise<boolean> {
 /** Rankings tool enabled? */
 export async function isToolRankingsEnabled(): Promise<boolean> {
   return getBoolean(FEATURE_KEYS.TOOL_RANKINGS)
+}
+
+/** Anthropic Chimmy pipeline enabled? */
+export async function isAnthropicChimmyEnabled(): Promise<boolean> {
+  const envOverride = getEnvBoolean('CHIMMY_ANTHROPIC_ENABLED')
+  if (envOverride != null) return envOverride
+  return getBoolean(FEATURE_KEYS.CHIMMY_ANTHROPIC)
 }
 
 /** Experimental legacy import enabled? */

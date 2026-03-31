@@ -11,7 +11,7 @@ This document covers the Chimmy interface architecture, conversational and calm 
 ### Overview
 
 - **Chimmy** is AllFantasy’s AI fantasy assistant. It appears in two surfaces:
-  - **Standalone ChimmyChat** (`app/components/ChimmyChat.tsx`): used on `/legacy` (Legacy overview). Sends to **`/api/chat/chimmy`** (multi-model: OpenAI + Grok + DeepSeek).
+  - **Standalone ChimmyChat** (`app/components/ChimmyChat.tsx`): used on `/legacy` (Legacy overview). Sends to **`/api/chimmy`** as the preferred client entry point (the wrapper reuses the dedicated multi-model Chimmy handler underneath).
   - **Inline AI Chat** in **af-legacy** (`app/af-legacy/page.tsx`): tab “AI Chat”. Sends to **`/api/legacy/chat`** (OpenAI with league/roster context). Supports `?tab=chat&prompt=...` for tool-to-Chimmy context.
 
 ### New lib: `lib/chimmy-interface/`
@@ -29,7 +29,7 @@ This document covers the Chimmy interface architecture, conversational and calm 
 ### Data flow
 
 - **Tool → Chimmy**: Matchup Simulator, Draft, League Forecast, etc. link to `/af-legacy?tab=chat` (or `/legacy?tab=chat`) with optional `prompt=...`. af-legacy reads `prompt` and pre-fills the chat input.
-- **Chimmy API** (`/api/chat/chimmy`): Uses `getChimmyPromptStyleBlock()` in `buildDomainGuard()` so all Chimmy replies follow the calm analyst tone.
+- **Chimmy API** (`/api/chimmy` preferred, `/api/chat/chimmy` underlying handler): Uses `getChimmyPromptStyleBlock()` in `buildDomainGuard()` so all Chimmy replies follow the calm analyst tone.
 - **ChimmyChat**: Uses `speakChimmy()` / `stopChimmyVoice()` from `lib/chimmy-interface`, default suggested chips from `getDefaultChimmyChips()`, and subtitle “Calm, clear, evidence-based”.
 
 ---

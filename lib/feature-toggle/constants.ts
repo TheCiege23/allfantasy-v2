@@ -7,6 +7,7 @@ export const FEATURE_KEYS = {
   TOOL_WAIVER_AI: "feature_tool_waiver_ai",
   TOOL_TRADE_ANALYZER: "feature_tool_trade_analyzer",
   TOOL_RANKINGS: "feature_tool_rankings",
+  CHIMMY_ANTHROPIC: "feature_chimmy_anthropic",
   EXPERIMENTAL_LEGACY_IMPORT: "feature_experimental_legacy_import",
   EXPERIMENTAL_DYNASTY: "feature_experimental_dynasty",
 } as const

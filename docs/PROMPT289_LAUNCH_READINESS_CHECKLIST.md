@@ -73,7 +73,7 @@ Use this checklist before launch. Tick each item when verified in the target env
 
 ### 2.4 AI surfaces
 
-- [ ] **Chimmy / AI hub** — `/chimmy`, `/ai-chat` load; chat sends and receives (or graceful error if no provider). `POST /api/chat/chimmy` used by Chimmy UI.
+- [ ] **Chimmy / AI hub** — `/chimmy`, `/ai-chat` load; chat sends and receives (or graceful error if no provider). `POST /api/chimmy` is the preferred Chimmy UI entry point (`/api/chat/chimmy` remains the underlying dedicated handler).
 - [ ] **Trade** — Trade evaluator `/trade-evaluator`; analysis returns or shows rate limit/error. `POST /api/trade-evaluator` used.
 - [ ] **Waiver AI** — `/waiver-ai`; analysis runs; rate limit and cooldown shown when applicable. `POST /api/waiver-ai` used.
 - [ ] **Draft / War room** — Mock draft and war room use `POST /api/mock-draft/ai-pick`; live draft commissioner orphan pick uses `POST /api/leagues/[leagueId]/draft/ai-pick`. See PROMPT 286.

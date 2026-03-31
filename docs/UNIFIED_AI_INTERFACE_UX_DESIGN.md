@@ -243,7 +243,7 @@ All AI surfaces must support: **NFL**, **NHL**, **NBA**, **MLB**, **NCAA Basketb
 | User action | Route / component | Primary CTA | Secondary CTA | State change | Backend | Mobile | Desktop |
 |-------------|-------------------|-------------|---------------|--------------|---------|--------|---------|
 | Open AI Hub | `/ai` or `/af-legacy?tab=overview` | “Open [Tool]” per card | “Chat with Chimmy” | — | — | Tap card | Click card |
-| Open Chimmy | `/af-legacy?tab=chat` | Send message | Chips, voice toggle | idle → loading → success/error | POST /api/chat/chimmy | Tap send | Click send |
+| Open Chimmy | `/af-legacy?tab=chat` | Send message | Chips, voice toggle | idle → loading → success/error | POST /api/chimmy | Tap send | Click send |
 | Run trade analysis | `/af-legacy?tab=trade` | “Analyze” | — | idle → loading → success/fallback/error | POST dynasty-trade-analyzer (or unified) | Tap Analyze | Click Analyze |
 | Run waiver AI | `/af-legacy?tab=waiver` | “Run AI” / “Get recommendation” | — | idle → loading → success/error | POST waiver-ai | Tap | Click |
 | Run draft AI | `/af-legacy?tab=mock-draft` | “Ask AI” / pick suggestion | — | idle → loading → success | POST mock-draft/ai-pick | Tap | Click |
@@ -283,7 +283,7 @@ All AI surfaces must support: **NFL**, **NHL**, **NBA**, **MLB**, **NCAA Basketb
 
 | Element | Route | Component | Primary CTA | Secondary CTA | State change | Backend | Empty state | Error state | Mobile | Desktop |
 |--------|-------|-----------|-------------|---------------|--------------|---------|-------------|-------------|--------|---------|
-| Send message | `/af-legacy?tab=chat` | ChimmyChatPanel | Send | — | idle → loading → success | POST /api/chat/chimmy | “Ask me about…” | Retry + message | Tap Send | Click Send |
+| Send message | `/af-legacy?tab=chat` | ChimmyChatPanel | Send | — | idle → loading → success | POST /api/chimmy | “Ask me about…” | Retry + message | Tap Send | Click Send |
 | Chip | same | ChimmyChatPanel | Use chip as prompt | — | Submit prompt | same | — | — | Tap chip | Click chip |
 | Voice toggle | same | ChimmyChatPanel | Play / Stop | — | voice_playing ↔ idle | TTS API (future) | — | “Voice unavailable” | Tap | Click |
 | Expand confidence | same | ChimmyMessageBubble | “Why?” | — | Expand sheet | — | — | — | Tap | Click |

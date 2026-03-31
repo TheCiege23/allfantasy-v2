@@ -30,6 +30,8 @@ export type AIChatContext = {
   insightType?: AIInsightType
   teamId?: string
   sport?: SupportedSport
+  leagueFormat?: string
+  scoring?: string
   season?: number
   week?: number
   conversationId?: string
@@ -37,6 +39,11 @@ export type AIChatContext = {
   targetUsername?: string
   strategyMode?: string
   source?: AIContextSource
+  memory?: {
+    tone?: string
+    detailLevel?: string
+    riskMode?: string
+  }
 }
 
 export type ChimmyProviderStatus = Record<string, string> | undefined

@@ -84,7 +84,7 @@ Audit covers: Ask AI buttons, Explain Trade, AI Waiver, AI Draft Helper, Ranking
 |---|--------|-------------------|--------|---------------|----------------|--------|
 | 1 | Ask AI (trade) | TradeFinderV2 | setChatTradeContext → AIBottomSheet; “Open Chat with this prompt” → getTradeAnalyzerAIChatUrl | /af-legacy?tab=chat&prompt=… | Navigates; chat input prefilled from URL | OK |
 | 2 | Copy only (trade) | TradeFinderV2 | navigator.clipboard.writeText; setChatTradeContext(null) | — | Local | OK |
-| 3 | Chimmy chat send | ChimmyChat | fetch /api/chat/chimmy | POST /api/chat/chimmy | Messages state; confidence from API | OK |
+| 3 | Chimmy chat send | ChimmyChat | fetch /api/chimmy | POST /api/chimmy | Messages state; confidence from API | OK |
 | 4 | Chimmy voice / stop | ChimmyChat | speakChimmy, stopChimmyVoice | — | Local playback | OK |
 | 5 | Chimmy suggested chips | ChimmyChat | getDefaultChimmyChips(); onClick sends as message | — | Same as send | OK |
 | 6 | Global Chimmy link | GlobalTopNav, SharedRightRail, TopBarUtilityResolver | getPrimaryChimmyEntry().href | /chimmy or /af-legacy?tab=chat | Navigate | OK |

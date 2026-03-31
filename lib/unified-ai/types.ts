@@ -71,10 +71,13 @@ export interface AIContextEnvelope {
 /** Result shape from a single model. */
 export interface ModelOutput {
   model: AIModelRole
+  modelName?: string
   raw: string
   structured?: Record<string, unknown> | null
   error?: string
   skipped?: boolean
+  tokensPrompt?: number
+  tokensCompletion?: number
 }
 
 /** Combined result after orchestration. */

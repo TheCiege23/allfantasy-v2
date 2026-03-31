@@ -53,14 +53,14 @@ const sharedServices: PlatformServiceDefinition[] = [
     name: 'Chat Service',
     product: 'shared',
     responsibility: 'DM/group/league-thread messaging primitives.',
-    endpoints: ['/api/chat/chimmy', '/api/bracket/leagues/:leagueId/chat'],
+    endpoints: ['/api/chimmy', '/api/chat/chimmy', '/api/bracket/leagues/:leagueId/chat'],
   },
   {
     key: 'ai-orchestrator',
     name: 'AI Orchestrator Service',
     product: 'shared',
     responsibility: 'OpenAI/Grok/DeepSeek routing and final response assembly.',
-    endpoints: ['/api/ai/chat', '/api/legacy/ai/run', '/api/chat/chimmy'],
+    endpoints: ['/api/ai/chat', '/api/legacy/ai/run', '/api/chimmy', '/api/chat/chimmy'],
   },
   {
     key: 'rankings-values',

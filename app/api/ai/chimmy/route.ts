@@ -1,6 +1,6 @@
 /**
  * POST /api/ai/chimmy — Chimmy chat via unified orchestration (tool=chimmy_chat).
- * Same request contract; tool is chimmy_chat. For dedicated Chimmy UI use /api/chat/chimmy (form/messages).
+ * Same request contract; tool is chimmy_chat. For dedicated Chimmy UI use /api/chimmy (preferred client alias).
  * This route allows run/compare/retry/open-in-Chimmy flows with the same contract.
  */
 

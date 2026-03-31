@@ -35,6 +35,12 @@ const fallbackSupabase = {
   },
   from(_: string) {
     return {
+      async insert(_: Record<string, unknown> | Record<string, unknown>[]) {
+        return {
+          data: null,
+          error: { message: 'SUPABASE_NOT_CONFIGURED' },
+        }
+      },
       async upsert(_: Record<string, unknown>) {
         return {
           data: null,

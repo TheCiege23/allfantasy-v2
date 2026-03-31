@@ -46,7 +46,7 @@ const TOOL_ENTRIES: Record<ToolAIEntryKey, Omit<ToolAIEntry, "key">> = {
   },
   chimmy_chat: {
     label: "Chimmy Chat",
-    apiPath: "/api/chat/chimmy",
+    apiPath: "/api/chimmy",
     featureType: "chimmy_chat",
     typicalIntent: "chat",
   },

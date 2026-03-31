@@ -8,8 +8,9 @@ QA pass focused on app-wide Chimmy/AI integration, response shape consistency, t
 
 ## Architecture (Validated)
 
-- **Chimmy chat**: `POST /api/chat/chimmy` — formData (message, messages/conversation, leagueId, privateMode, targetUsername, strategyMode, image). Returns `{ response, meta }` with `meta.recommendedTool`, `meta.providerStatus`, etc.
-- **League chat AI tab**: Uses `useAIChat({ leagueId })` → POST `/api/chat/chimmy`; response rendered in `AIChatTabContent`. League context is sent; Chimmy returns `response` which is displayed.
+- **Chimmy chat**: `POST /api/chimmy` — preferred client entry point. Accepts the JSON compatibility contract, then forwards into the dedicated Chimmy handler. Returns `{ response, result, meta, upgradeRequired }`.
+- **Dedicated handler**: `POST /api/chat/chimmy` — underlying multipart/form/messages handler that `/api/chimmy` reuses.
+- **League chat AI tab**: Uses `useAIChat({ leagueId })` → POST `/api/chimmy`; response rendered in `AIChatTabContent`. League context is sent; Chimmy returns `response`/`result` which is displayed.
 - **Primary Chimmy entry**: `getPrimaryChimmyEntry()` → `/af-legacy?tab=chat`. Chimmy landing `/chimmy` links to same for CTA. Prompt prefill: `getChimmyChatHrefWithPrompt(prompt)` → `/af-legacy?tab=chat&prompt=...`.
 - **Tool links** (from Chimmy `TOOL_LINKS`): trade_analyzer → `/trade-evaluator`, trade_finder → `/trade-finder`, waiver_ai → `/waiver-ai`, rankings → `/rankings`, mock_draft → `/mock-draft-simulator`. All routes exist.
 - **Legacy chat**: `/legacy?tab=chat` exists and shows ChimmyChat; `/af-legacy?tab=chat` is the primary hub with Chimmy tab.
@@ -21,7 +22,7 @@ QA pass focused on app-wide Chimmy/AI integration, response shape consistency, t
 
 | Area | Status | Notes |
 |------|--------|------|
-| **1. Core Chimmy chat** | Pass | Baseline prompt works; response in `response`; ChimmyChatShell uses `data.response`; timeout and provider failure return friendly message, not raw 500. |
+| **1. Core Chimmy chat** | Pass | Baseline prompt works; preferred client calls go through `/api/chimmy`; timeout and provider failure return friendly message, not raw 500. |
 | **2. Invalid payload** | Pass | Chimmy returns 400 for invalid format / empty message; trade-evaluator returns 400 for ZodError; waiver-ai returns 400 for missing league/roster. |
 | **3. League chat AI tab** | Pass | useAIChat(leagueId) POSTs to Chimmy; Chimmy returns `response`; useAIChat now also accepts `data.answer` for consistency. |
 | **4. Private mode / targetUsername** | Pass | Used in Chimmy route and af-legacy; scoping in prompt; no change. |

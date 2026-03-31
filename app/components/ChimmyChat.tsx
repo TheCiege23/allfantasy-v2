@@ -5,6 +5,7 @@ import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Squar
 import { toast } from 'sonner';
 import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface';
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
+import { sendChimmyMessage } from '@/lib/chimmy-chat/ChimmyChatService';
 
 const HEART_EMOJI = '\u{1F496}';
 
@@ -183,22 +184,23 @@ export default function ChimmyChat() {
     setIsTyping(true);
 
     try {
-      const formData = new FormData();
-      formData.append('message', outgoingText || '');
-      if (imageFile) formData.append('image', imageFile);
-      formData.append('messages', JSON.stringify(nextMessages.slice(-10).map((m) => ({ role: m.role, content: m.content }))));
-      formData.append('confirmTokenSpend', 'true');
-
-      const res = await fetch('/api/chat/chimmy', {
-        method: 'POST',
-        body: formData,
+      const result = await sendChimmyMessage({
+        message: outgoingText || '',
+        imageFile,
+        conversation: nextMessages.slice(-10).map((m) => ({
+          role: m.role,
+          content: m.content,
+          imageUrl: m.image ?? null,
+        })),
+        confirmTokenSpend: false,
       });
-
-      const data = await res.json();
-      const reply = data.response || `I couldn't read that clearly. Re-send it and I'll be more specific.`;
+      const reply = result.response || `I couldn't read that clearly. Re-send it and I'll be more specific.`;
 
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
       speak(reply);
+      if (!result.ok && result.error) {
+        toast.error(result.error);
+      }
     } catch {
       toast.error('Failed to send message');
     } finally {

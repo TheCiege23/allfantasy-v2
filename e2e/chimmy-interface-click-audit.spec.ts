@@ -150,7 +150,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
       })
     })
 
-    await page.route('**/api/chat/chimmy', async (route) => {
+    await page.route('**/api/chimmy', async (route) => {
       const postData = route.request().postData() ?? ''
       chatBodies.push(postData)
 

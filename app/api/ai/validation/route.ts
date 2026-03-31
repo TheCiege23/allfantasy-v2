@@ -27,6 +27,7 @@ const AREAS = [
     id: "chat",
     description: "Chat (Chimmy): AI assistant, tools, multi-provider",
     endpoints: [
+      "POST /api/chimmy",
       "POST /api/chat/chimmy",
       "POST /api/ai/chimmy",
       "POST /api/ai/chat",
