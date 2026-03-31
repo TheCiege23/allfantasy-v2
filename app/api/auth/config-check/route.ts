@@ -13,6 +13,7 @@ export async function GET() {
   const missing: string[] = []
   if (!hasDatabaseUrl(process.env)) missing.push("DATABASE_URL")
   if (!process.env.NEXTAUTH_SECRET?.trim()) missing.push("NEXTAUTH_SECRET")
+  if (!process.env.NEXTAUTH_URL?.trim()) missing.push("NEXTAUTH_URL")
 
   if (missing.length === 0) {
     return NextResponse.json({ ok: true })
@@ -23,8 +24,7 @@ export async function GET() {
       ok: false,
       reason: "Configuration missing",
       missing,
-      message:
-        "DATABASE_URL is not set. Add it to your local environment and Vercel project settings.",
+      message: `Missing required auth configuration: ${missing.join(", ")}.`,
     },
     { status: 503 }
   )

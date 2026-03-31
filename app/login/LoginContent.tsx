@@ -54,6 +54,7 @@ export default function LoginContent() {
   const [loading, setLoading] = useState(false)
   const [sleeperUsername, setSleeperUsername] = useState("")
   const [sleeperLoading, setSleeperLoading] = useState(false)
+  const [devBypassLoading, setDevBypassLoading] = useState(false)
 
   const [adminPassword, setAdminPassword] = useState("")
   const [adminLoading, setAdminLoading] = useState(false)
@@ -61,6 +62,7 @@ export default function LoginContent() {
   const [adminRemaining, setAdminRemaining] = useState<number | null>(null)
 
   const [configError, setConfigError] = useState<string | null>(null)
+  const showDevBypass = process.env.NODE_ENV !== "production"
 
   useEffect(() => {
     rememberUnifiedAuthDestination(callbackUrl)
@@ -175,6 +177,31 @@ export default function LoginContent() {
       setError(t("common.error.tryAgain"))
     } finally {
       setSleeperLoading(false)
+    }
+  }
+
+  async function handleDevBypassLogin() {
+    setError(null)
+    setDevBypassLoading(true)
+    try {
+      const result = await signIn("dev-bypass", {
+        redirect: false,
+        callbackUrl,
+      })
+
+      if (result?.error) {
+        setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")
+      } else if (result?.url) {
+        clearUnifiedAuthDestination()
+        router.push(result.url)
+      } else {
+        clearUnifiedAuthDestination()
+        router.push(callbackUrl)
+      }
+    } catch {
+      setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")
+    } finally {
+      setDevBypassLoading(false)
     }
   }
 
@@ -396,6 +423,33 @@ export default function LoginContent() {
                 </button>
               </form>
             </div>
+
+            {showDevBypass && (
+              <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-xl backdrop-blur-sm">
+                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-emerald-200">
+                  <Shield className="h-4 w-4" />
+                  <span>Local Dev Access</span>
+                </div>
+                <p className="mb-3 text-xs text-emerald-100/80">
+                  Development-only bypass for localhost testing. Signs in as the local test user and works with the dev admin monetization override.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDevBypassLogin}
+                  disabled={devBypassLoading}
+                  className="w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
+                >
+                  {devBypassLoading ? (
+                    <span className="inline-flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("common.signingIn")}
+                    </span>
+                  ) : (
+                    "Continue as Local Dev User"
+                  )}
+                </button>
+              </div>
+            )}
 
             <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
               <AuthSocialBlock callbackUrl={callbackUrl} />

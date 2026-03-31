@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
+import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 
 function getAuthSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET?.trim();
@@ -61,6 +62,72 @@ async function fetchSleeperUser(username: string) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function isDevAuthBypassEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_BYPASS_ENABLED?.trim() === "true";
+}
+
+function getDevAuthProfile() {
+  return {
+    id: process.env.DEV_AUTH_BYPASS_USER_ID?.trim() || "local-dev-user",
+    email: process.env.DEV_AUTH_BYPASS_EMAIL?.trim() || "local-dev@allfantasy.local",
+    username: process.env.DEV_AUTH_BYPASS_USERNAME?.trim() || "local_dev_user",
+    displayName: process.env.DEV_AUTH_BYPASS_NAME?.trim() || "Local Dev User",
+  };
+}
+
+async function ensureDevAuthUser() {
+  const profile = getDevAuthProfile();
+  let user = await prisma.appUser.findFirst({
+    where: {
+      OR: [
+        { id: profile.id },
+        { email: { equals: profile.email, mode: "insensitive" } },
+        { username: profile.username },
+      ],
+    },
+  });
+
+  if (!user) {
+    user = await prisma.appUser.create({
+      data: {
+        id: profile.id,
+        email: profile.email,
+        username: profile.username,
+        displayName: profile.displayName,
+        emailVerified: new Date(),
+      },
+    });
+  } else {
+    user = await prisma.appUser.update({
+      where: { id: user.id },
+      data: {
+        email: profile.email,
+        username: profile.username,
+        displayName: profile.displayName,
+        emailVerified: user.emailVerified ?? new Date(),
+      },
+    });
+  }
+
+  await ensureSharedAccountProfile({
+    userId: user.id,
+    displayName: profile.displayName,
+  });
+
+  await prisma.managerXPProfile.upsert({
+    where: { managerId: user.id },
+    create: {
+      managerId: user.id,
+      totalXP: 0,
+      currentTier: getTierFromXP(0),
+      xpToNextTier: getXPRemainingToNextTier(0),
+    },
+    update: {},
+  });
+
+  return user;
 }
 
 const providers: NextAuthOptions["providers"] = [
@@ -186,6 +253,25 @@ const providers: NextAuthOptions["providers"] = [
     },
   }),
 ];
+
+if (isDevAuthBypassEnabled()) {
+  providers.unshift(
+    CredentialsProvider({
+      id: "dev-bypass",
+      name: "Local Dev Access",
+      credentials: {},
+      async authorize() {
+        const user = await ensureDevAuthUser();
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.displayName || user.username || user.email,
+          image: user.avatarUrl,
+        };
+      },
+    })
+  );
+}
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
