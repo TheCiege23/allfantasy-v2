@@ -229,6 +229,103 @@ function safeParseJson(raw: string): Record<string, unknown> | null {
   }
 }
 
+function findJsonLikeObjectRanges(text: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = []
+  let depth = 0
+  let start = -1
+  let inString = false
+  let stringQuote = ''
+  let escaped = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+
+    if (escaped) {
+      escaped = false
+      continue
+    }
+
+    if (inString) {
+      if (char === '\\') {
+        escaped = true
+        continue
+      }
+      if (char === stringQuote) {
+        inString = false
+        stringQuote = ''
+      }
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      inString = true
+      stringQuote = char
+      continue
+    }
+
+    if (char === '{') {
+      if (depth === 0) {
+        start = i
+      }
+      depth += 1
+      continue
+    }
+
+    if (char === '}' && depth > 0) {
+      depth -= 1
+      if (depth === 0 && start >= 0) {
+        const candidate = text.slice(start, i + 1)
+        if (candidate.includes(':')) {
+          ranges.push({ start, end: i + 1 })
+        }
+        start = -1
+      }
+    }
+  }
+
+  return ranges
+}
+
+function sanitizeAssistantDisplayText(raw: string | null | undefined): string {
+  const normalized = String(raw ?? '')
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+
+  if (!normalized) return ''
+
+  const jsonRanges = findJsonLikeObjectRanges(normalized)
+  if (jsonRanges.length === 0) {
+    return normalized
+  }
+
+  const trailingText = normalized
+    .slice(jsonRanges[jsonRanges.length - 1].end)
+    .replace(/^[\s\-:;,.!?)\]}]+/, '')
+    .trim()
+
+  if (trailingText) {
+    return trailingText
+  }
+
+  let stripped = ''
+  let cursor = 0
+  for (const range of jsonRanges) {
+    stripped += normalized.slice(cursor, range.start)
+    cursor = range.end
+  }
+  stripped += normalized.slice(cursor)
+
+  const cleaned = stripped
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/([:;,.!?])(?:\s*\1)+/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+
+  return cleaned || normalized
+}
+
 function compactRecord<T extends Record<string, unknown>>(record: T): Record<string, unknown> {
   const entries = Object.entries(record).filter(([, value]) => value !== undefined)
   return Object.fromEntries(entries)
@@ -923,17 +1020,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const responseContract = unifiedResponseToContract(run.response)
+  const sanitizedAiExplanation = sanitizeAssistantDisplayText(responseContract.aiExplanation)
+  const sanitizedActionPlan = sanitizeAssistantDisplayText(responseContract.actionPlan)
+  const sanitizedUncertainty = sanitizeAssistantDisplayText(responseContract.uncertainty)
   const providerStatus = buildProviderStatusMap(responseContract)
   const quantData = extractQuantData(responseContract)
   const trendData = extractTrendData(responseContract)
   const recommendedTool = inferRecommendedTool(
-    responseContract.aiExplanation,
-    responseContract.actionPlan
+    sanitizedAiExplanation,
+    sanitizedActionPlan
   )
   const responseStructure = buildResponseStructure(
-    responseContract.aiExplanation,
-    responseContract.actionPlan,
-    responseContract.uncertainty
+    sanitizedAiExplanation,
+    sanitizedActionPlan,
+    sanitizedUncertainty
   )
   await logUsageToSupabase({
     userId,
@@ -970,7 +1070,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (userId) {
-    const assistantResponse = responseContract.aiExplanation || "I couldn't complete that request. Please try again."
+    const assistantResponse = sanitizedAiExplanation || "I couldn't complete that request. Please try again."
     const persistTasks = [
       appendChatHistory({
         conversationId,
@@ -1008,7 +1108,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({
-    response: responseContract.aiExplanation || "I couldn't complete that request. Please try again.",
+    response: sanitizedAiExplanation || "I couldn't complete that request. Please try again.",
     meta,
   })
 }

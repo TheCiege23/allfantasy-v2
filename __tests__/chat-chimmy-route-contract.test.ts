@@ -303,4 +303,31 @@ describe("POST /api/chat/chimmy contract", () => {
       response: "Accept the trade.",
     })
   })
+
+  it("strips raw JSON context blobs from the displayed response text", async () => {
+    unifiedResponseToContractMock.mockReturnValueOnce({
+      aiExplanation:
+        'Deterministic guidance from NFL context: {"contextSnapshot":{"sport":"NFL","week":7}} Start Drake London over Christian Watson this week.',
+      actionPlan: "Lock it in before kickoff.",
+      confidence: 84,
+      uncertainty: null,
+      providerResults: [],
+      reliability: null,
+      debugTrace: {
+        providerUsed: "openai",
+      },
+    })
+
+    const formData = new FormData()
+    formData.append("message", "Who should I start?")
+    formData.append("confirmTokenSpend", "true")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(200)
+    await expect(res.json()).resolves.toMatchObject({
+      response: "Start Drake London over Christian Watson this week.",
+    })
+  })
 })

@@ -219,9 +219,14 @@ function buildDeterministicFallbackText(envelope: AIContextEnvelope): string {
     .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value))
     .slice(0, 6)
     .map(([key, value]) => `${key}: ${String(value)}`)
+  const contextLabels = Object.keys(payload)
+    .slice(0, 4)
+    .map((key) => key.replace(/([A-Z])/g, ' $1').replace(/[_-]+/g, ' ').trim().toLowerCase())
   const summary = keyValues.length > 0
     ? keyValues.join('; ')
-    : JSON.stringify(payload).slice(0, 450)
+    : contextLabels.length > 0
+      ? `available context includes ${contextLabels.join(', ')}`
+      : 'deterministic context is available'
   const missing = envelope.dataQualityMetadata?.missing?.length
     ? ` Missing data: ${envelope.dataQualityMetadata?.missing?.slice(0, 4).join(', ')}.`
     : ''
