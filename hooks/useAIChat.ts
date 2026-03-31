@@ -112,10 +112,10 @@ export function useAIChat(options?: {
           }
           if (!confirmed) return
         } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "Failed to preview token spend"
-          setMessages((prev) => [...prev, { role: "assistant", content: `Error: ${errMsg}` }])
-          setError(errMsg)
-          return
+          console.error(
+            "[useAIChat] Token preview failed, continuing without preflight:",
+            err instanceof Error ? err.message : err
+          )
         }
       }
 

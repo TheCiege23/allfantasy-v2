@@ -774,7 +774,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const spendService = new TokenSpendService()
-  let tokenPreview: TokenSpendPreview
+  let tokenPreview: TokenSpendPreview | null = null
+  let tokenPreviewFailed = false
   try {
     tokenPreview = await spendService.previewSpend(userId, 'ai_chimmy_chat_message')
   } catch (error) {
@@ -787,9 +788,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 500 }
       )
     }
-    return NextResponse.json({ error: 'Unable to preview token spend.' }, { status: 500 })
+    tokenPreviewFailed = true
+    console.error(
+      '[api/chat/chimmy] Token preview failed, continuing without preflight:',
+      error instanceof Error ? error.message : error
+    )
   }
-  if (!confirmTokenSpend) {
+  if (!tokenPreviewFailed && !confirmTokenSpend) {
     return NextResponse.json(
       {
         error: 'Token spend confirmation required before sending to Chimmy.',
@@ -801,58 +806,60 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   let spendLedger: { id: string; balanceAfter: number } | null = null
-  try {
-    const ledger = await spendService.spendTokensForRule({
-      userId,
-      ruleCode: 'ai_chimmy_chat_message',
-      confirmed: confirmTokenSpend,
-      sourceType: 'chimmy_chat',
-      sourceId: conversationId,
-      description: 'Chimmy chat message',
-      metadata: {
-        conversationId,
-        leagueId: leagueId ?? null,
-        sport,
-        source: source ?? null,
-      },
-    })
-    spendLedger = {
-      id: ledger.id,
-      balanceAfter: ledger.balanceAfter,
-    }
-  } catch (error) {
-    if (error instanceof TokenInsufficientBalanceError) {
-      return NextResponse.json(
-        {
-          error: 'Insufficient token balance',
-          code: 'insufficient_token_balance',
-          requiredTokens: error.requiredTokens,
-          currentBalance: error.currentBalance,
+  if (!tokenPreviewFailed) {
+    try {
+      const ledger = await spendService.spendTokensForRule({
+        userId,
+        ruleCode: 'ai_chimmy_chat_message',
+        confirmed: confirmTokenSpend,
+        sourceType: 'chimmy_chat',
+        sourceId: conversationId,
+        description: 'Chimmy chat message',
+        metadata: {
+          conversationId,
+          leagueId: leagueId ?? null,
+          sport,
+          source: source ?? null,
         },
-        { status: 402 }
-      )
+      })
+      spendLedger = {
+        id: ledger.id,
+        balanceAfter: ledger.balanceAfter,
+      }
+    } catch (error) {
+      if (error instanceof TokenInsufficientBalanceError) {
+        return NextResponse.json(
+          {
+            error: 'Insufficient token balance',
+            code: 'insufficient_token_balance',
+            requiredTokens: error.requiredTokens,
+            currentBalance: error.currentBalance,
+          },
+          { status: 402 }
+        )
+      }
+      if (error instanceof TokenSpendConfirmationRequiredError) {
+        return NextResponse.json(
+          {
+            error: 'Token spend confirmation required.',
+            code: 'token_confirmation_required',
+            requiredTokens: error.tokenCost,
+            ruleCode: error.ruleCode,
+          },
+          { status: 409 }
+        )
+      }
+      if (error instanceof TokenSpendRuleNotFoundError) {
+        return NextResponse.json(
+          {
+            error: error.message,
+            code: 'token_spend_rule_missing',
+          },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json({ error: 'Unable to process token spend.' }, { status: 500 })
     }
-    if (error instanceof TokenSpendConfirmationRequiredError) {
-      return NextResponse.json(
-        {
-          error: 'Token spend confirmation required.',
-          code: 'token_confirmation_required',
-          requiredTokens: error.tokenCost,
-          ruleCode: error.ruleCode,
-        },
-        { status: 409 }
-      )
-    }
-    if (error instanceof TokenSpendRuleNotFoundError) {
-      return NextResponse.json(
-        {
-          error: error.message,
-          code: 'token_spend_rule_missing',
-        },
-        { status: 500 }
-      )
-    }
-    return NextResponse.json({ error: 'Unable to process token spend.' }, { status: 500 })
   }
 
   const unifiedRequest = requestContractToUnified(

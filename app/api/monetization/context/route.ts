@@ -58,28 +58,61 @@ export async function GET(req: Request) {
     const tokenBalanceResolver = new TokenBalanceResolver()
     const tokenSpendService = new TokenSpendService()
 
-    const [entitlementResult, tokenBalance, rulePreviews] = await Promise.all([
-      entitlementResolver.resolveForUser(userId, featureId ?? undefined),
-      tokenBalanceResolver.resolveForUser(userId),
-      Promise.all(
-        ruleCodes.map(async (ruleCode): Promise<RulePreviewResult> => {
-          try {
-            const preview = await tokenSpendService.previewSpendWithEntitlement({
-              userId,
-              ruleCode,
-              entitlement: entitlementResult.entitlement,
-              currentBalance: Number(tokenBalance.balance || 0),
-            })
-            return { ruleCode, preview, error: null }
-          } catch (error) {
-            if (error instanceof TokenSpendRuleNotFoundError) {
-              return { ruleCode, preview: null, error: error.message }
-            }
-            return { ruleCode, preview: null, error: "Unable to preview token cost right now." }
-          }
-        })
-      ),
+    const [entitlementResult, tokenBalance] = await Promise.all([
+      entitlementResolver.resolveForUser(userId, featureId ?? undefined).catch((error) => {
+        console.error(
+          "[monetization/context GET] entitlement fallback",
+          error instanceof Error ? error.message : error
+        )
+        return {
+          entitlement: {
+            plans: [],
+            status: "none" as const,
+            currentPeriodEnd: null,
+            gracePeriodEnd: null,
+          },
+          hasAccess: false,
+          message: "Upgrade to access this feature.",
+        }
+      }),
+      tokenBalanceResolver.resolveForUser(userId).catch((error) => {
+        console.error(
+          "[monetization/context GET] token balance fallback",
+          error instanceof Error ? error.message : error
+        )
+        return {
+          balance: 0,
+          lifetimePurchased: 0,
+          lifetimeSpent: 0,
+          lifetimeRefunded: 0,
+          updatedAt: "",
+        }
+      }),
     ])
+
+    const rulePreviews = await Promise.all(
+      ruleCodes.map(async (ruleCode): Promise<RulePreviewResult> => {
+        try {
+          const preview = await tokenSpendService.previewSpendWithEntitlement({
+            userId,
+            ruleCode,
+            entitlement: entitlementResult.entitlement,
+            currentBalance: Number(tokenBalance.balance || 0),
+          })
+          return { ruleCode, preview, error: null }
+        } catch (error) {
+          if (error instanceof TokenSpendRuleNotFoundError) {
+            console.error("[monetization/context GET] unknown token spend rule", ruleCode)
+            return { ruleCode, preview: null, error: error.message }
+          }
+          console.error(
+            `[monetization/context GET] preview fallback for ${ruleCode}`,
+            error instanceof Error ? error.message : error
+          )
+          return { ruleCode, preview: null, error: "Unable to preview token cost right now." }
+        }
+      })
+    )
     const bundleInheritance = resolveBundleInheritance(entitlementResult.entitlement.plans)
     const requiredPlanId = featureId ? getRequiredPlanForFeature(featureId) : null
     const requiredPlan = requiredPlanId ? getDisplayPlanName(requiredPlanId) : null

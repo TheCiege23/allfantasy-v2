@@ -260,4 +260,20 @@ describe("POST /api/chat/chimmy contract", () => {
       })
     )
   })
+
+  it("continues the Chimmy run when token preview fails", async () => {
+    previewSpendMock.mockRejectedValueOnce(new Error("monetization context exploded"))
+
+    const formData = new FormData()
+    formData.append("message", "Should I trade this player?")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(200)
+    expect(spendTokensForRuleMock).not.toHaveBeenCalled()
+    await expect(res.json()).resolves.toMatchObject({
+      response: "Accept the trade.",
+    })
+  })
 })

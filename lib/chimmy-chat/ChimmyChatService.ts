@@ -80,7 +80,7 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
 }
 
 export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<SendChimmyMessageResult> {
-  const shouldConfirmTokenSpend = input.confirmTokenSpend ?? true
+  let shouldConfirmTokenSpend = input.confirmTokenSpend ?? true
   if (shouldConfirmTokenSpend) {
     try {
       const { confirmed, preview } = await confirmTokenSpend("ai_chimmy_chat_message")
@@ -99,11 +99,11 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
         }
       }
     } catch (error) {
-      return {
-        ok: false,
-        response: "Unable to preview token spend right now.",
-        error: error instanceof Error ? error.message : "Token spend preview failed",
-      }
+      console.error(
+        "[sendChimmyMessage] Token preview failed, continuing without preflight:",
+        error instanceof Error ? error.message : error
+      )
+      shouldConfirmTokenSpend = false
     }
   }
 
@@ -112,7 +112,7 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     input.imageFile && input.imageFile.size > 0 ? await fileToDataUrl(input.imageFile) : undefined
   const payload = {
     message: input.message,
-    confirmTokenSpend: true,
+    confirmTokenSpend: shouldConfirmTokenSpend,
     conversation: conversation.length > 0 ? conversation : undefined,
     image: imageDataUrl
       ? {

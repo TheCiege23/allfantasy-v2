@@ -166,8 +166,10 @@ export default function ChimmyChat() {
       }
       if (!confirmed) return;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to preview token spend.');
-      return;
+      console.error(
+        '[ChimmyChat] Token preview failed, continuing without preflight:',
+        error instanceof Error ? error.message : error
+      );
     }
 
     const userMessage: ChatMessage = {
