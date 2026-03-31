@@ -1,4 +1,12 @@
 import type { AIChatContext, ChimmyMessageMeta, ChimmyThreadMessage } from "./types"
+import {
+  CHIMMY_DEFAULT_UPGRADE_PATH,
+  CHIMMY_GENERIC_ERROR_MESSAGE,
+  CHIMMY_PREMIUM_CTA_LABEL,
+  CHIMMY_PREMIUM_FEATURE_MESSAGE,
+  isChimmyPremiumGateResponse,
+  resolveChimmyUpgradePath,
+} from "@/lib/chimmy-chat/response-copy"
 import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
 
 type SendChimmyMessageInput = {
@@ -15,6 +23,8 @@ type SendChimmyMessageResult = {
   response: string
   meta?: ChimmyMessageMeta
   error?: string
+  upgradeRequired?: boolean
+  upgradePath?: string
 }
 
 function toConversationPayload(conversation: ChimmyThreadMessage[] = []) {
@@ -77,6 +87,12 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
             caveats,
           }
         : undefined,
+    variant:
+      meta.variant === "premium_gate" || meta.variant === "error"
+        ? meta.variant
+        : undefined,
+    ctaLabel: typeof meta.ctaLabel === "string" ? meta.ctaLabel : undefined,
+    ctaHref: typeof meta.ctaHref === "string" ? meta.ctaHref : undefined,
   }
 }
 
@@ -87,9 +103,15 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
       const { confirmed, preview } = await confirmTokenSpend("ai_chimmy_chat_message")
       if (!preview.canSpend) {
         return {
-          ok: false,
-          response: "You do not have enough tokens for this Chimmy request.",
-          error: `Need ${preview.tokenCost} token${preview.tokenCost === 1 ? "" : "s"}. Current balance: ${preview.currentBalance}.`,
+          ok: true,
+          response: CHIMMY_PREMIUM_FEATURE_MESSAGE,
+          meta: {
+            variant: "premium_gate",
+            ctaLabel: CHIMMY_PREMIUM_CTA_LABEL,
+            ctaHref: CHIMMY_DEFAULT_UPGRADE_PATH,
+          },
+          upgradeRequired: true,
+          upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
         }
       }
       if (!confirmed) {
@@ -240,25 +262,61 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
       : typeof data?.response === "string"
         ? data.response
         : ""
+  const upgradeRequired = isChimmyPremiumGateResponse({
+    status: res.status,
+    code: data?.code,
+    upgradeRequired: data?.upgradeRequired,
+  })
+  const upgradePath = upgradeRequired
+    ? resolveChimmyUpgradePath(data?.upgradePath)
+    : undefined
+  const metaCandidate = {
+    ...(toMeta(data?.meta) ?? {}),
+    ...(upgradeRequired
+      ? {
+          variant: "premium_gate" as const,
+          ctaLabel: CHIMMY_PREMIUM_CTA_LABEL,
+          ctaHref: upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH,
+        }
+      : !res.ok
+        ? {
+            variant: "error" as const,
+          }
+        : {}),
+  }
+  const meta = Object.keys(metaCandidate).length > 0 ? metaCandidate : undefined
   const error =
-    typeof data?.error === "string"
+    upgradeRequired
+      ? undefined
+      : typeof data?.error === "string"
       ? data.error
       : typeof data?.message === "string"
         ? data.message
-        : `Request failed (${res.status})`
+        : res.status >= 500
+          ? CHIMMY_GENERIC_ERROR_MESSAGE
+          : `Request failed (${res.status})`
+  const fallbackResponse = upgradeRequired
+    ? CHIMMY_PREMIUM_FEATURE_MESSAGE
+    : CHIMMY_GENERIC_ERROR_MESSAGE
 
-  if (!res.ok) {
+  if (!res.ok && !upgradeRequired) {
     return {
       ok: false,
-      response: response || "I couldn't complete that request. Please try again.",
-      error,
-      meta: toMeta(data?.meta),
+      response: response || fallbackResponse,
+      error: error || CHIMMY_GENERIC_ERROR_MESSAGE,
+      meta,
     }
   }
 
   return {
     ok: true,
-    response: response || "I couldn't complete that request. Please try again.",
-    meta: toMeta(data?.meta),
+    response: response || fallbackResponse,
+    meta,
+    ...(upgradeRequired
+      ? {
+          upgradeRequired: true,
+          upgradePath,
+        }
+      : {}),
   }
 }

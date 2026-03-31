@@ -3,6 +3,7 @@
  */
 
 export type ChimmyVoicePreset = 'calm' | 'analyst' | 'warm'
+export type ChimmyTtsVoice = 'rachel' | 'adam'
 
 export interface ChimmyVoiceStyleConfig {
   rate: number

@@ -16,6 +16,13 @@ export const DRAFT_NOTIFICATION_EVENT_TYPES = [
   'draft_auction_outbid',
   'draft_slow_reminder',
   'draft_starting_soon',
+  'draft_intel_queue_ready',
+  'draft_intel_player_taken',
+  'draft_intel_on_clock_urgent',
+  'draft_intel_pick_confirmation',
+  'draft_intel_tier_break',
+  'draft_intel_orphan_team_pick',
+  'draft_intel_post_draft_recap',
 ] as const
 
 export type DraftNotificationEventType = (typeof DRAFT_NOTIFICATION_EVENT_TYPES)[number]
@@ -35,4 +42,7 @@ export interface DraftNotificationPayload {
   previousBid?: number
   /** For slow_reminder: minutes until pick due. */
   minutesRemaining?: number
+  availabilityProbability?: number
+  playerNames?: string[]
+  recap?: string
 }

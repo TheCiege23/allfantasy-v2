@@ -122,6 +122,58 @@ function getTitleAndBody(
         body: 'Your league draft is about to start.',
         severity: 'high',
       }
+    case 'draft_intel_queue_ready':
+      return {
+        title: `AI queue ready${league}`,
+        body: payload.playerName
+          ? `${payload.playerName} leads your Chimmy queue.`
+          : 'Chimmy built your 5-pick queue.',
+        severity: 'medium',
+      }
+    case 'draft_intel_player_taken':
+      return {
+        title: `Queued player taken${league}`,
+        body: payload.playerName
+          ? `${payload.playerName} just left the board. Chimmy refreshed your queue.`
+          : 'A queued player was taken. Chimmy refreshed your board.',
+        severity: 'high',
+      }
+    case 'draft_intel_on_clock_urgent':
+      return {
+        title: `You're on the clock${league}`,
+        body: payload.playerName
+          ? `Chimmy says take ${payload.playerName} now.`
+          : 'Chimmy pushed an urgent on-clock recommendation.',
+        severity: 'high',
+      }
+    case 'draft_intel_pick_confirmation':
+      return {
+        title: `Pick confirmed${league}`,
+        body: payload.playerName ? `${payload.playerName} is locked in.` : 'Your draft pick was confirmed.',
+        severity: 'medium',
+      }
+    case 'draft_intel_tier_break':
+      return {
+        title: `Tier break alert${league}`,
+        body: payload.playerNames?.length
+          ? `Tier shifting around ${payload.playerNames.slice(0, 2).join(', ')}.`
+          : 'A board tier is breaking faster than expected.',
+        severity: 'high',
+      }
+    case 'draft_intel_orphan_team_pick':
+      return {
+        title: `Orphan team pick${league}`,
+        body: payload.playerName
+          ? `An orphan roster auto-selected ${payload.playerName}.`
+          : 'An orphan roster made an automated pick.',
+        severity: 'low',
+      }
+    case 'draft_intel_post_draft_recap':
+      return {
+        title: `Draft recap ready${league}`,
+        body: payload.recap ?? 'Chimmy posted your post-draft recap.',
+        severity: 'medium',
+      }
     default:
       return {
         title: `Draft update${league}`,
@@ -129,6 +181,10 @@ function getTitleAndBody(
         severity: 'low',
       }
   }
+}
+
+function resolveCategoryForEvent(eventType: DraftNotificationEventType) {
+  return eventType.startsWith('draft_intel_') ? 'draft_intel_alerts' : 'draft_alerts'
 }
 
 /**
@@ -143,7 +199,7 @@ export async function createDraftNotification(
   const href = DRAFT_ROOM_PATH(payload.leagueId)
   await dispatchNotification({
     userIds: [appUserId],
-    category: 'draft_alerts',
+    category: resolveCategoryForEvent(eventType),
     productType: 'app',
     type: eventType,
     title,
@@ -169,7 +225,7 @@ export async function createDraftNotificationForUsers(
   const href = DRAFT_ROOM_PATH(payload.leagueId)
   await dispatchNotification({
     userIds: appUserIds,
-    category: 'draft_alerts',
+    category: resolveCategoryForEvent(eventType),
     productType: 'app',
     type: eventType,
     title,
@@ -324,6 +380,118 @@ export async function notifyOrphanAiManagerAssigned(leagueId: string): Promise<v
   await createDraftNotificationForUsers(userIds, 'draft_orphan_ai_assigned', {
     leagueId,
     leagueName,
+  })
+}
+
+export async function notifyDraftIntelQueueReady(
+  leagueId: string,
+  rosterId: string,
+  options?: { playerName?: string; availabilityProbability?: number }
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_queue_ready', {
+    leagueId,
+    leagueName,
+    rosterId,
+    playerName: options?.playerName,
+    availabilityProbability: options?.availabilityProbability,
+  })
+}
+
+export async function notifyDraftIntelPlayerTaken(
+  leagueId: string,
+  rosterId: string,
+  playerName: string
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_player_taken', {
+    leagueId,
+    leagueName,
+    rosterId,
+    playerName,
+  })
+}
+
+export async function notifyDraftIntelOnClockUrgent(
+  leagueId: string,
+  rosterId: string,
+  options?: { playerName?: string; pickLabel?: string }
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_on_clock_urgent', {
+    leagueId,
+    leagueName,
+    rosterId,
+    playerName: options?.playerName,
+    pickLabel: options?.pickLabel,
+  })
+}
+
+export async function notifyDraftIntelPickConfirmation(
+  leagueId: string,
+  rosterId: string,
+  playerName: string
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_pick_confirmation', {
+    leagueId,
+    leagueName,
+    rosterId,
+    playerName,
+  })
+}
+
+export async function notifyDraftIntelTierBreak(
+  leagueId: string,
+  rosterId: string,
+  playerNames: string[]
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_tier_break', {
+    leagueId,
+    leagueName,
+    rosterId,
+    playerNames,
+  })
+}
+
+export async function notifyDraftIntelOrphanTeamPick(
+  leagueId: string,
+  playerName?: string
+): Promise<void> {
+  const userIds = await getLeagueMemberAppUserIds(leagueId)
+  if (userIds.length === 0) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotificationForUsers(userIds, 'draft_intel_orphan_team_pick', {
+    leagueId,
+    leagueName,
+    playerName,
+  })
+}
+
+export async function notifyDraftIntelPostDraftRecap(
+  leagueId: string,
+  rosterId: string,
+  recap: string
+): Promise<void> {
+  const appUserId = await getAppUserIdForRoster(rosterId)
+  if (!appUserId) return
+  const leagueName = await getLeagueName(leagueId)
+  await createDraftNotification(appUserId, 'draft_intel_post_draft_recap', {
+    leagueId,
+    leagueName,
+    rosterId,
+    recap,
   })
 }
 

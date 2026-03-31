@@ -4,15 +4,25 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface';
+import type { ChimmyTtsVoice } from '@/lib/chimmy-interface';
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
 import { sendChimmyMessage } from '@/lib/chimmy-chat/ChimmyChatService';
+import { buildChimmyVoiceSummary } from '@/lib/chimmy-chat/presentation';
+import {
+  CHIMMY_DEFAULT_UPGRADE_PATH,
+  CHIMMY_GENERIC_ERROR_MESSAGE,
+  CHIMMY_PREMIUM_CTA_LABEL,
+  CHIMMY_PREMIUM_FEATURE_MESSAGE,
+} from '@/lib/chimmy-chat/response-copy';
 
 const HEART_EMOJI = '\u{1F496}';
+const CHIMMY_TTS_VOICE_STORAGE_KEY = 'chimmy_tts_voice';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;
   image?: string | null;
+  upgradePath?: string | null;
 };
 
 declare global {
@@ -60,6 +70,7 @@ export default function ChimmyChat() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [selectedVoice, setSelectedVoice] = useState<ChimmyTtsVoice>('rachel');
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -80,6 +91,19 @@ export default function ChimmyChat() {
     }, 500);
     return () => clearInterval(t);
   }, [isVoicePlaying]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedVoice = window.localStorage.getItem(CHIMMY_TTS_VOICE_STORAGE_KEY);
+    if (storedVoice === 'rachel' || storedVoice === 'adam') {
+      setSelectedVoice(storedVoice);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(CHIMMY_TTS_VOICE_STORAGE_KEY, selectedVoice);
+  }, [selectedVoice]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -113,10 +137,19 @@ export default function ChimmyChat() {
   }, []);
 
   const speak = (text: string) => {
-    if (!voiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (!voiceEnabled) return;
     setIsVoicePlaying(true);
     speakChimmy(text, 'calm', {
+      voice: selectedVoice,
       onEnd: () => setIsVoicePlaying(false),
+      onError: () => {
+        setIsVoicePlaying(false);
+        toast.error('Voice playback failed. Please try again.');
+      },
+      onUnavailable: (message) => {
+        setIsVoicePlaying(false);
+        toast.error(message);
+      },
     });
   };
 
@@ -159,9 +192,14 @@ export default function ChimmyChat() {
     try {
       const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
       if (!preview.canSpend) {
-        toast.error(
-          `Need ${preview.tokenCost} token${preview.tokenCost === 1 ? '' : 's'} for this action. Current balance: ${preview.currentBalance}.`
-        );
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
+            upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
+          },
+        ]);
         return;
       }
       if (!confirmed) return;
@@ -209,17 +247,28 @@ export default function ChimmyChat() {
           });
         },
       });
-      const reply = result.response || `I couldn't read that clearly. Re-send it and I'll be more specific.`;
+      const reply = result.response || CHIMMY_GENERIC_ERROR_MESSAGE;
 
       if (!streamedAssistantHandled) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: reply,
+            upgradePath: result.upgradeRequired ? result.upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH : null,
+          },
+        ]);
       }
-      speak(reply);
+      speak(buildChimmyVoiceSummary({ content: reply }));
       if (!result.ok && result.error) {
         toast.error(result.error);
       }
     } catch {
-      toast.error('Failed to send message');
+      toast.error(CHIMMY_GENERIC_ERROR_MESSAGE);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: CHIMMY_GENERIC_ERROR_MESSAGE, upgradePath: null },
+      ]);
     } finally {
       setIsTyping(false);
       setImagePreview(null);
@@ -247,6 +296,18 @@ export default function ChimmyChat() {
         >
           {voiceEnabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
         </button>
+        <label className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
+          <span>Voice</span>
+          <select
+            value={selectedVoice}
+            onChange={(event) => setSelectedVoice(event.target.value as ChimmyTtsVoice)}
+            className="bg-slate-900 text-white rounded-lg px-2 py-1 outline-none"
+            aria-label="Select Chimmy voice"
+          >
+            <option value="rachel">Rachel</option>
+            <option value="adam">Adam</option>
+          </select>
+        </label>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -268,6 +329,16 @@ export default function ChimmyChat() {
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-5 rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
               {renderContentWithLinks(msg.content)}
+              {msg.role === 'assistant' && msg.upgradePath && (
+                <div className="mt-4">
+                  <a
+                    href={msg.upgradePath}
+                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/25"
+                  >
+                    {CHIMMY_PREMIUM_CTA_LABEL}
+                  </a>
+                </div>
+              )}
               {msg.image && (
                 <img src={msg.image} alt="Uploaded screenshot" className="mt-4 rounded-2xl max-w-full shadow-lg" />
               )}

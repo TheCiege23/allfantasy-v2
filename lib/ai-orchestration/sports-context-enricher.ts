@@ -8,14 +8,10 @@ import type { AIContextEnvelope } from '@/lib/unified-ai/types'
 import { getSportsData, type DataType as SportsRouterDataType } from '@/lib/sports-router'
 import { isSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { normalizeOrchestrationToolKey } from './tool-key-normalizer'
-import { isClearSportsAvailable } from '@/lib/provider-config'
-import {
-  fetchClearSportsProjections,
-  fetchClearSportsRankings,
-  fetchClearSportsTrends,
-  fetchClearSportsNews,
-  type ClearSportsSport,
-} from '@/lib/clear-sports'
+import { getADP, getADPTrends } from '@/lib/data/adp'
+import { getLatestNews, getHighImpactNews } from '@/lib/data/news'
+import { getPlayerNews, getInjuryReport, searchPlayers } from '@/lib/data/players'
+import { getUpcomingGames } from '@/lib/data/schedules'
 
 type SportWithData = SupportedSport
 
@@ -204,11 +200,11 @@ export async function fetchSportsContextForEnvelope(
   }
 
   const sportTyped = sport as SportWithData
-  const clearSportsSport = sport as ClearSportsSport
   const out: Record<string, unknown> = {}
   let source = 'none'
   let cached = false
   let stale = false
+  const resolvedPlayerRows: Array<Record<string, unknown>> = []
 
   const trackSource = (value: string | undefined, fallbackSources?: string[]) => {
     if (value && value !== 'none' && source === 'none') source = value
@@ -228,17 +224,10 @@ export async function fetchSportsContextForEnvelope(
     }
 
     if (dataTypes.includes('games') || dataTypes.includes('schedule')) {
-      const res = await getSportsData({
-        sport: sportTyped,
-        dataType: 'games',
-        season: options.season,
-      })
-      const games = Array.isArray(res.data) ? res.data : []
+      const games = await getUpcomingGames(sportTyped, 14)
       out.games = games.slice(0, 30)
       if (games.length > 0) {
-        trackSource(res.source, res.attemptedSources)
-        cached = cached || res.cached
-        stale = stale || Boolean(res.stale)
+        trackSource('database_first', ['game_schedules'])
       }
       if (games.length === 0) missing.push('games')
     }
@@ -280,20 +269,15 @@ export async function fetchSportsContextForEnvelope(
       if (terms.length === 0) {
         missing.push('players_query_context')
       } else {
+        const playerSearchResults = await Promise.all(terms.map((term) => searchPlayers(term, sportTyped)))
         const players: Array<Record<string, unknown>> = []
-        for (const term of terms) {
-          const res = await getSportsData({
-            sport: sportTyped,
-            dataType: 'players',
-            identifier: term,
-          })
-          const rows = Array.isArray(res.data) ? res.data : []
-          trackSource(res.source, res.attemptedSources)
-          cached = cached || res.cached
-          stale = stale || Boolean(res.stale)
+        for (const rows of playerSearchResults) {
           for (const row of rows.slice(0, 10)) {
             const rec = toRecord(row)
-            if (rec) players.push(rec)
+            if (rec) {
+              players.push(rec)
+              resolvedPlayerRows.push(rec)
+            }
           }
         }
         const deduped = Array.from(
@@ -306,59 +290,108 @@ export async function fetchSportsContextForEnvelope(
         )
         out.players = deduped.slice(0, 60)
         if (deduped.length === 0) missing.push('players')
+        else {
+          trackSource('database_first', ['sports_players'])
+
+          const playerIds = deduped
+            .map((item) => (typeof item.id === 'string' ? item.id : null))
+            .filter((item): item is string => Boolean(item))
+            .slice(0, 12)
+
+          if (playerIds.length > 0) {
+            const [injuries, news] = await Promise.all([
+              getInjuryReport(sportTyped),
+              Promise.all(playerIds.slice(0, 6).map((playerId) => getPlayerNews(playerId, 3))),
+            ])
+            if (injuries.length > 0) out.injuries = injuries.slice(0, 25)
+            const flattenedNews = news.flat()
+            if (flattenedNews.length > 0) out.playerNews = flattenedNews.slice(0, 18)
+          }
+        }
       }
     }
 
-    const clearSportsOnline = isClearSportsAvailable()
     if (dataTypes.includes('projections')) {
-      if (!clearSportsOnline) missing.push('projections_provider_unavailable')
-      else {
-        const projections = await fetchClearSportsProjections(clearSportsSport, options.season)
-        if (projections.length > 0) {
-          out.projections = projections.slice(0, 80)
-          trackSource('clear_sports')
-        } else {
-          missing.push('projections')
-        }
+      const projections = resolvedPlayerRows
+        .map((row) => {
+          const projection = toRecord(row.projections)
+          if (!projection || Object.keys(projection).length === 0) return null
+          return {
+            id: row.id,
+            name: row.name,
+            team: row.team,
+            position: row.position,
+            projection,
+          }
+        })
+        .filter(Boolean)
+
+      if (projections.length > 0) {
+        out.projections = projections.slice(0, 80)
+        trackSource('database_first', ['sports_players'])
+      } else {
+        missing.push('projections')
       }
     }
 
     if (dataTypes.includes('rankings')) {
-      if (!clearSportsOnline) missing.push('rankings_provider_unavailable')
-      else {
-        const rankings = await fetchClearSportsRankings(clearSportsSport, options.season)
-        if (rankings.length > 0) {
-          out.rankings = rankings.slice(0, 80)
-          trackSource('clear_sports')
-        } else {
-          missing.push('rankings')
-        }
+      const rankings = await getADP(sportTyped, 'redraft', 'standard')
+      if (rankings.length > 0) {
+        out.rankings = rankings.slice(0, 80).map((row, index) => ({
+          rank: index + 1,
+          playerId: row.playerId,
+          playerName: row.playerName,
+          team: row.team,
+          position: row.position,
+          adp: row.adp,
+          source: row.source,
+        }))
+        trackSource('database_first', ['adp_data'])
+      } else {
+        missing.push('rankings')
       }
     }
 
     if (dataTypes.includes('trends')) {
-      if (!clearSportsOnline) missing.push('trends_provider_unavailable')
-      else {
-        const trends = await fetchClearSportsTrends(clearSportsSport)
-        if (trends.length > 0) {
-          out.trends = trends.slice(0, 80)
-          trackSource('clear_sports')
-        } else {
-          missing.push('trends')
-        }
+      const playerTrendIds = resolvedPlayerRows
+        .map((row) => (typeof row.id === 'string' ? row.id : null))
+        .filter((row): row is string => Boolean(row))
+        .slice(0, 8)
+      const [adpTrends, highImpactNews] = await Promise.all([
+        Promise.all(playerTrendIds.map((playerId) => getADPTrends(playerId, 4))),
+        getHighImpactNews(sportTyped),
+      ])
+      const flattened = adpTrends.flat()
+      if (flattened.length > 0 || highImpactNews.length > 0) {
+        out.trends = [
+          ...flattened.slice(0, 24).map((row) => ({
+            playerId: row.playerId,
+            playerName: row.playerName,
+            adp: row.adp,
+            adpChange: row.adpChange,
+            source: row.source,
+          })),
+          ...highImpactNews.slice(0, 12).map((row) => ({
+            playerId: row.playerId,
+            playerName: row.playerName,
+            headline: row.headline,
+            impact: row.impact,
+            publishedAt: row.publishedAt.toISOString(),
+          })),
+        ]
+        trackSource('database_first', ['adp_data', 'player_news'])
+      } else {
+        missing.push('trends')
       }
     }
 
     if (dataTypes.includes('news')) {
-      if (!clearSportsOnline) missing.push('news_provider_unavailable')
-      else {
-        const news = await fetchClearSportsNews(clearSportsSport, 25)
-        if (news.length > 0) {
-          out.news = news.slice(0, 25)
-          trackSource('clear_sports')
-        } else {
-          missing.push('news')
-        }
+      const news = await getLatestNews(sportTyped, 25)
+      if (news.length > 0) {
+        out.news = news.slice(0, 25)
+        trackSource('database_first', ['player_news'])
+      } else {
+        missing.push('news')
       }
     }
   } catch (_e) {

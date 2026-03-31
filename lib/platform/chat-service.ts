@@ -16,9 +16,29 @@ function toMessagePreview(messageType: string | null | undefined, body: string |
   if (normalizedType === "poll") return "Poll"
   if (normalizedType === "pin") return "Pinned a message"
   if (normalizedType === "broadcast") return "Commissioner announcement"
+  if (normalizedType === "draft_intel_intro") return "Chimmy draft intel connected"
+  if (normalizedType === "draft_intel_queue") return "Chimmy updated your AI queue"
+  if (normalizedType === "draft_intel_on_clock") return "Chimmy says you're on the clock"
+  if (normalizedType === "draft_intel_recap") return "Chimmy posted your draft recap"
   const text = String(body || "").trim()
   if (!text) return null
   return text.length > 90 ? `${text.slice(0, 90)}…` : text
+}
+
+function isDraftIntelMetadata(metadata: unknown): metadata is Record<string, unknown> {
+  return Boolean(
+    metadata &&
+      typeof metadata === "object" &&
+      (metadata as Record<string, unknown>).draftIntelThread === true
+  )
+}
+
+function resolveSystemSenderName(messageType: string | null | undefined, metadata?: unknown): string {
+  const normalizedType = String(messageType || "text").toLowerCase()
+  if (normalizedType.startsWith("draft_intel") || isDraftIntelMetadata(metadata)) {
+    return "Chimmy AI"
+  }
+  return "System"
 }
 
 async function resolveUnreadCountForMember(
@@ -45,6 +65,11 @@ async function resolveUnreadCountForMember(
 
 async function normalizeThread(row: any, memberRow: any, appUserId: string): Promise<PlatformChatThread> {
   const latestMessage = Array.isArray(row?.messages) ? row.messages[0] : null
+  const latestMetadata =
+    latestMessage?.metadata && typeof latestMessage.metadata === "object"
+      ? (latestMessage.metadata as Record<string, unknown>)
+      : null
+  const isDraftIntelThread = row?.threadType === "ai" && isDraftIntelMetadata(latestMetadata)
   const otherDmMember =
     row?.threadType === "dm" && Array.isArray(row?.members)
       ? row.members.find((m: any) => m.userId !== appUserId && m.user)
@@ -64,7 +89,15 @@ async function normalizeThread(row: any, memberRow: any, appUserId: string): Pro
     id: row.id,
     threadType: row.threadType,
     productType: row.productType,
-    title: row.title || (row.threadType === "dm" ? dmTitle : "Chat Thread"),
+    title:
+      row.title ||
+      (isDraftIntelThread
+        ? "Chimmy Draft Intel"
+        : row.threadType === "dm"
+          ? dmTitle
+          : row.threadType === "ai"
+            ? "Chimmy AI"
+            : "Chat Thread"),
     lastMessageAt: toIso(row.lastMessageAt),
     unreadCount,
     memberCount: Number(row?._count?.members || 0),
@@ -77,6 +110,20 @@ async function normalizeThread(row: any, memberRow: any, appUserId: string): Pro
       otherUserId: otherDmMember?.user?.id || null,
       otherUsername: otherDmMember?.user?.username || null,
       otherDisplayName: otherDmMember?.user?.displayName || null,
+      showInDmList: isDraftIntelThread,
+      verifiedBadge: isDraftIntelThread || latestMetadata?.verifiedBadge === true,
+      botLabel:
+        typeof latestMetadata?.botLabel === "string"
+          ? latestMetadata.botLabel
+          : isDraftIntelThread
+            ? "Chimmy AI"
+            : null,
+      archived: latestMetadata?.archived === true,
+      allowReplies: latestMetadata?.allowReplies !== false,
+      readOnlyFeed: latestMetadata?.readOnlyFeed === true,
+      leagueId: typeof latestMetadata?.leagueId === "string" ? latestMetadata.leagueId : null,
+      leagueName: typeof latestMetadata?.leagueName === "string" ? latestMetadata.leagueName : null,
+      sport: typeof latestMetadata?.sport === "string" ? latestMetadata.sport : null,
     },
   }
 }
@@ -109,6 +156,7 @@ async function getUnifiedThreads(appUserId: string): Promise<PlatformChatThread[
                 createdAt: true,
                 messageType: true,
                 body: true,
+                metadata: true,
               },
             },
           },
@@ -231,6 +279,7 @@ export async function getPlatformThreadById(appUserId: string, threadId: string)
                 createdAt: true,
                 messageType: true,
                 body: true,
+                metadata: true,
               },
             },
           },
@@ -354,7 +403,11 @@ export async function getPlatformThreadMessages(
       id: msg.id,
       threadId,
       senderUserId: msg.senderUserId || null,
-      senderName: msg.sender?.displayName || msg.sender?.username || msg.sender?.email || 'User',
+      senderName:
+        msg.sender?.displayName ||
+        msg.sender?.username ||
+        msg.sender?.email ||
+        resolveSystemSenderName(msg.messageType, msg.metadata),
       senderUsername: msg.sender?.username || null,
       senderAvatarUrl: msg.sender?.avatarUrl ?? null,
       senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
@@ -597,7 +650,7 @@ export async function createSystemMessage(
       id: created.id,
       threadId,
       senderUserId: null,
-      senderName: 'System',
+      senderName: resolveSystemSenderName(created.messageType, created.metadata),
       messageType: created.messageType || 'text',
       body: created.body || '',
       createdAt: toIso(created.createdAt),

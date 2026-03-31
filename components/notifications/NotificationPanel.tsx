@@ -55,6 +55,13 @@ const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   draft_auction_outbid: Bell,
   draft_slow_reminder: Bell,
   draft_starting_soon: Bell,
+  draft_intel_queue_ready: Bell,
+  draft_intel_player_taken: AlertCircle,
+  draft_intel_on_clock_urgent: Clock,
+  draft_intel_pick_confirmation: Check,
+  draft_intel_tier_break: AlertCircle,
+  draft_intel_orphan_team_pick: Bell,
+  draft_intel_post_draft_recap: Bell,
 }
 
 function getIcon(type: string) {

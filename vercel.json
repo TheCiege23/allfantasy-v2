@@ -1,6 +1,50 @@
 {
   "crons": [
     {
+      "path": "/api/cron/import-players",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/import-injuries",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/import-schedules",
+      "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/import-adp",
+      "schedule": "0 6 * * 2"
+    },
+    {
+      "path": "/api/cron/import-news",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/health-check",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/data-freshness",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/import-sync",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/waiver-precompute",
+      "schedule": "0 6 * * 3"
+    },
+    {
+      "path": "/api/cron/gameday-preload",
+      "schedule": "0 8 * * 0"
+    },
+    {
+      "path": "/api/cron/daily-cache-refresh",
+      "schedule": "0 3 * * *"
+    },
+    {
       "path": "/api/cron/ai-adp",
       "schedule": "0 6 * * *"
     }

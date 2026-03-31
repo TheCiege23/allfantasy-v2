@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/adminAuth"
-import { getSystemHealth } from "@/lib/admin-dashboard"
+import { getLatestSystemHealth, runSystemHealthMonitor } from '@/lib/agents/workers/api-health-monitor'
 
 export const dynamic = "force-dynamic"
 
@@ -8,36 +8,25 @@ export async function GET() {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
   try {
-    const health = await getSystemHealth()
+    const health = (await getLatestSystemHealth()) ?? (await runSystemHealthMonitor({ runImports: false, notifyAdmins: false }))
     return NextResponse.json(health)
   } catch (e) {
     console.error("[admin/system/health]", e)
     return NextResponse.json(
       {
-        api: {},
-        database: "down" as const,
-        workerQueue: {
-          status: "down" as const,
-          queued: 0,
-          running: 0,
-          failedLast24h: 0,
-          lastCheck: new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+        overall: 'down',
+        providers: {},
+        dataFreshness: {},
+        importCompleteness: {
+          leagues: {
+            synced: 0,
+            stale: 0,
+            total: 0,
+          },
         },
-        sportsAlerts: {
-          windowHours: 24,
-          totalAlerts: 0,
-          sampledAlerts: 0,
-          p50Ms: null,
-          p95Ms: null,
-          p99Ms: null,
-          maxMs: null,
-          lastAlertAt: null,
-          byType: [
-            { alertType: "injury_alert", totalAlerts: 0, sampledAlerts: 0, p50Ms: null, p95Ms: null, maxMs: null },
-            { alertType: "performance_alert", totalAlerts: 0, sampledAlerts: 0, p50Ms: null, p95Ms: null, maxMs: null },
-            { alertType: "lineup_alert", totalAlerts: 0, sampledAlerts: 0, p50Ms: null, p95Ms: null, maxMs: null },
-          ],
-        },
+        alertHistory: [],
+        recoveryActions: [],
       },
       { status: 500 }
     )

@@ -8,11 +8,15 @@ import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import {
   createDraftNotification,
   getAppUserIdForRoster,
+  notifyDraftIntelOnClockUrgent,
+  notifyDraftIntelPickConfirmation,
+  notifyDraftIntelQueueReady,
   notifyApproachingTimeout,
   notifyAutoPickFired,
   notifyOnTheClockAfterPick,
   notifyQueuePlayerUnavailable,
 } from '@/lib/draft-notifications'
+import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
 
 type SlotOrderEntry = { slot: number; rosterId: string; displayName: string }
 type TradedPickRecord = {
@@ -247,10 +251,33 @@ export async function runSlowDraftAutomationTick(
         nextRuntimeMeta.reminderOverallPick = null
         nextRuntimeMeta.approachingTimeoutOverallPick = null
         void notifyAutoPickFired(leagueId, onClockRosterId, queuePick.playerName)
+        void notifyDraftIntelPickConfirmation(leagueId, onClockRosterId, queuePick.playerName).catch(() => {})
         if (queuePick.queuePlayerUnavailable) {
           void notifyQueuePlayerUnavailable(leagueId, onClockRosterId)
         }
         void notifyOnTheClockAfterPick(leagueId)
+        void (async () => {
+          const states = await publishDraftIntelForUpcomingManagers({
+            leagueId,
+            trigger: 'pick_update',
+          }).catch(() => [])
+          for (const result of states) {
+            const state = result.state
+            await sendDraftIntelDm(state).catch(() => null)
+            if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+              await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+                playerName: state.queue[0].playerName,
+                availabilityProbability: state.queue[0].availabilityProbability,
+              }).catch(() => null)
+            }
+            if (state.status === 'on_clock') {
+              await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+                playerName: state.queue[0]?.playerName,
+                pickLabel: current?.pickLabel,
+              }).catch(() => null)
+            }
+          }
+        })()
       } else {
         const draftConfig = await prisma.league.findUnique({
           where: { id: leagueId },
@@ -275,6 +302,15 @@ export async function runSlowDraftAutomationTick(
               void notifyQueuePlayerUnavailable(leagueId, onClockRosterId)
             }
             void notifyOnTheClockAfterPick(leagueId)
+            void (async () => {
+              const states = await publishDraftIntelForUpcomingManagers({
+                leagueId,
+                trigger: 'pick_update',
+              }).catch(() => [])
+              for (const result of states) {
+                await sendDraftIntelDm(result.state).catch(() => null)
+              }
+            })()
           }
         }
       }

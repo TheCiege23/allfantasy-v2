@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sha256Hex } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
+import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 
 export const runtime = "nodejs"
 
@@ -9,6 +10,12 @@ export async function POST(req: Request) {
   const ip = getClientIp(req)
   const rl = rateLimit(`pw-reset:${ip}`, 5, 600_000)
   if (!rl.success) {
+    void logPasswordResetAudit({
+      outcome: "rate_limited",
+      type: "email",
+      ip,
+      detail: { limiter: "pw-reset" },
+    })
     return NextResponse.json({ ok: true })
   }
 
@@ -19,12 +26,28 @@ export async function POST(req: Request) {
   if (phone && !phone.startsWith("+")) phone = "+1" + phone
 
   if (type === "sms") {
-    if (!/^\+\d{10,15}$/.test(phone)) return NextResponse.json({ ok: true })
+    if (!/^\+\d{10,15}$/.test(phone)) {
+      void logPasswordResetAudit({
+        outcome: "invalid_sms_phone",
+        type: "sms",
+        phone,
+        ip,
+      })
+      return NextResponse.json({ ok: true })
+    }
     const profile = await (prisma as any).userProfile.findUnique({
       where: { phone },
       select: { userId: true },
     }).catch(() => null)
-    if (!profile) return NextResponse.json({ ok: true })
+    if (!profile) {
+      void logPasswordResetAudit({
+        outcome: "sms_profile_not_found",
+        type: "sms",
+        phone,
+        ip,
+      })
+      return NextResponse.json({ ok: true })
+    }
 
     const code = String(Math.floor(100000 + Math.random() * 900000))
     const tokenHash = sha256Hex(code)
@@ -42,26 +65,65 @@ export async function POST(req: Request) {
       const { getTwilioClient } = await import("@/lib/twilio-client")
       const client = await getTwilioClient()
       const fromNumber = process.env.TWILIO_PHONE_NUMBER
-      if (!fromNumber) return NextResponse.json({ ok: true })
+      if (!fromNumber) {
+        void logPasswordResetAudit({
+          outcome: "sms_provider_missing",
+          type: "sms",
+          userId: profile.userId,
+          phone,
+          ip,
+        })
+        return NextResponse.json({ ok: true })
+      }
       await client.messages.create({
         body: `Your AllFantasy password reset code is: ${code}. It expires in 15 minutes.`,
         from: fromNumber,
         to: phone,
       })
-    } catch {
+      void logPasswordResetAudit({
+        outcome: "sms_sent",
+        type: "sms",
+        userId: profile.userId,
+        phone,
+        ip,
+      })
+    } catch (error) {
+      void logPasswordResetAudit({
+        outcome: "sms_send_failed",
+        type: "sms",
+        userId: profile.userId,
+        phone,
+        ip,
+        detail: { error: error instanceof Error ? error.message : String(error) },
+      })
       return NextResponse.json({ ok: true })
     }
     return NextResponse.json({ ok: true, method: "sms" })
   }
 
-  if (!email) return NextResponse.json({ ok: true })
+  if (!email) {
+    void logPasswordResetAudit({
+      outcome: "empty_email",
+      type: "email",
+      ip,
+    })
+    return NextResponse.json({ ok: true })
+  }
 
   const user = await (prisma as any).appUser.findUnique({
     where: { email },
     select: { id: true, email: true },
   }).catch(() => null)
 
-  if (!user) return NextResponse.json({ ok: true })
+  if (!user) {
+    void logPasswordResetAudit({
+      outcome: "email_user_not_found",
+      type: "email",
+      email,
+      ip,
+    })
+    return NextResponse.json({ ok: true })
+  }
 
   const code = String(Math.floor(100000 + Math.random() * 900000))
   const tokenHash = sha256Hex(code)
@@ -74,13 +136,20 @@ export async function POST(req: Request) {
   await (prisma as any).passwordResetToken.create({
     data: { userId: user.id, tokenHash, expiresAt },
   })
+  void logPasswordResetAudit({
+    outcome: "email_token_created",
+    type: "email",
+    userId: user.id,
+    email: user.email,
+    ip,
+  })
 
   try {
     const { getResendClient } = await import("@/lib/resend-client")
-    const { client, fromEmail } = await getResendClient()
+    const { client } = await getResendClient()
 
-    await client.emails.send({
-      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
+    const result = await client.emails.send({
+      from: process.env.RESEND_FROM || "noreply@allfantasy.ai",
       to: user.email,
       subject: "Your AllFantasy password reset code",
       html: `
@@ -113,8 +182,71 @@ export async function POST(req: Request) {
 </body>
 </html>`,
     })
-  } catch {
-    return NextResponse.json({ ok: true })
+
+    if ("error" in result && result.error) {
+      console.error("[auth][password-reset][request] resend error", {
+        userId: user.id,
+        email: user.email,
+        message: result.error.message,
+      })
+      void logPasswordResetAudit({
+        outcome: "email_send_failed",
+        type: "email",
+        userId: user.id,
+        email: user.email,
+        ip,
+        detail: { provider: "resend", message: result.error.message },
+      })
+      await (prisma as any).passwordResetToken.deleteMany({
+        where: { userId: user.id },
+      }).catch(() => {})
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Unable to send password reset email right now. Please try again later.",
+        },
+        { status: 500 }
+      )
+    }
+    void logPasswordResetAudit({
+      outcome: "email_sent",
+      type: "email",
+      userId: user.id,
+      email: user.email,
+      ip,
+      detail: {
+        provider: "resend",
+        emailId: "data" in result && result.data?.id ? result.data.id : null,
+        from: process.env.RESEND_FROM || "noreply@allfantasy.ai",
+      },
+    })
+  } catch (error) {
+    console.error("[auth][password-reset][request] email send failed", {
+      userId: user.id,
+      email: user.email,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    void logPasswordResetAudit({
+      outcome: "email_send_failed",
+      type: "email",
+      userId: user.id,
+      email: user.email,
+      ip,
+      detail: {
+        provider: "resend",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    })
+    await (prisma as any).passwordResetToken.deleteMany({
+      where: { userId: user.id },
+    }).catch(() => {})
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Unable to send password reset email right now. Please try again later.",
+      },
+      { status: 500 }
+    )
   }
 
   return NextResponse.json({ ok: true, method: "email" })

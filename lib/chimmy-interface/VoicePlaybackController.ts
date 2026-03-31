@@ -1,20 +1,32 @@
 /**
- * VoicePlaybackController — calm TTS with stop support and optional pacing.
+ * VoicePlaybackController — server-backed TTS with stop support.
  * Use in ChimmyChat (or any Chimmy voice UI) for speak/stop behavior.
  */
 
+import type { ChimmyTtsVoice, ChimmyVoicePreset } from './types'
 import { getChimmyVoiceStyleProfile, selectChimmyVoice } from './ChimmyVoiceStyleProfile'
-import type { ChimmyVoicePreset } from './types'
 
+let activeAudio: HTMLAudioElement | null = null
+let activeObjectUrl: string | null = null
+let activeFetchController: AbortController | null = null
 let activeUtterance: SpeechSynthesisUtterance | null = null
 let activeSessionId = 0
-let pauseTimer: ReturnType<typeof setTimeout> | null = null
+let activeLoading = false
 
-function clearPauseTimer() {
-  if (pauseTimer) {
-    clearTimeout(pauseTimer)
-    pauseTimer = null
-  }
+function canUseServerAudioPlayback() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof Audio !== 'undefined' &&
+    typeof window.URL?.createObjectURL === 'function'
+  )
+}
+
+function canUseBrowserSpeechFallback() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.speechSynthesis !== 'undefined' &&
+    typeof window.SpeechSynthesisUtterance !== 'undefined'
+  )
 }
 
 function sanitizeForSpeech(raw: string): string {
@@ -25,61 +37,97 @@ function sanitizeForSpeech(raw: string): string {
     .trim()
 }
 
-function splitIntoSpeechSegments(text: string): string[] {
-  const sanitized = sanitizeForSpeech(text)
-  if (!sanitized) return []
+function cleanupAudioResources() {
+  if (activeAudio) {
+    activeAudio.pause()
+    activeAudio.src = ''
+    activeAudio = null
+  }
+  if (activeObjectUrl) {
+    URL.revokeObjectURL(activeObjectUrl)
+    activeObjectUrl = null
+  }
+  if (activeFetchController) {
+    activeFetchController.abort()
+    activeFetchController = null
+  }
+  activeLoading = false
+}
 
-  const roughSentences = sanitized
-    .split(/(?<=[.!?])\s+/)
-    .map((segment) => segment.trim())
-    .filter(Boolean)
+function cleanupSpeechResources() {
+  if (typeof window === 'undefined' || typeof window.speechSynthesis === 'undefined') return
+  window.speechSynthesis.cancel()
+  activeUtterance = null
+}
 
-  const segments: string[] = []
-  for (const sentence of roughSentences) {
-    if (sentence.length <= 240) {
-      segments.push(sentence)
-      continue
-    }
+function speakWithBrowserFallback(
+  text: string,
+  preset: ChimmyVoicePreset,
+  sessionId: number,
+  options?: SpeakChimmyOptions
+) {
+  if (!canUseBrowserSpeechFallback()) return false
 
-    const clauseParts = sentence
-      .split(/,\s+/)
-      .map((part) => part.trim())
-      .filter(Boolean)
-    let current = ''
-    for (const clause of clauseParts) {
-      const next = current ? `${current}, ${clause}` : clause
-      if (next.length > 240 && current) {
-        segments.push(current)
-        current = clause
-      } else {
-        current = next
-      }
-    }
-    if (current) segments.push(current)
+  const sanitizedText = sanitizeForSpeech(text)
+  if (!sanitizedText) {
+    options?.onEnd?.()
+    return true
   }
 
-  return segments.length > 0 ? segments : [sanitized]
+  const synth = window.speechSynthesis
+  const config = getChimmyVoiceStyleProfile(preset)
+  const utterance = new window.SpeechSynthesisUtterance(sanitizedText)
+  utterance.rate = config.rate
+  utterance.pitch = config.pitch
+  utterance.volume = config.volume
+
+  const chosenVoice = selectChimmyVoice(synth.getVoices(), config)
+  if (chosenVoice) {
+    utterance.voice = chosenVoice
+  }
+
+  utterance.onend = () => {
+    if (activeSessionId !== sessionId) return
+    activeUtterance = null
+    activeLoading = false
+    options?.onEnd?.()
+  }
+
+  utterance.onerror = () => {
+    if (activeSessionId !== sessionId) return
+    activeUtterance = null
+    activeLoading = false
+    options?.onError?.()
+    options?.onEnd?.()
+  }
+
+  cleanupSpeechResources()
+  activeUtterance = utterance
+  activeLoading = false
+  synth.speak(utterance)
+  return true
 }
 
 /**
  * Stop any current Chimmy TTS playback.
  */
 export function stopChimmyVoice(): void {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return
   activeSessionId += 1
-  clearPauseTimer()
-  window.speechSynthesis.cancel()
-  activeUtterance = null
+  if (typeof window === 'undefined') return
+  cleanupAudioResources()
+  cleanupSpeechResources()
 }
 
 export interface SpeakChimmyOptions {
+  voice?: ChimmyTtsVoice
   onStart?: () => void
   onEnd?: () => void
   onError?: () => void
+  onUnavailable?: (message: string) => void
 }
 
 /**
- * Speak text with Chimmy's calm voice profile. Cancels any current playback first.
+ * Speak text with Chimmy's server-backed TTS route. Cancels any current playback first.
  * Returns a function to stop playback (e.g. for a "Stop" button).
  */
 export function speakChimmy(
@@ -87,73 +135,126 @@ export function speakChimmy(
   preset: ChimmyVoicePreset = 'calm',
   options?: SpeakChimmyOptions
 ): () => void {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window) || !text?.trim()) {
+  if (typeof window === 'undefined' || !text?.trim()) {
     return stopChimmyVoice
   }
 
   const sessionId = activeSessionId + 1
   activeSessionId = sessionId
-  clearPauseTimer()
-  window.speechSynthesis.cancel()
-  activeUtterance = null
+  cleanupAudioResources()
+  cleanupSpeechResources()
+  options?.onStart?.()
+  activeLoading = true
 
-  const config = getChimmyVoiceStyleProfile(preset)
-  const segments = splitIntoSpeechSegments(text)
-  if (segments.length === 0) {
-    options?.onEnd?.()
+  const hasServerAudioPlayback = canUseServerAudioPlayback()
+  const hasBrowserSpeechFallback = canUseBrowserSpeechFallback()
+
+  if (!hasServerAudioPlayback) {
+    const didFallback = speakWithBrowserFallback(text, preset, sessionId, options)
+    if (!didFallback) {
+      activeLoading = false
+      options?.onUnavailable?.('Voice playback is unavailable right now.')
+      options?.onEnd?.()
+    }
     return stopChimmyVoice
   }
-  const voices = window.speechSynthesis.getVoices()
-  const chosen = selectChimmyVoice(voices, config)
-  const pauseAfterSentenceMs = config.pauseAfterSentenceMs ?? 160
-  let completed = false
 
-  const finish = (triggerError?: boolean) => {
-    if (completed) return
-    completed = true
-    if (activeSessionId === sessionId) {
-      activeUtterance = null
-      clearPauseTimer()
-    }
-    if (triggerError) options?.onError?.()
-    options?.onEnd?.()
-  }
+  const controller = new AbortController()
+  activeFetchController = controller
 
-  const speakSegment = (index: number) => {
-    if (activeSessionId !== sessionId) return
-    if (index >= segments.length) {
-      finish()
-      return
-    }
+  void (async () => {
+    try {
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, preset, voice: options?.voice }),
+        signal: controller.signal,
+      })
 
-    const utterance = new SpeechSynthesisUtterance(segments[index]!)
-    utterance.rate = config.rate
-    utterance.pitch = config.pitch
-    utterance.volume = config.volume
-    if (chosen) utterance.voice = chosen
-
-    utterance.onend = () => {
       if (activeSessionId !== sessionId) return
-      activeUtterance = null
-      if (index >= segments.length - 1) {
-        finish()
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Voice playback is unavailable right now.'
+        const shouldBrowserFallback =
+          hasBrowserSpeechFallback &&
+          (response.headers.get('X-Chimmy-TTS-Fallback') === 'browser' || response.status >= 500)
+
+        if (shouldBrowserFallback) {
+          const didFallback = speakWithBrowserFallback(text, preset, sessionId, options)
+          if (!didFallback) {
+            options?.onUnavailable?.(message)
+            options?.onEnd?.()
+          }
+        } else if (response.status === 503 || response.status === 501) {
+          options?.onUnavailable?.(message)
+          options?.onEnd?.()
+        } else {
+          options?.onError?.()
+          options?.onEnd?.()
+        }
+        cleanupAudioResources()
         return
       }
-      pauseTimer = setTimeout(() => {
-        speakSegment(index + 1)
-      }, pauseAfterSentenceMs)
-    }
-    utterance.onerror = () => {
+
+      const buffer = await response.arrayBuffer()
       if (activeSessionId !== sessionId) return
-      finish(true)
+
+      const blob = new Blob([buffer], {
+        type: response.headers.get('content-type') || 'audio/mpeg',
+      })
+      const objectUrl = URL.createObjectURL(blob)
+      const audio = new Audio(objectUrl)
+
+      activeObjectUrl = objectUrl
+      activeAudio = audio
+      activeLoading = false
+
+      audio.onended = () => {
+        if (activeSessionId !== sessionId) return
+        cleanupAudioResources()
+        options?.onEnd?.()
+      }
+      audio.onerror = () => {
+        if (activeSessionId !== sessionId) return
+        cleanupAudioResources()
+        const didFallback = hasBrowserSpeechFallback
+          ? speakWithBrowserFallback(text, preset, sessionId, options)
+          : false
+        if (!didFallback) {
+          options?.onError?.()
+          options?.onEnd?.()
+        }
+      }
+
+      await audio.play().catch(() => {
+        cleanupAudioResources()
+        const didFallback = hasBrowserSpeechFallback
+          ? speakWithBrowserFallback(text, preset, sessionId, options)
+          : false
+        if (!didFallback) {
+          options?.onError?.()
+          options?.onEnd?.()
+        }
+      })
+    } catch (error) {
+      if (activeSessionId !== sessionId) return
+      const aborted = error instanceof DOMException && error.name === 'AbortError'
+      if (!aborted) {
+        const didFallback = hasBrowserSpeechFallback
+          ? speakWithBrowserFallback(text, preset, sessionId, options)
+          : false
+        if (!didFallback) {
+          options?.onError?.()
+          options?.onEnd?.()
+        }
+      }
+      cleanupAudioResources()
     }
-
-    activeUtterance = utterance
-    window.speechSynthesis.speak(utterance)
-  }
-
-  options?.onStart?.()
-  speakSegment(0)
+  })()
 
   return stopChimmyVoice
 }
@@ -162,6 +263,10 @@ export function speakChimmy(
  * Whether TTS is currently playing (best-effort).
  */
 export function isChimmyVoicePlaying(): boolean {
-  if (typeof window === 'undefined' || !window.speechSynthesis) return false
-  return window.speechSynthesis.speaking || window.speechSynthesis.pending
+  if (typeof window === 'undefined') return false
+  return (
+    activeLoading ||
+    Boolean(activeAudio && !activeAudio.paused && !activeAudio.ended) ||
+    Boolean(activeUtterance)
+  )
 }

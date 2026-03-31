@@ -21,6 +21,7 @@ export interface ChimmyConversationThreadProps {
   isTyping?: boolean
   onFollowUpClick?: (prompt: string) => void
   onListenToLast?: () => void
+  onListenToLastFull?: () => void
   isVoicePlaying?: boolean
   className?: string
 }
@@ -34,6 +35,7 @@ export default function ChimmyConversationThread({
   isTyping = false,
   onFollowUpClick,
   onListenToLast,
+  onListenToLastFull,
   isVoicePlaying = false,
   className = '',
 }: ChimmyConversationThreadProps) {
@@ -46,6 +48,7 @@ export default function ChimmyConversationThread({
   return (
     <div className={`space-y-4 ${className}`}>
       {messages.map((msg, i) => (
+        // Premium-lock and error replies should present a clear next step instead of generic follow-ups.
         <ChimmyMessageBubble
           key={i}
           role={msg.role}
@@ -53,13 +56,31 @@ export default function ChimmyConversationThread({
           imageUrl={msg.imageUrl}
           meta={msg.meta}
           followUpChips={
-            msg.role === 'assistant' && i === messages.length - 1 && !isTyping
+            msg.role === 'assistant' &&
+            i === messages.length - 1 &&
+            !isTyping &&
+            msg.meta?.variant !== 'premium_gate' &&
+            msg.meta?.variant !== 'error'
               ? FOLLOW_UP_CHIPS
               : undefined
           }
           onFollowUpClick={onFollowUpClick}
-          showListen={msg.role === 'assistant' && i === messages.length - 1 && !isTyping}
+          showListen={
+            msg.role === 'assistant' &&
+            i === messages.length - 1 &&
+            !isTyping &&
+            msg.meta?.variant !== 'premium_gate' &&
+            msg.meta?.variant !== 'error'
+          }
           onListen={onListenToLast}
+          showListenFull={
+            msg.role === 'assistant' &&
+            i === messages.length - 1 &&
+            !isTyping &&
+            msg.meta?.variant !== 'premium_gate' &&
+            msg.meta?.variant !== 'error'
+          }
+          onListenFull={onListenToLastFull}
           isListening={isVoicePlaying}
         />
       ))}

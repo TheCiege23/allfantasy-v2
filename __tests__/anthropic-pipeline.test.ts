@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const createMessageMock = vi.fn()
 
+vi.mock('server-only', () => ({}))
+
 class MockAnthropicApiError extends Error {
   status: number
 
@@ -108,11 +110,12 @@ describe("Anthropic Chimmy pipeline", () => {
     expect(createMessageMock).toHaveBeenCalledTimes(1)
     expect(result).toEqual({
       result:
-        "This feature requires AF Pro. Upgrade to unlock full trade analysis, waiver recommendations, draft assistance, and dynasty projections.",
+        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
       intent: "waiver_wire",
-      model: "claude-sonnet-4-6",
+      model: "claude-haiku-4-5-20251001",
       tokensUsed: 0,
       upgradeRequired: true,
+      upgradePath: "/pricing",
     })
   })
 
@@ -162,6 +165,95 @@ describe("Anthropic Chimmy pipeline", () => {
       intent: "meta_insights",
       model: "claude-sonnet-4-6",
       tokensUsed: 50,
+    })
+  })
+
+  it("passes uploaded images to Claude as base64 image content blocks", async () => {
+    createMessageMock
+      .mockResolvedValueOnce({
+        model: "claude-sonnet-4-6",
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              intent: "quick_ask",
+              isQuickAsk: true,
+              payload: {
+                userMessage: "Analyze this screenshot",
+              },
+            }),
+          },
+        ],
+        usage: { input_tokens: 11, output_tokens: 7 },
+      })
+      .mockResolvedValueOnce({
+        model: "claude-haiku-4-5-20251001",
+        content: [{ type: "text", text: "Claude image analysis result." }],
+        usage: { input_tokens: 14, output_tokens: 9 },
+      })
+
+    const { runAgentPipeline } = await import("@/lib/agents/anthropic-pipeline")
+    const result = await runAgentPipeline("Analyze this screenshot", {
+      userId: "user-image-1",
+      tier: "pro",
+      sport: "NFL",
+      leagueFormat: "redraft",
+      scoring: "PPR",
+      image: {
+        data: "aW1hZ2UtYnl0ZXM=",
+        mediaType: "image/png",
+        name: "trade.png",
+      },
+    })
+
+    expect(createMessageMock).toHaveBeenCalledTimes(2)
+    expect(createMessageMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            role: "user",
+            content: expect.arrayContaining([
+              expect.objectContaining({ type: "text" }),
+              expect.objectContaining({
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: "aW1hZ2UtYnl0ZXM=",
+                },
+              }),
+            ]),
+          }),
+        ],
+      })
+    )
+    expect(createMessageMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            role: "user",
+            content: expect.arrayContaining([
+              expect.objectContaining({ type: "text" }),
+              expect.objectContaining({
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: "aW1hZ2UtYnl0ZXM=",
+                },
+              }),
+            ]),
+          }),
+        ],
+      })
+    )
+    expect(result).toEqual({
+      result: "Claude image analysis result.",
+      intent: "quick_ask",
+      model: "claude-haiku-4-5-20251001",
+      tokensUsed: 41,
     })
   })
 })

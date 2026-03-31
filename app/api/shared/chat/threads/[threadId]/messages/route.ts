@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePlatformUser } from '@/lib/platform/current-user'
-import { createPlatformThreadMessage, getPlatformThreadMessages } from '@/lib/platform/chat-service'
+import {
+  createPlatformThreadMessage,
+  createSystemMessage,
+  getPlatformThreadMessages,
+} from '@/lib/platform/chat-service'
 import type { PlatformChatMessage } from '@/types/platform-shared'
 import {
   isLeagueVirtualRoom,
@@ -19,6 +23,7 @@ import { isMergeTriggered } from '@/lib/survivor/SurvivorMergeEngine'
 import { prisma } from '@/lib/prisma'
 import { getBlockedUserIds } from '@/lib/moderation'
 import { filterMessagesByBlocked } from '@/lib/moderation'
+import { publishDraftIntelState } from '@/lib/draft-intelligence'
 
 const bracketMessageInclude = {
   user: {
@@ -75,6 +80,33 @@ function applyBlockedVisibility(
     messages: filtered,
     hiddenBlockedCount: Math.max(0, messages.length - filtered.length),
   }
+}
+
+async function resolveDraftIntelThreadState(threadId: string): Promise<{
+  isDraftIntel: boolean
+  archived: boolean
+  leagueId: string | null
+}> {
+  const messages = await (prisma as any).platformChatMessage.findMany({
+    where: { threadId },
+    orderBy: { createdAt: 'desc' },
+    take: 25,
+    select: { metadata: true },
+  })
+  for (const message of messages) {
+    const metadata =
+      message.metadata && typeof message.metadata === 'object'
+        ? (message.metadata as Record<string, unknown>)
+        : null
+    if (metadata?.draftIntelThread === true) {
+      return {
+        isDraftIntel: true,
+        archived: metadata.archived === true,
+        leagueId: typeof metadata.leagueId === 'string' ? metadata.leagueId : null,
+      }
+    }
+  }
+  return { isDraftIntel: false, archived: false, leagueId: null }
 }
 
 export async function GET(
@@ -259,6 +291,8 @@ export async function POST(
     include: {
       thread: {
         select: {
+          id: true,
+          title: true,
           threadType: true,
           members: { select: { userId: true } },
         },
@@ -267,6 +301,13 @@ export async function POST(
   })
   if (!myMembership?.thread) {
     return NextResponse.json({ error: "Thread not available" }, { status: 403 })
+  }
+
+  const draftIntelThread = myMembership.thread.threadType === 'ai'
+    ? await resolveDraftIntelThreadState(threadId)
+    : { isDraftIntel: false, archived: false, leagueId: null }
+  if (draftIntelThread.isDraftIntel && draftIntelThread.archived) {
+    return NextResponse.json({ error: 'This Chimmy draft thread is archived.' }, { status: 403 })
   }
 
   if (myMembership.thread.threadType === "dm") {
@@ -303,5 +344,38 @@ export async function POST(
     return NextResponse.json({ error: 'Unable to send message' }, { status: 400 })
   }
 
-  return NextResponse.json({ status: 'ok', message: created })
+  let aiReply: PlatformChatMessage | null = null
+  if (draftIntelThread.isDraftIntel && draftIntelThread.leagueId) {
+    const state = await publishDraftIntelState({
+      leagueId: draftIntelThread.leagueId,
+      userId: user.appUserId,
+      trigger: 'reply',
+    }).catch(() => null)
+    if (state) {
+      aiReply = await createSystemMessage(
+        threadId,
+        'draft_intel_queue',
+        state.status === 'on_clock' ? state.messages.onClock : state.messages.update,
+        {
+          draftIntelThread: true,
+          verifiedBadge: true,
+          leagueId: state.leagueId,
+          leagueName: state.leagueName,
+          sport: state.sport,
+          archived: false,
+          allowReplies: true,
+          showInDmList: true,
+          readOnlyFeed: true,
+          messageKind: 'reply',
+          question: message,
+          headline: state.headline,
+          queue: state.queue.slice(0, 3),
+          actionHref: `/app/league/${state.leagueId}/draft`,
+          actionLabel: 'Open draft',
+        }
+      )
+    }
+  }
+
+  return NextResponse.json({ status: 'ok', message: created, aiReply })
 }

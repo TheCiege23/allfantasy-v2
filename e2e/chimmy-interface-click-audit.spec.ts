@@ -45,51 +45,48 @@ test.describe('@chimmy chimmy interface click audit', () => {
         },
       })
 
-      const speechState = {
-        speaking: false,
-        pending: false,
-        activeUtterance: null as SpeechSynthesisUtterance | null,
-      }
-      const synth = {
-        get speaking() {
-          return speechState.speaking
-        },
-        get pending() {
-          return speechState.pending
-        },
-        cancel() {
-          speechState.pending = false
-          speechState.speaking = false
-          const utterance = speechState.activeUtterance
-          speechState.activeUtterance = null
-          if (utterance && typeof utterance.onend === 'function') {
-            utterance.onend(new Event('end'))
-          }
-        },
-        speak(utterance: SpeechSynthesisUtterance) {
-          speechState.activeUtterance = utterance
-          speechState.pending = true
-          setTimeout(() => {
-            if (speechState.activeUtterance !== utterance) return
-            speechState.pending = false
-            speechState.speaking = true
-            setTimeout(() => {
-              if (speechState.activeUtterance !== utterance) return
-              speechState.speaking = false
-              if (typeof utterance.onend === 'function') {
-                utterance.onend(new Event('end'))
-              }
-            }, 250)
-          }, 10)
-        },
-        getVoices() {
-          return [{ name: 'Test Voice', lang: 'en-US' }]
-        },
-      }
-      Object.defineProperty(window, 'speechSynthesis', {
+      let objectUrlId = 0
+      const originalUrl = window.URL
+      Object.defineProperty(window, 'URL', {
         configurable: true,
-        value: synth,
+        value: class FakeURL extends originalUrl {
+          static createObjectURL() {
+            objectUrlId += 1
+            return `blob:chimmy-${objectUrlId}`
+          }
+
+          static revokeObjectURL() {}
+        },
       })
+
+      class FakeAudio {
+        src: string
+        paused = true
+        ended = false
+        onended: ((event: Event) => void) | null = null
+        onerror: ((event: Event) => void) | null = null
+
+        constructor(src = '') {
+          this.src = src
+        }
+
+        play() {
+          this.paused = false
+          this.ended = false
+          setTimeout(() => {
+            if (this.paused) return
+            this.paused = true
+            this.ended = true
+            this.onended?.(new Event('ended'))
+          }, 250)
+          return Promise.resolve()
+        }
+
+        pause() {
+          this.paused = true
+        }
+      }
+      ;(window as any).Audio = FakeAudio
 
       class FakeSpeechRecognition {
         lang = 'en-US'
@@ -147,6 +144,14 @@ test.describe('@chimmy chimmy interface click audit', () => {
             requiresConfirmation: true,
           },
         }),
+      })
+    })
+
+    await page.route('**/api/tts', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'audio/mpeg',
+        body: 'FAKE_MP3_DATA',
       })
     })
 

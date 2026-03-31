@@ -18,6 +18,7 @@ import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 import { buildAgentPrompt, inferAgentFromMessage } from '@/lib/agents/pipeline'
+import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import {
   TokenInsufficientBalanceError,
@@ -1070,7 +1071,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   if (userId) {
-    const assistantResponse = sanitizedAiExplanation || "I couldn't complete that request. Please try again."
+    const assistantResponse = sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
     const persistTasks = [
       appendChatHistory({
         conversationId,
@@ -1108,7 +1109,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   return NextResponse.json({
-    response: sanitizedAiExplanation || "I couldn't complete that request. Please try again.",
+    response: sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
     meta,
   })
 }

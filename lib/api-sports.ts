@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev, normalizePosition, normalizePlayerName } from './team-abbrev';
+import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
 
 const BASE_URL = 'https://v1.american-football.api-sports.io';
 
@@ -62,6 +63,18 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
     throw new Error('API_SPORTS_KEY not configured');
   }
 
+  if (!(await rateLimitManager.canCall('api_sports', endpoint))) {
+    await rateLimitManager.recordCall('api_sports', endpoint, 429, 0, { cached: true, error: 'rate_limit_guard' })
+    const fallbackType = endpoint.includes('injur')
+      ? 'injuries'
+      : endpoint.includes('game')
+        ? 'schedule'
+        : endpoint.includes('player')
+          ? 'players'
+          : 'players'
+    return await rateLimitManager.getFallback('api_sports', fallbackType) as T
+  }
+
   if (Date.now() < ipBlockedUntil) {
     throw new Error('API-Sports IP blocked — skipping until cooldown expires');
   }
@@ -92,6 +105,7 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
     clearTimeout(timeout);
 
     if (!response.ok) {
+      await rateLimitManager.recordCall('api_sports', endpoint, response.status, 0, { error: response.statusText })
       throw new Error(`API-Sports request failed: ${response.status} ${response.statusText}`);
     }
 
@@ -112,6 +126,7 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
     }
 
     const result = await response.json();
+    await rateLimitManager.recordCall('api_sports', endpoint, response.status, 0)
 
     if (result.errors && Object.keys(result.errors).length > 0) {
       const errStr = JSON.stringify(result.errors);
@@ -125,6 +140,9 @@ async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<strin
     return result.response as T;
   } catch (error) {
     clearTimeout(timeout);
+    await rateLimitManager.recordCall('api_sports', endpoint, 500, 0, {
+      error: error instanceof Error ? error.message : String(error),
+    })
     throw error;
   }
 }

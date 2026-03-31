@@ -3,6 +3,10 @@
 import React from 'react'
 import { SuggestedActionRenderer } from '@/lib/chimmy-chat/SuggestedActionRenderer'
 import {
+  buildChimmyCollapsedSummary,
+  isLongChimmyResponse,
+} from '@/lib/chimmy-chat/presentation'
+import {
   getConfidenceDisplayText,
   getConfidenceFromApiResponse,
   shouldShowConfidence,
@@ -25,6 +29,9 @@ export interface ChimmyMessageMeta {
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
   responseStructure?: ChimmyResponseStructureMeta
+  variant?: 'premium_gate' | 'error'
+  ctaLabel?: string
+  ctaHref?: string
 }
 
 export interface ChimmyMessageBubbleProps {
@@ -37,6 +44,8 @@ export interface ChimmyMessageBubbleProps {
   /** When true, show listen button for TTS */
   showListen?: boolean
   onListen?: () => void
+  showListenFull?: boolean
+  onListenFull?: () => void
   isListening?: boolean
 }
 
@@ -77,16 +86,28 @@ export default function ChimmyMessageBubble({
   followUpChips,
   showListen,
   onListen,
+  showListenFull,
+  onListenFull,
   isListening,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
   const responseStructure = !isUser ? meta?.responseStructure : undefined
   const hasResponseStructure = Boolean(responseStructure?.shortAnswer?.trim())
+  const isLongResponse = !isUser && isLongChimmyResponse(content)
+  const collapsedSummary = !isUser
+    ? buildChimmyCollapsedSummary({
+        content,
+        responseStructure,
+      })
+    : ''
+  const [showFullAnalysis, setShowFullAnalysis] = React.useState(false)
   const hasInlineLinks = /\[[^\]]+\]\(([^)]+)\)/.test(content)
   const shouldRenderRawContent =
-    !hasResponseStructure ||
-    hasInlineLinks ||
-    (content.trim().length > (responseStructure?.shortAnswer?.trim().length ?? 0) + 90)
+    isLongResponse
+      ? showFullAnalysis
+      : !hasResponseStructure ||
+        hasInlineLinks ||
+        (content.trim().length > (responseStructure?.shortAnswer?.trim().length ?? 0) + 90)
   const confidenceDisplay = !isUser
     ? getConfidenceFromApiResponse({
         confidencePct: meta?.confidencePct,
@@ -121,8 +142,36 @@ export default function ChimmyMessageBubble({
             className="mb-2"
           />
         )}
+        {!isUser && isLongResponse && !hasResponseStructure && collapsedSummary && !showFullAnalysis && (
+          <div className="mb-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm leading-relaxed text-white/90">
+            {renderContentWithLinks(collapsedSummary)}
+          </div>
+        )}
         {shouldRenderRawContent && (
           <div className="text-sm leading-relaxed">{renderContentWithLinks(content)}</div>
+        )}
+        {!isUser && isLongResponse && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setShowFullAnalysis((current) => !current)}
+              data-testid="chimmy-toggle-full-analysis-button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10"
+            >
+              {showFullAnalysis ? 'Hide full analysis' : 'Show full analysis'}
+            </button>
+          </div>
+        )}
+        {!isUser && meta?.ctaHref && meta?.ctaLabel && (
+          <div className="mt-3">
+            <a
+              href={meta.ctaHref}
+              data-testid="chimmy-upgrade-cta"
+              className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-500/25"
+            >
+              {meta.ctaLabel}
+            </a>
+          </div>
         )}
 
         {!isUser && meta && (
@@ -142,14 +191,14 @@ export default function ChimmyMessageBubble({
         {!isUser && <SuggestedActionRenderer content={content} />}
 
         {!isUser && showListen && onListen && (
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={onListen}
               disabled={isListening}
               data-testid="chimmy-listen-response-button"
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50 min-h-[36px]"
-              aria-label="Listen to response"
+              aria-label="Hear verdict summary"
             >
               {isListening ? (
                 <>
@@ -157,9 +206,21 @@ export default function ChimmyMessageBubble({
                   Playing…
                 </>
               ) : (
-                <>Listen</>
+                <>Hear summary</>
               )}
             </button>
+            {showListenFull && onListenFull && (
+              <button
+                type="button"
+                onClick={onListenFull}
+                disabled={isListening}
+                data-testid="chimmy-listen-full-response-button"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50 min-h-[36px]"
+                aria-label="Hear full response"
+              >
+                Hear full response
+              </button>
+            )}
           </div>
         )}
 

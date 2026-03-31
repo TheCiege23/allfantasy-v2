@@ -9,6 +9,7 @@ import { DraftManagerStrip } from '@/components/app/draft-room/DraftManagerStrip
 import { DraftBoard } from '@/components/app/draft-room/DraftBoard'
 import { SportAwareDraftRoom } from '@/components/app/draft-room/SportAwareDraftRoom'
 import { QueuePanel } from '@/components/app/draft-room/QueuePanel'
+import { DraftIntelQueuePanel } from '@/components/app/draft-room/DraftIntelQueuePanel'
 import { DraftChatPanel } from '@/components/app/draft-room/DraftChatPanel'
 import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
@@ -34,6 +35,7 @@ const KeeperPanel = dynamic(
   { ssr: false }
 )
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
+import type { DraftIntelState } from '@/lib/draft-intelligence'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
@@ -69,6 +71,8 @@ export function DraftRoomPageClient({
 }: DraftRoomPageClientProps) {
   const [session, setSession] = useState<DraftSessionSnapshot | null>(null)
   const [queue, setQueue] = useState<QueueEntry[]>([])
+  const [draftIntel, setDraftIntel] = useState<DraftIntelState | null>(null)
+  const [draftIntelLoading, setDraftIntelLoading] = useState(true)
   const [chatMessages, setChatMessages] = useState<Array<{
     id: string
     from: string
@@ -666,6 +670,37 @@ export function DraftRoomPageClient({
     fetchLeagueAiAdp()
   }, [leagueId, draftUISettings?.aiAdpEnabled, fetchLeagueAiAdp])
 
+  useEffect(() => {
+    if (!leagueId || !currentUserRosterId) return
+    setDraftIntelLoading(true)
+    const stream = new EventSource(
+      `/api/draft/intel/stream?leagueId=${encodeURIComponent(leagueId)}`
+    )
+
+    const handleStateEvent = (event: MessageEvent<string>) => {
+      try {
+        const next = JSON.parse(event.data) as DraftIntelState
+        setDraftIntel(next)
+      } catch {
+        // Ignore malformed SSE payloads.
+      } finally {
+        setDraftIntelLoading(false)
+      }
+    }
+
+    stream.addEventListener('snapshot', handleStateEvent as EventListener)
+    stream.addEventListener('queue_update', handleStateEvent as EventListener)
+    stream.addEventListener('on_clock', handleStateEvent as EventListener)
+    stream.addEventListener('recap', handleStateEvent as EventListener)
+    stream.onerror = () => {
+      setDraftIntelLoading(false)
+    }
+
+    return () => {
+      stream.close()
+    }
+  }, [leagueId, currentUserRosterId])
+
   const [pollInterval, setPollInterval] = useState(POLL_MS)
   const refetchOnceRef = useRef<(() => void) | null>(null)
   const pollTickRef = useRef(0)
@@ -911,6 +946,20 @@ export function DraftRoomPageClient({
     [leagueId],
   )
 
+  const handleDraftIntelPick = useCallback(() => {
+    const top = draftIntel?.queue.find((entry) => !draftedNames.has(entry.playerName))
+    if (!top) return
+    const player = players.find(
+      (candidate) =>
+        candidate.name === top.playerName &&
+        candidate.position === top.position &&
+        (candidate.team ?? null) === (top.team ?? null)
+    )
+    if (player) {
+      void handleMakePick(player)
+    }
+  }, [draftIntel?.queue, draftedNames, players, handleMakePick])
+
   const handleAuctionNominate = useCallback(
     async (player: PlayerEntry) => {
       setPickError(null)
@@ -1107,6 +1156,14 @@ export function DraftRoomPageClient({
   const queueFiltered = useMemo(
     () => queue.filter((e) => !draftedNames.has(e.playerName)),
     [queue, draftedNames]
+  )
+  const draftIntelQueue = useMemo(
+    () =>
+      (draftIntel?.queue ?? []).map((entry) => ({
+        ...entry,
+        isTaken: draftedNames.has(entry.playerName),
+      })),
+    [draftIntel?.queue, draftedNames]
   )
   const slotOrder = session?.slotOrder ?? []
   const aiAdpUnavailable = Boolean(draftUISettings?.aiAdpEnabled && !poolLoading && (!leagueAiAdp?.entries?.length && leagueAiAdp?.message))
@@ -1558,25 +1615,36 @@ export function DraftRoomPageClient({
         />
       }
       queuePanel={
-        <QueuePanel
-          queue={queueFiltered}
-          canDraft={canDraft}
-          onRemove={handleRemoveFromQueue}
-          onReorder={handleReorderQueue}
-          onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
-          onAiReorder={handleAiReorderQueue}
-          aiReorderLoading={aiReorderLoading}
-          aiReorderEnabled={aiQueueReorderEnabled}
-          onAiReorderEnabledChange={draftUISettings?.aiQueueReorderEnabled ? setAiQueueReorderEnabled : undefined}
-          autoPickFromQueue={autoPickFromQueue}
-          onAutoPickFromQueueChange={setAutoPickFromQueue}
-          awayMode={awayMode}
-          onAwayModeChange={setAwayMode}
-          autoPickEnabled={autoPickEnabled}
-          nextQueuedAvailable={nextQueuedAvailable}
-          aiReorderExplanation={aiReorderExplanation}
-          aiReorderExecutionMode={aiReorderExecutionMode}
-        />
+        <div className="space-y-4">
+          <DraftIntelQueuePanel
+            loading={draftIntelLoading}
+            headline={draftIntel?.headline ?? null}
+            picksUntilUser={draftIntel?.picksUntilUser ?? null}
+            onClock={draftIntel?.status === 'on_clock'}
+            queue={draftIntelQueue}
+            canDraft={Boolean(canDraft && draftIntel?.status === 'on_clock')}
+            onDraftTopChoice={canDraft && draftIntel?.status === 'on_clock' ? handleDraftIntelPick : undefined}
+          />
+          <QueuePanel
+            queue={queueFiltered}
+            canDraft={canDraft}
+            onRemove={handleRemoveFromQueue}
+            onReorder={handleReorderQueue}
+            onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
+            onAiReorder={handleAiReorderQueue}
+            aiReorderLoading={aiReorderLoading}
+            aiReorderEnabled={aiQueueReorderEnabled}
+            onAiReorderEnabledChange={draftUISettings?.aiQueueReorderEnabled ? setAiQueueReorderEnabled : undefined}
+            autoPickFromQueue={autoPickFromQueue}
+            onAutoPickFromQueueChange={setAutoPickFromQueue}
+            awayMode={awayMode}
+            onAwayModeChange={setAwayMode}
+            autoPickEnabled={autoPickEnabled}
+            nextQueuedAvailable={nextQueuedAvailable}
+            aiReorderExplanation={aiReorderExplanation}
+            aiReorderExecutionMode={aiReorderExecutionMode}
+          />
+        </div>
       }
       helperPanel={
         <DraftHelperPanel

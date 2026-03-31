@@ -14,7 +14,11 @@ export function filterThreadsByType(
 }
 
 export function getDMThreads(threads: PlatformChatThread[]): PlatformChatThread[] {
-  return filterThreadsByType(threads, "dm")
+  return threads.filter((thread) => {
+    if (thread.threadType === "dm") return true
+    const context = (thread.context || {}) as Record<string, unknown>
+    return thread.threadType === "ai" && context.showInDmList === true
+  })
 }
 
 export function getGroupThreads(threads: PlatformChatThread[]): PlatformChatThread[] {
@@ -41,6 +45,9 @@ export function getConversationDisplayTitle(thread: PlatformChatThread): string 
       : null
   if (thread.threadType === "dm") {
     return otherDisplayName || (otherUsername ? `@${otherUsername}` : "Direct message")
+  }
+  if (thread.threadType === "ai") {
+    return title || "Chimmy AI"
   }
   return "Group chat"
 }

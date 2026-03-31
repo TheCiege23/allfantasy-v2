@@ -217,6 +217,51 @@ describe("POST /api/chat/chimmy contract", () => {
     })
   })
 
+  it("continues through the existing Chimmy flow when image vision is unavailable", async () => {
+    const originalAiIntegrationsKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+    const originalOpenAiKey = process.env.OPENAI_API_KEY
+    delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+    delete process.env.OPENAI_API_KEY
+
+    try {
+      const formData = new FormData()
+      formData.append("message", "Analyze this screenshot")
+      formData.append("confirmTokenSpend", "true")
+      formData.append("image", new File(["fake-image"], "screenshot.png", { type: "image/png" }))
+
+      const { POST } = await import("@/app/api/chat/chimmy/route")
+      const res = await POST(buildMultipartRequest(formData) as any)
+
+      expect(res.status).toBe(200)
+      expect(buildAgentPromptMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userMessage: expect.stringContaining(
+            "SCREENSHOT SUMMARY:\nImage uploaded; vision extraction unavailable (provider not configured)."
+          ),
+          deterministicContext: expect.objectContaining({
+            screenshotEvidence: "Image uploaded; vision extraction unavailable (provider not configured).",
+          }),
+        })
+      )
+      expect(runUnifiedOrchestrationMock).toHaveBeenCalledTimes(1)
+      await expect(res.json()).resolves.toMatchObject({
+        response: "Accept the trade.",
+      })
+    } finally {
+      if (originalAiIntegrationsKey == null) {
+        delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+      } else {
+        process.env.AI_INTEGRATIONS_OPENAI_API_KEY = originalAiIntegrationsKey
+      }
+
+      if (originalOpenAiKey == null) {
+        delete process.env.OPENAI_API_KEY
+      } else {
+        process.env.OPENAI_API_KEY = originalOpenAiKey
+      }
+    }
+  })
+
   it("returns 400 when message exceeds the maximum length", async () => {
     const formData = new FormData()
     formData.append("message", "x".repeat(4001))

@@ -1264,6 +1264,71 @@ test.describe('@draft-room click audit', () => {
     await expect(page.getByTestId('draft-commissioner-modal')).toHaveCount(0)
   })
 
+  test('draft intel queue panel renders and top-choice CTA is wired', async ({ page }) => {
+    const leagueId = `e2e-draft-room-intel-${Date.now()}`
+    const mocks = await mockDraftRoomApis(page, leagueId)
+    await page.route(`**/api/draft/intel/stream?leagueId=${leagueId}`, async (route) => {
+      const payload = {
+        leagueId,
+        userId: 'user-2',
+        rosterId: 'roster-2',
+        leagueName: 'E2E Draft Room',
+        sport: 'NFL',
+        sessionId: 'session-1',
+        status: 'on_clock',
+        trigger: 'on_clock',
+        currentOverall: 2,
+        userNextOverall: 2,
+        picksUntilUser: 0,
+        generatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        headline: "You're on the clock in E2E Draft Room.",
+        queue: [
+          {
+            rank: 1,
+            playerName: 'Atlas Runner',
+            position: 'RB',
+            team: 'NYJ',
+            availabilityProbability: 100,
+            availabilityLabel: 'high',
+            reason: 'Best fit for your roster and current board.',
+          },
+          {
+            rank: 2,
+            playerName: 'Blaze Catcher',
+            position: 'WR',
+            team: 'DAL',
+            availabilityProbability: 100,
+            availabilityLabel: 'high',
+            reason: 'Fallback if the top running back leaves the board.',
+          },
+        ],
+        predictions: [],
+        messages: {
+          ready: 'Queue ready.',
+          update: 'Queue updated.',
+          onClock: "You're on the clock. Take Atlas Runner now.",
+        },
+        recap: null,
+        archived: false,
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `event: snapshot\ndata: ${JSON.stringify(payload)}\n\n`,
+      })
+    })
+
+    await page.goto(`/e2e/draft-room?leagueId=${leagueId}&sport=NFL`)
+    await openDraftRoomHarness(page)
+
+    await expect(page.getByTestId('draft-intel-queue-panel')).toBeVisible()
+    await expect(page.getByTestId('draft-intel-headline')).toContainText(/on the clock/i)
+    await expect(page.getByTestId('draft-intel-entry-1')).toContainText(/Atlas Runner/i)
+    await page.getByTestId('draft-intel-draft-top-choice').click()
+    await expect.poll(() => mocks.getPickRequests().length).toBeGreaterThan(0)
+  })
+
   test('post-draft summary, replay, AI recap, and share actions are wired', async ({ page }) => {
     const leagueId = `e2e-draft-room-post-draft-${Date.now()}`
     await mockDraftRoomApis(page, leagueId, { initialStatus: 'completed' })

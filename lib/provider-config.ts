@@ -22,6 +22,7 @@ const XAI_MODEL_KEYS = ['XAI_MODEL', 'GROK_MODEL'] as const
 
 const CLEARSPORTS_KEY_KEYS = ['CLEARSPORTS_API_KEY', 'CLEAR_SPORTS_API_KEY'] as const
 const CLEARSPORTS_BASE_URL_KEYS = ['CLEARSPORTS_API_BASE', 'CLEAR_SPORTS_API_BASE'] as const
+const DEFAULT_CLEARSPORTS_BASE_URL = 'https://api.clearsportsapi.com/v1'
 
 interface ResolvedEnvValue {
   value: string
@@ -142,7 +143,8 @@ export interface ClearSportsProviderConfig {
 export function getClearSportsConfigFromEnv(): ClearSportsProviderConfig | null {
   const apiKey = resolveFirstEnv(CLEARSPORTS_KEY_KEYS)
   const baseUrlRaw = resolveFirstEnv(CLEARSPORTS_BASE_URL_KEYS)
-  const baseUrl = normalizeBaseUrl(baseUrlRaw.value, '')
+  const baseFallback = apiKey.value ? DEFAULT_CLEARSPORTS_BASE_URL : ''
+  const baseUrl = normalizeBaseUrl(baseUrlRaw.value, baseFallback)
   if (!apiKey.value || !baseUrl) return null
   return {
     apiKey: apiKey.value,
@@ -222,7 +224,13 @@ export function getProviderStartupValidationNotes(): ProviderStartupValidationNo
 
   const clearSportsKey = resolveFirstEnv(CLEARSPORTS_KEY_KEYS)
   const clearSportsBase = resolveFirstEnv(CLEARSPORTS_BASE_URL_KEYS)
-  if (!!clearSportsKey.value !== !!clearSportsBase.value) {
+  if (clearSportsKey.value && !clearSportsBase.value) {
+    notes.push({
+      level: 'info',
+      code: 'clearsports_default_base_applied',
+      message: `ClearSports base URL not set. Falling back to ${DEFAULT_CLEARSPORTS_BASE_URL}.`,
+    })
+  } else if (!!clearSportsKey.value !== !!clearSportsBase.value) {
     notes.push({
       level: 'warn',
       code: 'clearsports_partial_config',

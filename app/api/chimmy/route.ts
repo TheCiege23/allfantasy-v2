@@ -17,6 +17,14 @@ import {
 import { runAiProtection } from '@/lib/ai-protection'
 import { authOptions } from '@/lib/auth'
 import { isAnthropicChimmyEnabled } from '@/lib/feature-toggle'
+import {
+  CHIMMY_DEFAULT_UPGRADE_PATH,
+  CHIMMY_GENERIC_ERROR_MESSAGE,
+  CHIMMY_PREMIUM_FEATURE_MESSAGE,
+  isChimmyPremiumGateResponse,
+  resolveChimmyUpgradePath,
+} from '@/lib/chimmy-chat/response-copy'
+import { buildChimmyResponseStructure } from '@/lib/chimmy-chat/presentation'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
@@ -29,6 +37,12 @@ const SSE_HEADERS = {
   'Cache-Control': 'no-cache, no-transform',
   Connection: 'keep-alive',
 } as const
+const SUPPORTED_ANTHROPIC_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+] as const)
 
 const ConversationTurnSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -90,23 +104,40 @@ function resolveServerTier(plans: readonly string[]): UserContext['tier'] {
 
 function buildCompatibilityPayload(body: unknown, status: number) {
   const record = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
+  const upgradeRequired = isChimmyPremiumGateResponse({
+    status,
+    code: record.code,
+    upgradeRequired: record.upgradeRequired,
+  })
   const responseText =
     typeof record.response === 'string'
       ? record.response
       : typeof record.result === 'string'
         ? record.result
         : null
-  const upgradeRequired =
-    record.upgradeRequired === true ||
-    status === 402 ||
-    (status === 409 &&
-      (record.code === 'token_confirmation_required' || record.code === 'insufficient_token_balance'))
+  const normalizedResponse =
+    responseText ??
+    (upgradeRequired
+      ? CHIMMY_PREMIUM_FEATURE_MESSAGE
+      : status >= 500
+        ? CHIMMY_GENERIC_ERROR_MESSAGE
+        : null)
+  const upgradePath = upgradeRequired
+    ? resolveChimmyUpgradePath(record.upgradePath)
+    : typeof record.upgradePath === 'string'
+      ? record.upgradePath
+      : undefined
 
   return {
     ...record,
-    response: responseText,
-    result: responseText,
+    response: normalizedResponse,
+    result: normalizedResponse,
+    message:
+      typeof record.message === 'string'
+        ? record.message
+        : normalizedResponse ?? undefined,
     upgradeRequired,
+    upgradePath,
   }
 }
 
@@ -125,11 +156,32 @@ async function toCompatibilityResponse(response: Response): Promise<NextResponse
 }
 
 function buildAnthropicSuccessPayload(body: Awaited<ReturnType<typeof runAgentPipeline>>) {
+  const upgradeRequired = body.upgradeRequired === true
+  const recommendedTool =
+    body.intent === 'trade_evaluation'
+      ? 'trade_analyzer'
+      : body.intent === 'waiver_wire'
+        ? 'waiver_wire'
+        : body.intent === 'draft_help'
+          ? 'draft_assistant'
+          : body.intent === 'matchup_simulator'
+            ? 'matchup_simulator'
+            : body.intent === 'player_comparison'
+              ? 'player_comparison'
+              : undefined
+
   return {
     ...body,
     response: body.result,
     result: body.result,
-    upgradeRequired: body.upgradeRequired === true,
+    meta: {
+      responseStructure: buildChimmyResponseStructure(body.result),
+      recommendedTool,
+    },
+    upgradeRequired,
+    upgradePath: upgradeRequired
+      ? resolveChimmyUpgradePath(body.upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH)
+      : undefined,
   }
 }
 
@@ -169,7 +221,8 @@ function normalizeAnthropicMemory(
 function buildAnthropicUserContext(
   payload: z.infer<typeof ChimmyJsonRequestSchema>,
   userId: string,
-  tier: UserContext['tier']
+  tier: UserContext['tier'],
+  image?: UserContext['image']
 ): UserContext {
   return {
     userId,
@@ -185,11 +238,36 @@ function buildAnthropicUserContext(
     source: payload.userContext.source ?? null,
     conversation: payload.conversation ?? [],
     memory: normalizeAnthropicMemory(payload.userContext.memory),
+    image: image ?? null,
   }
 }
 
-function isAnthropicSupportedRequest(payload: z.infer<typeof ChimmyJsonRequestSchema>): boolean {
-  return !payload.image
+function normalizeAnthropicImagePayload(
+  image?: z.infer<typeof ChimmyImageSchema>
+): UserContext['image'] {
+  if (!image) return null
+
+  const match = image.dataUrl.match(/^data:([^;,]+);base64,(.+)$/)
+  if (!match) return null
+
+  const [, mimeTypeFromUrl, base64Payload] = match
+  const resolvedMediaType = (image.type?.trim() || mimeTypeFromUrl).toLowerCase()
+  if (!SUPPORTED_ANTHROPIC_IMAGE_TYPES.has(resolvedMediaType as NonNullable<UserContext['image']>['mediaType'])) {
+    return null
+  }
+
+  return {
+    data: base64Payload,
+    mediaType: resolvedMediaType as NonNullable<UserContext['image']>['mediaType'],
+    name: image.name?.trim() || null,
+  }
+}
+
+function isAnthropicSupportedRequest(
+  payload: z.infer<typeof ChimmyJsonRequestSchema>,
+  normalizedImage: UserContext['image']
+): boolean {
+  return !payload.image || Boolean(normalizedImage)
 }
 
 async function logAnthropicUsageToSupabase(args: {
@@ -374,10 +452,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const anthropicImage = normalizeAnthropicImagePayload(parseResult.data.image)
   const useAnthropicPath =
     (await isAnthropicChimmyEnabled()) &&
     isAnthropicPipelineAvailable() &&
-    isAnthropicSupportedRequest(parseResult.data)
+    isAnthropicSupportedRequest(parseResult.data, anthropicImage)
 
   if (!useAnthropicPath) {
     const delegatedResponse = await postChatChimmy(buildForwardedRequest(req, parseResult.data) as any)
@@ -418,7 +497,7 @@ export async function POST(req: NextRequest) {
   }
 
   const resolvedTier = resolveServerTier(gate.decision.entitlement.plans)
-  const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier)
+  const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier, anthropicImage)
   const tokenSpendId = gate.tokenSpend?.id ?? null
   const wantsStream = parseResult.data.stream === true
 

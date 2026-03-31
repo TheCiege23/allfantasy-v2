@@ -264,6 +264,10 @@ export default function MessagesContent() {
     [threads, selectedThreadId]
   )
   const selectedThreadContext = (selectedThread?.context || {}) as Record<string, unknown>
+  const selectedThreadIsDraftIntel =
+    selectedThread?.threadType === "ai" && selectedThreadContext.showInDmList === true
+  const selectedThreadArchived = selectedThreadContext.archived === true
+  const selectedThreadAllowsReplies = selectedThreadContext.allowReplies !== false && !selectedThreadArchived
   const selectedDmTargetUsername =
     typeof selectedThreadContext.otherUsername === "string" && selectedThreadContext.otherUsername.trim().length > 0
       ? selectedThreadContext.otherUsername.trim()
@@ -464,8 +468,9 @@ export default function MessagesContent() {
           return
         }
         const created: PlatformChatMessage | null = json?.message ?? null
+        const aiReply: PlatformChatMessage | null = json?.aiReply ?? null
         if (created) {
-          setMessages((prev) => [...prev, created])
+          setMessages((prev) => [...prev, created, ...(aiReply ? [aiReply] : [])])
           clearAttachmentState(setAttachmentPreview, setUploadError)
         }
       } else {
@@ -485,8 +490,9 @@ export default function MessagesContent() {
           return
         }
         const created: PlatformChatMessage | null = json?.message ?? null
+        const aiReply: PlatformChatMessage | null = json?.aiReply ?? null
         if (created) {
-          setMessages((prev) => [...prev, created])
+          setMessages((prev) => [...prev, created, ...(aiReply ? [aiReply] : [])])
           const mentioned = parseMentions(text)
           if (mentioned.length > 0) notifyMentions(selectedThreadId, created.id, mentioned).catch(() => {})
         }
@@ -588,7 +594,10 @@ export default function MessagesContent() {
     }
   }, [gifSearchQuery])
 
-  const canSend = canSendComposerMessage(input, attachmentPreview, sending) && !selectedThreadBlockedDirect
+  const canSend =
+    canSendComposerMessage(input, attachmentPreview, sending) &&
+    !selectedThreadBlockedDirect &&
+    selectedThreadAllowsReplies
 
   const applyMentionSuggestion = useCallback((username: string) => {
     if (!mentionState) return
@@ -894,7 +903,17 @@ export default function MessagesContent() {
                         }}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm">{getConversationDisplayTitle(t)}</p>
+                          <p className="truncate text-sm flex items-center gap-1">
+                            <span className="truncate">{getConversationDisplayTitle(t)}</span>
+                            {((t.context || {}) as Record<string, unknown>).verifiedBadge === true && (
+                              <span
+                                className="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] uppercase tracking-wide"
+                                style={{ borderColor: "var(--border)", color: "var(--accent-cyan-strong)" }}
+                              >
+                                Verified
+                              </span>
+                            )}
+                          </p>
                           <p className="truncate text-[10px]" style={{ color: "var(--muted)" }}>
                             {getConversationPreview(t)}
                           </p>
@@ -930,8 +949,21 @@ export default function MessagesContent() {
                     <span className="font-medium truncate mode-text">
                       {selectedThread ? getConversationDisplayTitle(selectedThread) : "Conversation"}
                     </span>
+                    {selectedThreadContext.verifiedBadge === true && (
+                      <span
+                        className="rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide"
+                        style={{ borderColor: "var(--border)", color: "var(--accent-cyan-strong)" }}
+                      >
+                        Verified
+                      </span>
+                    )}
+                    {selectedThreadArchived && (
+                      <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                        Archived
+                      </span>
+                    )}
                     <div className="ml-auto flex items-center gap-1">
-                      {activeTab === "dm" && (
+                      {activeTab === "dm" && selectedThread?.threadType === "dm" && (
                         <button
                           type="button"
                           onClick={handleOpenDmAi}
@@ -1044,6 +1076,13 @@ export default function MessagesContent() {
                   {selectedThreadBlockedDirect && blockedConversationNotice && (
                     <p className="px-3 py-1 text-[11px]" style={{ color: "var(--muted)" }}>
                       {blockedConversationNotice}
+                    </p>
+                  )}
+                  {selectedThreadIsDraftIntel && (
+                    <p className="px-3 py-1 text-[11px]" style={{ color: "var(--muted)" }}>
+                      {selectedThreadArchived
+                        ? "This Chimmy draft thread is archived after the draft."
+                        : "Chimmy posts private draft updates here. You can still send text questions."}
                     </p>
                   )}
                   {!selectedThreadBlockedDirect && hiddenBlockedMessageCount > 0 && (
@@ -1223,80 +1262,92 @@ export default function MessagesContent() {
                   )}
                   <div className="flex gap-2 p-3 border-t" style={{ borderColor: "var(--border)" }}>
                     <div className="flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setEmojiPickerOpen((o) => !o)}
-                        className="rounded-lg p-2"
-                        style={{ color: "var(--muted)" }}
-                        title="Emoji"
-                        aria-label="Emoji"
-                      >
-                        <Smile className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => imageInputRef.current?.click()}
-                        disabled={uploading}
-                        className="rounded-lg p-2 disabled:opacity-50"
-                        style={{ color: "var(--muted)" }}
-                        title="Upload image"
-                        aria-label="Upload image"
-                      >
-                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-                      </button>
-                      <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
-                        className="hidden"
-                        onChange={handleImageSelect}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setGifUrlOpen((o) => !o)}
-                        className="rounded-lg p-2"
-                        style={{ color: "var(--muted)" }}
-                        title="GIF"
-                        aria-label="GIF"
-                      >
-                        <FileImage className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="rounded-lg p-2 disabled:opacity-50"
-                        style={{ color: "var(--muted)" }}
-                        title="Attach file"
-                        aria-label="Attach file"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                      </button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/csv"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPollCreateOpen(true)}
-                        className="rounded-lg p-2"
-                        style={{ color: "var(--muted)" }}
-                        title="Create poll"
-                        aria-label="Create poll"
-                      >
-                        <BarChart3 className="h-4 w-4" />
-                      </button>
+                      {!selectedThreadIsDraftIntel && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setEmojiPickerOpen((o) => !o)}
+                            className="rounded-lg p-2"
+                            style={{ color: "var(--muted)" }}
+                            title="Emoji"
+                            aria-label="Emoji"
+                          >
+                            <Smile className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => imageInputRef.current?.click()}
+                            disabled={uploading}
+                            className="rounded-lg p-2 disabled:opacity-50"
+                            style={{ color: "var(--muted)" }}
+                            title="Upload image"
+                            aria-label="Upload image"
+                          >
+                            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                          </button>
+                          <input
+                            ref={imageInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            className="hidden"
+                            onChange={handleImageSelect}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setGifUrlOpen((o) => !o)}
+                            className="rounded-lg p-2"
+                            style={{ color: "var(--muted)" }}
+                            title="GIF"
+                            aria-label="GIF"
+                          >
+                            <FileImage className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="rounded-lg p-2 disabled:opacity-50"
+                            style={{ color: "var(--muted)" }}
+                            title="Attach file"
+                            aria-label="Attach file"
+                          >
+                            <Paperclip className="h-4 w-4" />
+                          </button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain,text/csv"
+                            className="hidden"
+                            onChange={handleFileSelect}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPollCreateOpen(true)}
+                            className="rounded-lg p-2"
+                            style={{ color: "var(--muted)" }}
+                            title="Create poll"
+                            aria-label="Create poll"
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                     <input
                       type="text"
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => handleComposerKeyDownWithMentions(e, handleSend, Boolean(canSend))}
-                      placeholder={selectedThreadBlockedDirect ? "Conversation blocked. Unblock to message." : "Message… (type @ to mention)"}
-                      disabled={selectedThreadBlockedDirect}
+                      placeholder={
+                        selectedThreadBlockedDirect
+                          ? "Conversation blocked. Unblock to message."
+                          : selectedThreadArchived
+                            ? "Thread archived after draft completion."
+                            : selectedThreadIsDraftIntel
+                              ? "Ask Chimmy a draft question..."
+                              : "Message… (type @ to mention)"
+                      }
+                      disabled={selectedThreadBlockedDirect || !selectedThreadAllowsReplies}
                       className="flex-1 rounded-lg border px-3 py-2 text-sm outline-none"
                       style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                     />

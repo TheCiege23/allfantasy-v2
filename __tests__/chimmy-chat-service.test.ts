@@ -67,8 +67,18 @@ describe("sendChimmyMessage", () => {
     })
 
     expect(global.fetch).not.toHaveBeenCalled()
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain("Need 2 tokens")
+    expect(result).toEqual({
+      ok: true,
+      response:
+        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
+      meta: {
+        variant: "premium_gate",
+        ctaLabel: "View plans",
+        ctaHref: "/pricing",
+      },
+      upgradeRequired: true,
+      upgradePath: "/pricing",
+    })
   })
 
   it("parses streamed Chimmy responses and forwards partial text", async () => {

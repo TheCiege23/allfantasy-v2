@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("POSTGRES_PRISMA_URL")
 }
 
 model EarlyAccessSignup {
@@ -252,6 +253,122 @@ model SportsNews {
   @@index([team])
   @@index([category])
   @@index([sentiment])
+}
+
+model SportsPlayerRecord {
+  id           String   @id @db.VarChar(128)
+  sport        String   @db.VarChar(16)
+  name         String   @db.VarChar(128)
+  team         String   @db.VarChar(32)
+  position     String   @db.VarChar(32)
+  stats        Json
+  projections  Json
+  adp          Float?
+  dynastyValue Int?     @map("dynasty_value")
+  injuryStatus String?  @map("injury_status") @db.VarChar(32)
+  injuryNotes  String?  @map("injury_notes")
+  news         Json?
+  lastUpdated  DateTime @default(now()) @updatedAt @map("last_updated")
+  dataSource   String   @map("data_source") @db.VarChar(32)
+
+  @@index([sport, team])
+  @@index([sport, position])
+  @@index([sport, name])
+  @@index([lastUpdated])
+  @@map("sports_players")
+}
+
+model InjuryReportRecord {
+  id         String   @id @default(cuid())
+  sport      String   @db.VarChar(16)
+  playerId   String   @map("player_id") @db.VarChar(128)
+  playerName String   @map("player_name") @db.VarChar(128)
+  team       String   @db.VarChar(32)
+  status     String   @db.VarChar(32)
+  bodyPart   String?  @map("body_part") @db.VarChar(64)
+  notes      String?
+  practice   String?  @db.VarChar(32)
+  gameStatus String?  @map("game_status") @db.VarChar(32)
+  reportDate DateTime @map("report_date")
+  week       Int?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([sport, playerId, reportDate, status], name: "uniq_injury_reports_player_report_status")
+  @@index([sport, week, reportDate])
+  @@index([sport, playerId, reportDate])
+  @@map("injury_reports")
+}
+
+model AdpDataRecord {
+  id        String   @id @default(cuid())
+  sport     String   @db.VarChar(16)
+  format    String   @db.VarChar(32)
+  scoring   String   @db.VarChar(32)
+  playerId  String   @map("player_id") @db.VarChar(128)
+  playerName String  @map("player_name") @db.VarChar(128)
+  position  String   @db.VarChar(32)
+  team      String   @db.VarChar(32)
+  adp       Float
+  adpChange Float?   @map("adp_change")
+  week      Int
+  season    Int
+  source    String   @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([sport, format, scoring, playerId, week, season, source], name: "uniq_adp_data_player_period_source")
+  @@index([sport, format, scoring, week, season])
+  @@index([playerId, createdAt])
+  @@map("adp_data")
+}
+
+model PlayerNewsRecord {
+  id              String   @id @default(cuid())
+  sport           String   @db.VarChar(16)
+  playerId        String?  @map("player_id") @db.VarChar(128)
+  playerName      String   @map("player_name") @db.VarChar(128)
+  team            String?  @db.VarChar(32)
+  headline        String   @db.VarChar(256)
+  body            String
+  impact          String   @db.VarChar(16)
+  fantasyRelevant Boolean  @default(false) @map("fantasy_relevant")
+  source          String   @db.VarChar(32)
+  publishedAt     DateTime @map("published_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([sport, playerName, headline, publishedAt], name: "uniq_player_news_dedupe")
+  @@index([sport, publishedAt])
+  @@index([playerId, publishedAt])
+  @@map("player_news")
+}
+
+model ApiRateLimitRecord {
+  id         String   @id @default(cuid())
+  provider   String   @db.VarChar(32)
+  endpoint   String   @db.VarChar(128)
+  callsMade  Int      @default(0) @map("calls_made")
+  callsLimit Int      @map("calls_limit")
+  windowStart DateTime @map("window_start")
+  windowEnd  DateTime @map("window_end")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, endpoint, windowStart, windowEnd], name: "uniq_api_rate_limits_window")
+  @@index([provider, windowStart, windowEnd])
+  @@map("api_rate_limits")
+}
+
+model ApiCallLogRecord {
+  id        String   @id @default(cuid())
+  provider  String   @db.VarChar(32)
+  endpoint  String   @db.VarChar(128)
+  status    Int
+  latencyMs Int      @map("latency_ms")
+  error     String?
+  cached    Boolean  @default(false)
+  calledAt  DateTime @default(now()) @map("called_at")
+
+  @@index([provider, calledAt])
+  @@index([provider, endpoint, calledAt])
+  @@map("api_call_log")
 }
 
 model LegacyUser {
@@ -5601,6 +5718,10 @@ model GameSchedule {
   homeTeam     String?   @db.VarChar(16)
   awayTeam     String?   @db.VarChar(16)
   startTime    DateTime?
+  venue        String?   @db.VarChar(128)
+  weather      Json?
+  homeScore    Int?      @map("home_score")
+  awayScore    Int?      @map("away_score")
   status       String    @db.VarChar(24)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -5608,6 +5729,7 @@ model GameSchedule {
   @@unique([sportType, season, weekOrRound, externalId], name: "uniq_game_schedule_sport_season_week_external")
   @@index([sportType, season, weekOrRound])
   @@index([sportType, season])
+  @@index([startTime])
   @@map("game_schedules")
 }
 

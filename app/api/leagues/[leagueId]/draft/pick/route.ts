@@ -9,7 +9,15 @@ import { canAccessLeagueDraft, canSubmitPickForRoster } from '@/lib/live-draft-e
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
-import { notifyOnTheClockAfterPick } from '@/lib/draft-notifications'
+import {
+  notifyDraftIntelOnClockUrgent,
+  notifyDraftIntelPickConfirmation,
+  notifyDraftIntelPlayerTaken,
+  notifyDraftIntelQueueReady,
+  notifyDraftIntelTierBreak,
+  notifyOnTheClockAfterPick,
+} from '@/lib/draft-notifications'
+import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +83,7 @@ export async function POST(
   }
 
   void notifyOnTheClockAfterPick(leagueId)
+  void notifyDraftIntelPickConfirmation(leagueId, effectiveRosterId, String(playerName).trim()).catch(() => {})
 
   try {
     if (result.snapshot?.rosterId) {
@@ -93,6 +102,40 @@ export async function POST(
   } catch (_) {}
 
   const updated = await buildSessionSnapshot(leagueId)
+  void (async () => {
+    const states = await publishDraftIntelForUpcomingManagers({
+      leagueId,
+      trigger: 'pick_update',
+    }).catch(() => [])
+    for (const result of states) {
+      const state = result.state
+      await sendDraftIntelDm(state).catch(() => null)
+      if (result.previousState?.queue.some((entry) => entry.playerName === String(playerName).trim())) {
+        await notifyDraftIntelPlayerTaken(leagueId, state.rosterId, String(playerName).trim()).catch(() => null)
+      }
+      const previousTop = result.previousState?.queue.slice(0, 2).map((entry) => entry.playerName).join('|')
+      const nextTop = state.queue.slice(0, 2).map((entry) => entry.playerName).join('|')
+      if (previousTop && nextTop && previousTop !== nextTop) {
+        await notifyDraftIntelTierBreak(
+          leagueId,
+          state.rosterId,
+          state.queue.slice(0, 2).map((entry) => entry.playerName)
+        ).catch(() => null)
+      }
+      if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+        await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+          playerName: state.queue[0].playerName,
+          availabilityProbability: state.queue[0].availabilityProbability,
+        }).catch(() => null)
+      }
+      if (state.status === 'on_clock') {
+        await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+          playerName: state.queue[0]?.playerName,
+          pickLabel: updated?.currentPick?.pickLabel,
+        }).catch(() => null)
+      }
+    }
+  })()
   return NextResponse.json({
     ok: true,
     pick: result.snapshot,

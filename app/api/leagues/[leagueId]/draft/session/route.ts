@@ -22,6 +22,11 @@ import { getDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryCo
 import { dedupeInFlight } from '@/lib/api-performance'
 import { getProviderStatus } from '@/lib/provider-config'
 import { notifyDraftStartingSoon } from '@/lib/draft-notifications'
+import {
+  notifyDraftIntelOnClockUrgent,
+  notifyDraftIntelQueueReady,
+} from '@/lib/draft-notifications'
+import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +134,28 @@ export async function POST(
         getOrphanRosterIdsForLeague(leagueId),
       ])
       if (!snapshot) return NextResponse.json({ error: 'Failed to build session' }, { status: 500 })
+      void (async () => {
+        const states = await publishDraftIntelForUpcomingManagers({
+          leagueId,
+          trigger: 'n_minus_5',
+        }).catch(() => [])
+        for (const result of states) {
+          const state = result.state
+          await sendDraftIntelDm(state).catch(() => null)
+          if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+            await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+              playerName: state.queue[0].playerName,
+              availabilityProbability: state.queue[0].availabilityProbability,
+            }).catch(() => null)
+          }
+          if (state.status === 'on_clock') {
+            await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+              playerName: state.queue[0]?.playerName,
+              pickLabel: snapshot.currentPick?.pickLabel,
+            }).catch(() => null)
+          }
+        }
+      })()
       const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
       return NextResponse.json({
         leagueId,

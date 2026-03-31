@@ -30,6 +30,21 @@ import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { prisma } from '@/lib/prisma'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import {
+  getLeagueMemberAppUserIds,
+  notifyDraftIntelOnClockUrgent,
+  notifyDraftIntelOrphanTeamPick,
+  notifyDraftIntelPickConfirmation,
+  notifyDraftIntelPlayerTaken,
+  notifyDraftIntelPostDraftRecap,
+  notifyDraftIntelQueueReady,
+  notifyDraftIntelTierBreak,
+} from '@/lib/draft-notifications'
+import {
+  publishDraftIntelForUpcomingManagers,
+  publishDraftIntelRecap,
+  sendDraftIntelDm,
+} from '@/lib/draft-intelligence'
 
 export const dynamic = 'force-dynamic'
 
@@ -311,8 +326,44 @@ export async function POST(
         void notifyQueuePlayerUnavailable(leagueId, onClockRosterId)
       }
       void notifyAutoPickFired(leagueId, onClockRosterId, selectedCandidate.playerName)
+      void notifyDraftIntelPickConfirmation(leagueId, onClockRosterId, selectedCandidate.playerName).catch(() => {})
+      void notifyDraftIntelOrphanTeamPick(leagueId, selectedCandidate.playerName).catch(() => {})
       void notifyOnTheClockAfterPick(leagueId)
       const snapshot = await buildSessionSnapshot(leagueId)
+      void (async () => {
+        const states = await publishDraftIntelForUpcomingManagers({
+          leagueId,
+          trigger: 'pick_update',
+        }).catch(() => [])
+        for (const result of states) {
+          const state = result.state
+          await sendDraftIntelDm(state).catch(() => null)
+          if (result.previousState?.queue.some((entry) => entry.playerName === selectedCandidate.playerName)) {
+            await notifyDraftIntelPlayerTaken(leagueId, state.rosterId, selectedCandidate.playerName).catch(() => null)
+          }
+          const previousTop = result.previousState?.queue.slice(0, 2).map((entry) => entry.playerName).join('|')
+          const nextTop = state.queue.slice(0, 2).map((entry) => entry.playerName).join('|')
+          if (previousTop && nextTop && previousTop !== nextTop) {
+            await notifyDraftIntelTierBreak(
+              leagueId,
+              state.rosterId,
+              state.queue.slice(0, 2).map((entry) => entry.playerName)
+            ).catch(() => null)
+          }
+          if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+            await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+              playerName: state.queue[0].playerName,
+              availabilityProbability: state.queue[0].availabilityProbability,
+            }).catch(() => null)
+          }
+          if (state.status === 'on_clock') {
+            await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+              playerName: state.queue[0]?.playerName,
+              pickLabel: snapshot?.currentPick?.pickLabel,
+            }).catch(() => null)
+          }
+        }
+      })()
       return NextResponse.json({
         ok: true,
         action: 'force_autopick',
@@ -326,6 +377,15 @@ export async function POST(
       if (!ok) return NextResponse.json({ error: 'Draft not complete or already completed' }, { status: 400 })
       await finalizeRosterAssignments(leagueId).catch(() => {})
       const snapshot = await buildSessionSnapshot(leagueId)
+      void (async () => {
+        const userIds = await getLeagueMemberAppUserIds(leagueId).catch(() => [])
+        for (const memberUserId of userIds) {
+          const state = await publishDraftIntelRecap({ leagueId, userId: memberUserId }).catch(() => null)
+          if (!state?.recap) continue
+          await sendDraftIntelDm(state).catch(() => null)
+          await notifyDraftIntelPostDraftRecap(leagueId, state.rosterId, state.recap).catch(() => null)
+        }
+      })()
       return NextResponse.json({ ok: true, action: 'complete', session: snapshot })
     }
     if (action === 'set_timer_seconds') {
@@ -355,6 +415,15 @@ export async function POST(
       })
       if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
       const snapshot = await buildSessionSnapshot(leagueId)
+      void (async () => {
+        const states = await publishDraftIntelForUpcomingManagers({
+          leagueId,
+          trigger: 'pick_update',
+        }).catch(() => [])
+        for (const result of states) {
+          await sendDraftIntelDm(result.state).catch(() => null)
+        }
+      })()
       return NextResponse.json({ ok: true, action: 'skip_pick', session: snapshot })
     }
     if (action === 'resolve_auction') {

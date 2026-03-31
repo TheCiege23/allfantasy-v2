@@ -147,6 +147,7 @@ describe("POST /api/chimmy compatibility route", () => {
     await expect(res.json()).resolves.toEqual({
       response: "You should hold for now.",
       result: "You should hold for now.",
+      message: "You should hold for now.",
       meta: { confidencePct: 82 },
       upgradeRequired: false,
     })
@@ -180,9 +181,14 @@ describe("POST /api/chimmy compatibility route", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Insufficient token balance",
       code: "insufficient_token_balance",
-      response: null,
-      result: null,
+      response:
+        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
+      result:
+        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
+      message:
+        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
       upgradeRequired: true,
+      upgradePath: "/pricing",
     })
   })
 
@@ -271,12 +277,71 @@ describe("POST /api/chimmy compatibility route", () => {
     )
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({
+    await expect(res.json()).resolves.toMatchObject({
       result: "Hold the core and ask for a better plus piece.",
       response: "Hold the core and ask for a better plus piece.",
       intent: "trade_evaluation",
       model: "claude-sonnet-4-6",
       tokensUsed: 143,
+      meta: {
+        responseStructure: {
+          shortAnswer: "Hold the core and ask for a better plus piece.",
+        },
+        recommendedTool: "trade_analyzer",
+      },
+      upgradeRequired: false,
+    })
+  })
+
+  it("uses the Anthropic pipeline for image requests when Anthropic is enabled", async () => {
+    isAnthropicChimmyEnabledMock.mockResolvedValueOnce(true)
+    runAgentPipelineMock.mockResolvedValueOnce({
+      result: "Claude analyzed the uploaded image successfully.",
+      intent: "quick_ask",
+      model: "claude-sonnet-4-6",
+      tokensUsed: 77,
+    })
+
+    const { POST } = await import("@/app/api/chimmy/route")
+    const res = await POST(
+      buildJsonRequest({
+        message: "Analyze this screenshot",
+        image: {
+          dataUrl: "data:image/png;base64,aW1hZ2UtYnl0ZXM=",
+          name: "upload.png",
+          type: "image/png",
+        },
+        userContext: {
+          sport: "NFL",
+          leagueId: "league-1",
+          source: "trade_analyzer",
+        },
+      }) as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(chatChimmyPostMock).not.toHaveBeenCalled()
+    expect(runAgentPipelineMock).toHaveBeenCalledWith(
+      "Analyze this screenshot",
+      expect.objectContaining({
+        userId: "session-user",
+        tier: "pro",
+        sport: "NFL",
+        leagueId: "league-1",
+        source: "trade_analyzer",
+        image: {
+          data: "aW1hZ2UtYnl0ZXM=",
+          mediaType: "image/png",
+          name: "upload.png",
+        },
+      })
+    )
+    await expect(res.json()).resolves.toMatchObject({
+      response: "Claude analyzed the uploaded image successfully.",
+      result: "Claude analyzed the uploaded image successfully.",
+      intent: "quick_ask",
+      model: "claude-sonnet-4-6",
+      tokensUsed: 77,
       upgradeRequired: false,
     })
   })

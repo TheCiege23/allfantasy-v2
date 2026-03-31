@@ -64,6 +64,9 @@ export type ChimmyMessageMeta = {
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
   responseStructure?: ChimmyResponseStructure
+  variant?: "premium_gate" | "error"
+  ctaLabel?: string
+  ctaHref?: string
 }
 
 export type ChimmyThreadMessage = {

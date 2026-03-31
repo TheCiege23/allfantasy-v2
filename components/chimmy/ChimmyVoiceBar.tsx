@@ -2,11 +2,14 @@
 
 import React from 'react'
 import { Volume2, VolumeX, Square, Loader2, Mic, MicOff } from 'lucide-react'
+import type { ChimmyTtsVoice } from '@/lib/chimmy-interface'
 
 export interface ChimmyVoiceBarProps {
   /** Voice replies enabled (toggle in shell) */
   voiceEnabled: boolean
   onVoiceToggle: () => void
+  selectedVoice?: ChimmyTtsVoice
+  onVoiceSelect?: (voice: ChimmyTtsVoice) => void
   /** TTS is currently playing */
   isPlaying: boolean
   onStop?: () => void
@@ -32,6 +35,8 @@ export interface ChimmyVoiceBarProps {
 export default function ChimmyVoiceBar({
   voiceEnabled,
   onVoiceToggle,
+  selectedVoice = 'rachel',
+  onVoiceSelect,
   isPlaying,
   onStop,
   ttsLoading = false,
@@ -59,6 +64,37 @@ export default function ChimmyVoiceBar({
           <VolumeX className="h-5 w-5 text-white/40" />
         )}
       </button>
+
+      {onVoiceSelect && !ttsUnavailable && (
+        <div
+          className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 text-[10px] text-white/60"
+          data-testid="chimmy-voice-choice-group"
+          aria-label="Select Chimmy voice"
+        >
+          <span className="px-1 uppercase tracking-wider">Voice</span>
+          {(['rachel', 'adam'] as ChimmyTtsVoice[]).map((voice) => {
+            const active = selectedVoice === voice
+            const label = voice === 'rachel' ? 'Rachel' : 'Adam'
+
+            return (
+              <button
+                key={voice}
+                type="button"
+                onClick={() => onVoiceSelect(voice)}
+                data-testid={`chimmy-voice-choice-${voice}`}
+                className={`rounded-md px-2 py-1 text-[11px] transition ${
+                  active
+                    ? 'bg-cyan-500/20 text-cyan-100 border border-cyan-400/30'
+                    : 'border border-transparent bg-transparent text-white/65 hover:bg-white/8 hover:text-white'
+                }`}
+                aria-pressed={active}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {isPlaying && onStop && (
         <button
