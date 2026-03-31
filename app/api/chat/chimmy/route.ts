@@ -953,7 +953,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     providerStatus,
     recommendedTool,
     dataSources: dataSources.length ? dataSources : undefined,
-    tokenSpend: spendLedger
+    tokenSpend: spendLedger && tokenPreview
       ? {
           ruleCode: tokenPreview.ruleCode,
           tokenCost: tokenPreview.tokenCost,
