@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma"
 import {
+  buildDevAdminRefundLedgerEntry,
+  buildDevAdminSpendLedgerEntry,
+  buildDevAdminTokenBalanceSnapshot,
+  buildDevAdminTokenSpendPreview,
+  isDevAdminUserId,
+} from "@/lib/dev-admin/access"
+import {
   TOKEN_ENTRY_TYPES,
   TOKEN_PACKAGE_SEEDS,
   TOKEN_REFUND_RULE_SEEDS,
@@ -285,6 +292,10 @@ export class TokenSpendService {
   }
 
   async getBalance(userId: string): Promise<TokenBalanceSnapshot> {
+    if (isDevAdminUserId(userId)) {
+      return buildDevAdminTokenBalanceSnapshot()
+    }
+
     await syncSeedDataIfNeeded()
     const balance = await (prisma as any).userTokenBalance.upsert({
       where: { userId },
@@ -372,6 +383,10 @@ export class TokenSpendService {
   }
 
   async previewSpend(userId: string, ruleCode: TokenSpendRuleCode | string): Promise<TokenSpendPreview> {
+    if (isDevAdminUserId(userId)) {
+      return buildDevAdminTokenSpendPreview(String(ruleCode))
+    }
+
     await syncSeedDataIfNeeded()
     const [rule, balance, entitlement] = await Promise.all([
       this.getActiveRule(String(ruleCode)),
@@ -391,6 +406,10 @@ export class TokenSpendService {
     entitlement: EntitlementSnapshot
     currentBalance?: number
   }): Promise<TokenSpendPreview> {
+    if (isDevAdminUserId(input.userId)) {
+      return buildDevAdminTokenSpendPreview(String(input.ruleCode))
+    }
+
     await syncSeedDataIfNeeded()
     const rule = await this.getActiveRule(String(input.ruleCode))
     const currentBalance =
@@ -541,6 +560,16 @@ export class TokenSpendService {
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
   }): Promise<TokenLedgerEntryView> {
+    if (isDevAdminUserId(input.userId)) {
+      return buildDevAdminSpendLedgerEntry({
+        ruleCode: String(input.ruleCode),
+        sourceType: input.sourceType,
+        sourceId: input.sourceId ?? null,
+        description: input.description ?? null,
+        metadata: input.metadata ?? null,
+      })
+    }
+
     await syncSeedDataIfNeeded()
     const idempotencyKey = input.idempotencyKey?.trim() || null
 
@@ -660,6 +689,16 @@ export class TokenSpendService {
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
   }): Promise<TokenLedgerEntryView> {
+    if (isDevAdminUserId(input.userId)) {
+      return buildDevAdminRefundLedgerEntry({
+        refundRuleCode: String(input.refundRuleCode),
+        sourceType: input.sourceType ?? "refund_for_spend",
+        sourceId: input.sourceId ?? input.spendLedgerId,
+        description: input.description ?? null,
+        metadata: input.metadata ?? null,
+      })
+    }
+
     await syncSeedDataIfNeeded()
     const idempotencyKey = input.idempotencyKey?.trim() || null
 

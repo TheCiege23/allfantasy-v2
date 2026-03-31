@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
 describe("EntitlementResolver", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    delete process.env.DEV_ADMIN_USER_IDS
   })
 
   it("returns none when user has no subscriptions", async () => {
@@ -68,5 +69,21 @@ describe("EntitlementResolver", () => {
     expect(resolved.entitlement.status).toBe("expired")
     expect(resolved.hasAccess).toBe(false)
     expect(resolved.message).toContain("expired")
+  })
+
+  it("returns all-access entitlement for configured dev admins", async () => {
+    process.env.DEV_ADMIN_USER_IDS = "dev-user-1"
+
+    const { EntitlementResolver } = await import("@/lib/subscription/EntitlementResolver")
+    const resolver = new EntitlementResolver()
+    const snapshot = await resolver.resolveSnapshot("dev-user-1")
+
+    expect(snapshot).toMatchObject({
+      plans: ["all_access"],
+      status: "active",
+      currentPeriodEnd: null,
+      gracePeriodEnd: null,
+    })
+    expect(userSubscriptionFindManyMock).not.toHaveBeenCalled()
   })
 })

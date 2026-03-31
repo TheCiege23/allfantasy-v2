@@ -276,4 +276,31 @@ describe("POST /api/chat/chimmy contract", () => {
       response: "Accept the trade.",
     })
   })
+
+  it("skips token confirmation when preview does not require confirmation", async () => {
+    previewSpendMock.mockResolvedValueOnce({
+      ruleCode: "ai_chimmy_chat_message",
+      tokenCost: 0,
+      canSpend: true,
+      currentBalance: 999999999,
+      requiresConfirmation: false,
+    })
+
+    const formData = new FormData()
+    formData.append("message", "Should I trade this player?")
+
+    const { POST } = await import("@/app/api/chat/chimmy/route")
+    const res = await POST(buildMultipartRequest(formData) as any)
+
+    expect(res.status).toBe(200)
+    expect(spendTokensForRuleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmed: false,
+        ruleCode: "ai_chimmy_chat_message",
+      })
+    )
+    await expect(res.json()).resolves.toMatchObject({
+      response: "Accept the trade.",
+    })
+  })
 })

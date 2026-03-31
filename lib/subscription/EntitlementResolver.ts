@@ -3,6 +3,7 @@ import type {
   SubscriptionFeatureId,
   SubscriptionPlanId,
 } from "@/lib/subscription/types"
+import { buildDevAdminEntitlementSnapshot, isDevAdminUserId } from "@/lib/dev-admin/access"
 import { prisma } from "@/lib/prisma"
 import {
   hasFeatureAccessForPlans,
@@ -91,6 +92,10 @@ export class EntitlementResolver {
   }
 
   async resolveSnapshot(userId: string): Promise<EntitlementSnapshot> {
+    if (isDevAdminUserId(userId)) {
+      return buildDevAdminEntitlementSnapshot()
+    }
+
     const subscriptions = (await (prisma as any).userSubscription
       .findMany({
         where: { userId },

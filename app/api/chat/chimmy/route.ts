@@ -794,7 +794,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       error instanceof Error ? error.message : error
     )
   }
-  if (!tokenPreviewFailed && !confirmTokenSpend) {
+  if (!tokenPreviewFailed && tokenPreview?.requiresConfirmation !== false && !confirmTokenSpend) {
     return NextResponse.json(
       {
         error: 'Token spend confirmation required before sending to Chimmy.',
