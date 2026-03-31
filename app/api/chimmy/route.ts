@@ -8,7 +8,12 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
-import { runAgentPipeline, isAnthropicPipelineAvailable, type UserContext } from '@/lib/agents/anthropic-pipeline'
+import {
+  runAgentPipeline,
+  streamAgentPipeline,
+  isAnthropicPipelineAvailable,
+  type UserContext,
+} from '@/lib/agents/anthropic-pipeline'
 import { runAiProtection } from '@/lib/ai-protection'
 import { authOptions } from '@/lib/auth'
 import { isAnthropicChimmyEnabled } from '@/lib/feature-toggle'
@@ -19,6 +24,11 @@ import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 const MAX_MESSAGE_CHARS = 4_000
 const MAX_CONVERSATION_TURNS = 20
 const MAX_CONVERSATION_CONTENT_CHARS = 4_000
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-cache, no-transform',
+  Connection: 'keep-alive',
+} as const
 
 const ConversationTurnSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -33,6 +43,7 @@ const ChimmyImageSchema = z.object({
 
 const ChimmyJsonRequestSchema = z.object({
   message: z.string().trim().max(MAX_MESSAGE_CHARS).default(''),
+  stream: z.boolean().optional(),
   confirmTokenSpend: z.boolean().optional(),
   conversation: z.array(ConversationTurnSchema).max(MAX_CONVERSATION_TURNS).optional(),
   image: ChimmyImageSchema.optional(),
@@ -167,6 +178,8 @@ function buildAnthropicUserContext(
     leagueFormat: payload.userContext.leagueFormat as UserContext['leagueFormat'],
     scoring: payload.userContext.scoring ?? null,
     leagueId: payload.userContext.leagueId ?? null,
+    insightType: payload.userContext.insightType ?? null,
+    teamId: payload.userContext.teamId ?? null,
     season: payload.userContext.season ?? null,
     week: payload.userContext.week ?? null,
     source: payload.userContext.source ?? null,
@@ -225,6 +238,10 @@ async function refundAnthropicTokenFallbackIfNeeded(args: {
       },
     })
     .catch(() => null)
+}
+
+function encodeSseEvent(event: string, data: unknown) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }
 
 function appendImageToFormData(formData: FormData, image?: z.infer<typeof ChimmyImageSchema>) {
@@ -403,8 +420,82 @@ export async function POST(req: NextRequest) {
   const resolvedTier = resolveServerTier(gate.decision.entitlement.plans)
   const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier)
   const tokenSpendId = gate.tokenSpend?.id ?? null
+  const wantsStream = parseResult.data.stream === true
 
   try {
+    if (wantsStream) {
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const push = (event: string, data: unknown) => {
+            controller.enqueue(encoder.encode(encodeSseEvent(event, data)))
+          }
+
+          void (async () => {
+            try {
+              const result = await streamAgentPipeline(
+                parseResult.data.message,
+                anthropicContext,
+                (delta, snapshot) => {
+                  push('chunk', { delta, response: snapshot })
+                }
+              )
+
+              if (result.upgradeRequired) {
+                await refundAnthropicTokenFallbackIfNeeded({
+                  tokenSpendId,
+                  userId,
+                  leagueId: parseResult.data.userContext.leagueId ?? undefined,
+                })
+                push('done', buildAnthropicSuccessPayload(result))
+                controller.close()
+                return
+              }
+
+              await logAnthropicUsageToSupabase({
+                userId,
+                intent: result.intent,
+                tokensUsed: result.tokensUsed,
+                model: result.model,
+              })
+
+              push('done', buildAnthropicSuccessPayload(result))
+              controller.close()
+            } catch (error) {
+              await refundAnthropicTokenFallbackIfNeeded({
+                tokenSpendId,
+                userId,
+                leagueId: parseResult.data.userContext.leagueId ?? undefined,
+              })
+
+              console.error('[api/chimmy] Anthropic pipeline stream failed:', {
+                userId,
+                leagueId: parseResult.data.userContext.leagueId ?? null,
+                source: parseResult.data.userContext.source ?? 'api_chimmy_json',
+                error:
+                  error instanceof Error
+                    ? {
+                        message: error.message,
+                        stack: error.stack,
+                      }
+                    : error,
+              })
+
+              push('error', {
+                error: error instanceof Error ? error.message : 'Agent pipeline failed',
+              })
+              controller.close()
+            }
+          })()
+        },
+      })
+
+      return new Response(stream, {
+        status: 200,
+        headers: SSE_HEADERS,
+      })
+    }
+
     const result = await runAgentPipeline(parseResult.data.message, anthropicContext)
 
     if (result.upgradeRequired) {

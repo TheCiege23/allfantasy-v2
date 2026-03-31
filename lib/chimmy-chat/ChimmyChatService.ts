@@ -7,6 +7,7 @@ type SendChimmyMessageInput = {
   conversation?: ChimmyThreadMessage[]
   context?: AIChatContext
   confirmTokenSpend?: boolean
+  onChunk?: (text: string) => void
 }
 
 type SendChimmyMessageResult = {
@@ -112,6 +113,7 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     input.imageFile && input.imageFile.size > 0 ? await fileToDataUrl(input.imageFile) : undefined
   const payload = {
     message: input.message,
+    stream: typeof input.onChunk === "function",
     confirmTokenSpend: shouldConfirmTokenSpend,
     conversation: conversation.length > 0 ? conversation : undefined,
     image: imageDataUrl
@@ -145,7 +147,93 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
-  const data = await res.json().catch(() => ({}))
+  const contentType = res.headers.get("content-type") || ""
+  let data: any = {}
+
+  if (contentType.includes("text/event-stream") && res.body) {
+    const decoder = new TextDecoder()
+    const reader = res.body.getReader()
+    let buffer = ""
+    let responseText = ""
+
+    const processEvent = (rawBlock: string) => {
+      const lines = rawBlock
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+      let event = "message"
+      const dataLines: string[] = []
+
+      for (const line of lines) {
+        if (line.startsWith("event:")) {
+          event = line.slice(6).trim()
+          continue
+        }
+        if (line.startsWith("data:")) {
+          dataLines.push(line.slice(5).trim())
+        }
+      }
+
+      const payloadRaw = dataLines.join("\n")
+      const eventPayload = payloadRaw ? JSON.parse(payloadRaw) : {}
+
+      if (event === "chunk") {
+        const nextText =
+          typeof eventPayload?.response === "string"
+            ? eventPayload.response
+            : typeof eventPayload?.delta === "string"
+              ? responseText + eventPayload.delta
+              : responseText
+        responseText = nextText
+        input.onChunk?.(responseText)
+        return
+      }
+
+      if (event === "done") {
+        data = eventPayload
+        if (!responseText && typeof eventPayload?.response === "string") {
+          responseText = eventPayload.response
+          input.onChunk?.(responseText)
+        }
+        return
+      }
+
+      if (event === "error") {
+        throw new Error(
+          typeof eventPayload?.error === "string" ? eventPayload.error : "Chimmy stream failed"
+        )
+      }
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const normalized = buffer.replace(/\r\n/g, "\n")
+      let boundary = normalized.indexOf("\n\n")
+      if (boundary === -1) {
+        buffer = normalized
+        continue
+      }
+      let working = normalized
+      while (boundary !== -1) {
+        const block = working.slice(0, boundary)
+        working = working.slice(boundary + 2)
+        if (block.trim().length > 0) {
+          processEvent(block)
+        }
+        boundary = working.indexOf("\n\n")
+      }
+      buffer = working
+    }
+
+    if (!data.response && responseText) {
+      data = { response: responseText, result: responseText }
+    }
+  } else {
+    data = await res.json().catch(() => ({}))
+  }
+
   const response =
     typeof data?.result === "string"
       ? data.result

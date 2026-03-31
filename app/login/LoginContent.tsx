@@ -62,7 +62,7 @@ export default function LoginContent() {
   const [adminRemaining, setAdminRemaining] = useState<number | null>(null)
 
   const [configError, setConfigError] = useState<string | null>(null)
-  const showDevBypass = process.env.NODE_ENV !== "production"
+  const showDevBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS_ENABLED === "true"
 
   useEffect(() => {
     rememberUnifiedAuthDestination(callbackUrl)

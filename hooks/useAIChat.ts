@@ -127,11 +127,27 @@ export function useAIChat(options?: {
         let res: Response
         let data: any
         let streamedAssistantHandled = false
+        const applyAssistantContent = (text: string) => {
+          setMessages((prev) => {
+            if (prev.length === 0) return [{ role: "assistant", content: text }]
+            const last = prev[prev.length - 1]
+            if (last?.role === "assistant") {
+              const next = [...prev]
+              next[next.length - 1] = { role: "assistant", content: text }
+              return next
+            }
+            return [...prev, { role: "assistant", content: text }]
+          })
+        }
         if (options?.leagueId) {
           const chimmyResult = await sendChimmyMessage({
             message: trimmed,
             conversation,
             confirmTokenSpend: false,
+            onChunk: (text) => {
+              streamedAssistantHandled = true
+              applyAssistantContent(text)
+            },
             context: {
               leagueId: options.leagueId,
               sleeperUsername: options?.contextScope?.sleeper_username,
@@ -174,19 +190,6 @@ export function useAIChat(options?: {
             const reader = res.body.getReader()
             let buffer = ""
             let responseText = ""
-
-            const applyAssistantContent = (text: string) => {
-              setMessages((prev) => {
-                if (prev.length === 0) return [{ role: "assistant", content: text }]
-                const last = prev[prev.length - 1]
-                if (last?.role === "assistant") {
-                  const next = [...prev]
-                  next[next.length - 1] = { role: "assistant", content: text }
-                  return next
-                }
-                return [...prev, { role: "assistant", content: text }]
-              })
-            }
 
             const processEvent = (rawBlock: string) => {
               const lines = rawBlock

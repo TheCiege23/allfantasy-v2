@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const chatChimmyPostMock = vi.fn()
 const runAgentPipelineMock = vi.fn()
+const streamAgentPipelineMock = vi.fn()
 const isAnthropicChimmyEnabledMock = vi.fn()
 const isAnthropicPipelineAvailableMock = vi.fn()
 const getServerSessionMock = vi.fn()
@@ -16,6 +17,7 @@ vi.mock("@/app/api/chat/chimmy/route", () => ({
 
 vi.mock("@/lib/agents/anthropic-pipeline", () => ({
   runAgentPipeline: runAgentPipelineMock,
+  streamAgentPipeline: streamAgentPipelineMock,
   isAnthropicPipelineAvailable: isAnthropicPipelineAvailableMock,
 }))
 
@@ -81,6 +83,7 @@ describe("POST /api/chimmy compatibility route", () => {
     })
     supabaseInsertMock.mockResolvedValue({ error: null })
     refundSpendByLedgerMock.mockResolvedValue(null)
+    streamAgentPipelineMock.mockReset()
   })
 
   it("maps the JSON compatibility contract into the dedicated Chimmy handler", async () => {
@@ -276,5 +279,40 @@ describe("POST /api/chimmy compatibility route", () => {
       tokensUsed: 143,
       upgradeRequired: false,
     })
+  })
+
+  it("streams Anthropic responses when the client opts in", async () => {
+    isAnthropicChimmyEnabledMock.mockResolvedValueOnce(true)
+    streamAgentPipelineMock.mockImplementationOnce(async (_message, _ctx, onText) => {
+      onText("Hold ", "Hold ")
+      onText("tight.", "Hold tight.")
+      return {
+        result: "Hold tight.",
+        intent: "trade_evaluation",
+        model: "claude-sonnet-4-6",
+        tokensUsed: 88,
+      }
+    })
+
+    const { POST } = await import("@/app/api/chimmy/route")
+    const res = await POST(
+      buildJsonRequest({
+        message: "Should I make this trade?",
+        stream: true,
+        userContext: {
+          sport: "NFL",
+          leagueId: "league-1",
+          source: "trade_analyzer",
+        },
+      }) as any
+    )
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toContain("text/event-stream")
+    const body = await res.text()
+    expect(body).toContain('event: chunk')
+    expect(body).toContain('"response":"Hold tight."')
+    expect(body).toContain('event: done')
+    expect(body).toContain('"tokensUsed":88')
   })
 })

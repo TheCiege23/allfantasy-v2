@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { getInsightBundle, type InsightType } from '@/lib/ai-simulation-integration'
 import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
@@ -73,6 +74,8 @@ export interface UserContext {
   scoring?: string | null
   record?: string | null
   leagueId?: string | null
+  insightType?: InsightType | null
+  teamId?: string | null
   season?: number | null
   week?: number | null
   source?: string | null
@@ -202,6 +205,12 @@ type ClaudeCallResult = {
   model: string
 }
 
+type SportsContextResult = {
+  summary: string
+  sources: string[]
+  sport?: SupportedSport | null
+} | null
+
 export function isAnthropicPipelineAvailable(): boolean {
   return Boolean(anthropic)
 }
@@ -234,6 +243,59 @@ async function callClaude(args: {
       text,
       tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
       model: response.model || args.model,
+    }
+  } catch (error: unknown) {
+    if (error instanceof Anthropic.APIError) {
+      if (error.status === 529) {
+        throw new Error('AI temporarily overloaded. Try again in a moment.')
+      }
+      if (error.status === 401) {
+        throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
+      }
+      if (error.status === 429) {
+        throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
+      }
+    }
+    throw error
+  }
+}
+
+async function callClaudeStream(args: {
+  system: string
+  userMessage: string
+  model: string
+  maxTokens?: number
+  onText: (delta: string, snapshot: string) => void
+}): Promise<ClaudeCallResult> {
+  if (!anthropic) {
+    throw new Error('Anthropic API key is not configured.')
+  }
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: args.model,
+      max_tokens: args.maxTokens ?? 1500,
+      system: args.system,
+      messages: [{ role: 'user', content: args.userMessage }],
+    })
+
+    let latestSnapshot = ''
+    stream.on('text', (delta, snapshot) => {
+      latestSnapshot = snapshot
+      args.onText(delta, snapshot)
+    })
+
+    const [finalText, finalMessage] = await Promise.all([
+      stream.finalText(),
+      stream.finalMessage(),
+    ])
+
+    return {
+      text: finalText?.trim() || latestSnapshot.trim(),
+      tokensUsed:
+        Math.max(0, finalMessage.usage.input_tokens ?? 0) +
+        Math.max(0, finalMessage.usage.output_tokens ?? 0),
+      model: finalMessage.model || args.model,
     }
   } catch (error: unknown) {
     if (error instanceof Anthropic.APIError) {
@@ -304,7 +366,7 @@ async function classifyIntent(
     system: systemPrompt,
     userMessage: prompt,
     model: MODELS.orchestrator,
-    maxTokens: 600,
+    maxTokens: 300,
   })
 
   const parsed = parseIntentJson(result.text) ?? {
@@ -316,10 +378,108 @@ async function classifyIntent(
   return { result: parsed, tokensUsed: result.tokensUsed }
 }
 
+function inferInsightTypeForSportsContext(userMessage: string, ctx: UserContext): InsightType | null {
+  if (ctx.insightType) return ctx.insightType
+
+  const source = String(ctx.source ?? '').toLowerCase()
+  if (source.includes('draft')) return 'draft'
+  if (source.includes('waiver')) return 'waiver'
+  if (source.includes('matchup')) return 'matchup'
+  if (source.includes('trade')) return 'trade'
+
+  const lowerMessage = userMessage.toLowerCase()
+  if (/waiver|pickup|faab|free agent|drop\b/.test(lowerMessage)) return 'waiver'
+  if (/draft|adp|pick\b|round\b|rookie/.test(lowerMessage)) return 'draft'
+  if (/matchup|start\/sit|start sit|lineup|bench/.test(lowerMessage)) return 'matchup'
+  if (/playoff|seed|odds|schedule/.test(lowerMessage)) return 'playoff'
+  if (/dynasty|rebuild|future|keeper/.test(lowerMessage)) return 'dynasty'
+  if (/trade|offer|counter|sell high|buy low/.test(lowerMessage)) return 'trade'
+
+  return null
+}
+
+async function fetchSportsContext(
+  userMessage: string,
+  ctx: UserContext
+): Promise<SportsContextResult> {
+  if (!ctx.leagueId) return null
+
+  const insightType = inferInsightTypeForSportsContext(userMessage, ctx)
+  if (!insightType) return null
+
+  try {
+    const bundle = await getInsightBundle(ctx.leagueId, insightType, {
+      teamId: ctx.teamId ?? undefined,
+      season: ctx.season ?? undefined,
+      week: ctx.week ?? undefined,
+      sport: ctx.sport ?? undefined,
+    })
+
+    if (!bundle.contextText?.trim()) return null
+
+    return {
+      summary: bundle.contextText.trim(),
+      sources: bundle.sources,
+      sport: bundle.sport,
+    }
+  } catch (error) {
+    console.error('[anthropic-pipeline] Sports context fetch failed:', {
+      userId: ctx.userId,
+      leagueId: ctx.leagueId,
+      insightType,
+      error: error instanceof Error ? error.message : error,
+    })
+    return null
+  }
+}
+
+function buildSpecialistRequestPayload(
+  payload: Record<string, unknown>,
+  ctx: UserContext,
+  sportsContext?: SportsContextResult
+): string {
+  return JSON.stringify(
+    {
+      ...payload,
+      userMessage: payload.userMessage ?? payload.message ?? '',
+      deterministicSportsContext: sportsContext
+        ? {
+            summary: sportsContext.summary,
+            sources: sportsContext.sources,
+            sport: sportsContext.sport ?? getSportLabel(ctx.sport),
+          }
+        : null,
+      userContext: {
+        userId: ctx.userId,
+        tier: ctx.tier,
+        sport: getSportLabel(sportsContext?.sport ?? ctx.sport),
+        leagueFormat: ctx.leagueFormat ?? 'redraft',
+        scoring: ctx.scoring ?? 'PPR',
+        record: ctx.record ?? null,
+        leagueId: ctx.leagueId ?? null,
+        teamId: ctx.teamId ?? null,
+        insightType: ctx.insightType ?? null,
+        season: ctx.season ?? null,
+        week: ctx.week ?? null,
+        source: ctx.source ?? null,
+        recentConversation: ctx.conversation ?? [],
+        userPreferences: {
+          tone: ctx.memory?.tone ?? 'strategic',
+          detailLevel: ctx.memory?.detailLevel ?? 'concise',
+          riskMode: ctx.memory?.riskMode ?? 'balanced',
+        },
+      },
+    },
+    null,
+    2
+  )
+}
+
 async function runSpecialist(
   intent: IntentType,
   payload: Record<string, unknown>,
-  ctx: UserContext
+  ctx: UserContext,
+  sportsContext?: SportsContextResult
 ): Promise<ClaudeCallResult> {
   const specialistPromptKey = intent as PromptKey
   const specialistPrompt =
@@ -329,36 +489,49 @@ async function runSpecialist(
 
   return callClaude({
     system: specialistPrompt,
-    userMessage: JSON.stringify(
-      {
-        ...payload,
-        userMessage: payload.userMessage ?? payload.message ?? '',
-        userContext: {
-          userId: ctx.userId,
-          tier: ctx.tier,
-          sport: getSportLabel(ctx.sport),
-          leagueFormat: ctx.leagueFormat ?? 'redraft',
-          scoring: ctx.scoring ?? 'PPR',
-          record: ctx.record ?? null,
-          leagueId: ctx.leagueId ?? null,
-          season: ctx.season ?? null,
-          week: ctx.week ?? null,
-          source: ctx.source ?? null,
-          recentConversation: ctx.conversation ?? [],
-          userPreferences: {
-            tone: ctx.memory?.tone ?? 'strategic',
-            detailLevel: ctx.memory?.detailLevel ?? 'concise',
-            riskMode: ctx.memory?.riskMode ?? 'balanced',
-          },
-        },
-      },
-      null,
-      2
-    ),
+    userMessage: buildSpecialistRequestPayload(payload, ctx, sportsContext),
     model:
       intent === 'quick_ask' || intent === 'general' ? MODELS.quickask : MODELS.specialist,
     maxTokens: intent === 'quick_ask' || intent === 'general' ? 500 : 2000,
   })
+}
+
+async function streamSpecialist(
+  intent: IntentType,
+  payload: Record<string, unknown>,
+  ctx: UserContext,
+  sportsContext: SportsContextResult | undefined,
+  onText: (delta: string, snapshot: string) => void
+): Promise<ClaudeCallResult> {
+  const specialistPromptKey = intent as PromptKey
+  const specialistPrompt =
+    intent === 'quick_ask' || intent === 'general'
+      ? await loadPrompt('chimmy')
+      : await loadPrompt(specialistPromptKey)
+
+  return callClaudeStream({
+    system: specialistPrompt,
+    userMessage: buildSpecialistRequestPayload(payload, ctx, sportsContext),
+    model:
+      intent === 'quick_ask' || intent === 'general' ? MODELS.quickask : MODELS.specialist,
+    maxTokens: intent === 'quick_ask' || intent === 'general' ? 500 : 2000,
+    onText,
+  })
+}
+
+async function resolvePipelinePlan(userMessage: string, ctx: UserContext): Promise<{
+  classification: { result: ClassifyIntentResult; tokensUsed: number }
+  sportsContext: SportsContextResult
+}> {
+  const [classification, sportsContext] = await Promise.all([
+    classifyIntent(userMessage, ctx),
+    fetchSportsContext(userMessage, ctx),
+  ])
+
+  return {
+    classification,
+    sportsContext,
+  }
 }
 
 export async function runAgentPipeline(
@@ -379,7 +552,7 @@ export async function runAgentPipeline(
       }
     }
 
-    const classification = await classifyIntent(trimmedMessage, ctx)
+    const { classification, sportsContext } = await resolvePipelinePlan(trimmedMessage, ctx)
 
     if (classification.result.isQuickAsk) {
       const quickResult = await runSpecialist(
@@ -388,7 +561,8 @@ export async function runAgentPipeline(
           ...classification.result.payload,
           userMessage: trimmedMessage,
         },
-        ctx
+        ctx,
+        sportsContext ?? undefined
       )
       return {
         result: quickResult.text,
@@ -415,7 +589,8 @@ export async function runAgentPipeline(
         ...classification.result.payload,
         userMessage: trimmedMessage,
       },
-      ctx
+      ctx,
+      sportsContext ?? undefined
     )
 
     return {
@@ -426,6 +601,98 @@ export async function runAgentPipeline(
     }
   } catch (error) {
     console.error('[anthropic-pipeline] runAgentPipeline failed:', {
+      userId: ctx.userId,
+      tier: ctx.tier,
+      sport: ctx.sport ?? null,
+      leagueFormat: ctx.leagueFormat ?? null,
+      promptDirCandidates: PROMPT_DIR_CANDIDATES,
+      error: error instanceof Error
+        ? {
+            message: error.message,
+            stack: error.stack,
+          }
+        : error,
+    })
+    throw error
+  }
+}
+
+export async function streamAgentPipeline(
+  userMessage: string,
+  ctx: UserContext,
+  onText: (delta: string, snapshot: string) => void
+): Promise<AgentResponse> {
+  try {
+    const trimmedMessage = userMessage.trim()
+    const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
+
+    if (wordCount <= 8) {
+      const quickResult = await streamSpecialist(
+        'quick_ask',
+        { userMessage: trimmedMessage },
+        ctx,
+        undefined,
+        onText
+      )
+      return {
+        result: quickResult.text,
+        intent: 'quick_ask',
+        model: quickResult.model,
+        tokensUsed: quickResult.tokensUsed,
+      }
+    }
+
+    const { classification, sportsContext } = await resolvePipelinePlan(trimmedMessage, ctx)
+
+    if (classification.result.isQuickAsk) {
+      const quickResult = await streamSpecialist(
+        classification.result.intent,
+        {
+          ...classification.result.payload,
+          userMessage: trimmedMessage,
+        },
+        ctx,
+        sportsContext ?? undefined,
+        onText
+      )
+      return {
+        result: quickResult.text,
+        intent: classification.result.intent,
+        model: quickResult.model,
+        tokensUsed: classification.tokensUsed + quickResult.tokensUsed,
+      }
+    }
+
+    if (isProOnlyIntent(classification.result.intent) && ctx.tier !== 'pro') {
+      return {
+        result:
+          'This feature requires AF Pro. Upgrade to unlock full trade analysis, waiver recommendations, draft assistance, and dynasty projections.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+        upgradeRequired: true,
+      }
+    }
+
+    const specialistResult = await streamSpecialist(
+      classification.result.intent,
+      {
+        ...classification.result.payload,
+        userMessage: trimmedMessage,
+      },
+      ctx,
+      sportsContext ?? undefined,
+      onText
+    )
+
+    return {
+      result: specialistResult.text,
+      intent: classification.result.intent,
+      model: specialistResult.model,
+      tokensUsed: classification.tokensUsed + specialistResult.tokensUsed,
+    }
+  } catch (error) {
+    console.error('[anthropic-pipeline] streamAgentPipeline failed:', {
       userId: ctx.userId,
       tier: ctx.tier,
       sport: ctx.sport ?? null,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const confirmTokenSpendMock = vi.fn()
 
@@ -69,6 +69,59 @@ describe("sendChimmyMessage", () => {
     expect(global.fetch).not.toHaveBeenCalled()
     expect(result.ok).toBe(false)
     expect(result.error).toContain("Need 2 tokens")
+  })
+
+  it("parses streamed Chimmy responses and forwards partial text", async () => {
+    confirmTokenSpendMock.mockResolvedValueOnce({
+      confirmed: true,
+      preview: {
+        ruleCode: "ai_chimmy_chat_message",
+        featureLabel: "Chimmy chat message",
+        tokenCost: 1,
+        currentBalance: 4,
+        canSpend: true,
+        requiresConfirmation: true,
+      },
+    })
+
+    ;(global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(
+        [
+          'event: chunk',
+          'data: {"delta":"Hold ","response":"Hold "}',
+          "",
+          'event: chunk',
+          'data: {"delta":"tight.","response":"Hold tight."}',
+          "",
+          'event: done',
+          'data: {"result":"Hold tight.","response":"Hold tight."}',
+          "",
+        ].join("\n"),
+        {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }
+      )
+    )
+
+    const onChunk = vi.fn()
+    const { sendChimmyMessage } = await import("@/lib/chimmy-chat/ChimmyChatService")
+    const result = await sendChimmyMessage({
+      message: "What should I do?",
+      onChunk,
+      context: {
+        leagueId: "league-1",
+        sport: "NFL",
+      },
+    })
+
+    expect(onChunk).toHaveBeenNthCalledWith(1, "Hold ")
+    expect(onChunk).toHaveBeenNthCalledWith(2, "Hold tight.")
+    expect(result).toEqual({
+      ok: true,
+      response: "Hold tight.",
+      meta: undefined,
+    })
   })
 
   afterEach(() => {

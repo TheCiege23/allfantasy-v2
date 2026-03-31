@@ -186,6 +186,7 @@ export default function ChimmyChat() {
     setIsTyping(true);
 
     try {
+      let streamedAssistantHandled = false;
       const result = await sendChimmyMessage({
         message: outgoingText || '',
         imageFile,
@@ -195,10 +196,24 @@ export default function ChimmyChat() {
           imageUrl: m.image ?? null,
         })),
         confirmTokenSpend: false,
+        onChunk: (text) => {
+          streamedAssistantHandled = true;
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role === 'assistant') {
+              const next = [...prev];
+              next[next.length - 1] = { role: 'assistant', content: text };
+              return next;
+            }
+            return [...prev, { role: 'assistant', content: text }];
+          });
+        },
       });
       const reply = result.response || `I couldn't read that clearly. Re-send it and I'll be more specific.`;
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      if (!streamedAssistantHandled) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      }
       speak(reply);
       if (!result.ok && result.error) {
         toast.error(result.error);

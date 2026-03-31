@@ -324,11 +324,33 @@ export default function ChimmyChatShell({
         content: outgoingText.trim() || 'Analyze this screenshot.',
         imageUrl: image ? null : undefined,
       }
+      let streamedAssistantHandled = false
       const result = await sendChimmyMessage({
         message: outgoingText,
         imageFile: image,
         conversation: [...conversationBeforeUser, userMsg],
         context: requestContext,
+        onChunk: (text) => {
+          streamedAssistantHandled = true
+          const partialAssistant: ChimmyChatMessage = {
+            role: 'assistant',
+            content: text,
+            meta: null,
+          }
+
+          if (options?.replaceLastAssistant) {
+            setMessages((prev) => [...prev.slice(0, -1), partialAssistant])
+            return
+          }
+
+          setMessages((prev) => {
+            const last = prev[prev.length - 1]
+            if (last?.role === 'assistant') {
+              return [...prev.slice(0, -1), partialAssistant]
+            }
+            return [...prev, partialAssistant]
+          })
+        },
       })
 
       if (!result.ok && result.error) {
@@ -357,7 +379,7 @@ export default function ChimmyChatShell({
       }
 
       setLastMeta(providerStatus ?? null)
-      if (options?.replaceLastAssistant) {
+      if (options?.replaceLastAssistant || streamedAssistantHandled) {
         setMessages((prev) => [...prev.slice(0, -1), assistantMsg])
       } else {
         setMessages((prev) => [...prev, assistantMsg])
