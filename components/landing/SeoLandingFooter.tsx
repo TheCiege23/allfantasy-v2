@@ -14,12 +14,21 @@ export default function SeoLandingFooter() {
     >
       <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <div className="flex items-center gap-2">
-          <Link href="/" className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="flex items-center gap-2 rounded-2xl border px-3 py-2"
+            style={{
+              borderColor: 'color-mix(in srgb, white 10%, var(--border))',
+              background: 'color-mix(in srgb, var(--panel) 68%, transparent)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+            }}
+          >
             <img
-              src="/af-crest.png"
+              src="/af-logo-text.png"
               alt="AllFantasy"
-              className="h-5 w-5 rounded-lg border object-contain"
-              style={{ borderColor: 'var(--border)' }}
+              className="h-[18px] w-auto object-contain"
+              style={{ mixBlendMode: 'screen' }}
             />
             <span>© {new Date().getFullYear()} AllFantasy</span>
           </Link>

@@ -21,36 +21,26 @@ export default function LanguageToggle() {
 
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-full border px-1 py-0.5 text-xs sm:text-[11px]"
+      className="inline-flex items-center gap-2 rounded-full border px-2 py-1 text-xs sm:text-[11px]"
       style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
     >
       <span className="hidden sm:inline px-2" style={{ color: "var(--muted2)" }}>
         {t("common.language")}
       </span>
-      <button
-        type="button"
-        onClick={() => selectLang("en")}
-        className="px-2 py-1 rounded-full transition-colors min-w-[2rem]"
+      <select
+        value={language}
+        onChange={(event) => selectLang(event.target.value as "en" | "es")}
+        aria-label={t("common.language")}
+        className="rounded-full border px-3 py-1 pr-7 outline-none transition"
         style={{
-          background: language === "en" ? "var(--accent-cyan)" : "transparent",
-          color: language === "en" ? "var(--on-accent-bg)" : "var(--text)",
+          borderColor: "color-mix(in srgb, var(--border) 90%, transparent)",
+          background: "color-mix(in srgb, var(--panel2) 88%, transparent)",
+          color: "var(--text)",
         }}
-        aria-label={getLanguageDisplayName("en")}
       >
-        EN
-      </button>
-      <button
-        type="button"
-        onClick={() => selectLang("es")}
-        className="px-2 py-1 rounded-full transition-colors min-w-[2rem]"
-        style={{
-          background: language === "es" ? "var(--accent-cyan)" : "transparent",
-          color: language === "es" ? "var(--on-accent-bg)" : "var(--text)",
-        }}
-        aria-label={getLanguageDisplayName("es")}
-      >
-        ES
-      </button>
+        <option value="en">{getLanguageDisplayName("en")}</option>
+        <option value="es">{getLanguageDisplayName("es")}</option>
+      </select>
     </div>
   );
 }

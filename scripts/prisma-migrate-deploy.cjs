@@ -223,8 +223,54 @@ function writeOutput(result) {
   if (result.stderr) process.stderr.write(result.stderr);
 }
 
-let result = runPrisma(["migrate", "deploy"]);
-writeOutput(result);
+function readCombinedOutput(result) {
+  return `${result.stdout || ""}\n${result.stderr || ""}`;
+}
+
+function isAdvisoryLockTimeout(output) {
+  return (
+    output.includes("P1002") &&
+    (
+      output.includes("pg_advisory_lock") ||
+      output.includes("postgres advisory lock") ||
+      output.includes("migrate-advisory-locking")
+    )
+  );
+}
+
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function runMigrateDeployWithRetries() {
+  const retryDelaysMs = [15000, 30000, 45000];
+
+  for (let attempt = 0; ; attempt += 1) {
+    const deployResult = runPrisma(["migrate", "deploy"]);
+    writeOutput(deployResult);
+
+    const output = readCombinedOutput(deployResult);
+    const failed =
+      typeof deployResult.status === "number" &&
+      deployResult.status !== 0;
+
+    if (!failed || !isAdvisoryLockTimeout(output) || attempt >= retryDelaysMs.length) {
+      return deployResult;
+    }
+
+    const baseDelayMs = retryDelaysMs[attempt];
+    const jitterMs = Math.floor(Math.random() * 5000);
+    const waitMs = baseDelayMs + jitterMs;
+
+    console.warn(
+      `[db:migrate:deploy] Prisma advisory lock is busy; retrying migrate deploy in ${Math.ceil(waitMs / 1000)}s (attempt ${attempt + 2}/${retryDelaysMs.length + 1}).`
+    );
+
+    sleepMs(waitMs);
+  }
+}
+
+let result = runMigrateDeployWithRetries();
 
 function outputMentionsFailedMigration(output, migrationName) {
   return (
@@ -332,7 +378,7 @@ END $$;
   );
 }
 
-const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+const output = readCombinedOutput(result);
 const failedMigrationName = extractFailedMigrationName(output);
 const shouldRetryFailedMigration =
   typeof result.status === "number" &&
@@ -364,8 +410,7 @@ if (shouldRetryFailedMigration && failedMigrationName) {
       }
     }
 
-    result = runPrisma(["migrate", "deploy"]);
-    writeOutput(result);
+    result = runMigrateDeployWithRetries();
   } else {
     process.exit(typeof resolveResult.status === "number" ? resolveResult.status : 1);
   }

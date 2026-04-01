@@ -7,7 +7,6 @@ import { useSession } from 'next-auth/react'
 import { ArrowRight, Shield } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { ModeToggle } from '@/components/theme/ModeToggle'
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 
@@ -21,7 +20,7 @@ const LANDING_COPY = {
       openApp: 'Open App',
       admin: 'Admin',
     },
-    badge: 'Available now',
+    badge: 'Coming Spring 2026! Early Signups Available',
     hero: {
       titleTop: 'Fantasy Sports',
       titleBottom: 'With AI Superpowers',
@@ -73,40 +72,46 @@ const LANDING_COPY = {
           icon: '⚖️',
           title: 'Trade Analyzer',
           body: 'AI fairness scores, value deltas, and lineup impact analysis before you accept or reject a deal.',
-          href: '/trade-analyzer',
+          previewTitle: 'Example output',
+          previewLines: ['Fairness score: 92/100', 'Lineup swing: +11.8 pts', 'Verdict: accept if WR depth matters'],
         },
         {
           icon: '📋',
           title: 'Waiver Wire AI',
           body: 'Prioritized pickups with roster-fit confidence, FAAB guidance, and streaming fallbacks.',
-          href: '/waiver-wire',
+          previewTitle: 'Example output',
+          previewLines: ['Top claim: Jaxon Smith-Njigba', 'Suggested FAAB: 12-15%', 'Fallback: stream Chargers D/ST'],
         },
         {
           icon: '🎯',
           title: 'Draft Assistant',
           body: 'Live draft help with tier awareness, ADP tracking, and need-based pivot suggestions.',
-          href: '/draft-helper',
+          previewTitle: 'Live draft cue',
+          previewLines: ['Tier break in 2 picks', 'Best value: DeVonta Smith', 'Pivot if RB run continues'],
         },
         {
           icon: '🔬',
           title: 'Player Comparison Lab',
           body: 'Compare players with projections, injury context, and usage trends in one view.',
-          href: '/player-comparison',
+          previewTitle: 'Comparison snapshot',
+          previewLines: ['Projection: 18.4 vs 15.9', 'Target share edge: +6.2%', 'Injury risk: low vs medium'],
         },
         {
           icon: '🎮',
           title: 'Matchup Simulator',
           body: 'Simulate weekly matchups and playoff scenarios with lineup optimization built in.',
-          href: '/matchup-simulator',
+          previewTitle: 'Simulation snapshot',
+          previewLines: ['Win odds: 63%', 'Median score: 128.4', 'Best flex swap adds 4.7 pts'],
         },
         {
           icon: '🧠',
           title: 'Chimmy AI Coach',
           body: 'Ask anything. Chimmy knows your roster, your opponents, and the scoring context that matters.',
-          href: '/fantasy-coach',
+          previewTitle: 'Example response',
+          previewLines: ['Start Nico Collins over Pittman.', 'You need ceiling this week.', 'Opponent is weak against outside WRs.'],
         },
       ],
-      linkLabel: 'Open tool',
+      previewLabel: 'See how it works',
     },
     stats: [
       { value: '1M+', label: 'AI analyses run' },
@@ -140,7 +145,7 @@ const LANDING_COPY = {
       openApp: 'Abrir app',
       admin: 'Admin',
     },
-    badge: 'Disponible ahora',
+    badge: 'Llega en primavera de 2026. Registros anticipados disponibles',
     hero: {
       titleTop: 'Fantasy Sports',
       titleBottom: 'Con superpoderes de IA',
@@ -192,40 +197,46 @@ const LANDING_COPY = {
           icon: '⚖️',
           title: 'Trade Analyzer',
           body: 'Puntajes de equidad, valor y efecto en tu lineup antes de aceptar o rechazar un trade.',
-          href: '/trade-analyzer',
+          previewTitle: 'Ejemplo',
+          previewLines: ['Puntaje de equidad: 92/100', 'Impacto en lineup: +11.8 pts', 'Veredicto: aceptar si necesitas profundidad WR'],
         },
         {
           icon: '📋',
           title: 'Waiver Wire AI',
           body: 'Prioridades de pickups con ajuste a tu roster, sugerencia FAAB y opciones de streaming.',
-          href: '/waiver-wire',
+          previewTitle: 'Ejemplo',
+          previewLines: ['Mejor claim: Jaxon Smith-Njigba', 'FAAB sugerido: 12-15%', 'Plan B: stream Chargers D/ST'],
         },
         {
           icon: '🎯',
           title: 'Draft Assistant',
           body: 'Ayuda en vivo para el draft con tiers, ADP y pivotes según necesidad.',
-          href: '/draft-helper',
+          previewTitle: 'Señal en draft',
+          previewLines: ['Quedan 2 picks antes del tier break', 'Mejor valor: DeVonta Smith', 'Pivota si sigue la corrida de RB'],
         },
         {
           icon: '🔬',
           title: 'Player Comparison Lab',
           body: 'Compara jugadores con proyecciones, contexto de lesiones y tendencias de uso.',
-          href: '/player-comparison',
+          previewTitle: 'Comparativa',
+          previewLines: ['Proyección: 18.4 vs 15.9', 'Ventaja target share: +6.2%', 'Riesgo de lesión: bajo vs medio'],
         },
         {
           icon: '🎮',
           title: 'Matchup Simulator',
           body: 'Simula enfrentamientos semanales y escenarios de playoffs con optimización de lineup.',
-          href: '/matchup-simulator',
+          previewTitle: 'Simulación',
+          previewLines: ['Probabilidad de ganar: 63%', 'Puntaje medio: 128.4', 'Mejor cambio en flex suma 4.7 pts'],
         },
         {
           icon: '🧠',
           title: 'Chimmy AI Coach',
           body: 'Pregunta lo que quieras. Chimmy conoce tu roster, tus rivales y tu sistema de puntuación.',
-          href: '/fantasy-coach',
+          previewTitle: 'Respuesta ejemplo',
+          previewLines: ['Inicia a Nico Collins sobre Pittman.', 'Esta semana necesitas techo.', 'Tu rival sufre contra WR abiertos.'],
         },
       ],
-      linkLabel: 'Abrir herramienta',
+      previewLabel: 'Mira como funciona',
     },
     stats: [
       { value: '1M+', label: 'Análisis IA ejecutados' },
@@ -290,19 +301,31 @@ export default function LandingPageClient() {
         }}
       >
         <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2.5" aria-label="AllFantasy home">
-            <Image src="/af-crest.png" alt="AllFantasy crest" width={30} height={30} className="mode-logo-safe h-[30px] w-[30px] object-contain" />
-            <span className="font-semibold tracking-[0.08em]" style={{ fontSize: 22 }}>
-              <GradientWord>{copy.nav.brand}</GradientWord>
-            </span>
+          <Link
+            href="/"
+            className="flex items-center rounded-2xl border px-3 py-2"
+            aria-label="AllFantasy home"
+            style={{
+              borderColor: 'color-mix(in srgb, white 10%, var(--border))',
+              background: 'color-mix(in srgb, var(--panel) 72%, transparent)',
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+            }}
+          >
+            <Image
+              src="/af-logo-text.png"
+              alt="AllFantasy"
+              width={1024}
+              height={512}
+              priority
+              className="h-[20px] w-auto object-contain sm:h-[24px]"
+              style={{ mixBlendMode: 'screen' }}
+            />
           </Link>
 
           <div className="flex items-center gap-2">
             <div className="hidden md:flex">
               <LanguageToggle />
-            </div>
-            <div className="hidden sm:flex">
-              <ModeToggle className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition" />
             </div>
             <Link
               href="/admin"
@@ -359,10 +382,7 @@ export default function LandingPageClient() {
           </div>
         </div>
         <div className="mx-auto flex max-w-7xl items-center justify-end px-4 pb-2 md:hidden">
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ModeToggle className="rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition" />
-          </div>
+          <LanguageToggle />
         </div>
       </header>
 
@@ -381,19 +401,35 @@ export default function LandingPageClient() {
         <div className="landing-grid pointer-events-none absolute inset-0" aria-hidden="true" />
 
         <div className="relative z-10 mb-8">
-          <div className="landing-crest-glow absolute left-1/2 top-1/2 h-[220px] w-[220px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[300px] sm:w-[300px]" aria-hidden="true" />
-          <Image
-            src="/af-crest.png"
-            alt="AllFantasy.ai crest"
-            width={140}
-            height={140}
-            priority
-            className="landing-float mode-logo-safe relative h-[110px] w-[110px] object-contain sm:h-[140px] sm:w-[140px]"
-          />
+          <div className="landing-crest-glow absolute left-1/2 top-1/2 h-[360px] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[520px] sm:w-[520px]" aria-hidden="true" />
+          <div
+            className="landing-float relative flex items-center justify-center px-4 py-2 sm:px-6 sm:py-4"
+            style={{
+              filter: 'drop-shadow(0 28px 90px rgba(4,9,21,0.42))',
+            }}
+          >
+            <div
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[320px] sm:w-[320px]"
+              aria-hidden="true"
+              style={{
+                background:
+                  'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 68%, color-mix(in srgb, var(--accent-purple) 12%, transparent) 0%, transparent 74%)',
+              }}
+            />
+            <Image
+              src="/af-logo-bg.png"
+              alt="AllFantasy crest with wordmark"
+              width={1024}
+              height={1024}
+              priority
+              className="relative h-[220px] w-auto object-contain sm:h-[310px]"
+              style={{ mixBlendMode: 'screen' }}
+            />
+          </div>
         </div>
 
         <div
-          className="relative z-10 mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em]"
+          className="relative z-10 mb-6 inline-flex max-w-[min(92vw,34rem)] items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-center text-[11px] font-semibold tracking-[0.06em] sm:text-xs"
           style={{
             background: 'color-mix(in srgb, var(--accent-amber) 10%, transparent)',
             borderColor: 'color-mix(in srgb, var(--accent-amber) 28%, transparent)',
@@ -534,21 +570,35 @@ export default function LandingPageClient() {
               <p className="mb-5 text-sm leading-6" style={{ color: 'var(--muted)' }}>
                 {card.body}
               </p>
-              <Link
-                href={card.href}
-                className="inline-flex items-center gap-1 text-sm font-semibold transition group-hover:gap-2"
-                style={{ color: 'var(--accent-emerald-strong)' }}
-                onClick={() =>
-                  trackLandingCtaClick({
-                    cta_label: card.title,
-                    cta_destination: card.href,
-                    cta_type: 'tool_card',
-                    source: 'feature-grid',
-                  })
-                }
+              <div
+                className="rounded-2xl border p-4 text-left"
+                style={{
+                  background: 'color-mix(in srgb, var(--panel2) 86%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--accent-cyan) 16%, var(--border))',
+                }}
               >
-                {copy.tools.linkLabel} <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+                <div
+                  className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em]"
+                  style={{ color: 'var(--accent-emerald-strong)' }}
+                >
+                  {card.previewTitle ?? copy.tools.previewLabel}
+                </div>
+                <div className="space-y-2">
+                  {card.previewLines.map((line) => (
+                    <div
+                      key={line}
+                      className="rounded-xl border px-3 py-2 text-xs font-medium sm:text-[13px]"
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--border) 92%, transparent)',
+                        background: 'color-mix(in srgb, white 3%, transparent)',
+                        color: 'var(--text)',
+                      }}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </article>
           ))}
         </div>
@@ -642,8 +692,25 @@ export default function LandingPageClient() {
 
       <footer className="border-t px-6 py-7 sm:px-8" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <Link href="/" className="flex items-center gap-2" aria-label="AllFantasy home">
-            <Image src="/af-crest.png" alt="AllFantasy crest" width={22} height={22} className="mode-logo-safe h-[22px] w-[22px] object-contain opacity-70" />
+          <Link
+            href="/"
+            className="flex items-center gap-2 rounded-2xl border px-3 py-2"
+            aria-label="AllFantasy home"
+            style={{
+              borderColor: 'color-mix(in srgb, white 10%, var(--border))',
+              background: 'color-mix(in srgb, var(--panel) 68%, transparent)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+            }}
+          >
+            <Image
+              src="/af-logo-text.png"
+              alt="AllFantasy"
+              width={1024}
+              height={512}
+              className="h-[18px] w-auto object-contain"
+              style={{ mixBlendMode: 'screen' }}
+            />
             <span className="text-sm" style={{ color: 'var(--muted2)' }}>
               © {new Date().getFullYear()} AllFantasy.ai. All rights reserved.
             </span>
