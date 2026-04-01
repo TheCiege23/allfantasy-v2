@@ -238,12 +238,22 @@ function isAdvisoryLockTimeout(output) {
   );
 }
 
+function isDatabaseReachabilityError(output) {
+  return (
+    output.includes("P1001") &&
+    (
+      output.includes("Can't reach database server") ||
+      output.includes("Please make sure your database server is running")
+    )
+  );
+}
+
 function sleepMs(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function runMigrateDeployWithRetries() {
-  const retryDelaysMs = [15000, 30000, 45000];
+  const retryDelaysMs = [15000, 30000, 45000, 60000];
 
   for (let attempt = 0; ; attempt += 1) {
     const deployResult = runPrisma(["migrate", "deploy"]);
@@ -253,8 +263,10 @@ function runMigrateDeployWithRetries() {
     const failed =
       typeof deployResult.status === "number" &&
       deployResult.status !== 0;
+    const advisoryLockBusy = isAdvisoryLockTimeout(output);
+    const databaseUnreachable = isDatabaseReachabilityError(output);
 
-    if (!failed || !isAdvisoryLockTimeout(output) || attempt >= retryDelaysMs.length) {
+    if (!failed || (!advisoryLockBusy && !databaseUnreachable) || attempt >= retryDelaysMs.length) {
       return deployResult;
     }
 
@@ -262,8 +274,12 @@ function runMigrateDeployWithRetries() {
     const jitterMs = Math.floor(Math.random() * 5000);
     const waitMs = baseDelayMs + jitterMs;
 
+    const retryReason = advisoryLockBusy
+      ? "Prisma advisory lock is busy"
+      : "Database host was temporarily unreachable";
+
     console.warn(
-      `[db:migrate:deploy] Prisma advisory lock is busy; retrying migrate deploy in ${Math.ceil(waitMs / 1000)}s (attempt ${attempt + 2}/${retryDelaysMs.length + 1}).`
+      `[db:migrate:deploy] ${retryReason}; retrying migrate deploy in ${Math.ceil(waitMs / 1000)}s (attempt ${attempt + 2}/${retryDelaysMs.length + 1}).`
     );
 
     sleepMs(waitMs);
