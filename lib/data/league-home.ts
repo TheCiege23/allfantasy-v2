@@ -550,7 +550,7 @@ function toResolvedLeaguePlayer(
 
 function sumLineupSlots(lineup: unknown): number {
   if (!lineup || typeof lineup !== 'object' || Array.isArray(lineup)) return 0
-  return Object.values(lineup as Record<string, unknown>).reduce((sum, value) => {
+  return Object.values(lineup as Record<string, unknown>).reduce<number>((sum, value) => {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? sum + parsed : sum
   }, 0)
