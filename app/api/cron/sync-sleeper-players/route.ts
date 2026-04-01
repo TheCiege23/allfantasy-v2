@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await seedSleeperPlayers({ sport: 'NFL' })
-    return NextResponse.json({ ...result, ok: result.ok ?? true })
+    return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     console.error('[cron/sync-sleeper-players]', error)
     return NextResponse.json(

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runAdpImporter()
-    return NextResponse.json({ ...result, ok: result.ok ?? true })
+    return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     console.error('[cron/import-adp]', error)
     return NextResponse.json({ error: 'ADP import failed' }, { status: 500 })

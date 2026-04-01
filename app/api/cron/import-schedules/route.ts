@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runScheduleImporter()
-    return NextResponse.json({ ...result, ok: result.ok ?? true })
+    return NextResponse.json({ ok: true, ...result })
   } catch (error) {
     console.error('[cron/import-schedules]', error)
     return NextResponse.json({ error: 'Schedule import failed' }, { status: 500 })
