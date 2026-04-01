@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "npm run db:migrate:deploy && next build",
+    "vercel-build": "npm run db:migrate:deploy && node scripts/vercel-next-build.cjs",
     "start": "next start",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
