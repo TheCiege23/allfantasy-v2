@@ -20,6 +20,12 @@ const fallbackSupabase = {
         error: { message: 'SUPABASE_NOT_CONFIGURED' },
       }
     },
+    async exchangeCodeForSession(_: string) {
+      return {
+        data: { session: null, user: null },
+        error: { message: 'SUPABASE_NOT_CONFIGURED' },
+      }
+    },
     async getSession() {
       return {
         data: { session: null },

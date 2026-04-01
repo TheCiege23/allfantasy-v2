@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useMemo } from "react"
 import { useSearchParams } from "next/navigation"
-import { ArrowLeft, Info } from "lucide-react"
+import { ArrowLeft, ArrowRight, Info } from "lucide-react"
+import { AuthStatusHeader, AuthStatusShell } from "@/components/auth/AuthStatusShell"
 import {
   getProviderDisplayName,
   getProviderFallbackMessage,
@@ -40,47 +41,55 @@ export default function ProviderPendingPage() {
   const message = useMemo(() => getProviderFallbackMessage(provider), [provider])
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2">
-            <Info className="h-5 w-5 text-cyan-400" />
+    <AuthStatusShell>
+      <div className="w-full max-w-[440px]">
+        <AuthStatusHeader
+          title={`${providerName} sign-in`}
+          subtitle="This provider is not ready yet, but your AllFantasy account is still accessible."
+        />
+
+        <div className="rounded-[18px] border border-violet-400/20 bg-[#16102a] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2">
+              <Info className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-white">{providerName} sign-in</h1>
+              <p className="text-xs text-white/50">Provider availability</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-semibold">{providerName} sign-in</h1>
-            <p className="text-xs text-white/50">Provider availability</p>
+
+          <p className="mt-5 text-sm leading-6 text-white/70">{message}</p>
+
+          <div className="mt-4 rounded-xl border border-violet-400/20 bg-[#1c1535] p-3 text-xs leading-6 text-white/55">
+            Your account still works with username, email, or mobile number plus password.
           </div>
-        </div>
 
-        <p className="text-sm text-white/70">{message}</p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+              className="flex flex-1 items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90"
+            >
+              <span>Back to Sign In</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href={`/signup?next=${encodeURIComponent(callbackUrl)}`}
+              className="flex flex-1 items-center justify-center rounded-[11px] border border-violet-400/30 bg-[#1c1535] px-4 py-3 text-sm font-medium text-white/75 transition hover:border-violet-300/45 hover:bg-[#211a3e] hover:text-white"
+            >
+              Go to Sign Up
+            </Link>
+          </div>
 
-        <div className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/50">
-          Your account still works with username, email, or mobile number + password.
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
           <Link
-            href={`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-            className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 transition"
+            href={landingFallback.href}
+            className="mt-5 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white/70"
           >
-            Back to Sign In
-          </Link>
-          <Link
-            href={`/signup?next=${encodeURIComponent(callbackUrl)}`}
-            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-center text-sm font-medium text-white/80 hover:bg-white/10 transition"
-          >
-            Go to Sign Up
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {landingFallback.label}
           </Link>
         </div>
-
-        <Link
-          href={landingFallback.href}
-          className="inline-flex items-center gap-2 text-xs text-white/50 hover:text-white/70"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {landingFallback.label}
-        </Link>
       </div>
-    </main>
+    </AuthStatusShell>
   )
 }

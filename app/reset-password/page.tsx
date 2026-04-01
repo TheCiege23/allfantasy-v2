@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { ArrowLeft, Loader2, Eye, EyeOff, CheckCircle2, TriangleAlert } from "lucide-react"
+import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2, TriangleAlert } from "lucide-react"
+import { AuthStatusHeader, AuthStatusLoadingFallback, AuthStatusShell } from "@/components/auth/AuthStatusShell"
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
@@ -73,78 +74,98 @@ function ResetPasswordContent() {
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl text-center space-y-4">
-          <TriangleAlert className="h-8 w-8 text-amber-400 mx-auto" />
-          <h1 className="text-xl font-semibold">Invalid reset link</h1>
-          <p className="text-sm text-white/60">This password reset link is missing or invalid.</p>
-          <Link
-            href="/forgot-password"
-            className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white transition"
-          >
-            Request new reset link
-          </Link>
+      <AuthStatusShell>
+        <div className="w-full max-w-[440px]">
+          <AuthStatusHeader
+            title="Invalid reset link"
+            subtitle="This password reset link is missing or no longer valid."
+          />
+          <div className="rounded-[18px] border border-red-500/20 bg-[#16102a] p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10">
+              <TriangleAlert className="h-7 w-7 text-amber-400" />
+            </div>
+            <h1 className="mt-5 text-2xl font-semibold text-white">Invalid reset link</h1>
+            <p className="mt-3 text-sm leading-6 text-white/60">
+              This password reset link is missing or invalid.
+            </p>
+            <Link
+              href="/forgot-password"
+              className="mt-7 inline-flex items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90"
+            >
+              <span>Request new reset link</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
-      </div>
+      </AuthStatusShell>
     )
   }
 
   if (success) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl text-center space-y-4">
-          <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto" />
-          <h1 className="text-xl font-semibold">Password reset</h1>
-          <p className="text-sm text-white/60">Your password has been updated. Redirecting to sign in...</p>
-          <Link
-            href={loginHref}
-            className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white transition"
-          >
-            Sign In
-          </Link>
+      <AuthStatusShell>
+        <div className="w-full max-w-[440px]">
+          <AuthStatusHeader
+            title="Password reset"
+            subtitle="Your password was updated successfully."
+          />
+          <div className="rounded-[18px] border border-violet-400/20 bg-[#16102a] p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10">
+              <CheckCircle2 className="h-7 w-7 text-emerald-400" />
+            </div>
+            <h1 className="mt-5 text-2xl font-semibold text-white">Password reset</h1>
+            <p className="mt-3 text-sm leading-6 text-white/60">
+              Your password has been updated. Redirecting to sign in...
+            </p>
+            <Link
+              href={loginHref}
+              className="mt-7 inline-flex items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90"
+            >
+              <span>Sign In</span>
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
-      </div>
+      </AuthStatusShell>
     )
   }
 
   return (
-    <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-      <Link
-        href={loginHref}
-        className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Sign In
-      </Link>
+    <AuthStatusShell>
+      <div className="w-full max-w-[440px]">
+        <Link
+          href={loginHref}
+          className="mb-6 inline-flex items-center gap-2 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-4 py-2.5 text-sm font-medium text-white/75 transition hover:border-violet-300/45 hover:bg-[#211a3e] hover:text-white"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Sign In</span>
+        </Link>
 
-      <div className="w-full max-w-md space-y-4">
-        <div className="text-center mb-2">
-          <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            AllFantasy.ai
-          </div>
-          <h1 className="mt-2 text-xl font-semibold">Set new password</h1>
-        </div>
+        <AuthStatusHeader
+          title="Set new password"
+          subtitle="Choose a strong new password for your AllFantasy account."
+        />
 
         {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
             <div className="flex items-start gap-2">
-              <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
+              <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
               <div>{error}</div>
             </div>
           </div>
         )}
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="rounded-[18px] border border-violet-400/20 bg-[#16102a] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs text-white/60">New password</label>
-              <div className="relative">
+              <label className="text-[13px] font-semibold tracking-[0.02em] text-white/60">New password</label>
+              <div className="relative mt-1.5">
                 <input
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 pr-10 text-sm outline-none focus:border-white/20"
+                  className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 pr-11 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                   placeholder="At least 8 characters"
                   disabled={loading}
                   autoFocus
@@ -152,20 +173,20 @@ function ResetPasswordContent() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/35 transition hover:text-cyan-200"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="text-xs text-white/60">Confirm password</label>
+              <label className="text-[13px] font-semibold tracking-[0.02em] text-white/60">Confirm password</label>
               <input
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 type="password"
                 autoComplete="new-password"
-                className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-white/20"
+                className="mt-1.5 w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                 placeholder="Confirm your new password"
                 disabled={loading}
               />
@@ -173,33 +194,30 @@ function ResetPasswordContent() {
             <button
               type="submit"
               disabled={loading || !password || !confirmPassword}
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition-all"
+              className="flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
-                <span className="inline-flex items-center justify-center gap-2">
+                <>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Resetting...
-                </span>
+                </>
               ) : (
-                "Reset Password"
+                <>
+                  <span>Reset Password</span>
+                  <ArrowRight className="h-4 w-4" />
+                </>
               )}
             </button>
           </form>
         </div>
       </div>
-    </div>
+    </AuthStatusShell>
   )
 }
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-          <div className="text-white/60">Loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthStatusLoadingFallback />}>
       <ResetPasswordContent />
     </Suspense>
   )

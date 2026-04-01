@@ -42,6 +42,7 @@ import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
+import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import {
   ArrowLeft,
@@ -1768,11 +1769,7 @@ function SignupContent() {
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
-      </div>
-    }>
+    <Suspense fallback={<AuthStatusLoadingFallback />}>
       <SignupContent />
     </Suspense>
   )

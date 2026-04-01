@@ -1,8 +1,9 @@
 import { Suspense } from 'react'
+import { AuthStatusLoadingFallback } from '@/components/auth/AuthStatusShell'
 import ForgotPasswordClient from './ForgotPasswordClient'
 
 function Fallback() {
-  return <div className="min-h-screen bg-neutral-950" />
+  return <AuthStatusLoadingFallback />
 }
 
 export default function ForgotPasswordPage() {

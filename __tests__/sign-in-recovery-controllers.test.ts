@@ -4,6 +4,7 @@ import { validateSignInInput } from '@/lib/auth/SignInFormController'
 import {
   resolveLoginErrorMessage,
   resolvePasswordResetErrorMessage,
+  resolveSocialOAuthErrorMessage,
 } from '@/lib/auth/AuthErrorMessageResolver'
 import { buildProviderPendingHref } from '@/lib/auth/ProviderPendingFlow'
 import {
@@ -29,6 +30,8 @@ describe('Sign-in and recovery controllers', () => {
   it('maps auth and reset errors to user-friendly copy', () => {
     expect(resolveLoginErrorMessage('PASSWORD_NOT_SET')).toContain('password')
     expect(resolveLoginErrorMessage('SLEEPER_ONLY_ACCOUNT')).toContain('Sleeper')
+    expect(resolveSocialOAuthErrorMessage('access_denied')).toContain('cancelled')
+    expect(resolveSocialOAuthErrorMessage('Missing OAuth callback code.')).toContain('callback')
     expect(resolvePasswordResetErrorMessage('EXPIRED_TOKEN')).toContain('expired')
     expect(resolvePasswordResetErrorMessage('UNKNOWN_ERROR')).toBe('UNKNOWN_ERROR')
   })

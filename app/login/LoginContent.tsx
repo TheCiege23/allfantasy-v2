@@ -31,6 +31,7 @@ import {
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { buildSupabaseOAuthRedirectTo } from "@/lib/auth/SupabaseOAuthService"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
@@ -231,21 +232,6 @@ export default function LoginContent() {
     }
   }
 
-  function getOAuthRedirectTo(requestedPath: string) {
-    const safePath =
-      requestedPath.startsWith("/") && !requestedPath.startsWith("//")
-        ? requestedPath
-        : "/dashboard"
-    const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-    if (configuredBaseUrl) {
-      return `${configuredBaseUrl.replace(/\/$/, "")}${safePath}`
-    }
-    if (typeof window !== "undefined") {
-      return `${window.location.origin}${safePath}`
-    }
-    return undefined
-  }
-
   async function handleSocialProvider(provider: SocialProvider) {
     if (socialLoadingProvider) return
     setSocialLoadingProvider(provider)
@@ -256,7 +242,9 @@ export default function LoginContent() {
       if (provider === "google" && isSupabaseConfigured) {
         await supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: getOAuthRedirectTo(callbackUrl) },
+          options: {
+            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
+          },
         })
         return
       }
@@ -264,7 +252,9 @@ export default function LoginContent() {
       if (provider === "apple" && isSupabaseConfigured) {
         await supabase.auth.signInWithOAuth({
           provider: "apple",
-          options: { redirectTo: getOAuthRedirectTo(callbackUrl) },
+          options: {
+            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
+          },
         })
         return
       }

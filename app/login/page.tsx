@@ -1,14 +1,11 @@
 import { Suspense } from "react";
+import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell";
 import LoginContent from "./LoginContent";
 
 export const dynamic = "force-dynamic";
 
 function LoginFallback() {
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-      <div className="text-white/60">Loading...</div>
-    </div>
-  );
+  return <AuthStatusLoadingFallback />;
 }
 
 export default function LoginPage() {

@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { safeRedirectPath } from '@/lib/auth/auth-intent-resolver'
+
+export type SupabaseOAuthProvider = 'google' | 'apple'
 
 let browserClient: SupabaseClient | null = null
 
@@ -13,6 +16,14 @@ export function isSupabaseGoogleOAuthReady(): boolean {
   return Boolean(getSupabaseConfig())
 }
 
+export function buildSupabaseOAuthRedirectTo(input: {
+  callbackUrl: string
+}): string | null {
+  if (typeof window === 'undefined') return null
+  const safeCallback = safeRedirectPath(input.callbackUrl)
+  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeCallback)}`
+}
+
 function getSupabaseBrowserClient(): SupabaseClient | null {
   if (typeof window === 'undefined') return null
   const config = getSupabaseConfig()
@@ -23,20 +34,23 @@ function getSupabaseBrowserClient(): SupabaseClient | null {
   return browserClient
 }
 
-export async function signInWithSupabaseGoogle(input: {
+export async function signInWithSupabaseOAuth(input: {
+  provider: SupabaseOAuthProvider
   callbackUrl: string
 }): Promise<{ ok: boolean; error?: string }> {
   const supabase = getSupabaseBrowserClient()
   if (!supabase) {
     return { ok: false, error: 'SUPABASE_NOT_CONFIGURED' }
   }
-  const safeCallback = input.callbackUrl.startsWith('/')
-    ? input.callbackUrl
-    : '/dashboard'
-  const redirectTo = `${window.location.origin}${safeCallback}`
+  const redirectTo = buildSupabaseOAuthRedirectTo({
+    callbackUrl: input.callbackUrl,
+  })
+  if (!redirectTo) {
+    return { ok: false, error: 'WINDOW_NOT_AVAILABLE' }
+  }
 
   const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
+    provider: input.provider,
     options: {
       redirectTo,
     },
@@ -46,4 +60,13 @@ export async function signInWithSupabaseGoogle(input: {
     return { ok: false, error: error.message }
   }
   return { ok: true }
+}
+
+export async function signInWithSupabaseGoogle(input: {
+  callbackUrl: string
+}): Promise<{ ok: boolean; error?: string }> {
+  return signInWithSupabaseOAuth({
+    provider: 'google',
+    callbackUrl: input.callbackUrl,
+  })
 }

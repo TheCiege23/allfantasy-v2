@@ -2,8 +2,9 @@
 
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
-import { Suspense, useState, useEffect } from "react"
-import { CheckCircle2, XCircle, Clock, AlertTriangle, Mail, Loader2, Phone, ArrowLeft } from "lucide-react"
+import { Suspense, useState, useEffect, type ReactNode } from "react"
+import { CheckCircle2, XCircle, Clock, AlertTriangle, Mail, Loader2, Phone, ArrowLeft, ArrowRight } from "lucide-react"
+import { AuthStatusHeader, AuthStatusLoadingFallback, AuthStatusShell } from "@/components/auth/AuthStatusShell"
 
 function VerifyContent() {
   const searchParams = useSearchParams()
@@ -156,7 +157,7 @@ function VerifyContent() {
     return () => clearTimeout(timer)
   }, [state, countdown, router])
 
-  const configs: Record<string, { icon: React.ReactNode; title: string; message: string; color: string }> = {
+  const configs: Record<string, { icon: ReactNode; title: string; message: string; color: string }> = {
     success: {
       icon: <CheckCircle2 className="h-8 w-8 text-emerald-400" />,
       title: "Verified!",
@@ -205,24 +206,48 @@ function VerifyContent() {
   const showVerifyOptions = state !== "success" && state !== "age_required"
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-md space-y-4">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-xl text-center space-y-4">
-          <div className="mx-auto w-fit">{config.icon}</div>
-          <h1 className="text-xl font-semibold">{config.title}</h1>
-          <p className="text-sm text-white/60">{config.message}</p>
+    <AuthStatusShell>
+      <div className="w-full max-w-[440px]">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-4 py-2.5 text-sm font-medium text-white/75 transition hover:border-violet-300/45 hover:bg-[#211a3e] hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Sign In</span>
+          </Link>
+          <Link
+            href={safeReturnTo}
+            className="text-sm text-white/50 transition hover:text-white/70"
+          >
+            Return to dashboard
+          </Link>
+        </div>
+
+        <AuthStatusHeader
+          title="Account verification"
+          subtitle="Verify your email or phone to unlock leagues, brackets, and other protected features."
+        />
+
+        <div className="rounded-[18px] border border-violet-400/20 bg-[#16102a] p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+          <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border ${config.color}`}>
+            {config.icon}
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold text-white">{config.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-white/60">{config.message}</p>
 
           {state === "success" && (
             <Link
               href={safeReturnTo}
-              className="inline-block rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 transition"
+              className="mt-7 inline-flex items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90"
             >
-              Go to Dashboard
+              <span>Go to Dashboard</span>
+              <ArrowRight className="h-4 w-4" />
             </Link>
           )}
 
           {state === "age_required" && (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3 pt-4">
               {ageResult === "confirmed" && (
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
                   <div className="flex items-center justify-center gap-2">
@@ -240,13 +265,13 @@ function VerifyContent() {
                 <button
                   onClick={handleConfirmAge}
                   disabled={ageConfirming}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:opacity-60"
                 >
                   {ageConfirming ? (
-                    <span className="inline-flex items-center justify-center gap-2">
+                    <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Confirming...
-                    </span>
+                    </>
                   ) : (
                     "I confirm I am 18 or older"
                   )}
@@ -257,14 +282,14 @@ function VerifyContent() {
         </div>
 
         {showVerifyOptions && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl space-y-4">
-            <div className="flex gap-2">
+          <div className="mt-4 rounded-[18px] border border-violet-400/20 bg-[#16102a] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <div className="grid grid-cols-2 gap-2 rounded-[12px] border border-violet-400/20 bg-[#1c1535] p-1">
               <button
                 onClick={() => setTab("email")}
-                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition ${
+                className={`flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-medium transition ${
                   tab === "email"
-                    ? "bg-white/10 text-white border border-white/20"
-                    : "text-white/50 hover:text-white/70"
+                    ? "bg-[#211a3e] text-white border border-violet-400/30"
+                    : "text-white/55 hover:text-white/80"
                 }`}
               >
                 <Mail className="h-4 w-4" />
@@ -272,10 +297,10 @@ function VerifyContent() {
               </button>
               <button
                 onClick={() => setTab("phone")}
-                className={`flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition ${
+                className={`flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-medium transition ${
                   tab === "phone"
-                    ? "bg-white/10 text-white border border-white/20"
-                    : "text-white/50 hover:text-white/70"
+                    ? "bg-[#211a3e] text-white border border-violet-400/30"
+                    : "text-white/55 hover:text-white/80"
                 }`}
               >
                 <Phone className="h-4 w-4" />
@@ -284,7 +309,7 @@ function VerifyContent() {
             </div>
 
             {tab === "email" && (
-              <div className="space-y-3">
+              <div className="mt-4 space-y-3">
                 {sendResult === "sent" && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
                     Verification email sent! Check your inbox.
@@ -297,7 +322,7 @@ function VerifyContent() {
                 )}
                 {sendResult === "login_required" && (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-300">
-                    Please <Link href="/login" className="underline font-medium">sign in</Link> first, then request verification.
+                    Please <Link href="/login" className="font-medium underline">sign in</Link> first, then request verification.
                   </div>
                 )}
                 {sendResult === "rate_limited" && (
@@ -314,13 +339,13 @@ function VerifyContent() {
                 <button
                   onClick={handleSendVerification}
                   disabled={sending || sendResult === "sent"}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:opacity-60"
                 >
                   {sending ? (
-                    <span className="inline-flex items-center justify-center gap-2">
+                    <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Sending...
-                    </span>
+                    </>
                   ) : sendResult === "sent" ? (
                     "Email sent!"
                   ) : (
@@ -331,7 +356,7 @@ function VerifyContent() {
             )}
 
             {tab === "phone" && (
-              <div className="space-y-3">
+              <div className="mt-4 space-y-3">
                 {phoneResult === "verified" && (
                   <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
                     <div className="flex items-center gap-2">
@@ -359,27 +384,27 @@ function VerifyContent() {
                 {!phoneCodeSent ? (
                   <>
                     <div>
-                      <label className="text-xs text-white/60">Phone number</label>
+                      <label className="text-[13px] font-semibold tracking-[0.02em] text-white/60">Phone number</label>
                       <input
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
                         type="tel"
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none focus:border-white/20"
+                        className="mt-1.5 w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                         placeholder="+1 (555) 123-4567"
                         disabled={phoneSending}
                       />
-                      <p className="mt-1 text-xs text-white/30">Include country code (e.g. +1 for US)</p>
+                      <p className="mt-1 text-xs text-white/35">Include country code, like `+1` for US.</p>
                     </div>
                     <button
                       onClick={handleSendPhoneCode}
                       disabled={phoneSending || !phoneNumber.trim()}
-                      className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:opacity-60"
                     >
                       {phoneSending ? (
-                        <span className="inline-flex items-center justify-center gap-2">
+                        <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Sending code...
-                        </span>
+                        </>
                       ) : (
                         "Send verification code"
                       )}
@@ -388,16 +413,16 @@ function VerifyContent() {
                 ) : phoneResult !== "verified" ? (
                   <>
                     <p className="text-sm text-white/60">
-                      We sent a code to <span className="text-white/80 font-medium">{phoneNumber}</span>
+                      We sent a code to <span className="font-medium text-white/80">{phoneNumber}</span>
                     </p>
                     <div>
-                      <label className="text-xs text-white/60">Verification code</label>
+                      <label className="text-[13px] font-semibold tracking-[0.02em] text-white/60">Verification code</label>
                       <input
                         value={phoneCode}
                         onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ""))}
                         type="text"
                         inputMode="numeric"
-                        className="mt-1 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-center font-mono text-lg tracking-widest outline-none focus:border-white/20"
+                        className="mt-1.5 w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 text-center font-mono text-lg tracking-widest text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                         placeholder="000000"
                         maxLength={6}
                         disabled={phoneVerifying}
@@ -407,13 +432,13 @@ function VerifyContent() {
                     <button
                       onClick={handleVerifyPhoneCode}
                       disabled={phoneVerifying || phoneCode.length < 4}
-                      className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-sm font-medium text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 transition"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:opacity-60"
                     >
                       {phoneVerifying ? (
-                        <span className="inline-flex items-center justify-center gap-2">
+                        <>
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Verifying...
-                        </span>
+                        </>
                       ) : (
                         "Verify code"
                       )}
@@ -424,7 +449,7 @@ function VerifyContent() {
                         setPhoneCode("")
                         setPhoneResult(null)
                       }}
-                      className="w-full text-sm text-white/40 hover:text-white/60 transition"
+                      className="w-full text-sm text-white/45 transition hover:text-white/70"
                     >
                       Change phone number
                     </button>
@@ -434,35 +459,14 @@ function VerifyContent() {
             )}
           </div>
         )}
-
-        <div className="flex gap-3 justify-center">
-          <Link
-            href={safeReturnTo}
-            className="rounded-xl bg-white/10 border border-white/10 px-5 py-2 text-sm font-medium hover:bg-white/15 transition"
-          >
-            Dashboard
-          </Link>
-          <Link
-            href="/login"
-            className="rounded-xl border border-white/10 px-5 py-2 text-sm text-white/60 hover:text-white hover:bg-white/5 transition"
-          >
-            Sign In
-          </Link>
-        </div>
       </div>
-    </div>
+    </AuthStatusShell>
   )
 }
 
 export default function VerifyPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-          <div className="text-white/60">Loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthStatusLoadingFallback />}>
       <VerifyContent />
     </Suspense>
   )

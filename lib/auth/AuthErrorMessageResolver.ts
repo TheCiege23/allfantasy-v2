@@ -12,6 +12,35 @@ export function resolveLoginErrorMessage(error: string | null | undefined): stri
   return 'Invalid email, username, mobile number, or password.'
 }
 
+export function resolveSocialOAuthErrorMessage(
+  error: string | null | undefined
+): string {
+  if (!error) return 'Unable to complete social sign-in. Please try again.'
+  const normalized = error.trim().toLowerCase()
+
+  if (
+    normalized.includes('access_denied') ||
+    normalized.includes('user denied') ||
+    normalized.includes('cancelled')
+  ) {
+    return 'Social sign-in was cancelled. Please try again when you are ready.'
+  }
+
+  if (normalized.includes('provider_not_enabled')) {
+    return 'This social sign-in provider is not configured right now.'
+  }
+
+  if (normalized.includes('missing oauth callback code')) {
+    return 'We could not complete social sign-in from the callback. Please try again.'
+  }
+
+  if (normalized.includes('supabase_not_configured')) {
+    return 'Social sign-in is not configured right now.'
+  }
+
+  return error
+}
+
 export function resolveSleeperLoginErrorMessage(error: string | null | undefined): string {
   if (!error) return 'Unable to sign in with Sleeper. Please try again.'
   if (error.includes('SLEEPER_LOOKUP_UNAVAILABLE')) {

@@ -1,18 +1,18 @@
 /**
  * Merged Devy / C2C (College to Canton) types. PROMPT 2/6.
- * Sport adapters: football_c2c (NFL/NCAAF + NCAA Football), basketball_c2c (NBA/NCAAB + NCAA Basketball).
+ * Sport adapters: nfl_c2c (NFL/NCAAF + NCAA Football), nba_c2c (NBA/NCAAB + NCAA Basketball).
  */
 
 import type { LeagueSport } from '@prisma/client'
 
 export const MERGED_DEVY_C2C_VARIANT = 'merged_devy_c2c'
 
-export type C2CSportAdapterId = 'football_c2c' | 'basketball_c2c'
+export type C2CSportAdapterId = 'nfl_c2c' | 'nba_c2c'
 
 export function getC2CAdapterForSport(sport: LeagueSport | string): C2CSportAdapterId | null {
   const s = String(sport).toUpperCase()
-  if (s === 'NFL' || s === 'NCAAF') return 'football_c2c'
-  if (s === 'NBA' || s === 'NCAAB') return 'basketball_c2c'
+  if (s === 'NFL' || s === 'NCAAF') return 'nfl_c2c'
+  if (s === 'NBA' || s === 'NCAAB') return 'nba_c2c'
   return null
 }
 

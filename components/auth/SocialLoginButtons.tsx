@@ -8,26 +8,12 @@ import {
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { buildSupabaseOAuthRedirectTo } from "@/lib/auth/SupabaseOAuthService"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter()
   const [loadingProvider, setLoadingProvider] = useState<SocialProvider | null>(null)
-
-  const getOAuthRedirectTo = (requestedPath: string) => {
-    const safePath =
-      requestedPath.startsWith("/") && !requestedPath.startsWith("//")
-        ? requestedPath
-        : "/dashboard"
-    const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
-    if (configuredBaseUrl) {
-      return `${configuredBaseUrl.replace(/\/$/, "")}${safePath}`
-    }
-    if (typeof window !== "undefined") {
-      return `${window.location.origin}${safePath}`
-    }
-    return undefined
-  }
 
   useEffect(() => {
     const syncProfile = async () => {
@@ -53,7 +39,7 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: getOAuthRedirectTo(callbackUrl),
+        redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
       },
     })
   }
@@ -62,7 +48,7 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
     await supabase.auth.signInWithOAuth({
       provider: "apple",
       options: {
-        redirectTo: getOAuthRedirectTo(callbackUrl),
+        redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
       },
     })
   }

@@ -68,7 +68,8 @@ describe('Supabase OAuth service', () => {
     expect(signInWithOAuthMock).toHaveBeenCalledWith({
       provider: 'google',
       options: {
-        redirectTo: 'https://allfantasy.ai/brackets',
+        redirectTo:
+          'https://allfantasy.ai/auth/callback?next=%2Fbrackets',
       },
     })
   })
@@ -99,7 +100,8 @@ describe('Supabase OAuth service', () => {
     expect(signInWithOAuthMock).toHaveBeenCalledWith({
       provider: 'google',
       options: {
-        redirectTo: 'https://allfantasy.ai/dashboard',
+        redirectTo:
+          'https://allfantasy.ai/auth/callback?next=%2Fdashboard',
       },
     })
   })
