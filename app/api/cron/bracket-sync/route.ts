@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server"
+import { runPECR } from "@/lib/ai/pecr"
 import { runBracketSync } from "@/lib/bracket-sync"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
+
+class BracketSyncUnauthorizedError extends Error {
+  constructor() {
+    super("Unauthorized")
+    this.name = "BracketSyncUnauthorizedError"
+  }
+}
 
 function requireCron(req: Request): boolean {
   const provided =
@@ -19,10 +27,6 @@ function requireCron(req: Request): boolean {
 }
 
 export async function POST(req: Request) {
-  if (!requireCron(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
   const url = new URL(req.url)
   const seasonParam = url.searchParams.get("season")
   let season: number
@@ -41,13 +45,40 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await runBracketSync(season)
-    const status = result.ok ? 200 : 409
-    return NextResponse.json(result, { status })
-  } catch (err: any) {
+    const pecrResult = await runPECR(
+      { req, season },
+      {
+        feature: "cron-bracket-sync",
+        plan: async ({ req: request }) => ({
+          intent: "sync",
+          steps: ["validate auth", "run sync", "verify result"],
+          context: { authorized: requireCron(request) },
+          refineHints: [],
+        }),
+        execute: async (plan, input) => {
+          if (plan.context.authorized !== true) {
+            throw new BracketSyncUnauthorizedError()
+          }
+
+          return runBracketSync(input.season)
+        },
+        check: (output) => ({
+          passed: output !== null && output !== undefined,
+          failures: output === null ? ["sync returned null"] : [],
+        }),
+      }
+    )
+
+    const status = pecrResult.output.ok ? 200 : 409
+    return NextResponse.json(pecrResult.output, { status })
+  } catch (err: unknown) {
+    if (err instanceof BracketSyncUnauthorizedError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     console.error("[BracketCronSync] Error:", err)
     return NextResponse.json(
-      { ok: false, error: err?.message ?? "Unknown error" },
+      { ok: false, error: err instanceof Error ? err.message : "Unknown error" },
       { status: 500 }
     )
   }

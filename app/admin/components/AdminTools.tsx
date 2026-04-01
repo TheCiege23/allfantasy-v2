@@ -16,6 +16,7 @@ type PurgeResult = {
 };
 
 type ToolUsage = { name: string; count: number; err: number; p95: number | null };
+type PECRHealthItem = { feature: string; avgIterations: number; passRate: number; lastRun: string | null };
 
 export default function AdminTools() {
   const { formatInTimezone, formatDateInTimezone } = useUserTimezone();
@@ -37,6 +38,8 @@ export default function AdminTools() {
   const [topFailing, setTopFailing] = useState<ToolUsage[]>([]);
   const [topExpensive, setTopExpensive] = useState<ToolUsage[]>([]);
   const [aiUsage, setAiUsage] = useState<{ topTools: ToolUsage[]; totalCalls: number } | null>(null);
+  const [pecrHealth, setPecrHealth] = useState<{ totalRuns: number; features: PECRHealthItem[] } | null>(null);
+  const [pecrLoading, setPecrLoading] = useState(false);
 
   const [analyticsStats, setAnalyticsStats] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -165,7 +168,29 @@ export default function AdminTools() {
   useEffect(() => {
     checkApiStatus();
     fetchUsageData();
+    loadPecrHealth();
   }, []);
+
+  const loadPecrHealth = async () => {
+    setPecrLoading(true);
+    try {
+      const res = await fetch("/api/admin/pecr-health", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        setPecrHealth({
+          totalRuns: Number(data.totalRuns ?? 0),
+          features: Array.isArray(data.features) ? data.features : [],
+        });
+      } else {
+        setPecrHealth({ totalRuns: 0, features: [] });
+      }
+    } catch (e) {
+      console.error("Failed to fetch PECR health", e);
+      setPecrHealth({ totalRuns: 0, features: [] });
+    } finally {
+      setPecrLoading(false);
+    }
+  };
 
   const fetchUsageData = async () => {
     try {
@@ -363,6 +388,46 @@ export default function AdminTools() {
                 <div key={t.name} className="flex items-center justify-between gap-2">
                   <span className="text-xs truncate" style={{ color: "var(--muted)" }}>{t.name}</span>
                   <span className="text-xs font-mono text-violet-400 shrink-0">{t.count.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border p-3 sm:p-5 md:col-span-3" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle className="h-4 w-4 text-emerald-400" />
+            <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>PECR Health</h4>
+            {pecrHealth != null && (
+              <span className="text-[10px] ml-auto font-mono" style={{ color: "var(--muted2)" }}>
+                {pecrHealth.totalRuns.toLocaleString()} runs
+              </span>
+            )}
+          </div>
+          {pecrLoading ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>Loading…</p>
+          ) : pecrHealth == null || pecrHealth.features.length === 0 ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>No PECR runs yet</p>
+          ) : (
+            <div className="space-y-2">
+              {pecrHealth.features.map((item) => (
+                <div key={item.feature} className="flex flex-col gap-1 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium capitalize" style={{ color: "var(--text)" }}>
+                      {item.feature.replace(/-/g, " ")}
+                    </div>
+                    <div className="text-[11px]" style={{ color: "var(--muted2)" }}>
+                      Last run: {item.lastRun ? formatInTimezone(item.lastRun) : "Never"}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span style={{ color: "var(--muted)" }}>
+                      Avg iterations: <span className="font-mono text-cyan-400">{item.avgIterations.toFixed(2)}</span>
+                    </span>
+                    <span style={{ color: "var(--muted)" }}>
+                      Pass rate: <span className={`font-mono ${item.passRate >= 90 ? "text-emerald-400" : item.passRate >= 70 ? "text-amber-400" : "text-red-400"}`}>{item.passRate.toFixed(1)}%</span>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

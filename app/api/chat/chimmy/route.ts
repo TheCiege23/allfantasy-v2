@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getServerSession } from 'next-auth'
 import OpenAI from 'openai'
 import { authOptions } from '@/lib/auth'
+import { runPECR } from '@/lib/ai/pecr'
 import { runAiProtection } from '@/lib/ai-protection'
 import { runUnifiedOrchestration } from '@/lib/ai-orchestration/orchestration-service'
 import {
@@ -14,6 +15,8 @@ import {
 import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import type { InsightType } from '@/lib/ai-simulation-integration'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { enrichChatWithData } from '@/lib/chat-data-enrichment'
+import { buildMemoryPromptSection, getFullAIContext } from '@/lib/ai-memory'
 import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
@@ -34,6 +37,51 @@ type ConversationTurn = {
 }
 
 type ToolKey = 'trade_analyzer' | 'trade_finder' | 'waiver_ai' | 'rankings' | 'mock_draft' | 'none'
+
+type ChimmyPECRExecutionOutput = {
+  responseContract: AIToolResponseContract
+  modelOutputs?: Array<{
+    model?: string
+    modelName?: string
+    skipped?: boolean
+    tokensPrompt?: number
+    tokensCompletion?: number
+  }>
+  sanitizedAiExplanation: string
+  sanitizedActionPlan: string
+  sanitizedUncertainty: string
+  providerStatus: Record<string, string>
+  quantData?: Record<string, unknown>
+  trendData?: Record<string, unknown>
+  recommendedTool: ToolKey
+  toolLinks: string[]
+  responseStructure: ReturnType<typeof buildResponseStructure>
+  processingMs: number
+}
+
+const PECR_VALID_TOOL_ROUTES = new Set([
+  '/trade-analyzer',
+  '/waiver-wire',
+  '/draft-helper',
+  '/rankings',
+  '/mock-draft',
+  '/fantasy-coach',
+  '/player-comparison',
+])
+
+class ChimmyPECRExecutionError extends Error {
+  status: number
+  userMessage: string
+  traceId?: string
+
+  constructor(message: string, status: number, userMessage: string, traceId?: string) {
+    super(message)
+    this.name = 'ChimmyPECRExecutionError'
+    this.status = status
+    this.userMessage = userMessage
+    this.traceId = traceId
+  }
+}
 
 const INSIGHT_TYPE_VALUES = [
   'matchup',
@@ -339,6 +387,29 @@ function inferRecommendedTool(answer: string, actionPlan?: string | null): ToolK
   if (/rank|tiers|ranking/.test(text)) return 'rankings'
   if (/mock draft|draft sim/.test(text)) return 'mock_draft'
   return 'none'
+}
+
+function classifyPecrIntent(message: string): string {
+  if (/trade|swap|offer|deal|give|receiv/i.test(message)) return 'trade'
+  if (/waiver|wire|pickup|drop|add|free.?agent/i.test(message)) return 'waiver'
+  if (/roster|lineup|start|sit|bench|flex/i.test(message)) return 'roster'
+  if (/draft|pick|adp|tier|rank/i.test(message)) return 'draft'
+  return 'general'
+}
+
+function resolveRecommendedToolLinks(recommendedTool: ToolKey): string[] {
+  switch (recommendedTool) {
+    case 'trade_analyzer':
+      return ['/trade-analyzer']
+    case 'waiver_ai':
+      return ['/waiver-wire']
+    case 'rankings':
+      return ['/rankings']
+    case 'mock_draft':
+      return ['/mock-draft']
+    default:
+      return []
+  }
 }
 
 function buildProviderStatusMap(responseContract: AIToolResponseContract): Record<string, string> {
@@ -975,9 +1046,223 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     userId
   )
 
-  let run: Awaited<ReturnType<typeof runUnifiedOrchestration>>
+  let pecrIntent = 'general'
   try {
-    run = await runUnifiedOrchestration(unifiedRequest)
+    const pecrResult = await runPECR(
+      {
+        message,
+        userId,
+        leagueId: leagueId ?? undefined,
+        sleeperUsername: sleeperUsername ?? undefined,
+        teamId: teamId ?? undefined,
+      },
+      {
+        feature: 'chimmy',
+        plan: async (planInput) => {
+          const intent = classifyPecrIntent(planInput.message)
+          pecrIntent = intent
+
+          const [legacyEnrichment, legacyMemory] = await Promise.allSettled([
+            enrichChatWithData(planInput.message, {
+              leagueId: planInput.leagueId,
+              sleeperUsername: planInput.sleeperUsername,
+            }),
+            getFullAIContext({
+              userId: planInput.userId,
+              sleeperUsername: planInput.sleeperUsername,
+              leagueId: planInput.leagueId,
+              teamId: planInput.teamId,
+            }),
+          ])
+
+          const enrichmentLoaded =
+            legacyEnrichment.status === 'fulfilled' &&
+            (legacyEnrichment.value.context.trim().length > 0 ||
+              legacyEnrichment.value.audit.sourcesUsed.length > 0)
+
+          const legacyMemorySection =
+            legacyMemory.status === 'fulfilled'
+              ? buildMemoryPromptSection(legacyMemory.value).trim()
+              : ''
+
+          return {
+            intent,
+            steps: ['classify intent', 'run current chimmy orchestration', 'validate answer'],
+            context: {
+              enrichmentLoaded,
+              enrichmentSources:
+                legacyEnrichment.status === 'fulfilled'
+                  ? legacyEnrichment.value.audit.sourcesUsed
+                  : [],
+              legacyMemoryLoaded: legacyMemorySection.length > 0,
+              legacyMemorySection,
+            },
+            refineHints: [],
+          }
+        },
+        execute: async () => {
+          const run = await runUnifiedOrchestration(unifiedRequest)
+          if (!run.ok) {
+            throw new ChimmyPECRExecutionError(
+              run.error.message,
+              run.status,
+              run.error.userMessage || 'Unable to process Chimmy request.',
+              run.error.traceId
+            )
+          }
+
+          const responseContract = unifiedResponseToContract(run.response)
+          const sanitizedAiExplanation = sanitizeAssistantDisplayText(responseContract.aiExplanation)
+          const sanitizedActionPlan = sanitizeAssistantDisplayText(responseContract.actionPlan)
+          const sanitizedUncertainty = sanitizeAssistantDisplayText(responseContract.uncertainty)
+          const providerStatus = buildProviderStatusMap(responseContract)
+          const quantData = extractQuantData(responseContract)
+          const trendData = extractTrendData(responseContract)
+          const recommendedTool = inferRecommendedTool(
+            sanitizedAiExplanation,
+            sanitizedActionPlan
+          )
+          const toolLinks = resolveRecommendedToolLinks(recommendedTool)
+          const responseStructure = buildResponseStructure(
+            sanitizedAiExplanation,
+            sanitizedActionPlan,
+            sanitizedUncertainty
+          )
+
+          return {
+            responseContract,
+            modelOutputs: run.response.modelOutputs,
+            sanitizedAiExplanation,
+            sanitizedActionPlan,
+            sanitizedUncertainty,
+            providerStatus,
+            quantData,
+            trendData,
+            recommendedTool,
+            toolLinks,
+            responseStructure,
+            processingMs: Date.now() - startMs,
+          }
+        },
+        check: (output, plan) => {
+          const failures: string[] = []
+          const answer = output.sanitizedAiExplanation.trim()
+
+          if (answer.length <= 30) {
+            failures.push('answer length must be greater than 30 characters')
+          }
+
+          if (
+            ['trade', 'waiver', 'roster'].includes(plan.intent) &&
+            plan.context.enrichmentLoaded === true &&
+            /i don't have access|i cannot access/i.test(answer)
+          ) {
+            failures.push('answer claims context is unavailable despite loaded enrichment')
+          }
+
+          const invalidToolLinks = output.toolLinks.filter((link) => !PECR_VALID_TOOL_ROUTES.has(link))
+          if (invalidToolLinks.length > 0) {
+            failures.push(`invalid tool links: ${invalidToolLinks.join(', ')}`)
+          }
+
+          return {
+            passed: failures.length === 0,
+            failures,
+            refineHint:
+              failures.length > 0
+                ? 'Player and league context is loaded. Reference it explicitly in your answer.'
+                : undefined,
+          }
+        },
+      }
+    )
+
+    const pecrOutput = pecrResult.output
+    await logUsageToSupabase({
+      userId,
+      intent: specialistAgent,
+      tokensUsed: resolveUsageLogTokensUsed(pecrOutput.modelOutputs),
+      model: resolveUsageLogModel({
+        providerUsed: pecrOutput.responseContract.debugTrace?.providerUsed ?? null,
+        modelOutputs: pecrOutput.modelOutputs,
+      }),
+    })
+
+    const meta = {
+      assistant: 'Chimmy',
+      conversationId,
+      agent: specialistAgent,
+      confidencePct: pecrOutput.responseContract.confidence ?? undefined,
+      providerStatus: pecrOutput.providerStatus,
+      recommendedTool: pecrOutput.recommendedTool,
+      dataSources: dataSources.length ? dataSources : undefined,
+      tokenSpend: spendLedger && tokenPreview
+        ? {
+            ruleCode: tokenPreview.ruleCode,
+            tokenCost: tokenPreview.tokenCost,
+            balanceAfter: spendLedger.balanceAfter,
+            ledgerId: spendLedger.id,
+          }
+        : undefined,
+      quantData: pecrOutput.quantData,
+      trendData: pecrOutput.trendData,
+      responseStructure: pecrOutput.responseStructure,
+      reliability: pecrOutput.responseContract.reliability ?? undefined,
+      traceId: pecrOutput.responseContract.traceId ?? undefined,
+      processingMs: pecrOutput.processingMs,
+    }
+
+    if (userId) {
+      const assistantResponse = pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
+      const persistTasks = [
+        appendChatHistory({
+          conversationId,
+          role: 'user',
+          content: message || '[image-only request]',
+          userId,
+          leagueId: leagueId ?? null,
+        }),
+        appendChatHistory({
+          conversationId,
+          role: 'assistant',
+          content: assistantResponse,
+          userId,
+          leagueId: leagueId ?? null,
+          meta: {
+            recommendedTool: pecrOutput.recommendedTool,
+            confidence: pecrOutput.responseContract.confidence ?? null,
+          },
+        }),
+        rememberChimmyUserMessageMemory({
+          userId,
+          leagueId: leagueId ?? null,
+          sport,
+          message: message || '[image-only request]',
+        }),
+        rememberChimmyAssistantMemory({
+          userId,
+          leagueId: leagueId ?? null,
+          answer: assistantResponse,
+          recommendedTool: pecrOutput.recommendedTool,
+          confidence: pecrOutput.responseContract.confidence ?? null,
+        }),
+      ]
+      await Promise.allSettled(persistTasks)
+    }
+
+    return NextResponse.json(
+      {
+        response: pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
+        meta,
+      },
+      {
+        headers: {
+          'x-pecr-iterations': String(pecrResult.iterations),
+          'x-pecr-passed': String(pecrResult.passed),
+          'x-pecr-intent': pecrIntent,
+        },
+      }
+    )
   } catch (error) {
     if (spendLedger?.id) {
       await spendService
@@ -993,123 +1278,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         })
         .catch(() => null)
     }
+    if (error instanceof ChimmyPECRExecutionError) {
+      return NextResponse.json(
+        {
+          error: error.userMessage,
+          message: error.message,
+          traceId: error.traceId,
+        },
+        { status: error.status }
+      )
+    }
     return NextResponse.json({ error: 'Unable to process Chimmy request.' }, { status: 500 })
   }
-  if (!run.ok) {
-    if (spendLedger?.id) {
-      await spendService
-        .refundSpendByLedger({
-          userId,
-          spendLedgerId: spendLedger.id,
-          refundRuleCode: 'feature_execution_failed',
-          sourceType: 'chimmy_chat_refund',
-          sourceId: spendLedger.id,
-          idempotencyKey: `refund:chimmy_chat:${spendLedger.id}`,
-          description: 'Auto refund after failed Chimmy request.',
-          metadata: { conversationId, leagueId: leagueId ?? null },
-        })
-        .catch(() => null)
-    }
-    return NextResponse.json(
-      {
-        error: run.error.userMessage || 'Unable to process Chimmy request.',
-        message: run.error.message,
-        traceId: run.error.traceId,
-      },
-      { status: run.status }
-    )
-  }
-
-  const responseContract = unifiedResponseToContract(run.response)
-  const sanitizedAiExplanation = sanitizeAssistantDisplayText(responseContract.aiExplanation)
-  const sanitizedActionPlan = sanitizeAssistantDisplayText(responseContract.actionPlan)
-  const sanitizedUncertainty = sanitizeAssistantDisplayText(responseContract.uncertainty)
-  const providerStatus = buildProviderStatusMap(responseContract)
-  const quantData = extractQuantData(responseContract)
-  const trendData = extractTrendData(responseContract)
-  const recommendedTool = inferRecommendedTool(
-    sanitizedAiExplanation,
-    sanitizedActionPlan
-  )
-  const responseStructure = buildResponseStructure(
-    sanitizedAiExplanation,
-    sanitizedActionPlan,
-    sanitizedUncertainty
-  )
-  await logUsageToSupabase({
-    userId,
-    intent: specialistAgent,
-    tokensUsed: resolveUsageLogTokensUsed(run.response.modelOutputs),
-    model: resolveUsageLogModel({
-      providerUsed: responseContract.debugTrace?.providerUsed ?? null,
-      modelOutputs: run.response.modelOutputs,
-    }),
-  })
-
-  const meta = {
-    assistant: 'Chimmy',
-    conversationId,
-    agent: specialistAgent,
-    confidencePct: responseContract.confidence ?? undefined,
-    providerStatus,
-    recommendedTool,
-    dataSources: dataSources.length ? dataSources : undefined,
-    tokenSpend: spendLedger && tokenPreview
-      ? {
-          ruleCode: tokenPreview.ruleCode,
-          tokenCost: tokenPreview.tokenCost,
-          balanceAfter: spendLedger.balanceAfter,
-          ledgerId: spendLedger.id,
-        }
-      : undefined,
-    quantData,
-    trendData,
-    responseStructure,
-    reliability: responseContract.reliability ?? undefined,
-    traceId: responseContract.traceId ?? undefined,
-    processingMs: Date.now() - startMs,
-  }
-
-  if (userId) {
-    const assistantResponse = sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
-    const persistTasks = [
-      appendChatHistory({
-        conversationId,
-        role: 'user',
-        content: message || '[image-only request]',
-        userId,
-        leagueId: leagueId ?? null,
-      }),
-      appendChatHistory({
-        conversationId,
-        role: 'assistant',
-        content: assistantResponse,
-        userId,
-        leagueId: leagueId ?? null,
-        meta: {
-          recommendedTool,
-          confidence: responseContract.confidence ?? null,
-        },
-      }),
-      rememberChimmyUserMessageMemory({
-        userId,
-        leagueId: leagueId ?? null,
-        sport,
-        message: message || '[image-only request]',
-      }),
-      rememberChimmyAssistantMemory({
-        userId,
-        leagueId: leagueId ?? null,
-        answer: assistantResponse,
-        recommendedTool,
-        confidence: responseContract.confidence ?? null,
-      }),
-    ]
-    await Promise.allSettled(persistTasks)
-  }
-
-  return NextResponse.json({
-    response: sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
-    meta,
-  })
 }

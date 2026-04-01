@@ -1,5 +1,7 @@
 import "server-only";
 import { Worker, Job, type ConnectionOptions } from "bullmq";
+import type { PECRResult } from "@/lib/ai/pecr";
+import { runPECR } from "@/lib/ai/pecr";
 import { getRedisConnection, isRedisConfigured } from "@/lib/queues/bullmq";
 import { QUEUE_NAMES } from "@/lib/jobs/types";
 import type { SimulationJobPayload } from "@/lib/jobs/types";
@@ -12,7 +14,9 @@ type SimulationJobResult = {
   input: SimulationJobData;
 };
 
-let simulationWorker: Worker<SimulationJobData, SimulationJobResult> | null = null;
+type SimulationWorkerResult = PECRResult<SimulationJobResult>;
+
+let simulationWorker: Worker<SimulationJobData, SimulationWorkerResult> | null = null;
 
 function getWorkerConnection(): ConnectionOptions {
   const connection = getRedisConnection();
@@ -28,20 +32,50 @@ function getWorkerConnection(): ConnectionOptions {
 
 async function processSimulationJob(
   job: Job<SimulationJobData>
-): Promise<SimulationJobResult> {
+): Promise<SimulationWorkerResult> {
   console.log("[simulation-worker] processing job", job.id);
 
-  return {
-    ok: true,
-    jobId: job.id,
-    processedAt: new Date().toISOString(),
-    input: job.data ?? {},
-  };
+  return runPECR(job.data, {
+    feature: "simulation",
+    maxIterations: 3,
+    plan: async (data) => ({
+      intent: String(data.type ?? data.draftType ?? "unknown"),
+      steps: ["validate input", "run simulation", "verify output"],
+      context: {
+        jobId: job.id,
+        data,
+      },
+      refineHints: [],
+    }),
+    execute: async (_plan, data) => {
+      return {
+        ok: true,
+        jobId: job.id,
+        processedAt: new Date().toISOString(),
+        input: data ?? {},
+      };
+    },
+    check: (output) => {
+      const failures: string[] = [];
+      if (!output.ok) failures.push("ok is not true");
+
+      for (const [key, value] of Object.entries(output)) {
+        if (typeof value === "number" && !Number.isFinite(value)) {
+          failures.push(`Field ${key} is not a finite number: ${String(value)}`);
+        }
+      }
+
+      return {
+        passed: failures.length === 0,
+        failures,
+      };
+    },
+  });
 }
 
 export function startSimulationWorker(): Worker<
   SimulationJobData,
-  SimulationJobResult
+  SimulationWorkerResult
 > | null {
   if (!isRedisConfigured()) {
     console.warn("[simulation-worker] Redis is not configured. Worker disabled.");
@@ -52,7 +86,7 @@ export function startSimulationWorker(): Worker<
     return simulationWorker;
   }
 
-  simulationWorker = new Worker<SimulationJobData, SimulationJobResult>(
+  simulationWorker = new Worker<SimulationJobData, SimulationWorkerResult>(
     QUEUE_NAMES.SIMULATIONS,
     processSimulationJob,
     {
@@ -61,8 +95,8 @@ export function startSimulationWorker(): Worker<
     }
   );
 
-  simulationWorker.on("completed", (job) => {
-    console.log("[simulation-worker] completed", job.id);
+  simulationWorker.on("completed", (job, result) => {
+    console.log("[simulation-worker] completed", job.id, "iterations", result.iterations);
   });
 
   simulationWorker.on("failed", (job, error) => {
@@ -87,7 +121,7 @@ export async function stopSimulationWorker(): Promise<void> {
 
 export function getSimulationWorker(): Worker<
   SimulationJobData,
-  SimulationJobResult
+  SimulationWorkerResult
 > | null {
   return simulationWorker;
 }

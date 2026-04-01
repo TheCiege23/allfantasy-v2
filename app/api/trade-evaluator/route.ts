@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getServerSession } from 'next-auth'
+import { runPECR } from '@/lib/ai/pecr'
 import {
   STRUCTURED_TRADE_EVAL_SYSTEM_PROMPT,
   StructuredTradeEvalResponseSchema,
@@ -220,6 +221,85 @@ function parseJsonSafe(raw: string): Record<string, any> | null {
     }
     return null
   }
+}
+
+type TradeEvaluatorQualityGate = {
+  passed: boolean
+  reasons?: string[]
+}
+
+type TradeEvaluatorPECRInput = {
+  payload: Record<string, unknown>
+  recommendation: string | null
+  valueDelta: number
+  qualityGate: TradeEvaluatorQualityGate | null
+}
+
+function resolveTradeRecommendation(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+
+  const explanation = (value as Record<string, unknown>).explanation
+  if (!explanation || typeof explanation !== 'object') return null
+
+  const summary = (explanation as Record<string, unknown>).summary
+  return typeof summary === 'string' && summary.trim().length > 0 ? summary : null
+}
+
+function extractTradeQualityGate(value: unknown): TradeEvaluatorQualityGate | null {
+  if (!value || typeof value !== 'object') return null
+
+  const qualityGate = (value as Record<string, unknown>).qualityGate
+  if (!qualityGate || typeof qualityGate !== 'object') return null
+
+  const passed = (qualityGate as Record<string, unknown>).passed
+  if (typeof passed !== 'boolean') return null
+
+  const reasonsValue = (qualityGate as Record<string, unknown>).reasons
+  const reasons = Array.isArray(reasonsValue)
+    ? reasonsValue.filter((reason): reason is string => typeof reason === 'string')
+    : undefined
+
+  return {
+    passed,
+    reasons,
+  }
+}
+
+async function runTradeEvaluatorPECR(input: TradeEvaluatorPECRInput): Promise<Record<string, unknown>> {
+  const result = await runPECR(input, {
+    feature: 'trade',
+    plan: async () => ({
+      intent: 'trade-evaluator',
+      steps: ['build evaluation payload', 'validate recommendation', 'verify output'],
+      context: {
+        hasQualityGate: Boolean(input.qualityGate),
+      },
+      refineHints: [],
+    }),
+    execute: async (_plan, currentInput) => currentInput,
+    check: (output) => {
+      const failures: string[] = []
+
+      if (!output.recommendation || output.recommendation.trim().length === 0) {
+        failures.push('missing recommendation')
+      }
+
+      if (typeof output.valueDelta !== 'number' || !Number.isFinite(output.valueDelta)) {
+        failures.push('valueDelta is missing or not finite')
+      }
+
+      if (output.qualityGate && !output.qualityGate.passed) {
+        failures.push(...(output.qualityGate.reasons ?? []))
+      }
+
+      return {
+        passed: failures.length === 0,
+        failures,
+      }
+    },
+  })
+
+  return result.output.payload
 }
 
 const valueToTier = (value: number): string => {
@@ -1405,7 +1485,7 @@ Fairness score: ${fairnessScore}/100
         }
       }
 
-      return NextResponse.json({
+      const partialPayload = {
         success: true,
         evaluation: parsed,
         schemaValid: false,
@@ -1437,7 +1517,16 @@ Fairness score: ${fairnessScore}/100
         ...(deepseekQuantResult && { quantAnalysis: deepseekQuantResult }),
         ...(grokTrendResult && { trendIntelligence: grokTrendResult }),
         aiProviders,
-      })
+      }
+
+      return NextResponse.json(
+        await runTradeEvaluatorPECR({
+          payload: partialPayload,
+          recommendation: resolveTradeRecommendation(parsed),
+          valueDelta: teamANetValue,
+          qualityGate: extractTradeQualityGate(parsed),
+        })
+      )
     }
 
     const evalData = structuredValidation.data
@@ -1663,7 +1752,14 @@ Fairness score: ${fairnessScore}/100
     if (cacheKey && config.cacheTtlMs) {
       setCachedResponse(cacheKey, { ...payload, tokenSpend: null }, config.cacheTtlMs)
     }
-    return NextResponse.json(payload)
+    return NextResponse.json(
+      await runTradeEvaluatorPECR({
+        payload,
+        recommendation: resolveTradeRecommendation(evalData),
+        valueDelta: teamANetValue,
+        qualityGate: extractTradeQualityGate(evalData),
+      })
+    )
   } catch (error) {
     if (tokenFallbackLedgerId && userId) {
       await new TokenSpendService()

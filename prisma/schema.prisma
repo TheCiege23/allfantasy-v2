@@ -1594,6 +1594,28 @@ model NarrativeValidationLog {
   @@index([createdAt])
 }
 
+model PecrLog {
+  id           String   @id @default(uuid())
+  feature      String   @db.VarChar(64)
+  intent       String   @db.VarChar(64)
+  steps        Json     @default("[]")
+  context      Json?
+  refineHints  Json     @default("[]")
+  iterations   Int
+  maxIterations Int
+  passed       Boolean
+  allFailures  Json     @default("[]")
+  durationMs   Int
+  outputPreview Json?
+  createdAt    DateTime @default(now())
+
+  @@index([feature])
+  @@index([passed])
+  @@index([createdAt])
+  @@index([feature, createdAt])
+  @@map("pecr_logs")
+}
+
 model ManagerDNA {
   id                 String   @id @default(uuid())
   sleeperUsername    String
