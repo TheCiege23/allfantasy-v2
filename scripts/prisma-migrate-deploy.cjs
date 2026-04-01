@@ -208,6 +208,16 @@ function runPrisma(prismaArgs) {
   });
 }
 
+function runPrismaWithInput(prismaArgs, input) {
+  return spawnSync(command, buildArgs(prismaArgs), {
+    stdio: "pipe",
+    encoding: "utf8",
+    input,
+    env: process.env,
+    shell: process.platform === "win32",
+  });
+}
+
 function writeOutput(result) {
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
@@ -240,6 +250,88 @@ function extractFailedMigrationName(output) {
   return null;
 }
 
+function ensureC2CLeagueConfigTable() {
+  const sql = `
+CREATE TABLE IF NOT EXISTS "c2c_league_configs" (
+  "id" TEXT NOT NULL,
+  "leagueId" VARCHAR(64) NOT NULL,
+  "dynastyOnly" BOOLEAN NOT NULL DEFAULT true,
+  "supportsMergedCollegeAndProAssets" BOOLEAN NOT NULL DEFAULT true,
+  "supportsCollegeScoring" BOOLEAN NOT NULL DEFAULT true,
+  "supportsBestBall" BOOLEAN NOT NULL DEFAULT true,
+  "supportsSnakeDraft" BOOLEAN NOT NULL DEFAULT true,
+  "supportsLinearDraft" BOOLEAN NOT NULL DEFAULT true,
+  "supportsTaxi" BOOLEAN NOT NULL DEFAULT true,
+  "supportsFuturePicks" BOOLEAN NOT NULL DEFAULT true,
+  "supportsTradeableCollegeAssets" BOOLEAN NOT NULL DEFAULT true,
+  "supportsTradeableCollegePicks" BOOLEAN NOT NULL DEFAULT true,
+  "supportsTradeableRookiePicks" BOOLEAN NOT NULL DEFAULT true,
+  "supportsPromotionRules" BOOLEAN NOT NULL DEFAULT true,
+  "startupFormat" VARCHAR(24) NOT NULL DEFAULT 'merged',
+  "mergedStartupDraft" BOOLEAN NOT NULL DEFAULT true,
+  "separateStartupCollegeDraft" BOOLEAN NOT NULL DEFAULT false,
+  "collegeRosterSize" INTEGER NOT NULL DEFAULT 20,
+  "collegeSports" JSONB,
+  "collegeScoringSystem" VARCHAR(24) NOT NULL DEFAULT 'ppr',
+  "mixProPlayers" BOOLEAN NOT NULL DEFAULT true,
+  "collegeActiveLineupSlots" JSONB,
+  "taxiSize" INTEGER NOT NULL DEFAULT 6,
+  "rookieDraftRounds" INTEGER NOT NULL DEFAULT 4,
+  "collegeDraftRounds" INTEGER NOT NULL DEFAULT 6,
+  "bestBallPro" BOOLEAN NOT NULL DEFAULT true,
+  "bestBallCollege" BOOLEAN NOT NULL DEFAULT false,
+  "promotionTiming" VARCHAR(48) NOT NULL DEFAULT 'manager_choice_before_rookie_draft',
+  "maxPromotionsPerYear" INTEGER,
+  "earlyDeclareBehavior" VARCHAR(24) NOT NULL DEFAULT 'allow',
+  "returnToSchoolHandling" VARCHAR(32) NOT NULL DEFAULT 'restore_rights',
+  "rookiePickTradeRules" VARCHAR(24) NOT NULL DEFAULT 'allowed',
+  "collegePickTradeRules" VARCHAR(24) NOT NULL DEFAULT 'allowed',
+  "collegeScoringUntilDeadline" BOOLEAN NOT NULL DEFAULT true,
+  "standingsModel" VARCHAR(24) NOT NULL DEFAULT 'unified',
+  "mergedRookieCollegeDraft" BOOLEAN NOT NULL DEFAULT false,
+  "nflCollegeExcludeKDST" BOOLEAN NOT NULL DEFAULT true,
+  "proLineupSlots" JSONB,
+  "proBenchSize" INTEGER NOT NULL DEFAULT 12,
+  "proIRSize" INTEGER NOT NULL DEFAULT 3,
+  "startupDraftType" VARCHAR(16) NOT NULL DEFAULT 'snake',
+  "rookieDraftType" VARCHAR(16) NOT NULL DEFAULT 'snake',
+  "collegeDraftType" VARCHAR(16) NOT NULL DEFAULT 'snake',
+  "rookiePickOrderMethod" VARCHAR(32) NOT NULL DEFAULT 'reverse_standings',
+  "collegePickOrderMethod" VARCHAR(32) NOT NULL DEFAULT 'reverse_standings',
+  "hybridProWeight" INTEGER NOT NULL DEFAULT 60,
+  "hybridPlayoffQualification" VARCHAR(32) NOT NULL DEFAULT 'weighted',
+  "hybridChampionshipTieBreaker" VARCHAR(32) NOT NULL DEFAULT 'total_points',
+  "collegeFAEnabled" BOOLEAN NOT NULL DEFAULT false,
+  "collegeFAABSeparate" BOOLEAN NOT NULL DEFAULT false,
+  "collegeFAABBudget" INTEGER,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "c2c_league_configs_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_league_configs_leagueId_key"
+ON "c2c_league_configs"("leagueId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'c2c_league_configs_leagueId_fkey'
+  ) THEN
+    ALTER TABLE "c2c_league_configs"
+    ADD CONSTRAINT "c2c_league_configs_leagueId_fkey"
+      FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
+`;
+
+  return runPrismaWithInput(
+    ["db", "execute", "--stdin", "--schema", "prisma/schema.prisma"],
+    sql
+  );
+}
+
 const output = `${result.stdout || ""}\n${result.stderr || ""}`;
 const failedMigrationName = extractFailedMigrationName(output);
 const shouldRetryFailedMigration =
@@ -263,6 +355,15 @@ if (shouldRetryFailedMigration && failedMigrationName) {
   writeOutput(resolveResult);
 
   if (resolveResult.status === 0) {
+    if (failedMigrationName === "20260401000000_add_devy_c2c_rollout_foundation") {
+      const bootstrapResult = ensureC2CLeagueConfigTable();
+      writeOutput(bootstrapResult);
+
+      if (bootstrapResult.status !== 0) {
+        process.exit(typeof bootstrapResult.status === "number" ? bootstrapResult.status : 1);
+      }
+    }
+
     result = runPrisma(["migrate", "deploy"]);
     writeOutput(result);
   } else {
