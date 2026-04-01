@@ -173,28 +173,20 @@ test.describe("@dashboard unified dashboard click audit", () => {
     await expect(leagueCard).toHaveAttribute("href", new RegExp(`^/app/league/${soccerLeagueId}$`))
     await page.goto(`/app/league/${soccerLeagueId}`)
     await expect(page).toHaveURL(new RegExp(`/app/league/${soccerLeagueId}$`), { timeout: 20_000 })
-    await page.goBack()
+    await page.goto("/e2e/dashboard-soccer-grouping")
     await expect(page).toHaveURL(/\/e2e\/dashboard-soccer-grouping/)
 
-    // Home cards, quick actions, bracket summary links
+    // Home cards and current quick-action links
     await page.locator('[data-dashboard-tab="Home"]').click()
-    await expect(page.locator('[data-dashboard-section="product-launchers"]')).toBeVisible()
-    await expect(page.locator('[data-dashboard-section="quick-actions"]')).toBeVisible()
-    await expect(page.locator('[data-dashboard-section="bracket-summary"]')).toBeVisible()
-    await expect(page.locator('[data-dashboard-quick-action="open_webapp"]')).toHaveAttribute("href", "/app/home")
-    await expect(page.locator('[data-dashboard-quick-action="open_legacy"]')).toHaveAttribute("href", "/af-legacy")
-    await expect(page.locator('[data-dashboard-quick-action="open_notifications"]')).toHaveAttribute("href", "/app/notifications")
+    await expect(page.getByRole("link", { name: /\+ Create League/i }).first()).toHaveAttribute("href", "/create-league")
+    await expect(page.getByRole("link", { name: /📥 Import/i }).first()).toHaveAttribute("href", "/import")
+    await expect(page.getByRole("link", { name: /🔍 Find League/i }).first()).toHaveAttribute("href", "/find-league")
+    await expect(page.getByRole("link", { name: /How rankings work/i })).toHaveAttribute("href", "/rankings")
+    await expect(page.getByRole("link", { name: /My Rankings/i }).first()).toHaveAttribute("href", "/rankings")
+    await expect(page.getByRole("link", { name: /AI Tools/i }).first()).toHaveAttribute("href", "/tools-hub")
 
-    // Home expand/collapse controls
-    const quickActionsToggle = page.getByRole("button", { name: /Open a flow instantly/i })
-    await quickActionsToggle.click()
-    await expect(page.locator("#dashboard-home-quick-actions")).toHaveCount(0)
-    await quickActionsToggle.click()
-    await expect(page.locator("#dashboard-home-quick-actions")).toBeVisible()
-
-    // Profile summary links
-    await expect(page.getByRole("link", { name: /View profile/i })).toBeVisible()
-    await expect(page.locator('a[href="/settings"]').filter({ hasText: "Open settings" }).first()).toBeVisible()
+    // Settings access remains available from the rebuilt header / setup panel.
+    await expect(page.locator('a[href="/settings"]').first()).toBeVisible()
 
     // AI widget button path
     await page.locator('[data-dashboard-tab="AI"]').click()
@@ -204,11 +196,20 @@ test.describe("@dashboard unified dashboard click audit", () => {
       /\/messages\?tab=ai.*leagueId=/
     )
 
+    // Messages composer must expose an accessible send action and append the posted chat item.
+    await page.locator('[data-dashboard-tab="Messages"]').click()
+    await expect(page.getByRole("heading", { name: /^Messages$/ })).toBeVisible()
+    await page.getByPlaceholder("Message the league").fill("Audit post body")
+    await page.getByRole("button", { name: "Send league message" }).first().click()
+    await expect(page.getByText("Test message")).toBeVisible()
+
     // Mobile stacked dashboard behavior
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto("/e2e/dashboard-soccer-grouping")
-    await page.locator('[data-dashboard-tab="Home"]').click()
-    await expect(page.locator('[data-dashboard-section="quick-actions"]')).toBeVisible()
-    await expect(page.locator('[data-dashboard-section="upcoming-deadlines"]')).toBeVisible()
+    const mobileBottomNav = page.locator("div.fixed")
+    await expect(mobileBottomNav.getByRole("button", { name: "Leagues" })).toBeVisible()
+    await expect(mobileBottomNav.getByRole("button", { name: "Messages" })).toBeVisible()
+    await mobileBottomNav.getByRole("button", { name: "Tools" }).click()
+    await expect(page.getByRole("heading", { name: /^Tools$/ })).toBeVisible()
   })
 })

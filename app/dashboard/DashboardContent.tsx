@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Activity,
@@ -15,7 +16,6 @@ import {
   Goal,
   Inbox,
   LayoutGrid,
-  LogIn,
   MessageSquare,
   Newspaper,
   PlusCircle,
@@ -23,7 +23,7 @@ import {
   Wand2,
   RefreshCw,
 } from "lucide-react"
-import ProductLauncherCards from "@/components/dashboard/ProductLauncherCards"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { EmptyStateRenderer, ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
 import {
   getSportSectionLabel,
@@ -42,11 +42,7 @@ import {
 } from "@/lib/sport-scope"
 import { resolveFallbackRoute, resolveNoResultsState, resolveRecoveryActions } from "@/lib/ui-state"
 import { AIProductLayer } from "@/lib/ai-product-layer"
-import {
-  OnboardingChecklist,
-  OnboardingProgressWidget,
-  ReturnPromptCards,
-} from "@/components/onboarding-retention"
+import { OnboardingChecklist, OnboardingProgressWidget } from "@/components/onboarding-retention"
 import type { OnboardingChecklistState, RetentionNudge } from "@/lib/onboarding-retention"
 import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 
@@ -127,6 +123,7 @@ type SportsNewsItem = {
   source: string
   publishedAt: string | null
   href: string | null
+  sport: SupportedSport | null
 }
 
 type SportsWeatherCard = {
@@ -167,6 +164,131 @@ function formatVariantLabel(league: { leagueVariant?: string | null; league_vari
   return getLeagueVariantLabel(league.leagueVariant ?? league.league_variant ?? null)
 }
 
+function getInitials(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "AF"
+}
+
+function resolveNewsSportFromRecord(input: Record<string, unknown>): SupportedSport | null {
+  const directCandidate = [
+    input.sport,
+    input.sportType,
+    input.sport_type,
+    input.league,
+    input.category,
+    input.feedSport,
+  ].find((value) => typeof value === "string")
+
+  const directSport = normalizeToSupportedSport(
+    typeof directCandidate === "string" ? directCandidate : null
+  )
+
+  if (directSport) return directSport
+
+  const haystack = [input.title, input.headline, input.source]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ")
+    .toLowerCase()
+
+  if (haystack.includes("soccer")) return "SOCCER"
+  if (haystack.includes("ncaab") || haystack.includes("ncaa basketball")) return "NCAAB"
+  if (
+    haystack.includes("ncaaf") ||
+    haystack.includes("ncaa football") ||
+    haystack.includes("college football")
+  ) {
+    return "NCAAF"
+  }
+  if (haystack.includes("nhl") || haystack.includes("hockey")) return "NHL"
+  if (haystack.includes("mlb") || haystack.includes("baseball")) return "MLB"
+  if (haystack.includes("nba") || haystack.includes("basketball")) return "NBA"
+  if (haystack.includes("nfl") || haystack.includes("football")) return "NFL"
+
+  return null
+}
+
+function getSportAccentClasses(sport: SupportedSport | null): string {
+  switch (sport) {
+    case "NFL":
+      return "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
+    case "NBA":
+      return "border-orange-400/30 bg-orange-400/10 text-orange-100"
+    case "NHL":
+      return "border-blue-400/30 bg-blue-400/10 text-blue-100"
+    case "MLB":
+      return "border-rose-400/30 bg-rose-400/10 text-rose-100"
+    case "NCAAF":
+      return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100"
+    case "NCAAB":
+      return "border-violet-400/30 bg-violet-400/10 text-violet-100"
+    case "SOCCER":
+      return "border-green-400/30 bg-green-400/10 text-green-100"
+    default:
+      return "border-white/15 bg-white/[0.04] text-slate-200"
+  }
+}
+
+function getSportEmoji(sport: SupportedSport | null): string {
+  switch (sport) {
+    case "NFL":
+      return "🏈"
+    case "NBA":
+      return "🏀"
+    case "NHL":
+      return "🏒"
+    case "MLB":
+      return "⚾"
+    case "NCAAF":
+      return "🎓"
+    case "NCAAB":
+      return "🏆"
+    case "SOCCER":
+      return "⚽"
+    default:
+      return "🏟️"
+  }
+}
+
+function getLeagueStatusMeta(rawStatus: string | null | undefined): {
+  label: string
+  className: string
+} {
+  const value = String(rawStatus || "").toLowerCase()
+
+  if (value.includes("draft")) {
+    return {
+      label: "Drafting",
+      className: "border-cyan-400/25 bg-cyan-400/10 text-cyan-100",
+    }
+  }
+  if (
+    value.includes("active") ||
+    value.includes("live") ||
+    value.includes("synced") ||
+    value.includes("ready")
+  ) {
+    return {
+      label: "Active",
+      className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-100",
+    }
+  }
+  if (value.includes("pre") || value.includes("queue") || value.includes("upcoming")) {
+    return {
+      label: "Pre-Draft",
+      className: "border-amber-400/25 bg-amber-400/10 text-amber-100",
+    }
+  }
+
+  return {
+    label: "Connected",
+    className: "border-violet-400/25 bg-violet-400/10 text-violet-100",
+  }
+}
+
 export default function DashboardContent({
   onboardingComplete = false,
   checklistState = null,
@@ -179,6 +301,7 @@ export default function DashboardContent({
   isAdmin = false,
   initialDashboardPayload,
 }: DashboardProps) {
+  const router = useRouter()
   const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const displayName = user.displayName || user.username || user.email.split("@")[0] || "Manager"
   const { formatInTimezone } = useUserTimezone()
@@ -188,13 +311,10 @@ export default function DashboardContent({
   const connectedLeagues = useMemo(() => connectedLeagueList as DashboardLeague[], [connectedLeagueList])
 
   const [activeTab, setActiveTab] = useState<DashboardTab>("Home")
+  const [chatPane, setChatPane] = useState<"chimmy" | "messages">("chimmy")
   const [sportFilter, setSportFilter] = useState<SportFilter>(ALL_SPORTS_FILTER)
+  const [feedSportFilter, setFeedSportFilter] = useState<SportFilter>(ALL_SPORTS_FILTER)
   const [collapsedSports, setCollapsedSports] = useState<Record<string, boolean>>({})
-  const [homeSectionExpanded, setHomeSectionExpanded] = useState({
-    quickActions: true,
-    bracketSummary: true,
-    deadlines: true,
-  })
   const [refreshingDashboard, setRefreshingDashboard] = useState(false)
   const [dashboardRefreshTick, setDashboardRefreshTick] = useState(0)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(visibleLeagues[0]?.id ?? null)
@@ -274,16 +394,6 @@ export default function DashboardContent({
     connectedLeagues.length === 0 && initialDashboardPayload
       ? initialDashboardPayload
       : dashboardPayload
-  const visibleDashboardSectionIds = useMemo(
-    () =>
-      new Set(
-        resolvedDashboardPayload.sections
-          .filter((section) => section.visible)
-          .map((section) => section.id)
-      ),
-    [resolvedDashboardPayload.sections]
-  )
-
   useEffect(() => {
     if (!visibleLeagues.length) {
       setSelectedLeagueId(null)
@@ -442,6 +552,46 @@ export default function DashboardContent({
     [aiAssistantEnabled, aiAvailabilityLoading, coachHref, intelligenceHref, safeChimmyHref, tradeEvaluatorHref, waiverAiHref]
   )
 
+  const tierHeadline = useMemo(() => {
+    if (careerTier <= 2) return "Elite"
+    if (careerTier <= 4) return "Pro"
+    if (careerTier <= 7) return "Contender"
+    return "Rookie"
+  }, [careerTier])
+
+  const updateItems = useMemo(() => {
+    if (activityItems.length) {
+      return activityItems.slice(0, 3).map((item) => ({
+        id: item.id,
+        label: item.label,
+        title: item.title,
+        href: item.href,
+      }))
+    }
+
+    return resolvedDashboardPayload.setupAlerts.slice(0, 3).map((alert) => ({
+      id: alert.id,
+      label: "setup",
+      title: alert.title,
+      href: alert.actionHref ?? null,
+    }))
+  }, [activityItems, resolvedDashboardPayload.setupAlerts])
+
+  const filteredFeedItems = useMemo(() => {
+    if (feedSportFilter === ALL_SPORTS_FILTER) return sportsNews
+    return sportsNews.filter((item) => item.sport === feedSportFilter)
+  }, [feedSportFilter, sportsNews])
+
+  const sportsFeedItems = filteredFeedItems.length ? filteredFeedItems : sportsNews
+  const rightRailLeagues = useMemo(() => visibleLeagues.slice(0, 8), [visibleLeagues])
+  const chatPreviewMessages = useMemo(() => chatMessages.slice(-6), [chatMessages])
+  const selectedSport = normalizeToSupportedSport(
+    typeof selectedConnectedLeague?.sport === "string" ? selectedConnectedLeague.sport : null
+  )
+  const selectedLeagueName =
+    selectedLeague?.name || selectedConnectedLeague?.name || "No league selected"
+  const selectedSportLabel = selectedSport ? getSportSectionLabel(selectedSport) : "League context"
+
   const normalizeChatMessage = useCallback((msg: any): LeagueChatMessage => {
     const fallbackName = msg?.user?.displayName || msg?.user?.email?.split("@")[0] || "Manager"
     return {
@@ -594,6 +744,7 @@ export default function DashboardContent({
               source: String(item?.source || "news"),
               publishedAt: typeof item?.publishedAt === "string" ? item.publishedAt : null,
               href: typeof item?.url === "string" ? item.url : typeof item?.link === "string" ? item.link : null,
+              sport: resolveNewsSportFromRecord(item ?? {}),
             }))
           )
         }
@@ -670,10 +821,6 @@ export default function DashboardContent({
     setDashboardRefreshTick((tick) => tick + 1)
   }, [refetchConnectedLeagues])
 
-  const toggleHomeSection = useCallback((section: "quickActions" | "bracketSummary" | "deadlines") => {
-    setHomeSectionExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
-  }, [])
-
   const toggleSportSection = useCallback((sport: string) => {
     setCollapsedSports((prev) => ({ ...prev, [sport]: !prev[sport] }))
   }, [])
@@ -711,325 +858,247 @@ export default function DashboardContent({
       {!onboardingComplete ? (
         <section
           data-testid="dashboard-onboarding-retention-panel"
-          className="rounded-3xl border border-white/10 bg-white/[0.03] p-4 space-y-3"
+          className="rounded-[24px] border border-white/10 bg-[#16102a] p-4 space-y-3"
         >
           <OnboardingProgressWidget initialState={checklistState} />
           <OnboardingChecklist initialState={checklistState} />
         </section>
       ) : null}
+      <section className="rounded-[24px] border border-white/10 bg-[#16102a] px-5 py-4 text-center">
+        <h2 className="text-2xl font-black text-white">
+          Welcome back, <span className="text-cyan-300">{displayName}</span>
+        </h2>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <Link href="/create-league" className="inline-flex min-h-[42px] items-center rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-cyan-300">
+            + Create League
+          </Link>
+          <Link href="/import" className="inline-flex min-h-[42px] items-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08]">
+            📥 Import
+          </Link>
+          <Link href="/find-league" className="inline-flex min-h-[42px] items-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08]">
+            🔍 Find League
+          </Link>
+        </div>
+      </section>
 
-      <ReturnPromptCards initialNudges={retentionNudges} />
+      <Link
+        href="/rankings"
+        className="flex items-center gap-4 rounded-[24px] border border-white/10 bg-[#16102a] px-5 py-4 hover:bg-[#1c1535]"
+      >
+        <div className="text-5xl font-black leading-none text-cyan-300">{careerTier}</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-bold text-white">Tier {careerTier} - {tierHeadline}</p>
+          <p className="mt-1 text-sm text-slate-300">
+            {entries.length} tracked entries · {visibleLeagues.length} active leagues
+          </p>
+          <div className="mt-3 h-1.5 rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#06b6d4,#3b82f6)]"
+              style={{
+                width: `${Math.max(
+                  12,
+                  Math.round(
+                    (compactChecklist.filter((item) => item.complete).length / compactChecklist.length) * 100
+                  )
+                )}%`,
+              }}
+            />
+          </div>
+          <p className="mt-2 text-xs font-semibold text-cyan-200">How rankings work →</p>
+        </div>
+      </Link>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          { label: "Connected leagues", value: connectedLeagues.length, hint: connectedPlatforms.join(" · ") || "No providers yet" },
-          { label: "Bracket leagues", value: visibleLeagues.length, hint: `Tier ${careerTier} visibility` },
-          { label: "Tracked entries", value: entries.length, hint: "Bracket entries and standings" },
-          { label: "AI shortcuts", value: aiShortcuts.length, hint: "Trade, waivers, lineup, recap" },
-        ].map((card) => (
-          <section key={card.label} className="rounded-2xl border border-cyan-400/15 bg-white/[0.03] p-4 shadow-[0_0_40px_rgba(34,211,238,0.05)]">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">{card.label}</p>
-            <p className="mt-2 text-3xl font-black text-white">{card.value}</p>
-            <p className="mt-1 text-sm text-slate-300">{card.hint}</p>
-          </section>
+          {
+            href: "/create-league",
+            label: "Create League",
+            subtitle: "Start from scratch",
+            icon: "➕",
+          },
+          {
+            href: "/import",
+            label: "Import League",
+            subtitle: "Sleeper, Yahoo, ESPN & more",
+            icon: "📥",
+          },
+          {
+            href: "/find-league",
+            label: "Find a League",
+            subtitle: "Browse open leagues",
+            icon: "🔍",
+          },
+          {
+            href: "/rankings",
+            label: "My Rankings",
+            subtitle: `Tier ${careerTier} · Level up`,
+            icon: "🏆",
+          },
+          {
+            href: "/tools-hub",
+            label: "AI Tools",
+            subtitle: "Trade AI, Waiver, Draft & more",
+            icon: "🤖",
+          },
+        ].map((action) => (
+          <Link
+            key={action.label}
+            href={action.href}
+            className="rounded-[20px] border border-white/10 bg-[#16102a] p-4 text-center hover:bg-[#1c1535]"
+          >
+            <div className="text-2xl">{action.icon}</div>
+            <p className="mt-3 text-sm font-bold text-white">{action.label}</p>
+            <p className="mt-1 text-xs text-slate-300">{action.subtitle}</p>
+          </Link>
         ))}
       </div>
 
-      {visibleDashboardSectionIds.has("product_launchers") ? (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4" data-dashboard-section="product-launchers">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">Product launchers</h2>
-            <Link href="/dashboard" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
-              Refresh view
-            </Link>
-          </div>
-          <ProductLauncherCards
-            poolCount={resolvedDashboardPayload.leagueCounts.totalBracketPools}
-            entryCount={resolvedDashboardPayload.leagueCounts.totalBracketEntries}
+      <section className="rounded-[24px] border border-white/10 bg-[#16102a] p-5">
+        <div className="mb-4 flex items-center gap-2">
+          <h3 className="text-xl font-black text-white">My Leagues</h3>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+            {connectedLeagues.length} active
+          </span>
+        </div>
+
+        {connectedLeaguesLoading ? (
+          <LoadingStateRenderer label="Loading your connected leagues..." testId="dashboard-home-leagues-loading" />
+        ) : connectedLeaguesError ? (
+          <ErrorStateRenderer
+            title="Unable to load connected leagues"
+            message={connectedLeaguesError}
+            onRetry={() => void handleRetryConnectedLeagues()}
+            testId="dashboard-home-leagues-error"
           />
-        </section>
-      ) : null}
-
-      {visibleDashboardSectionIds.has("quick_actions") ? (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="quick-actions">
-          <button
-            type="button"
-            onClick={() => toggleHomeSection("quickActions")}
-            className="flex w-full items-center justify-between"
-            aria-expanded={homeSectionExpanded.quickActions}
-            aria-controls="dashboard-home-quick-actions"
-          >
-            <div className="text-left">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quick actions</p>
-              <h3 className="mt-1 text-2xl font-black text-white">Open a flow instantly</h3>
-            </div>
-            {homeSectionExpanded.quickActions ? (
-              <ChevronUp className="h-5 w-5 text-cyan-300" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-cyan-300" />
-            )}
-          </button>
-          {homeSectionExpanded.quickActions ? (
-            <div id="dashboard-home-quick-actions" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {resolvedDashboardPayload.quickActions.map((action) => (
-                <Link
-                  key={action.id}
-                  href={action.href}
-                  data-dashboard-quick-action={action.id}
-                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
-                >
-                  <p className="text-base font-bold text-white">{action.label}</p>
-                  <p className="mt-1 text-sm text-slate-300">{action.description}</p>
-                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-cyan-200">
-                    Open
-                    <ArrowRight className="h-3.5 w-3.5" />
+        ) : groupedConnectedLeagues.length ? (
+          <div className="space-y-5">
+            {groupedConnectedLeagues.map((group) => (
+              <div key={group.sport}>
+                <div className="mb-3 flex items-center gap-2">
+                  <div className={`h-2 w-2 rounded-full ${group.sport === "NFL" ? "bg-cyan-400" : group.sport === "NBA" ? "bg-orange-400" : group.sport === "NHL" ? "bg-blue-400" : group.sport === "MLB" ? "bg-rose-400" : group.sport === "NCAAF" ? "bg-emerald-400" : group.sport === "NCAAB" ? "bg-violet-400" : "bg-green-400"}`} />
+                  <span className="text-xs font-bold uppercase tracking-[0.18em] text-white">
+                    {group.label}
                   </span>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {visibleDashboardSectionIds.has("bracket_entries") ? (
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="bracket-summary">
-          <button
-            type="button"
-            onClick={() => toggleHomeSection("bracketSummary")}
-            className="flex w-full items-center justify-between"
-            aria-expanded={homeSectionExpanded.bracketSummary}
-            aria-controls="dashboard-home-bracket-summary"
-          >
-            <div className="text-left">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Bracket challenge</p>
-              <h3 className="mt-1 text-2xl font-black text-white">Pools and entries overview</h3>
-            </div>
-            {homeSectionExpanded.bracketSummary ? (
-              <ChevronUp className="h-5 w-5 text-cyan-300" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-cyan-300" />
-            )}
-          </button>
-          {homeSectionExpanded.bracketSummary ? (
-            <div id="dashboard-home-bracket-summary" className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">Active pools</p>
-                  <Link href="/brackets" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
-                    View all
-                  </Link>
+                  <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400">
+                    {group.leagues.length}
+                  </span>
                 </div>
-                <div className="mt-3 space-y-2">
-                  {visibleLeagues.slice(0, 4).map((league) => (
-                    <Link
-                      key={league.id}
-                      href={`/brackets/leagues/${league.id}`}
-                      data-dashboard-pool-link={league.id}
-                      className="block rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-100 hover:bg-white/[0.08]"
-                    >
-                      {league.name}
-                    </Link>
-                  ))}
-                  {!visibleLeagues.length ? (
-                    <p className="text-sm text-slate-300">No bracket pools yet.</p>
-                  ) : null}
+
+                <div className="space-y-2">
+                  {group.leagues.map((league) => {
+                    const leagueMeta = league as DashboardLeague
+                    const sport = normalizeToSupportedSport(
+                      typeof leagueMeta.sport === "string"
+                        ? leagueMeta.sport
+                        : typeof leagueMeta.sport_type === "string"
+                          ? leagueMeta.sport_type
+                          : group.sport
+                    )
+                    const statusMeta = getLeagueStatusMeta(leagueMeta.syncStatus || leagueMeta.status)
+                    const isCurrent = selectedConnectedLeague?.id === league.id
+
+                    return (
+                      <Link
+                        key={league.id}
+                        href={`/app/league/${league.id}`}
+                        className={`flex items-center gap-3 rounded-[20px] border p-4 transition ${
+                          isCurrent
+                            ? "border-cyan-400/30 bg-cyan-400/10"
+                            : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                        }`}
+                      >
+                        <div className={`h-full w-1 self-stretch rounded-full ${sport === "NFL" ? "bg-cyan-400" : sport === "NBA" ? "bg-orange-400" : sport === "NHL" ? "bg-blue-400" : sport === "MLB" ? "bg-rose-400" : sport === "NCAAF" ? "bg-emerald-400" : sport === "NCAAB" ? "bg-violet-400" : "bg-green-400"}`} />
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.06] text-xl">
+                          {getSportEmoji(sport)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-base font-bold text-white">
+                              {league.name || "Unnamed League"}
+                            </p>
+                            {leagueMeta.season ? (
+                              <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                                {leagueMeta.season}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-xs font-semibold text-cyan-200">
+                            {formatVariantLabel(leagueMeta)} · {(leagueMeta.platform || "custom").toUpperCase()}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-300">
+                            {leagueMeta.leagueSize || "?"}-team · {leagueMeta.isDynasty ? "Dynasty" : "Seasonal"} · {connectedPlatforms.join(" · ") || "Connected"}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusMeta.className}`}>
+                              {statusMeta.label}
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-slate-300">
+                              {getSportSectionLabel(sport || group.sport)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-black text-white">
+                            {leagueMeta.leagueSize || league.memberCount || "--"}
+                          </p>
+                          <p className="text-[11px] text-slate-400">teams</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                      </Link>
+                    )
+                  })}
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-white">Top entries</p>
-                  <Link href="/brackets" className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
-                    View all
-                  </Link>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {entries.slice(0, 4).map((entry) => (
-                    <Link
-                      key={entry.id}
-                      href={`/bracket/${entry.tournamentId}/entry/${entry.id}`}
-                      data-dashboard-entry-link={entry.id}
-                      className="block rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-100 hover:bg-white/[0.08]"
-                    >
-                      {entry.name} · {entry.score} pts
-                    </Link>
-                  ))}
-                  {!entries.length ? (
-                    <p className="text-sm text-slate-300">No bracket entries yet.</p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5" data-dashboard-section="upcoming-deadlines">
-        <button
-          type="button"
-          onClick={() => toggleHomeSection("deadlines")}
-          className="flex w-full items-center justify-between"
-          aria-expanded={homeSectionExpanded.deadlines}
-          aria-controls="dashboard-home-deadlines"
-        >
-          <div className="text-left">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Upcoming deadlines</p>
-            <h3 className="mt-1 text-2xl font-black text-white">What to do next</h3>
+            ))}
           </div>
-          {homeSectionExpanded.deadlines ? (
-            <ChevronUp className="h-5 w-5 text-cyan-300" />
-          ) : (
-            <ChevronDown className="h-5 w-5 text-cyan-300" />
-          )}
-        </button>
-        {homeSectionExpanded.deadlines ? (
-          <div id="dashboard-home-deadlines" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Link href={waiverAiHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Waivers</p>
-              <p className="mt-2 text-lg font-bold text-white">Run waiver plan</p>
-              <p className="mt-1 text-sm text-slate-300">Lock claims before your next waiver processing window.</p>
-            </Link>
-            <Link href={draftHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Draft prep</p>
-              <p className="mt-2 text-lg font-bold text-white">Open draft room</p>
-              <p className="mt-1 text-sm text-slate-300">Review queue and late-round priorities.</p>
-            </Link>
-            <Link href={tradeFinderHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Trade market</p>
-              <p className="mt-2 text-lg font-bold text-white">Check opportunities</p>
-              <p className="mt-1 text-sm text-slate-300">Identify targets and prepare offers.</p>
-            </Link>
-            <Link href="/app/notifications" className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Alerts</p>
-              <p className="mt-2 text-lg font-bold text-white">Review notifications</p>
-              <p className="mt-1 text-sm text-slate-300">Keep up with league, bracket, and AI alerts.</p>
-            </Link>
-          </div>
-        ) : null}
+        ) : (
+          <EmptyStateRenderer
+            title="No leagues yet"
+            description="Create a league, import history, or connect a provider to unlock the full dashboard workflow."
+            actions={[
+              {
+                id: "create-league-home",
+                label: "Create League",
+                href: "/create-league",
+              },
+              {
+                id: "import-league-home",
+                label: "Import League",
+                href: "/import",
+              },
+            ]}
+            testId="dashboard-home-empty"
+          />
+        )}
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-3xl border border-cyan-400/20 bg-[radial-gradient(70%_90%_at_10%_10%,rgba(34,211,238,0.12),transparent_55%),radial-gradient(70%_90%_at_90%_20%,rgba(147,51,234,0.18),transparent_65%),rgba(11,13,31,0.92)] p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+      {retentionNudges.length ? (
+        <section className="rounded-[24px] border border-white/10 bg-[#16102a] p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/80">Current league context</p>
-              <h2 className="mt-3 text-3xl font-black text-white">{selectedLeague?.name || "No league selected"}</h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-300">League-first control center for chat, AI tools, matchups, roster actions, and current-season workflow.</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                Recommended next
+              </p>
+              <h3 className="mt-1 text-lg font-black text-white">Keep momentum going</h3>
             </div>
-            <div className="flex flex-wrap gap-2 text-xs text-slate-200">
-              <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1">{(selectedConnectedLeague?.sport || "NFL").toUpperCase()}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{(selectedConnectedLeague?.platform || "bracket").toUpperCase()}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{formatVariantLabel(selectedConnectedLeague || {})}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{selectedConnectedLeague?.leagueSize || selectedLeague?.memberCount || 0}-team</span>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Link href={leagueSummaryHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">League Home</p>
-              <p className="mt-2 text-base font-bold text-white">Open current league</p>
-              <p className="mt-1 text-sm text-slate-300">Overview, standings, waivers, trades, chat.</p>
-            </Link>
-            <Link href={draftHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Draft</p>
-              <p className="mt-2 text-base font-bold text-white">Draft room access</p>
-              <p className="mt-1 text-sm text-slate-300">Jump into live or practice drafting.</p>
-            </Link>
-            <Link href={waiverAiHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Waiver Alert</p>
-              <p className="mt-2 text-base font-bold text-white">Open waiver priorities</p>
-              <p className="mt-1 text-sm text-slate-300">Get pickup advice tied to league context.</p>
-            </Link>
-            <Link href={tradeAnalyzerHref} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Trade Alert</p>
-              <p className="mt-2 text-base font-bold text-white">Analyze current market</p>
-              <p className="mt-1 text-sm text-slate-300">Open live trade evaluation and counters.</p>
+            <Link href="/tools-hub" className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+              Open tools
             </Link>
           </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Standings snapshot</p>
-              <h3 className="mt-2 text-2xl font-black text-white">League table</h3>
-            </div>
-            <Link href={`${leagueSummaryHref}?tab=Standings%20/%20Playoffs`} className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">Open full standings</Link>
-          </div>
-          <div className="mt-4 space-y-2">
-            {standingsLoading ? (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">Loading standings...</div>
-            ) : standings.length ? (
-              standings.slice(0, 5).map((row, index) => (
-                <div key={row.entryId} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-white">{index + 1}. {row.entryName}</p>
-                    <p className="text-xs text-slate-400">{row.displayName || "Manager"}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-cyan-300">{row.totalPoints}</p>
-                    <p className="text-xs text-slate-400">{row.correctPicks || 0}/{row.totalPicks || 0} correct</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">Standings will appear once this league has scored entries.</div>
-            )}
-          </div>
-        </section>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Roster and league alerts</p>
-              <h3 className="mt-2 text-2xl font-black text-white">Action board</h3>
-            </div>
-            <Link href={teamHref} className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">Open team</Link>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Roster status</p>
-              <p className="mt-2 text-lg font-bold text-white">{rosterLoading ? "Loading..." : rosterAssets.length ? `${rosterAssets.length} tracked assets` : "Roster preview unavailable"}</p>
-              <p className="mt-1 text-sm text-slate-300">{rosterAssets.length ? rosterAssets.slice(0, 3).join(" · ") : "Open your league roster for full lineup and bench context."}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Waiver posture</p>
-              <p className="mt-2 text-lg font-bold text-white">FAAB {rosterMeta.faabRemaining ?? "--"}</p>
-              <p className="mt-1 text-sm text-slate-300">Waiver priority {rosterMeta.waiverPriority ?? "--"} · Open Waiver AI for claim strategy.</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Profile readiness</p>
-              <p className="mt-2 text-lg font-bold text-white">{compactChecklist.filter((item) => item.complete).length}/{compactChecklist.length} complete</p>
-              <p className="mt-1 text-sm text-slate-300">Keep verification, profile, and league links current to unlock all AI tools.</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Recommended AI action</p>
-              <p className="mt-2 text-lg font-bold text-white">Ask for a weekly recap</p>
-              <p className="mt-1 text-sm text-slate-300">Chimmy can summarize your league, trade climate, and next best moves.</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Featured shortcuts</p>
-              <h3 className="mt-2 text-2xl font-black text-white">Open a tool fast</h3>
-            </div>
-            <Link href="/tools-hub" className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">All tools</Link>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {toolCards.slice(0, 6).map((tool) => (
-              <Link key={tool.title} href={tool.href} className={`rounded-2xl border border-white/10 bg-gradient-to-br ${tool.accent} p-4 hover:border-cyan-300/30`}>
-                <p className="text-lg font-bold text-white">{tool.title}</p>
-                <p className="mt-1 text-sm text-slate-200">{tool.description}</p>
-                <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-200">Open <ArrowRight className="h-4 w-4" /></span>
+          <div className="grid gap-3 md:grid-cols-3">
+            {retentionNudges.slice(0, 3).map((nudge) => (
+              <Link
+                key={nudge.id}
+                href={nudge.href}
+                className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+              >
+                <p className="text-sm font-bold text-white">{nudge.title}</p>
+                <p className="mt-1 text-xs text-slate-300">{nudge.body}</p>
               </Link>
             ))}
           </div>
         </section>
-      </div>
+      ) : null}
     </div>
   )
 
@@ -1480,7 +1549,7 @@ export default function DashboardContent({
               disabled={!selectedLeague || postingMessage}
               className="w-full bg-transparent px-2 text-sm text-slate-200 outline-none placeholder:text-slate-500"
             />
-            <button type="button" onClick={() => void handleSendMessage()} disabled={!selectedLeague || postingMessage || !newMessage.trim()} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-400 text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" aria-label="Send league message" onClick={() => void handleSendMessage()} disabled={!selectedLeague || postingMessage || !newMessage.trim()} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-400 text-slate-950 disabled:cursor-not-allowed disabled:opacity-50">
               <MessageSquare className="h-4 w-4" />
             </button>
           </div>
@@ -1549,280 +1618,837 @@ export default function DashboardContent({
     return renderActivityTab()
   }
 
+  const handleMobileTabPress = useCallback(
+    (tab: DashboardTab) => {
+      if (!emptyState) {
+        setActiveTab(tab)
+        return
+      }
+
+      if (tab === "Messages") {
+        router.push("/messages")
+        return
+      }
+
+      if (tab === "Tools") {
+        router.push("/tools-hub")
+        return
+      }
+
+      if (typeof document === "undefined") {
+        setActiveTab(tab)
+        return
+      }
+
+      const targetId = tab === "Activity" ? "dashboard-mobile-activity" : "dashboard-mobile-leagues"
+      const target = document.getElementById(targetId)
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" })
+        return
+      }
+
+      setActiveTab(tab)
+    },
+    [emptyState, router]
+  )
+
   return (
-    <main className="min-h-screen bg-[#09061c] text-slate-100">
-      <div className="mx-auto w-full max-w-[1550px] px-3 py-4 md:px-4 md:py-5">
-        <section className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(34,211,238,0.16),transparent_45%),radial-gradient(90%_90%_at_100%_10%,rgba(168,85,247,0.18),transparent_50%),linear-gradient(180deg,rgba(17,14,38,0.98),rgba(11,8,26,0.96))] p-5 shadow-[0_0_60px_rgba(34,211,238,0.05)] md:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">AllFantasy dashboard</p>
-              <h1 className="mt-3 text-4xl font-black tracking-tight text-white md:text-5xl">Welcome back, {displayName}</h1>
-              <p className="mt-3 text-sm text-slate-300 md:text-base">{heroLabel}. Keep league context, AI actions, tools, and messages in one dense dashboard workflow.</p>
-              <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                <Link href="/profile" className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 font-semibold text-cyan-200 hover:bg-white/[0.08]">
-                  View profile
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-                <Link href="/settings" className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 font-semibold text-cyan-200 hover:bg-white/[0.08]">
-                  Open settings
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
+    <div className="min-h-screen bg-[#110b1e] text-slate-100">
+      <header className="sticky top-0 z-40 border-b border-violet-400/15 bg-[#16102a]/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1720px] items-center gap-3 px-3 py-3 md:px-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <img
+              src="/af-crest.png"
+              alt="AllFantasy crest"
+              className="h-10 w-10 rounded-xl border border-cyan-400/20 bg-white/5 object-contain p-1"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black tracking-[0.28em] text-cyan-100">
+                ALLFANTASY
+              </p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                Dashboard
+              </p>
             </div>
+          </Link>
 
-            <div className="grid w-full gap-2 sm:grid-cols-2 xl:w-[520px]">
-              <Link href="/create-league" className="flex min-h-[52px] items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 hover:bg-white/[0.08]">
-                <span className="flex items-center gap-2 text-sm font-semibold text-white"><PlusCircle className="h-4 w-4 text-cyan-300" /> Create League</span>
-                <ChevronRight className="h-4 w-4 text-cyan-200" />
-              </Link>
-              <Link href="/join" className="flex min-h-[52px] items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 hover:bg-white/[0.08]">
-                <span className="flex items-center gap-2 text-sm font-semibold text-white"><LogIn className="h-4 w-4 text-cyan-300" /> Join League</span>
-                <ChevronRight className="h-4 w-4 text-cyan-200" />
-              </Link>
-              <Link href="/import" className="flex min-h-[52px] items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 hover:bg-white/[0.08]">
-                <span className="flex items-center gap-2 text-sm font-semibold text-white"><Download className="h-4 w-4 text-cyan-300" /> Import League</span>
-                <ChevronRight className="h-4 w-4 text-cyan-200" />
-              </Link>
-              <div className="grid grid-cols-2 gap-2">
-                <Link href="/messages" className="flex min-h-[52px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">Open Messages</Link>
-                <Link href={safeChimmyHref} className="flex min-h-[52px] items-center justify-center rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300">
-                  {aiAssistantEnabled ? "Ask Chimmy" : "Open lineup help"}
-                </Link>
-              </div>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden md:block">
+              <LanguageToggle />
             </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs text-slate-200">
-            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1">Tier {careerTier}</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{visibleLeagues.length} active bracket leagues</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{connectedLeagues.length} connected leagues</span>
-            <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{entries.length} tracked entries</span>
-            {connectedPlatforms.length ? <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">{connectedPlatforms.join(" · ")}</span> : null}
             <button
               type="button"
               onClick={() => void handleRefreshDashboard()}
-              className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 font-semibold text-cyan-200 hover:bg-white/[0.1]"
-              aria-label="Sync dashboard data"
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshingDashboard ? "animate-spin" : ""}`} />
-              {refreshingDashboard ? "Syncing..." : "Sync dashboard"}
+              <RefreshCw className={`h-4 w-4 text-cyan-300 ${refreshingDashboard ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">
+                {refreshingDashboard ? "Refreshing" : "Refresh"}
+              </span>
             </button>
+            <Link
+              href="/settings"
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
+            >
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[linear-gradient(135deg,#06b6d4,#3b82f6)] text-[11px] font-black text-white">
+                {getInitials(displayName)}
+              </span>
+              <span className="hidden lg:inline">{displayName}</span>
+              <ShieldCheck className="h-4 w-4 text-cyan-300" />
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid w-full max-w-[1720px] gap-4 px-3 pb-24 pt-4 md:px-4 xl:grid-cols-[310px_minmax(0,1fr)_290px] xl:pb-8">
+        <aside className="hidden min-h-[calc(100vh-180px)] flex-col overflow-hidden rounded-[28px] border border-violet-400/15 bg-[#16102a] xl:flex">
+          <div className="border-b border-violet-400/15 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setChatPane("chimmy")}
+                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  chatPane === "chimmy"
+                    ? "bg-cyan-400 text-slate-950"
+                    : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                }`}
+              >
+                Chimmy
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatPane("messages")}
+                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  chatPane === "messages"
+                    ? "bg-cyan-400 text-slate-950"
+                    : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                }`}
+              >
+                Messages
+              </button>
+            </div>
           </div>
 
-          {resolvedDashboardPayload.needsSetup || !profile.sleeperUsername ? (
-            <div className="mt-5 rounded-2xl border border-amber-400/15 bg-amber-500/10 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200/80">Setup checklist</p>
-                  <p className="mt-2 text-sm text-amber-50">Keep this checklist green so every dashboard action stays league-aware and fully enabled.</p>
+          {chatPane === "chimmy" ? (
+            <>
+              <div className="border-b border-violet-400/15 px-4 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-200">
+                    <Bot className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-white">Chimmy AI</p>
+                    <p className="text-xs text-slate-400">League-aware private assistant</p>
+                  </div>
                 </div>
-                <Link href="/settings" className="rounded-xl border border-amber-200/20 px-4 py-2 text-sm font-semibold text-amber-50 hover:bg-white/5">Open settings</Link>
               </div>
-              {resolvedDashboardPayload.setupAlerts.length ? (
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {resolvedDashboardPayload.setupAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className="rounded-xl border border-amber-400/15 bg-white/[0.04] p-3"
-                      data-dashboard-alert={alert.id}
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+                <div className="max-w-[92%] rounded-[18px] rounded-tl-md bg-white/[0.05] px-4 py-3 text-sm text-slate-200">
+                  Welcome back, {displayName}. I can help with trades, waivers, lineup moves,
+                  and a quick recap of your current league context.
+                </div>
+                <div className="max-w-[92%] rounded-[18px] rounded-tl-md bg-white/[0.05] px-4 py-3 text-sm text-slate-200">
+                  {selectedLeagueName !== "No league selected"
+                    ? `Current focus: ${selectedLeagueName}. Open Chimmy for a league-specific breakdown or a trade review.`
+                    : "Connect or create a league to unlock full league-aware guidance."}
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {aiShortcuts.slice(0, 4).map((action) => (
+                    <Link
+                      key={action.title}
+                      href={action.href}
+                      className="block rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] px-3 py-3 text-sm text-cyan-50 hover:bg-cyan-400/[0.12]"
                     >
-                      <p className="text-sm font-semibold text-amber-100">{alert.title}</p>
-                      <p className="mt-1 text-xs text-amber-50/90">{alert.message}</p>
-                      {alert.actionHref ? (
-                        <Link
-                          href={alert.actionHref}
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-200 hover:text-cyan-100"
-                        >
-                          {alert.actionLabel || "Open"}
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Link>
-                      ) : null}
-                    </div>
+                      <p className="font-semibold">{action.title}</p>
+                      <p className="mt-1 text-xs text-cyan-100/70">{action.subtitle}</p>
+                    </Link>
                   ))}
                 </div>
-              ) : null}
+              </div>
+              <div className="border-t border-violet-400/15 p-4">
+                <div className="grid gap-2">
+                  <Link
+                    href={safeChimmyHref}
+                    className="inline-flex min-h-[44px] items-center justify-between rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+                  >
+                    Open Chimmy
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <Link
+                      href={tradeEvaluatorHref}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-200 hover:bg-white/[0.08]"
+                    >
+                      Trade help
+                    </Link>
+                    <Link
+                      href={waiverAiHref}
+                      className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-slate-200 hover:bg-white/[0.08]"
+                    >
+                      Waiver help
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="border-b border-violet-400/15 px-4 py-4">
+                <p className="text-sm font-bold text-white">{selectedLeagueName}</p>
+                <p className="text-xs text-slate-400">Live league chat preview</p>
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+                {chatLoading ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">
+                    Loading league chat...
+                  </div>
+                ) : chatPreviewMessages.length ? (
+                  chatPreviewMessages.map((msg) => {
+                    const mine = msg.userName === displayName
+                    return (
+                      <div key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`max-w-[92%] rounded-[18px] px-4 py-3 text-sm ${
+                            mine
+                              ? "rounded-tr-md bg-[linear-gradient(135deg,#06b6d4,#3b82f6)] text-white"
+                              : "rounded-tl-md bg-white/[0.05] text-slate-200"
+                          }`}
+                        >
+                          <p className={`text-[11px] font-semibold ${mine ? "text-white/75" : "text-slate-400"}`}>
+                            {msg.userName}
+                          </p>
+                          <p className="mt-1">{msg.message}</p>
+                          <p className={`mt-2 text-[11px] ${mine ? "text-white/70" : "text-slate-500"}`}>
+                            {formatDateLabel(msg.createdAt, formatInTimezone)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">
+                    No league messages yet. Open the inbox or post the first update.
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-violet-400/15 p-4">
+                {chatError ? <p className="mb-2 text-xs text-rose-300">{chatError}</p> : null}
+                <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+                  <input
+                    value={newMessage}
+                    onChange={(event) => setNewMessage(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault()
+                        void handleSendMessage()
+                      }
+                    }}
+                    placeholder={selectedLeague ? "Message the league" : "Select a league first"}
+                    disabled={!selectedLeague || postingMessage}
+                    className="w-full bg-transparent px-2 text-sm text-slate-200 outline-none placeholder:text-slate-500"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Send league message"
+                    onClick={() => void handleSendMessage()}
+                    disabled={!selectedLeague || postingMessage || !newMessage.trim()}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-400 text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </button>
+                </div>
+                <Link
+                  href="/messages"
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-cyan-200 hover:text-cyan-100"
+                >
+                  Open full inbox
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            </>
+          )}
+        </aside>
+
+        <section className="min-w-0 space-y-4">
+        {activeTab !== "Home" ? (
+          <section className="rounded-[28px] border border-violet-400/15 bg-[radial-gradient(120%_120%_at_0%_0%,rgba(34,211,238,0.14),transparent_45%),radial-gradient(90%_90%_at_100%_10%,rgba(168,85,247,0.16),transparent_52%),linear-gradient(180deg,rgba(17,14,38,0.98),rgba(11,8,26,0.96))] p-5 shadow-[0_0_60px_rgba(34,211,238,0.05)] md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+                  Welcome back
+                </p>
+                <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-4xl">
+                  {displayName}
+                </h1>
+                <p className="mt-2 text-sm text-slate-300 md:text-base">
+                  {heroLabel}. Keep league context, AI actions, tools, and messages in one
+                  dense control center.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/create-league"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Create League
+                </Link>
+                <Link
+                  href="/import"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/[0.08]"
+                >
+                  <Download className="h-4 w-4 text-cyan-300" />
+                  Import
+                </Link>
+                <Link
+                  href="/find-league"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/[0.08]"
+                >
+                  <LayoutGrid className="h-4 w-4 text-cyan-300" />
+                  Find League
+                </Link>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+          {(resolvedDashboardPayload.needsSetup || !profile.sleeperUsername) && resolvedDashboardPayload.setupAlerts.length ? (
+            <section className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-amber-100/80">
+                    Setup checklist
+                  </p>
+                  <p className="mt-1 text-sm text-amber-50">
+                    Finish the remaining setup items so league-aware tools and AI stay fully
+                    enabled.
+                  </p>
+                </div>
+                <Link
+                  href="/settings"
+                  className="rounded-xl border border-amber-200/20 px-4 py-2 text-sm font-semibold text-amber-50 hover:bg-white/5"
+                >
+                  Open settings
+                </Link>
+              </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {compactChecklist.map((item) => (
-                  <span key={item.label} className={`rounded-full border px-3 py-1 text-xs ${item.complete ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200" : "border-amber-400/15 bg-white/[0.04] text-amber-100"}`}>
+                  <span
+                    key={item.label}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      item.complete
+                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                        : "border-amber-400/15 bg-white/[0.04] text-amber-100"
+                    }`}
+                  >
                     {item.complete ? "Complete" : "Needs action"} · {item.label}
                   </span>
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
 
           {connectedLeaguesError ? (
-            <div className="mt-4">
-              <ErrorStateRenderer
-                compact
-                title="League sync issue"
-                message={connectedLeaguesError}
-                onRetry={() => void handleRetryConnectedLeagues()}
-                actions={resolveRecoveryActions("dashboard").map((action) => ({
-                  id: action.id,
-                  label: action.label,
-                  href: action.href,
-                }))}
-                testId="dashboard-top-error-state"
-              />
-            </div>
-          ) : null}
-        </section>
-
-        {emptyState ? (
-          <div className="mt-4">
-            <EmptyStateRenderer
-              title="No leagues yet"
-              description="Create a league, join bracket challenge, import history, or connect a provider to unlock the full dashboard workflow."
-              actions={[
-                {
-                  id: "create-league",
-                  ...resolveFallbackRoute("create_league"),
-                  testId: "dashboard-empty-create-league",
-                },
-                {
-                  id: "join-bracket",
-                  ...resolveFallbackRoute("join_bracket"),
-                  testId: "dashboard-empty-join-bracket",
-                },
-                {
-                  id: "import-league",
-                  ...resolveFallbackRoute("import_league"),
-                  testId: "dashboard-empty-import-league",
-                },
-                {
-                  id: "connect-provider",
-                  ...resolveFallbackRoute("connect_provider"),
-                  testId: "dashboard-empty-connect-provider",
-                },
-                {
-                  id: "ask-chimmy",
-                  ...resolveFallbackRoute("ask_chimmy"),
-                  testId: "dashboard-empty-ask-chimmy",
-                },
-              ]}
-              testId="dashboard-global-empty-state"
+            <ErrorStateRenderer
+              compact
+              title="League sync issue"
+              message={connectedLeaguesError}
+              onRetry={() => void handleRetryConnectedLeagues()}
+              actions={resolveRecoveryActions("dashboard").map((action) => ({
+                id: action.id,
+                label: action.label,
+                href: action.href,
+              }))}
+              testId="dashboard-top-error-state"
             />
-          </div>
-        ) : (
-          <div className="mt-4 grid gap-4 xl:grid-cols-[270px_minmax(0,1fr)_320px]">
-            <aside className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
+          ) : null}
+
+          {activeTab !== "Home" ? (
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <section className="rounded-[24px] border border-white/10 bg-[#16102a] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">League switcher</p>
-                  <p className="text-sm font-semibold text-white">Current context</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                    Current league context
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black text-white">{selectedLeagueName}</h2>
+                  <p className="mt-2 text-sm text-slate-300">
+                    League-first routing keeps tools, AI, matchups, roster actions, and chat tied
+                    to the right competition.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className={`rounded-full border px-3 py-1 ${getSportAccentClasses(selectedSport)}`}>
+                    {selectedSportLabel}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
+                    {(selectedConnectedLeague?.platform || "bracket").toUpperCase()}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
+                    {formatVariantLabel(selectedConnectedLeague || {})}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1">
+                    {selectedConnectedLeague?.leagueSize || selectedLeague?.memberCount || 0}-team
+                  </span>
                 </div>
               </div>
 
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Link
+                  href={leagueSummaryHref}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+                >
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">League home</p>
+                  <p className="mt-2 text-base font-bold text-white">Open current league</p>
+                </Link>
+                <Link
+                  href={draftHref}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+                >
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Draft room</p>
+                  <p className="mt-2 text-base font-bold text-white">Jump into draft flow</p>
+                </Link>
+                <Link
+                  href={waiverAiHref}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+                >
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Waiver AI</p>
+                  <p className="mt-2 text-base font-bold text-white">Open waiver priorities</p>
+                </Link>
+                <Link
+                  href={tradeAnalyzerHref}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 hover:bg-white/[0.08]"
+                >
+                  <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Trade analyzer</p>
+                  <p className="mt-2 text-base font-bold text-white">Analyze the market</p>
+                </Link>
+              </div>
+            </section>
+
+            <section className="rounded-[24px] border border-white/10 bg-[#16102a] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-400">
+                    Standings snapshot
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black text-white">League table</h2>
+                </div>
+                <Link
+                  href={`${leagueSummaryHref}?tab=Standings%20/%20Playoffs`}
+                  className="text-sm font-semibold text-cyan-300 hover:text-cyan-200"
+                >
+                  Open full standings
+                </Link>
+              </div>
               <div className="mt-4 space-y-2">
-                {visibleLeagues.length ? visibleLeagues.map((league) => (
-                  <button key={league.id} type="button" onClick={() => setSelectedLeagueId(league.id)} className={`w-full rounded-2xl border px-3 py-3 text-left ${selectedLeague?.id === league.id ? "border-cyan-400/30 bg-cyan-400/10" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"}`}>
-                    <div className="flex items-center gap-2">
-                      {'avatarUrl' in league && (league as { avatarUrl?: string | null }).avatarUrl ? (
-                        <img
-                          src={(league as { avatarUrl?: string | null }).avatarUrl ?? ''}
-                          alt=""
-                          className="h-7 w-7 rounded-full object-cover border border-white/15"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-[10px] font-semibold text-cyan-200">
-                          {String((league as any).sport ?? "NFL").toUpperCase().slice(0, 3)}
-                        </span>
-                      )}
+                {standingsLoading ? (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">
+                    Loading standings...
+                  </div>
+                ) : standings.length ? (
+                  standings.slice(0, 5).map((row, index) => (
+                    <div
+                      key={row.entryId}
+                      className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"
+                    >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-white">{league.name}</p>
-                        <p className="mt-1 text-xs text-slate-300">{league.memberCount} members · Tier {league.leagueTier}</p>
+                        <p className="truncate text-sm font-bold text-white">
+                          {index + 1}. {row.entryName}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {row.displayName || "Manager"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-cyan-300">{row.totalPoints}</p>
+                        <p className="text-xs text-slate-400">
+                          {row.correctPicks || 0}/{row.totalPicks || 0} correct
+                        </p>
                       </div>
                     </div>
-                  </button>
-                )) : <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-slate-300">No dashboard-visible leagues yet.</div>}
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 text-sm text-slate-300">
+                    Standings will appear once this league has scored entries.
+                  </div>
+                )}
               </div>
+            </section>
+          </div>
+          ) : null}
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Selected league</p>
-                <p className="mt-2 text-lg font-black text-white">{selectedLeague?.name || "No league selected"}</p>
-                <p className="mt-1 text-sm text-slate-300">{(selectedConnectedLeague?.sport || "NFL").toUpperCase()} · {(selectedConnectedLeague?.platform || "bracket").toUpperCase()}</p>
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-300">
-                  <span className="rounded-full border border-white/10 px-2 py-0.5">{selectedConnectedLeague?.leagueSize || selectedLeague?.memberCount || 0}-team</span>
-                  <span className="rounded-full border border-white/10 px-2 py-0.5">{selectedConnectedLeague?.isDynasty ? "Dynasty" : "Seasonal"}</span>
+          {emptyState ? (
+            <div id="dashboard-mobile-leagues">
+              <EmptyStateRenderer
+                title="No leagues yet"
+                description="Create a league, join bracket challenge, import history, or connect a provider to unlock the full dashboard workflow."
+                actions={[
+                  {
+                    id: "create-league",
+                    ...resolveFallbackRoute("create_league"),
+                    testId: "dashboard-empty-create-league",
+                  },
+                  {
+                    id: "join-bracket",
+                    ...resolveFallbackRoute("join_bracket"),
+                    testId: "dashboard-empty-join-bracket",
+                  },
+                  {
+                    id: "import-league",
+                    ...resolveFallbackRoute("import_league"),
+                    testId: "dashboard-empty-import-league",
+                  },
+                  {
+                    id: "connect-provider",
+                    ...resolveFallbackRoute("connect_provider"),
+                    testId: "dashboard-empty-connect-provider",
+                  },
+                  {
+                    id: "ask-chimmy",
+                    ...resolveFallbackRoute("ask_chimmy"),
+                    testId: "dashboard-empty-ask-chimmy",
+                  },
+                ]}
+                testId="dashboard-global-empty-state"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-[#16102a] p-2">
+                <div className="flex min-w-max gap-2">
+                  {DASHBOARD_TABS.map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveTab(tab)}
+                      data-dashboard-tab={tab}
+                      aria-pressed={activeTab === tab}
+                      className={`whitespace-nowrap rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                        activeTab === tab
+                          ? "bg-cyan-400 text-slate-950"
+                          : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
                 </div>
-              </div>
-            </aside>
-
-            <section className="min-w-0 space-y-4">
-              <div className="no-scrollbar sticky top-2 z-10 flex gap-2 overflow-x-auto rounded-[24px] border border-white/10 bg-[rgba(12,10,28,0.92)] p-2 backdrop-blur">
-                {DASHBOARD_TABS.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setActiveTab(tab)}
-                    data-dashboard-tab={tab}
-                    aria-pressed={activeTab === tab}
-                    className={`whitespace-nowrap rounded-2xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab ? "bg-cyan-400 text-slate-950" : "bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"}`}
-                  >
-                    {tab}
-                  </button>
-                ))}
               </div>
 
               {renderActiveTab()}
-            </section>
+            </>
+          )}
+        </section>
 
-            <aside className="space-y-4">
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quick open</p>
-                <div className="mt-3 space-y-2">
-                  <Link href={leagueSummaryHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
-                    <span className="flex items-center gap-2"><LayoutGrid className="h-4 w-4 text-cyan-300" /> League Home</span>
-                    <ChevronRight className="h-4 w-4 text-cyan-300" />
-                  </Link>
-                  <Link href="/messages" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
-                    <span className="flex items-center gap-2"><Inbox className="h-4 w-4 text-cyan-300" /> Inbox</span>
-                    <ChevronRight className="h-4 w-4 text-cyan-300" />
-                  </Link>
-                  <Link href={safeChimmyHref} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]">
-                    <span className="flex items-center gap-2"><Bot className="h-4 w-4 text-cyan-300" /> Chimmy</span>
-                    <ChevronRight className="h-4 w-4 text-cyan-300" />
-                  </Link>
-                  <Link href="/tools-hub" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]" data-testid="dashboard-open-tools-hub-link">
-                    <span className="flex items-center gap-2"><Wand2 className="h-4 w-4 text-cyan-300" /> Tools Hub</span>
-                    <ChevronRight className="h-4 w-4 text-cyan-300" />
-                  </Link>
-                </div>
-              </section>
+        <aside className="hidden space-y-4 xl:block">
+          <section className="rounded-[28px] border border-violet-400/15 bg-[#16102a] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Leagues</p>
+                <h3 className="mt-1 text-xl font-black text-white">Quick switcher</h3>
+              </div>
+              <Link
+                href="/create-league"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-cyan-300 hover:bg-white/[0.08]"
+              >
+                <PlusCircle className="h-4 w-4" />
+              </Link>
+            </div>
 
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Current league rail</p>
-                <h3 className="mt-2 text-2xl font-black text-white">{selectedLeague?.name || "No league selected"}</h3>
-                <p className="mt-2 text-sm text-slate-300">Use the league-first context above to keep every tool and AI action scoped to the right competition.</p>
-                <div className="mt-4 space-y-2 text-sm text-slate-300">
-                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Platform</span><span className="font-semibold text-white">{(selectedConnectedLeague?.platform || "bracket").toUpperCase()}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Sport</span><span className="font-semibold text-white">{(selectedConnectedLeague?.sport || "NFL").toUpperCase()}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Variant</span><span className="font-semibold text-white">{formatVariantLabel(selectedConnectedLeague || {})}</span></div>
-                  <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"><span>Status</span><span className="font-semibold text-white">{selectedConnectedLeague?.syncStatus || selectedConnectedLeague?.status || "Ready"}</span></div>
+            <div className="mt-4 space-y-2">
+              {rightRailLeagues.length ? (
+                rightRailLeagues.map((league) => (
+                  <button
+                    key={league.id}
+                    type="button"
+                    onClick={() => setSelectedLeagueId(league.id)}
+                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                      selectedLeague?.id === league.id
+                        ? "border-cyan-400/30 bg-cyan-400/10"
+                        : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-[11px] font-bold text-cyan-200">
+                        {getInitials(league.name)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-white">{league.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {league.memberCount} members · Tier {league.leagueTier}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-slate-300">
+                  No dashboard-visible leagues yet.
                 </div>
-                {inviteLink ? <button type="button" onClick={handleCopyInvite} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"><Copy className="h-4 w-4" />{copyStatus === "copied" ? "Invite copied" : copyStatus === "failed" ? "Copy invite again" : "Copy invite link"}</button> : null}
-              </section>
+              )}
+            </div>
+          </section>
 
-              <section className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Recommended AI actions</p>
-                <div className="mt-3 space-y-2">
-                  {aiShortcuts.slice(0, 4).map((action) => (
-                    <Link key={action.title} href={action.href} className="block rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 hover:bg-white/[0.08]">
-                      <p className="text-sm font-bold text-white">{action.title}</p>
-                      <p className="mt-1 text-xs text-slate-300">{action.subtitle}</p>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            </aside>
-          </div>
-        )}
+          <section className="rounded-[28px] border border-violet-400/15 bg-[#16102a] p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Current league rail</p>
+            <h3 className="mt-2 text-2xl font-black text-white">{selectedLeagueName}</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Use this panel to keep every tool and AI action scoped to the right competition.
+            </p>
+            <div className="mt-4 space-y-2 text-sm text-slate-300">
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span>Platform</span>
+                <span className="font-semibold text-white">
+                  {(selectedConnectedLeague?.platform || "bracket").toUpperCase()}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span>Sport</span>
+                <span className="font-semibold text-white">{selectedSportLabel}</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span>Variant</span>
+                <span className="font-semibold text-white">
+                  {formatVariantLabel(selectedConnectedLeague || {})}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span>Status</span>
+                <span className="font-semibold text-white">
+                  {selectedConnectedLeague?.syncStatus || selectedConnectedLeague?.status || "Ready"}
+                </span>
+              </div>
+            </div>
+            {inviteLink ? (
+              <button
+                type="button"
+                onClick={handleCopyInvite}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+              >
+                <Copy className="h-4 w-4" />
+                {copyStatus === "copied"
+                  ? "Invite copied"
+                  : copyStatus === "failed"
+                    ? "Copy invite again"
+                    : "Copy invite link"}
+              </button>
+            ) : null}
+          </section>
+
+          <section className="rounded-[28px] border border-violet-400/15 bg-[#16102a] p-4">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Quick open</p>
+            <div className="mt-3 space-y-2">
+              <Link
+                href={leagueSummaryHref}
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
+              >
+                <span className="flex items-center gap-2">
+                  <LayoutGrid className="h-4 w-4 text-cyan-300" />
+                  League Home
+                </span>
+                <ChevronRight className="h-4 w-4 text-cyan-300" />
+              </Link>
+              <Link
+                href="/messages"
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
+              >
+                <span className="flex items-center gap-2">
+                  <Inbox className="h-4 w-4 text-cyan-300" />
+                  Inbox
+                </span>
+                <ChevronRight className="h-4 w-4 text-cyan-300" />
+              </Link>
+              <Link
+                href={safeChimmyHref}
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
+              >
+                <span className="flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-cyan-300" />
+                  Chimmy
+                </span>
+                <ChevronRight className="h-4 w-4 text-cyan-300" />
+              </Link>
+              <Link
+                href="/tools-hub"
+                data-testid="dashboard-open-tools-hub-link"
+                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white hover:bg-white/[0.08]"
+              >
+                <span className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-cyan-300" />
+                  Tools Hub
+                </span>
+                <ChevronRight className="h-4 w-4 text-cyan-300" />
+              </Link>
+            </div>
+          </section>
+        </aside>
       </div>
-    </main>
+
+      <footer id="dashboard-mobile-activity" className="border-t border-violet-400/15 bg-[#16102a]">
+        <div className="border-b border-violet-400/15">
+          <div className="mx-auto flex w-full max-w-[1720px] flex-wrap items-center gap-2 px-3 py-3 md:px-4">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Updates
+            </span>
+            {updateItems.length ? (
+              updateItems.map((item) =>
+                item.href ? (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 hover:bg-white/[0.08]"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                    {item.title}
+                  </Link>
+                ) : (
+                  <div
+                    key={item.id}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-cyan-300" />
+                    {item.title}
+                  </div>
+                )
+              )
+            ) : (
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300">
+                No recent dashboard updates
+              </span>
+            )}
+            <Link href="/messages" className="ml-auto text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+              All →
+            </Link>
+          </div>
+        </div>
+
+        <div className="mx-auto w-full max-w-[1720px] px-3 py-4 md:px-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-white">Sports Feed</p>
+              <p className="text-xs text-slate-400">
+                NFL, NHL, NBA, MLB, NCAA Basketball, NCAA Football, and Soccer
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFeedSportFilter(ALL_SPORTS_FILTER)}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                  feedSportFilter === ALL_SPORTS_FILTER
+                    ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
+                    : "border-white/10 bg-white/[0.04] text-slate-200"
+                }`}
+              >
+                All
+              </button>
+              {SUPPORTED_SPORTS.map((sport) => (
+                <button
+                  key={sport}
+                  type="button"
+                  onClick={() => setFeedSportFilter(sport)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    feedSportFilter === sport
+                      ? getSportAccentClasses(sport)
+                      : "border-white/10 bg-white/[0.04] text-slate-200"
+                  }`}
+                >
+                  {getSportSectionLabel(sport)}
+                </button>
+              ))}
+              <Link href="/fantasy-news" className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">
+                View all →
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-x-auto rounded-t-2xl border border-white/10 bg-white/[0.04]">
+            <div className="inline-flex min-w-full divide-x divide-white/10">
+              {sportsFeedItems.length ? (
+                sportsFeedItems.map((item) => (
+                  <div
+                    key={`ticker-${item.id}`}
+                    className="inline-flex items-center gap-3 px-4 py-3 text-sm text-slate-200"
+                  >
+                    <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getSportAccentClasses(item.sport)}`}>
+                      {item.sport ? getSportSectionLabel(item.sport) : "Update"}
+                    </span>
+                    <span className="whitespace-nowrap">{item.title}</span>
+                    <span className="text-xs text-slate-500">
+                      {formatDateLabel(item.publishedAt, formatInTimezone)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-3 text-sm text-slate-300">
+                  No sports feed items are available right now.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-px flex gap-px overflow-x-auto rounded-b-2xl bg-white/10">
+            {sportsFeedItems.length ? (
+              sportsFeedItems.map((item) => {
+                const cardContent = (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getSportAccentClasses(item.sport)}`}>
+                        {item.sport ? getSportSectionLabel(item.sport) : "Update"}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {formatDateLabel(item.publishedAt, formatInTimezone)}
+                      </span>
+                    </div>
+                    <p className="mt-3 line-clamp-2 text-sm font-semibold text-white">{item.title}</p>
+                    <p className="mt-2 text-xs text-slate-400">{item.source}</p>
+                  </>
+                )
+
+                if (item.href) {
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className="min-w-[280px] flex-1 bg-[#16102a] p-4 hover:bg-[#1c1535]"
+                    >
+                      {cardContent}
+                    </Link>
+                  )
+                }
+
+                return (
+                  <div key={item.id} className="min-w-[280px] flex-1 bg-[#16102a] p-4">
+                    {cardContent}
+                  </div>
+                )
+              })
+            ) : null}
+          </div>
+        </div>
+      </footer>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-violet-400/15 bg-[#16102a]/95 px-3 py-2 backdrop-blur md:hidden">
+        <div className="grid grid-cols-4 gap-2">
+          {(["My Leagues", "Messages", "Tools", "Activity"] as DashboardTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => handleMobileTabPress(tab)}
+              className={`rounded-2xl px-3 py-2 text-xs font-semibold ${
+                activeTab === tab
+                  ? "bg-cyan-400 text-slate-950"
+                  : "bg-white/[0.04] text-slate-200"
+              }`}
+            >
+              {tab === "My Leagues" ? "Leagues" : tab}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

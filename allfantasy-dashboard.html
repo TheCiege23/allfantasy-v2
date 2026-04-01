@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="dark" data-lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Dashboard — AllFantasy.ai</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script>
+/* ─── AllFantasy universal preference init ───
+   Runs before CSS renders so there's ZERO flash of wrong theme or language.
+   Saves to localStorage with keys: af_mode, af_lang
+   Both keys are read by every page on load.
+─────────────────────────────────────────────── */
+(function(){
+  // ── THEME ──
+  var mode = localStorage.getItem('af_mode') || 'dark';
+  if (mode !== 'dark' && mode !== 'light' && mode !== 'legacy') mode = 'dark';
+  document.documentElement.setAttribute('data-mode', mode);
+  document.documentElement.style.colorScheme = mode === 'light' ? 'light' : 'dark';
+
+  // ── LANGUAGE ──
+  var lang = localStorage.getItem('af_lang') || 'en';
+  if (lang !== 'en' && lang !== 'es') lang = 'en';
+  document.documentElement.setAttribute('lang', lang);
+  document.documentElement.setAttribute('data-lang', lang);
+})();
+</script>
+<style>
+/* ─── TOKENS ─── */
+:root{
+  --bg:#110b1e; --bg2:#0d0917;
+  --sf:#16102a; --s2:#1c1535; --s3:#211a3e; --s4:#271f46;
+  --bd:rgba(139,92,246,.18); --bh:rgba(139,92,246,.30); --bs:rgba(139,92,246,.50);
+  --cyan:#06b6d4; --blue:#3b82f6; --em:#10b981; --teal:#5eeadc;
+  --violet:#8b5cf6; --gold:#f59e0b; --red:#ef4444; --orange:#f97316;
+  --tx:rgba(255,255,255,.93); --mu:rgba(255,255,255,.55); --mu2:rgba(255,255,255,.30);
+  --grad:linear-gradient(90deg,#06b6d4,#3b82f6);
+  --g135:linear-gradient(135deg,#06b6d4,#3b82f6);
+  --nfl:#06b6d4;--nba:#f97316;--nhl:#3b82f6;--mlb:#ef4444;--ncaafb:#10b981;--ncaabb:#a855f7;--soccer:#22c55e;
+  --nav:52px; --sbw:210px; --chw:290px;
+}
+[data-mode=light]{--bg:#f0f2f5;--bg2:#e4e6eb;--sf:#fff;--s2:#f5f6f8;--s3:#eceef2;--s4:#e0e2e8;--bd:rgba(0,0,0,.09);--bh:rgba(0,0,0,.15);--bs:rgba(0,0,0,.25);--tx:rgba(0,0,0,.88);--mu:rgba(0,0,0,.5);--mu2:rgba(0,0,0,.3)}
+[data-mode=legacy]{
+  --bg:#020617;--bg2:#020617;
+  --sf:#0a0f1e;--s2:#0f1729;--s3:#162038;--s4:#1c2a47;
+  --bd:rgba(6,182,212,.15);--bh:rgba(6,182,212,.28);--bs:rgba(6,182,212,.5);
+  --tx:rgba(255,255,255,.93);--mu:rgba(255,255,255,.55);--mu2:rgba(255,255,255,.30);
+  --grad:linear-gradient(90deg,#06b6d4,#0ea5e9);
+  --g135:linear-gradient(135deg,#06b6d4,#0ea5e9);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{}
+body{background:var(--bg);color:var(--tx);font-family:'Outfit',sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100vh}
+
+/* ─── NAV ─── */
+.nav{
+  z-index:300;height:var(--nav);
+  background:var(--sf);border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;gap:6px;padding:0 12px;
+}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+@media(max-width:420px){.nav-logo svg:last-child{display:none}}
+.spacer{flex:1}
+.nav-right{display:flex;align-items:center;gap:5px}
+
+/* dropdown component */
+.dd{position:relative;flex-shrink:0}
+.dd-btn{
+  display:flex;align-items:center;gap:5px;padding:5px 9px;
+  background:var(--s2);border:1px solid var(--bh);border-radius:7px;
+  color:var(--mu);font-size:12px;font-weight:600;cursor:pointer;
+  transition:all .15s;white-space:nowrap;font-family:'Outfit',sans-serif;
+}
+.dd-btn:hover,.dd.open .dd-btn{color:var(--tx);border-color:var(--bs)}
+.dd-btn .arr{width:10px;height:10px;transition:transform .2s;flex-shrink:0}
+.dd.open .dd-btn .arr{transform:rotate(180deg)}
+.dd-menu{
+  position:absolute;top:calc(100%+5px);right:0;min-width:150px;
+  background:var(--sf);border:1px solid var(--bh);border-radius:10px;
+  padding:4px;z-index:400;display:none;box-shadow:0 10px 32px rgba(0,0,0,.5);
+}
+.dd.open .dd-menu{display:block}
+.dd-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;font-size:13px;cursor:pointer;transition:background .12s;color:var(--mu)}
+.dd-item:hover{background:var(--s2);color:var(--tx)}
+.dd-item.sel{color:var(--cyan);font-weight:600}
+.dd-sep{height:1px;background:var(--bd);margin:3px 0}
+.dot7{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.deepl-tag{font-size:9px;background:rgba(6,182,212,.12);color:var(--cyan);border:1px solid rgba(6,182,212,.25);padding:1px 5px;border-radius:3px;margin-left:auto;font-weight:700;letter-spacing:.04em}
+
+/* profile pill — avatar + gear only */
+.ham{display:none;width:32px;height:32px;background:var(--s2);border:1px solid var(--bh);border-radius:7px;cursor:pointer;align-items:center;justify-content:center;font-size:14px;color:var(--mu);flex-shrink:0}
+.prof{display:flex;align-items:center;gap:5px;padding:4px 8px;background:var(--s2);border:1px solid var(--bh);border-radius:8px;cursor:pointer;transition:all .15s;text-decoration:none}
+.prof:hover{border-color:var(--bs);background:var(--s3)}
+.pav{width:24px;height:24px;border-radius:50%;background:var(--g135);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.pgear{font-size:13px;color:var(--mu)}
+.pname{font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap}
+
+/* ─── SHELL: chat | main | sidebar ─── */
+.shell{display:flex;flex-direction:row;flex:1;overflow:hidden}
+
+/* ─── CHAT (far left) ─── */
+/* toggle is a flex sibling — always visible */
+.chat-toggle{
+  width:22px;flex-shrink:0;order:1;
+  background:var(--sf);border-right:1px solid var(--bh);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;font-size:11px;color:var(--mu);transition:all .15s;z-index:5;
+}
+.chat-toggle:hover{color:var(--tx);background:var(--s2)}
+.chat-panel.collapsed .chat-toggle{border-right:none;border-left:1px solid var(--bh)}
+
+/* inner content collapses, toggle stays */
+.chat-panel{display:flex;flex-direction:row;flex-shrink:0;order:1}
+.chat-inner{flex:1;overflow:hidden;display:flex;flex-direction:column;
+  width:var(--chw);flex-shrink:0;
+  background:var(--sf);border-right:1px solid var(--bd);
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:width .25s;
+}
+.chat-panel.collapsed .chat-inner{width:0}
+
+/* Chat tabs */
+.ct-tabs{display:flex;border-bottom:1px solid var(--bd);flex-shrink:0}
+.ct-tab{flex:1;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;text-align:center;color:var(--mu);border:none;background:transparent;font-family:'Outfit',sans-serif;transition:all .15s;border-bottom:2px solid transparent;display:flex;align-items:center;justify-content:center;gap:5px}
+.ct-tab:hover{color:var(--tx)}
+.ct-tab.on{color:var(--cyan);border-bottom-color:var(--cyan)}
+.ct-badge{background:var(--cyan);color:#000;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.ct-pane{display:none;flex:1;flex-direction:column;overflow:hidden}
+.ct-pane.on{display:flex;flex-direction:column;min-height:0}
+
+/* Chimmy tab */
+.ch-head{padding:.6rem .75rem;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:7px;flex-shrink:0}
+.ch-head h3{font-size:13px;font-weight:700;flex:1}
+.online-dot{width:6px;height:6px;border-radius:50%;background:var(--em)}
+.ch-msgs{flex:1;overflow-y:auto;padding:.6rem;display:flex;flex-direction:column;gap:7px}
+.ch-msgs::-webkit-scrollbar{width:2px}
+.ch-msgs::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.bubble{max-width:88%;padding:7px 10px;border-radius:9px;font-size:12.5px;line-height:1.55}
+.bubble.ai{background:var(--s2);color:var(--tx);align-self:flex-start;border-radius:3px 9px 9px 9px}
+.bubble.me{background:var(--g135);color:#fff;align-self:flex-end;border-radius:9px 3px 9px 9px}
+.blbl{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu2);margin-bottom:2px}
+.ch-prompts{padding:.4rem .6rem;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+.cqp{font-size:11px;color:var(--cyan);cursor:pointer;padding:4px 7px;border-radius:6px;border:1px solid rgba(6,182,212,.18);background:rgba(6,182,212,.05);transition:background .12s}
+.cqp:hover{background:rgba(6,182,212,.12)}
+.ch-input-area{padding:.5rem .6rem;border-top:1px solid var(--bd);flex-shrink:0}
+.ci-row{display:flex;gap:5px;align-items:flex-end}
+.ci{flex:1;background:var(--s2);border:1px solid var(--bh);border-radius:9px;color:var(--tx);font-family:'Outfit',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;resize:none;max-height:70px;transition:border-color .15s}
+.ci:focus{border-color:var(--cyan)}
+.ci::placeholder{color:var(--mu2)}
+.send-btn{width:30px;height:30px;border-radius:7px;background:var(--g135);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+.send-btn:hover{opacity:.85}
+.send-btn svg{width:13px;height:13px;fill:#fff}
+
+/* DM tab */
+.dm-view{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.dm-view::-webkit-scrollbar{width:2px}
+.dm-view::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.dm-sec-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu2);padding:8px 10px 3px}
+.dm-row{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;transition:background .12s;border-bottom:1px solid rgba(139,92,246,.06)}
+.dm-row:hover,.dm-row.on{background:var(--s2)}
+.dm-av{width:34px;height:34px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;overflow:hidden;position:relative}
+.dm-av.grp{border-radius:9px}
+.unread{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:var(--cyan);border:2px solid var(--sf)}
+.dm-body{flex:1;min-width:0}
+.dm-name{font-size:12.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-preview{font-size:11px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dm-time{font-size:10px;color:var(--mu2);white-space:nowrap;flex-shrink:0}
+
+/* DM thread */
+.dm-thread{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+.dm-thread.on{display:flex}
+.dm-th-head{padding:8px 10px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.dm-back{background:none;border:none;color:var(--cyan);font-size:14px;cursor:pointer;padding:2px;transition:opacity .15s}
+.dm-back:hover{opacity:.7}
+.dm-th-av{width:26px;height:26px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.dm-th-name{font-size:13px;font-weight:700;flex:1}
+.dm-th-meta{font-size:10px;color:var(--mu)}
+.dm-msgs{flex:1;overflow-y:auto;padding:.6rem;display:flex;flex-direction:column;gap:2px}
+.dm-msgs::-webkit-scrollbar{width:2px}
+.dm-msgs::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.dm-date{text-align:center;font-size:10px;color:var(--mu2);margin:8px 0;display:flex;align-items:center;gap:6px}
+.dm-date::before,.dm-date::after{content:'';flex:1;height:1px;background:var(--bd)}
+.dm-msg-row{display:flex;gap:6px;margin-bottom:2px}
+.dm-msg-row.me{flex-direction:row-reverse}
+.dm-msg-av{width:24px;height:24px;border-radius:50%;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;align-self:flex-end}
+.dm-bw{display:flex;flex-direction:column;max-width:82%}
+.dm-meta{font-size:9px;color:var(--mu2);margin-bottom:2px}
+.dm-msg-row.me .dm-meta{text-align:right}
+.dm-bbl{padding:7px 10px;border-radius:10px;font-size:12px;line-height:1.55;background:var(--s2);color:var(--tx);word-break:break-word}
+.dm-msg-row.me .dm-bbl{background:var(--g135);color:#fff;border-radius:10px 10px 3px 10px}
+.dm-msg-row:not(.me) .dm-bbl{border-radius:3px 10px 10px 10px}
+.dm-bbl img{max-width:100%;border-radius:7px;margin-top:4px;display:block}
+.dm-bbl video{max-width:100%;border-radius:7px;margin-top:4px;display:block;max-height:140px}
+.gif-tag{font-size:9px;background:rgba(6,182,212,.2);color:var(--cyan);padding:1px 5px;border-radius:3px;font-weight:700;display:inline-block;margin-bottom:3px}
+/* Poll */
+.poll-card{background:var(--s3);border:1px solid var(--bh);border-radius:8px;padding:8px 10px;margin-top:4px}
+.poll-q{font-size:11.5px;font-weight:600;margin-bottom:5px}
+.poll-opt{display:flex;align-items:center;gap:5px;padding:4px 0;cursor:pointer;font-size:11px;color:var(--mu);border-bottom:1px solid var(--bd);transition:color .12s}
+.poll-opt:last-of-type{border-bottom:none}
+.poll-opt:hover{color:var(--tx)}
+.poll-bar-wrap{flex:1;height:3px;background:var(--bd);border-radius:2px}
+.poll-bar{height:100%;border-radius:2px;background:var(--cyan)}
+.poll-pct{font-size:9.5px;min-width:26px;text-align:right}
+/* DM input */
+.dm-input-area{padding:.4rem .6rem;border-top:1px solid var(--bd);flex-shrink:0;position:relative}
+.dm-toolbar{display:flex;align-items:center;gap:2px;margin-bottom:4px}
+.dm-tool{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;transition:background .12s;color:var(--mu);background:none;border:none;font-family:'Outfit',sans-serif}
+.dm-tool:hover{background:var(--s2);color:var(--tx)}
+.dm-tool.txt{font-size:10px;font-weight:700;padding:0 5px;width:auto;letter-spacing:.03em}
+.dm-irow{display:flex;gap:5px;align-items:flex-end}
+.dm-input{flex:1;background:var(--s2);border:1px solid var(--bh);border-radius:9px;color:var(--tx);font-family:'Outfit',sans-serif;font-size:12.5px;padding:7px 10px;outline:none;resize:none;max-height:70px;min-height:33px;transition:border-color .15s}
+.dm-input:focus{border-color:var(--cyan)}
+.dm-input::placeholder{color:var(--mu2)}
+/* Media preview */
+.media-pre{display:none;gap:5px;margin-bottom:4px;flex-wrap:wrap}
+.media-pre.has{display:flex}
+.media-thumb{position:relative;width:44px;height:44px;border-radius:6px;overflow:hidden;background:var(--s3)}
+.media-thumb img,.media-thumb video{width:100%;height:100%;object-fit:cover}
+.media-rm{position:absolute;top:1px;right:1px;width:13px;height:13px;border-radius:50%;background:rgba(0,0,0,.75);color:#fff;font-size:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;border:none}
+/* Emoji picker */
+.ep{position:absolute;bottom:100%;right:6px;width:210px;background:var(--sf);border:1px solid var(--bh);border-radius:10px;padding:7px;display:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.ep.on{display:block}
+.ep-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.ep-em{text-align:center;font-size:17px;cursor:pointer;padding:3px;border-radius:5px;transition:background .1s;line-height:1.3}
+.ep-em:hover{background:var(--s2)}
+
+/* ─── MAIN ─── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;order:2}
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+
+/* Welcome */
+.welcome{padding:.9rem 1.25rem .7rem;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:.6rem}
+.welcome h1{font-family:'Bebas Neue',sans-serif;font-size:21px;letter-spacing:.03em}
+.welcome h1 span{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.w-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.wbtn{display:flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Outfit',sans-serif;border:none;white-space:nowrap;text-decoration:none}
+.wbtn.pri{background:var(--grad);color:#fff}.wbtn.pri:hover{opacity:.85}
+.wbtn.gho{background:var(--s2);color:var(--mu);border:1px solid var(--bh)}.wbtn.gho:hover{color:var(--tx);border-color:var(--bs)}
+
+/* Notif strip */
+.notif{margin:.75rem 1.25rem .5rem;background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.nlbl{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu2);flex-shrink:0}
+.ni{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--mu);background:var(--s2);padding:4px 9px;border-radius:6px;cursor:pointer;transition:all .12s}
+.ni:hover{color:var(--tx);background:var(--s3)}
+.ni-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.notif a{margin-left:auto;font-size:11.5px;color:var(--cyan);text-decoration:none;font-weight:600}
+
+/* Rank card */
+.rank-card{margin:.25rem 1.25rem .5rem;background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:all .15s}
+.rank-card:hover{border-color:var(--bh);background:var(--s2)}
+.rank-num{font-family:'Bebas Neue',sans-serif;font-size:38px;line-height:1;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.rank-info{flex:1}
+.rank-info strong{display:block;font-size:13px;font-weight:700}
+.rank-info small{font-size:11.5px;color:var(--mu)}
+.rank-bar-w{margin-top:5px;height:3px;background:var(--bh);border-radius:2px;width:140px}
+.rank-bar-f{height:100%;border-radius:2px;background:var(--grad);width:2%}
+.rank-faq{font-size:11px;color:var(--cyan);font-weight:600;cursor:pointer;background:none;border:none;font-family:'Outfit',sans-serif;margin-top:2px;display:block;text-align:left}
+
+/* Quick actions */
+.qa-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:.5rem 1.25rem .75rem}
+.qa-card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px;cursor:pointer;transition:all .18s;display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;text-decoration:none}
+.qa-card:hover{background:var(--s2);border-color:var(--bh);transform:translateY(-1px)}
+.qa-ico{font-size:20px;line-height:1}
+.qa-lbl{font-size:12px;font-weight:600;color:var(--tx)}
+.qa-sub{font-size:10.5px;color:var(--mu);line-height:1.3}
+
+/* Leagues section */
+.leagues{padding:.25rem 1.25rem 1.5rem}
+.sec-h{display:flex;align-items:center;gap:8px;margin-bottom:.6rem}
+.sec-h h2{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:.03em}
+.sec-bdg{font-size:10px;font-weight:700;background:var(--s2);color:var(--mu);padding:2px 7px;border-radius:8px}
+.sport-grp{margin-bottom:1.1rem}
+.sg-head{display:flex;align-items:center;gap:7px;margin-bottom:.5rem}
+.sg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.sg-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--tx)}
+.sg-ct{font-size:10px;color:var(--mu);background:var(--s2);padding:1px 6px;border-radius:7px}
+
+/* League card */
+.lc{background:var(--sf);border:1px solid var(--bd);border-radius:11px;display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;transition:all .15s;margin-bottom:6px;text-decoration:none}
+.lc:hover{background:var(--s2);border-color:var(--bh)}
+.lc-bar{width:3px;border-radius:2px;align-self:stretch;flex-shrink:0}
+.lc-av{width:38px;height:38px;border-radius:9px;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;overflow:hidden}
+.lc-av img{width:100%;height:100%;object-fit:cover;border-radius:9px}
+.lc-body{flex:1;min-width:0}
+.lc-name{font-size:13.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-type-row{display:flex;align-items:center;gap:6px;margin-top:2px}
+.lc-type{font-size:11px;font-weight:600;color:var(--cyan);letter-spacing:.02em}
+.lc-yr{font-size:10.5px;color:var(--mu2);background:var(--s2);padding:1px 6px;border-radius:5px;font-weight:600}
+.lc-info{font-size:11.5px;color:var(--mu);margin-top:2px}
+.lc-tags{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+.lc-tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--s2);color:var(--mu);border:1px solid var(--bd)}
+.lc-tag.predraft{border-color:rgba(245,158,11,.35);color:var(--gold);background:rgba(245,158,11,.07)}
+.lc-tag.active{border-color:rgba(16,185,129,.35);color:var(--em);background:rgba(16,185,129,.07)}
+.lc-tag.offseason{border-color:rgba(139,92,246,.35);color:var(--violet);background:rgba(139,92,246,.07)}
+.lc-tag.drafting{border-color:rgba(6,182,212,.35);color:var(--cyan);background:rgba(6,182,212,.07)}
+.lc-matchup{display:flex;align-items:center;gap:6px;margin-top:7px;padding:6px 8px;background:var(--s2);border-radius:7px;border:1px solid var(--bd)}
+.lc-ms{display:flex;flex-direction:column;flex:1;gap:1px}
+.lc-ms.r{align-items:flex-end}
+.lc-mt{font-size:10.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+.lc-mp{font-size:13px;font-weight:700;color:var(--tx)}
+.lc-mp.proj{color:var(--cyan)}
+.lc-pl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--mu2)}
+.lc-vs{font-size:10px;font-weight:700;color:var(--mu2);flex-shrink:0}
+.lc-right{text-align:right;flex-shrink:0}
+.lc-pos{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;color:var(--tx)}
+.lc-pos-lbl{font-size:10px;color:var(--mu)}
+.lc-sb{text-align:center;flex-shrink:0}
+.lc-sb-ico{font-size:18px;line-height:1;margin-bottom:2px}
+.lc-sb-txt{font-size:11px;font-weight:700;color:var(--tx)}
+.lc-sb-sub{font-size:10px;color:var(--mu);margin-top:1px}
+.lc-chev{font-size:14px;color:var(--mu2);margin-top:2px}
+
+/* ─── RIGHT SIDEBAR ─── */
+.sb{width:var(--sbw);flex-shrink:0;order:3;background:var(--sf);border-left:1px solid var(--bd);display:flex;flex-direction:column}
+.sb-top{padding:8px 8px 4px;border-bottom:1px solid var(--bd)}
+.sb-link{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;font-size:13px;font-weight:500;color:var(--mu);cursor:pointer;transition:all .15s;width:100%;background:none;border:none;font-family:'Outfit',sans-serif;text-align:left}
+.sb-link:hover,.sb-link.on{background:var(--s2);color:var(--tx)}
+.sb-link .nbdg{margin-left:auto;background:var(--cyan);color:#000;font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.sb-link svg{width:15px;height:15px;flex-shrink:0}
+.sb-leagues{flex:1;overflow-y:auto;padding:4px 6px 8px}
+.sb-leagues::-webkit-scrollbar{width:2px}
+.sb-leagues::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.sb-lh{display:flex;align-items:center;justify-content:space-between;padding:8px 6px 4px}
+.sb-lh-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mu2)}
+.sb-add{width:18px;height:18px;border-radius:5px;background:var(--s2);border:1px solid var(--bh);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--mu);transition:all .15s}
+.sb-add:hover{color:var(--tx);background:var(--s3)}
+.li{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:9px;cursor:pointer;transition:all .15s;margin-bottom:2px}
+.li:hover,.li.on{background:var(--s2)}
+.li-av{width:36px;height:36px;border-radius:8px;flex-shrink:0;background:var(--s3);display:flex;align-items:center;justify-content:center;font-size:16px;overflow:hidden}
+.li-av img{width:100%;height:100%;object-fit:cover;border-radius:8px}
+.li-body{flex:1;min-width:0}
+.li-name{font-size:12.5px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-meta{font-size:10.5px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li-st{display:flex;align-items:center;gap:3px;margin-top:2px}
+.li-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.li-st-txt{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.sb-user{padding:8px;border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px}
+.sb-user-av{width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--g135);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.sb-user-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.sb-user-name{font-size:12.5px;font-weight:600;flex:1;color:var(--tx)}
+.sb-user-gear{font-size:14px;color:var(--mu);cursor:pointer;padding:2px;transition:color .15s}
+.sb-user-gear:hover{color:var(--tx)}
+
+/* ─── MODALS ─── */
+.overlay{position:fixed;inset:0;z-index:400;background:rgba(7,9,15,.75);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:1rem}
+.overlay.on{display:flex}
+.modal{background:var(--sf);border:1px solid var(--bh);border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.mh{padding:1rem 1.25rem;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.mh h2{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.03em;flex:1}
+.mclose{background:none;border:none;color:var(--mu);font-size:18px;cursor:pointer;transition:color .12s}
+.mclose:hover{color:var(--tx)}
+.mb{padding:1.25rem;overflow-y:auto;flex:1}
+.mb::-webkit-scrollbar{width:3px}
+.mb::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.mf{padding:.75rem 1.25rem;border-top:1px solid var(--bd);display:flex;gap:7px;justify-content:flex-end;flex-shrink:0}
+.btn-p{background:var(--grad);border:none;border-radius:8px;color:#fff;font-family:'Outfit',sans-serif;font-size:13px;font-weight:700;padding:9px 20px;cursor:pointer;transition:opacity .15s}
+.btn-p:hover{opacity:.85}
+.btn-g{background:transparent;border:1px solid var(--bh);border-radius:8px;color:var(--mu);font-family:'Outfit',sans-serif;font-size:13px;font-weight:500;padding:8px 16px;cursor:pointer;transition:all .15s}
+.btn-g:hover{color:var(--tx);border-color:var(--bs)}
+.ff{margin-bottom:.9rem}
+.ff label{display:block;font-size:11.5px;font-weight:600;color:var(--mu);margin-bottom:.3rem}
+.ff input,.ff select{width:100%;background:var(--s2);border:1px solid var(--bh);border-radius:8px;color:var(--tx);font-family:'Outfit',sans-serif;font-size:13px;padding:8px 11px;outline:none;-webkit-appearance:none;transition:border-color .15s}
+.ff select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 11 11'%3E%3Cpath fill='rgba(255,255,255,.33)' d='M5.5 7L1 2h9z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px;cursor:pointer}
+.ff select option{background:#16102a}
+.ff input:focus,.ff select:focus{border-color:var(--cyan)}
+.ff input::placeholder{color:var(--mu2)}
+.ff-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.ptabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:.9rem}
+.ptab{padding:5px 10px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--s2);border:1px solid var(--bd);color:var(--mu);transition:all .12s}
+.ptab.on{background:var(--g135);color:#fff;border-color:transparent}
+.pcon{display:none}.pcon.on{display:block}
+.steps{list-style:none;counter-reset:s;display:flex;flex-direction:column;gap:7px}
+.steps li{counter-increment:s;display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--s2);border-radius:9px;font-size:12.5px;color:var(--mu);line-height:1.5}
+.steps li::before{content:counter(s);width:20px;height:20px;border-radius:50%;background:var(--g135);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.import-id{width:100%;background:var(--s2);border:1px solid var(--bh);border-radius:8px;color:var(--tx);font-family:'Outfit',sans-serif;font-size:13px;padding:9px 12px;outline:none;margin-top:.75rem;transition:border-color .15s}
+.import-id:focus{border-color:var(--cyan)}
+.import-id::placeholder{color:var(--mu2)}
+code{font-size:11px;color:var(--cyan);background:rgba(6,182,212,.08);padding:1px 5px;border-radius:3px}
+
+/* Rankings modal */
+.tgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:.75rem}
+.tbox{padding:7px 5px;border-radius:7px;text-align:center;background:var(--s2);border:1px solid var(--bd)}
+.tnum{font-family:'Bebas Neue',sans-serif;font-size:20px;line-height:1}
+.tlbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mu2);margin-top:2px}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:.75rem}
+.pitem{display:flex;align-items:center;gap:7px;padding:7px 9px;background:var(--s2);border-radius:7px;font-size:12px;color:var(--mu)}
+.pval{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--em);flex-shrink:0}
+.faq-i{margin-bottom:.65rem;padding:10px 12px;background:var(--s2);border-radius:9px}
+.faq-q{font-size:13px;font-weight:600;margin-bottom:3px}
+.faq-a{font-size:12px;color:var(--mu);line-height:1.6}
+
+/* Poll modal */
+.p-overlay{position:fixed;inset:0;z-index:500;background:rgba(7,9,15,.75);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:1rem}
+.p-overlay.on{display:flex}
+.p-modal{background:var(--sf);border:1px solid var(--bh);border-radius:14px;padding:1.25rem;width:100%;max-width:320px}
+.pm-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.pm-h h3{font-size:15px;font-weight:700}
+.pm-close{background:none;border:none;color:var(--mu);font-size:18px;cursor:pointer}
+.pm-f{margin-bottom:.75rem}
+.pm-f label{display:block;font-size:11.5px;font-weight:600;color:var(--mu);margin-bottom:.3rem}
+.pm-f input{width:100%;background:var(--s2);border:1px solid var(--bh);border-radius:8px;color:var(--tx);font-family:'Outfit',sans-serif;font-size:13px;padding:8px 11px;outline:none;transition:border-color .15s}
+.pm-f input:focus{border-color:var(--cyan)}
+.pm-f input::placeholder{color:var(--mu2)}
+.pm-add{background:transparent;border:1px dashed var(--bh);border-radius:8px;width:100%;padding:7px;font-family:'Outfit',sans-serif;font-size:12px;color:var(--mu);cursor:pointer;transition:all .12s}
+.pm-add:hover{color:var(--tx);border-color:var(--bs)}
+.pm-ft{display:flex;gap:7px;justify-content:flex-end;margin-top:1rem}
+.pm-btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Outfit',sans-serif;border:none}
+.pm-btn.pri{background:var(--grad);color:#fff}
+.pm-btn.gho{background:var(--s2);color:var(--mu);border:1px solid var(--bh)}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:1100px){:root{--chw:265px;--sbw:190px}}
+@media(max-width:900px){
+  .sb{display:none}
+  .qa-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:720px){
+  .sb{display:flex;position:fixed;top:var(--nav);right:0;bottom:60px;z-index:200;transform:translateX(100%);transition:transform .25s}
+  .sb.on{transform:translateX(0)}
+  .sb-overlay{position:fixed;inset:0;top:var(--nav);background:rgba(0,0,0,.5);z-index:190;display:none}
+  .sb-overlay.on{display:block}
+  .chat-panel{display:none;position:fixed;inset:0;top:var(--nav);z-index:195;width:100%!important}
+  .chat-panel.mob-on{display:flex}
+  .chat-toggle{display:none}
+  .ham{display:flex}
+  .main{padding-bottom:60px}
+  .bnav{display:block}
+  .ff-row{grid-template-columns:1fr}
+  .pgrid{grid-template-columns:1fr}
+  .qa-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:420px){.nav-logo svg:last-child{display:none}}
+.bnav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--sf);border-top:1px solid var(--bd);padding:6px 0 max(6px,env(safe-area-inset-bottom))}
+.bnav nav{display:flex;justify-content:space-around}
+.bt{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 10px;cursor:pointer;background:none;border:none;color:var(--mu2);transition:color .12s;font-family:'Outfit',sans-serif}
+.bt.on{color:var(--cyan)}
+.bt svg{width:18px;height:18px}
+.bt span{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.chat-fab{display:none;position:fixed;bottom:68px;right:14px;z-index:180;width:44px;height:44px;border-radius:50%;background:var(--g135);border:none;cursor:pointer;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 14px rgba(6,182,212,.3)}
+
+
+
+
+/* ─── DASH FOOTER (full-width) ─── */
+:root{ --footer-h:auto }
+.dash-footer{
+  width:100%;background:var(--sf);border-top:1px solid var(--bd);
+  flex-shrink:0;
+}
+.dash-notif{
+  margin:0;border-radius:0;border:none;border-bottom:1px solid var(--bd);
+  padding:7px 1.25rem;
+}
+/* Shell stops naturally; footer sits below */
+/* shell/chat/sb fill naturally via body flex-column */
+
+/* ─── SPORTS FEED in footer ─── */
+.sf-wrap{padding:.6rem 1.25rem .75rem}
+.sf-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
+.sf-head-left{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.sf-live-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--red);flex-shrink:0;
+  animation:sf-pulse 1.8s ease-in-out infinite;
+}
+@keyframes sf-pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{opacity:.8;box-shadow:0 0 0 4px rgba(239,68,68,0)}}
+.sf-head-lbl{font-size:13px;font-weight:700;color:var(--tx)}
+.sf-head-sub{font-size:11px;color:var(--mu2);background:var(--s2);padding:1px 7px;border-radius:6px}
+.sf-head-right{display:flex;align-items:center;gap:5px}
+.sf-filter-btn{
+  padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;
+  background:var(--s2);border:1px solid var(--bd);color:var(--mu);transition:all .12s;font-family:'Outfit',sans-serif;
+}
+.sf-filter-btn:hover{color:var(--tx);border-color:var(--bh)}
+.sf-filter-btn.on{background:var(--g135);color:#fff;border-color:transparent}
+.sf-view-all{font-size:11.5px;color:var(--cyan);text-decoration:none;font-weight:600;white-space:nowrap}
+.sf-view-all:hover{opacity:.75}
+/* Ticker */
+.sf-ticker-wrap{
+  overflow:hidden;background:var(--s2);border:1px solid var(--bd);
+  border-radius:8px 8px 0 0;border-bottom:none;height:30px;
+  display:flex;align-items:center;position:relative;margin-bottom:0;
+}
+.sf-ticker-wrap::before,.sf-ticker-wrap::after{
+  content:'';position:absolute;top:0;bottom:0;width:50px;z-index:2;pointer-events:none;
+}
+.sf-ticker-wrap::before{left:0;background:linear-gradient(to right,var(--s2),transparent)}
+.sf-ticker-wrap::after{right:0;background:linear-gradient(to left,var(--s2),transparent)}
+.sf-ticker{
+  display:flex;align-items:center;white-space:nowrap;
+  animation:sf-scroll 140s linear infinite;will-change:transform;
+}
+.sf-ticker:hover{animation-play-state:paused}
+@keyframes sf-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.sf-tick-item{
+  display:inline-flex;align-items:center;gap:6px;padding:0 18px;
+  font-size:11.5px;color:var(--mu);border-right:1px solid var(--bd);
+  cursor:pointer;transition:color .12s;
+}
+.sf-tick-item:hover{color:var(--tx)}
+.sf-tick-sport{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase;flex-shrink:0}
+.sf-tick-sport.nfl{background:rgba(6,182,212,.15);color:var(--cyan)}
+.sf-tick-sport.nba{background:rgba(249,115,22,.15);color:var(--orange)}
+.sf-tick-sport.ncaa{background:rgba(16,185,129,.15);color:var(--em)}
+.sf-tick-sport.nhl{background:rgba(59,130,246,.15);color:var(--blue)}
+.sf-tick-sport.mlb{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* ── HORIZONTAL NEWS LIST (replaces grid cards) ── */
+.sf-news-list{
+  display:flex;overflow-x:auto;border:1px solid var(--bd);border-top:none;
+  border-radius:0 0 8px 8px;background:var(--bd);gap:1px;
+  scrollbar-width:thin;scrollbar-color:var(--bh) transparent;
+}
+.sf-news-list::-webkit-scrollbar{height:3px}
+.sf-news-list::-webkit-scrollbar-thumb{background:var(--bh);border-radius:2px}
+.sf-news-item{
+  display:flex;flex-direction:column;gap:5px;
+  padding:10px 14px;min-width:260px;max-width:260px;flex-shrink:0;
+  background:var(--sf);cursor:pointer;transition:background .12s;
+}
+.sf-news-item:hover{background:var(--s2)}
+.sf-news-item-top{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.sf-news-sport{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase}
+.sf-news-src{font-size:10px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.sf-news-time{font-size:10px;color:var(--mu2);white-space:nowrap;flex-shrink:0}
+.sf-news-hl{font-size:12px;font-weight:600;color:var(--tx);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sf-news-tags{display:flex;gap:3px;flex-wrap:wrap}
+.sf-news-tag{font-size:9.5px;background:var(--s2);border:1px solid var(--bd);padding:1px 5px;border-radius:3px;color:var(--mu)}
+
+
+@media(max-width:720px){.shell{flex:1}.chat-inner{height:auto}.sb{height:auto}}
+
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<header class="nav">
+  <a href="/" class="nav-logo" style="gap:10px">
+
+    <!-- AF Crest — flat-top shield, pointed bottom, thick cyan border, navy fill -->
+    <svg width="32" height="36" viewBox="0 0 32 36" fill="none"
+         xmlns="http://www.w3.org/2000/svg"
+         aria-label="AllFantasy crest"
+         style="flex-shrink:0;filter:drop-shadow(0 0 8px rgba(0,200,240,.3))">
+      <defs>
+        <linearGradient id="cf" x1="16" y1="0" x2="16" y2="36" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stop-color="#1d4494"/>
+          <stop offset="100%" stop-color="#0e2760"/>
+        </linearGradient>
+      </defs>
+      <!-- Shield: flat top, widens to mid, tapers to bottom point — matches image 2 -->
+      <path d="M 8,2.5 L 24,2.5 L 30,11 L 27,26 L 16,34.5 L 5,26 L 2,11 Z"
+            fill="url(#cf)"
+            stroke="#00c8f0"
+            stroke-width="3"
+            stroke-linejoin="round"/>
+      <text x="16" y="21"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-family="'Arial Black','Impact',sans-serif"
+            font-weight="900"
+            font-size="13"
+            fill="white"
+            letter-spacing="0.5">AF</text>
+    </svg>
+
+    <!-- ALLFANTASY wordmark — bold, blue gradient, no clipping -->
+    <svg width="130" height="20" viewBox="0 0 130 20" fill="none"
+         xmlns="http://www.w3.org/2000/svg"
+         aria-label="AllFantasy"
+         style="flex-shrink:0;overflow:visible">
+      <defs>
+        <linearGradient id="wg" x1="0" y1="0" x2="0" y2="20" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stop-color="#5bbfff"/>
+          <stop offset="45%"  stop-color="#1a7ee6"/>
+          <stop offset="100%" stop-color="#0c3a99"/>
+        </linearGradient>
+      </defs>
+      <text x="0" y="16"
+            fill="url(#wg)"
+            font-family="'Arial Black','Impact','Franklin Gothic Heavy',sans-serif"
+            font-weight="900"
+            font-size="16"
+            letter-spacing="1.8"
+            textLength="124"
+            lengthAdjust="spacingAndGlyphs">ALLFANTASY</text>
+    </svg>
+
+</a>
+  <div class="spacer"></div>
+  <div class="nav-right">
+
+    <!-- Language -->
+    <div class="dd" id="dd-lang">
+      <button class="dd-btn" onclick="toggleDD('dd-lang')">
+        <span id="lang-f">🇺🇸</span><span id="lang-l">EN</span>
+        <svg class="arr" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="dd-menu">
+        <div class="dd-item sel" onclick="setLang('en','🇺🇸','EN')" data-i18n="lang_en">🇺🇸 English</div>
+        <div class="dd-item" onclick="setLang('es','🇪🇸','ES')" data-i18n="lang_es">🇪🇸 Español</div>
+      </div>
+    </div>
+
+    <!-- Theme -->
+    <div class="dd" id="dd-theme">
+      <button class="dd-btn" onclick="toggleDD('dd-theme')">
+        <span id="theme-i">🌙</span><span id="theme-l">Dark</span>
+        <svg class="arr" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="dd-menu">
+        <div class="dd-item" onclick="setTheme('light','☀️','Light')">☀️ Light</div>
+        <div class="dd-item sel" onclick="setTheme('dark','🌙','Dark')">🌙 Dark</div>
+        <div class="dd-item" onclick="setTheme('legacy','🎮','AF')">🎮 AF</div>
+      </div>
+    </div>
+
+    <!-- Profile + Settings (single pill, no name) -->
+    <a href="/settings" class="prof" title="Profile &amp; Settings">
+      <div class="pav">TC</div>
+      <span class="pname">TheCiege24</span>
+      <span class="pgear">⚙️</span>
+    </a>
+
+    <button class="ham" onclick="toggleSB()" aria-label="Leagues">☰</button>
+  </div>
+</header>
+
+<!-- ── SHELL ── -->
+<div class="shell">
+  <div class="sb-overlay" id="sb-overlay" onclick="toggleSB()"></div>
+
+  <!-- CHAT (far left): toggle tab + collapsible inner -->
+  <div class="chat-panel" id="chat-panel">
+    <button class="chat-toggle" id="ct-btn" onclick="toggleChat()" title="Toggle chat">›</button>
+    <div class="chat-inner" id="chat-inner">
+
+      <div class="ct-tabs">
+        <button class="ct-tab on" id="tab-ch" onclick="switchTab('ch')" data-i18n="chimmy_tab">🤖 Chimmy</button>
+        <button class="ct-tab" id="tab-dm" onclick="switchTab('dm')">💬 Messages <span class="ct-badge">3</span></button>
+      </div>
+
+      <!-- Chimmy pane -->
+      <div class="ct-pane on" id="pane-ch">
+        <div class="ch-head">
+          <span>🤖</span><h3>Chimmy AI</h3><div class="online-dot" title="Online"></div>
+        </div>
+        <div class="ch-msgs" id="ch-msgs">
+          <div><div class="blbl">Chimmy</div><div class="bubble ai">Hey TheCiege24! 👋 I'm your AI fantasy coach. Ask me anything — trades, waivers, draft strategy, or roster moves.</div></div>
+          <div><div class="blbl">Chimmy</div><div class="bubble ai">You have active NFL and NCAA Football leagues. Want a roster recap or should I check your waiver wire?</div></div>
+        </div>
+        <div class="ch-prompts">
+          <div class="cqp" onclick="chSend('Should I accept this trade?')" data-i18n="prompt_trade">💬 Should I accept this trade?</div>
+          <div class="cqp" onclick="chSend('Best waiver adds this week?')" data-i18n="prompt_waiver">📋 Best waiver adds</div>
+          <div class="cqp" onclick="chSend('Give me my weekly league recap')" data-i18n="prompt_recap">📊 Weekly recap</div>
+        </div>
+        <div class="ch-input-area">
+          <div class="ci-row">
+            <textarea class="ci" id="ci" placeholder="Ask Chimmy…" rows="1" onkeydown="ciEnter(event)" oninput="ar(this)"></textarea>
+            <button class="send-btn" onclick="chSendInput()"><svg viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg"><path d="M1 7.5L14 1 8.5 14 7 8.5 1 7.5z"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DM pane -->
+      <div class="ct-pane" id="pane-dm">
+
+        <!-- Inbox list -->
+        <div class="dm-view" id="dm-inbox">
+          <div class="dm-sec-lbl" data-i18n="one_on_one">1-on-1 DMs</div>
+          <div class="dm-row" onclick="openThread('zbunger14')"><div class="dm-av"><div class="unread"></div>ZB</div><div class="dm-body"><div class="dm-name">zbunger14</div><div class="dm-preview">Do you know who you're taking at 1.02?</div></div><div class="dm-time">1d</div></div>
+          <div class="dm-row" onclick="openThread('doof1212')"><div class="dm-av">D2</div><div class="dm-body"><div class="dm-name">doof1212</div><div class="dm-preview">TheCiege24: No worries! I figured you'd...</div></div><div class="dm-time">3d</div></div>
+          <div class="dm-row" onclick="openThread('Connor0488')"><div class="dm-av"><div class="unread"></div>CO</div><div class="dm-body"><div class="dm-name">Connor0488</div><div class="dm-preview">Connor0488: @TheCiege24 what is...</div></div><div class="dm-time">10d</div></div>
+          <div class="dm-row" onclick="openThread('Core10')"><div class="dm-av">C1</div><div class="dm-body"><div class="dm-name">Core10</div><div class="dm-preview">Core10: Thanks man. You too. And a...</div></div><div class="dm-time">13d</div></div>
+          <div class="dm-row" onclick="openThread('SwishDirk41')"><div class="dm-av">SD</div><div class="dm-body"><div class="dm-name">SwishDirk41</div><div class="dm-preview">SwishDirk41: 😊</div></div><div class="dm-time">25d</div></div>
+          <div class="dm-sec-lbl" style="margin-top:4px" data-i18n="group_dms">Group DMs</div>
+          <div class="dm-row" onclick="openThread('family-chat')"><div class="dm-av grp"><div class="unread"></div>👨‍👩‍👧</div><div class="dm-body"><div class="dm-name">Family Chat 2</div><div class="dm-preview">TheCiege24: he loves baseball!</div></div><div class="dm-time">3d</div></div>
+          <div class="dm-row" onclick="openThread('league-chat')"><div class="dm-av grp">🏈</div><div class="dm-body"><div class="dm-name">Dynasty League Chat</div><div class="dm-preview">MadMattE: Done 🔥 Passed. Happy new year</div></div><div class="dm-time">4y</div></div>
+          <div class="dm-row" onclick="openThread('kbi-commish')"><div class="dm-av grp">👑</div><div class="dm-body"><div class="dm-name">KBI Commish Chat</div><div class="dm-preview">TheCiege24: NFL Rookie Draft is around...</div></div><div class="dm-time">1y</div></div>
+        </div>
+
+        <!-- Thread view -->
+        <div class="dm-thread" id="dm-thread">
+          <div class="dm-th-head">
+            <button class="dm-back" onclick="closeThread()">←</button>
+            <div class="dm-th-av" id="dm-th-av">ZB</div>
+            <div style="flex:1;min-width:0">
+              <div class="dm-th-name" id="dm-th-name">zbunger14</div>
+              <div class="dm-th-meta" id="dm-th-meta">Last message a day ago</div>
+            </div>
+          </div>
+          <div class="dm-msgs" id="dm-msgs"></div>
+          <div class="media-pre" id="media-pre"></div>
+          <div class="dm-input-area">
+            <div class="ep on" id="ep" style="display:none"><div class="ep-grid" id="ep-grid"></div></div>
+            <div class="dm-toolbar">
+              <label class="dm-tool" title="Attach">📎<input type="file" accept="image/*,video/*" style="display:none" onchange="handleMedia(this)"/></label>
+              <button class="dm-tool txt" onclick="gifPick()">GIF</button>
+              <button class="dm-tool" onclick="toggleEp()" id="ep-btn">😊</button>
+              <button class="dm-tool" onclick="pollOpen()">📊</button>
+            </div>
+            <div class="dm-irow">
+              <textarea class="dm-input" id="dm-input" placeholder="Enter Message" rows="1" onkeydown="dmEnter(event)" oninput="ar(this)"></textarea>
+              <button class="send-btn" onclick="sendDm()"><svg viewBox="0 0 15 15" xmlns="http://www.w3.org/2000/svg"><path d="M1 7.5L14 1 8.5 14 7 8.5 1 7.5z"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /pane-dm -->
+    </div><!-- /chat-inner -->
+  </div><!-- /chat-panel -->
+
+  <!-- MAIN (center) -->
+  <main class="main">
+    <div class="welcome">
+      <h1><span data-i18n="welcome">Welcome back,</span> <span>TheCiege24</span></h1>
+      <div class="w-actions">
+        <button class="wbtn pri" onclick="openM('create-m')" data-i18n="create_league_btn">+ Create League</button>
+        <button class="wbtn gho" onclick="openM('import-m')" data-i18n="import_btn">📥 Import</button>
+        <a class="wbtn gho" href="/find-league" data-i18n="find_league_btn">🔍 Find League</a>
+      </div>
+    </div>
+
+    <div class="rank-card" onclick="openM('rank-m')">
+      <div class="rank-num">10</div>
+      <div class="rank-info">
+        <strong data-i18n="tier_label">Tier 10 — Rookie</strong>
+        <small data-i18n="tier_sub">0 pts · Tap to see how to level up</small>
+        <div class="rank-bar-w"><div class="rank-bar-f"></div></div>
+        <button class="rank-faq" onclick="event.stopPropagation();openM('rank-m')" data-i18n="rankings_link">How rankings work →</button>
+      </div>
+    </div>
+
+    <div class="qa-grid">
+      <div class="qa-card" onclick="openM('create-m')"><div class="qa-ico">➕</div><div class="qa-lbl" data-i18n="create_league">Create League</div><div class="qa-sub" data-i18n="start_scratch">Start from scratch</div></div>
+      <div class="qa-card" onclick="openM('import-m')"><div class="qa-ico">📥</div><div class="qa-lbl" data-i18n="import_league">Import League</div><div class="qa-sub" data-i18n="import_sub">Sleeper, Yahoo, ESPN & more</div></div>
+      <a class="qa-card" href="/find-league"><div class="qa-ico">🔍</div><div class="qa-lbl" data-i18n="find_league">Find a League</div><div class="qa-sub" data-i18n="browse_leagues">Browse open leagues</div></a>
+      <div class="qa-card" onclick="openM('rank-m')"><div class="qa-ico">🏆</div><div class="qa-lbl" data-i18n="my_rankings">My Rankings</div><div class="qa-sub" data-i18n="tier_level_up">Tier 10 · Level up</div></div>
+      <a class="qa-card" href="/tools" style="position:relative;overflow:hidden">
+        <div style="position:absolute;top:6px;right:6px;font-size:8px;font-weight:700;background:var(--g135);color:#fff;padding:2px 6px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase">Pro</div>
+        <div class="qa-ico">🤖</div>
+        <div class="qa-lbl" data-i18n="ai_tools">AI Tools</div>
+        <div class="qa-sub" data-i18n="ai_tools_sub">Trade AI, Waiver, Draft &amp; more</div>
+      </a>
+    </div>
+
+    <div class="leagues">
+      <div class="sec-h"><h2 data-i18n="my_leagues">My Leagues</h2><span class="sec-bdg" data-i18n="active_count">4 active</span></div>
+
+      <!-- NFL -->
+      <div class="sport-grp">
+        <div class="sg-head"><div class="sg-dot" style="background:var(--nfl)"></div><span class="sg-lbl" data-i18n="sport_nfl">NFL</span><span class="sg-ct">2</span></div>
+
+        <!-- Dynasty League — Pre-Draft -->
+        <a href="/app/league/1" class="lc">
+          <div class="lc-bar" style="background:var(--nfl)"></div>
+          <div class="lc-av">🏈</div>
+          <div class="lc-body">
+            <div class="lc-name">Dynasty League</div>
+            <div class="lc-type-row"><span class="lc-type">Dynasty · Superflex</span><span class="lc-yr">2025</span></div>
+            <div class="lc-info">12 Teams · Full PPR · TheCiege24</div>
+            <div class="lc-tags"><span class="lc-tag predraft" data-i18n="predraft">⏳ Pre-Draft</span><span class="lc-tag">Dynasty</span><span class="lc-tag">Concept</span></div>
+          </div>
+          <div class="lc-right"><div class="lc-sb"><div class="lc-sb-ico">📋</div><div class="lc-sb-txt" data-i18n="predraft_txt">Pre-Draft</div><div class="lc-sb-sub" data-i18n="draft_tbd">Draft TBD</div></div><div class="lc-chev">›</div></div>
+        </a>
+
+        <!-- KBI Commish Guillotine — Active with matchup -->
+        <a href="/app/league/2" class="lc">
+          <div class="lc-bar" style="background:var(--nfl)"></div>
+          <div class="lc-av">🏈</div>
+          <div class="lc-body">
+            <div class="lc-name">KBI Commish Guillotine</div>
+            <div class="lc-type-row"><span class="lc-type">Redraft · Guillotine PPR TEP</span><span class="lc-yr">2025</span></div>
+            <div class="lc-info">22 Teams · TheCiege24</div>
+            <div class="lc-tags"><span class="lc-tag active" data-i18n="active_wk">🟢 Active — Wk 7</span></div>
+            <div class="lc-matchup">
+              <div class="lc-ms"><span class="lc-mt">TheCiege24</span><span class="lc-mp proj">142.3 <span class="lc-pl" data-i18n="proj">proj</span></span></div>
+              <span class="lc-vs">vs</span>
+              <div class="lc-ms r"><span class="lc-mt">zbunger14</span><span class="lc-mp">138.7 <span class="lc-pl">proj</span></span></div>
+            </div>
+          </div>
+          <div class="lc-right"><div class="lc-pos">4</div><div class="lc-pos-lbl">of 22</div><div class="lc-chev">›</div></div>
+        </a>
+      </div>
+
+      <!-- NBA -->
+      <div class="sport-grp">
+        <div class="sg-head"><div class="sg-dot" style="background:var(--nba)"></div><span class="sg-lbl" data-i18n="sport_nba">NBA</span><span class="sg-ct">1</span></div>
+        <a href="/app/league/3" class="lc">
+          <div class="lc-bar" style="background:var(--nba)"></div>
+          <div class="lc-av">🏀</div>
+          <div class="lc-body">
+            <div class="lc-name">KBFL</div>
+            <div class="lc-type-row"><span class="lc-type">Dynasty · PPR</span><span class="lc-yr">2025</span></div>
+            <div class="lc-info">32 Teams · TheCiege24</div>
+            <div class="lc-tags"><span class="lc-tag offseason" data-i18n="offseason">🏁 Offseason</span><span class="lc-tag">Dynasty</span></div>
+          </div>
+          <div class="lc-right"><div class="lc-sb"><div class="lc-sb-ico">🏁</div><div class="lc-sb-txt" data-i18n="offseason_txt" data-i18n="offseason_sb">Offseason</div><div class="lc-sb-sub" data-i18n="nba_season">NBA 2025–26</div></div><div class="lc-chev">›</div></div>
+        </a>
+      </div>
+
+      <!-- NCAA Football -->
+      <div class="sport-grp">
+        <div class="sg-head"><div class="sg-dot" style="background:var(--ncaafb)"></div><span class="sg-lbl" data-i18n="sport_ncaafb">NCAA Football</span><span class="sg-ct">1</span></div>
+        <a href="/app/league/4" class="lc">
+          <div class="lc-bar" style="background:var(--ncaafb)"></div>
+          <div class="lc-av">🎓</div>
+          <div class="lc-body">
+            <div class="lc-name">King Gingerbeards</div>
+            <div class="lc-type-row"><span class="lc-type">Keeper · PPR</span><span class="lc-yr">2025</span></div>
+            <div class="lc-info">12 Teams · TheCiege24</div>
+            <div class="lc-tags"><span class="lc-tag drafting" data-i18n="drafting">🎯 Drafting Now</span><span class="lc-tag">Keeper</span></div>
+          </div>
+          <div class="lc-right"><div class="lc-sb"><div class="lc-sb-ico">🎯</div><div class="lc-sb-txt" data-i18n="drafting_txt" data-i18n="drafting_sb">Drafting</div><div class="lc-sb-sub" data-i18n="live_now">Live now</div></div><div class="lc-chev">›</div></div>
+        </a>
+      </div>
+
+    </div><!-- /leagues -->
+
+  </main>
+
+  <!-- RIGHT SIDEBAR -->
+  <aside class="sb" id="sb"><div class="sb-leagues">
+      <div class="sb-lh"><span class="sb-lh-lbl" data-i18n="leagues_lbl">Leagues</span><button class="sb-add" onclick="openM('create-m')">+</button></div>
+
+      <div class="li on"><div class="li-av">🏈</div><div class="li-body"><div class="li-name">Dynasty League</div><div class="li-meta">2025 12-Team Dynasty PPR</div><div class="li-st"><div class="li-dot" style="background:var(--gold)"></div><span class="li-st-txt" style="color:var(--gold)" data-i18n="predraft_sb">Pre Draft</span></div></div></div>
+      <div class="li"><div class="li-av">🏈</div><div class="li-body"><div class="li-name">KBI Commish Guillotine</div><div class="li-meta">2025 22-Team Redraft PPR</div><div class="li-st"><div class="li-dot" style="background:var(--em)"></div><span class="li-st-txt" style="color:var(--em)" data-i18n="active_sb">Active Wk 7</span></div></div></div>
+      <div class="li"><div class="li-av">🏀</div><div class="li-body"><div class="li-name">KBFL</div><div class="li-meta">2025 32-Team Dynasty PPR</div><div class="li-st"><div class="li-dot" style="background:var(--violet)"></div><span class="li-st-txt" style="color:var(--violet)">Offseason</span></div></div></div>
+      <div class="li"><div class="li-av">🎓</div><div class="li-body"><div class="li-name">King Gingerbeards</div><div class="li-meta">2025 12-Team Keeper PPR</div><div class="li-st"><div class="li-dot" style="background:var(--cyan)"></div><span class="li-st-txt" style="color:var(--cyan)">Drafting</span></div></div></div>
+      <div class="li" onclick="openM('create-m')" style="opacity:.5"><div class="li-av" style="border:1px dashed var(--bh)">+</div><div class="li-body"><div class="li-name" style="color:var(--mu)" data-i18n="add_league">Add a League</div><div class="li-meta" data-i18n="create_or_import">Create or import</div></div></div>
+    </div>
+  </aside>
+</div><!-- /shell -->
+
+<!-- ═══ FULL-WIDTH FOOTER: Updates + Sports Feed ═══ -->
+<div class="dash-footer">
+
+  <!-- Updates strip -->
+  <div class="notif dash-notif">
+    <span class="nlbl" data-i18n="updates">Updates</span>
+    <div class="ni"><span class="ni-dot" style="background:var(--cyan)"></span><span data-i18n="trade_offer">Trade offer received</span></div>
+    <div class="ni"><span class="ni-dot" style="background:var(--em)"></span><span data-i18n="league_invite">League invite</span></div>
+    <div class="ni"><span class="ni-dot" style="background:var(--gold)"></span><span data-i18n="waiver_soon">Waiver window soon</span></div>
+    <a href="/messages" data-i18n="all_link">All →</a>
+  </div>
+
+  <!-- Sports Feed -->
+  <div class="sf-wrap">
+
+    <div class="sf-head">
+      <div class="sf-head-left">
+        <span class="sf-live-dot"></span>
+        <span class="sf-head-lbl">Sports Feed</span>
+        <span class="sf-head-sub">NFL · NBA · NCAA · More</span>
+      </div>
+      <div class="sf-head-right">
+        <button class="sf-filter-btn on" onclick="sfFilter('all',this)">All</button>
+        <button class="sf-filter-btn" onclick="sfFilter('NFL',this)">NFL</button>
+        <button class="sf-filter-btn" onclick="sfFilter('NBA',this)">NBA</button>
+        <button class="sf-filter-btn" onclick="sfFilter('NCAA',this)">NCAA</button>
+        <a href="/news" class="sf-view-all">View all →</a>
+      </div>
+    </div>
+
+    <!-- Ticker -->
+    <div class="sf-ticker-wrap">
+      <div class="sf-ticker" id="sf-ticker"></div>
+    </div>
+
+    <!-- Horizontal news list (replaces card grid) -->
+    <div class="sf-news-list" id="sf-cards"></div>
+
+  </div><!-- /sf-wrap -->
+</div><!-- /dash-footer -->
+
+<button class="chat-fab" onclick="mobChat()" aria-label="Open chat">💬</button>
+
+<div class="bnav">
+  <nav>
+    <button class="bt on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Home</span></button>
+    <button class="bt" onclick="toggleSB()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg><span>Leagues</span></button>
+    <button class="bt" onclick="openM('rank-m')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span>Ranks</span></button>
+    <button class="bt" onclick="mobChat()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span>Chat</span></button>
+  </nav>
+</div>
+
+<!-- CREATE -->
+<div class="overlay" id="create-m" onclick="if(event.target===this)closeM('create-m')">
+  <div class="modal"><div class="mh"><span>➕</span><h2>Create a League</h2><button class="mclose" onclick="closeM('create-m')">✕</button></div>
+  <div class="mb">
+    <div class="ff-row"><div class="ff"><label>League Name</label><input type="text" placeholder="My Fantasy League"/></div><div class="ff"><label>Sport</label><select><option>NFL</option><option>NBA</option><option>NHL</option><option>MLB</option><option>NCAA Football</option><option>NCAA Basketball</option><option>Soccer</option></select></div></div>
+    <div class="ff-row"><div class="ff"><label>Format</label><select><option>Redraft</option><option>Dynasty</option><option>Keeper</option><option>Devy</option></select></div><div class="ff"><label>Teams</label><select><option>8</option><option>10</option><option selected>12</option><option>14</option><option>16</option></select></div></div>
+    <div class="ff-row"><div class="ff"><label>Scoring</label><select><option>Standard</option><option>Half PPR</option><option>Full PPR</option><option>Superflex</option></select></div><div class="ff"><label>Draft Type</label><select><option>Snake</option><option>Auction</option><option>Linear</option></select></div></div>
+    <div class="ff"><label>Visibility</label><select><option>Private (invite only)</option><option>Public (findable)</option></select></div>
+  </div>
+  <div class="mf"><button class="btn-g" onclick="closeM('create-m')">Cancel</button><button class="btn-p">Create League →</button></div></div>
+</div>
+
+<!-- IMPORT -->
+<div class="overlay" id="import-m" onclick="if(event.target===this)closeM('import-m')">
+  <div class="modal"><div class="mh"><span>📥</span><h2>Import a League</h2><button class="mclose" onclick="closeM('import-m')">✕</button></div>
+  <div class="mb">
+    <p style="font-size:12.5px;color:var(--mu);margin-bottom:.9rem;line-height:1.6">Select your platform for step-by-step instructions, then paste your League ID.</p>
+    <div class="ptabs"><div class="ptab on" onclick="selP('sleeper')">Sleeper</div><div class="ptab" onclick="selP('mfl')">MFL</div><div class="ptab" onclick="selP('yahoo')">Yahoo</div><div class="ptab" onclick="selP('espn')">ESPN</div><div class="ptab" onclick="selP('flea')">FleaFlicker</div></div>
+    <div class="pcon on" id="pc-sleeper"><ol class="steps"><li>Open <strong>Sleeper</strong> and sign in.</li><li>Go to your league → settings gear ⚙️.</li><li>Scroll to find your <strong>League ID</strong>.</li><li>Copy and paste below, then click Import.</li></ol><input class="import-id" type="text" placeholder="Paste your Sleeper League ID"/></div>
+    <div class="pcon" id="pc-mfl"><ol class="steps"><li>Go to <strong>myfantasyleague.com</strong> and sign in.</li><li>Open league → <strong>Tools → Export</strong>.</li><li>League ID is in the URL: <code>mfl.com/xxxx/home/LEAGUEID</code></li><li>Paste below.</li></ol><input class="import-id" type="text" placeholder="Paste your MFL League ID"/></div>
+    <div class="pcon" id="pc-yahoo"><ol class="steps"><li>Go to <strong>fantasy.yahoo.com</strong> and sign in.</li><li>Open league → <strong>League → Settings</strong>.</li><li>Your League ID is on the settings page.</li><li>Paste below.</li></ol><input class="import-id" type="text" placeholder="Paste your Yahoo League ID"/></div>
+    <div class="pcon" id="pc-espn"><ol class="steps"><li>Go to <strong>fantasy.espn.com</strong> and sign in.</li><li>League ID is in the URL: <code>leagueId=XXXXX</code></li><li>Copy the number after <strong>leagueId=</strong>.</li><li>Paste below with season year.</li></ol><input class="import-id" type="text" placeholder="ESPN League ID" style="margin-bottom:.5rem"/><input class="import-id" type="text" placeholder="Season year (e.g. 2025)"/></div>
+    <div class="pcon" id="pc-flea"><ol class="steps"><li>Go to <strong>fleaflicker.com</strong> and sign in.</li><li>Open league <strong>Settings</strong>.</li><li>League ID is in the URL: <code>fleaflicker.com/nfl/leagues/LEAGUEID</code></li><li>Paste below.</li></ol><input class="import-id" type="text" placeholder="Paste your FleaFlicker League ID"/></div>
+  </div>
+  <div class="mf"><button class="btn-g" onclick="closeM('import-m')">Cancel</button><button class="btn-p">Import League →</button></div></div>
+</div>
+
+<!-- RANKINGS -->
+<div class="overlay" id="rank-m" onclick="if(event.target===this)closeM('rank-m')">
+  <div class="modal" style="max-width:520px"><div class="mh"><span>🏆</span><h2>Rankings &amp; Tiers</h2><button class="mclose" onclick="closeM('rank-m')">✕</button></div>
+  <div class="mb">
+    <div style="display:flex;align-items:center;gap:14px;padding:12px;background:var(--s2);border-radius:10px;margin-bottom:.9rem">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;line-height:1;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">10</div>
+      <div><div style="font-size:15px;font-weight:700">Tier 10 — Rookie</div><div style="font-size:11.5px;color:var(--mu);margin-top:1px">0 points · Just getting started!</div><div style="height:3px;background:var(--bh);border-radius:2px;margin-top:7px;width:160px"><div style="height:100%;width:2%;background:var(--grad);border-radius:2px"></div></div><div style="font-size:10.5px;color:var(--mu2);margin-top:2px">50 pts to reach Tier 9</div></div>
+    </div>
+    <div class="faq-i"><div class="faq-q">The Tier System (1 = Elite, 10 = Rookie)</div>
+      <div class="tgrid">
+        <div class="tbox"><div class="tnum" style="color:var(--gold)">1</div><div class="tlbl">Elite</div></div>
+        <div class="tbox"><div class="tnum" style="color:#9ca3af">2</div><div class="tlbl">Pro</div></div>
+        <div class="tbox"><div class="tnum" style="color:#b45309">3</div><div class="tlbl">Vet</div></div>
+        <div class="tbox"><div class="tnum">4</div><div class="tlbl">Expert</div></div>
+        <div class="tbox"><div class="tnum">5</div><div class="tlbl">Adept</div></div>
+        <div class="tbox"><div class="tnum">6</div><div class="tlbl">Rising</div></div>
+        <div class="tbox"><div class="tnum">7</div><div class="tlbl">Contender</div></div>
+        <div class="tbox"><div class="tnum">8</div><div class="tlbl">Learner</div></div>
+        <div class="tbox"><div class="tnum">9</div><div class="tlbl">Starter</div></div>
+        <div class="tbox" style="border-color:rgba(6,182,212,.4)"><div class="tnum" style="color:var(--cyan)">10</div><div class="tlbl" style="color:var(--cyan)">You</div></div>
+      </div>
+    </div>
+    <div class="faq-i"><div class="faq-q">How to earn points</div>
+      <div class="pgrid">
+        <div class="pitem"><div class="pval">+50</div>Create a league</div><div class="pitem"><div class="pval">+30</div>Import a league</div>
+        <div class="pitem"><div class="pval">+20</div>Complete profile</div><div class="pitem"><div class="pval">+10</div>Use Chimmy AI</div>
+        <div class="pitem"><div class="pval">+15</div>Analyze a trade</div><div class="pitem"><div class="pval">+25</div>Win a matchup</div>
+        <div class="pitem"><div class="pval">+40</div>Win your league</div><div class="pitem"><div class="pval">+35</div>Refer a friend</div>
+      </div>
+    </div>
+    <div class="faq-i"><div class="faq-q">Do points expire?</div><div class="faq-a">No. Points are permanent and cumulative. Your tier only goes up.</div></div>
+    <div class="faq-i"><div class="faq-q">What do higher tiers unlock?</div><div class="faq-a">Priority features, early access to new AI tools, exclusive league templates, advanced analytics, and recognition badges on your profile.</div></div>
+  </div>
+  <div class="mf"><button class="btn-g" onclick="closeM('rank-m')">Close</button><button class="btn-p" onclick="closeM('rank-m');openM('create-m')">Create League → Earn Points</button></div></div>
+</div>
+
+<!-- POLL -->
+<div class="p-overlay" id="poll-m" onclick="if(event.target===this)pollClose()">
+  <div class="p-modal"><div class="pm-h"><h3>📊 Create a Poll</h3><button class="pm-close" onclick="pollClose()">✕</button></div>
+  <div class="pm-f"><label>Question</label><input type="text" id="poll-q" placeholder="Ask a question…"/></div>
+  <div id="poll-opts"><div class="pm-f"><label>Option 1</label><input type="text" placeholder="Option 1"/></div><div class="pm-f"><label>Option 2</label><input type="text" placeholder="Option 2"/></div></div>
+  <button class="pm-add" onclick="addPollOpt()">+ Add option</button>
+  <div class="pm-ft"><button class="pm-btn gho" onclick="pollClose()">Cancel</button><button class="pm-btn pri" onclick="pollInsert()">Insert Poll</button></div></div>
+</div>
+
+<script>
+/* ── INIT ── */
+(()=>{
+  // Theme
+  const m=localStorage.getItem('af_mode')||'dark';
+  const tmap={dark:['🌙','Dark'],light:['☀️','Light'],legacy:['🎮','AF']};
+  const d=tmap[m]||tmap.dark;
+  document.documentElement.setAttribute('data-mode',m);
+  document.getElementById('theme-i').textContent=d[0];
+  document.getElementById('theme-l').textContent=d[1];
+  const emojis=['😀','😂','🥳','🏆','🔥','👑','💯','👍','🤝','😅','💪','🎯','⚡','🏈','🏀','⚾','🏒','⚽','🎉','🙌','😤','🤯','💀','😎','🤔','👀','📊','🎮','🚀','❤️'];
+  const g=document.getElementById('ep-grid');
+  emojis.forEach(e=>{const d=document.createElement('div');d.className='ep-em';d.textContent=e;d.onclick=()=>{const i=document.getElementById('dm-input');i.value+=e;i.focus();document.getElementById('ep').style.display='none'};g.appendChild(d)});
+})();
+
+/* ── DROPDOWNS ── */
+function toggleDD(id){const d=document.getElementById(id);const was=d.classList.contains('open');closeAllDD();if(!was)d.classList.add('open')}
+function closeAllDD(){document.querySelectorAll('.dd').forEach(d=>d.classList.remove('open'))}
+document.addEventListener('click',e=>{if(!e.target.closest('.dd'))closeAllDD()});
+function setTheme(m,i,l){document.documentElement.setAttribute('data-mode',m);document.documentElement.style.colorScheme=m==='light'?'light':'dark';localStorage.setItem('af_mode',m);document.getElementById('theme-i').textContent=i;document.getElementById('theme-l').textContent=l;closeAllDD()}
+/* ── i18n TRANSLATION ENGINE ── */
+const TRANSLATIONS = {
+  en: {
+    welcome:          'Welcome back,',
+    create_league_btn:'+ Create League',
+    import_btn:       '📥 Import',
+    find_league_btn:  '🔍 Find League',
+    updates:          'Updates',
+    trade_offer:      'Trade offer received',
+    league_invite:    'League invite',
+    waiver_soon:      'Waiver window soon',
+    all_link:         'All →',
+    tier_label:       'Tier 10 — Rookie',
+    tier_sub:         '0 pts · Tap to see how to level up',
+    rankings_link:    'How rankings work →',
+    create_league:    'Create League',
+    start_scratch:    'Start from scratch',
+    import_league:    'Import League',
+    import_sub:       'Sleeper, Yahoo, ESPN & more',
+    find_league:      'Find a League',
+    browse_leagues:   'Browse open leagues',
+    my_rankings:      'My Rankings',
+    tier_level_up:    'Tier 10 · Level up',
+    ai_tools:         'AI Tools',
+    ai_tools_sub:     'Trade AI, Waiver, Draft & more',
+    my_leagues:       'My Leagues',
+    active_count:     '4 active',
+    sport_nfl:        'NFL',
+    sport_nba:        'NBA',
+    sport_ncaafb:     'NCAA Football',
+    predraft:         '⏳ Pre-Draft',
+    active_wk:        '🟢 Active — Wk 7',
+    offseason:        '🏁 Offseason',
+    drafting:         '🎯 Drafting Now',
+    predraft_txt:     'Pre-Draft',
+    draft_tbd:        'Draft TBD',
+    offseason_txt:    'Offseason',
+    nba_season:       'NBA 2025–26',
+    drafting_txt:     'Drafting',
+    live_now:         'Live now',
+    proj:             'proj',
+    direct_messages:  'Direct Messages',
+    inbox:            'Inbox',
+    leagues_lbl:      'Leagues',
+    predraft_sb:      'Pre Draft',
+    active_sb:        'Active Wk 7',
+    offseason_sb:     'Offseason',
+    drafting_sb:      'Drafting',
+    add_league:       'Add a League',
+    create_or_import: 'Create or import',
+    chimmy_tab:       '🤖 Chimmy',
+    prompt_trade:     '💬 Should I accept this trade?',
+    prompt_waiver:    '📋 Best waiver adds',
+    prompt_recap:     '📊 Weekly recap',
+    one_on_one:       '1-on-1 DMs',
+    group_dms:        'Group DMs',
+    lang_en:          '🇺🇸 English',
+    lang_es:          '🇪🇸 Español',
+  },
+  es: {
+    welcome:          'Bienvenido de nuevo,',
+    create_league_btn:'+ Crear Liga',
+    import_btn:       '📥 Importar',
+    find_league_btn:  '🔍 Buscar Liga',
+    updates:          'Actualizaciones',
+    trade_offer:      'Oferta de intercambio recibida',
+    league_invite:    'Invitación a liga',
+    waiver_soon:      'Ventana de waivers pronto',
+    all_link:         'Todo →',
+    tier_label:       'Nivel 10 — Novato',
+    tier_sub:         '0 pts · Toca para ver cómo subir de nivel',
+    rankings_link:    'Cómo funcionan los rankings →',
+    create_league:    'Crear Liga',
+    start_scratch:    'Empezar desde cero',
+    import_league:    'Importar Liga',
+    import_sub:       'Sleeper, Yahoo, ESPN y más',
+    find_league:      'Buscar una Liga',
+    browse_leagues:   'Explorar ligas abiertas',
+    my_rankings:      'Mis Rankings',
+    tier_level_up:    'Nivel 10 · Sube de nivel',
+    ai_tools:         'Herramientas de IA',
+    ai_tools_sub:     'IA de trades, Waivers, Draft y más',
+    my_leagues:       'Mis Ligas',
+    active_count:     '4 activas',
+    sport_nfl:        'NFL',
+    sport_nba:        'NBA',
+    sport_ncaafb:     'Fútbol Americano Universitario',
+    predraft:         '⏳ Pre-Draft',
+    active_wk:        '🟢 Activa — Sem. 7',
+    offseason:        '🏁 Temporada Baja',
+    drafting:         '🎯 Seleccionando Ahora',
+    predraft_txt:     'Pre-Draft',
+    draft_tbd:        'Draft por determinar',
+    offseason_txt:    'Temporada Baja',
+    nba_season:       'NBA 2025–26',
+    drafting_txt:     'Seleccionando',
+    live_now:         'En vivo ahora',
+    proj:             'proy',
+    direct_messages:  'Mensajes Directos',
+    inbox:            'Bandeja de entrada',
+    leagues_lbl:      'Ligas',
+    predraft_sb:      'Pre Draft',
+    active_sb:        'Activa Sem. 7',
+    offseason_sb:     'Temp. Baja',
+    drafting_sb:      'Seleccionando',
+    add_league:       'Agregar una Liga',
+    create_or_import: 'Crear o importar',
+    chimmy_tab:       '🤖 Chimmy',
+    prompt_trade:     '💬 ¿Debo aceptar este intercambio?',
+    prompt_waiver:    '📋 Mejores adquisiciones de waivers',
+    prompt_recap:     '📊 Resumen semanal',
+    one_on_one:       'Mensajes 1 a 1',
+    group_dms:        'Mensajes Grupales',
+    lang_en:          '🇺🇸 English',
+    lang_es:          '🇪🇸 Español',
+  }
+};
+
+function applyTranslations(lang) {
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (t[key] !== undefined) el.textContent = t[key];
+  });
+  // Update html lang attribute and page title
+  document.documentElement.setAttribute('lang', lang);
+  document.title = lang === 'es'
+    ? 'Panel — AllFantasy.ai'
+    : 'Dashboard — AllFantasy.ai';
+}
+
+function setLang(c, f, l) {
+  document.getElementById('lang-f').textContent = f;
+  document.getElementById('lang-l').textContent = l;
+  localStorage.setItem('af_lang', c);
+  applyTranslations(c);
+  closeAllDD();
+  /*
+   * Production (Next.js): call your DeepL proxy here for dynamic content
+   * that isn't covered by the static string map, e.g.:
+   *   fetch(`/api/translate?target=${c}`, { method:'POST', body: JSON.stringify({ texts: dynamicStrings }) })
+   *     .then(r => r.json()).then(translated => applyDynamicTranslations(translated));
+   */
+}
+
+// Apply saved language on load
+(function initLang() {
+  const saved = localStorage.getItem('af_lang') || 'en';
+  const map = { en: ['🇺🇸','EN'], es: ['🇪🇸','ES'] };
+  const [f, l] = map[saved] || map.en;
+  document.getElementById('lang-f').textContent = f;
+  document.getElementById('lang-l').textContent = l;
+  if (saved !== 'en') applyTranslations(saved);
+})();
+
+/* ── CHAT TOGGLE ── */
+let chatOpen=true;
+function toggleChat(){
+  chatOpen=!chatOpen;
+  document.getElementById('chat-panel').classList.toggle('collapsed',!chatOpen);
+  document.getElementById('chat-inner').style.width=chatOpen?'':'0';
+  document.getElementById('ct-btn').textContent=chatOpen?'›':'‹';
+}
+function switchTab(tab){
+  ['ch','dm'].forEach(t=>{
+    document.getElementById('pane-'+t).classList.toggle('on',t===tab);
+    document.getElementById('tab-'+t).classList.toggle('on',t===tab);
+  });
+  // Re-open chat if collapsed
+  if(!chatOpen){chatOpen=true;document.getElementById('chat-panel').classList.remove('collapsed');document.getElementById('chat-inner').style.width='';document.getElementById('ct-btn').textContent='›'}
+}
+function mobChat(){document.getElementById('chat-panel').classList.toggle('mob-on')}
+
+/* ── SIDEBAR (mobile) ── */
+function toggleSB(){document.getElementById('sb').classList.toggle('on');document.getElementById('sb-overlay').classList.toggle('on')}
+
+/* ── DM DATA ── */
+const dmData={
+  'zbunger14':{name:'zbunger14',av:'ZB',meta:'Last message a day ago · 2 participants',msgs:[
+    {from:'TheCiege24',mine:true,text:"I'll move all of them depending on price",time:'5 months ago'},
+    {from:'zbunger14',mine:false,text:"What are you wanting for them?",time:'5 months ago'},
+    {from:'TheCiege24',mine:true,text:"Dak a 1st plus, Olave a 1st plus a WR in return and Taylor, a haul cause im a homer lol",time:'5 months ago'},
+    {from:'zbunger14',mine:false,text:"Probably most interested in Olave then. What level of WR are you looking for as the plus?\nOr do the 1sts I've got count as a 1st plus on their own since they're both projected top 3 picks",time:'5 months ago'},
+    {from:'TheCiege24',mine:true,text:"Olave has the highest upside of all my receivers. Let me think\nI'll take one of those picks alone for Dak",time:'5 months ago'},
+    {from:'zbunger14',mine:false,text:"Yeah let me know on Olave. Not sure I'd wanna give up a top 3 pick for Dak",time:'5 months ago'},
+    {from:'TheCiege24',mine:true,text:"In a SF league it's hard for me to trade a QB for less than a 1st\nU of all ppl know how important a QB is in a SF league",time:'5 months ago'},
+    {from:'zbunger14',mine:false,text:"Yeah for sure. I just know I'll have my pick of all of them in the draft a few months from now",time:'5 months ago'},
+    {from:'TheCiege24',mine:true,text:"Makes sense",time:'5 months ago'},
+    {from:'zbunger14',mine:false,text:"@TheCiege24 Do you know who you're taking at 1.02? Trying to figure out what I'm doing with 1.03.",time:'a day ago'},
+  ]},
+  'doof1212':{name:'doof1212',av:'D2',meta:'Last message 3 days ago',msgs:[{from:'doof1212',mine:false,text:"Hey, saw your trade offer. Let me think about it.",time:'4d ago'},{from:'TheCiege24',mine:true,text:"No worries! I figured you'd need time.",time:'3d ago'}]},
+  'family-chat':{name:'Family Chat 2',av:'👨‍👩‍👧',meta:'Group · 4 members',msgs:[{from:'Dad',mine:false,text:"Great game last night!",time:'5d ago'},{from:'TheCiege24',mine:true,text:"he loves baseball!",time:'3d ago'}]},
+  'league-chat':{name:'Dynasty League Chat',av:'🏈',meta:'Group · 12 members',msgs:[
+    {from:'MadMattE',mine:false,text:"Done 🔥\nPassed\nHappy new year",time:'4 years ago'},
+    {from:'psilvey',mine:false,text:"Thanks @MadMattE",time:'4 years ago'},
+    {from:'TheCiege24',mine:true,text:"@all anybody want to keep this league going? Run it back and keep it redraft?",time:'4 years ago'},
+    {from:'Richurd',mine:false,text:"I'd be somewhat interested",time:'4 years ago'},
+    {from:'TheCiege24',mine:true,text:"@all the NFL Rookie Draft is around the corner! Please pay the LS ASAP to secure your spot.",time:'a year ago'},
+  ]},
+  'kbi-commish':{name:'KBI Commish Chat',av:'👑',meta:'Group · 22 members',msgs:[{from:'TheCiege24',mine:true,text:"@all the NFL Rookie Draft is around the corner!",time:'a year ago'}]},
+};
+let curThread=null;
+function openThread(id){
+  const data=dmData[id]||{name:id,av:id.slice(0,2).toUpperCase(),meta:'',msgs:[]};
+  curThread=id;
+  document.getElementById('dm-th-av').textContent=data.av;
+  document.getElementById('dm-th-name').textContent=data.name;
+  document.getElementById('dm-th-meta').textContent=data.meta;
+  renderMsgs(data.msgs);
+  document.getElementById('dm-inbox').style.display='none';
+  document.getElementById('dm-thread').classList.add('on');
+}
+function closeThread(){document.getElementById('dm-inbox').style.display='';document.getElementById('dm-thread').classList.remove('on');curThread=null}
+function renderMsgs(msgs){
+  const c=document.getElementById('dm-msgs');c.innerHTML='';
+  let lastT='';
+  msgs.forEach(m=>{
+    if(m.time!==lastT){const s=document.createElement('div');s.className='dm-date';s.textContent=m.time;c.appendChild(s);lastT=m.time}
+    const row=document.createElement('div');row.className='dm-msg-row'+(m.mine?' me':'');
+    const av=m.mine?'TC':(m.av||m.from.slice(0,2).toUpperCase());
+    let cnt=m.text?m.text.replace(/\n/g,'<br>'):'';
+    if(m.gif)cnt=`<span class="gif-tag">GIF</span><img src="${m.gif}" alt="gif"/>`;
+    if(m.image)cnt+=`<img src="${m.image}" alt="img"/>`;
+    if(m.video)cnt+=`<video src="${m.video}" controls></video>`;
+    if(m.poll)cnt=renderPoll(m.poll);
+    row.innerHTML=`<div class="dm-msg-av">${av}</div><div class="dm-bw"><div class="dm-meta">${m.mine?'TheCiege24':m.from}</div><div class="dm-bbl">${cnt}</div></div>`;
+    c.appendChild(row);
+  });
+  c.scrollTop=c.scrollHeight;
+}
+function renderPoll(p){
+  const tot=p.votes.reduce((a,b)=>a+b,0)||1;
+  let h=`<div class="poll-card"><div class="poll-q">${p.question}</div>`;
+  p.options.forEach((o,i)=>{const pct=Math.round((p.votes[i]/tot)*100);h+=`<div class="poll-opt"><span>${o}</span><div class="poll-bar-wrap"><div class="poll-bar" style="width:${pct}%"></div></div><span class="poll-pct">${pct}%</span></div>`});
+  return h+'</div>';
+}
+
+/* ── MEDIA ── */
+const pending=[];
+function handleMedia(inp){
+  const f=inp.files[0];if(!f)return;
+  if(f.type.startsWith('video/')){
+    const url=URL.createObjectURL(f);const v=document.createElement('video');v.src=url;
+    v.onloadedmetadata=()=>{if(v.duration>120){alert('Videos must be 2 minutes or less.');URL.revokeObjectURL(url);return}pending.push({type:'video',url});renderPre()};
+  }else{pending.push({type:'image',url:URL.createObjectURL(f)});renderPre()}
+  inp.value='';
+}
+function renderPre(){
+  const w=document.getElementById('media-pre');w.innerHTML='';
+  pending.forEach((m,i)=>{
+    const d=document.createElement('div');d.className='media-thumb';
+    const el=document.createElement(m.type==='image'?'img':'video');el.src=m.url;d.appendChild(el);
+    const rm=document.createElement('button');rm.className='media-rm';rm.textContent='×';rm.onclick=()=>{pending.splice(i,1);renderPre()};d.appendChild(rm);
+    w.appendChild(d);
+  });
+  w.classList.toggle('has',pending.length>0);
+}
+function sendDm(){
+  const inp=document.getElementById('dm-input');const txt=inp.value.trim();
+  if(!txt&&!pending.length)return;
+  const msgs=dmData[curThread]?.msgs;if(!msgs)return;
+  const now=new Date();const t='Today '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  const msg={from:'TheCiege24',mine:true,time:t};
+  if(txt)msg.text=txt;
+  if(pending.length){if(pending[0].type==='image')msg.image=pending[0].url;else msg.video=pending[0].url}
+  msgs.push(msg);renderMsgs(msgs);inp.value='';inp.style.height='auto';pending.length=0;renderPre();
+}
+function dmEnter(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDm()}}
+function gifPick(){
+  const msgs=dmData[curThread]?.msgs;if(!msgs)return;
+  const now=new Date();
+  msgs.push({from:'TheCiege24',mine:true,gif:'https://media.giphy.com/media/3o7abKhOpu0NwenH3O/giphy.gif',time:'Today '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
+  renderMsgs(msgs);
+}
+function toggleEp(){const ep=document.getElementById('ep');ep.style.display=ep.style.display==='none'||!ep.style.display?'block':'none'}
+document.addEventListener('click',e=>{if(!e.target.closest('#ep-btn')&&!e.target.closest('#ep'))document.getElementById('ep').style.display='none'});
+
+/* ── POLL ── */
+let pollOptN=2;
+function pollOpen(){document.getElementById('poll-m').classList.add('on')}
+function pollClose(){document.getElementById('poll-m').classList.remove('on')}
+function addPollOpt(){pollOptN++;const c=document.getElementById('poll-opts');const d=document.createElement('div');d.className='pm-f';d.innerHTML=`<label>Option ${pollOptN}</label><input type="text" placeholder="Option ${pollOptN}"/>`;c.appendChild(d)}
+function pollInsert(){
+  const q=document.getElementById('poll-q').value.trim();if(!q){alert('Enter a question.');return}
+  const opts=[...document.querySelectorAll('#poll-opts input')].map(i=>i.value.trim()).filter(Boolean);
+  if(opts.length<2){alert('Add at least 2 options.');return}
+  const msgs=dmData[curThread]?.msgs;if(!msgs){pollClose();return}
+  const now=new Date();
+  msgs.push({from:'TheCiege24',mine:true,poll:{question:q,options:opts,votes:new Array(opts.length).fill(0)},time:'Today '+now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})});
+  renderMsgs(msgs);pollClose();
+  document.getElementById('poll-q').value='';
+  document.getElementById('poll-opts').innerHTML='<div class="pm-f"><label>Option 1</label><input type="text" placeholder="Option 1"/></div><div class="pm-f"><label>Option 2</label><input type="text" placeholder="Option 2"/></div>';
+  pollOptN=2;
+}
+
+/* ── CHIMMY ── */
+const cRes=['Great question! Let me analyze your league context…','Based on your dynasty NFL roster, here\'s what I recommend…','I\'ve checked your waiver wire — here are the top pickups:','Your trade value looks competitive. Here are the key factors:'];
+function chSend(t){document.getElementById('ci').value=t;chSendInput()}
+function chSendInput(){
+  const ci=document.getElementById('ci');const t=ci.value.trim();if(!t)return;
+  const m=document.getElementById('ch-msgs');
+  const u=document.createElement('div');u.innerHTML=`<div class="blbl" style="text-align:right">You</div><div class="bubble me">${t}</div>`;m.appendChild(u);
+  ci.value='';ci.style.height='auto';
+  const ty=document.createElement('div');ty.innerHTML='<div class="blbl">Chimmy</div><div class="bubble ai" id="ch-typing">thinking…</div>';m.appendChild(ty);m.scrollTop=m.scrollHeight;
+  setTimeout(()=>{const e=document.getElementById('ch-typing');if(e)e.textContent=cRes[Math.floor(Math.random()*cRes.length)];m.scrollTop=m.scrollHeight},1100);
+}
+function ciEnter(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();chSendInput()}}
+
+/* ── MODALS ── */
+function openM(id){document.getElementById(id).classList.add('on');document.body.style.overflow='hidden'}
+function closeM(id){document.getElementById(id).classList.remove('on');document.body.style.overflow=''}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.on,.p-overlay.on').forEach(m=>m.classList.remove('on'))});
+function selP(p){document.querySelectorAll('.ptab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.pcon').forEach(c=>c.classList.remove('on'));event.currentTarget.classList.add('on');document.getElementById('pc-'+p).classList.add('on')}
+
+/* ── SPORTS FEED ── */
+const SF_ITEMS = [
+  // NFL
+  { sport:'NFL', source:'X @AdamSchefter', time:'2m ago',  headline:'Breaking: Chiefs sign WR to 3-year extension ahead of deadline', tags:['Chiefs','WR','Free Agency'] },
+  { sport:'NFL', source:'ESPN',            time:'8m ago',  headline:'Jalen Hurts clears concussion protocol, expected to start Sunday', tags:['Eagles','QB','Injury'] },
+  { sport:'NFL', source:'X @RapSheet',    time:'14m ago', headline:'#Lions activate CB from IR, bolstering secondary for playoff push', tags:['Lions','CB','IR'] },
+  { sport:'NFL', source:'NFL.com',         time:'22m ago', headline:'Week 7 waiver wire: Top pickups as injuries pile up across the league', tags:['Waivers','Week 7'] },
+  { sport:'NFL', source:'X @TomPelissero', time:'31m ago', headline:'Jonathan Taylor officially listed questionable — monitor Saturday report', tags:['Colts','RB','Injury'] },
+  { sport:'NFL', source:'ESPN',            time:'45m ago', headline:'Trade deadline tracker: Teams showing interest in WR market heating up', tags:['Trades','Deadline'] },
+  // NBA
+  { sport:'NBA', source:'X @ShamsCharania', time:'5m ago',  headline:"LeBron James questionable for tonight vs. Nuggets with left knee soreness", tags:['Lakers','LeBron','Injury'] },
+  { sport:'NBA', source:'ESPN',             time:'19m ago', headline:'Victor Wembanyama drops 34 pts, 12 blks in historic performance vs. Jazz', tags:['Spurs','Wemby'] },
+  { sport:'NBA', source:'NBA.com',          time:'38m ago', headline:'2025-26 schedule release: Key rivalries, opening night matchups confirmed', tags:['Schedule','2026'] },
+  // NCAA
+  { sport:'NCAA', source:'X @PeteNakos_',  time:'12m ago', headline:'Arch Manning expected to be QB1 for Texas spring depth chart — sources', tags:['Texas','QB'] },
+  { sport:'NCAA', source:'ESPN',            time:'27m ago', headline:'NIL deals surge: Top 10 college players earning over $2M this season', tags:['NIL','Rankings'] },
+  // NHL
+  { sport:'NHL', source:'X @FriedgeHNIC',  time:'9m ago',  headline:'Connor McDavid scores 4 points as Oilers dominate Maple Leafs in OT', tags:['Oilers','McDavid'] },
+  // MLB
+  { sport:'MLB', source:'X @JonHeyman',    time:'1h ago',  headline:'Juan Soto sweepstakes: Yankees, Mets, Dodgers all submit formal offers', tags:['Soto','Free Agency'] },
+];
+
+let sfActiveFilter = 'all';
+
+function sfRender(items) {
+  const ticker = document.getElementById('sf-ticker');
+  const cards  = document.getElementById('sf-cards');
+  if (!ticker || !cards) return;
+
+  const sc = s => s.toLowerCase().replace(/[^a-z]/g,'');
+
+  // ── Ticker (doubled for seamless infinite scroll) ──
+  const tickHtml = items.map(it => `
+    <span class="sf-tick-item">
+      <span class="sf-tick-sport ${sc(it.sport)}">${it.sport}</span>
+      ${it.headline}
+      <span style="color:var(--mu2);font-size:10px">${it.time}</span>
+    </span>
+  `).join('');
+  ticker.innerHTML = tickHtml + tickHtml;
+
+  // ── Horizontal news list ──
+  const visible = sfActiveFilter === 'all'
+    ? items
+    : items.filter(it => it.sport === sfActiveFilter);
+
+  cards.innerHTML = visible.map(it => `
+    <div class="sf-news-item" onclick="window.open('/news','_blank')">
+      <div class="sf-news-item-top">
+        <span class="sf-news-sport ${sc(it.sport)}">${it.sport}</span>
+        <span class="sf-news-src">${it.source}</span>
+        <span class="sf-news-time">${it.time}</span>
+      </div>
+      <div class="sf-news-hl">${it.headline}</div>
+      <div class="sf-news-tags">${it.tags.map(t=>`<span class="sf-news-tag">${t}</span>`).join('')}</div>
+    </div>
+  `).join('');
+}
+
+function sfFilter(sport, btn) {
+  sfActiveFilter = sport;
+  document.querySelectorAll('.sf-filter-btn').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  sfRender(SF_ITEMS);
+}
+
+function sfCardClick(idx) {
+  const item = SF_ITEMS[idx];
+  if (item) window.open('/news?q=' + encodeURIComponent(item.headline), '_blank');
+}
+
+/*
+ * ── PRODUCTION WIRING WITH DB CACHE ──
+ *
+ * Goal: batch-fetch headlines into your DB so you never hit X/ESPN RPM limits
+ * from individual users. All client requests hit YOUR cache, not the source API.
+ *
+ * STEP 1 — Server-side cron (runs every 10 minutes max):
+ *   // /api/cron/fetch-feed.ts
+ *   const tweets = await twitterClient.search('NFL OR NBA OR NCAA fantasy -is:retweet lang:en', { max_results: 20 });
+ *   const espn   = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=10');
+ *   await db.feed.upsertMany([...tweets, ...espn.articles]); // → Neon/Prisma
+ *
+ * STEP 2 — Client fetches from YOUR endpoint (no API key exposure):
+ *   async function sfFetch() {
+ *     const cached = JSON.parse(localStorage.getItem('sf_cache') || '{}');
+ *     const age = Date.now() - (cached.ts || 0);
+ *     if (age < 5 * 60 * 1000) { sfRender(cached.items); return; } // 5-min client cache
+ *     const res = await fetch('/api/feed?sports=NFL,NBA,NCAA&limit=20');
+ *     const { items } = await res.json(); // served from DB, not live API
+ *     localStorage.setItem('sf_cache', JSON.stringify({ items, ts: Date.now() }));
+ *     sfRender(items);
+ *   }
+ *   sfFetch();
+ *   setInterval(sfFetch, 5 * 60 * 1000); // re-check every 5 min
+ *
+ *
+ * async function sfFetch() {
+ *   const res = await fetch('/api/feed?sports=NFL,NBA,NCAA&limit=20');
+ *   const { items } = await res.json();
+ *   // items come from: Twitter/X API v2 filtered stream,
+ *   //   ESPN headline API, Rolling Insights news endpoint
+ *   sfRender(items);
+ * }
+ * sfFetch();
+ * setInterval(sfFetch, 30000); // refresh every 30s
+ *
+ * X/Twitter filtered stream setup:
+ *   POST /2/tweets/search/stream/rules
+ *   { "add": [{ "value": "NFL OR NBA OR NCAA fantasy -is:retweet lang:en", "tag": "sports" }] }
+ *   Stream: GET /2/tweets/search/stream
+ *   Push new items via WebSocket or SSE to /api/feed
+ */
+
+/* ── UTILS ── */
+function ar(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,70)+'px'}
+
+// Simulate a new item arriving every 45s (replace with real WS push)
+// Initial render on DOM ready
+document.addEventListener('DOMContentLoaded', () => sfRender(SF_ITEMS));
+
+setInterval(() => {
+  const breaking = {
+    sport: ['NFL','NBA','NCAA'][Math.floor(Math.random()*3)],
+    source: 'X (Live)',
+    time: 'just now',
+    headline: '🔴 BREAKING: New update arriving — connect /api/feed for live data',
+    tags: ['Live','Breaking']
+  };
+  SF_ITEMS.unshift(breaking);
+  if (SF_ITEMS.length > 30) SF_ITEMS.pop();
+  sfRender(SF_ITEMS);
+}, 45000);
+
+</script>
+</body>
+</html>

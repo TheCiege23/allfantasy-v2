@@ -35,10 +35,13 @@ import { buildSupabaseOAuthRedirectTo } from "@/lib/auth/SupabaseOAuthService"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
-  if (typeof callbackUrl === "string" && callbackUrl.trim().startsWith("/app")) {
-    return callbackUrl.trim()
+  if (typeof callbackUrl === "string") {
+    const trimmed = callbackUrl.trim()
+    if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+      return trimmed
+    }
   }
-  return "/app/home"
+  return "/dashboard"
 }
 
 export default function LoginContent() {
@@ -52,7 +55,7 @@ export default function LoginContent() {
     returnTo: searchParams?.get("returnTo"),
     intent: searchParams?.get("intent"),
   })
-  const postLoginRedirect = resolveSuccessfulLoginRedirect(callbackUrlParam)
+  const postLoginRedirect = resolveSuccessfulLoginRedirect(callbackUrl)
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
   const destinationLabel = callbackUrl.startsWith("/brackets")
