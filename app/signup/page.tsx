@@ -45,6 +45,7 @@ import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import {
   ArrowLeft,
+  ArrowRight,
   Loader2,
   TriangleAlert,
   Eye,
@@ -53,8 +54,6 @@ import {
   CheckCircle2,
   XCircle,
   User,
-  FileText,
-  Shield,
   Sparkles,
   X,
   CreditCard,
@@ -67,6 +66,31 @@ interface SleeperResult {
   displayName?: string
   avatar?: string | null
 }
+
+const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
+  crest: "🏆",
+  bolt: "⚡",
+  crown: "👑",
+  trophy: "🏆",
+  star: "⭐",
+  flame: "🔥",
+  shield: "🛡️",
+  diamond: "💎",
+  medal: "🥇",
+  target: "🎯",
+  zap: "⚡",
+  comet: "☄️",
+  moon: "🌙",
+  sun: "☀️",
+  football: "🏈",
+  basketball: "🏀",
+  baseball: "⚾",
+  hockey: "🏒",
+  soccer: "⚽",
+  champion: "🤺",
+}
+
+type SignupStep = 1 | 2 | 3 | 4
 
 function SignupContent() {
   const { t, language } = useLanguage()
@@ -106,6 +130,8 @@ function SignupContent() {
   const [phoneVerifyingCode, setPhoneVerifyingCode] = useState(false)
   const [phoneVerificationMessage, setPhoneVerificationMessage] = useState<string | null>(null)
   const [showDlModal, setShowDlModal] = useState(false)
+  const [currentStep, setCurrentStep] = useState<SignupStep>(1)
+  const [disclaimerScrolledToEnd, setDisclaimerScrolledToEnd] = useState(false)
   const [sleeperUsername, setSleeperUsername] = useState("")
   const [sleeperResult, setSleeperResult] = useState<SleeperResult | null>(null)
   const [sleeperLooking, setSleeperLooking] = useState(false)
@@ -123,8 +149,18 @@ function SignupContent() {
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [suggestingUsername, setSuggestingUsername] = useState(false)
   const signupConversionTrackedRef = useRef(false)
+  const autoTimezoneResolvedRef = useRef(false)
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
+  const stepLabels = useMemo(
+    () => [
+      { id: 1 as SignupStep, label: "Account" },
+      { id: 2 as SignupStep, label: "Profile" },
+      { id: 3 as SignupStep, label: "Prefs" },
+      { id: 4 as SignupStep, label: "Verify" },
+    ],
+    []
+  )
   const agreementGateOpen = useMemo(
     () => isSignupAgreementGateOpen({ disclaimerAgreed, termsAgreed }),
     [disclaimerAgreed, termsAgreed]
@@ -157,6 +193,13 @@ function SignupContent() {
     ]
     return Math.round((fields.filter(Boolean).length / fields.length) * 100)
   }, [username, usernameStatus, email, password, passwordStrength.valid, confirmPassword, timezone, preferredLanguage, ageConfirmed, verificationMethod, phoneCodeVerified, termsAgreed, disclaimerAgreed])
+  const timezoneGroups = useMemo(() => {
+    return SIGNUP_TIMEZONES.reduce<Record<string, typeof SIGNUP_TIMEZONES>>((acc, item) => {
+      if (!acc[item.region]) acc[item.region] = []
+      acc[item.region].push(item)
+      return acc
+    }, {})
+  }, [])
 
   const lookupSleeper = useCallback(async () => {
     if (!sleeperUsername.trim() || sleeperLooking) return
@@ -288,6 +331,19 @@ function SignupContent() {
     setPreferredLanguage(language === "es" ? "es" : "en")
   }, [language, preferredLanguageTouched])
 
+  useEffect(() => {
+    if (autoTimezoneResolvedRef.current) return
+    autoTimezoneResolvedRef.current = true
+    try {
+      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone
+      if (SIGNUP_TIMEZONES.some((tz) => tz.value === detected)) {
+        setTimezone(detected)
+      }
+    } catch {
+      // no-op
+    }
+  }, [])
+
   // Debounced username availability + profanity check
   useEffect(() => {
     if (!username.trim()) {
@@ -357,6 +413,64 @@ function SignupContent() {
       clearTimeout(timer)
     }
   }, [username, t])
+
+  function validateStep(step: SignupStep): boolean {
+    if (step === 1) {
+      if (!username.trim()) {
+        setError("Enter a username.")
+        return false
+      }
+      if (usernameStatus !== "ok" && usernameStatus !== "unvalidated") {
+        setError(usernameMessage || "Choose an available username before continuing.")
+        return false
+      }
+      if (!email.trim()) {
+        setError("Enter your email address.")
+        return false
+      }
+      if (!passwordStrength.valid) {
+        setError("Create a stronger password before continuing.")
+        return false
+      }
+      if (!passwordsMatch) {
+        setError("Passwords do not match.")
+        return false
+      }
+    }
+
+    if (step === 3) {
+      if (!timezone) {
+        setError("Choose your timezone.")
+        return false
+      }
+      if (!preferredLanguage) {
+        setError("Choose your preferred language.")
+        return false
+      }
+    }
+
+    setError("")
+    return true
+  }
+
+  function handleNextStep(step: SignupStep) {
+    if (!validateStep(step)) return
+    setCurrentStep(Math.min(4, step + 1) as SignupStep)
+  }
+
+  function handleBackStep(step: SignupStep) {
+    setError("")
+    setCurrentStep(Math.max(1, step - 1) as SignupStep)
+  }
+
+  function handleStepFormSubmit(e: React.FormEvent) {
+    if (currentStep < 4) {
+      e.preventDefault()
+      handleNextStep(currentStep)
+      return
+    }
+    void handleSubmit(e)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -472,732 +586,1182 @@ function SignupContent() {
   if (success) {
     const isPhone = verificationMethod === "PHONE"
     return (
-      <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl text-center space-y-4">
-          <div className="mx-auto w-fit rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+      <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+        <header
+          className="sticky top-0 z-40 border-b"
+          style={{
+            borderColor: "var(--border)",
+            background: "color-mix(in srgb, var(--bg) 90%, transparent)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+          }}
+        >
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/af-crest.png" alt="AllFantasy crest" className="h-7 w-7 object-contain" />
+              <span
+                className="text-xl font-semibold tracking-[0.08em]"
+                style={{
+                  backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                AllFantasy
+              </span>
+            </Link>
+            <Link
+              href={loginUrlWithIntent(redirectAfterSignup)}
+              className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              Sign In
+            </Link>
           </div>
-          <h1 className="text-xl font-semibold">Account created!</h1>
-          {isPhone ? (
-            <>
-              <p className="text-sm text-white/60">
-                Sign in to verify your phone number <span className="text-white/90 font-medium">{phone}</span> and complete setup.
-              </p>
-              <p className="text-xs text-white/40">
-                You'll receive a verification code via SMS after signing in.
-              </p>
-            </>
-          ) : (
-            <>
-              {emailVerificationPrepared ? (
+        </header>
+
+        <main className="flex min-h-[calc(100vh-56px)] items-start justify-center px-4 py-10">
+          <div className="w-full max-w-lg">
+            <div className="mb-8 text-center">
+              <img
+                src="/af-crest.png"
+                alt="AllFantasy crest"
+                className="mx-auto mb-4 h-16 w-16 object-contain"
+                style={{ filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))" }}
+              />
+            </div>
+            <div
+              className="rounded-2xl border p-8 text-center shadow-2xl"
+              style={{ borderColor: "var(--border)", background: "var(--panel)" }}
+            >
+              <div
+                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--accent-emerald-strong) 35%, transparent)",
+                  background: "color-mix(in srgb, var(--accent-emerald-strong) 12%, transparent)",
+                }}
+              >
+                <CheckCircle2 className="h-7 w-7" style={{ color: "var(--accent-emerald-strong)" }} />
+              </div>
+              <h1 className="mb-3 text-2xl font-semibold">Account created!</h1>
+              {isPhone ? (
                 <>
-                  <p className="text-sm text-white/60">
-                    We sent a verification link to <span className="text-white/90 font-medium">{email}</span>.
-                    Click the link to verify your email, then sign in.
+                  <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>
+                    Sign in to verify your phone number <span style={{ color: "var(--text)" }}>{phone}</span> and complete setup.
                   </p>
-                  <p className="text-xs text-white/40">
-                    The link expires in 1 hour. Check your spam folder if you don't see it.
+                  <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                    You&apos;ll receive a verification code via SMS after signing in.
+                  </p>
+                </>
+              ) : emailVerificationPrepared ? (
+                <>
+                  <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>
+                    We sent a verification link to <span style={{ color: "var(--text)" }}>{email}</span>. Click the link to verify your email, then sign in.
+                  </p>
+                  <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                    The link expires in 1 hour. Check your spam folder if you don&apos;t see it.
                   </p>
                 </>
               ) : (
-                <>
-                  <p className="text-sm text-white/60">
-                    Your account was created, but email verification setup is temporarily unavailable.
-                    Please sign in to continue and retry verification from your account.
-                  </p>
-                </>
+                <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>
+                  Your account was created, but email verification setup is temporarily unavailable. Please sign in to continue and retry verification from your account.
+                </p>
               )}
-            </>
-          )}
-          <Link
-            href={loginUrlWithIntent(redirectAfterSignup)}
-            className="mt-4 inline-block rounded-xl bg-white text-black px-6 py-2.5 text-sm font-medium hover:bg-gray-200 transition"
-          >
-            {t("signup.success.goSignIn")}
-          </Link>
+              <Link
+                href={loginUrlWithIntent(redirectAfterSignup)}
+                className="mt-6 inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                style={{
+                  backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                  color: "var(--on-accent-bg)",
+                }}
+              >
+                {t("signup.success.goSignIn")}
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-screen bg-neutral-950 text-white flex items-center justify-center px-4 py-8">
-      <Link
-        href="/"
-        className="absolute left-4 top-4 md:left-6 md:top-6 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition"
+    <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+      <header
+        className="sticky top-0 z-40 border-b"
+        style={{
+          borderColor: "var(--border)",
+          background: "color-mix(in srgb, var(--bg) 90%, transparent)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+        }}
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Link>
-
-      <form onSubmit={handleSubmit} className="w-full max-w-md space-y-4">
-        <div className="text-center mb-4">
-          <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            AllFantasy.ai
-          </div>
-          <h1 className="mt-2 text-xl font-semibold">{t("signup.title")}</h1>
-          <p className="mt-1 text-sm text-white/60">
-            {t("signup.subtitle")}
-          </p>
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <div className="h-1.5 flex-1 max-w-[120px] rounded-full bg-white/10 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 transition-all duration-300"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-            <span className="text-[11px] text-white/40">{progressPercent}%</span>
-          </div>
-        </div>
-
-        {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-            <div className="flex items-start gap-2">
-              <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-              <div>{error}</div>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Username *</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-              placeholder="your_username"
-              maxLength={30}
-              autoComplete="username"
-              required
-            />
-        <div className="mt-1 flex items-center justify-between text-xs">
-          <span className="text-white/30">Letters, numbers, underscores. 3–30 characters.</span>
-          {usernameStatus === "checking" && (
-            <span className="text-white/40">Checking…</span>
-          )}
-        {usernameStatus === "ok" && (
-            <span className="text-emerald-300 flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              Available
-            </span>
-          )}
-          {usernameStatus === "taken" && (
-            <span className="text-amber-300 flex items-center gap-1">
-              <TriangleAlert className="h-3 w-3" />
-              Taken
-            </span>
-          )}
-          {usernameStatus === "unvalidated" && (
-            <span className="text-white/40 flex items-center gap-1">
-              <TriangleAlert className="h-3 w-3" />
-              Could not verify
-            </span>
-          )}
-        </div>
-        {usernameMessage && (
-          <p className="mt-0.5 text-[11px] text-white/45">{usernameMessage}</p>
-        )}
-        {usernameStatus === "taken" && (
-          <div className="mt-1.5 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={applyUsernameSuggestion}
-              disabled={suggestingUsername}
-              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-50 transition"
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <img src="/af-crest.png" alt="AllFantasy crest" className="h-7 w-7 object-contain" />
+            <span
+              className="text-xl font-semibold tracking-[0.08em]"
+              style={{
+                backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
             >
-              {suggestingUsername ? "Finding suggestion…" : "Suggest a similar username"}
-            </button>
-            {usernameSuggestion && (
-              <span className="text-[11px] text-emerald-300">
-                Try: {usernameSuggestion}
-              </span>
-            )}
-          </div>
-        )}
-          </div>
+              AllFantasy
+            </span>
+          </Link>
+          <Link
+            href={loginUrlWithIntent(redirectAfterSignup)}
+            className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
+            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+          >
+            Sign In
+          </Link>
+        </div>
+      </header>
 
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Email *</label>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-              placeholder="you@example.com"
-              autoComplete="email"
-              required
+      <main
+        className="flex justify-center px-4 py-8 sm:py-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 60% 50% at 50% 0%, color-mix(in srgb, var(--accent-cyan) 8%, transparent) 0%, transparent 65%)",
+        }}
+      >
+        <div className="w-full max-w-xl">
+          <div className="mb-8 text-center">
+            <img
+              src="/af-crest.png"
+              alt="AllFantasy crest"
+              className="mx-auto mb-4 h-16 w-16 object-contain"
+              style={{ filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))" }}
             />
+            <h1 className="mb-1 text-3xl font-semibold tracking-tight">Create Your Account</h1>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>
+              One account for the Sports App, Brackets, and AI Tools.
+            </p>
           </div>
 
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Password *</label>
-            <div className="relative">
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type={showPassword ? "text" : "password"}
-                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 pr-10 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition"
-                placeholder="At least 8 characters, letter and number"
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px]">
-              <span className={passwordStrength.valid ? "text-emerald-400/90" : "text-white/40"}>
-                {passwordStrength.label}
-              </span>
-              {password.length >= 8 && (
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className={`h-1 w-4 rounded-sm ${
-                        i <= passwordStrength.level ? "bg-cyan-500" : "bg-white/15"
-                      }`}
-                    />
-                  ))}
+          <div className="mb-10 flex items-start justify-center">
+            {stepLabels.map((step, index) => (
+              <div key={step.id} className="flex items-start">
+                <div className="relative flex flex-col items-center">
+                  <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-all"
+                    style={{
+                      borderColor:
+                        currentStep === step.id
+                          ? "transparent"
+                          : currentStep > step.id
+                            ? "color-mix(in srgb, var(--accent-emerald-strong) 60%, transparent)"
+                            : "var(--border)",
+                      background:
+                        currentStep === step.id
+                          ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)"
+                          : currentStep > step.id
+                            ? "color-mix(in srgb, var(--accent-emerald-strong) 14%, transparent)"
+                            : "var(--panel)",
+                      color:
+                        currentStep === step.id
+                          ? "#fff"
+                          : currentStep > step.id
+                            ? "var(--accent-emerald-strong)"
+                            : "var(--muted)",
+                    }}
+                  >
+                    {currentStep > step.id ? "✓" : step.id}
+                  </div>
+                  <span className="absolute top-10 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: currentStep >= step.id ? "var(--muted)" : "var(--muted2)" }}>
+                    {step.label}
+                  </span>
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Confirm Password *</label>
-            <div className="relative">
-              <input
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                type={showPassword ? "text" : "password"}
-                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 pr-10 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-                placeholder="Re-enter password"
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide confirm password" : "Show confirm password"}
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px]">
-              <span className={
-                !confirmPassword.length
-                  ? "text-white/40"
-                  : passwordsMatch
-                    ? "text-emerald-400/90"
-                    : "text-amber-300"
-              }>
-                {!confirmPassword.length
-                  ? "Re-enter your password to confirm."
-                  : passwordsMatch
-                    ? "Passwords match."
-                    : "Passwords do not match."}
-              </span>
-              {confirmPassword.length >= 8 && (
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div
-                      key={i}
-                      className={`h-1 w-4 rounded-sm ${
-                        i <= passwordStrength.level ? "bg-cyan-500" : "bg-white/15"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs text-white/60 mb-1">Timezone</label>
-              <select
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition"
-              >
-                {SIGNUP_TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-white/60 mb-1">Language</label>
-              <select
-                value={preferredLanguage}
-                onChange={(e) => {
-                  setPreferredLanguageTouched(true)
-                  setPreferredLanguage(e.target.value === "es" ? "es" : "en")
-                }}
-                className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition"
-              >
-                <option value="en">English</option>
-                <option value="es">Español</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Profile Image</label>
-            <div className="mb-3 flex items-center gap-3">
-              <IdentityImageRenderer
-                avatarUrl={avatarPreview}
-                avatarPreset={avatarPreview ? null : avatarPreset}
-                displayName={username || email}
-                username={username || email}
-                size="md"
-              />
-              <p className="text-[11px] text-white/45">
-                Live preview updates instantly for presets and uploads.
-              </p>
-            </div>
-            <div className="grid grid-cols-5 gap-2 text-xs mb-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAvatarPreset(null)
-                  setAvatarPreview(null)
-                  setAvatarFileError(null)
-                }}
-                className={`rounded-lg border px-2 py-2 transition ${
-                  avatarPreset == null && !avatarPreview
-                    ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
-                    : "border-white/10 bg-black/20 text-white/70 hover:border-white/20"
-                }`}
-                title="Use initial"
-              >
-                Initial
-              </button>
-              {AVATAR_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setAvatarPreset(preset)
-                    setAvatarPreview(null)
-                    setAvatarFileError(null)
-                  }}
-                  className={`rounded-lg border px-2 py-2 transition ${
-                    avatarPreset === preset && !avatarPreview
-                      ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
-                      : "border-white/10 bg-black/20 text-white/70 hover:border-white/20"
-                  }`}
-                  title={AVATAR_PRESET_LABELS[preset as AvatarPresetId] ?? preset}
-                >
-                  {AVATAR_PRESET_LABELS[preset as AvatarPresetId] ?? preset}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white/70 cursor-pointer hover:border-white/30">
-                <input
-                  type="file"
-                  accept="image/*"
-                  data-testid="signup-avatar-upload-input"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const validationError = validateAvatarUploadFile(file)
-                    if (validationError) {
-                      setAvatarFileError(validationError)
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = () => {
-                      setAvatarPreview(reader.result as string)
-                      setAvatarFileError(null)
-                    }
-                    reader.readAsDataURL(file)
-                  }}
-                />
-                <span>Upload image</span>
-              </label>
-              {avatarPreview && (
-                <div className="flex items-center gap-2">
-                  <img
-                    src={avatarPreview}
-                    alt="Avatar preview"
-                    className="h-10 w-10 rounded-full border border-white/20 object-cover"
+                {index < stepLabels.length - 1 && (
+                  <div
+                    className="mx-1 mt-4 h-[2px] w-10 rounded-full"
+                    style={{
+                      background: currentStep > step.id ? "var(--accent-emerald-strong)" : "var(--border)",
+                      opacity: currentStep > step.id ? 0.5 : 1,
+                    }}
                   />
+                )}
+              </div>
+            ))}
+          </div>
+
+          {error && (
+            <div
+              className="mb-4 rounded-2xl border p-3 text-sm"
+              style={{
+                borderColor: "color-mix(in srgb, var(--accent-red-strong) 40%, transparent)",
+                background: "color-mix(in srgb, var(--accent-red-strong) 10%, transparent)",
+                color: "color-mix(in srgb, #fff 88%, var(--accent-red-strong))",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>{error}</div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleStepFormSubmit} className="space-y-4">
+            <section
+              className={currentStep === 1 ? "block" : "hidden"}
+            >
+              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
+                  Step 1 of 4 — Account Details
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      Username <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <input
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
+                      className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+                      style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                      placeholder="your_username"
+                      maxLength={30}
+                      autoComplete="username"
+                      required
+                    />
+                    <div className="mt-2 flex items-center justify-between text-xs">
+                      <span style={{ color: "var(--muted2)" }}>Letters, numbers, and underscores · 3-30 characters</span>
+                      {usernameStatus === "checking" && <span style={{ color: "var(--muted2)" }}>Checking...</span>}
+                      {usernameStatus === "ok" && (
+                        <span className="inline-flex items-center gap-1" style={{ color: "var(--accent-emerald-strong)" }}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Available
+                        </span>
+                      )}
+                      {usernameStatus === "taken" && (
+                        <span className="inline-flex items-center gap-1" style={{ color: "var(--accent-amber-strong)" }}>
+                          <TriangleAlert className="h-3.5 w-3.5" />
+                          Taken
+                        </span>
+                      )}
+                      {usernameStatus === "unvalidated" && (
+                        <span className="inline-flex items-center gap-1" style={{ color: "var(--muted2)" }}>
+                          <TriangleAlert className="h-3.5 w-3.5" />
+                          Could not verify
+                        </span>
+                      )}
+                    </div>
+                    {usernameMessage && <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>{usernameMessage}</p>}
+                    {usernameStatus === "taken" && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={applyUsernameSuggestion}
+                          disabled={suggestingUsername}
+                          style={{ color: "var(--accent-cyan)" }}
+                          className="transition hover:opacity-80 disabled:opacity-50"
+                        >
+                          {suggestingUsername ? "Finding suggestion..." : "Suggest a similar username"}
+                        </button>
+                        {usernameSuggestion && (
+                          <span style={{ color: "var(--accent-emerald-strong)" }}>Try: {usernameSuggestion}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      Email <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+                      style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      Password <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        type={showPassword ? "text" : "password"}
+                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm outline-none transition"
+                        style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                        placeholder="At least 8 characters"
+                        autoComplete="new-password"
+                        minLength={8}
+                        required
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 transition"
+                        style={{ color: "var(--muted2)" }}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex gap-1">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className="h-1 flex-1 rounded-full"
+                          style={{
+                            background:
+                              i <= passwordStrength.level
+                                ? passwordStrength.level <= 1
+                                  ? "var(--accent-red-strong)"
+                                  : passwordStrength.level === 2
+                                    ? "var(--accent-amber-strong)"
+                                    : passwordStrength.level === 3
+                                      ? "var(--accent-emerald-strong)"
+                                      : "var(--accent-cyan)"
+                                : "color-mix(in srgb, var(--border) 90%, transparent)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <p className="mt-1 text-xs" style={{ color: passwordStrength.valid ? "var(--accent-emerald-strong)" : "var(--muted2)" }}>
+                      {passwordStrength.label}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      Confirm Password <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        type={showPassword ? "text" : "password"}
+                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm outline-none transition"
+                        style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                        placeholder="Re-enter your password"
+                        autoComplete="new-password"
+                        minLength={8}
+                        required
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? "Hide confirm password" : "Show confirm password"}
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 transition"
+                        style={{ color: "var(--muted2)" }}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs" style={{ color: !confirmPassword ? "var(--muted2)" : passwordsMatch ? "var(--accent-emerald-strong)" : "var(--accent-amber-strong)" }}>
+                      {!confirmPassword ? "Re-enter your password to confirm." : passwordsMatch ? "Passwords match." : "Passwords do not match."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => {
-                      setAvatarPreview(null)
+                    onClick={() => handleNextStep(1)}
+                    className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                    style={{
+                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                      color: "var(--on-accent-bg)",
                     }}
-                    className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-white/60 hover:text-white/80"
                   >
-                    Remove
+                    <span className="inline-flex items-center gap-2">
+                      Continue <ArrowRight className="h-4 w-4" />
+                    </span>
                   </button>
                 </div>
-              )}
-            </div>
-            {avatarFileError && (
-              <p className="mt-1 text-[11px] text-red-300">{avatarFileError}</p>
-            )}
-            {!avatarPreview && (
-              <p className="mt-1 text-[11px] text-white/35">
-                Choose a preset or upload your own avatar. You can change this later.
-              </p>
-            )}
-          </div>
+              </div>
+            </section>
 
-          <div>
-            <label className="block text-xs text-white/60 mb-1">Phone {verificationMethod === "PHONE" ? "*" : "(optional)"}</label>
-            <input
-              value={phone}
-              onChange={(e) => {
-                const digits = normalizeSignupPhoneDigits(e.target.value)
-                setPhone(digits)
-                setPhoneCodeSent(false)
-                setPhoneCode("")
-                setPhoneCodeVerified(false)
-                setPhoneVerificationMessage(null)
-              }}
-              type="tel"
-              className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-white/30 transition"
-              placeholder="+1 (555) 123-4567"
-              autoComplete="tel"
-              inputMode="numeric"
-            />
-            {phone.length > 0 && (
-              <p className="mt-0.5 text-[11px] text-white/40">Formatted: {formatSignupPhoneDisplay(phone)}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-white/80">
-            <Sparkles className="h-4 w-4 text-cyan-400" />
-            Legacy import (optional)
-          </div>
-          <p className="text-xs text-white/50">
-            Import your fantasy history to get placed into rankings and level systems. Skip and you’ll start at level 1—you can import later in settings.
-          </p>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                value={sleeperUsername}
-                onChange={(e) => {
-                  setSleeperUsername(e.target.value)
-                  setSleeperResult(null)
-                  setLegacyImportMessage(null)
-                }}
-                className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 transition"
-                placeholder="Sleeper username"
-              />
-              <button
-                type="button"
-                onClick={lookupSleeper}
-                disabled={sleeperLooking || !sleeperUsername.trim()}
-                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 text-sm hover:bg-white/15 disabled:opacity-50 transition"
-              >
-                {sleeperLooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {LEGACY_IMPORT_PROVIDERS.filter((provider) => provider.id !== "sleeper").map((provider) => (
-                <button
-                  key={provider.id}
-                  type="button"
-                  onClick={() => handleLegacyImportProviderClick(provider.id)}
-                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition"
-                >
-                  {provider.label} {provider.status === "planned" ? "(soon)" : ""}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() =>
-                  setLegacyImportMessage(
-                    "No problem. Skip import for now and start at level 1. You can import later from Settings."
-                  )
-                }
-                className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60 hover:bg-white/10 hover:text-white/80 transition"
-              >
-                Skip import for now
-              </button>
-            </div>
-          </div>
-          {legacyImportMessage && (
-            <p className="text-[11px] text-white/45">{legacyImportMessage}</p>
-          )}
-          {sleeperResult?.found && (
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-              {sleeperResult.avatar ? (
-                <img src={sleeperResult.avatar} alt="" className="h-8 w-8 rounded-full" />
-              ) : (
-                <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
-                  <User className="h-4 w-4 text-white/50" />
+            <section className={currentStep === 2 ? "block" : "hidden"}>
+              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
+                  Step 2 of 4 — Your Profile
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-emerald-300 truncate">{sleeperResult.displayName}</div>
-                <div className="text-xs text-white/40">@{sleeperResult.username}</div>
-              </div>
-              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-            </div>
-          )}
-          {sleeperResult && !sleeperResult.found && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
-              <XCircle className="h-4 w-4 shrink-0" />
-              Sleeper user not found. Check the username and try again.
-            </div>
-          )}
-        </div>
 
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Profile Avatar
+                  </label>
+                  <div className="mb-4 flex items-center gap-4">
+                    <div
+                      className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2"
+                      style={{ borderColor: "color-mix(in srgb, var(--border) 100%, transparent)", background: "var(--panel2)" }}
+                    >
+                      <IdentityImageRenderer
+                        avatarUrl={avatarPreview}
+                        avatarPreset={avatarPreview ? null : avatarPreset}
+                        displayName={username || email}
+                        username={username || email}
+                        size="md"
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold">Pick your avatar</h3>
+                      <p className="text-xs leading-5" style={{ color: "var(--muted)" }}>
+                        Choose a preset or upload your own. You can always change this later.
+                      </p>
+                    </div>
+                  </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
-          <div className="text-sm font-medium text-white/80">Verification method</div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <button
-              type="button"
-              onClick={() => setVerificationMethod("EMAIL")}
-              className={`rounded-lg border px-3 py-2 ${verificationMethod === "EMAIL" ? "border-cyan-400 bg-cyan-500/10 text-cyan-200" : "border-white/10 bg-black/20 text-white/70"}`}
-            >
-              Email
-            </button>
-            <button
-              type="button"
-              onClick={() => setVerificationMethod("PHONE")}
-              className={`rounded-lg border px-3 py-2 ${verificationMethod === "PHONE" ? "border-cyan-400 bg-cyan-500/10 text-cyan-200" : "border-white/10 bg-black/20 text-white/70"}`}
-            >
-              Phone
-            </button>
-          </div>
-          <p className="text-xs text-white/40">
-            {verificationMethod === "PHONE"
-              ? "Verify your phone now with a one-time SMS code."
-              : "We'll send a verification link to your email."}
-          </p>
-          {verificationMethod === "PHONE" && (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendPhoneCode}
-                  disabled={phoneSendingCode || !phone.trim()}
-                  className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs hover:bg-white/15 disabled:opacity-50 transition"
-                >
-                  {phoneSendingCode ? "Sending..." : phoneCodeSent ? "Resend code" : "Send code"}
-                </button>
-                <input
-                  value={phoneCode}
-                  onChange={(e) => {
-                    setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    setPhoneCodeVerified(false)
+                  <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAvatarPreset(null)
+                        setAvatarPreview(null)
+                        setAvatarFileError(null)
+                      }}
+                      className="rounded-xl border px-2 py-3 text-center text-[11px] transition"
+                      style={{
+                        borderColor: avatarPreset == null && !avatarPreview ? "var(--accent-cyan)" : "var(--border)",
+                        background: avatarPreset == null && !avatarPreview ? "color-mix(in srgb, var(--accent-cyan) 10%, transparent)" : "var(--panel2)",
+                        color: avatarPreset == null && !avatarPreview ? "var(--text)" : "var(--muted)",
+                      }}
+                    >
+                      Initial
+                    </button>
+                    {AVATAR_PRESETS.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          setAvatarPreset(preset)
+                          setAvatarPreview(null)
+                          setAvatarFileError(null)
+                        }}
+                        className="rounded-xl border px-2 py-2 text-center transition"
+                        style={{
+                          borderColor: avatarPreset === preset && !avatarPreview ? "var(--accent-cyan)" : "var(--border)",
+                          background: avatarPreset === preset && !avatarPreview ? "color-mix(in srgb, var(--accent-cyan) 10%, transparent)" : "var(--panel2)",
+                        }}
+                        title={AVATAR_PRESET_LABELS[preset]}
+                      >
+                        <span className="block text-lg">{AVATAR_PRESET_EMOJIS[preset as AvatarPresetId]}</span>
+                        <span className="mt-1 block text-[9px]" style={{ color: "var(--muted2)" }}>
+                          {AVATAR_PRESET_LABELS[preset as AvatarPresetId]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <label
+                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-4 py-2 text-xs transition"
+                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        data-testid="signup-avatar-upload-input"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const validationError = validateAvatarUploadFile(file)
+                          if (validationError) {
+                            setAvatarFileError(validationError)
+                            return
+                          }
+                          const reader = new FileReader()
+                          reader.onload = () => {
+                            setAvatarPreview(reader.result as string)
+                            setAvatarFileError(null)
+                          }
+                          reader.readAsDataURL(file)
+                        }}
+                      />
+                      Upload your own image
+                    </label>
+                    {avatarPreview && (
+                      <button
+                        type="button"
+                        onClick={() => setAvatarPreview(null)}
+                        className="rounded-lg border px-3 py-2 text-xs transition"
+                        style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                      >
+                        Remove upload
+                      </button>
+                    )}
+                  </div>
+                  {avatarFileError && (
+                    <p className="mt-2 text-xs" style={{ color: "var(--accent-red-strong)" }}>
+                      {avatarFileError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Phone Number <span className="text-xs" style={{ color: "var(--muted2)" }}>(optional)</span>
+                  </label>
+                  <div className="flex overflow-hidden rounded-xl border" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex items-center gap-2 px-4 text-sm font-medium" style={{ background: "var(--panel2)", color: "var(--muted)" }}>
+                      <span>🇺🇸</span>
+                      <span>+1</span>
+                    </div>
+                    <input
+                      value={phone}
+                      onChange={(e) => {
+                        const digits = normalizeSignupPhoneDigits(e.target.value)
+                        setPhone(digits)
+                        setPhoneCodeSent(false)
+                        setPhoneCode("")
+                        setPhoneCodeVerified(false)
+                        setPhoneVerificationMessage(null)
+                      }}
+                      type="tel"
+                      className="flex-1 border-0 px-4 py-3 text-sm outline-none"
+                      style={{ background: "var(--panel2)", color: "var(--text)" }}
+                      placeholder="(555) 123-4567"
+                      autoComplete="tel"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                    Used for account security. Never shared or sold.
+                  </p>
+                  {phone.length > 0 && (
+                    <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                      Formatted: {formatSignupPhoneDisplay(phone)}
+                    </p>
+                  )}
+                </div>
+
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{
+                    borderColor: "var(--border)",
+                    background: "color-mix(in srgb, var(--panel2) 92%, transparent)",
                   }}
-                  placeholder="Enter code"
-                  inputMode="numeric"
-                  className="flex-1 rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-xs text-white placeholder-gray-500 outline-none focus:border-cyan-500/50 transition"
-                />
-                <button
-                  type="button"
-                  onClick={handleVerifyPhoneCode}
-                  disabled={phoneVerifyingCode || phoneCode.length < 4 || !phoneCodeSent}
-                  className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50 transition"
                 >
-                  {phoneVerifyingCode ? "Verifying..." : "Verify"}
-                </button>
-              </div>
-              {phoneVerificationMessage && (
-                <p
-                  className={`text-[11px] ${
-                    phoneCodeVerified ? "text-emerald-300" : "text-white/45"
-                  }`}
-                >
-                  {phoneVerificationMessage}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                    <Sparkles className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
+                    Legacy import (optional)
+                  </div>
+                  <p className="mb-3 text-xs leading-5" style={{ color: "var(--muted)" }}>
+                    Import your fantasy history to get placed into rankings and level systems. Skip it for now and start at level 1.
+                  </p>
+                  <div className="mb-3 flex gap-2">
+                    <input
+                      value={sleeperUsername}
+                      onChange={(e) => {
+                        setSleeperUsername(e.target.value)
+                        setSleeperResult(null)
+                        setLegacyImportMessage(null)
+                      }}
+                      className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none transition"
+                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                      placeholder="Sleeper username"
+                    />
+                    <button
+                      type="button"
+                      onClick={lookupSleeper}
+                      disabled={sleeperLooking || !sleeperUsername.trim()}
+                      className="rounded-xl border px-4 py-3 text-sm transition disabled:opacity-50"
+                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
+                    >
+                      {sleeperLooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {LEGACY_IMPORT_PROVIDERS.filter((provider) => provider.id !== "sleeper").map((provider) => (
+                      <button
+                        key={provider.id}
+                        type="button"
+                        onClick={() => handleLegacyImportProviderClick(provider.id)}
+                        className="rounded-xl border px-3 py-2 text-xs transition"
+                        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
+                      >
+                        {provider.label} {provider.status === "planned" ? "(soon)" : ""}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setLegacyImportMessage("No problem. Skip import for now and import later from Settings.")}
+                      className="rounded-xl border px-3 py-2 text-xs transition"
+                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
+                    >
+                      Skip import for now
+                    </button>
+                  </div>
+                  {legacyImportMessage && <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>{legacyImportMessage}</p>}
+                  {sleeperResult?.found && (
+                    <div
+                      className="mt-3 flex items-center gap-3 rounded-xl border p-3"
+                      style={{
+                        borderColor: "color-mix(in srgb, var(--accent-emerald-strong) 30%, transparent)",
+                        background: "color-mix(in srgb, var(--accent-emerald-strong) 10%, transparent)",
+                      }}
+                    >
+                      {sleeperResult.avatar ? (
+                        <img src={sleeperResult.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--panel)" }}>
+                          <User className="h-4 w-4" style={{ color: "var(--muted2)" }} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium" style={{ color: "var(--accent-emerald-strong)" }}>
+                          {sleeperResult.displayName}
+                        </div>
+                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
+                          @{sleeperResult.username}
+                        </div>
+                      </div>
+                      <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: "var(--accent-emerald-strong)" }} />
+                    </div>
+                  )}
+                  {sleeperResult && !sleeperResult.found && (
+                    <div
+                      className="mt-3 flex items-center gap-2 rounded-xl border p-3 text-sm"
+                      style={{
+                        borderColor: "color-mix(in srgb, var(--accent-red-strong) 30%, transparent)",
+                        background: "color-mix(in srgb, var(--accent-red-strong) 10%, transparent)",
+                        color: "color-mix(in srgb, #fff 88%, var(--accent-red-strong))",
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 shrink-0" />
+                      Sleeper user not found. Check the username and try again.
+                    </div>
+                  )}
+                </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={ageConfirmed}
-              onChange={(e) => setAgeConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
-            />
-            <span className="text-sm text-white/80 leading-relaxed">
-              I confirm that I am 18 years of age or older. *
-            </span>
-          </label>
-          <p className="text-[11px] text-white/40">
-            Optional:{" "}
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleBackStep(2)}
+                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" /> Back
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNextStep(2)}
+                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                    style={{
+                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                      color: "var(--on-accent-bg)",
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      Continue <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className={currentStep === 3 ? "block" : "hidden"}>
+              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
+                  Step 3 of 4 — Your Preferences
+                </div>
+
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Timezone <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                  >
+                    {Object.entries(timezoneGroups).map(([region, timezones]) => (
+                      <optgroup key={region} label={region}>
+                        {timezones.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <div
+                    className="mt-3 flex items-start gap-2 rounded-xl border p-3 text-xs leading-5"
+                    style={{
+                      borderColor: "color-mix(in srgb, var(--accent-cyan) 18%, transparent)",
+                      background: "color-mix(in srgb, var(--accent-cyan) 8%, transparent)",
+                      color: "color-mix(in srgb, var(--accent-cyan) 75%, #fff)",
+                    }}
+                  >
+                    <span>🕐</span>
+                    <p>
+                      This sets your universal timezone across the app. Schedules, draft clocks, matchup deadlines, and notifications will all reflect your local time.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Language <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreferredLanguageTouched(true)
+                        setPreferredLanguage("en")
+                      }}
+                      className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
+                      style={{
+                        borderColor: preferredLanguage === "en" ? "var(--accent-cyan)" : "var(--border)",
+                        background: preferredLanguage === "en" ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
+                      }}
+                    >
+                      <span className="text-xl">🇺🇸</span>
+                      <span>
+                        <strong className="block text-sm">English</strong>
+                        <small style={{ color: "var(--muted)" }}>Default language</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreferredLanguageTouched(true)
+                        setPreferredLanguage("es")
+                      }}
+                      className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
+                      style={{
+                        borderColor: preferredLanguage === "es" ? "var(--accent-cyan)" : "var(--border)",
+                        background: preferredLanguage === "es" ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
+                      }}
+                    >
+                      <span className="text-xl">🇪🇸</span>
+                      <span>
+                        <strong className="block text-sm">Español</strong>
+                        <small style={{ color: "var(--muted)" }}>Spanish</small>
+                      </span>
+                    </button>
+                  </div>
+                  <div
+                    className="mt-3 rounded-xl border px-3 py-2 text-xs"
+                    style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 92%, transparent)", color: "var(--muted2)" }}
+                  >
+                    ⚡ Translations powered by DeepL API · Changes every screen and notification
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleBackStep(3)}
+                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" /> Back
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNextStep(3)}
+                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                    style={{
+                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                      color: "var(--on-accent-bg)",
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      Continue <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section className={currentStep === 4 ? "block" : "hidden"}>
+              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
+                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
+                  Step 4 of 4 — Verify &amp; Agree
+                </div>
+
+                <div className="mb-6">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Verification Method <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 rounded-xl border p-1" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                    <button
+                      type="button"
+                      onClick={() => setVerificationMethod("EMAIL")}
+                      className="rounded-lg px-3 py-2 text-sm font-medium transition"
+                      style={{
+                        background: verificationMethod === "EMAIL" ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)" : "transparent",
+                        color: verificationMethod === "EMAIL" ? "#fff" : "var(--muted)",
+                      }}
+                    >
+                      ✉️ Email
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVerificationMethod("PHONE")}
+                      className="rounded-lg px-3 py-2 text-sm font-medium transition"
+                      style={{
+                        background: verificationMethod === "PHONE" ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)" : "transparent",
+                        color: verificationMethod === "PHONE" ? "#fff" : "var(--muted)",
+                      }}
+                    >
+                      📱 Phone
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-center" style={{ color: "var(--muted2)" }}>
+                    {verificationMethod === "PHONE"
+                      ? "We'll send a one-time code to your phone number."
+                      : "We'll send a verification link to your email address."}
+                  </p>
+
+                  {verificationMethod === "PHONE" && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={handleSendPhoneCode}
+                          disabled={phoneSendingCode || !phone.trim()}
+                          className="rounded-xl border px-4 py-3 text-xs transition disabled:opacity-50"
+                          style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
+                        >
+                          {phoneSendingCode ? "Sending..." : phoneCodeSent ? "Resend code" : "Send code"}
+                        </button>
+                        <input
+                          value={phoneCode}
+                          onChange={(e) => {
+                            setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                            setPhoneCodeVerified(false)
+                          }}
+                          placeholder="Enter code"
+                          inputMode="numeric"
+                          className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none transition"
+                          style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyPhoneCode}
+                          disabled={phoneVerifyingCode || phoneCode.length < 4 || !phoneCodeSent}
+                          className="rounded-xl border px-4 py-3 text-xs transition disabled:opacity-50"
+                          style={{
+                            borderColor: "color-mix(in srgb, var(--accent-cyan) 35%, transparent)",
+                            background: "color-mix(in srgb, var(--accent-cyan) 10%, transparent)",
+                            color: "color-mix(in srgb, #fff 84%, var(--accent-cyan))",
+                          }}
+                        >
+                          {phoneVerifyingCode ? "Verifying..." : "Verify"}
+                        </button>
+                      </div>
+                      {phoneVerificationMessage && (
+                        <p className="text-xs" style={{ color: phoneCodeVerified ? "var(--accent-emerald-strong)" : "var(--muted2)" }}>
+                          {phoneVerificationMessage}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mb-5">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Age Confirmation <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <label
+                    className="flex cursor-pointer items-start gap-3 rounded-xl border p-4"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={ageConfirmed}
+                      onChange={(e) => setAgeConfirmed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
+                      <strong style={{ color: "var(--text)" }}>I am 18 years of age or older</strong>
+                      <br />
+                      You must be 18+ to create an AllFantasy account and use this platform.
+                    </span>
+                  </label>
+                  <p className="mt-2 pl-7 text-xs" style={{ color: "var(--muted2)" }}>
+                    Optional:{" "}
+                    <button
+                      type="button"
+                      onClick={() => setShowDlModal(true)}
+                      className="underline"
+                      style={{ color: "var(--muted)" }}
+                    >
+                      Verify with a driver&apos;s license
+                    </button>{" "}
+                    for future identity-protected features.
+                  </p>
+                </div>
+
+                <div className="mb-5">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Disclaimer <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <div
+                    onScroll={(e) => {
+                      const el = e.currentTarget
+                      if (el.scrollHeight - el.scrollTop - el.clientHeight < 24) {
+                        setDisclaimerScrolledToEnd(true)
+                      }
+                    }}
+                    className="relative mb-3 max-h-32 overflow-y-auto rounded-xl border p-4 text-sm leading-6"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
+                  >
+                    <strong style={{ color: "var(--text)" }}>AllFantasy.ai — Platform Disclaimer</strong>
+                    <br />
+                    AllFantasy.ai is a fantasy sports entertainment platform designed exclusively for recreational use. This platform does not constitute, support, or facilitate gambling, daily fantasy sports contests for real money, or wagering of any kind.
+                    <br />
+                    <br />
+                    By creating an account, you acknowledge that AllFantasy.ai is intended solely for entertainment purposes. AI-generated analysis, trade recommendations, player projections, and related data are informational only.
+                    <br />
+                    <br />
+                    All user data is handled in accordance with our{" "}
+                    <Link
+                      href={getPrivacyUrl(true, nextParam)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                      style={{ color: "var(--accent-cyan)" }}
+                    >
+                      Privacy Policy
+                    </Link>
+                    . By using this platform you agree to comply with all applicable laws in your jurisdiction.
+                    <br />
+                    <br />
+                    <Link
+                      href={getDisclaimerUrl(true, nextParam)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                      style={{ color: "var(--accent-cyan)" }}
+                    >
+                      Read the full Disclaimer →
+                    </Link>
+                    {!disclaimerScrolledToEnd && (
+                      <div
+                        className="pointer-events-none absolute inset-x-0 bottom-0 flex h-8 items-end justify-center rounded-b-xl pb-1 text-[10px]"
+                        style={{
+                          background: "linear-gradient(to top, var(--panel2), transparent)",
+                          color: "var(--muted2)",
+                        }}
+                      >
+                        Scroll to acknowledge
+                      </div>
+                    )}
+                  </div>
+                  <label
+                    className="flex items-start gap-3 rounded-xl border p-4 transition"
+                    style={{
+                      borderColor: "var(--border)",
+                      background: "var(--panel2)",
+                      opacity: disclaimerScrolledToEnd || disclaimerAgreed ? 1 : 0.45,
+                      pointerEvents: disclaimerScrolledToEnd || disclaimerAgreed ? "auto" : "none",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={disclaimerAgreed}
+                      disabled={!disclaimerScrolledToEnd && !disclaimerAgreed}
+                      onChange={(e) => setDisclaimerAgreed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
+                      <strong style={{ color: "var(--text)" }}>I have read and acknowledge the Disclaimer</strong>
+                      <br />
+                      Scroll through the above to acknowledge.
+                    </span>
+                  </label>
+                </div>
+
+                <div className="mb-5">
+                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                    Terms &amp; Conditions <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                  </label>
+                  <label
+                    className="flex cursor-pointer items-start gap-3 rounded-xl border p-4"
+                    style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={termsAgreed}
+                      onChange={(e) => setTermsAgreed(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                    />
+                    <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
+                      <strong style={{ color: "var(--text)" }}>I agree to the Terms of Service and Privacy Policy</strong>
+                      <br />
+                      By creating an account you accept our{" "}
+                      <Link
+                        href={getTermsUrl(true, nextParam)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                        style={{ color: "var(--accent-cyan)" }}
+                      >
+                        Terms of Service
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href={getPrivacyUrl(true, nextParam)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline"
+                        style={{ color: "var(--accent-cyan)" }}
+                      >
+                        Privacy Policy
+                      </Link>
+                      .
+                    </span>
+                  </label>
+                </div>
+
+                <div className="my-6 flex items-center gap-3">
+                  <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+                  <span className="text-xs uppercase tracking-[0.08em]" style={{ color: "var(--muted2)" }}>
+                    or sign up with
+                  </span>
+                  <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+                </div>
+
+                <SocialLoginButtons callbackUrl={redirectAfterSignup} />
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleBackStep(4)}
+                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <ArrowLeft className="h-4 w-4" /> Back
+                    </span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      loading ||
+                      (usernameStatus !== "ok" && usernameStatus !== "unvalidated") ||
+                      !username.trim() ||
+                      !email.trim() ||
+                      !password ||
+                      !confirmPassword ||
+                      password !== confirmPassword ||
+                      !passwordStrength.valid ||
+                      !ageConfirmed ||
+                      !agreementGateOpen ||
+                      (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
+                    }
+                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{
+                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                      color: "var(--on-accent-bg)",
+                    }}
+                  >
+                    {loading ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating account...
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-2">Create Account</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <p className="text-center text-sm" style={{ color: "var(--muted)" }}>
+              {t("signup.alreadyHaveAccount")}{" "}
+              <Link href={loginUrlWithIntent(redirectAfterSignup)} className="underline" style={{ color: "var(--accent-cyan)" }}>
+                {t("common.signIn")}
+              </Link>
+            </p>
+          </form>
+        </div>
+      </main>
+
+      {showDlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.72)" }}>
+          <div className="relative w-full max-w-md rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
             <button
               type="button"
-              onClick={() => setShowDlModal(true)}
-              className="text-cyan-400/80 hover:text-cyan-300 underline"
+              onClick={() => setShowDlModal(false)}
+              className="absolute right-4 top-4 transition"
+              aria-label="Close"
+              style={{ color: "var(--muted2)" }}
             >
-              Verify with driver&apos;s license
-            </button>{" "}
-            for future legal protection flows.
-          </p>
-        </div>
-
-        {showDlModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-neutral-900 p-6 space-y-4 relative">
+              <X className="h-5 w-5" />
+            </button>
+            <div className="mb-4 flex items-center gap-3">
+              <div
+                className="rounded-xl border p-2"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--accent-cyan) 22%, transparent)",
+                  background: "color-mix(in srgb, var(--accent-cyan) 10%, transparent)",
+                }}
+              >
+                <CreditCard className="h-5 w-5" style={{ color: "var(--accent-cyan)" }} />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold">Driver&apos;s License Verification</h2>
+                <p className="text-xs" style={{ color: "var(--muted2)" }}>
+                  Age verification for legal protection
+                </p>
+              </div>
+            </div>
+            <p className="mb-3 text-sm leading-6" style={{ color: "var(--muted)" }}>
+              Verifying your driver&apos;s license confirms you are 18+ and protects your account in future legal or compliance flows.
+            </p>
+            <p className="mb-4 text-sm leading-6" style={{ color: "var(--muted)" }}>
+              This step is optional. You can verify your age now or complete it later in Settings.
+            </p>
+            <div className="mb-4 rounded-xl border p-4 text-xs leading-6" style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}>
+              <p className="font-medium" style={{ color: "var(--text)" }}>What you&apos;ll need:</p>
+              <p>• A valid government-issued driver&apos;s license</p>
+              <p>• A photo or scan of the front of your license</p>
+              <p>• Your date of birth must be visible</p>
+            </div>
+            <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setShowDlModal(false)}
-                className="absolute right-4 top-4 text-white/40 hover:text-white/80 transition"
-                aria-label="Close"
+                className="flex-1 rounded-xl border px-4 py-3 text-sm transition hover:opacity-90"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
               >
-                <X className="h-5 w-5" />
+                Skip for now
               </button>
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-2">
-                  <CreditCard className="h-5 w-5 text-cyan-400" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-white">Driver&apos;s License Verification</h2>
-                  <p className="text-xs text-white/50">Age verification for legal protection</p>
-                </div>
-              </div>
-              <p className="text-sm text-white/70">
-                Verifying your driver&apos;s license confirms you are 18+ and protects your account in future legal or compliance flows.
-              </p>
-              <p className="text-sm text-white/70">
-                This step is <span className="text-white font-medium">optional</span>. You can verify your age now or complete it later in Settings.
-              </p>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-xs text-white/50 space-y-1">
-                <p className="font-medium text-white/70">What you&apos;ll need:</p>
-                <p>• A valid government-issued driver&apos;s license</p>
-                <p>• A photo or scan of the front of your license</p>
-                <p>• Your date of birth must be visible</p>
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowDlModal(false)}
-                  className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 transition"
-                >
-                  Skip for now
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowDlModal(false)
-                    window.open("/settings/verify-identity", "_blank")
-                  }}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 transition"
-                >
-                  Verify Now
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDlModal(false)
+                  window.open("/settings/verify-identity", "_blank")
+                }}
+                className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                style={{
+                  backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                  color: "var(--on-accent-bg)",
+                }}
+              >
+                Verify Now
+              </button>
             </div>
           </div>
-        )}
-
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-5 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-white/80">
-            <FileText className="h-4 w-4 text-cyan-400" />
-            Disclaimer
-          </div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={disclaimerAgreed}
-              onChange={(e) => setDisclaimerAgreed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
-            />
-            <span className="text-sm text-white/80 leading-relaxed">
-              I understand this app is for fantasy sports only—no gambling, no DFS. I agree to use it accordingly. *
-              {" "}
-              <Link href={getDisclaimerUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
-                Read full Disclaimer
-              </Link>
-            </span>
-          </label>
         </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-white/80">
-            <Shield className="h-4 w-4 text-cyan-400" />
-            Terms and Conditions
-          </div>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={termsAgreed}
-              onChange={(e) => setTermsAgreed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-cyan-500"
-            />
-            <span className="text-sm text-white/80 leading-relaxed">
-              I agree to the{" "}
-              <Link href={getTermsUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
-                Terms of Service
-              </Link>
-              {" "}and{" "}
-              <Link href={getPrivacyUrl(true, nextParam)} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline">
-                Privacy Policy
-              </Link>
-              . *
-            </span>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-white/40">or link an account</span>
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
-        <SocialLoginButtons callbackUrl={redirectAfterSignup} />
-
-        <button
-          type="submit"
-          disabled={
-            loading ||
-            (usernameStatus !== "ok" && usernameStatus !== "unvalidated") ||
-            !username.trim() ||
-            !email.trim() ||
-            !password ||
-            !confirmPassword ||
-            password !== confirmPassword ||
-            !passwordStrength.valid ||
-            !ageConfirmed ||
-            !agreementGateOpen ||
-            (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
-          }
-          className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-3 text-sm font-semibold text-white hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-        >
-          {loading ? (
-            <span className="inline-flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Creating account...
-            </span>
-          ) : (
-            t("signup.createAccount")
-          )}
-        </button>
-
-        <p className="text-center text-sm text-white/40">
-          {t("signup.alreadyHaveAccount")} {" "}
-          <Link href={loginUrlWithIntent(redirectAfterSignup)} className="text-white/80 hover:text-white hover:underline transition">
-            {t("common.signIn")}
-          </Link>
-        </p>
-      </form>
+      )}
     </div>
   )
 }

@@ -90,6 +90,7 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
   if (!league) return null
   const sport = normalizeToSupportedSport(league.sport) as LeagueSport
   const sportAdapterId = getDevyAdapterForSport(sport)
+  const defaults = defaultCommissionerSettings(sport)
 
   const row = await prisma.devyLeagueConfig.findUnique({
     where: { leagueId },
@@ -132,7 +133,6 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
 
   if (league.leagueVariant !== DEVY_DYNASTY_VARIANT) return null
 
-  const defaults = defaultCommissionerSettings(sport)
   return {
     leagueId: league.id,
     sport,
