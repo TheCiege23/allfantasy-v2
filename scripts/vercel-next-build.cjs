@@ -104,12 +104,18 @@ function run() {
   const nextArgs = process.argv.slice(2)
   const nextBin = path.join(repoRoot, 'node_modules', 'next', 'dist', 'bin', 'next')
   let child
+  const childEnv = {
+    ...process.env,
+    NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
+      ? process.env.NODE_OPTIONS
+      : [process.env.NODE_OPTIONS, '--max-old-space-size=8192'].filter(Boolean).join(' '),
+  }
 
   try {
     child = spawn(process.execPath, [nextBin, 'build', ...nextArgs], {
       cwd: repoRoot,
       stdio: 'inherit',
-      env: process.env,
+      env: childEnv,
     })
   } catch (error) {
     console.error('[vercel-next-build] Failed to start next build:', error)
@@ -132,7 +138,12 @@ function run() {
     shutdown(143)
   })
 
-  child.on('close', (code) => {
+  child.on('close', (code, signal) => {
+    if ((code ?? 0) !== 0 || signal) {
+      console.error(
+        `[vercel-next-build] next build exited with code ${code ?? 'null'} and signal ${signal ?? 'none'}`
+      )
+    }
     shutdown(code ?? 1)
   })
 

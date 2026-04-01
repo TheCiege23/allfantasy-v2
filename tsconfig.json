@@ -27,6 +27,7 @@
   "include": [
     "next-env.d.ts",
     "app/**/*.d.ts",
+    "types/**/*.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
     "middleware.ts",
