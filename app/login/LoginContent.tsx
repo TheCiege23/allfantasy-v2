@@ -1,22 +1,19 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { signIn } from "next-auth/react"
 import {
-  ArrowLeft,
   Shield,
   Loader2,
   TriangleAlert,
   Eye,
   EyeOff,
   CheckCircle2,
+  ArrowRight,
+  X,
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
-import AuthShell from "@/components/auth/AuthShell"
-import AuthHero from "@/components/auth/AuthHero"
-import AuthSocialBlock from "@/components/auth/SocialLoginButtonsBlock"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
@@ -29,6 +26,12 @@ import {
   rememberUnifiedAuthDestination,
   resolveUnifiedAuthDestination,
 } from "@/lib/auth/UnifiedAuthOrchestrator"
+import {
+  type SocialProvider,
+  isSocialProviderEnabled,
+} from "@/lib/auth/SocialProviderResolver"
+import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
   if (typeof callbackUrl === "string" && callbackUrl.trim().startsWith("/app")) {
@@ -72,8 +75,11 @@ export default function LoginContent() {
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminError, setAdminError] = useState<string | null>(null)
   const [adminRemaining, setAdminRemaining] = useState<number | null>(null)
+  const [adminModalOpen, setAdminModalOpen] = useState(isAdminLogin)
+  const [showAdminPassword, setShowAdminPassword] = useState(false)
 
   const [configError, setConfigError] = useState<string | null>(null)
+  const [socialLoadingProvider, setSocialLoadingProvider] = useState<SocialProvider | null>(null)
   const showDevBypass = process.env.NEXT_PUBLIC_DEV_AUTH_BYPASS_ENABLED === "true"
 
   useEffect(() => {
@@ -91,6 +97,23 @@ export default function LoginContent() {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (isAdminLogin) {
+      setAdminModalOpen(true)
+    }
+  }, [isAdminLogin])
+
+  useEffect(() => {
+    if (!adminModalOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAdminModalOpen(false)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [adminModalOpen])
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -208,195 +231,346 @@ export default function LoginContent() {
     }
   }
 
+  function getOAuthRedirectTo(requestedPath: string) {
+    const safePath =
+      requestedPath.startsWith("/") && !requestedPath.startsWith("//")
+        ? requestedPath
+        : "/dashboard"
+    const configuredBaseUrl = process.env.NEXT_PUBLIC_APP_URL?.trim()
+    if (configuredBaseUrl) {
+      return `${configuredBaseUrl.replace(/\/$/, "")}${safePath}`
+    }
+    if (typeof window !== "undefined") {
+      return `${window.location.origin}${safePath}`
+    }
+    return undefined
+  }
+
+  async function handleSocialProvider(provider: SocialProvider) {
+    if (socialLoadingProvider) return
+    setSocialLoadingProvider(provider)
+    try {
+      const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
+      const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
+
+      if (provider === "google" && isSupabaseConfigured) {
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: getOAuthRedirectTo(callbackUrl) },
+        })
+        return
+      }
+
+      if (provider === "apple" && isSupabaseConfigured) {
+        await supabase.auth.signInWithOAuth({
+          provider: "apple",
+          options: { redirectTo: getOAuthRedirectTo(callbackUrl) },
+        })
+        return
+      }
+
+      if (
+        (provider === "google" && googleEnabled) ||
+        (provider === "apple" && appleEnabled) ||
+        isSocialProviderEnabled(provider)
+      ) {
+        await signIn(provider, { callbackUrl })
+        return
+      }
+
+      router.push(
+        buildProviderPendingHref({
+          provider,
+          callbackUrl,
+        })
+      )
+    } finally {
+      setSocialLoadingProvider(null)
+    }
+  }
+
   return (
-    <AuthShell>
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-28 -left-20 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="absolute -bottom-24 -right-16 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_42%),radial-gradient(circle_at_bottom,rgba(168,85,247,0.08),transparent_42%)]" />
-      </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#110b1e] text-white">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 55% 45% at 50% 15%, rgba(6,182,212,0.07) 0%, transparent 65%), radial-gradient(ellipse 40% 35% at 70% 80%, rgba(59,130,246,0.05) 0%, transparent 65%), radial-gradient(ellipse 50% 40% at 20% 60%, rgba(139,92,246,0.04) 0%, transparent 65%)",
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-80"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(139,92,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(139,92,246,0.03) 1px, transparent 1px)",
+          backgroundSize: "52px 52px",
+          maskImage: "radial-gradient(ellipse 60% 60% at 50% 30%, black, transparent 80%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 60% 60% at 50% 30%, black, transparent 80%)",
+        }}
+      />
 
-      <Link
-        href="/"
-        className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/35 px-3 py-2 text-sm text-white/80 backdrop-blur-sm transition hover:bg-black/55 hover:text-white md:left-6 md:top-6"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {t("common.back")}
-      </Link>
+      <nav className="relative z-20 flex h-14 items-center justify-between border-b border-violet-400/15 bg-[#110b1e]/90 px-4 backdrop-blur-xl sm:px-8">
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
+          <img
+            src="https://www.allfantasy.ai/af-crest.png"
+            alt="AllFantasy"
+            width={28}
+            height={28}
+            className="h-7 w-7 object-contain"
+          />
+          <span
+            className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text font-['Bebas_Neue'] text-[20px] tracking-[0.06em] text-transparent"
+          >
+            AllFantasy
+          </span>
+        </Link>
+        <Link
+          href={signupUrlWithIntent(callbackUrl)}
+          className="rounded-[7px] border border-violet-400/30 px-4 py-1.5 text-[13px] font-medium text-white/65 transition hover:border-violet-300/50 hover:text-white"
+        >
+          Create Account
+        </Link>
+      </nav>
 
-      <div className="relative z-10 w-full max-w-md space-y-4">
-        {isAdminLogin ? (
-          <div className="rounded-3xl border border-white/15 bg-black/45 p-6 shadow-2xl backdrop-blur-md">
-            <div className="flex items-start gap-3">
-              <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-2">
-                <Shield className="h-5 w-5 text-cyan-400" />
-              </div>
-              <div>
-                <div className="text-xl font-semibold">{t("login.admin.signInTitle")}</div>
-                <div className="text-sm text-white/60">{t("login.admin.subtitle")}</div>
-              </div>
+      <main className="relative z-10 flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-10 sm:px-4 sm:py-16">
+        <div className="w-full max-w-[440px]">
+          <div className="pb-8 text-center">
+            <div className="relative mb-5 inline-flex">
+              <div className="absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(6,182,212,0.22)_0%,rgba(59,130,246,0.12)_40%,transparent_70%)] blur-[5px]" />
+              <img
+                src="https://www.allfantasy.ai/branding/allfantasy-crest-chatgpt.png"
+                alt="AllFantasy crest"
+                width={60}
+                height={60}
+                className="relative h-[60px] w-[60px] object-contain drop-shadow-[0_0_16px_rgba(6,182,212,0.42)]"
+              />
             </div>
+            <p className="text-[20px] font-semibold text-white">Welcome back</p>
+            <p className="mt-1 text-sm text-white/60">
+              Sign in to access the Sports App, Brackets, and AI Tools.
+            </p>
+            <p className="mt-2 text-xs text-white/45">
+              {t("login.afterSignIn")} <span className="font-medium text-cyan-300/90">{destinationLabel}</span>
+            </p>
+          </div>
 
-            {adminError && (
-              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                <div className="flex items-start gap-2">
-                  <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-                  <div>
-                    {adminError}
-                    {typeof adminRemaining === "number" && (
-                      <span className="ml-1 text-xs text-red-200/70">
-                    ({adminRemaining} {t("login.admin.attemptsRemaining")})
-                      </span>
-                    )}
-                  </div>
+          {configError && (
+            <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <strong>{t("login.signInUnavailable")}</strong> {configError}
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            <form onSubmit={handleAdminLogin} className="mt-5 space-y-3">
+          {passwordReset && !error && (
+            <div className="mb-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                {t("login.passwordResetSuccess")}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-[18px] border border-violet-400/20 bg-[#16102a] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
-                <label className="text-sm text-white/70">{t("common.password")}</label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label htmlFor="login-identifier" className="text-[13px] font-semibold tracking-[0.02em] text-white/60">
+                    Email, username, or phone
+                  </label>
+                </div>
                 <input
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  type="password"
-                  autoComplete="current-password"
-                  className="mt-1 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-sm outline-none transition focus:border-cyan-400/50"
-                  placeholder={t("login.admin.placeholder")}
-                  disabled={adminLoading}
-                  autoFocus
+                  id="login-identifier"
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  type="text"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  disabled={loading}
+                  placeholder="you@example.com, username, or +1 555 123 4567"
+                  className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 text-[15px] text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                 />
               </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <label htmlFor="login-password" className="text-[13px] font-semibold tracking-[0.02em] text-white/60">
+                    {t("common.password")}
+                  </label>
+                  <Link
+                    href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`}
+                    className="text-[12.5px] font-medium text-cyan-400 transition hover:opacity-75"
+                  >
+                    {t("login.forgotPassword")}
+                  </Link>
+                </div>
+                <div className="relative">
+                  <input
+                    id="login-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    disabled={loading}
+                    placeholder="Your password"
+                    className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 pr-11 text-[15px] text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
+                    onClick={() => setShowPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/35 transition hover:text-cyan-200"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                  <div className="flex items-start gap-2">
+                    <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>{error}</div>
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={adminLoading || !adminPassword.trim()}
-                className="w-full rounded-xl bg-white text-black px-4 py-2.5 text-sm font-medium hover:bg-gray-200 disabled:opacity-60 transition-colors"
+                disabled={loading || !login.trim() || !password}
+                className="flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3.5 text-base font-bold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {adminLoading ? (
-                  <span className="inline-flex items-center justify-center gap-2">
+                {loading ? (
+                  <>
                     <Loader2 className="h-4 w-4 animate-spin" />
                     {t("common.signingIn")}
-                  </span>
+                  </>
                 ) : (
-                  t("common.signIn")
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
                 )}
               </button>
             </form>
-          </div>
-        ) : (
-          <>
-            <div className="mx-auto mb-2 flex w-fit items-center gap-3 rounded-2xl border border-white/15 bg-black/45 p-2 pr-4 shadow-lg backdrop-blur-md">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/30 bg-gradient-to-b from-cyan-500/20 to-purple-500/20">
-                <Image
-                  src="/af-crest.png"
-                  alt="AllFantasy crest"
-                  width={34}
-                  height={34}
-                  className="h-8 w-8 object-contain"
-                  priority
-                />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-300/80">AllFantasy</p>
-                <p className="text-xs text-white/80">Sports App Sign In</p>
-              </div>
+
+            <div className="mt-2 flex items-center justify-center gap-2 text-xs text-white/35">
+              <span className="rounded border border-violet-400/30 bg-[#1c1535] px-2 py-0.5 font-mono text-[11px] font-semibold text-white/55">
+                Enter
+              </span>
+              <span>to sign in</span>
             </div>
-            <AuthHero title={t("login.title")} subtitle={t("login.subtitle")} />
-            <p className="-mt-3 mb-1 text-center text-xs text-white/50">{t("login.afterSignIn")} <span className="font-medium text-cyan-300/90">{destinationLabel}</span></p>
 
-            {configError && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-                <div className="flex items-start gap-2">
-                  <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-                  <div>
-                    <strong>{t("login.signInUnavailable")}</strong> {configError}
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="my-6 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-white/30">
+              <div className="h-px flex-1 bg-violet-400/20" />
+              <span>or continue with</span>
+              <div className="h-px flex-1 bg-violet-400/20" />
+            </div>
 
-            {passwordReset && !error && (
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-300">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 shrink-0" />
-                  {t("login.passwordResetSuccess")}
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => void handleSocialProvider("google")}
+                disabled={socialLoadingProvider !== null}
+                className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-4 py-3 text-sm font-medium text-white transition hover:border-violet-300/45 hover:bg-[#211a3e] disabled:opacity-70"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.703-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+                  <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853" />
+                  <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+                  <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+                </svg>
+                <span>{socialLoadingProvider === "google" ? "Opening..." : "Continue with Google"}</span>
+              </button>
 
-            {error && (
-              <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                <div className="flex items-start gap-2">
-                  <TriangleAlert className="h-5 w-5 mt-0.5 shrink-0" />
-                  <div>{error}</div>
-                </div>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => void handleSocialProvider("apple")}
+                disabled={socialLoadingProvider !== null}
+                className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border border-neutral-800 bg-black px-4 py-3 text-sm font-medium text-white transition hover:border-neutral-600 hover:bg-neutral-950 disabled:opacity-70"
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="white" aria-hidden="true">
+                  <path d="M12.71 9.43c-.02-2.14 1.75-3.17 1.83-3.22-1-1.46-2.55-1.66-3.1-1.68-1.33-.13-2.6.78-3.27.78-.67 0-1.7-.76-2.8-.74-1.44.02-2.76.83-3.5 2.12-1.5 2.59-.38 6.43 1.07 8.53.71 1.03 1.56 2.18 2.67 2.14 1.07-.04 1.48-.69 2.77-.69 1.3 0 1.67.69 2.81.67 1.15-.02 1.89-1.05 2.59-2.08.82-1.19 1.16-2.34 1.18-2.4-.03-.01-2.26-.87-2.25-3.43z" />
+                  <path d="M10.6 3.12c.59-.71.99-1.7.88-2.69-.85.03-1.88.57-2.49 1.27-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.47 2.5-1.17z" />
+                </svg>
+                <span>{socialLoadingProvider === "apple" ? "Opening..." : "Continue with Apple"}</span>
+              </button>
+            </div>
 
-            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-2xl backdrop-blur-md">
-              <form onSubmit={handlePasswordLogin} className="space-y-4">
-                <div>
-                  <label htmlFor="login-identifier" className="block text-xs font-medium text-white/70">{t("login.identifier.label")}</label>
-                  <input
-                    id="login-identifier"
-                    value={login}
-                    onChange={(e) => setLogin(e.target.value)}
-                    type="text"
-                    autoComplete="username"
-                    className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
-                    placeholder={t("login.identifier.placeholder")}
-                    disabled={loading}
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="login-password" className="block text-xs font-medium text-white/70">{t("common.password")}</label>
-                    <Link href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`} className="text-xs text-cyan-400/80 hover:text-cyan-300 transition">
-                      {t("login.forgotPassword")}
-                    </Link>
-                  </div>
-                  <div className="relative mt-1.5">
-                    <input
-                      id="login-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="current-password"
-                      className="w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 pr-10 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
-                      placeholder={t("login.password.placeholder")}
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                {
+                  provider: "facebook" as const,
+                  label: "Facebook",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073c0 6.03 4.388 11.025 10.125 11.927V15.563H7.078v-3.49h3.047V9.43c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.252h3.328l-.532 3.49h-2.796v8.437C19.612 23.098 24 18.103 24 12.073z" />
+                    </svg>
+                  ),
+                },
+                {
+                  provider: "instagram" as const,
+                  label: "Instagram",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="login-ig-g" x1="0%" y1="100%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#f09433" />
+                          <stop offset="25%" stopColor="#e6683c" />
+                          <stop offset="50%" stopColor="#dc2743" />
+                          <stop offset="75%" stopColor="#cc2366" />
+                          <stop offset="100%" stopColor="#bc1888" />
+                        </linearGradient>
+                      </defs>
+                      <path fill="url(#login-ig-g)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                    </svg>
+                  ),
+                },
+                {
+                  provider: "x" as const,
+                  label: "X / Twitter",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="white" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.256 5.622 5.908-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                    </svg>
+                  ),
+                },
+                {
+                  provider: "tiktok" as const,
+                  label: "TikTok",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="white" d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.27 8.27 0 004.84 1.55V6.86a4.85 4.85 0 01-1.07-.17z" />
+                    </svg>
+                  ),
+                },
+              ].map((item) => (
                 <button
-                  type="submit"
-                  disabled={loading || !login.trim() || !password}
-                  className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-900/20 transition-all hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50"
+                  key={item.provider}
+                  type="button"
+                  onClick={() => void handleSocialProvider(item.provider)}
+                  disabled={socialLoadingProvider !== null}
+                  className="relative flex flex-col items-center gap-1 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-2 py-3 text-white transition hover:border-violet-300/45 hover:bg-[#211a3e] disabled:opacity-70"
+                  title={`Continue with ${item.label}`}
                 >
-                  {loading ? (
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("common.signingIn")}
-                    </span>
-                  ) : (
-                    t("login.enter")
-                  )}
+                  <span className="absolute right-1 top-1 rounded border border-amber-400/30 bg-amber-500/15 px-1 text-[8px] font-bold uppercase tracking-[0.04em] text-amber-300">
+                    Soon
+                  </span>
+                  {item.icon}
+                  <span className="text-[10px] text-white/60">{item.label}</span>
                 </button>
-              </form>
+              ))}
             </div>
 
-            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-2xl backdrop-blur-md">
+            <div className="mt-5 rounded-2xl border border-violet-400/20 bg-[#1c1535]/80 p-4">
               <form onSubmit={handleSleeperLogin} className="space-y-3">
                 <div>
-                  <label htmlFor="sleeper-username" className="block text-xs font-medium text-white/70">
+                  <label htmlFor="sleeper-username" className="block text-xs font-semibold tracking-[0.02em] text-white/60">
                     Sleeper username
                   </label>
                   <input
@@ -405,15 +579,15 @@ export default function LoginContent() {
                     onChange={(e) => setSleeperUsername(e.target.value)}
                     type="text"
                     autoComplete="username"
-                    className="mt-1.5 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2.5 text-sm outline-none transition placeholder:text-white/30 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
-                    placeholder="@your_sleeper_name"
                     disabled={sleeperLoading}
+                    placeholder="@your_sleeper_name"
+                    className="mt-1.5 w-full rounded-[10px] border border-violet-400/30 bg-[#211a3e] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={sleeperLoading || !sleeperUsername.trim()}
-                  className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-white/10 disabled:opacity-50"
+                  className="w-full rounded-[10px] border border-violet-400/30 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
                 >
                   {sleeperLoading ? (
                     <span className="inline-flex items-center justify-center gap-2">
@@ -428,8 +602,8 @@ export default function LoginContent() {
             </div>
 
             {showDevBypass && (
-              <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-xl backdrop-blur-sm">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-emerald-200">
+              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-200">
                   <Shield className="h-4 w-4" />
                   <span>Local Dev Access</span>
                 </div>
@@ -440,7 +614,7 @@ export default function LoginContent() {
                   type="button"
                   onClick={handleDevBypassLogin}
                   disabled={devBypassLoading}
-                  className="w-full rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-100 transition-all hover:bg-emerald-500/20 disabled:opacity-50"
+                  className="w-full rounded-[10px] border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-60"
                 >
                   {devBypassLoading ? (
                     <span className="inline-flex items-center justify-center gap-2">
@@ -453,76 +627,117 @@ export default function LoginContent() {
                 </button>
               </div>
             )}
+          </div>
 
-            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
-              <AuthSocialBlock callbackUrl={callbackUrl} />
+          <div className="mt-6 text-center text-sm text-white/55">
+            New to AllFantasy?{" "}
+            <Link href={signupUrlWithIntent(callbackUrl)} className="font-semibold text-cyan-400 transition hover:opacity-80">
+              Create your free account
+            </Link>
+          </div>
+        </div>
+      </main>
+
+      <button
+        type="button"
+        onClick={() => {
+          setAdminError(null)
+          setAdminRemaining(null)
+          setAdminModalOpen(true)
+        }}
+        className="fixed bottom-5 right-5 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-violet-400/15 bg-violet-500/10 text-violet-300/80 backdrop-blur-md transition hover:border-violet-300/35 hover:bg-violet-500/15 hover:text-violet-200"
+        title="Admin access"
+        aria-label="Admin sign in"
+      >
+        <Shield className="h-5 w-5" />
+      </button>
+
+      {adminModalOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-[#07090f]/75 p-4 backdrop-blur-md"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              setAdminModalOpen(false)
+            }
+          }}
+        >
+          <div className="relative w-full max-w-[340px] rounded-2xl border border-violet-400/30 bg-[#16102a] p-8 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setAdminModalOpen(false)}
+              className="absolute right-3 top-3 p-1 text-white/50 transition hover:text-white"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="mb-1 flex items-center gap-2">
+              <Shield className="h-5 w-5 text-violet-300/80" />
+              <h2 className="font-['Bebas_Neue'] text-[22px] tracking-[0.04em] text-white">
+                {t("login.admin.signInTitle")}
+              </h2>
             </div>
-
-            <p className="text-center text-sm text-white/50">
-              New to AllFantasy?{" "}
-              <Link
-                href={signupUrlWithIntent(callbackUrl)}
-                className="font-medium text-cyan-300 hover:text-cyan-200"
-              >
-                Create your account
-              </Link>
+            <p className="mb-5 text-sm text-white/60">
+              Restricted access. Enter your admin credentials to continue.
             </p>
 
-            <div className="rounded-3xl border border-white/15 bg-black/45 p-5 shadow-xl backdrop-blur-sm">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white/80">
-                <Shield className="h-4 w-4 text-cyan-400" />
-                <span>{t("login.admin.signInTitle")}</span>
-              </div>
-
-              {adminError && (
-                <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                  <div className="flex items-start gap-2">
-                    <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
-                    <div>
-                      {adminError}
-                      {typeof adminRemaining === "number" && (
-                        <span className="ml-1 text-xs text-red-200/70">
-                          ({adminRemaining} {t("login.admin.attemptsRemaining")})
-                        </span>
-                      )}
-                    </div>
+            {adminError && (
+              <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
+                <div className="flex items-start gap-2">
+                  <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    {adminError}
+                    {typeof adminRemaining === "number" && (
+                      <span className="ml-1 text-xs text-red-200/70">
+                        ({adminRemaining} {t("login.admin.attemptsRemaining")})
+                      </span>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              <form onSubmit={handleAdminLogin} className="space-y-3">
-                <div>
-                  <label className="text-xs text-white/60">{t("login.admin.password")}</label>
-                  <input
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    type="password"
-                    autoComplete="current-password"
-                    className="mt-1 w-full rounded-xl border border-white/15 bg-black/45 px-3 py-2 text-sm outline-none transition focus:border-cyan-400/60"
-                    placeholder={t("login.admin.placeholder")}
-                    disabled={adminLoading}
-                  />
-                </div>
+            <form onSubmit={handleAdminLogin} className="space-y-4">
+              <div className="relative">
+                <input
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  type={showAdminPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder={t("login.admin.placeholder")}
+                  disabled={adminLoading}
+                  autoFocus
+                  className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 pr-11 text-[15px] text-white outline-none transition placeholder:text-white/35 focus:border-violet-300/60 focus:ring-4 focus:ring-violet-500/10"
+                />
                 <button
-                  type="submit"
-                  disabled={adminLoading || !adminPassword.trim()}
-                  className="w-full rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-medium transition hover:bg-white/15 disabled:opacity-60"
+                  type="button"
+                  onClick={() => setShowAdminPassword((value) => !value)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-white/35 transition hover:text-violet-200"
+                  aria-label={showAdminPassword ? t("common.hidePassword") : t("common.showPassword")}
                 >
-                  {adminLoading ? (
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("common.signingIn")}
-                    </span>
-                  ) : (
-                    t("login.admin.signIn")
-                  )}
+                  {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
-              </form>
-            </div>
-          </>
-        )}
-      </div>
-    </AuthShell>
+              </div>
+
+              <button
+                type="submit"
+                disabled={adminLoading || !adminPassword.trim()}
+                className="w-full rounded-[10px] border border-violet-400/40 bg-violet-500/20 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500/30 disabled:opacity-60"
+              >
+                {adminLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("common.signingIn")}
+                  </span>
+                ) : (
+                  "Sign In as Admin"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

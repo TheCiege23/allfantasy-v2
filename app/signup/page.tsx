@@ -680,7 +680,7 @@ function SignupContent() {
               </Link>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     )
   }
