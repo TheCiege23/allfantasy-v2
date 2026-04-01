@@ -94,6 +94,8 @@ if (!databaseUrl) {
 }
 
 process.env.DATABASE_URL = databaseUrl;
+process.env.DIRECT_URL = databaseUrl;
+process.env.POSTGRES_PRISMA_URL = databaseUrl;
 
 if (
   databaseUrl.includes("pooler.supabase.com:5432") &&

@@ -23,8 +23,8 @@ const LEAGUE_TYPE_TOOLTIPS: Partial<Record<LeagueTypeId, string>> = {
   dynasty: 'Keep your full roster year to year; rookie drafts each season.',
   keeper: 'Keep a set number of players each season.',
   best_ball: 'No lineup setting; best scoring lineup counts each week.',
-  devy: 'Draft college players (devy) in addition to pro assets; currently NFL/NBA.',
-  c2c: 'Campus to Canton: college + pro assets in one league; currently NFL/NBA.',
+  devy: 'Draft and hold college players with dedicated devy rosters; supports football and basketball ecosystems.',
+  c2c: 'Campus to Canton: college + pro assets in one league with live college scoring; supports football and basketball ecosystems.',
   guillotine: 'Lowest scorer each week is eliminated.',
   survivor: 'Similar to guillotine; elimination-style.',
   tournament: 'Bracket or tournament format.',
@@ -53,7 +53,7 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
         description="You can change this later in settings (except where league rules lock the choice)."
         help={
           <>
-            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players where supported (NFL/NBA).
+            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players and college scoring where supported (football and basketball ecosystems).
           </>
         }
         helpTitle="League type explained"

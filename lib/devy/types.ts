@@ -1,6 +1,6 @@
 /**
  * Devy Dynasty league types. PROMPT 2/6.
- * Sport adapters: nfl_devy (NFL → NCAA Football), nba_devy (NBA → NCAA Basketball).
+ * Sport adapters: football_devy (NFL/NCAAF → NCAA Football), basketball_devy (NBA/NCAAB → NCAA Basketball).
  */
 
 import type { LeagueSport } from '@prisma/client'
@@ -15,13 +15,13 @@ export type PromotionTiming =
   | 'manager_choice_before_rookie_draft'
 
 /** Sport adapter ids used to resolve eligibility and pool by League.sport. */
-export type DevySportAdapterId = 'nfl_devy' | 'nba_devy'
+export type DevySportAdapterId = 'football_devy' | 'basketball_devy'
 
 /** Map League.sport to devy adapter. */
 export function getDevyAdapterForSport(sport: LeagueSport | string): DevySportAdapterId | null {
   const s = String(sport).toUpperCase()
-  if (s === 'NFL') return 'nfl_devy'
-  if (s === 'NBA') return 'nba_devy'
+  if (s === 'NFL' || s === 'NCAAF') return 'football_devy'
+  if (s === 'NBA' || s === 'NCAAB') return 'basketball_devy'
   return null
 }
 
@@ -43,7 +43,10 @@ export interface DevyFormatCapabilities {
 /** Commissioner-controlled settings. */
 export interface DevyCommissionerSettings {
   devySlotCount: number
+  devyIRSlots: number
   taxiSize: number
+  devyScoringEnabled: boolean
+  collegeSports: string[]
   rookieDraftRounds: number
   devyDraftRounds: number
   startupVetRounds: number | null

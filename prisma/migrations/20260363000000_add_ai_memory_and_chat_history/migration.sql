@@ -37,6 +37,35 @@ CREATE TABLE IF NOT EXISTS "chat_history" (
     CONSTRAINT "chat_history_pkey" PRIMARY KEY ("id")
 );
 
+ALTER TABLE "chat_history"
+    ADD COLUMN IF NOT EXISTS "conversationId" TEXT,
+    ADD COLUMN IF NOT EXISTS "userId" TEXT,
+    ADD COLUMN IF NOT EXISTS "leagueId" TEXT,
+    ADD COLUMN IF NOT EXISTS "content" TEXT,
+    ADD COLUMN IF NOT EXISTS "meta" JSONB,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3);
+
+UPDATE "chat_history"
+SET
+    "conversationId" = COALESCE("conversationId", "chat_type"::text, "id"::text),
+    "userId" = COALESCE("userId", "user_id"::text),
+    "leagueId" = COALESCE("leagueId", "league_id"::text),
+    "content" = COALESCE("content", "message"::text),
+    "meta" = COALESCE("meta", "metadata"),
+    "createdAt" = COALESCE("createdAt", "created_at", CURRENT_TIMESTAMP)
+WHERE
+    "conversationId" IS NULL
+    OR "userId" IS NULL
+    OR "leagueId" IS NULL
+    OR "content" IS NULL
+    OR "meta" IS NULL
+    OR "createdAt" IS NULL;
+
+ALTER TABLE "chat_history"
+    ALTER COLUMN "conversationId" SET NOT NULL,
+    ALTER COLUMN "content" SET NOT NULL,
+    ALTER COLUMN "createdAt" SET NOT NULL;
+
 CREATE INDEX IF NOT EXISTS "chat_history_conversationId_createdAt_idx"
 ON "chat_history"("conversationId", "createdAt");
 

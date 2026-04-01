@@ -136,7 +136,14 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
-  const draftTypeForSportValidation = requestedDraftType === 'mock_draft' ? 'snake' : requestedDraftType;
+  const draftTypeForSportValidation =
+    requestedDraftType === 'mock_draft'
+      ? 'snake'
+      : requestedDraftType === 'devy_snake' || requestedDraftType === 'c2c_snake'
+        ? 'snake'
+        : requestedDraftType === 'devy_auction' || requestedDraftType === 'c2c_auction'
+          ? 'auction'
+          : requestedDraftType;
   if (
     draftTypeForSportValidation &&
     !isDraftTypeAllowedForSport(sport, draftTypeForSportValidation, leagueVariantInput ?? null)
@@ -173,18 +180,18 @@ export async function POST(req: Request) {
   }
   if (isDevyRequested) {
     const devySport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (devySport !== 'NFL' && devySport !== 'NBA') {
+    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(devySport)) {
       return NextResponse.json(
-        { error: 'Devy leagues are only supported for NFL and NBA. Please select NFL or NBA as the sport.' },
+        { error: 'Devy leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
         { status: 400 }
       );
     }
   }
   if (isC2CRequested) {
     const c2cSport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (c2cSport !== 'NFL' && c2cSport !== 'NBA') {
+    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(c2cSport)) {
       return NextResponse.json(
-        { error: 'C2C (Campus to Canton) leagues are only supported for NFL and NBA. Please select NFL or NBA as the sport.' },
+        { error: 'C2C leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
         { status: 400 }
       );
     }
@@ -598,7 +605,15 @@ export async function POST(req: Request) {
     if (isDevy) {
       try {
         const { upsertDevyConfig } = await import('@/lib/devy/DevyLeagueConfig');
-        await upsertDevyConfig(league.id, {});
+        const s = settingsWizard as Record<string, unknown> | undefined;
+        await upsertDevyConfig(league.id, {
+          devySlotCount: typeof s?.devy_slot_count === 'number' ? s.devy_slot_count : undefined,
+          devyIRSlots: typeof s?.devy_ir_slots === 'number' ? s.devy_ir_slots : undefined,
+          taxiSize: typeof s?.devy_taxi_slots === 'number' ? s.devy_taxi_slots : undefined,
+          collegeSports: Array.isArray(s?.devy_college_sports)
+            ? (s?.devy_college_sports as string[]).filter(Boolean)
+            : undefined,
+        });
       } catch (err) {
         console.warn('[league/create] Devy config bootstrap non-fatal:', err);
       }
@@ -622,6 +637,11 @@ export async function POST(req: Request) {
           mergedStartupDraft: (s?.c2c_startup_mode as string) !== 'separate',
           separateStartupCollegeDraft: (s?.c2c_startup_mode as string) === 'separate',
           standingsModel: (s?.c2c_standings_model as string) ?? 'unified',
+          collegeSports: Array.isArray(s?.c2c_college_sports)
+            ? (s?.c2c_college_sports as string[]).filter(Boolean)
+            : undefined,
+          collegeScoringSystem: (s?.c2c_scoring_system as string) ?? 'ppr',
+          mixProPlayers: s?.c2c_mix_pro_players !== false,
           bestBallPro: s?.c2c_best_ball_pro !== false,
           bestBallCollege: Boolean(s?.c2c_best_ball_college),
           collegeRosterSize: typeof s?.c2c_college_roster_size === 'number' ? s.c2c_college_roster_size : 20,

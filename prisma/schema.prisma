@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("POSTGRES_PRISMA_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model EarlyAccessSignup {
@@ -268,6 +268,11 @@ model SportsPlayerRecord {
   injuryStatus String?  @map("injury_status") @db.VarChar(32)
   injuryNotes  String?  @map("injury_notes")
   news         Json?
+  headshotUrl  String?  @map("headshot_url")
+  headshotUrlSm String? @map("headshot_url_sm")
+  headshotUrlLg String? @map("headshot_url_lg")
+  headshotSource String? @map("headshot_source") @db.VarChar(32)
+  logoUrl      String?  @map("logo_url")
   lastUpdated  DateTime @default(now()) @updatedAt @map("last_updated")
   dataSource   String   @map("data_source") @db.VarChar(32)
 
@@ -276,6 +281,24 @@ model SportsPlayerRecord {
   @@index([sport, name])
   @@index([lastUpdated])
   @@map("sports_players")
+}
+
+model TeamAsset {
+  id             String   @id @default(cuid())
+  sport          String   @db.VarChar(16)
+  teamCode       String   @map("team_code") @db.VarChar(32)
+  teamName       String   @map("team_name") @db.VarChar(128)
+  logoUrl        String?  @map("logo_url")
+  logoUrlSm      String?  @map("logo_url_sm")
+  logoUrlLg      String?  @map("logo_url_lg")
+  logoSource     String?  @map("logo_source") @db.VarChar(32)
+  primaryColor   String?  @map("primary_color") @db.VarChar(32)
+  secondaryColor String?  @map("secondary_color") @db.VarChar(32)
+  lastUpdated    DateTime @default(now()) @updatedAt @map("last_updated")
+
+  @@unique([sport, teamCode], name: "uniq_team_assets_sport_team_code")
+  @@index([sport])
+  @@map("team_assets")
 }
 
 model InjuryReportRecord {
@@ -2220,6 +2243,10 @@ model DevyPlayer {
   position       String
   school         String
   conference     String?
+  sport          String  @default("NCAAF") @db.VarChar(8)
+  headshotUrl    String?
+  jerseyNumber   String? @db.VarChar(16)
+  classYearLabel String? @db.VarChar(16)
   classYear      Int?
   heightInches   Int?
   weightLbs      Int?
@@ -2270,6 +2297,7 @@ model DevyPlayer {
   transferFromSchool   String?
   transferToSchool     String?
   transferEligibility  String?
+  portalStatus         String? @db.VarChar(24)
   nilImpactScore       Float?
   injurySeverityScore  Float?
   athleticProfileScore Float?
@@ -2277,6 +2305,13 @@ model DevyPlayer {
   volatilityScore      Float?
   nflDraftRound        Int?
   nflDraftPick         Int?
+  draftGrade           String? @db.VarChar(24)
+  projectedC2CPoints   Float?
+  c2cPointsSeason      Float?
+  c2cPointsWeek        Float?
+  stockTrendDelta      Float?
+  nextGameLabel        String? @db.VarChar(64)
+  statsPayload         Json?
 
   usageOverall     Float?
   usagePass        Float?
@@ -2305,12 +2340,15 @@ model DevyPlayer {
   @@unique([normalizedName, position, school], name: "uniq_devy_player")
   @@index([devyEligible])
   @@index([league])
+  @@index([sport])
   @@index([position])
   @@index([draftEligibleYear])
+  @@index([sport, draftEligibleYear])
   @@index([graduatedToNFL])
   @@index([cfbdId])
   @@index([draftStatus])
   @@index([draftProjectionScore])
+  @@index([portalStatus])
 }
 
 model DevyAdp {
@@ -3821,6 +3859,7 @@ model League {
   devyDraftHistories  DevyDraftHistory[]
   devyBestBallLineupSnapshots DevyBestBallLineupSnapshot[]
   c2cConfig           C2CLeagueConfig?
+  c2cScoringLogs      C2CScoringLog[]
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
   tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
   bigBrotherConfig   BigBrotherLeagueConfig?
@@ -5170,7 +5209,10 @@ model DevyLeagueConfig {
   supportsTradeableRookiePicks Boolean  @default(true)
   /// Commissioner-controlled roster/draft settings.
   devySlotCount               Int      @default(6)
+  devyIRSlots                 Int      @default(0)
   taxiSize                    Int      @default(6)
+  devyScoringEnabled          Boolean  @default(false)
+  collegeSports               Json?
   rookieDraftRounds           Int      @default(4)
   devyDraftRounds             Int      @default(4)
   startupVetRounds            Int?     // null = derive from roster (active + bench + taxi)
@@ -5210,6 +5252,8 @@ model DevyRights {
   leagueId             String   @db.VarChar(64)
   rosterId             String   @db.VarChar(64)
   devyPlayerId         String   @db.VarChar(64)
+  slotCategory         String   @default("DEVY") @db.VarChar(16)
+  c2cLineupRole        String?  @db.VarChar(16)
   /// Lifecycle: NCAA_DEVY_ACTIVE | NCAA_DEVY_TAXI | NCAA_DEVY_LOCKED | DECLARED | DRAFTED_RIGHTS_HELD | PROMOTION_ELIGIBLE | PROMOTED_TO_PRO | RETURNED_TO_SCHOOL | RIGHTS_EXPIRED | ORPHANED_RIGHTS
   state                String   @db.VarChar(32)
   seasonYear           Int?     // year of declaration/draft when relevant
@@ -5234,6 +5278,7 @@ model DevyRights {
   @@index([devyPlayerId])
   @@index([state])
   @@index([leagueId, state])
+  @@index([leagueId, rosterId, slotCategory])
   @@map("devy_rights")
 }
 
@@ -5353,6 +5398,9 @@ model C2CLeagueConfig {
   mergedStartupDraft                Boolean  @default(true)
   separateStartupCollegeDraft       Boolean  @default(false)
   collegeRosterSize                 Int      @default(20)
+  collegeSports                     Json?
+  collegeScoringSystem              String   @default("ppr") @db.VarChar(24)
+  mixProPlayers                     Boolean  @default(true)
   collegeActiveLineupSlots          Json?    // e.g. { qb:1, rb:2, wr:3, te:1, flex:2 } NFL; { g:2, f:2, c:1, flex:2 } NBA
   taxiSize                          Int      @default(6)
   rookieDraftRounds                 Int      @default(4)
@@ -5396,6 +5444,29 @@ model C2CLeagueConfig {
   updatedAt                         DateTime @updatedAt
 
   @@map("c2c_league_configs")
+}
+
+model C2CScoringLog {
+  id            String   @id @default(uuid())
+  leagueId      String   @db.VarChar(64)
+  rosterId      String   @db.VarChar(64)
+  devyPlayerId  String   @db.VarChar(64)
+  gameId        String   @default("season") @db.VarChar(64)
+  season        Int
+  week          Int
+  points        Float
+  scoringSystem String   @default("ppr") @db.VarChar(24)
+  breakdown     Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, devyPlayerId, season, week, gameId])
+  @@index([leagueId, week])
+  @@index([rosterId, season, week])
+  @@index([devyPlayerId, season])
+  @@map("c2c_scoring_logs")
 }
 
 /// Per-roster status in a Zombie league (Survivor | Zombie | Whisperer).

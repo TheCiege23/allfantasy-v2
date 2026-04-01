@@ -25,6 +25,9 @@ export interface LeagueForGrouping {
   syncStatus?: string | null
   syncError?: string | null
   lastSyncedAt?: string | null
+  navigationLeagueId?: string | null
+  unifiedLeagueId?: string | null
+  hasUnifiedRecord?: boolean | null
 }
 
 export interface SportGroup {

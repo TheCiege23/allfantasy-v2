@@ -119,6 +119,7 @@ export async function attachPlayerMedia(player: {
 
   let dbTeamAbbr: string | null = null
   let dbImageUrl: string | null = null
+  let dbTeamLogoUrl: string | null = null
   let source: 'db' | 'template' = 'template'
 
   try {
@@ -148,6 +149,46 @@ export async function attachPlayerMedia(player: {
         source = 'db'
       }
     }
+
+    const sportsPlayerRecord = await prisma.sportsPlayerRecord.findUnique({
+      where: { id: player.playerId },
+      select: {
+        team: true,
+        headshotUrl: true,
+        logoUrl: true,
+      },
+    }).catch(() => null)
+
+    if (sportsPlayerRecord?.headshotUrl) {
+      dbImageUrl = sportsPlayerRecord.headshotUrl
+      source = 'db'
+    }
+    if (sportsPlayerRecord?.team && !dbTeamAbbr) {
+      dbTeamAbbr = sportsPlayerRecord.team
+      source = 'db'
+    }
+    if (sportsPlayerRecord?.logoUrl) {
+      dbTeamLogoUrl = sportsPlayerRecord.logoUrl
+      source = 'db'
+    }
+
+    const effectiveTeamForLookup = dbTeamAbbr || player.teamAbbr || null
+    if (effectiveTeamForLookup) {
+      const teamAsset = await prisma.teamAsset.findUnique({
+        where: {
+          uniq_team_assets_sport_team_code: {
+            sport: sport.toUpperCase(),
+            teamCode: effectiveTeamForLookup,
+          },
+        },
+        select: { logoUrl: true },
+      }).catch(() => null)
+
+      if (teamAsset?.logoUrl) {
+        dbTeamLogoUrl = teamAsset.logoUrl
+        source = 'db'
+      }
+    }
   } catch {
     /* DB unavailable — fall through to template */
   }
@@ -156,7 +197,7 @@ export async function attachPlayerMedia(player: {
 
   const media: PlayerMedia = {
     headshotUrl: dbImageUrl || buildHeadshotUrl(player.playerId),
-    teamLogoUrl: getTeamLogoUrl(effectiveTeam, sport),
+    teamLogoUrl: dbTeamLogoUrl || getTeamLogoUrl(effectiveTeam, sport),
   }
 
   const result: ResolvedPlayerMedia = {
@@ -198,6 +239,8 @@ export async function attachPlayerMediaBatch(
 
   let identityMap = new Map<string, { currentTeam: string | null }>()
   let sportsPlayerMap = new Map<string, { imageUrl: string | null; team: string | null }>()
+  let sportsPlayerRecordMap = new Map<string, { headshotUrl: string | null; team: string | null; logoUrl: string | null }>()
+  let teamAssetMap = new Map<string, string>()
 
   try {
     const prisma = await getPrismaClient()
@@ -219,6 +262,48 @@ export async function attachPlayerMediaBatch(
         sportsPlayerMap.set(sp.sleeperId, { imageUrl: sp.imageUrl, team: sp.team })
       }
     }
+
+    const sportsPlayerRecords = await prisma.sportsPlayerRecord.findMany({
+      where: { id: { in: sleeperIds } },
+      select: { id: true, headshotUrl: true, team: true, logoUrl: true },
+    })
+    for (const row of sportsPlayerRecords) {
+      sportsPlayerRecordMap.set(row.id, {
+        headshotUrl: row.headshotUrl,
+        team: row.team,
+        logoUrl: row.logoUrl,
+      })
+    }
+
+    const uniqueTeams = Array.from(new Set(toResolve
+      .map((player) => {
+        const identity = identityMap.get(player.playerId)
+        const sportsPlayer = sportsPlayerMap.get(player.playerId)
+        const sportsRecord = sportsPlayerRecordMap.get(player.playerId)
+        return `${player.sport.toUpperCase()}:${identity?.currentTeam || sportsPlayer?.team || sportsRecord?.team || player.teamAbbr || ''}`
+      })
+      .filter((key) => key.split(':')[1])))
+
+    if (uniqueTeams.length > 0) {
+      const teamAssets = await prisma.teamAsset.findMany({
+        where: {
+          OR: uniqueTeams.map((entry) => {
+            const [sportType, teamCode] = entry.split(':')
+            return {
+              sport: sportType,
+              teamCode,
+            }
+          }),
+        },
+        select: { sport: true, teamCode: true, logoUrl: true },
+      })
+
+      for (const asset of teamAssets) {
+        if (asset.logoUrl) {
+          teamAssetMap.set(`${asset.sport}:${asset.teamCode}`, asset.logoUrl)
+        }
+      }
+    }
   } catch {
     /* DB unavailable — fall through to templates */
   }
@@ -226,15 +311,19 @@ export async function attachPlayerMediaBatch(
   for (const p of toResolve) {
     const identity = identityMap.get(p.playerId)
     const sportsPlayer = sportsPlayerMap.get(p.playerId)
+    const sportsPlayerRecord = sportsPlayerRecordMap.get(p.playerId)
 
-    const dbTeamAbbr = identity?.currentTeam || sportsPlayer?.team || null
+    const dbTeamAbbr = identity?.currentTeam || sportsPlayer?.team || sportsPlayerRecord?.team || null
     const effectiveTeam = dbTeamAbbr || p.teamAbbr
-    const dbImageUrl = sportsPlayer?.imageUrl || null
-    const source: 'db' | 'template' = (dbTeamAbbr || dbImageUrl) ? 'db' : 'template'
+    const dbImageUrl = sportsPlayerRecord?.headshotUrl || sportsPlayer?.imageUrl || null
+    const dbTeamLogoUrl = effectiveTeam
+      ? teamAssetMap.get(`${p.sport.toUpperCase()}:${effectiveTeam}`) || sportsPlayerRecord?.logoUrl || null
+      : sportsPlayerRecord?.logoUrl || null
+    const source: 'db' | 'template' = (dbTeamAbbr || dbImageUrl || dbTeamLogoUrl) ? 'db' : 'template'
 
     const media: PlayerMedia = {
       headshotUrl: dbImageUrl || buildHeadshotUrl(p.playerId),
-      teamLogoUrl: getTeamLogoUrl(effectiveTeam, p.sport),
+      teamLogoUrl: dbTeamLogoUrl || getTeamLogoUrl(effectiveTeam, p.sport),
     }
 
     const result: ResolvedPlayerMedia = {

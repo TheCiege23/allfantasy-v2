@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { DEFAULT_SPORT } from '@/lib/sport-scope';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,40 +75,57 @@ export async function GET() {
       }),
     ]);
 
+    const unifiedSleeperLeagueIdMap = new Map(
+      genericLeagues
+        .filter((lg: any) => lg.platform === 'sleeper' && typeof lg.platformLeagueId === 'string')
+        .map((lg: any) => [lg.platformLeagueId, lg.id] as const)
+    );
+
     const normalizedGeneric = genericLeagues.map((lg: any) => ({
       ...lg,
-      sport_type: lg.sport ?? 'NFL',
+      sport_type: lg.sport ?? DEFAULT_SPORT,
       league_variant: lg.leagueVariant ?? null,
+      navigationLeagueId: lg.id,
+      unifiedLeagueId: lg.id,
+      hasUnifiedRecord: true,
     }));
 
-    const normalizedSleeper = sleeperLeagues.map((lg: any) => ({
-      id: lg.id,
-      name: lg.name,
-      sport: (lg.sport as string) || 'NFL',
-      sport_type: (lg.sport as string) || 'NFL',
-      league_variant: null,
-      platform: 'sleeper',
-      platformLeagueId: lg.sleeperLeagueId,
-      leagueSize: lg.totalTeams,
-      avatarUrl: null,
-      scoring: lg.scoringType,
-      isDynasty: lg.isDynasty,
-      syncStatus: lg.syncStatus,
-      syncError: lg.syncError,
-      lastSyncedAt: lg.lastSyncedAt,
-      createdAt: lg.createdAt,
-      season: lg.season,
-      status: lg.status,
-      rosters: lg.rosters.map((r: any) => ({
-        id: r.id,
-        platformUserId: r.ownerId,
-        players: r.players,
-        starters: r.starters,
-        bench: r.bench,
-        faabRemaining: r.faabRemaining,
-        waiverPriority: r.waiverPriority,
-      })),
-    }));
+    const normalizedSleeper = sleeperLeagues
+      .map((lg: any) => {
+        const unifiedLeagueId = unifiedSleeperLeagueIdMap.get(lg.sleeperLeagueId) ?? null;
+        return {
+          id: lg.id,
+          name: lg.name,
+          sport: DEFAULT_SPORT,
+          sport_type: DEFAULT_SPORT,
+          league_variant: null,
+          platform: 'sleeper',
+          platformLeagueId: lg.sleeperLeagueId,
+          leagueSize: lg.totalTeams,
+          avatarUrl: null,
+          scoring: lg.scoringType,
+          isDynasty: lg.isDynasty,
+          syncStatus: lg.syncStatus,
+          syncError: lg.syncError,
+          lastSyncedAt: lg.lastSyncedAt,
+          createdAt: lg.createdAt,
+          season: lg.season,
+          status: lg.status,
+          navigationLeagueId: unifiedLeagueId,
+          unifiedLeagueId,
+          hasUnifiedRecord: Boolean(unifiedLeagueId),
+          rosters: lg.rosters.map((r: any) => ({
+            id: r.id,
+            platformUserId: r.ownerId,
+            players: r.players,
+            starters: r.starters,
+            bench: r.bench,
+            faabRemaining: r.faabRemaining,
+            waiverPriority: r.waiverPriority,
+          })),
+        };
+      })
+      .filter((lg: any) => !lg.hasUnifiedRecord);
 
     const leagues = [...normalizedGeneric, ...normalizedSleeper]
       .sort((a: any, b: any) => {

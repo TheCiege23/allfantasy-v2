@@ -49,16 +49,19 @@ const DEFAULT_CAPABILITIES: C2CFormatCapabilities = {
 }
 
 function defaultCommissionerSettings(sport: LeagueSport): C2CCommissionerSettings {
-  const isNFL = sport === 'NFL'
+  const isFootball = sport === 'NFL' || sport === 'NCAAF'
   return {
     startupFormat: 'merged',
     mergedStartupDraft: true,
     separateStartupCollegeDraft: false,
-    collegeRosterSize: isNFL ? NFL_C2C_COLLEGE_ROSTER_SIZE : NBA_C2C_COLLEGE_ROSTER_SIZE,
-    collegeActiveLineupSlots: isNFL ? NFL_C2C_COLLEGE_LINEUP_DEFAULT : NBA_C2C_COLLEGE_LINEUP_DEFAULT,
-    taxiSize: isNFL ? NFL_C2C_TAXI : NBA_C2C_TAXI,
-    rookieDraftRounds: isNFL ? NFL_C2C_ROOKIE_DRAFT_ROUNDS : NBA_C2C_ROOKIE_DRAFT_ROUNDS,
-    collegeDraftRounds: isNFL ? NFL_C2C_COLLEGE_DRAFT_ROUNDS : NBA_C2C_COLLEGE_DRAFT_ROUNDS,
+    collegeRosterSize: isFootball ? NFL_C2C_COLLEGE_ROSTER_SIZE : NBA_C2C_COLLEGE_ROSTER_SIZE,
+    collegeSports: [isFootball ? 'NCAAF' : 'NCAAB'],
+    collegeScoringSystem: isFootball ? 'ppr' : 'points',
+    mixProPlayers: true,
+    collegeActiveLineupSlots: isFootball ? NFL_C2C_COLLEGE_LINEUP_DEFAULT : NBA_C2C_COLLEGE_LINEUP_DEFAULT,
+    taxiSize: isFootball ? NFL_C2C_TAXI : NBA_C2C_TAXI,
+    rookieDraftRounds: isFootball ? NFL_C2C_ROOKIE_DRAFT_ROUNDS : NBA_C2C_ROOKIE_DRAFT_ROUNDS,
+    collegeDraftRounds: isFootball ? NFL_C2C_COLLEGE_DRAFT_ROUNDS : NBA_C2C_COLLEGE_DRAFT_ROUNDS,
     bestBallPro: true,
     bestBallCollege: false,
     promotionTiming: 'manager_choice_before_rookie_draft',
@@ -71,9 +74,9 @@ function defaultCommissionerSettings(sport: LeagueSport): C2CCommissionerSetting
     standingsModel: 'unified',
     mergedRookieCollegeDraft: false,
     nflCollegeExcludeKDST: true,
-    proLineupSlots: isNFL ? NFL_C2C_PRO_LINEUP_DEFAULT : NBA_C2C_PRO_LINEUP_DEFAULT,
-    proBenchSize: isNFL ? NFL_C2C_PRO_BENCH : NBA_C2C_PRO_BENCH,
-    proIRSize: isNFL ? NFL_C2C_PRO_IR : NBA_C2C_PRO_IR,
+    proLineupSlots: isFootball ? NFL_C2C_PRO_LINEUP_DEFAULT : NBA_C2C_PRO_LINEUP_DEFAULT,
+    proBenchSize: isFootball ? NFL_C2C_PRO_BENCH : NBA_C2C_PRO_BENCH,
+    proIRSize: isFootball ? NFL_C2C_PRO_IR : NBA_C2C_PRO_IR,
     startupDraftType: 'snake',
     rookieDraftType: 'snake',
     collegeDraftType: 'snake',
@@ -136,6 +139,11 @@ export async function getC2CConfig(leagueId: string): Promise<C2CLeagueConfigSha
       mergedStartupDraft: row.mergedStartupDraft,
       separateStartupCollegeDraft: row.separateStartupCollegeDraft,
       collegeRosterSize: row.collegeRosterSize,
+      collegeSports: Array.isArray((row as any).collegeSports)
+        ? ((row as any).collegeSports as string[]).filter(Boolean)
+        : defaults.collegeSports,
+      collegeScoringSystem: (row as any).collegeScoringSystem ?? defaults.collegeScoringSystem,
+      mixProPlayers: (row as any).mixProPlayers ?? defaults.mixProPlayers,
       collegeActiveLineupSlots: (parseLineupSlots(row.collegeActiveLineupSlots) ?? defaults.collegeActiveLineupSlots) as C2CLineupSlots,
       taxiSize: row.taxiSize,
       rookieDraftRounds: row.rookieDraftRounds,
@@ -188,6 +196,9 @@ export async function upsertC2CConfig(
     mergedStartupDraft: boolean
     separateStartupCollegeDraft: boolean
     collegeRosterSize: number
+    collegeSports: string[]
+    collegeScoringSystem: string
+    mixProPlayers: boolean
     collegeActiveLineupSlots: C2CLineupSlots
     taxiSize: number
     rookieDraftRounds: number
@@ -240,6 +251,9 @@ export async function upsertC2CConfig(
     mergedStartupDraft: input.mergedStartupDraft ?? true,
     separateStartupCollegeDraft: input.separateStartupCollegeDraft ?? false,
     collegeRosterSize: input.collegeRosterSize ?? defaults.collegeRosterSize,
+    collegeSports: input.collegeSports ?? defaults.collegeSports,
+    collegeScoringSystem: input.collegeScoringSystem ?? defaults.collegeScoringSystem,
+    mixProPlayers: input.mixProPlayers ?? defaults.mixProPlayers,
     collegeActiveLineupSlots: (input.collegeActiveLineupSlots ?? defaults.collegeActiveLineupSlots) as object,
     taxiSize: input.taxiSize ?? defaults.taxiSize,
     rookieDraftRounds: input.rookieDraftRounds ?? defaults.rookieDraftRounds,
@@ -280,6 +294,9 @@ export async function upsertC2CConfig(
       ...(input.mergedStartupDraft !== undefined && { mergedStartupDraft: input.mergedStartupDraft }),
       ...(input.separateStartupCollegeDraft !== undefined && { separateStartupCollegeDraft: input.separateStartupCollegeDraft }),
       ...(input.collegeRosterSize !== undefined && { collegeRosterSize: input.collegeRosterSize }),
+      ...(input.collegeSports !== undefined && { collegeSports: input.collegeSports }),
+      ...(input.collegeScoringSystem !== undefined && { collegeScoringSystem: input.collegeScoringSystem }),
+      ...(input.mixProPlayers !== undefined && { mixProPlayers: input.mixProPlayers }),
       ...(input.collegeActiveLineupSlots !== undefined && { collegeActiveLineupSlots: input.collegeActiveLineupSlots as object }),
       ...(input.taxiSize !== undefined && { taxiSize: input.taxiSize }),
       ...(input.rookieDraftRounds !== undefined && { rookieDraftRounds: input.rookieDraftRounds }),

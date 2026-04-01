@@ -38,6 +38,9 @@ export type RawDraftPlayerLike = {
   collegeOrPipeline?: string | null
   isDevy?: boolean
   school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   draftEligibleYear?: number | null
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' */
@@ -96,6 +99,9 @@ export function normalizeDraftPlayer(
     byeWeek: bye,
     injuryStatus: injuryStatus != null ? String(injuryStatus).trim() : null,
     collegeOrPipeline: collegeOrPipeline != null ? String(collegeOrPipeline).trim() : (school != null ? String(school).trim() : null),
+    classYearLabel: raw.classYearLabel != null ? String(raw.classYearLabel).trim() : null,
+    draftGrade: raw.draftGrade != null ? String(raw.draftGrade).trim() : null,
+    projectedLandingSpot: raw.projectedLandingSpot != null ? String(raw.projectedLandingSpot).trim() : null,
     sport: sportNorm,
   }
 
@@ -130,6 +136,9 @@ export function normalizeDraftPlayer(
     collegeOrPipeline: metadata.collegeOrPipeline ?? undefined,
     isDevy: isDevy || undefined,
     school: school != null ? String(school).trim() : undefined,
+    classYearLabel: raw.classYearLabel != null ? String(raw.classYearLabel).trim() : undefined,
+    draftGrade: raw.draftGrade != null ? String(raw.draftGrade).trim() : undefined,
+    projectedLandingSpot: raw.projectedLandingSpot != null ? String(raw.projectedLandingSpot).trim() : undefined,
     draftEligibleYear: draftEligibleYear ?? undefined,
     graduatedToNFL: graduatedToNFL || undefined,
     poolType: raw.poolType ?? (isDevy ? 'college' : undefined),

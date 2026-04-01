@@ -33,7 +33,16 @@ export type LeagueTypeId =
   | 'zombie'
   | 'salary_cap'
 
-export type DraftTypeId = 'snake' | 'linear' | 'auction' | 'slow_draft' | 'mock_draft'
+export type DraftTypeId =
+  | 'snake'
+  | 'linear'
+  | 'auction'
+  | 'slow_draft'
+  | 'mock_draft'
+  | 'devy_snake'
+  | 'devy_auction'
+  | 'c2c_snake'
+  | 'c2c_auction'
 
 export interface WizardDraftSettings {
   rounds: number
@@ -45,8 +54,13 @@ export interface WizardDraftSettings {
   keeperMaxKeepers: number | null
   /** Devy only */
   devyRounds: number[]
+  devySlotCount?: number
+  devyIrSlots?: number
+  devyTaxiSlots?: number
+  devyCollegeSports?: string[]
   /** C2C only */
   c2cCollegeRounds: number[]
+  c2cCollegeSports?: string[]
   /** C2C: merged | separate */
   c2cStartupMode?: 'merged' | 'separate'
   /** C2C: unified | separate | hybrid */
@@ -56,6 +70,8 @@ export interface WizardDraftSettings {
   c2cCollegeRosterSize?: number
   c2cRookieDraftRounds?: number
   c2cCollegeDraftRounds?: number
+  c2cScoringSystem?: 'ppr' | 'standard' | 'points'
+  c2cMixProPlayers?: boolean
 }
 
 export interface WizardAISettings {
@@ -169,7 +185,12 @@ export const DEFAULT_DRAFT_SETTINGS: WizardDraftSettings = {
   auctionBudgetPerTeam: 200,
   keeperMaxKeepers: 3,
   devyRounds: [],
+  devySlotCount: 12,
+  devyIrSlots: 2,
+  devyTaxiSlots: 6,
+  devyCollegeSports: ['NCAAF'],
   c2cCollegeRounds: [],
+  c2cCollegeSports: ['NCAAF'],
   c2cStartupMode: 'merged',
   c2cStandingsModel: 'unified',
   c2cBestBallPro: true,
@@ -177,6 +198,8 @@ export const DEFAULT_DRAFT_SETTINGS: WizardDraftSettings = {
   c2cCollegeRosterSize: 20,
   c2cRookieDraftRounds: 4,
   c2cCollegeDraftRounds: 6,
+  c2cScoringSystem: 'ppr',
+  c2cMixProPlayers: true,
 }
 
 export const DEFAULT_AI_SETTINGS: WizardAISettings = {

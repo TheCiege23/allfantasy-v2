@@ -1,5 +1,8 @@
 export function resolveLoginErrorMessage(error: string | null | undefined): string {
   if (!error) return 'Unable to sign in. Please try again.'
+  if (error.includes('SLEEPER_LOOKUP_UNAVAILABLE')) {
+    return 'Sleeper sign-in is temporarily unavailable. Please try again in a moment.'
+  }
   if (error.includes('SLEEPER_ONLY_ACCOUNT')) {
     return 'This account is Sleeper-linked only. Sign in with Sleeper or set a password first.'
   }
@@ -7,6 +10,14 @@ export function resolveLoginErrorMessage(error: string | null | undefined): stri
     return 'No password has been set for this account yet.'
   }
   return 'Invalid email, username, mobile number, or password.'
+}
+
+export function resolveSleeperLoginErrorMessage(error: string | null | undefined): string {
+  if (!error) return 'Unable to sign in with Sleeper. Please try again.'
+  if (error.includes('SLEEPER_LOOKUP_UNAVAILABLE')) {
+    return 'Sleeper sign-in is temporarily unavailable. Please try again in a moment.'
+  }
+  return 'We could not find that Sleeper account. Please check the username and try again.'
 }
 
 export function resolvePasswordResetErrorMessage(

@@ -25,6 +25,10 @@ const DRAFT_TYPE_TOOLTIPS: Record<DraftTypeId, string> = {
   auction: 'Each team has a budget; bid on players. Highest bid wins.',
   slow_draft: 'No live timer; picks can take hours or days. Good for busy leagues.',
   mock_draft: 'Practice draft engine mode tied to mock-draft flows and recap tools.',
+  devy_snake: 'Snake draft with a college-only devy pool and devy-specific rules.',
+  devy_auction: 'Auction draft for devy assets with college-only player pool support.',
+  c2c_snake: 'Snake draft for mixed C2C pools, including dedicated college rounds.',
+  c2c_auction: 'Auction draft for C2C leagues with college/pro pool controls.',
 }
 
 const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
@@ -33,6 +37,10 @@ const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
   auction: 'Each manager gets a budget and bids on every player.',
   slow_draft: 'Async format with longer pick windows.',
   mock_draft: 'Practice-first draft flow that integrates with the mock draft engine stack.',
+  devy_snake: 'College-player snake draft that feeds long-term devy rosters.',
+  devy_auction: 'College-player auction draft that supports premium devy stash formats.',
+  c2c_snake: 'Campus to Canton snake draft with college rounds and optional pro mixing.',
+  c2c_auction: 'Campus to Canton auction format with mixed pool bidding.',
 }
 
 const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
@@ -41,6 +49,10 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
   auction: '◼',
   slow_draft: '⏱',
   mock_draft: '🎯',
+  devy_snake: '🎓',
+  devy_auction: '🏷',
+  c2c_snake: '🏈',
+  c2c_auction: '🏀',
 }
 
 /**
@@ -53,7 +65,14 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
   const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType)
   const allowedBySport = rules?.draft.allowedDraftTypes ?? allowedByLeagueType
   const allowed = (() => {
-    const intersected = allowedByLeagueType.filter((id) => allowedBySport.includes(id))
+    const normalizedSportAllowed = new Set(
+      allowedBySport.flatMap((id) => {
+        if (id === 'snake') return ['snake', 'devy_snake', 'c2c_snake']
+        if (id === 'auction') return ['auction', 'devy_auction', 'c2c_auction']
+        return [id]
+      })
+    )
+    const intersected = allowedByLeagueType.filter((id) => normalizedSportAllowed.has(id))
     return intersected.length > 0 ? intersected : allowedByLeagueType
   })()
   const safeValue = allowed.includes(value) ? value : allowed[0]!

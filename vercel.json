@@ -21,6 +21,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron/import-images",
+      "schedule": "0 2 * * 1"
+    },
+    {
       "path": "/api/cron/health-check",
       "schedule": "* * * * *"
     },
@@ -47,6 +51,26 @@
     {
       "path": "/api/cron/ai-adp",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-sleeper-players",
+      "schedule": "0 4 * * 2"
+    },
+    {
+      "path": "/api/cron/devy-import",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/devy-projections",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/cron/devy-transfer-portal",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/c2c-live-scores",
+      "schedule": "*/20 * * * *"
     }
   ]
 }

@@ -567,6 +567,15 @@ export function LeagueCreationWizard({
           : state.leagueType === 'c2c'
             ? [1]
             : []
+      const defaultCollegeSport = state.sport === 'NBA' || state.sport === 'NCAAB' ? 'NCAAB' : 'NCAAF'
+      const devyCollegeSports =
+        state.draftSettings.devyCollegeSports?.length
+          ? state.draftSettings.devyCollegeSports
+          : [defaultCollegeSport]
+      const c2cCollegeSports =
+        state.draftSettings.c2cCollegeSports?.length
+          ? state.draftSettings.c2cCollegeSports
+          : [defaultCollegeSport]
       const presetScoringTemplate = creationPreset?.scoringTemplate
       const body = {
         name,
@@ -638,9 +647,15 @@ export function LeagueCreationWizard({
           schedule_playoff_transition_point: state.scheduleSettings.playoffTransitionPoint,
           schedule_generation_strategy: state.scheduleSettings.scheduleGenerationStrategy,
           auction_budget_per_team: state.draftSettings.auctionBudgetPerTeam,
+          special_draft_type: state.draftType,
           keeper_max_keepers: state.draftSettings.keeperMaxKeepers,
           devy_rounds: devyRounds,
+          devy_slot_count: state.draftSettings.devySlotCount ?? 12,
+          devy_ir_slots: state.draftSettings.devyIrSlots ?? 2,
+          devy_taxi_slots: state.draftSettings.devyTaxiSlots ?? 6,
+          devy_college_sports: devyCollegeSports,
           c2c_college_rounds: c2cCollegeRounds,
+          c2c_college_sports: c2cCollegeSports,
           c2c_startup_mode: state.draftSettings.c2cStartupMode ?? 'merged',
           c2c_standings_model: state.draftSettings.c2cStandingsModel ?? 'unified',
           c2c_best_ball_pro: state.draftSettings.c2cBestBallPro ?? true,
@@ -648,6 +663,8 @@ export function LeagueCreationWizard({
           c2c_college_roster_size: state.draftSettings.c2cCollegeRosterSize ?? 20,
           c2c_rookie_draft_rounds: state.draftSettings.c2cRookieDraftRounds ?? 4,
           c2c_college_draft_rounds: state.draftSettings.c2cCollegeDraftRounds ?? 6,
+          c2c_scoring_system: state.draftSettings.c2cScoringSystem ?? 'ppr',
+          c2c_mix_pro_players: state.draftSettings.c2cMixProPlayers ?? true,
           ai_adp_enabled: state.aiSettings.aiAdpEnabled,
           orphan_team_ai_manager_enabled: state.aiSettings.orphanTeamAiManagerEnabled,
           draft_helper_enabled: state.aiSettings.draftHelperEnabled,

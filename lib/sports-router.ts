@@ -38,6 +38,7 @@ import { isClearSportsAvailable } from './provider-config';
 import { normalizeToSupportedSport, type SupportedSport } from './sport-scope';
 import { sanitizeProviderError } from './ai-orchestration/provider-utils';
 import { logDiagnosticsEvent } from './provider-diagnostics';
+import { isRollingInsightsEnabledForSport } from '@/lib/workers/api-config';
 
 export type Sport = SupportedSport;
 export type DataType = 'teams' | 'players' | 'games' | 'stats' | 'standings' | 'schedule' | 'depth_charts' | 'team_stats';
@@ -62,13 +63,13 @@ interface SportsDataResponse {
 
 const API_PRIORITY: Record<Sport, string[]> = {
   // NFL keeps deterministic-first provider ordering from existing implementation.
-  NFL: ['rolling_insights', 'api_sports', 'espn', 'clear_sports', 'thesportsdb'],
-  NHL: ['clear_sports', 'thesportsdb', 'espn'],
-  NBA: ['clear_sports', 'thesportsdb', 'espn'],
-  MLB: ['clear_sports', 'thesportsdb', 'espn'],
-  NCAAB: ['clear_sports', 'thesportsdb', 'espn'],
-  NCAAF: ['clear_sports', 'thesportsdb', 'espn'],
-  SOCCER: ['clear_sports', 'thesportsdb', 'espn'],
+  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  NHL: ['clear_sports', 'api_sports', 'thesportsdb'],
+  NBA: ['clear_sports', 'api_sports', 'thesportsdb'],
+  MLB: ['clear_sports', 'api_sports', 'thesportsdb'],
+  NCAAB: ['clear_sports', 'api_sports', 'thesportsdb'],
+  NCAAF: ['clear_sports', 'api_sports', 'thesportsdb'],
+  SOCCER: ['clear_sports', 'api_sports', 'thesportsdb'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {
@@ -664,7 +665,7 @@ async function fetchFromSource(
   const result = await fetchWithTimeout(async () => {
     switch (source) {
       case 'rolling_insights':
-        if (sport !== 'NFL') return null;
+        if (sport !== 'NFL' || !isRollingInsightsEnabledForSport(sport)) return null;
         return fetchFromRollingInsights(dataType, identifier, season);
       case 'api_sports':
         if (sport !== 'NFL') return null;

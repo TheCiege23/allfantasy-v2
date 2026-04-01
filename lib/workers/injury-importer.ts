@@ -1,9 +1,9 @@
 import 'server-only'
 
-import { fetchAPISportsInjuries, getCurrentNFLSeasonForAPISports } from '@/lib/api-sports'
 import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
+import { apiChain } from '@/lib/workers/api-chain'
 
 const UPSERT_BATCH_SIZE = 100
 
@@ -51,20 +51,24 @@ export async function runInjuryImporter(options?: {
       week?: number | null
     }> = []
 
-    if (sport === 'NFL') {
-      const season = getCurrentNFLSeasonForAPISports()
-      const apiRows = await fetchAPISportsInjuries(season).catch(() => [])
-      rows = apiRows.map((injury) => ({
+    const response = await apiChain.fetch({
+      sport,
+      dataType: 'injuries',
+      query: { week, season: String(new Date().getFullYear()) },
+    })
+
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      rows = response.data.map((injury: any) => ({
         sport,
-        playerId: String(injury.player?.id ?? injury.id),
-        playerName: injury.player?.name ?? 'Unknown Player',
-        team: normalizeTeamAbbrev(injury.team?.name) ?? injury.team?.name ?? 'FA',
-        status: injury.status ?? 'questionable',
-        bodyPart: injury.type ?? null,
-        notes: injury.description ?? null,
+        playerId: String(injury.playerId ?? injury.externalId ?? ''),
+        playerName: String(injury.playerName ?? injury.player ?? 'Unknown Player'),
+        team: normalizeTeamAbbrev(injury.team) ?? injury.team ?? 'FA',
+        status: String(injury.status ?? 'questionable'),
+        bodyPart: typeof injury.bodyPart === 'string' ? injury.bodyPart : null,
+        notes: typeof injury.notes === 'string' ? injury.notes : null,
         practice: priorityWindow ? 'limited' : null,
-        gameStatus: injury.status ?? null,
-        reportDate: injury.date ? new Date(injury.date) : new Date(),
+        gameStatus: typeof injury.status === 'string' ? injury.status : null,
+        reportDate: injury.reportDate ? new Date(injury.reportDate) : new Date(),
         week,
       }))
     } else {

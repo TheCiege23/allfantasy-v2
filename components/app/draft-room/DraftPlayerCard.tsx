@@ -21,6 +21,9 @@ export type DraftPlayerCardProps = {
   isDevy?: boolean
   /** Devy: school (e.g. "Ohio State") */
   school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   /** Devy: promoted to NFL */
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' for Campus-to-Canton */
@@ -139,6 +142,9 @@ function DraftPlayerCardInner({
   testId,
   isDevy = false,
   school = null,
+  classYearLabel = null,
+  draftGrade = null,
+  projectedLandingSpot = null,
   graduatedToNFL = false,
   poolType,
 }: DraftPlayerCardProps) {
@@ -148,7 +154,11 @@ function DraftPlayerCardInner({
   const primaryStat = display?.stats?.primaryStatValue ?? adp
   const bye = display?.metadata?.byeWeek ?? display?.stats?.byeWeek ?? byeWeek
   const injuryStatus = display?.metadata?.injuryStatus ?? null
-  const devyLabel = school ?? (isDevy ? 'Devy' : null)
+  const resolvedSchool = school ?? display?.metadata?.collegeOrPipeline ?? null
+  const resolvedClassYearLabel = display?.metadata?.classYearLabel ?? classYearLabel
+  const resolvedDraftGrade = display?.metadata?.draftGrade ?? draftGrade
+  const resolvedProjectedLandingSpot = display?.metadata?.projectedLandingSpot ?? projectedLandingSpot
+  const devyLabel = resolvedSchool ?? (isDevy ? 'Devy' : null)
   const showPromoted = graduatedToNFL
   const showProBadge = poolType === 'pro'
   const showCollegeBadge = poolType === 'college' || (isDevy && !showProBadge)
@@ -228,8 +238,14 @@ function DraftPlayerCardInner({
               />
               <span className="text-xs text-white/60">{position}</span>
               {teamAbbr && <span className="text-xs text-white/50">{teamAbbr}</span>}
+              {resolvedClassYearLabel && (
+                <span className="text-xs text-white/50">{resolvedClassYearLabel}</span>
+              )}
               {primaryStat != null && (
                 <span className="text-xs text-white/50">ADP {primaryStat}</span>
+              )}
+              {resolvedDraftGrade && (
+                <span className="text-xs text-white/50">Grade {resolvedDraftGrade}</span>
               )}
               {bye != null && bye > 0 && (
                 <span className="text-xs text-white/50">Bye {bye}</span>
@@ -297,6 +313,11 @@ function DraftPlayerCardInner({
               {devyLabel}
             </span>
           )}
+          {resolvedDraftGrade && (
+            <span className="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-medium text-amber-100 shrink-0" title="Draft grade">
+              {resolvedDraftGrade}
+            </span>
+          )}
           {showPromoted && (
             <span className="rounded bg-emerald-500/25 px-1 py-0.5 text-[9px] font-medium text-emerald-200 shrink-0" title="Promoted to NFL">
               Promoted
@@ -304,7 +325,9 @@ function DraftPlayerCardInner({
           )}
         </div>
         <p className="text-[10px] text-white/55">
-          {position} · {teamAbbr ?? (school ?? '—')} · ADP {primaryStat ?? '—'}
+          {position} · {teamAbbr ?? (resolvedSchool ?? '—')} · ADP {primaryStat ?? '—'}
+          {resolvedClassYearLabel ? ` · ${resolvedClassYearLabel}` : ''}
+          {resolvedProjectedLandingSpot ? ` · ${resolvedProjectedLandingSpot}` : ''}
           {bye != null && bye > 0 ? ` · Bye ${bye}` : ''}
           {injuryStatus ? ` · ${injuryStatus}` : ''}
         </p>

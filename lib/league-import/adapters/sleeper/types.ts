@@ -41,6 +41,8 @@ export interface SleeperRosterRaw {
     ties?: number
     fpts?: number
     fpts_decimal?: number
+    waiver_budget_used?: number
+    waiver_position?: number
   }
 }
 

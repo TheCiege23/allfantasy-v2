@@ -62,6 +62,9 @@ export interface PlayerDraftMetadataModel {
   collegeOrPipeline?: string | null
   /** Eligibility note (e.g. "Rookie") */
   eligibilityNote?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   sport: DraftSport
 }
 
@@ -96,6 +99,9 @@ export interface NormalizedDraftEntry {
   isDevy?: boolean
   /** Devy: school (e.g. "Ohio State") */
   school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   /** Devy: draft-eligible year */
   draftEligibleYear?: number | null
   /** Devy: true when player has graduated to NFL (promotion pipeline) */

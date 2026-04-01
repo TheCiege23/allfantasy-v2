@@ -12,6 +12,7 @@ export type ChimmyAgentType =
   | 'power_rankings'
   | 'bracket'
   | 'dynasty_legacy'
+  | 'c2c_specialist'
   | 'storyline'
 
 const PROMPT_DIR = path.join(process.cwd(), 'lib', 'agents', 'prompts')
@@ -26,6 +27,7 @@ const AGENT_PROMPT_FILE_MAP: Record<ChimmyAgentType, string> = {
   power_rankings: 'power_rankings_agent_prompt.md',
   bracket: 'bracket_agent_prompt.md',
   dynasty_legacy: 'dynasty_legacy_agent_prompt.md',
+  c2c_specialist: 'c2c_agent_prompt.md',
   storyline: 'storyline_agent_prompt.md',
 }
 
@@ -105,6 +107,7 @@ export function inferAgentFromMessage(message: string): ChimmyAgentType {
   if (/compare|versus|vs\b|player comparison/.test(text)) return 'player_comparison'
   if (/power rank|ranking table|rankings/.test(text)) return 'power_rankings'
   if (/bracket|march madness|tournament/.test(text)) return 'bracket'
+  if (/\bc2c\b|college to canton|campus to canton|college scoring|college roster/.test(text)) return 'c2c_specialist'
   if (/dynasty|legacy|window|rebuild|contend/.test(text)) return 'dynasty_legacy'
   if (/story|narrative|hype|recap|drama/.test(text)) return 'storyline'
   return 'trade_analyzer'

@@ -39,12 +39,15 @@ const DEFAULT_CAPABILITIES: DevyFormatCapabilities = {
 }
 
 function defaultCommissionerSettings(sport: LeagueSport): DevyCommissionerSettings {
-  const isNFL = sport === 'NFL'
+  const isFootball = sport === 'NFL' || sport === 'NCAAF'
   return {
-    devySlotCount: isNFL ? DEFAULT_DEVY_SLOTS_NFL : DEFAULT_DEVY_SLOTS_NBA,
-    taxiSize: isNFL ? DEFAULT_TAXI_NFL : DEFAULT_TAXI_NBA,
-    rookieDraftRounds: isNFL ? DEFAULT_ROOKIE_ROUNDS_NFL : DEFAULT_ROOKIE_ROUNDS_NBA,
-    devyDraftRounds: isNFL ? DEFAULT_DEVY_ROUNDS_NFL : DEFAULT_DEVY_ROUNDS_NBA,
+    devySlotCount: isFootball ? DEFAULT_DEVY_SLOTS_NFL : DEFAULT_DEVY_SLOTS_NBA,
+    devyIRSlots: 2,
+    taxiSize: isFootball ? DEFAULT_TAXI_NFL : DEFAULT_TAXI_NBA,
+    devyScoringEnabled: false,
+    collegeSports: [isFootball ? 'NCAAF' : 'NCAAB'],
+    rookieDraftRounds: isFootball ? DEFAULT_ROOKIE_ROUNDS_NFL : DEFAULT_ROOKIE_ROUNDS_NBA,
+    devyDraftRounds: isFootball ? DEFAULT_DEVY_ROUNDS_NFL : DEFAULT_DEVY_ROUNDS_NBA,
     startupVetRounds: null,
     bestBallEnabled: false,
     startupDraftType: 'snake',
@@ -98,7 +101,12 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
       sportAdapterId,
       ...DEFAULT_CAPABILITIES,
       devySlotCount: row.devySlotCount,
+      devyIRSlots: (row as any).devyIRSlots ?? 0,
       taxiSize: row.taxiSize,
+      devyScoringEnabled: (row as any).devyScoringEnabled ?? false,
+      collegeSports: Array.isArray((row as any).collegeSports)
+        ? ((row as any).collegeSports as string[]).filter(Boolean)
+        : defaults.collegeSports,
       rookieDraftRounds: row.rookieDraftRounds,
       devyDraftRounds: row.devyDraftRounds,
       startupVetRounds: row.startupVetRounds,
@@ -138,7 +146,10 @@ export async function upsertDevyConfig(
   leagueId: string,
   input: Partial<{
     devySlotCount: number
+    devyIRSlots: number
     taxiSize: number
+    devyScoringEnabled: boolean
+    collegeSports: string[]
     rookieDraftRounds: number
     devyDraftRounds: number
     startupVetRounds: number | null
@@ -185,7 +196,10 @@ export async function upsertDevyConfig(
       supportsTradeableDevyPicks: true,
       supportsTradeableRookiePicks: true,
       devySlotCount: input.devySlotCount ?? defaults.devySlotCount,
+      devyIRSlots: input.devyIRSlots ?? defaults.devyIRSlots,
       taxiSize: input.taxiSize ?? defaults.taxiSize,
+      devyScoringEnabled: input.devyScoringEnabled ?? defaults.devyScoringEnabled,
+      collegeSports: input.collegeSports ?? defaults.collegeSports,
       rookieDraftRounds: input.rookieDraftRounds ?? defaults.rookieDraftRounds,
       devyDraftRounds: input.devyDraftRounds ?? defaults.devyDraftRounds,
       startupVetRounds: input.startupVetRounds ?? null,
@@ -209,7 +223,10 @@ export async function upsertDevyConfig(
     },
     update: {
       ...(input.devySlotCount !== undefined && { devySlotCount: input.devySlotCount }),
+      ...(input.devyIRSlots !== undefined && { devyIRSlots: input.devyIRSlots }),
       ...(input.taxiSize !== undefined && { taxiSize: input.taxiSize }),
+      ...(input.devyScoringEnabled !== undefined && { devyScoringEnabled: input.devyScoringEnabled }),
+      ...(input.collegeSports !== undefined && { collegeSports: input.collegeSports }),
       ...(input.rookieDraftRounds !== undefined && { rookieDraftRounds: input.rookieDraftRounds }),
       ...(input.devyDraftRounds !== undefined && { devyDraftRounds: input.devyDraftRounds }),
       ...(input.startupVetRounds !== undefined && { startupVetRounds: input.startupVetRounds }),

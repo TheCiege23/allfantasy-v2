@@ -17,6 +17,9 @@ export function buildDraftPlayerDisplayModel(input: {
   collegeOrPipeline?: string | null
   isDevy?: boolean
   school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   draftEligibleYear?: number | null
   graduatedToNFL?: boolean
   poolType?: 'college' | 'pro'
@@ -37,6 +40,9 @@ export function buildDraftPlayerDisplayModel(input: {
       teamAffiliation: input.teamAffiliation ?? null,
       isDevy: input.isDevy,
       school: input.school ?? null,
+      classYearLabel: input.classYearLabel ?? null,
+      draftGrade: input.draftGrade ?? null,
+      projectedLandingSpot: input.projectedLandingSpot ?? null,
       draftEligibleYear: input.draftEligibleYear ?? null,
       graduatedToNFL: input.graduatedToNFL,
       poolType: input.poolType,

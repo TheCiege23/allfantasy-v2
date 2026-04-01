@@ -20,23 +20,35 @@ import AuthSocialBlock from "@/components/auth/SocialLoginButtonsBlock"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
-import { resolveLoginErrorMessage } from "@/lib/auth/AuthErrorMessageResolver"
+import {
+  resolveLoginErrorMessage,
+  resolveSleeperLoginErrorMessage,
+} from "@/lib/auth/AuthErrorMessageResolver"
 import {
   clearUnifiedAuthDestination,
   rememberUnifiedAuthDestination,
   resolveUnifiedAuthDestination,
 } from "@/lib/auth/UnifiedAuthOrchestrator"
 
+function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
+  if (typeof callbackUrl === "string" && callbackUrl.trim().startsWith("/app")) {
+    return callbackUrl.trim()
+  }
+  return "/app/home"
+}
+
 export default function LoginContent() {
   const { t } = useLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const callbackUrlParam = searchParams?.get("callbackUrl")
   const callbackUrl = resolveUnifiedAuthDestination({
-    callbackUrl: searchParams?.get("callbackUrl"),
+    callbackUrl: callbackUrlParam,
     next: searchParams?.get("next"),
     returnTo: searchParams?.get("returnTo"),
     intent: searchParams?.get("intent"),
   })
+  const postLoginRedirect = resolveSuccessfulLoginRedirect(callbackUrlParam)
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
   const destinationLabel = callbackUrl.startsWith("/brackets")
@@ -101,12 +113,9 @@ export default function LoginContent() {
 
       if (result?.error) {
         setError(resolveLoginErrorMessage(result.error))
-      } else if (result?.url) {
-        clearUnifiedAuthDestination()
-        router.push(result.url)
       } else {
         clearUnifiedAuthDestination()
-        router.push(callbackUrl)
+        router.replace(postLoginRedirect)
       }
     } catch {
       setError(t("common.error.tryAgain"))
@@ -165,13 +174,10 @@ export default function LoginContent() {
         callbackUrl,
       })
       if (result?.error) {
-        setError("We could not find that Sleeper account. Please check the username and try again.")
-      } else if (result?.url) {
-        clearUnifiedAuthDestination()
-        router.push(result.url)
+        setError(resolveSleeperLoginErrorMessage(result.error))
       } else {
         clearUnifiedAuthDestination()
-        router.push(callbackUrl)
+        router.replace(postLoginRedirect)
       }
     } catch {
       setError(t("common.error.tryAgain"))
@@ -191,12 +197,9 @@ export default function LoginContent() {
 
       if (result?.error) {
         setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")
-      } else if (result?.url) {
-        clearUnifiedAuthDestination()
-        router.push(result.url)
       } else {
         clearUnifiedAuthDestination()
-        router.push(callbackUrl)
+        router.replace(postLoginRedirect)
       }
     } catch {
       setError("Local dev sign-in failed. Check DEV_AUTH_BYPASS_ENABLED in .env.local.")

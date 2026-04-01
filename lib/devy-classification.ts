@@ -157,6 +157,19 @@ export async function ingestCFBDRosters(season?: number): Promise<{ ingested: nu
               normalizedName,
               position: p.position,
               school: team,
+              sport: 'NCAAF',
+              classYearLabel:
+                p.year != null
+                  ? p.year <= 1
+                    ? 'FR'
+                    : p.year === 2
+                      ? 'SO'
+                      : p.year === 3
+                        ? 'JR'
+                        : p.year === 4
+                          ? 'SR'
+                          : 'GR'
+                  : null,
               classYear: p.year,
               heightInches: p.height,
               weightLbs: p.weight,
@@ -168,17 +181,32 @@ export async function ingestCFBDRosters(season?: number): Promise<{ ingested: nu
               draftStatus: 'college',
               statusSource: 'cfbd_roster',
               statusConfidence: 90,
+              ncaaSourceTag: 'ncaaf_cfbd',
               statusUpdatedAt: new Date(),
               lastRosterYear: year,
               source: 'cfbd',
               lastSyncedAt: new Date(),
             },
             update: {
+              sport: 'NCAAF',
+              classYearLabel:
+                p.year != null
+                  ? p.year <= 1
+                    ? 'FR'
+                    : p.year === 2
+                      ? 'SO'
+                      : p.year === 3
+                        ? 'JR'
+                        : p.year === 4
+                          ? 'SR'
+                          : 'GR'
+                  : null,
               classYear: p.year,
               heightInches: p.height,
               weightLbs: p.weight,
               cfbdId: p.id ? String(p.id) : null,
               draftEligibleYear,
+              ncaaSourceTag: 'ncaaf_cfbd',
               lastRosterYear: year,
               lastSyncedAt: new Date(),
             },
@@ -242,6 +270,15 @@ export async function ingestCFBDStats(season?: number): Promise<{ updated: numbe
               receivingYards: s.receivingYards || null,
               receivingTDs: s.receivingTDs || null,
               receptions: s.receptions || null,
+              statsPayload: {
+                passingYards: s.passingYards || null,
+                passingTDs: s.passingTDs || null,
+                rushingYards: s.rushingYards || null,
+                rushingTDs: s.rushingTDs || null,
+                receivingYards: s.receivingYards || null,
+                receivingTDs: s.receivingTDs || null,
+                receptions: s.receptions || null,
+              },
               statSeason: year,
               devyValue,
               lastSyncedAt: new Date(),

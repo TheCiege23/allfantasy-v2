@@ -126,6 +126,9 @@ export async function GET(
       college?: string | null
       isDevy?: boolean
       school?: string | null
+      classYearLabel?: string | null
+      draftGrade?: string | null
+      projectedLandingSpot?: string | null
       draftEligibleYear?: number | null
       graduatedToNFL?: boolean
       poolType?: 'college' | 'pro'
@@ -168,6 +171,9 @@ export async function GET(
         college: p.school ?? null,
         isDevy: true,
         school: p.school ?? null,
+        classYearLabel: p.classYearLabel ?? null,
+        draftGrade: p.draftGrade ?? null,
+        projectedLandingSpot: p.nflTeam ?? null,
         draftEligibleYear: p.draftEligibleYear ?? null,
         graduatedToNFL: false,
         playerId: p.id ?? null,
@@ -250,6 +256,9 @@ export async function GET(
             college: p.school ?? null,
             isDevy: true,
             school: p.school ?? null,
+            classYearLabel: p.classYearLabel ?? null,
+            draftGrade: p.draftGrade ?? null,
+            projectedLandingSpot: p.nflTeam ?? null,
             draftEligibleYear: p.draftEligibleYear ?? null,
             graduatedToNFL: false,
             playerId: p.id ?? null,

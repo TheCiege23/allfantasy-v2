@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 export const RATE_LIMITS = {
   clearsports: { callsPerHour: 100, callsPerDay: 1000 },
   api_sports: { callsPerHour: 100, callsPerDay: 1000 },
+  rolling_insights: { callsPerHour: 1000, callsPerDay: 10000 },
+  thesportsdb: { callsPerHour: 250, callsPerDay: 5000 },
+  cfbd: { callsPerHour: 100, callsPerDay: 1000 },
   sleeper: { callsPerHour: 1000, callsPerDay: 10000 },
   yahoo: { callsPerHour: 200, callsPerDay: 2000 },
   espn: { callsPerHour: 100, callsPerDay: 1000 },
@@ -180,8 +183,29 @@ export class RateLimitManager {
     const normalizedType = dataType.trim().toLowerCase()
 
     switch (normalizedType) {
+      case 'teams':
+        return prisma.sportsTeam.findMany({
+          take: 100,
+          orderBy: { updatedAt: 'desc' },
+        })
       case 'players':
         return prisma.sportsPlayerRecord.findMany({
+          take: 100,
+          orderBy: { lastUpdated: 'desc' },
+        })
+      case 'player_headshots':
+        return prisma.sportsPlayerRecord.findMany({
+          where: {
+            OR: [
+              { headshotUrl: { not: null } },
+              { logoUrl: { not: null } },
+            ],
+          },
+          take: 100,
+          orderBy: { lastUpdated: 'desc' },
+        })
+      case 'team_logos':
+        return prisma.teamAsset.findMany({
           take: 100,
           orderBy: { lastUpdated: 'desc' },
         })

@@ -25,6 +25,15 @@ export interface DraftRoomConfig {
   variant: string | null
 }
 
+function normalizeDraftRuntimeType(value: unknown): DraftRoomConfig['draft_type'] | null {
+  const raw = typeof value === 'string' ? value.trim().toLowerCase() : ''
+  if (!raw) return null
+  if (raw === 'snake' || raw === 'linear' || raw === 'auction') return raw
+  if (raw === 'devy_snake' || raw === 'c2c_snake' || raw === 'mock_draft') return 'snake'
+  if (raw === 'devy_auction' || raw === 'c2c_auction') return 'auction'
+  return null
+}
+
 /**
  * Get draft config for a league (for draft room UI and mock draft).
  * Uses League.settings when draft_rounds is set; otherwise uses sport/variant defaults.
@@ -47,7 +56,7 @@ export async function getDraftConfigForLeague(leagueId: string): Promise<DraftRo
   }
 
   return {
-    draft_type: fromSettings<DraftRoomConfig['draft_type']>('draft_type', defaults.draft_type),
+    draft_type: normalizeDraftRuntimeType(settings.draft_type) ?? defaults.draft_type,
     rounds: fromSettings<number>('draft_rounds', defaults.rounds_default),
     timer_seconds: fromSettings<number | null>('draft_timer_seconds', defaults.timer_seconds_default),
     slow_timer_seconds: fromSettings<number | null>(

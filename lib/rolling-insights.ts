@@ -9,10 +9,19 @@ interface RollingInsightsToken {
 
 let cachedToken: RollingInsightsToken | null = null;
 
-const AUTH_URL = 'https://datafeeds.rolling-insights.com/auth/token';
-const GRAPHQL_URL = 'https://datafeeds.rolling-insights.com/graphql';
+const ROLLING_INSIGHTS_BASE_URL =
+  process.env.ROLLING_INSIGHTS_BASE_URL?.trim().replace(/\/+$/, '') ||
+  process.env.ROLLING_INSIGHTS_API_BASE?.trim().replace(/\/+$/, '') ||
+  'https://datafeeds.rolling-insights.com'
+const AUTH_URL = `${ROLLING_INSIGHTS_BASE_URL}/auth/token`;
+const GRAPHQL_URL = `${ROLLING_INSIGHTS_BASE_URL}/graphql`;
 
 async function getAccessToken(): Promise<string> {
+  const directApiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim();
+  if (directApiKey) {
+    return directApiKey;
+  }
+
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60000) {
     return cachedToken.accessToken;
   }

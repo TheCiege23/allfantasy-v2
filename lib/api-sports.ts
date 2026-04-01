@@ -58,9 +58,9 @@ function enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function apiSportsFetchInternal<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
-  const apiKey = process.env.API_SPORTS_KEY;
+  const apiKey = process.env.APISPORTS_API_KEY || process.env.API_SPORTS_KEY;
   if (!apiKey) {
-    throw new Error('API_SPORTS_KEY not configured');
+    throw new Error('APISPORTS_API_KEY not configured');
   }
 
   if (!(await rateLimitManager.canCall('api_sports', endpoint))) {

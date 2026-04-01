@@ -195,6 +195,9 @@ export function DraftRoomPageClient({
             display: e.display ?? null,
             isDevy: e.isDevy,
             school: e.school ?? null,
+            classYearLabel: e.classYearLabel ?? e.display?.metadata?.classYearLabel ?? null,
+            draftGrade: e.draftGrade ?? e.display?.metadata?.draftGrade ?? null,
+            projectedLandingSpot: e.projectedLandingSpot ?? e.display?.metadata?.projectedLandingSpot ?? null,
             graduatedToNFL: e.graduatedToNFL,
             poolType: e.poolType,
           }

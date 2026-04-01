@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, RefreshCw, AlertCircle, CheckCircle, Loader2, X, Shield, ExternalLink, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { groupLeaguesBySport } from '@/lib/dashboard/DashboardSportGroupingService';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 
@@ -19,6 +20,9 @@ interface League {
   syncStatus: string | null;
   syncError: string | null;
   lastSyncedAt: string | null;
+  navigationLeagueId?: string | null;
+  unifiedLeagueId?: string | null;
+  hasUnifiedRecord?: boolean;
 }
 
 /** Groups leagues by sport with section headers (emoji + label) for dashboard. */
@@ -26,12 +30,16 @@ function DashboardSportGroups({
   leagues,
   platformLabel,
   syncingId,
+  openingId,
   reSync,
+  openLeague,
 }: {
   leagues: League[];
   platformLabel: (p: string) => string;
   syncingId: string | null;
+  openingId: string | null;
   reSync: (league: League) => void;
+  openLeague: (league: League) => void;
 }) {
   const { formatInTimezone } = useUserTimezone();
   const groups = useMemo(() => groupLeaguesBySport(leagues), [leagues]);
@@ -80,18 +88,32 @@ function DashboardSportGroups({
                   Last synced:{' '}
                   {lg.lastSyncedAt ? formatInTimezone(lg.lastSyncedAt) : 'Never'}
                 </div>
-                <button
-                  onClick={() => reSync(lg as League)}
-                  disabled={syncingId === lg.id}
-                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm disabled:opacity-50 transition-colors"
-                >
-                  {syncingId === lg.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  Re-sync
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => openLeague(lg as League)}
+                    disabled={openingId === lg.id}
+                    className="w-full py-2.5 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-400/20 flex items-center justify-center gap-2 text-sm disabled:opacity-50 transition-colors"
+                  >
+                    {openingId === lg.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ExternalLink className="w-4 h-4" />
+                    )}
+                    {lg.hasUnifiedRecord ? 'Open League' : 'Sync & Open'}
+                  </button>
+                  <button
+                    onClick={() => reSync(lg as League)}
+                    disabled={syncingId === lg.id || openingId === lg.id}
+                    className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm disabled:opacity-50 transition-colors"
+                  >
+                    {syncingId === lg.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Re-sync
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -102,9 +124,11 @@ function DashboardSportGroups({
 }
 
 export default function LeagueSyncDashboard() {
+  const router = useRouter();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [platform, setPlatform] = useState('sleeper');
@@ -224,6 +248,35 @@ export default function LeagueSyncDashboard() {
     }
   };
 
+  const openLeague = async (league: League) => {
+    const targetLeagueId = league.unifiedLeagueId ?? league.navigationLeagueId;
+    if (targetLeagueId) {
+      router.push(`/app/league/${targetLeagueId}`);
+      return;
+    }
+
+    if (league.platform !== 'sleeper') {
+      toast.error('This league is not ready to open yet. Please re-sync it first.');
+      return;
+    }
+
+    setOpeningId(league.id);
+    try {
+      const data = await syncLeague('sleeper', league.platformLeagueId);
+      if (data.success && data.unifiedLeagueId) {
+        toast.success(`"${data.name || 'League'}" is ready.`);
+        await fetchLeagues();
+        router.push(`/app/league/${data.unifiedLeagueId}`);
+      } else {
+        toast.error(data.error || 'Unable to prepare this league');
+      }
+    } catch {
+      toast.error('Failed to prepare league');
+    } finally {
+      setOpeningId(null);
+    }
+  };
+
   const platformLabel = (p: string) => {
     const map: Record<string, string> = {
       sleeper: 'Sleeper',
@@ -278,7 +331,9 @@ export default function LeagueSyncDashboard() {
           leagues={leagues}
           platformLabel={platformLabel}
           syncingId={syncingId}
+          openingId={openingId}
           reSync={reSync}
+          openLeague={openLeague}
         />
       )}
 

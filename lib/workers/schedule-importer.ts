@@ -1,9 +1,9 @@
 import 'server-only'
 
-import { fetchClearSportsGames, type ClearSportsSport } from '@/lib/clear-sports'
 import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
+import { apiChain } from '@/lib/workers/api-chain'
 
 const UPSERT_BATCH_SIZE = 100
 
@@ -43,8 +43,14 @@ export async function runScheduleImporter(options?: {
       ])
     )
 
-    const clearSportsGames = await fetchClearSportsGames(sport as ClearSportsSport, String(season)).catch(() => [])
-    const rows = (clearSportsGames.length > 0 ? clearSportsGames : legacyGames).map((game: any) => {
+    const response = await apiChain.fetch({
+      sport,
+      dataType: 'schedule',
+      query: { season: String(season) },
+    })
+    const sourceGames = Array.isArray(response.data) && response.data.length > 0 ? response.data : legacyGames
+
+    const rows = sourceGames.map((game: any) => {
       const homeTeam = normalizeTeamAbbrev(game.homeTeamAbbrev ?? game.homeTeam) ?? game.homeTeamAbbrev ?? game.homeTeam ?? 'TBD'
       const awayTeam = normalizeTeamAbbrev(game.awayTeamAbbrev ?? game.awayTeam) ?? game.awayTeamAbbrev ?? game.awayTeam ?? 'TBD'
       const gameDate = game.date ? new Date(game.date) : game.startTime ?? new Date()

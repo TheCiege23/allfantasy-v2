@@ -25,6 +25,9 @@ export type PlayerEntry = {
   isDevy?: boolean
   /** Devy: school (e.g. "Ohio State") */
   school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
   /** Devy: promoted to NFL */
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' for Campus-to-Canton */
@@ -135,6 +138,9 @@ function PlayerListVirtualized({
               variant="row"
               isDevy={p.isDevy}
               school={p.school}
+              classYearLabel={p.classYearLabel}
+              draftGrade={p.draftGrade}
+              projectedLandingSpot={p.projectedLandingSpot}
               graduatedToNFL={p.graduatedToNFL}
               poolType={p.poolType}
               testId={`draft-player-card-${virtualRow.index}`}
@@ -256,7 +262,8 @@ function PlayerPanelInner({
     list = list.filter((p) => {
       const inResolved = filteredDraft.some((d) => d.name === p.name && d.position === p.position)
       const schoolMatch = Boolean(searchLower && (p.school ?? '').toLowerCase().includes(searchLower))
-      return inResolved || schoolMatch
+      const landingSpotMatch = Boolean(searchLower && (p.projectedLandingSpot ?? '').toLowerCase().includes(searchLower))
+      return inResolved || schoolMatch || landingSpotMatch
     })
     const adpVal = useAiAdp ? ((p: PlayerEntry) => p.aiAdp ?? p.adp ?? 999) : ((p: PlayerEntry) => p.adp ?? 999)
     const nameVal = (p: PlayerEntry) => p.name
@@ -466,6 +473,18 @@ function PlayerPanelInner({
                   ? ` · ${useAiAdp ? 'AI ADP' : 'ADP'} ${useAiAdp ? selectedPlayer.aiAdp : selectedPlayer.adp}`
                   : ''}
               </p>
+              {(selectedPlayer.school || selectedPlayer.classYearLabel || selectedPlayer.draftGrade || selectedPlayer.projectedLandingSpot) && (
+                <p className="mt-1 text-white/55">
+                  {[
+                    selectedPlayer.school,
+                    selectedPlayer.classYearLabel,
+                    selectedPlayer.draftGrade ? `Grade ${selectedPlayer.draftGrade}` : null,
+                    selectedPlayer.projectedLandingSpot ? `Landing ${selectedPlayer.projectedLandingSpot}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              )}
             </div>
             <button
               type="button"

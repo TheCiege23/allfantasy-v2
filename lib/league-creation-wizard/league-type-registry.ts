@@ -35,7 +35,17 @@ export const LEAGUE_TYPE_LABELS: Record<LeagueTypeId, string> = {
   salary_cap: 'Salary Cap',
 }
 
-export const DRAFT_TYPE_IDS: DraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
+export const DRAFT_TYPE_IDS: DraftTypeId[] = [
+  'snake',
+  'linear',
+  'auction',
+  'slow_draft',
+  'mock_draft',
+  'devy_snake',
+  'devy_auction',
+  'c2c_snake',
+  'c2c_auction',
+]
 
 export const DRAFT_TYPE_LABELS: Record<DraftTypeId, string> = {
   snake: 'Snake',
@@ -43,6 +53,10 @@ export const DRAFT_TYPE_LABELS: Record<DraftTypeId, string> = {
   auction: 'Auction',
   slow_draft: 'Slow Draft',
   mock_draft: 'Mock Draft',
+  devy_snake: 'Devy Snake',
+  devy_auction: 'Devy Auction',
+  c2c_snake: 'C2C Snake',
+  c2c_auction: 'C2C Auction',
 }
 
 /** League types that imply dynasty (multi-year roster). */
@@ -58,7 +72,16 @@ const DEVY_LEAGUE_TYPES: LeagueTypeId[] = ['devy', 'dynasty']
 const C2C_LEAGUE_TYPES: LeagueTypeId[] = ['c2c']
 
 /** Draft types that are "live" league draft (not mock). */
-const LIVE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft']
+const LIVE_DRAFT_TYPES: DraftTypeId[] = [
+  'snake',
+  'linear',
+  'auction',
+  'slow_draft',
+  'devy_snake',
+  'devy_auction',
+  'c2c_snake',
+  'c2c_auction',
+]
 
 export function isDynastyLeagueType(leagueType: LeagueTypeId): boolean {
   return DYNASTY_LEAGUE_TYPES.includes(leagueType)
@@ -96,18 +119,15 @@ const SPORTS_SUPPORTING_BEST_BALL = new Set<string>(['NFL', 'NBA', 'NCAAB', 'NCA
 
 /**
  * League types allowed for a sport.
- * Devy: NFL and NBA only (pro league sport; devy pool is NCAA Football / NCAA Basketball).
- * C2C: NFL and NBA only (pro league sport; college side is NCAA Football / NCAA Basketball).
+ * Devy/C2C: football and basketball ecosystems only.
  * Best ball only for NFL, NBA, NCAAB, NCAAF.
  */
 export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): LeagueTypeId[] {
   const s = String(sport).toUpperCase()
   const base: LeagueTypeId[] = ['redraft', 'dynasty', 'keeper', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap']
   const all: LeagueTypeId[] = SPORTS_SUPPORTING_BEST_BALL.has(s) ? [...base, 'best_ball'] : base
-  if (s === 'NFL') return [...all, 'c2c', 'devy']
-  if (s === 'NCAAF') return all
-  if (s === 'NBA') return [...all, 'c2c', 'devy']
-  if (s === 'NCAAB') return all
+  if (s === 'NFL' || s === 'NCAAF') return [...all, 'c2c', 'devy']
+  if (s === 'NBA' || s === 'NCAAB') return [...all, 'c2c', 'devy']
   return all
 }
 
@@ -120,6 +140,8 @@ const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mo
  * Guillotine supports snake/linear/auction and mock draft only.
  */
 export function getAllowedDraftTypesForLeagueType(leagueType: LeagueTypeId): DraftTypeId[] {
+  if (leagueType === 'devy') return ['devy_snake', 'devy_auction', 'snake', 'auction', 'slow_draft', 'mock_draft']
+  if (leagueType === 'c2c') return ['c2c_snake', 'c2c_auction', 'snake', 'auction', 'slow_draft', 'mock_draft']
   if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
   return ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
 }

@@ -1,10 +1,9 @@
 import 'server-only'
 
-import { fetchClearSportsNews, type ClearSportsSport } from '@/lib/clear-sports'
 import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
-import { syncNewsToDb } from '@/app/api/sports/news/sync-helper'
+import { apiChain } from '@/lib/workers/api-chain'
 
 function inferImpact(text: string): 'high' | 'medium' | 'low' {
   const lower = text.toLowerCase()
@@ -68,18 +67,22 @@ export async function runNewsImporter(options?: {
 
   let imported = 0
   for (const sport of sports) {
-    if (sport === 'NFL') {
-      await syncNewsToDb(undefined).catch(() => {})
-    }
-
-    const [legacyRows, clearSportsRows] = await Promise.all([
+    const [legacyRows, chainResponse] = await Promise.all([
       prisma.sportsNews.findMany({
         where: { sport },
         orderBy: { publishedAt: 'desc' },
         take: 250,
       }),
-      fetchClearSportsNews(sport as ClearSportsSport, 40).catch(() => []),
+      apiChain.fetch({
+        sport,
+        dataType: 'news',
+        query: { limit: 40 },
+      }),
     ])
+
+    const providerRows = Array.isArray(chainResponse.data)
+      ? chainResponse.data.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+      : []
 
     const records = [
       ...legacyRows
@@ -99,8 +102,8 @@ export async function runNewsImporter(options?: {
           )
         )
         .filter((row): row is NonNullable<typeof row> => Boolean(row)),
-      ...clearSportsRows
-        .map((row) => normalizeNewsRecord(sport, row, 'clearsports'))
+      ...providerRows
+        .map((row) => normalizeNewsRecord(sport, row, chainResponse.source))
         .filter((row): row is NonNullable<typeof row> => Boolean(row)),
     ]
 

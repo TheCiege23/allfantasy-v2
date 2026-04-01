@@ -1,10 +1,9 @@
 import 'server-only'
 
-import { fetchClearSportsProjections, fetchClearSportsRankings, type ClearSportsSport } from '@/lib/clear-sports'
 import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { normalizePlayerName, normalizePosition, normalizeTeamAbbrev } from '@/lib/team-abbrev'
-import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
+import { apiChain } from '@/lib/workers/api-chain'
 
 const SPORTS_PLAYER_TTL_MS = 6 * 60 * 60 * 1000
 const UPSERT_BATCH_SIZE = 100
@@ -44,59 +43,40 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
-async function fetchSleeperPlayers(): Promise<PlayerSeed[]> {
-  const endpoint = '/v1/players/nfl'
-  const canCall = await rateLimitManager.canCall('sleeper', endpoint)
-  if (!canCall) {
-    const fallback = await rateLimitManager.getFallback('sleeper', 'players')
-    return Array.isArray(fallback)
-      ? fallback.map((row: any) => ({
-          id: row.id,
-          name: row.name,
-          team: row.team ?? 'FA',
-          position: row.position ?? 'FLEX',
-          status: row.injuryStatus ?? null,
-          source: 'cached',
-        }))
-      : []
+function asArrayRecords(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+    : []
+}
+
+async function fetchProviderPlayerSeeds(sport: SupportedSport, season: number): Promise<PlayerSeed[]> {
+  const response = await apiChain.fetch({
+    sport,
+    dataType: 'players',
+    query: { season: String(season) },
+  })
+
+  const rows = asArrayRecords(response.data)
+  const seeds: PlayerSeed[] = []
+  for (const row of rows) {
+    const name = String(row.name ?? row.playerName ?? row.player ?? '').trim()
+    if (!name) continue
+
+    const team = normalizeTeamAbbrev(String(row.team ?? row.teamAbbrev ?? '')) ?? 'FA'
+    const position = normalizePosition(String(row.position ?? row.pos ?? '')) ?? 'FLEX'
+    const externalId = String(row.id ?? row.externalId ?? row.playerId ?? '').trim() || null
+
+    seeds.push({
+      id: buildPlayerId(sport, externalId, name, team),
+      name,
+      team,
+      position,
+      status: typeof row.status === 'string' ? row.status : null,
+      source: response.source,
+    })
   }
 
-  const start = Date.now()
-  try {
-    const response = await fetch('https://api.sleeper.app/v1/players/nfl', {
-      next: { revalidate: 0 },
-      signal: AbortSignal.timeout(20_000),
-    })
-
-    if (!response.ok) {
-      await rateLimitManager.recordCall('sleeper', endpoint, response.status, Date.now() - start, {
-        error: response.statusText,
-      })
-      return []
-    }
-
-    const payload = (await response.json()) as Record<string, any>
-    await rateLimitManager.recordCall('sleeper', endpoint, response.status, Date.now() - start)
-
-    return Object.entries(payload).reduce<PlayerSeed[]>((acc, [id, row]) => {
-        const name = String(row?.full_name || [row?.first_name, row?.last_name].filter(Boolean).join(' ')).trim()
-        if (!name) return acc
-        acc.push({
-          id: buildPlayerId('NFL', String(id), name, normalizeTeamAbbrev(row?.team) ?? 'FA'),
-          name,
-          team: normalizeTeamAbbrev(row?.team) ?? 'FA',
-          position: normalizePosition(row?.position) ?? 'FLEX',
-          status: typeof row?.status === 'string' ? row.status : null,
-          source: 'sleeper',
-        })
-        return acc
-      }, [])
-  } catch (error) {
-    await rateLimitManager.recordCall('sleeper', endpoint, 500, Date.now() - start, {
-      error: error instanceof Error ? error.message : String(error),
-    })
-    return []
-  }
+  return seeds
 }
 
 async function loadIdentitySeeds(sport: SupportedSport): Promise<PlayerSeed[]> {
@@ -159,10 +139,10 @@ export async function runSportsDataImporter(options?: {
 
   for (const sport of uniqueSports) {
     const season = currentSeasonForSport()
-    const [identitySeeds, nflSleeperSeeds, latestStats, latestInjuries, latestNews, latestAdp, metaTrends] =
+    const [identitySeeds, providerSeeds, latestStats, latestInjuries, latestNews, latestAdp, metaTrends, projectionsResponse, rankingsResponse] =
       await Promise.all([
         loadIdentitySeeds(sport),
-        sport === 'NFL' ? fetchSleeperPlayers() : Promise.resolve([] as PlayerSeed[]),
+        fetchProviderPlayerSeeds(sport, season),
         prisma.playerSeasonStats.findMany({
           where: { sport },
           orderBy: { fetchedAt: 'desc' },
@@ -188,27 +168,26 @@ export async function runSportsDataImporter(options?: {
           where: { sport },
           take: 4000,
         }),
+        apiChain.fetch({
+          sport,
+          dataType: 'projections',
+          query: { season: String(season) },
+        }),
+        apiChain.fetch({
+          sport,
+          dataType: 'rankings',
+          query: { season: String(season) },
+        }),
       ])
 
-    let projectionRows: Array<Record<string, unknown>> = []
-    let rankingRows: Array<Record<string, unknown>> = []
-
-    try {
-      const [projections, rankings] = await Promise.all([
-        fetchClearSportsProjections(sport as ClearSportsSport, String(season)).catch(() => []),
-        fetchClearSportsRankings(sport as ClearSportsSport, String(season)).catch(() => []),
-      ])
-      projectionRows = projections
-      rankingRows = rankings
-    } catch {
-      // Keep DB-first data path alive even if provider refresh fails.
-    }
+    const projectionRows = asArrayRecords(projectionsResponse.data)
+    const rankingRows = asArrayRecords(rankingsResponse.data)
 
     const seedMap = new Map<string, PlayerSeed>()
-    for (const seed of [...identitySeeds, ...nflSleeperSeeds]) {
+    for (const seed of [...identitySeeds, ...providerSeeds]) {
       const key = normalizePlayerName(seed.name)
       if (!key) continue
-      if (!seedMap.has(key) || seed.source === 'sleeper') seedMap.set(key, seed)
+      if (!seedMap.has(key) || seed.source !== 'manual') seedMap.set(key, seed)
     }
 
     for (const row of latestAdp) {
@@ -295,7 +274,7 @@ export async function runSportsDataImporter(options?: {
         injuryStatus: injury?.status ?? seed.status ?? null,
         injuryNotes: injury?.notes ?? null,
         news,
-        dataSource: projectionMap.has(key) ? 'clearsports' : seed.source,
+        dataSource: projectionMap.has(key) ? projectionsResponse.source : seed.source,
       }
     })
 

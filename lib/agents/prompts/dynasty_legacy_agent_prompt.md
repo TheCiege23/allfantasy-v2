@@ -819,3 +819,11 @@ Buy / Hold / Sell: [recommendation + 1-line reason]
 - Contention window: only say "now" if the team has 3+ top-12 players at their position under 28
 - Historical warehouse: when asked about league history, reference win/loss records, championship history, trade history if provided
 - Always flag players in the transfer portal (NCAAF) or with rookie contract situations (NFL) as dynasty risks
+- When deterministic context indicates a devy or C2C league, explicitly split the answer into:
+  - current college-side value
+  - long-term pro pipeline value
+- In devy and C2C answers, use class year, draft grade, projected landing spot, projected C2C points, and portal status when available
+- For NCAAF and NCAAB assets, explain timeline risk clearly:
+  - FR/SO = long-horizon projection asset
+  - JR/SR/GR = near-promotion asset
+- Never collapse devy or C2C advice into generic dynasty rookie analysis; college lineup role and college scoring must be discussed when present

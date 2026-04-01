@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
+import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 
 function getAuthSecret(): string {
@@ -23,45 +24,6 @@ function getAuthSecret(): string {
 function buildSleeperAvatarUrl(avatar: string | null | undefined): string | null {
   if (!avatar) return null;
   return `https://sleepercdn.com/avatars/${avatar}`;
-}
-
-async function fetchSleeperUser(username: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
-  try {
-    const response = await fetch(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`,
-      {
-        method: "GET",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = (await response.json()) as {
-      user_id?: string;
-      display_name?: string;
-      avatar?: string | null;
-    };
-
-    if (!data?.user_id) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    console.error("[auth] Sleeper lookup failed:", error);
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 function isDevAuthBypassEnabled(): boolean {
@@ -128,6 +90,29 @@ async function ensureDevAuthUser() {
   });
 
   return user;
+}
+
+function resolveSafePostLoginRedirect(url: string, baseUrl: string): string {
+  try {
+    const base = new URL(baseUrl);
+    const resolved = url.startsWith("/") ? new URL(url, baseUrl) : new URL(url);
+
+    if (resolved.origin !== base.origin) {
+      return `${baseUrl}/app/home`;
+    }
+
+    if (resolved.pathname === "/login") {
+      const callbackUrl = resolved.searchParams.get("callbackUrl");
+      if (callbackUrl?.startsWith("/app")) {
+        return new URL(callbackUrl, baseUrl).toString();
+      }
+      return `${baseUrl}/app/home`;
+    }
+
+    return resolved.toString();
+  } catch {
+    return `${baseUrl}/app/home`;
+  }
 }
 
 const providers: NextAuthOptions["providers"] = [
@@ -204,12 +189,17 @@ const providers: NextAuthOptions["providers"] = [
         return null;
       }
 
-      const sleeperUser = await fetchSleeperUser(sleeperUsername);
+      const sleeperLookup = await lookupSleeperUser(sleeperUsername);
 
-      if (!sleeperUser?.user_id) {
+      if (sleeperLookup.status === "unavailable") {
+        throw new Error("SLEEPER_LOOKUP_UNAVAILABLE");
+      }
+
+      if (sleeperLookup.status !== "found") {
         return null;
       }
 
+      const sleeperUser = sleeperLookup.user;
       const sleeperUserId = sleeperUser.user_id;
       const displayName = sleeperUser.display_name?.trim() || sleeperUsername;
       const avatarUrl = buildSleeperAvatarUrl(sleeperUser.avatar);
@@ -331,6 +321,9 @@ export const authOptions: NextAuthOptions = {
       }
 
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      return resolveSafePostLoginRedirect(url, baseUrl);
     },
   },
   events: {

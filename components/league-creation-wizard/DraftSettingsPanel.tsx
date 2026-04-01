@@ -8,6 +8,8 @@ import { isKeeperLeagueType } from '@/lib/league-creation-wizard/league-type-reg
 import type { DraftTypeId, LeagueTypeId, WizardDraftSettings } from '@/lib/league-creation-wizard/types'
 import { StepHeader } from './StepHelp'
 import { cn } from '@/lib/utils'
+import { DevyDraftSettings } from '@/components/draft/DevyDraftSettings'
+import { C2CDraftSettings } from '@/components/draft/C2CDraftSettings'
 
 const ROUNDS = [10, 12, 15, 18, 20, 22, 25, 30] as const
 const TIMER_OPTS = [60, 90, 120, 180, 300, 0] as const
@@ -145,116 +147,12 @@ export function DraftSettingsPanel({
             <p className="mt-1 text-xs text-white/50">Starting budget for each team in auction drafts.</p>
           </div>
         )}
-        {leagueType === 'c2c' && (
-          <>
-            <div className="pt-3 mt-3 border-t border-white/10">
-              <p className="text-sm font-medium text-cyan-200">C2C / Merged Devy settings</p>
-              <p className="text-xs text-white/50 mt-0.5">C2C links your college and pro pipeline in one dynasty ecosystem.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-white/90">Startup mode</Label>
-              <Select
-                value={d.c2cStartupMode ?? 'merged'}
-                onValueChange={(v: 'merged' | 'separate') => onDraftSettingsChange({ c2cStartupMode: v })}
-              >
-                <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="merged">Merged startup (pro + college in one draft)</SelectItem>
-                  <SelectItem value="separate">Separate (pro draft then college draft)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-white/90">Standings mode</Label>
-              <Select
-                value={d.c2cStandingsModel ?? 'unified'}
-                onValueChange={(v: 'unified' | 'separate' | 'hybrid') => onDraftSettingsChange({ c2cStandingsModel: v })}
-              >
-                <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unified">Unified standings only</SelectItem>
-                  <SelectItem value="separate">Separate college + pro standings</SelectItem>
-                  <SelectItem value="hybrid">Hybrid championship</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-sm text-white/80">
-                <input
-                  type="checkbox"
-                  checked={d.c2cBestBallPro ?? true}
-                  onChange={(e) => onDraftSettingsChange({ c2cBestBallPro: e.target.checked })}
-                  className="rounded border-white/20"
-                />
-                Best ball (pro)
-              </label>
-              <label className="flex items-center gap-2 text-sm text-white/80">
-                <input
-                  type="checkbox"
-                  checked={d.c2cBestBallCollege ?? false}
-                  onChange={(e) => onDraftSettingsChange({ c2cBestBallCollege: e.target.checked })}
-                  className="rounded border-white/20"
-                />
-                Best ball (college)
-              </label>
-            </div>
-            <p className="text-xs text-white/50">Best Ball auto-optimizes your highest scoring legal lineup for each enabled competition. College assets score only on the college side until promotion.</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-white/90">College roster size</Label>
-                <Select
-                  value={String(d.c2cCollegeRosterSize ?? 20)}
-                  onValueChange={(v) => onDraftSettingsChange({ c2cCollegeRosterSize: Number(v) })}
-                >
-                  <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[12, 15, 18, 20, 24, 28, 30].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-white/90">Rookie draft rounds</Label>
-                <Select
-                  value={String(d.c2cRookieDraftRounds ?? 4)}
-                  onValueChange={(v) => onDraftSettingsChange({ c2cRookieDraftRounds: Number(v) })}
-                >
-                  <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[3, 4, 5, 6].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-white/90">College draft rounds</Label>
-                <Select
-                  value={String(d.c2cCollegeDraftRounds ?? 6)}
-                  onValueChange={(v) => onDraftSettingsChange({ c2cCollegeDraftRounds: Number(v) })}
-                >
-                  <SelectTrigger className="mt-1.5 bg-gray-900 border-white/20 text-white min-h-[44px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[4, 5, 6, 7, 8].map((n) => (
-                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </>
-        )}
+        {leagueType === 'devy' ? (
+          <DevyDraftSettings settings={d} onChange={onDraftSettingsChange} />
+        ) : null}
+        {leagueType === 'c2c' ? (
+          <C2CDraftSettings settings={d} onChange={onDraftSettingsChange} />
+        ) : null}
         {showKeeper && (
           <div className="space-y-1.5">
             <Label className="text-white/90">Max keepers</Label>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -9,17 +10,20 @@ export async function GET(req: Request) {
   }
 
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username.trim())}`)
+    const result = await lookupSleeperUser(username)
 
-    if (!res.ok) {
+    if (result.status === "not_found") {
       return NextResponse.json({ found: false, error: "Sleeper user not found." }, { status: 404 })
     }
 
-    const data = await res.json()
-
-    if (!data || !data.user_id) {
-      return NextResponse.json({ found: false, error: "Sleeper user not found." }, { status: 404 })
+    if (result.status === "unavailable") {
+      return NextResponse.json(
+        { found: false, error: "Sleeper lookup is temporarily unavailable. Please try again." },
+        { status: 503 }
+      )
     }
+
+    const data = result.user
 
     return NextResponse.json({
       found: true,

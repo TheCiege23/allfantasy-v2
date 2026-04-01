@@ -12,6 +12,55 @@ export interface SleeperLeagueBootstrapResult {
   teamPerformancesCreated: number
 }
 
+async function resolveImportedManagerUserIds(
+  provider: string,
+  sourceManagerIds: string[]
+): Promise<Map<string, string>> {
+  const uniqueIds = Array.from(new Set(sourceManagerIds.filter(Boolean)))
+  const resolved = new Map<string, string>()
+
+  if (!uniqueIds.length) return resolved
+
+  if (provider === 'sleeper') {
+    const [usersByUsername, profilesBySleeperId] = await Promise.all([
+      prisma.appUser.findMany({
+        where: {
+          username: { in: uniqueIds.map((id) => `sleeper_${id}`) },
+        },
+        select: {
+          id: true,
+          username: true,
+        },
+      }),
+      prisma.userProfile.findMany({
+        where: {
+          sleeperUserId: { in: uniqueIds },
+        },
+        select: {
+          userId: true,
+          sleeperUserId: true,
+        },
+      }),
+    ])
+
+    for (const user of usersByUsername) {
+      if (!user.username.startsWith('sleeper_')) continue
+      const sleeperId = user.username.slice('sleeper_'.length)
+      if (sleeperId) {
+        resolved.set(sleeperId, user.id)
+      }
+    }
+
+    for (const profile of profilesBySleeperId) {
+      if (profile.sleeperUserId) {
+        resolved.set(profile.sleeperUserId, profile.userId)
+      }
+    }
+  }
+
+  return resolved
+}
+
 /**
  * Create LeagueTeam and Roster records for each normalized roster; also create
  * TeamPerformance from schedule. Call after League record exists.
@@ -24,6 +73,10 @@ export async function bootstrapLeagueFromNormalizedImport(
     normalized.standings.map((s) => [s.source_team_id, s])
   )
   const season = normalized.league.season ?? new Date().getFullYear()
+  const managerUserIds = await resolveImportedManagerUserIds(
+    normalized.source.source_provider,
+    normalized.rosters.map((r) => r.source_manager_id)
+  )
 
   let leagueTeamsCreated = 0
   let rostersCreated = 0
@@ -78,23 +131,43 @@ export async function bootstrapLeagueFromNormalizedImport(
       imported_at: normalized.source.imported_at,
     }
 
-    await prisma.roster.upsert({
+    const resolvedPlatformUserId =
+      managerUserIds.get(r.source_manager_id) ?? r.source_manager_id
+
+    const existingRoster = await prisma.roster.findFirst({
       where: {
-        leagueId_platformUserId: { leagueId, platformUserId: r.source_manager_id },
-      },
-      create: {
         leagueId,
-        platformUserId: r.source_manager_id,
-        playerData: playerData as any,
-        faabRemaining: r.faab_remaining ?? null,
-        waiverPriority: r.waiver_priority ?? null,
+        OR: [
+          { platformUserId: resolvedPlatformUserId },
+          { platformUserId: r.source_manager_id },
+        ],
       },
-      update: {
-        playerData: playerData as any,
-        faabRemaining: r.faab_remaining ?? null,
-        waiverPriority: r.waiver_priority ?? null,
+      select: {
+        id: true,
       },
     })
+
+    if (existingRoster) {
+      await prisma.roster.update({
+        where: { id: existingRoster.id },
+        data: {
+          platformUserId: resolvedPlatformUserId,
+          playerData: playerData as any,
+          faabRemaining: r.faab_remaining ?? null,
+          waiverPriority: r.waiver_priority ?? null,
+        },
+      })
+    } else {
+      await prisma.roster.create({
+        data: {
+          leagueId,
+          platformUserId: resolvedPlatformUserId,
+          playerData: playerData as any,
+          faabRemaining: r.faab_remaining ?? null,
+          waiverPriority: r.waiver_priority ?? null,
+        },
+      })
+    }
     rostersCreated++
   }
 

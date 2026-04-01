@@ -35,8 +35,8 @@ function envFlag(name: string, fallback: boolean = false): boolean {
  * Optional capabilities are toggled by env flags.
  */
 export function getClearSportsToolStates(clearsportsAvailable: boolean): ClearSportsToolStateMap {
-  const projectionsEnabled = clearsportsAvailable && envFlag('CLEARSPORTS_PROJECTIONS_ENABLED', false)
-  const newsAlertsEnabled = clearsportsAvailable && envFlag('CLEARSPORTS_NEWS_ALERTS_ENABLED', false)
+  const projectionsEnabled = clearsportsAvailable && envFlag('CLEARSPORTS_PROJECTIONS_ENABLED', true)
+  const newsAlertsEnabled = clearsportsAvailable && envFlag('CLEARSPORTS_NEWS_ALERTS_ENABLED', true)
 
   const base = (enabled: boolean, emptyStateMessage: string): ClearSportsToolState => ({
     enabled,

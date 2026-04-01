@@ -22,6 +22,7 @@ import {
   persistProfileImageBytes,
 } from "@/lib/avatar/ProfileImageUploadStorageService"
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
+import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
 
 export const runtime = "nodejs"
 
@@ -232,15 +233,13 @@ export async function POST(req: Request) {
     let sleeperData: { sleeperUsername?: string; sleeperUserId?: string; sleeperLinkedAt?: Date } = {}
     if (!isE2ERequest && sleeperUsername) {
       try {
-        const sleeperRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername.trim())}`)
-        if (sleeperRes.ok) {
-          const sleeperUser = await sleeperRes.json()
-          if (sleeperUser && sleeperUser.user_id) {
-            sleeperData = {
-              sleeperUsername: sleeperUser.username || sleeperUsername.trim(),
-              sleeperUserId: sleeperUser.user_id,
-              sleeperLinkedAt: now,
-            }
+        const sleeperLookup = await lookupSleeperUser(sleeperUsername)
+        if (sleeperLookup.status === "found") {
+          const sleeperUser = sleeperLookup.user
+          sleeperData = {
+            sleeperUsername: sleeperUser.username || sleeperUsername.trim(),
+            sleeperUserId: sleeperUser.user_id,
+            sleeperLinkedAt: now,
           }
         }
       } catch {}

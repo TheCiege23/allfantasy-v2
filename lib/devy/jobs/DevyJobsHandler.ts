@@ -18,6 +18,13 @@ import {
   runAutoPromotionByTiming,
 } from '../lifecycle/DevyLifecycleAutomation'
 import { getC2CHybridStandings } from '@/lib/merged-devy-c2c/standings/C2CStandingsService'
+import {
+  importCollegePlayers,
+  calculateC2CPointsForLeague,
+  promoteEligiblePlayers,
+  refreshDraftProjections,
+  refreshTransferPortal,
+} from '@/lib/workers/devy-data-worker'
 
 export type DevyJobResult = {
   ok: boolean
@@ -27,14 +34,22 @@ export type DevyJobResult = {
   error?: string
 }
 
-/** NCAA player sync: placeholder for external NCAA API sync (CFBD / NCAA Basketball source). */
+/** NCAA player sync backed by CFBD + provider chain ingestion. */
 export async function runNcaaPlayerSync(payload: DevyJobPayload): Promise<DevyJobResult> {
   const sport = payload.sport ?? 'NFL'
   const processedAt = new Date().toISOString()
   try {
-    // TODO: integrate with CFBD or NCAA Basketball stats API; upsert DevyPlayer rows
-    console.log('[devy-jobs] ncaa_player_sync placeholder', sport)
-    return { ok: true, type: 'ncaa_player_sync', processedAt, message: 'Placeholder' }
+    const [seeded, projections, portal] = await Promise.all([
+      importCollegePlayers(sport),
+      refreshDraftProjections(sport),
+      refreshTransferPortal(sport),
+    ])
+    return {
+      ok: seeded.ok && projections.ok && portal.ok,
+      type: 'ncaa_player_sync',
+      processedAt,
+      message: `Imported ${seeded.created ?? 0}, refreshed ${projections.updated ?? 0} projections, ${portal.updated ?? 0} portal statuses`,
+    }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
     return { ok: false, type: 'ncaa_player_sync', processedAt, error }
@@ -388,17 +403,31 @@ export async function runC2CPipelineRecalculation(payload: DevyJobPayload): Prom
     if (!isC2C) {
       return { ok: true, type: 'c2c_pipeline_recalculation', processedAt, message: 'Not a C2C league' }
     }
+    const scoringResult = await calculateC2CPointsForLeague({
+      leagueId,
+      week: typeof payload.week === 'number' ? payload.week : undefined,
+      season: payload.seasonYear,
+    })
+    const promotionResult = await promoteEligiblePlayers({
+      leagueId,
+      season: payload.seasonYear,
+    })
     const isDevy = await isDevyLeague(leagueId)
     if (!isDevy) {
-      return { ok: true, type: 'c2c_pipeline_recalculation', processedAt, message: 'League has no devy outlook' }
+      return {
+        ok: scoringResult.ok && promotionResult.ok,
+        type: 'c2c_pipeline_recalculation',
+        processedAt,
+        message: `Recalculated college scoring (${scoringResult.logsWritten ?? 0} logs)`,
+      }
     }
     if (rosterId) {
       await getDevyTeamOutlook({ leagueId, rosterId })
       return {
-        ok: true,
+        ok: scoringResult.ok && promotionResult.ok,
         type: 'c2c_pipeline_recalculation',
         processedAt,
-        message: `Recalculated pipeline for roster ${rosterId}`,
+        message: `Recalculated pipeline for roster ${rosterId} and wrote ${scoringResult.logsWritten ?? 0} scoring logs`,
       }
     }
     const league = await prisma.league.findUnique({
@@ -412,10 +441,10 @@ export async function runC2CPipelineRecalculation(payload: DevyJobPayload): Prom
       await getDevyTeamOutlook({ leagueId, rosterId: r.id })
     }
     return {
-      ok: true,
+      ok: scoringResult.ok && promotionResult.ok,
       type: 'c2c_pipeline_recalculation',
       processedAt,
-      message: `Recalculated pipeline for ${league.rosters.length} rosters`,
+      message: `Recalculated pipeline for ${league.rosters.length} rosters and wrote ${scoringResult.logsWritten ?? 0} scoring logs`,
     }
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
