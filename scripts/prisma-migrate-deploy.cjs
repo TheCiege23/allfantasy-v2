@@ -213,12 +213,20 @@ function writeOutput(result) {
 let result = runPrisma(["migrate", "deploy"]);
 writeOutput(result);
 
+function outputMentionsFailedMigration(output, migrationName) {
+  return (
+    output.includes(`Migration name: ${migrationName}`) ||
+    output.includes(`The \`${migrationName}\` migration`) ||
+    output.includes(migrationName)
+  );
+}
+
 const output = `${result.stdout || ""}\n${result.stderr || ""}`;
 const shouldRetryFailedChatHistoryMigration =
   typeof result.status === "number" &&
   result.status !== 0 &&
-  output.includes("P3018") &&
-  output.includes(`Migration name: ${failedMigrationName}`);
+  (output.includes("P3018") || output.includes("P3009")) &&
+  outputMentionsFailedMigration(output, failedMigrationName);
 
 if (shouldRetryFailedChatHistoryMigration) {
   console.warn(
