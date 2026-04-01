@@ -12,7 +12,7 @@ import {
   resumeDraftSession,
   startDraftSession,
 } from '@/lib/live-draft-engine/DraftSessionService'
-import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import { submitPick, type SubmitPickInput } from '@/lib/live-draft-engine/PickSubmissionService'
 import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { publishDraftIntelState } from '@/lib/draft-intelligence'
@@ -155,6 +155,33 @@ type WorkerOptions = {
   viewerUserId?: string
 }
 
+type DraftPickSource = NonNullable<SubmitPickInput['source']>
+
+type ResolvedDraftPlayer = {
+  playerId: string
+  playerName: string
+  position: string
+  team: string | null
+  byeWeek: number | null
+  pickSource: DraftPickSource | null
+}
+
+type CollegeDraftPlayerQueryRow = {
+  id: string
+  name: string
+  position: string
+  school?: string | null
+  conference?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  nflTeam?: string | null
+  nextGameLabel?: string | null
+  devyAdp?: number | null
+  projectedC2CPoints?: number | null
+  c2cPointsWeek?: number | null
+  headshotUrl?: string | null
+}
+
 function normalizeAdpSource(raw: unknown): ADPSource {
   const value = String(raw ?? 'blended').toLowerCase()
   if (value === 'api') return 'api'
@@ -169,7 +196,7 @@ async function resolvePlayerById(
   sport: string,
   playerId: string,
   settings?: Record<string, unknown> | null
-) {
+): Promise<ResolvedDraftPlayer | null> {
   const fromPool = await getPlayerPoolForLeague(leagueId, sport as any, { limit: 500 }).catch(() => [])
   const poolMatch = fromPool.find((entry: any) => {
     const ids = [
@@ -207,7 +234,7 @@ async function resolvePlayerById(
   }).catch(() => null)
   if (devyPlayer?.id) {
     const requestedDraftType = String(settings?.requested_draft_type ?? settings?.draft_type ?? '').toLowerCase()
-    const pickSource =
+    const pickSource: DraftPickSource =
       devyPlayer.graduatedToNFL
         ? 'promoted_devy'
         : requestedDraftType.startsWith('devy_')
@@ -318,7 +345,7 @@ async function buildAvailablePlayers(
       ].filter(Boolean)
     )
   )
-  const collegeEntries = await prisma.devyPlayer.findMany({
+  const collegeEntries = (await (prisma as any).devyPlayer.findMany({
     where: {
       graduatedToNFL: false,
       ...(collegeSports.length > 0 ? { sport: { in: collegeSports } } : {}),
@@ -340,7 +367,7 @@ async function buildAvailablePlayers(
       c2cPointsWeek: true,
       headshotUrl: true,
     },
-  }).catch(() => [])
+  }).catch(() => [])) as CollegeDraftPlayerQueryRow[]
 
   const normalizedDrafted = new Set(Array.from(draftedNames).map((name) => name.trim().toLowerCase()))
   const collegeMapped = collegeEntries
