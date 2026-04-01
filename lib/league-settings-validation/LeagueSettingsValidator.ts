@@ -6,6 +6,11 @@
 
 import type { LeagueSettingsValidationResult } from './types'
 import { DYNASTY_SUPPORTED_TEAM_SIZES } from '@/lib/dynasty-core/constants'
+import {
+  isDraftTypeAllowedForFormat,
+  isLeagueFormatAllowedForSport,
+  resolveLeagueFormat,
+} from '@/lib/league/format-engine'
 
 /** Input may be League.settings (snake_case), wizard payload (camelCase), or partial. */
 export type LeagueSettingsInput = Record<string, unknown>
@@ -44,6 +49,30 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
   const draftType = (input.draft_type ?? input.draftType ?? '') as string
   const leagueType = String(input.league_type ?? input.leagueType ?? '').toLowerCase()
   const leagueVariant = String(input.league_variant ?? input.leagueVariant ?? '').toLowerCase()
+  const sport = String(input.sport ?? input.sport_type ?? 'NFL').toUpperCase()
+
+  if (leagueType && !isLeagueFormatAllowedForSport(sport, leagueType)) {
+    errors.push(`${leagueType} leagues are not available for ${sport}.`)
+  }
+
+  if (leagueType && draftType && !isDraftTypeAllowedForFormat(sport, leagueType, draftType)) {
+    errors.push(`${draftType} draft is not valid for ${leagueType} leagues.`)
+  }
+
+  if (!leagueType || !errors.length) {
+    const resolution = resolveLeagueFormat({
+      sport,
+      leagueType: leagueType || 'redraft',
+      draftType: draftType || 'snake',
+      leagueVariant,
+    })
+    if (resolution.format.id === 'salary_cap') {
+      const salaryCap = num(input.salary_cap ?? input.salaryCap ?? input.cap_limit ?? 0)
+      if (salaryCap == null || salaryCap <= 0) {
+        warnings.push('Salary cap leagues should set a positive cap limit in league settings.')
+      }
+    }
+  }
 
   // --- Auction: draft_type === 'auction' requires a positive budget ---
   const auctionBudget =

@@ -71,6 +71,26 @@
     {
       "path": "/api/cron/c2c-live-scores",
       "schedule": "*/5 10-23 * * 6"
+    },
+    {
+      "path": "/api/cron/weekly-engine",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/score-lock",
+      "schedule": "0 7 * * 2"
+    },
+    {
+      "path": "/api/cron/waiver-processing",
+      "schedule": "0 10 * * 3"
+    },
+    {
+      "path": "/api/cron/keeper-deadline",
+      "schedule": "0 12 * * 4"
+    },
+    {
+      "path": "/api/cron/dynasty-cutdown",
+      "schedule": "0 8 * * 5"
     }
   ]
 }

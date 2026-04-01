@@ -40,6 +40,15 @@ export function ImportedLeaguePreviewPanel({
   if (!preview) return null;
 
   const { league, managers, dataQuality } = preview;
+  const formatSummary = preview.formatSummary ?? {
+    detectedFormat: league.type,
+    modifiers: [],
+    mappedScoringSettingsCount: 0,
+    mappedRosterSlotCount: preview.rosterPositions?.length ?? 0,
+    unsupportedPositions: [],
+    introVideo: 'Not resolved',
+    formatCardLabel: league.type,
+  };
   const coverageItems = dataQuality.coverageSummary.slice(0, 6);
   const tierColor =
     dataQuality.tier === 'FULL'
@@ -146,6 +155,27 @@ export function ImportedLeaguePreviewPanel({
             <span className="text-white/60">Draft</span>
             <span>{preview.draftPickCount} picks imported</span>
           </div>
+        </div>
+
+        <div className="rounded border border-cyan-400/25 bg-[#030a20]/80 p-3 space-y-2">
+          <p className="text-xs font-medium text-white/70">Detected AllFantasy format</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-white/90">
+            <span className="text-white/60">Format</span>
+            <span>{formatSummary.detectedFormat}</span>
+            <span className="text-white/60">Modifiers</span>
+            <span>{formatSummary.modifiers.join(', ') || 'None'}</span>
+            <span className="text-white/60">Mapped scoring rules</span>
+            <span>{formatSummary.mappedScoringSettingsCount}</span>
+            <span className="text-white/60">Mapped roster slots</span>
+            <span>{formatSummary.mappedRosterSlotCount}</span>
+            <span className="text-white/60">Intro video</span>
+            <span>{formatSummary.introVideo}</span>
+          </div>
+          {formatSummary.unsupportedPositions.length > 0 ? (
+            <p className="text-[11px] text-amber-200">
+              Unsupported positions: {formatSummary.unsupportedPositions.join(', ')}
+            </p>
+          ) : null}
         </div>
 
         {/* Historical data */}

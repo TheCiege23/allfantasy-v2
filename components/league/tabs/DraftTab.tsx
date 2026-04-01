@@ -1,10 +1,14 @@
 import StandingsRow from '@/components/league/StandingsRow'
-import LeagueSettings from '@/components/league/LeagueSettings'
-import ScoreSettings from '@/components/league/ScoreSettings'
+import RosterSettingsCard from '@/components/league/RosterSettingsCard'
+import ScoringSettingsCard from '@/components/league/ScoringSettingsCard'
+import KeeperDeclarationCard from '@/components/league/KeeperDeclarationCard'
+import WeeklyStoryline from '@/components/league/WeeklyStoryline'
 import type {
   LeagueDraftSummaryCard,
+  LeagueKeeperDeclarationItem,
   LeagueScoringSection,
   LeagueSettingsItem,
+  LeagueStorylineCardData,
   LeagueTeamRow,
   LeagueVariantSummary,
 } from '@/components/league/types'
@@ -16,6 +20,8 @@ export default function DraftTab({
   scoringSections,
   variant,
   summaryCards,
+  keeperDeclarations,
+  draftRecap,
 }: {
   teams: LeagueTeamRow[]
   season: number | null
@@ -23,9 +29,12 @@ export default function DraftTab({
   scoringSections: LeagueScoringSection[]
   variant: LeagueVariantSummary
   summaryCards: LeagueDraftSummaryCard[]
+  keeperDeclarations: LeagueKeeperDeclarationItem[]
+  draftRecap: LeagueStorylineCardData | null
 }) {
   return (
     <div className="space-y-6">
+      <WeeklyStoryline item={draftRecap} />
       {summaryCards.map((card) => (
         <section key={card.id} className="rounded-2xl border border-[#1E2A42] bg-[#131929] p-4">
           <div className="flex items-start justify-between gap-3">
@@ -66,8 +75,9 @@ export default function DraftTab({
         </div>
       </section>
 
-      <LeagueSettings items={settingsItems} />
-      <ScoreSettings sections={scoringSections} />
+      <RosterSettingsCard items={settingsItems} />
+      <ScoringSettingsCard sections={scoringSections} />
+      <KeeperDeclarationCard items={keeperDeclarations} />
     </div>
   )
 }

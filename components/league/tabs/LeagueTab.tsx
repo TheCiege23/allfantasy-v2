@@ -6,23 +6,46 @@ import { BarChart3, Trophy } from 'lucide-react'
 import StandingsRow from '@/components/league/StandingsRow'
 import PlayoffBracket from '@/components/league/PlayoffBracket'
 import ActivityFeed from '@/components/league/ActivityFeed'
-import type { LeagueActivityItem, LeaguePlayoffBracketData, LeagueTeamRow } from '@/components/league/types'
+import WeeklyStoryline from '@/components/league/WeeklyStoryline'
+import HypeWeekPreview from '@/components/league/HypeWeekPreview'
+import PowerRankings from '@/components/league/PowerRankings'
+import type {
+  LeagueActivityItem,
+  LeagueMatchupPreviewCardData,
+  LeaguePlayoffBracketData,
+  LeaguePowerRankingItem,
+  LeagueStorylineCardData,
+  LeagueTeamRow,
+} from '@/components/league/types'
 
 export default function LeagueTab({
   leagueId,
   standings,
   activity,
   bracket,
+  storyline,
+  matchupPreview,
+  powerRankings,
+  constitution,
 }: {
   leagueId: string
   standings: LeagueTeamRow[]
   activity: LeagueActivityItem[]
   bracket: LeaguePlayoffBracketData
+  storyline: LeagueStorylineCardData | null
+  matchupPreview: LeagueMatchupPreviewCardData | null
+  powerRankings: LeaguePowerRankingItem[]
+  constitution: LeagueStorylineCardData | null
 }) {
   const [mode, setMode] = useState<'standings' | 'playoff'>('standings')
 
   return (
     <div className="space-y-6">
+      <WeeklyStoryline item={constitution} />
+      <WeeklyStoryline item={storyline} />
+      <HypeWeekPreview item={matchupPreview} />
+      <PowerRankings items={powerRankings} />
+
       <div className="flex items-center justify-between">
         <Link
           href={`/app/league/${leagueId}?tab=LEAGUE`}

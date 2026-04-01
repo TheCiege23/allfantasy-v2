@@ -2531,6 +2531,7 @@ model AppUser {
   mockDrafts              MockDraft[]
   activeLeagueId          String?
   leagueChatMessages      LeagueChatMessage[]
+  leagueIntroViews        LeagueIntroView[]
   bracketLeagueMessages   BracketLeagueMessage[]   @relation("BracketLeagueMessages")
   bracketMessageReactions BracketMessageReaction[] @relation("BracketMessageReactions")
   bracketPayments         BracketPayment[]         @relation("BracketPayments")
@@ -3860,6 +3861,12 @@ model League {
   devyBestBallLineupSnapshots DevyBestBallLineupSnapshot[]
   c2cConfig           C2CLeagueConfig?
   c2cScoringLogs      C2CScoringLog[]
+  storylines          LeagueStoryline[]
+  matchupPreviews     LeagueMatchupPreview[]
+  draftRecaps         DraftRecap[]
+  keeperDeclarations  KeeperDeclaration[]
+  scoringSnapshots    ScoringSettingsSnapshot[]
+  leagueIntroViews    LeagueIntroView[]
   zombieLeague       ZombieLeague?   // when league is in a zombie universe
   tournamentLeague   TournamentLeague? // PROMPT 2: when league is part of a tournament
   bigBrotherConfig   BigBrotherLeagueConfig?
@@ -3886,6 +3893,131 @@ model League {
   @@index([status])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+model LeagueStoryline {
+  id          String   @id @default(uuid())
+  leagueId    String
+  season      Int?
+  week        Int?
+  storyType   String   @default("weekly_storyline") @db.VarChar(32)
+  title       String   @db.VarChar(160)
+  summary     String   @db.Text
+  body        String?  @db.Text
+  metadata    Json?
+  source      String   @default("ai") @db.VarChar(24)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, season, week])
+  @@index([leagueId, storyType, createdAt])
+  @@map("league_storylines")
+}
+
+model LeagueMatchupPreview {
+  id              String   @id @default(uuid())
+  leagueId        String
+  season          Int?
+  week            Int
+  rosterAId       String?  @db.VarChar(64)
+  rosterBId       String?  @db.VarChar(64)
+  headline        String   @db.VarChar(160)
+  summary         String   @db.Text
+  confidenceScore Float?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season, week, rosterAId, rosterBId])
+  @@index([leagueId, season, week])
+  @@map("league_matchup_previews")
+}
+
+model DraftRecap {
+  id             String   @id @default(uuid())
+  leagueId       String
+  draftSessionId String?
+  title          String   @db.VarChar(160)
+  summary        String   @db.Text
+  sections       Json?
+  metadata       Json?
+  generatedBy    String   @default("ai") @db.VarChar(24)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  league       League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  draftSession DraftSession? @relation(fields: [draftSessionId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, createdAt])
+  @@index([draftSessionId])
+  @@map("draft_recaps")
+}
+
+model KeeperDeclaration {
+  id                String   @id @default(uuid())
+  leagueId          String
+  rosterId          String
+  season            Int?
+  playerId          String   @db.VarChar(64)
+  playerName        String?  @db.VarChar(160)
+  position          String?  @db.VarChar(24)
+  roundCost         Int?
+  costType          String   @default("previous_round") @db.VarChar(32)
+  salaryValue       Int?
+  status            String   @default("declared") @db.VarChar(24)
+  deadlineAt        DateTime?
+  commissionerNotes String?  @db.Text
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster Roster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, season, playerId])
+  @@index([leagueId, season, status])
+  @@index([rosterId, season])
+  @@map("keeper_declarations")
+}
+
+model ScoringSettingsSnapshot {
+  id             String   @id @default(uuid())
+  leagueId       String
+  season         Int?
+  week           Int?
+  formatKey      String?  @db.VarChar(64)
+  scoringMode    String   @default("points") @db.VarChar(24)
+  scoringFormat  String?  @db.VarChar(64)
+  templateId     String?  @db.VarChar(128)
+  modifiers      String[]
+  effectiveRules Json
+  overrides      Json?
+  createdAt      DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, season, week])
+  @@index([leagueId, createdAt])
+  @@map("scoring_settings_snapshots")
+}
+
+model LeagueIntroView {
+  id        String   @id @default(uuid())
+  leagueId  String
+  userId    String
+  seenAt    DateTime @default(now())
+  metadata  Json?
+
+  league League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([userId, seenAt])
+  @@map("league_intro_views")
 }
 
 /// User-created league templates: save and reuse league settings, draft settings, AI/automation toggles (PROMPT 209).
@@ -4184,6 +4316,7 @@ model Roster {
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
   devyRights         DevyRights[]
+  keeperDeclarations KeeperDeclaration[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
@@ -6175,6 +6308,7 @@ model DraftSession {
   picks   DraftPick[]
   queues  DraftQueue[]
   tradeProposals DraftPickTradeProposal[]
+  draftRecaps DraftRecap[]
 
   @@unique([leagueId])
   @@index([leagueId])

@@ -1,51 +1,38 @@
 /**
  * League types, draft types, and valid combinations for the creation wizard.
- * Prevents invalid sport × league type × draft type combinations.
+ * Delegates to the central format engine so create flow, imports, defaults,
+ * and validation resolve from one shared source of truth.
  */
 
 import type { LeagueSport } from '@prisma/client'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import {
+  getAllowedDraftTypesForFormat,
+  getFormatsForSport,
+  isDraftTypeAllowedForFormat,
+  isLeagueFormatAllowedForSport,
+  listLeagueFormats,
+} from '@/lib/league/format-engine'
 import type { LeagueTypeId, DraftTypeId } from './types'
 
-export const LEAGUE_TYPE_IDS: LeagueTypeId[] = [
-  'redraft',
-  'dynasty',
-  'keeper',
-  'best_ball',
-  'guillotine',
-  'survivor',
-  'tournament',
-  'devy',
-  'c2c',
-  'zombie',
-  'salary_cap',
-]
+export const LEAGUE_TYPE_IDS: LeagueTypeId[] = listLeagueFormats().map((format) => format.id) as LeagueTypeId[]
 
-export const LEAGUE_TYPE_LABELS: Record<LeagueTypeId, string> = {
-  redraft: 'Redraft',
-  dynasty: 'Dynasty',
-  keeper: 'Keeper',
-  best_ball: 'Best Ball',
-  guillotine: 'Guillotine',
-  survivor: 'Survivor',
-  tournament: 'Tournament',
-  devy: 'Devy',
-  c2c: 'Campus to Canton (C2C)',
-  zombie: 'Zombie',
-  salary_cap: 'Salary Cap',
+export const LEAGUE_TYPE_LABELS: Record<LeagueTypeId, string> = listLeagueFormats().reduce(
+  (acc, format) => {
+    acc[format.id as LeagueTypeId] = format.label
+    return acc
+  },
+  {} as Record<LeagueTypeId, string>
+)
+
+const ALL_DRAFT_TYPES = new Set<DraftTypeId>()
+for (const format of listLeagueFormats()) {
+  for (const draftType of format.draftTypes) {
+    ALL_DRAFT_TYPES.add(draftType as DraftTypeId)
+  }
 }
 
-export const DRAFT_TYPE_IDS: DraftTypeId[] = [
-  'snake',
-  'linear',
-  'auction',
-  'slow_draft',
-  'mock_draft',
-  'devy_snake',
-  'devy_auction',
-  'c2c_snake',
-  'c2c_auction',
-]
+export const DRAFT_TYPE_IDS: DraftTypeId[] = Array.from(ALL_DRAFT_TYPES)
 
 export const DRAFT_TYPE_LABELS: Record<DraftTypeId, string> = {
   snake: 'Snake',
@@ -114,21 +101,8 @@ export function isLiveDraftType(draftType: DraftTypeId): boolean {
   return LIVE_DRAFT_TYPES.includes(draftType)
 }
 
-/** Sports that support best ball (must match SportFeatureFlagsService.supportsBestBall). */
-const SPORTS_SUPPORTING_BEST_BALL = new Set<string>(['NFL', 'NBA', 'NCAAB', 'NCAAF'])
-
-/**
- * League types allowed for a sport.
- * Devy/C2C: football and basketball ecosystems only.
- * Best ball only for NFL, NBA, NCAAB, NCAAF.
- */
 export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): LeagueTypeId[] {
-  const s = String(sport).toUpperCase()
-  const base: LeagueTypeId[] = ['redraft', 'dynasty', 'keeper', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap']
-  const all: LeagueTypeId[] = SPORTS_SUPPORTING_BEST_BALL.has(s) ? [...base, 'best_ball'] : base
-  if (s === 'NFL' || s === 'NCAAF') return [...all, 'c2c', 'devy']
-  if (s === 'NBA' || s === 'NCAAB') return [...all, 'c2c', 'devy']
-  return all
+  return getFormatsForSport(sport).map((format) => format.id) as LeagueTypeId[]
 }
 
 /** Guillotine: snake, linear, auction, and mock draft only (no slow_draft). 3RR applies only to snake (UI). */
@@ -140,10 +114,8 @@ const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mo
  * Guillotine supports snake/linear/auction and mock draft only.
  */
 export function getAllowedDraftTypesForLeagueType(leagueType: LeagueTypeId): DraftTypeId[] {
-  if (leagueType === 'devy') return ['devy_snake', 'devy_auction', 'snake', 'auction', 'slow_draft', 'mock_draft']
-  if (leagueType === 'c2c') return ['c2c_snake', 'c2c_auction', 'snake', 'auction', 'slow_draft', 'mock_draft']
   if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
-  return ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
+  return getAllowedDraftTypesForFormat('NFL', leagueType) as DraftTypeId[]
 }
 
 /** Roster modes allowed for Guillotine (redraft / best_ball only). */
@@ -157,14 +129,14 @@ export function getGuillotineAllowedRosterModes(): readonly string[] {
  * Validate league type for sport.
  */
 export function isLeagueTypeAllowedForSport(leagueType: LeagueTypeId, sport: LeagueSport | string): boolean {
-  return getAllowedLeagueTypesForSport(sport).includes(leagueType)
+  return isLeagueFormatAllowedForSport(sport, leagueType)
 }
 
 /**
  * Validate draft type for league type.
  */
 export function isDraftTypeAllowedForLeagueType(draftType: DraftTypeId, leagueType: LeagueTypeId): boolean {
-  return getAllowedDraftTypesForLeagueType(leagueType).includes(draftType)
+  return isDraftTypeAllowedForFormat('NFL', leagueType, draftType)
 }
 
 /**

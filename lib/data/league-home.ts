@@ -12,6 +12,7 @@ import { getDevyConfig } from '@/lib/devy/DevyLeagueConfig'
 import { getC2CConfig } from '@/lib/merged-devy-c2c/C2CLeagueConfig'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { getLeagueChatMessages } from '@/lib/league-chat/LeagueChatMessageService'
+import { getFormatIntroMetadata } from '@/lib/league/format-engine'
 import type {
   LeagueActivityItem,
   LeagueBracketMatchup,
@@ -19,12 +20,17 @@ import type {
   LeagueBracketRound,
   LeagueChatPreview,
   LeagueHomeData,
+  LeagueIntroVideoData,
+  LeagueKeeperDeclarationItem,
+  LeagueMatchupPreviewCardData,
   LeaguePlayersData,
+  LeaguePowerRankingItem,
   LeagueRosterCard,
   LeagueRosterSection,
   LeagueRosterSlot,
   LeagueScoringSection,
   LeagueSettingsItem,
+  LeagueStorylineCardData,
   LeagueTeamRow,
   LeagueTradeAsset,
   LeagueTradeBlockItem,
@@ -37,6 +43,7 @@ import type {
 } from '@/components/league/types'
 
 type JsonRecord = Record<string, unknown>
+const prismaAny = prisma as any
 
 function isEmptySleeperSlotPlayerId(playerId: string): boolean {
   return playerId.trim() === '0'
@@ -845,6 +852,156 @@ function buildDraftSummaryCards(
   return []
 }
 
+async function buildIntroVideoData(
+  context: LeagueContext,
+  userId: string
+): Promise<LeagueIntroVideoData | null> {
+  const settings = toJsonRecord(context.league.settings)
+  const storedIntro =
+    settings.intro_video && typeof settings.intro_video === 'object'
+      ? (settings.intro_video as Record<string, unknown>)
+      : null
+
+  const derivedIntro = getFormatIntroMetadata({
+    sport: context.league.sport,
+    leagueType: typeof settings.league_type === 'string' ? settings.league_type : context.league.leagueVariant,
+    leagueVariant: context.league.leagueVariant,
+    requestedModifiers: Array.isArray(settings.format_modifiers)
+      ? settings.format_modifiers.map((entry) => String(entry))
+      : [],
+  })
+
+  const seen = await prismaAny.leagueIntroView.findUnique({
+    where: {
+      leagueId_userId: {
+        leagueId: context.league.id,
+        userId,
+      },
+    },
+    select: { id: true },
+  })
+
+  return {
+    title: typeof storedIntro?.title === 'string' ? storedIntro.title : derivedIntro.title,
+    subtitle: typeof storedIntro?.subtitle === 'string' ? storedIntro.subtitle : derivedIntro.subtitle,
+    introVideo:
+      typeof storedIntro?.introVideo === 'string' ? storedIntro.introVideo : derivedIntro.introVideo,
+    thumbnail:
+      typeof storedIntro?.thumbnail === 'string' ? storedIntro.thumbnail : derivedIntro.thumbnail,
+    fallbackCopy:
+      typeof storedIntro?.fallbackCopy === 'string'
+        ? storedIntro.fallbackCopy
+        : derivedIntro.fallbackCopy,
+    shouldAutoOpen: !seen,
+  }
+}
+
+async function buildStorylineCard(leagueId: string): Promise<LeagueStorylineCardData | null> {
+  const storyline = await prismaAny.leagueStoryline.findFirst({
+    where: { leagueId, storyType: 'weekly_storyline' },
+    orderBy: [{ season: 'desc' }, { week: 'desc' }, { createdAt: 'desc' }],
+  })
+
+  if (!storyline) return null
+
+  return {
+    title: storyline.title,
+    summary: storyline.summary,
+    body: storyline.body,
+    createdAtLabel: formatDateTime(storyline.createdAt),
+  }
+}
+
+async function buildDraftRecapCard(leagueId: string): Promise<LeagueStorylineCardData | null> {
+  const recap = await prismaAny.draftRecap.findFirst({
+    where: { leagueId },
+    orderBy: { updatedAt: 'desc' },
+  })
+
+  if (!recap) return null
+
+  return {
+    title: recap.title,
+    summary: recap.summary,
+    body: null,
+    createdAtLabel: formatDateTime(recap.updatedAt),
+  }
+}
+
+async function buildConstitutionCard(leagueId: string): Promise<LeagueStorylineCardData | null> {
+  const constitution = await prismaAny.leagueStoryline.findFirst({
+    where: { leagueId, storyType: 'constitution' },
+    orderBy: { updatedAt: 'desc' },
+  })
+
+  if (!constitution) return null
+
+  return {
+    title: constitution.title,
+    summary: constitution.summary,
+    body: constitution.body,
+    createdAtLabel: formatDateTime(constitution.updatedAt),
+  }
+}
+
+async function buildMatchupPreviewCard(leagueId: string): Promise<LeagueMatchupPreviewCardData | null> {
+  const preview = await prismaAny.leagueMatchupPreview.findFirst({
+    where: { leagueId },
+    orderBy: [{ season: 'desc' }, { week: 'desc' }, { updatedAt: 'desc' }],
+  })
+
+  if (!preview) return null
+
+  return {
+    headline: preview.headline,
+    summary: preview.summary,
+    confidenceLabel:
+      typeof preview.confidenceScore === 'number'
+        ? `Confidence ${Math.round(preview.confidenceScore * 100)}%`
+        : null,
+  }
+}
+
+async function buildKeeperDeclarationsCard(
+  leagueId: string
+): Promise<LeagueKeeperDeclarationItem[]> {
+  const declarations = await prismaAny.keeperDeclaration.findMany({
+    where: { leagueId },
+    orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
+    take: 6,
+    select: {
+      id: true,
+      playerName: true,
+      playerId: true,
+      status: true,
+      roundCost: true,
+      salaryValue: true,
+    },
+  })
+
+  return declarations.map((item: any) => ({
+    id: item.id,
+    playerName: item.playerName ?? `Player ${item.playerId}`,
+    status: titleCase(item.status),
+    costLabel:
+      item.salaryValue != null
+        ? `$${item.salaryValue}`
+        : item.roundCost != null
+          ? `Round ${item.roundCost}`
+          : 'Commissioner cost',
+  }))
+}
+
+function buildPowerRankingsCard(standings: LeagueTeamRow[]): LeaguePowerRankingItem[] {
+  return standings.slice(0, 5).map((team, index) => ({
+    id: team.id,
+    rank: index + 1,
+    name: team.name,
+    record: formatRecord(team.record.wins, team.record.losses, team.record.ties),
+    pointsFor: team.pointsFor.toFixed(1),
+  }))
+}
+
 function getCurrentTeamExternalId(playerData: Prisma.JsonValue | null | undefined): string | null {
   const record = toJsonRecord(playerData)
   const sourceTeamId = record.source_team_id
@@ -1631,7 +1788,23 @@ export async function getLeagueHomeData(
   const standings = buildLeagueTeamRows(context, currentTeamExternalId)
   const variant = await buildVariantSummary(context)
 
-  const [baseRoster, collegeSections, settingsItems, scoringSections, activity, trades, players, bracket, chat] = await Promise.all([
+  const [
+    baseRoster,
+    collegeSections,
+    settingsItems,
+    scoringSections,
+    activity,
+    trades,
+    players,
+    bracket,
+    chat,
+    introVideo,
+    storyline,
+    matchupPreview,
+    draftRecap,
+    constitution,
+    keeperDeclarations,
+  ] = await Promise.all([
     buildRosterCard(context),
     buildCollegeRosterSections(context, variant),
     buildSettingsItems(context),
@@ -1641,12 +1814,19 @@ export async function getLeagueHomeData(
     buildPlayersData(context, variant),
     buildBracket(context, standings),
     buildChatPreview(context.league.id),
+    buildIntroVideoData(context, userId),
+    buildStorylineCard(context.league.id),
+    buildMatchupPreviewCard(context.league.id),
+    buildDraftRecapCard(context.league.id),
+    buildConstitutionCard(context.league.id),
+    buildKeeperDeclarationsCard(context.league.id),
   ])
   const roster = {
     ...baseRoster,
     collegeSections,
   }
   const draftSummaryCards = buildDraftSummaryCards(variant, roster)
+  const powerRankings = buildPowerRankingsCard(standings)
 
   const settings = toJsonRecord(context.league.settings)
 
@@ -1663,6 +1843,7 @@ export async function getLeagueHomeData(
       isDynasty: context.league.isDynasty,
     },
     variant,
+    introVideo,
     currentUserId: userId,
     isCommissioner: context.isCommissioner,
     activeTab,
@@ -1675,6 +1856,12 @@ export async function getLeagueHomeData(
     trades,
     players,
     draftSummaryCards,
+    storyline,
+    matchupPreview,
+    draftRecap,
+    constitution,
+    keeperDeclarations,
+    powerRankings,
     bracket,
     chat,
   }

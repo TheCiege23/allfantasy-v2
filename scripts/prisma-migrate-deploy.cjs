@@ -190,15 +190,56 @@ const prismaBin = path.join(
 
 const hasLocalPrisma = fs.existsSync(prismaBin);
 const command = hasLocalPrisma ? prismaBin : "npx";
-const args = hasLocalPrisma
-  ? ["migrate", "deploy"]
-  : ["prisma", "migrate", "deploy"];
+const failedMigrationName = "20260363000000_add_ai_memory_and_chat_history";
 
-const result = spawnSync(command, args, {
-  stdio: "inherit",
-  env: process.env,
-  shell: process.platform === "win32",
-});
+function buildArgs(prismaArgs) {
+  return hasLocalPrisma ? prismaArgs : ["prisma", ...prismaArgs];
+}
+
+function runPrisma(prismaArgs) {
+  return spawnSync(command, buildArgs(prismaArgs), {
+    stdio: "pipe",
+    encoding: "utf8",
+    env: process.env,
+    shell: process.platform === "win32",
+  });
+}
+
+function writeOutput(result) {
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+}
+
+let result = runPrisma(["migrate", "deploy"]);
+writeOutput(result);
+
+const output = `${result.stdout || ""}\n${result.stderr || ""}`;
+const shouldRetryFailedChatHistoryMigration =
+  typeof result.status === "number" &&
+  result.status !== 0 &&
+  output.includes("P3018") &&
+  output.includes(`Migration name: ${failedMigrationName}`);
+
+if (shouldRetryFailedChatHistoryMigration) {
+  console.warn(
+    `[db:migrate:deploy] Detected failed migration ${failedMigrationName}; marking it rolled back and retrying deploy once.`
+  );
+
+  const resolveResult = runPrisma([
+    "migrate",
+    "resolve",
+    "--rolled-back",
+    failedMigrationName,
+  ]);
+  writeOutput(resolveResult);
+
+  if (resolveResult.status === 0) {
+    result = runPrisma(["migrate", "deploy"]);
+    writeOutput(result);
+  } else {
+    process.exit(typeof resolveResult.status === "number" ? resolveResult.status : 1);
+  }
+}
 
 if (typeof result.status === "number") {
   process.exit(result.status);

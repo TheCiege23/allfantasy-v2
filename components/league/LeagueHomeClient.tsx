@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import LeagueHeader from '@/components/league/LeagueHeader'
 import LeagueTabs from '@/components/league/LeagueTabs'
@@ -10,6 +10,7 @@ import DraftTab from '@/components/league/tabs/DraftTab'
 import TeamTab from '@/components/league/tabs/TeamTab'
 import PlayersTab from '@/components/league/tabs/PlayersTab'
 import LeagueTab from '@/components/league/tabs/LeagueTab'
+import IntroVideoModal from '@/components/league/IntroVideoModal'
 import type { LeagueHomeData, LeagueTopTab } from '@/components/league/types'
 
 const TOP_TABS: LeagueTopTab[] = ['DRAFT', 'TEAM', 'PLAYERS', 'LEAGUE']
@@ -29,6 +30,7 @@ export default function LeagueHomeClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<LeagueTopTab>(data.activeTab)
+  const [showIntroVideo, setShowIntroVideo] = useState(Boolean(data.introVideo?.shouldAutoOpen))
 
   const updateTab = useCallback(
     (tab: LeagueTopTab) => {
@@ -42,6 +44,20 @@ export default function LeagueHomeClient({
 
   const resolvedTab = useMemo(() => safeTab(searchParams?.get('tab'), activeTab), [activeTab, searchParams])
   const needsTeamDot = data.roster.overRosterLimitBy > 0 || data.trades.activeTrades.length > 0
+
+  useEffect(() => {
+    setShowIntroVideo(Boolean(data.introVideo?.shouldAutoOpen))
+  }, [data.introVideo?.shouldAutoOpen])
+
+  const closeIntroVideo = useCallback(async () => {
+    setShowIntroVideo(false)
+    if (!data.introVideo?.shouldAutoOpen) return
+    try {
+      await fetch(`/api/leagues/${data.league.id}/intro`, { method: 'POST' })
+    } catch {
+      // Non-blocking: modal close should not depend on persistence.
+    }
+  }, [data.introVideo?.shouldAutoOpen, data.league.id])
 
   return (
     <div className="min-h-screen bg-[#0B0F1E] text-white">
@@ -57,6 +73,8 @@ export default function LeagueHomeClient({
             scoringSections={data.scoringSections}
             variant={data.variant}
             summaryCards={data.draftSummaryCards}
+            keeperDeclarations={data.keeperDeclarations}
+            draftRecap={data.draftRecap}
           />
         ) : null}
 
@@ -72,12 +90,19 @@ export default function LeagueHomeClient({
             standings={data.standings}
             activity={data.activity}
             bracket={data.bracket}
+            storyline={data.storyline}
+            matchupPreview={data.matchupPreview}
+            powerRankings={data.powerRankings}
+            constitution={data.constitution}
           />
         ) : null}
       </main>
 
       <ChatBar chat={data.chat} />
       <BottomNav active="fantasy" />
+      {data.introVideo ? (
+        <IntroVideoModal data={data.introVideo} open={showIntroVideo} onClose={closeIntroVideo} />
+      ) : null}
     </div>
   )
 }

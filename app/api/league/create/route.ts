@@ -8,6 +8,11 @@ import { resolveEffectiveLeagueVariant } from '@/lib/league-creation/LeagueVaria
 import { isSportEnabled } from '@/lib/feature-toggle';
 import { isDraftTypeAllowedForSport } from '@/lib/sport-rules-engine';
 import {
+  isDraftTypeAllowedForFormat,
+  isLeagueFormatAllowedForSport,
+  resolveLeagueFormat,
+} from '@/lib/league/format-engine';
+import {
   DRAFT_TYPE_IDS,
   LEAGUE_TYPE_IDS,
   isDraftTypeAllowedForLeagueType,
@@ -38,8 +43,18 @@ const createSchema = z.object({
   draft_type: z.string().max(32).optional(),
   /** Camel-case alias for wizard consumers */
   draftType: z.string().max(32).optional(),
+  formatId: z.string().max(32).optional(),
+  format: z.string().max(32).optional(),
+  modifiers: z.array(z.string().max(32)).optional(),
   /** League creation wizard: merged into League.settings (AI, automation, privacy, draft defaults) */
   settings: z.record(z.unknown()).optional(),
+  rosterSettings: z.record(z.unknown()).optional(),
+  scoringSettings: z.record(z.unknown()).optional(),
+  rules: z.record(z.unknown()).optional(),
+  introVideo: z.record(z.unknown()).optional(),
+  keeperSettings: z.record(z.unknown()).optional(),
+  salaryCapSettings: z.record(z.unknown()).optional(),
+  inviteSettings: z.record(z.unknown()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -80,7 +95,17 @@ export async function POST(req: Request) {
     leagueType: leagueTypeWizardCamel,
     draft_type: draftTypeWizard,
     draftType: draftTypeWizardCamel,
+    formatId: formatIdInput,
+    format: formatInput,
+    modifiers,
     settings: settingsWizard,
+    rosterSettings,
+    scoringSettings,
+    rules,
+    introVideo,
+    keeperSettings,
+    salaryCapSettings,
+    inviteSettings,
   } = parsed.data;
 
   if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
@@ -93,7 +118,7 @@ export async function POST(req: Request) {
     const normalized = value.trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
     return normalized.length > 0 ? normalized : undefined;
   };
-  const requestedLeagueType = normalizeWizardEnum(leagueTypeWizard ?? leagueTypeWizardCamel);
+  const requestedLeagueType = normalizeWizardEnum(leagueTypeWizard ?? leagueTypeWizardCamel ?? formatIdInput ?? formatInput);
   const requestedDraftType = normalizeWizardEnum(draftTypeWizard ?? draftTypeWizardCamel);
   if (requestedLeagueType && !(LEAGUE_TYPE_IDS as string[]).includes(requestedLeagueType)) {
     return NextResponse.json(
@@ -113,6 +138,14 @@ export async function POST(req: Request) {
       { status: 403 }
     );
   }
+  if (requestedLeagueType && !isLeagueFormatAllowedForSport(sport, requestedLeagueType)) {
+    return NextResponse.json(
+      {
+        error: `${requestedLeagueType} leagues are not available for ${sport}.`,
+      },
+      { status: 400 }
+    );
+  }
   if (
     requestedLeagueType &&
     !isLeagueTypeAllowedForSport(requestedLeagueType as any, sport)
@@ -120,6 +153,18 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error: `${requestedLeagueType} leagues are not available for ${sport}.`,
+      },
+      { status: 400 }
+    );
+  }
+  if (
+    requestedLeagueType &&
+    requestedDraftType &&
+    !isDraftTypeAllowedForFormat(sport, requestedLeagueType, requestedDraftType)
+  ) {
+    return NextResponse.json(
+      {
+        error: `${requestedDraftType} draft is not valid for ${requestedLeagueType} leagues.`,
       },
       { status: 400 }
     );
@@ -312,6 +357,13 @@ export async function POST(req: Request) {
     const initialSettings = {
       ...(initialSettingsFromOrchestrator as Record<string, unknown>),
     } as Record<string, unknown>;
+    const formatResolution = resolveLeagueFormat({
+      sport,
+      leagueType: requestedLeagueType,
+      draftType: requestedDraftType,
+      leagueVariant: leagueVariantInput,
+      requestedModifiers: modifiers ?? [],
+    });
     if (presetVariant === 'devy_dynasty' || presetVariant === 'merged_devy_c2c') {
       (initialSettings as Record<string, unknown>).roster_mode = 'dynasty';
     }
@@ -338,6 +390,8 @@ export async function POST(req: Request) {
       initialSettings.devyConfig = dc;
     }
     if (requestedLeagueType) initialSettings.league_type = requestedLeagueType;
+    initialSettings.format_id = formatResolution.format.id;
+    initialSettings.format_modifiers = formatResolution.modifiers;
     const requestedMockDraft = requestedDraftType === 'mock_draft';
     if (requestedDraftType) {
       initialSettings.draft_type = requestedMockDraft ? 'snake' : requestedDraftType;
@@ -348,6 +402,15 @@ export async function POST(req: Request) {
       initialSettings.mock_draft_type = 'mock_draft';
     }
     if (rosterSize != null && initialSettings.roster_size == null) initialSettings.roster_size = rosterSize;
+    if (initialSettings.scoring_template_id == null) {
+      initialSettings.scoring_template_id = formatResolution.scoring.scoringTemplateId;
+    }
+    if (initialSettings.scoring_format == null) {
+      initialSettings.scoring_format = formatResolution.scoring.scoringFormat;
+    }
+    if (initialSettings.scoring_mode == null) {
+      initialSettings.scoring_mode = formatResolution.scoring.defaultMode;
+    }
     // Best ball: set flag so feature-flag validation and downstream logic see best ball mode
     if (String(requestedLeagueType ?? '').toLowerCase() === 'best_ball') {
       (initialSettings as Record<string, unknown>).best_ball = true;
@@ -366,6 +429,27 @@ export async function POST(req: Request) {
     }
     if (settingsWizard && typeof settingsWizard === 'object') {
       Object.assign(initialSettings, settingsWizard);
+    }
+    if (rosterSettings && typeof rosterSettings === 'object') {
+      Object.assign(initialSettings, rosterSettings);
+    }
+    if (scoringSettings && typeof scoringSettings === 'object') {
+      Object.assign(initialSettings, scoringSettings);
+    }
+    if (rules && typeof rules === 'object') {
+      Object.assign(initialSettings, rules);
+    }
+    if (introVideo && typeof introVideo === 'object') {
+      initialSettings.intro_video = introVideo;
+    }
+    if (keeperSettings && typeof keeperSettings === 'object') {
+      initialSettings.keeper_settings = keeperSettings;
+    }
+    if (salaryCapSettings && typeof salaryCapSettings === 'object') {
+      initialSettings.salary_cap_settings = salaryCapSettings;
+    }
+    if (inviteSettings && typeof inviteSettings === 'object') {
+      initialSettings.invite_settings = inviteSettings;
     }
 
     // Ensure sport/variant defaults from orchestrator payload are always present unless explicitly overridden.
@@ -502,6 +586,12 @@ export async function POST(req: Request) {
       await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
+    }
+    try {
+      const { generateLeagueConstitutionArtifact } = await import('@/lib/league/format-artifact-service');
+      await generateLeagueConstitutionArtifact(league.id);
+    } catch (err) {
+      console.warn('[league/create] Constitution artifact bootstrap non-fatal:', err);
     }
 
     // Persist league-creation waiver choices after bootstrap so commissioner defaults match wizard selections.

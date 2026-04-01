@@ -10,6 +10,11 @@ import type {
 } from './types'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getPrimaryLogoUrlForTeam, getTeamByAbbreviation } from '@/lib/sport-teams/SportTeamMetadataRegistry'
+import {
+  getFormatIntroMetadata,
+  mapImportedLeagueToFormat,
+  resolveLeagueFormat,
+} from '@/lib/league/format-engine'
 
 export interface ImportPreviewLeague {
   id: string
@@ -118,6 +123,15 @@ export interface ImportPreviewResponse {
   league: ImportPreviewLeague
   managers: ImportPreviewManager[]
   rosterPositions: string[]
+  formatSummary?: {
+    detectedFormat: string
+    modifiers: string[]
+    mappedScoringSettingsCount: number
+    mappedRosterSlotCount: number
+    unsupportedPositions: string[]
+    introVideo: string
+    formatCardLabel: string
+  }
   playerMap: Record<string, { name: string; position: string; team: string }>
   draftPickCount: number
   transactionCount: number
@@ -253,6 +267,30 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
       rosterPositions: rosterPositions.length ? rosterPositions : undefined,
     },
   }
+  const mappedFormat = mapImportedLeagueToFormat({
+    sport: normalized.league.sport,
+    isDynasty: normalized.league.isDynasty,
+    scoring: normalized.league.scoring,
+    rosterPositions,
+    leagueType: typeof leagueSettings.league_type === 'string' ? leagueSettings.league_type : null,
+  })
+  const resolution = resolveLeagueFormat({
+    sport: normalized.league.sport,
+    leagueType: mappedFormat.formatId,
+    requestedModifiers: mappedFormat.modifiers,
+  })
+  const intro = getFormatIntroMetadata({
+    sport: normalized.league.sport,
+    leagueType: mappedFormat.formatId,
+    requestedModifiers: mappedFormat.modifiers,
+  })
+  const unsupportedPositions = rosterPositions.filter((slot) => {
+    const upper = String(slot).toUpperCase()
+    return !(
+      upper in resolution.roster.starterSlots ||
+      ['BENCH', 'BN', 'IR', 'RES', 'TAXI', 'SUPER_FLEX', 'SUPERFLEX'].includes(upper)
+    )
+  })
 
   const managers: ImportPreviewManager[] = normalized.rosters.map((r) => {
     const teamName = r.team_name?.trim() || r.owner_name
@@ -284,6 +322,15 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
     league,
     managers,
     rosterPositions,
+    formatSummary: {
+      detectedFormat: resolution.format.label,
+      modifiers: mappedFormat.modifiers.map((modifier) => modifier.replace(/_/g, ' ')),
+      mappedScoringSettingsCount: normalized.scoring?.rules.length ?? 0,
+      mappedRosterSlotCount: rosterPositions.length,
+      unsupportedPositions,
+      introVideo: intro.introVideo,
+      formatCardLabel: intro.title,
+    },
     playerMap: normalized.player_map ?? {},
     draftPickCount: normalized.draft_picks?.length ?? 0,
     transactionCount: normalized.transactions?.length ?? 0,

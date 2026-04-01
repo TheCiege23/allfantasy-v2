@@ -216,6 +216,43 @@ export type LeagueDraftSummaryCard = {
   values: Array<{ label: string; value: string }>
 }
 
+export type LeagueIntroVideoData = {
+  title: string
+  subtitle: string
+  introVideo: string
+  thumbnail: string
+  fallbackCopy: string
+  shouldAutoOpen: boolean
+}
+
+export type LeagueStorylineCardData = {
+  title: string
+  summary: string
+  body?: string | null
+  createdAtLabel: string
+}
+
+export type LeagueMatchupPreviewCardData = {
+  headline: string
+  summary: string
+  confidenceLabel: string | null
+}
+
+export type LeagueKeeperDeclarationItem = {
+  id: string
+  playerName: string
+  status: string
+  costLabel: string
+}
+
+export type LeaguePowerRankingItem = {
+  id: string
+  rank: number
+  name: string
+  record: string
+  pointsFor: string
+}
+
 export type LeagueBracketMatchupTeam = {
   seed: number | null
   name: string
@@ -251,6 +288,7 @@ export type LeagueChatPreview = {
 export type LeagueHomeData = {
   league: LeagueHeaderInfo
   variant: LeagueVariantSummary
+  introVideo: LeagueIntroVideoData | null
   currentUserId: string
   isCommissioner: boolean
   activeTab: LeagueTopTab
@@ -263,6 +301,12 @@ export type LeagueHomeData = {
   trades: LeagueTradesData
   players: LeaguePlayersData
   draftSummaryCards: LeagueDraftSummaryCard[]
+  storyline: LeagueStorylineCardData | null
+  matchupPreview: LeagueMatchupPreviewCardData | null
+  draftRecap: LeagueStorylineCardData | null
+  constitution: LeagueStorylineCardData | null
+  keeperDeclarations: LeagueKeeperDeclarationItem[]
+  powerRankings: LeaguePowerRankingItem[]
   bracket: LeaguePlayoffBracketData
   chat: LeagueChatPreview
 }

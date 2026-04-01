@@ -171,6 +171,18 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
 
       {preview ? (
         <div className="space-y-3 rounded-lg border border-white/10 bg-black/30 p-3">
+          {(() => {
+            const formatSummary = preview.formatSummary ?? {
+              detectedFormat: preview.league.type,
+              modifiers: [],
+              mappedScoringSettingsCount: 0,
+              mappedRosterSlotCount: preview.rosterPositions?.length ?? 0,
+              unsupportedPositions: [],
+              introVideo: 'Not resolved',
+              formatCardLabel: preview.league.type,
+            }
+            return (
+              <>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-medium text-white" data-testid="commissioner-import-preview-name">
@@ -183,6 +195,28 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
             <p className="text-xs text-cyan-200">
               Draft picks: {preview.draftPickCount} • Scoring rules: {preview.playerMap ? (Object.keys(preview.playerMap).length > 0 ? 'available' : 'partial') : 'missing'}
             </p>
+          </div>
+
+          <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/75">
+            <p className="font-medium text-white">Detected format</p>
+            <p className="mt-1">
+              {formatSummary.detectedFormat}
+              {formatSummary.modifiers.length
+                ? ` • ${formatSummary.modifiers.join(', ')}`
+                : ''}
+            </p>
+            <p className="mt-1 text-white/55">
+              Slots mapped: {formatSummary.mappedRosterSlotCount} • Scoring rules mapped:{' '}
+              {formatSummary.mappedScoringSettingsCount}
+            </p>
+            <p className="mt-1 text-white/55">
+              Intro media: {formatSummary.formatCardLabel}
+            </p>
+            {formatSummary.unsupportedPositions.length > 0 ? (
+              <p className="mt-1 text-amber-300">
+                Unsupported positions: {formatSummary.unsupportedPositions.join(', ')}
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-2 md:grid-cols-2">
@@ -249,6 +283,9 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
               {committing ? 'Applying import…' : 'Apply import to this league'}
             </button>
           </div>
+              </>
+            )
+          })()}
         </div>
       ) : null}
 
