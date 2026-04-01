@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const sport = req.nextUrl.searchParams.get('sport')
     if (sport) {
       const result = await refreshDraftProjections(sport)
-      return NextResponse.json({ ok: true, ...result })
+      return NextResponse.json({ ...result, ok: result.ok ?? true })
     }
     const results = await Promise.all([refreshDraftProjections('NCAAF'), refreshDraftProjections('NCAAB')])
     return NextResponse.json({ ok: true, results })

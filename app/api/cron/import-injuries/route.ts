@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runInjuryImporter()
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ...result, ok: result.ok ?? true })
   } catch (error) {
     console.error('[cron/import-injuries]', error)
     return NextResponse.json({ error: 'Injury import failed' }, { status: 500 })

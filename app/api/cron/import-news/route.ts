@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runNewsImporter()
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ...result, ok: result.ok ?? true })
   } catch (error) {
     console.error('[cron/import-news]', error)
     return NextResponse.json({ error: 'News import failed' }, { status: 500 })
