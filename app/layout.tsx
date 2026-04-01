@@ -5,7 +5,6 @@ import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
-import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
@@ -16,6 +15,10 @@ import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveTheme } from '@/lib/theme';
+import {
+  buildLanguageInitScript,
+  buildThemeInitScript,
+} from '@/lib/preferences/HtmlPreferenceSync';
 import './globals.css';
 
 const inter = Inter({
@@ -77,45 +80,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <Script id="af-init-mode" strategy="beforeInteractive">
-          {`/* Global theme: Light, Dark, AF Legacy. Key af_mode; default legacy. See lib/theme. */
-            try {
-              var currentMode = document.documentElement.getAttribute('data-mode');
-              var m = localStorage.getItem('af_mode');
-              if (m === 'dark' || m === 'light' || m === 'legacy') {
-                document.documentElement.setAttribute('data-mode', m);
-              } else if (currentMode === 'dark' || currentMode === 'light' || currentMode === 'legacy') {
-                document.documentElement.setAttribute('data-mode', currentMode);
-              } else {
-                document.documentElement.setAttribute('data-mode', 'legacy');
-              }
-              var appliedMode = document.documentElement.getAttribute('data-mode');
-              document.documentElement.style.colorScheme = appliedMode === 'light' ? 'light' : 'dark';
-            } catch (e) {
-              document.documentElement.setAttribute('data-mode', 'legacy');
-              document.documentElement.style.colorScheme = 'dark';
-            }
-          `}
+          {buildThemeInitScript(htmlMode)}
         </Script>
         <Script id="af-init-lang" strategy="beforeInteractive">
-          {`/* Language: English, Spanish. Key af_lang; default en. See lib/i18n. */
-            try {
-              var currentLang = document.documentElement.getAttribute('data-lang');
-              var lang = localStorage.getItem('af_lang');
-              if (lang === 'en' || lang === 'es') {
-                document.documentElement.setAttribute('data-lang', lang);
-                document.documentElement.setAttribute('lang', lang);
-              } else if (currentLang === 'en' || currentLang === 'es') {
-                document.documentElement.setAttribute('data-lang', currentLang);
-                document.documentElement.setAttribute('lang', currentLang);
-              } else {
-                document.documentElement.setAttribute('data-lang', 'en');
-                document.documentElement.setAttribute('lang', 'en');
-              }
-            } catch (e) {
-              document.documentElement.setAttribute('data-lang', 'en');
-              document.documentElement.setAttribute('lang', 'en');
-            }
-          `}
+          {buildLanguageInitScript(htmlLang)}
         </Script>
 
         {gaMeasurementId && (
@@ -238,7 +206,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {children}
               </ErrorBoundaryClient>
               <Toaster position="top-center" richColors closeButton />
-              <GlobalModeToggle />
               <BackToTop />
             </LanguageProviderClient>
           </ThemeProvider>

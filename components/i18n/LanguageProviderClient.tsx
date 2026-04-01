@@ -9,6 +9,8 @@ import React, {
 } from "react";
 import { translations } from "@/lib/i18n/translations";
 import { LANG_STORAGE_KEY, DEFAULT_LANG, resolveLanguage, type LanguageCode } from "@/lib/i18n/constants";
+import { setStoredLanguage } from "@/lib/preferences/LanguagePreferenceService";
+import { applyLanguageToDocument } from "@/lib/preferences/HtmlPreferenceSync";
 
 type Language = LanguageCode;
 
@@ -49,10 +51,7 @@ export function LanguageProviderClient({
   }, []);
 
   useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.lang = language;
-      document.documentElement.lang = language;
-    }
+    applyLanguageToDocument(language);
     // Immediately reflect language switch with bundled copy while remote dictionary loads.
     setMessages(translations[language] || translations.en);
 
@@ -93,13 +92,10 @@ export function LanguageProviderClient({
   }, []);
 
   const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
+    const resolved = resolveLanguage(lang);
+    setLanguageState(resolved);
     try {
-      window.localStorage.setItem(LANG_STORAGE_KEY, lang);
-      if (typeof document !== "undefined") {
-        document.documentElement.dataset.lang = lang;
-        document.documentElement.lang = lang;
-      }
+      setStoredLanguage(resolved);
     } catch {
       // ignore
     }
@@ -107,7 +103,7 @@ export function LanguageProviderClient({
     fetch("/api/i18n/preference", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ language: lang }),
+      body: JSON.stringify({ language: resolved }),
     }).catch(() => {});
   };
 

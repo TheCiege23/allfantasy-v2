@@ -16,7 +16,7 @@ export default function SeoLandingFooter() {
         <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-2xl border px-3 py-2"
+            className="flex items-center gap-2 rounded-2xl border px-4 py-2.5"
             style={{
               borderColor: 'color-mix(in srgb, white 10%, var(--border))',
               background: 'color-mix(in srgb, var(--panel) 68%, transparent)',
@@ -27,7 +27,7 @@ export default function SeoLandingFooter() {
             <img
               src="/af-logo-text.png"
               alt="AllFantasy"
-              className="h-[18px] w-auto object-contain"
+              className="h-[24px] w-auto object-contain sm:h-[28px]"
               style={{ mixBlendMode: 'screen' }}
             />
             <span>© {new Date().getFullYear()} AllFantasy</span>

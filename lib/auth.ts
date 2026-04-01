@@ -5,6 +5,7 @@ import AppleProvider from "next-auth/providers/apple";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
+import { linkSocialAccountToAppUser } from "@/lib/auth/SocialAccountLinkingService";
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
@@ -298,6 +299,44 @@ export const authOptions: NextAuthOptions = {
   },
   providers,
   callbacks: {
+    async signIn({ user, account }) {
+      if (!account) {
+        return true;
+      }
+
+      if (account.provider === "google" || account.provider === "apple") {
+        try {
+          const linkedUser = await linkSocialAccountToAppUser({
+            provider: account.provider,
+            providerAccountId: account.providerAccountId,
+            type: account.type,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+            refreshToken: account.refresh_token,
+            accessToken: account.access_token,
+            expiresAt: account.expires_at,
+            tokenType: account.token_type,
+            scope: account.scope,
+            idToken: account.id_token,
+            sessionState:
+              typeof account.session_state === "string" ? account.session_state : null,
+          });
+
+          (user as { id?: string }).id = linkedUser.id;
+          user.email = linkedUser.email;
+          user.name = linkedUser.displayName || linkedUser.username || linkedUser.email;
+          user.image = linkedUser.avatarUrl;
+
+          return true;
+        } catch (error) {
+          console.error("[auth] social account linking error:", error);
+          return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
+        }
+      }
+
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

@@ -8,7 +8,6 @@ import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-
 import { ProductContextSwitcher } from "@/components/shell/ProductContextSwitcher"
 import NotificationBell from "@/components/shared/NotificationBell"
 import WalletSummaryBadge from "@/components/shared/WalletSummaryBadge"
-import { ModeToggle } from "@/components/theme/ModeToggle"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import { UserMenuDropdown } from "@/components/navigation/UserMenuDropdown"
 import { getPrimaryNavItems } from "@/lib/navigation"
@@ -108,9 +107,6 @@ export default function GlobalTopNav({
         </div>
       )
     }
-    if (spec.id === "theme") {
-      return <ModeToggle key={spec.id} className="rounded-lg border px-2.5 py-2 text-xs font-semibold transition" />
-    }
     if (spec.id === "admin" && showAdminNav(isAdmin)) {
       return (
         <Link key={spec.id} href={spec.href ?? "/admin"} className="rounded-lg border p-2 transition hover:opacity-90" style={{ borderColor: "color-mix(in srgb, var(--accent-amber) 45%, var(--border))", background: "color-mix(in srgb, var(--accent-amber) 14%, transparent)", color: "var(--accent-amber-strong)" }} title={spec.title} aria-label={spec.title}>
@@ -159,7 +155,6 @@ export default function GlobalTopNav({
               utilitySpecs.map((spec) => renderUtility(spec))
             ) : (
               <>
-                <ModeToggle className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition" />
                 <Link href={loginUrlWithIntent(pathname || "/dashboard")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>Login</Link>
                 <Link href={signupUrlWithIntent(pathname || "/dashboard")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>Sign Up</Link>
               </>

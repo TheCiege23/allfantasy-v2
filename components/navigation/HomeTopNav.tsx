@@ -4,7 +4,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { ModeToggle } from "@/components/theme/ModeToggle"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 import NotificationBell from "@/components/shared/NotificationBell"
 import SettingsModal from "@/components/navigation/SettingsModal"
@@ -133,7 +132,6 @@ export default function HomeTopNav() {
             <div className="hidden sm:inline-flex">
               <LanguageToggle />
             </div>
-            <ModeToggle className="rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold" />
 
             {isAdmin && (
               <Link
@@ -153,7 +151,7 @@ export default function HomeTopNav() {
           </div>
         </div>
 
-        {/* Mobile: language + theme row */}
+        {/* Mobile: language row */}
         <div className="flex items-center gap-2 pb-2 sm:hidden">
           <LanguageToggle />
         </div>

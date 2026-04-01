@@ -4,7 +4,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { MessageCircle, Shield, Wallet, Sparkles } from "lucide-react"
-import { ModeToggle } from "@/components/theme/ModeToggle"
 import { loginUrlWithIntent, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
 
@@ -113,7 +112,6 @@ export default function AppShellNav({
                 >
                   <Sparkles className="h-4 w-4" />
                 </Link>
-                <ModeToggle className="rounded-lg border px-2.5 py-2 text-xs font-semibold transition" />
                 {isAdmin && (
                   <Link
                     href="/admin"
@@ -130,7 +128,6 @@ export default function AppShellNav({
               </>
             ) : (
               <>
-                <ModeToggle className="rounded-lg border px-3 py-1.5 text-sm font-semibold transition" />
                 <Link href={loginUrlWithIntent(pathname || "/app")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>
                   Login
                 </Link>

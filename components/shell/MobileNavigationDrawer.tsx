@@ -7,7 +7,6 @@ import { X, Shield, Bell, Sparkles, Search } from "lucide-react"
 import { SHELL_NAV_ITEMS, isNavItemActive } from "@/lib/shell"
 import { showAdminNav } from "@/lib/navigation"
 import { getPrimaryChimmyEntry } from "@/lib/ai-product-layer"
-import { ModeToggle } from "@/components/theme/ModeToggle"
 import LanguageToggle from "@/components/i18n/LanguageToggle"
 
 export interface MobileNavigationDrawerProps {
@@ -221,7 +220,6 @@ export function MobileNavigationDrawer({
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <LanguageToggle />
-                <ModeToggle className="rounded-lg border px-2.5 py-2 text-xs font-semibold transition" />
               </div>
             </div>
 

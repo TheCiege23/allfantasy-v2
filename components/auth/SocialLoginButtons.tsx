@@ -64,10 +64,20 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
   async function handleProviderClick(provider: SocialProvider) {
     if (loadingProvider) return
     setLoadingProvider(provider)
-    const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
-    const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
+    const googleEnabled = isSocialProviderEnabled("google")
+    const appleEnabled = isSocialProviderEnabled("apple")
 
     try {
+      if (provider === "google" && googleEnabled) {
+        await signIn(provider, { callbackUrl })
+        return
+      }
+
+      if (provider === "apple" && appleEnabled) {
+        await signIn(provider, { callbackUrl })
+        return
+      }
+
       if (provider === "google" && isSupabaseConfigured) {
         await signInWithGoogleOAuth()
         return
@@ -79,8 +89,6 @@ export default function SocialLoginButtons({ callbackUrl }: { callbackUrl: strin
       }
 
       if (
-        (provider === "google" && googleEnabled) ||
-        (provider === "apple" && appleEnabled) ||
         isSocialProviderEnabled(provider)
       ) {
         await signIn(provider, { callbackUrl })

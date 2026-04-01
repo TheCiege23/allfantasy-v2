@@ -7,7 +7,6 @@ import React, { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { ModeToggle } from '@/components/theme/ModeToggle'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { ChaosMeter } from '@/components/bracket/ChaosMeter'
 
@@ -249,7 +248,6 @@ function BracketIntelligenceInner() {
             </h1>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-white/70 sm:text-xs">
-            <ModeToggle className="hidden sm:inline-flex rounded-full px-3 py-1 text-xs" />
             <LanguageToggle />
           </div>
         </div>

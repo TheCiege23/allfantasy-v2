@@ -2,7 +2,7 @@ import { getPrimaryChimmyEntry } from '@/lib/ai-product-layer'
 
 /**
  * TopBarUtilityResolver — which top bar utilities to show and in what order.
- * Used for documentation and consistent ordering (notifications, messages, AI chat, search, language, theme, admin, profile).
+ * Used for documentation and consistent ordering (notifications, messages, AI chat, search, language, admin, profile).
  */
 
 export type TopBarUtilityId =
@@ -13,7 +13,6 @@ export type TopBarUtilityId =
   | "settings"
   | "ai_chat"
   | "language"
-  | "theme"
   | "admin"
   | "profile"
 
@@ -37,9 +36,7 @@ export function getTopBarUtilities(opts: {
 }): TopBarUtilitySpec[] {
   const { isAuthenticated, isAdmin, hasSearch = true } = opts
   if (!isAuthenticated) {
-    return [
-      { id: "theme", visible: true, title: "Theme" },
-    ]
+    return []
   }
   const chimmy = getPrimaryChimmyEntry({ source: "top_bar" })
   const list: TopBarUtilitySpec[] = [
@@ -50,7 +47,6 @@ export function getTopBarUtilities(opts: {
     { id: "settings", visible: true, href: "/settings", title: "Settings" },
     { id: "ai_chat", visible: true, href: chimmy.href, title: chimmy.label },
     { id: "language", visible: true, title: "Language" },
-    { id: "theme", visible: true, title: "Theme" },
     { id: "admin", visible: isAdmin, href: "/admin", title: "Admin" },
     { id: "profile", visible: true, href: "/profile", title: "Profile" },
   ]

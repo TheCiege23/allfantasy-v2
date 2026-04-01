@@ -10,6 +10,7 @@ import {
   resolveLanguage,
   type LanguageCode,
 } from "@/lib/i18n/constants"
+import { applyLanguageToDocument } from "@/lib/preferences/HtmlPreferenceSync"
 
 export type { LanguageCode }
 
@@ -22,16 +23,14 @@ export function getStoredLanguage(): LanguageCode {
 }
 
 export function setStoredLanguage(lang: LanguageCode): void {
+  const resolvedLang = resolveLanguage(lang)
   try {
-    window.localStorage.setItem(LANG_STORAGE_KEY, lang)
+    window.localStorage.setItem(LANG_STORAGE_KEY, resolvedLang)
   } catch {}
   try {
-    document.cookie = `${LANG_COOKIE_KEY}=${lang}; path=/; max-age=31536000; samesite=lax`
+    document.cookie = `${LANG_COOKIE_KEY}=${resolvedLang}; path=/; max-age=31536000; samesite=lax`
   } catch {}
   try {
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.lang = lang
-      document.documentElement.lang = lang
-    }
+    applyLanguageToDocument(resolvedLang)
   } catch {}
 }

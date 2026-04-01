@@ -10,6 +10,7 @@ import {
   resolveTheme,
   type ThemeId,
 } from "@/lib/theme"
+import { applyThemeToDocument } from "@/lib/preferences/HtmlPreferenceSync"
 
 export type ThemeMode = ThemeId
 
@@ -23,16 +24,14 @@ export function getStoredTheme(): ThemeMode {
 }
 
 export function setStoredTheme(mode: ThemeMode): void {
+  const resolvedMode = resolveTheme(mode)
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode)
+    window.localStorage.setItem(THEME_STORAGE_KEY, resolvedMode)
   } catch {}
   try {
-    document.cookie = `${THEME_COOKIE_KEY}=${mode}; path=/; max-age=31536000; samesite=lax`
+    document.cookie = `${THEME_COOKIE_KEY}=${resolvedMode}; path=/; max-age=31536000; samesite=lax`
   } catch {}
   try {
-    if (typeof document !== "undefined") {
-      document.documentElement.dataset.mode = mode
-      document.documentElement.style.colorScheme = mode === "light" ? "light" : "dark"
-    }
+    applyThemeToDocument(resolvedMode)
   } catch {}
 }

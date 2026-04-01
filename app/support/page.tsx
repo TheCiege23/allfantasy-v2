@@ -4,7 +4,6 @@ import Link from 'next/link'
 import Script from 'next/script'
 import { motion } from 'framer-motion'
 import { Heart, ArrowLeft, Server, Brain, Zap, Shield, Users, BarChart3 } from 'lucide-react'
-import { ModeToggle } from '@/components/theme/ModeToggle'
 
 const FUND_ITEMS = [
   {
@@ -58,7 +57,6 @@ export default function SupportPage() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </Link>
-          <ModeToggle className="rounded-xl px-3 py-2 text-sm font-semibold active:scale-[0.98] transition" />
         </div>
 
         <motion.div

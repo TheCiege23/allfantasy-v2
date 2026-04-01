@@ -303,7 +303,7 @@ export default function LandingPageClient() {
         <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link
             href="/"
-            className="flex items-center rounded-2xl border px-3 py-2"
+            className="flex items-center rounded-2xl border px-4 py-2.5"
             aria-label="AllFantasy home"
             style={{
               borderColor: 'color-mix(in srgb, white 10%, var(--border))',
@@ -318,7 +318,7 @@ export default function LandingPageClient() {
               width={1024}
               height={512}
               priority
-              className="h-[20px] w-auto object-contain sm:h-[24px]"
+              className="h-[26px] w-auto object-contain sm:h-[32px]"
               style={{ mixBlendMode: 'screen' }}
             />
           </Link>
@@ -403,27 +403,51 @@ export default function LandingPageClient() {
         <div className="relative z-10 mb-8">
           <div className="landing-crest-glow absolute left-1/2 top-1/2 h-[360px] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[520px] sm:w-[520px]" aria-hidden="true" />
           <div
-            className="landing-float relative flex items-center justify-center px-4 py-2 sm:px-6 sm:py-4"
+            className="landing-float relative flex flex-col items-center justify-center gap-4 px-4 py-2 sm:gap-5 sm:px-6 sm:py-4"
             style={{
               filter: 'drop-shadow(0 28px 90px rgba(4,9,21,0.42))',
             }}
           >
             <div
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[240px] w-[240px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[320px] sm:w-[320px]"
+              className="pointer-events-none absolute left-1/2 top-[42%] h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[340px] sm:w-[340px]"
               aria-hidden="true"
               style={{
                 background:
                   'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 68%, color-mix(in srgb, var(--accent-purple) 12%, transparent) 0%, transparent 74%)',
               }}
             />
+            <div className="relative flex items-center justify-center">
+              <div
+                className="pointer-events-none absolute h-[180px] w-[180px] rounded-full sm:h-[220px] sm:w-[220px]"
+                aria-hidden="true"
+                style={{
+                  background:
+                    'radial-gradient(circle, color-mix(in srgb, var(--accent-cyan) 18%, transparent) 0%, transparent 70%)',
+                }}
+              />
+              <Image
+                src="/af-crest.png"
+                alt="AllFantasy crest"
+                width={768}
+                height={768}
+                priority
+                className="mode-logo-safe relative h-[132px] w-auto object-contain sm:h-[170px]"
+                style={{
+                  mixBlendMode: 'screen',
+                  filter: 'brightness(1.04) saturate(1.08) drop-shadow(0 18px 42px rgba(14,165,233,0.22))',
+                }}
+              />
+            </div>
             <Image
-              src="/af-logo-bg.png"
-              alt="AllFantasy crest with wordmark"
+              src="/af-logo-text.png"
+              alt="AllFantasy"
               width={1024}
-              height={1024}
-              priority
-              className="relative h-[220px] w-auto object-contain sm:h-[310px]"
-              style={{ mixBlendMode: 'screen' }}
+              height={512}
+              className="relative h-[34px] w-auto object-contain sm:h-[46px]"
+              style={{
+                mixBlendMode: 'screen',
+                filter: 'brightness(1.04) saturate(1.08) drop-shadow(0 10px 24px rgba(59,130,246,0.16))',
+              }}
             />
           </div>
         </div>
@@ -694,7 +718,7 @@ export default function LandingPageClient() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-2xl border px-3 py-2"
+            className="flex items-center gap-2 rounded-2xl border px-4 py-2.5"
             aria-label="AllFantasy home"
             style={{
               borderColor: 'color-mix(in srgb, white 10%, var(--border))',
@@ -708,7 +732,7 @@ export default function LandingPageClient() {
               alt="AllFantasy"
               width={1024}
               height={512}
-              className="h-[18px] w-auto object-contain"
+              className="h-[24px] w-auto object-contain sm:h-[28px]"
               style={{ mixBlendMode: 'screen' }}
             />
             <span className="text-sm" style={{ color: 'var(--muted2)' }}>
