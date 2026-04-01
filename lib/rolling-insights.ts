@@ -1,6 +1,8 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev } from './team-abbrev';
 import { recordProviderSync } from './provider-sync-logger';
+import { getRollingInsightsConfigFromEnv } from './provider-config';
+import { ROLLING_INSIGHTS_SPORTS } from './workers/api-config';
 
 interface RollingInsightsToken {
   accessToken: string;
@@ -15,6 +17,18 @@ const ROLLING_INSIGHTS_BASE_URL =
   'https://datafeeds.rolling-insights.com'
 const AUTH_URL = `${ROLLING_INSIGHTS_BASE_URL}/auth/token`;
 const GRAPHQL_URL = `${ROLLING_INSIGHTS_BASE_URL}/graphql`;
+
+function getEnabledRollingInsightsSports() {
+  return {
+    NFL: ROLLING_INSIGHTS_SPORTS.NFL,
+    NHL: ROLLING_INSIGHTS_SPORTS.NHL,
+    NBA: ROLLING_INSIGHTS_SPORTS.NBA,
+    MLB: ROLLING_INSIGHTS_SPORTS.MLB,
+    NCAAF: ROLLING_INSIGHTS_SPORTS.NCAAF,
+    NCAAB: ROLLING_INSIGHTS_SPORTS.NCAAB,
+    SOCCER: ROLLING_INSIGHTS_SPORTS.SOCCER,
+  };
+}
 
 async function getAccessToken(): Promise<string> {
   const directApiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim();
@@ -922,6 +936,52 @@ export async function syncNFLTeamStatsToDb(options?: { season?: string }): Promi
 
   console.log(`[RollingInsights] Synced ${synced} team season stats entries`);
   return synced;
+}
+
+export interface RollingInsightsHealthCheck {
+  configured: boolean;
+  available: boolean;
+  latencyMs?: number;
+  error?: string;
+  authMode?: 'api_key' | 'client_credentials';
+  enabledSports: ReturnType<typeof getEnabledRollingInsightsSports>;
+}
+
+export async function runRollingInsightsHealthCheck(): Promise<RollingInsightsHealthCheck> {
+  const config = getRollingInsightsConfigFromEnv();
+  const enabledSports = getEnabledRollingInsightsSports();
+
+  if (!config) {
+    return {
+      configured: false,
+      available: false,
+      enabledSports,
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    await graphqlQuery<{ __schema: { queryType: { name: string } } }>(
+      'query RollingInsightsHealth { __schema { queryType { name } } }'
+    );
+
+    return {
+      configured: true,
+      available: true,
+      latencyMs: Date.now() - startedAt,
+      authMode: config.authMode,
+      enabledSports,
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      available: false,
+      latencyMs: Date.now() - startedAt,
+      error: error instanceof Error ? error.message : String(error),
+      authMode: config.authMode,
+      enabledSports,
+    };
+  }
 }
 
 export { getCurrentNFLSeason, getAccessToken as testAuth };

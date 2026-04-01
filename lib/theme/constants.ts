@@ -10,7 +10,7 @@ export const THEME_STORAGE_KEY = 'af_mode'
 export const THEME_COOKIE_KEY = 'af_mode'
 
 /** Default theme when none is stored (must match layout script default). */
-export const DEFAULT_THEME: ThemeId = 'legacy'
+export const DEFAULT_THEME: ThemeId = 'dark'
 
 export const THEME_IDS: ThemeId[] = ['light', 'dark', 'legacy']
 
@@ -28,7 +28,7 @@ export function isValidTheme(value: string | null | undefined): value is ThemeId
   return value === 'light' || value === 'dark' || value === 'legacy'
 }
 
-/** Resolve unknown value to a valid theme (default: legacy). */
+/** Resolve unknown value to a valid theme (default: dark). */
 export function resolveTheme(value: string | null | undefined): ThemeId {
   if (value === 'light' || value === 'dark' || value === 'legacy') return value
   return DEFAULT_THEME

@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss'
+import forms from '@tailwindcss/forms'
 
 const config: Config = {
   content: [
@@ -46,7 +47,17 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    forms,
+    function ({ addUtilities }) {
+      addUtilities({
+        '.pb-safe': { paddingBottom: 'env(safe-area-inset-bottom)' },
+        '.pt-safe': { paddingTop: 'env(safe-area-inset-top)' },
+        '.pl-safe': { paddingLeft: 'env(safe-area-inset-left)' },
+        '.pr-safe': { paddingRight: 'env(safe-area-inset-right)' },
+      })
+    },
+  ],
 }
 
 export default config

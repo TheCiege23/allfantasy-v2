@@ -9,6 +9,9 @@
  * - CLEARSPORTS_API_KEY
  */
 
+import { type SupportedSport } from '@/lib/sport-scope'
+import { ROLLING_INSIGHTS_SPORTS } from '@/lib/workers/api-config'
+
 const OPENAI_KEY_KEYS = ['OPENAI_API_KEY', 'AI_INTEGRATIONS_OPENAI_API_KEY'] as const
 const OPENAI_BASE_URL_KEYS = ['OPENAI_BASE_URL', 'AI_INTEGRATIONS_OPENAI_BASE_URL'] as const
 
@@ -28,6 +31,12 @@ const CLEARSPORTS_BASE_URL_KEYS = [
   'CLEAR_SPORTS_BASE_URL',
 ] as const
 const DEFAULT_CLEARSPORTS_BASE_URL = 'https://api.clearsportsapi.com/v1'
+
+const ROLLING_INSIGHTS_API_KEY_KEYS = ['ROLLING_INSIGHTS_API_KEY'] as const
+const ROLLING_INSIGHTS_CLIENT_ID_KEYS = ['ROLLING_INSIGHTS_CLIENT_ID'] as const
+const ROLLING_INSIGHTS_CLIENT_SECRET_KEYS = ['ROLLING_INSIGHTS_CLIENT_SECRET'] as const
+const ROLLING_INSIGHTS_BASE_URL_KEYS = ['ROLLING_INSIGHTS_BASE_URL', 'ROLLING_INSIGHTS_API_BASE'] as const
+const DEFAULT_ROLLING_INSIGHTS_BASE_URL = 'https://datafeeds.rolling-insights.com'
 
 interface ResolvedEnvValue {
   value: string
@@ -60,6 +69,18 @@ function normalizeXaiBaseUrl(value: string): string {
   return normalized
     .replace(/\/chat\/completions$/i, '')
     .replace(/\/responses$/i, '')
+}
+
+function getRollingInsightsEnabledSports(): Record<SupportedSport, boolean> {
+  return {
+    NFL: ROLLING_INSIGHTS_SPORTS.NFL,
+    NHL: ROLLING_INSIGHTS_SPORTS.NHL,
+    NBA: ROLLING_INSIGHTS_SPORTS.NBA,
+    MLB: ROLLING_INSIGHTS_SPORTS.MLB,
+    NCAAF: ROLLING_INSIGHTS_SPORTS.NCAAF,
+    NCAAB: ROLLING_INSIGHTS_SPORTS.NCAAB,
+    SOCCER: ROLLING_INSIGHTS_SPORTS.SOCCER,
+  }
 }
 
 // ----- OpenAI -----
@@ -162,12 +183,56 @@ export function isClearSportsAvailable(): boolean {
   return !!getClearSportsConfigFromEnv()
 }
 
+// ----- Rolling Insights -----
+export interface RollingInsightsProviderConfig {
+  authMode: 'api_key' | 'client_credentials'
+  baseUrl: string
+  keySource: string
+  enabledSports: Record<SupportedSport, boolean>
+}
+
+export function getRollingInsightsConfigFromEnv(): RollingInsightsProviderConfig | null {
+  const apiKey = resolveFirstEnv(ROLLING_INSIGHTS_API_KEY_KEYS)
+  const clientId = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID_KEYS)
+  const clientSecret = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET_KEYS)
+  const baseUrl = normalizeBaseUrl(
+    resolveFirstEnv(ROLLING_INSIGHTS_BASE_URL_KEYS).value,
+    DEFAULT_ROLLING_INSIGHTS_BASE_URL
+  )
+  const enabledSports = getRollingInsightsEnabledSports()
+
+  if (apiKey.value) {
+    return {
+      authMode: 'api_key',
+      baseUrl,
+      keySource: apiKey.keyUsed ?? ROLLING_INSIGHTS_API_KEY_KEYS[0],
+      enabledSports,
+    }
+  }
+
+  if (clientId.value && clientSecret.value) {
+    return {
+      authMode: 'client_credentials',
+      baseUrl,
+      keySource: clientId.keyUsed ?? ROLLING_INSIGHTS_CLIENT_ID_KEYS[0],
+      enabledSports,
+    }
+  }
+
+  return null
+}
+
+export function isRollingInsightsAvailable(): boolean {
+  return !!getRollingInsightsConfigFromEnv()
+}
+
 // ----- Frontend-safe status (no secrets) -----
 export interface ProviderStatus {
   openai: boolean
   deepseek: boolean
   xai: boolean
   clearsports: boolean
+  rollingInsights: boolean
   anyAi: boolean
 }
 
@@ -186,11 +251,13 @@ export function getProviderStatus(): ProviderStatus {
   const deepseek = isDeepSeekAvailable()
   const xai = isXaiAvailable()
   const clearsports = isClearSportsAvailable()
+  const rollingInsights = isRollingInsightsAvailable()
   return {
     openai,
     deepseek,
     xai,
     clearsports,
+    rollingInsights,
     anyAi: openai || deepseek || xai,
   }
 }
@@ -243,6 +310,32 @@ export function getProviderStartupValidationNotes(): ProviderStartupValidationNo
     })
   }
 
+  const rollingInsightsApiKey = resolveFirstEnv(ROLLING_INSIGHTS_API_KEY_KEYS)
+  const rollingInsightsClientId = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID_KEYS)
+  const rollingInsightsClientSecret = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET_KEYS)
+  const rollingInsightsExtraSports = Object.entries(getRollingInsightsEnabledSports())
+    .filter(([sport, enabled]) => sport !== 'NFL' && enabled)
+    .map(([sport]) => sport)
+
+  const hasRollingInsightsApiKey = !!rollingInsightsApiKey.value
+  const hasRollingInsightsClientPair = !!rollingInsightsClientId.value && !!rollingInsightsClientSecret.value
+
+  if (!hasRollingInsightsApiKey && !!rollingInsightsClientId.value !== !!rollingInsightsClientSecret.value) {
+    notes.push({
+      level: 'warn',
+      code: 'rolling_insights_partial_config',
+      message: 'Rolling Insights client credentials are partial. Set both ROLLING_INSIGHTS_CLIENT_ID and ROLLING_INSIGHTS_CLIENT_SECRET.',
+    })
+  }
+
+  if (rollingInsightsExtraSports.length > 0 && !hasRollingInsightsApiKey && !hasRollingInsightsClientPair) {
+    notes.push({
+      level: 'warn',
+      code: 'rolling_insights_sports_enabled_without_credentials',
+      message: `Rolling Insights multi-sport flags are enabled for ${rollingInsightsExtraSports.join(', ')}, but credentials are not configured.`,
+    })
+  }
+
   if (resolveFirstEnv(OPENAI_KEY_KEYS).keyUsed === 'AI_INTEGRATIONS_OPENAI_API_KEY') {
     notes.push({
       level: 'info',
@@ -277,11 +370,13 @@ export function logProviderStatus(): void {
   const d = getDeepSeekConfigFromEnv()
   const x = getXaiConfigFromEnv()
   const c = getClearSportsConfigFromEnv()
+  const r = getRollingInsightsConfigFromEnv()
   const parts = [
     `openai: ${mask(o?.apiKey ?? '')}`,
     `deepseek: ${mask(d?.apiKey ?? '')}`,
     `xai: ${mask(x?.apiKey ?? '')}`,
     `clearsports: ${mask(c?.apiKey ?? '')}`,
+    `rollingInsights: ${mask(r ? 'configured' : '')}`,
   ]
   console.info('[ProviderConfig]', parts.join(', '))
 }

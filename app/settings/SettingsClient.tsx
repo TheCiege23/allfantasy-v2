@@ -583,6 +583,7 @@ function SecuritySection({
   const [phoneCode, setPhoneCode] = useState("")
   const [phoneVerifying, setPhoneVerifying] = useState(false)
   const [phoneResult, setPhoneResult] = useState<"verified" | "invalid" | "error" | "rate_limited" | null>(null)
+  const [phoneErrorMessage, setPhoneErrorMessage] = useState<string | null>(null)
 
   const [passwordFormOpen, setPasswordFormOpen] = useState(false)
   const [currentPassword, setCurrentPassword] = useState("")
@@ -659,7 +660,7 @@ function SecuritySection({
     setEmailSending(true)
     setEmailResult(null)
     setEmailSaveResult(null)
-    const result = await sendVerificationEmail("/settings")
+    const result = await sendVerificationEmail("/settings?tab=security")
     setEmailSending(false)
     if (result.ok && result.alreadyVerified) setEmailResult("already")
     else if (result.ok) setEmailResult("sent")
@@ -667,16 +668,37 @@ function SecuritySection({
     else setEmailResult("error")
   }
 
+  const resolvePhoneErrorMessage = (error?: string) => {
+    switch (error) {
+      case "PHONE_VERIFY_NOT_CONFIGURED":
+        return "Phone verification is not configured on the server yet."
+      case "INVALID_PHONE":
+        return "Please enter a valid phone number with country code."
+      case "UNAUTHENTICATED":
+        return "Please sign in again and retry."
+      case "SEND_FAILED":
+        return "The verification text could not be sent right now."
+      case "VERIFY_FAILED":
+        return "The verification check failed right now."
+      default:
+        return error || "Verification failed. Try again."
+    }
+  }
+
   const handleSendPhoneCode = async () => {
     const trimmed = phoneInput.replace(/[\s()-]/g, "").trim()
     if (!trimmed) return
     setPhoneSending(true)
     setPhoneResult(null)
+    setPhoneErrorMessage(null)
     const result = await startPhoneVerification(trimmed.startsWith("+") ? trimmed : `+1${trimmed}`)
     setPhoneSending(false)
     if (result.ok) setPhoneCodeSent(true)
     else if (result.rateLimited) setPhoneResult("rate_limited")
-    else setPhoneResult("error")
+    else {
+      setPhoneResult("error")
+      setPhoneErrorMessage(resolvePhoneErrorMessage(result.error))
+    }
   }
 
   const handleVerifyPhoneCode = async () => {
@@ -685,17 +707,22 @@ function SecuritySection({
     const phone = trimmed.startsWith("+") ? trimmed : `+1${trimmed}`
     setPhoneVerifying(true)
     setPhoneResult(null)
+    setPhoneErrorMessage(null)
     const result = await checkPhoneCode(phone, phoneCode)
     setPhoneVerifying(false)
     if (result.ok) {
       setPhoneResult("verified")
+      setPhoneErrorMessage(null)
       setPhoneCodeSent(false)
       setPhoneCode("")
       setPhoneEdit(false)
       onRefetch()
     } else if (result.error === "INVALID_CODE") setPhoneResult("invalid")
     else if (result.error === "RATE_LIMITED") setPhoneResult("rate_limited")
-    else setPhoneResult("error")
+    else {
+      setPhoneResult("error")
+      setPhoneErrorMessage(resolvePhoneErrorMessage(result.error))
+    }
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -732,6 +759,7 @@ function SecuritySection({
     setPhoneCodeSent(false)
     setPhoneCode("")
     setPhoneResult(null)
+    setPhoneErrorMessage(null)
   }
 
   return (
@@ -799,7 +827,7 @@ function SecuritySection({
                 </button>
               )}
               <Link
-                href="/verify?method=email"
+                href="/verify?method=email&returnTo=%2Fsettings%3Ftab%3Dsecurity"
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
@@ -915,7 +943,7 @@ function SecuritySection({
                 Update phone
               </button>
               <Link
-                href="/verify?method=phone"
+                href="/verify?method=phone&returnTo=%2Fsettings%3Ftab%3Dsecurity"
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
@@ -989,7 +1017,7 @@ function SecuritySection({
                 {phoneResult === "verified" && <p className="text-xs text-emerald-600">Phone verified. Updating…</p>}
                 {phoneResult === "invalid" && <p className="text-xs text-red-600">Invalid code. Try again.</p>}
                 {phoneResult === "rate_limited" && <p className="text-xs text-amber-600">Too many attempts. Wait a few minutes.</p>}
-                {phoneResult === "error" && <p className="text-xs text-red-600">Verification failed. Try again.</p>}
+                {phoneResult === "error" && <p className="text-xs text-red-600">{phoneErrorMessage ?? "Verification failed. Try again."}</p>}
               </>
             )}
           </div>

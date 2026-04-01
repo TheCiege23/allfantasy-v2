@@ -27,6 +27,7 @@ function VerifyContent() {
   const [phoneCode, setPhoneCode] = useState("")
   const [phoneVerifying, setPhoneVerifying] = useState(false)
   const [phoneResult, setPhoneResult] = useState<"verified" | "invalid" | "error" | "rate_limited" | null>(null)
+  const [phoneErrorMessage, setPhoneErrorMessage] = useState<string | null>(null)
 
   const [ageConfirming, setAgeConfirming] = useState(false)
   const [ageResult, setAgeResult] = useState<"confirmed" | "error" | null>(null)
@@ -87,21 +88,25 @@ function VerifyContent() {
     if (!phoneNumber.trim()) return
     setPhoneSending(true)
     setPhoneResult(null)
+    setPhoneErrorMessage(null)
     try {
       const res = await fetch("/api/verify/phone/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ phone: phoneNumber.trim() }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.status === 429) {
         setPhoneResult("rate_limited")
       } else if (res.ok) {
         setPhoneCodeSent(true)
       } else {
         setPhoneResult("error")
+        setPhoneErrorMessage(resolvePhoneErrorMessage(data.error, data.message))
       }
     } catch {
       setPhoneResult("error")
+      setPhoneErrorMessage("Verification failed. Please try again.")
     } finally {
       setPhoneSending(false)
     }
@@ -111,6 +116,7 @@ function VerifyContent() {
     if (!phoneCode.trim()) return
     setPhoneVerifying(true)
     setPhoneResult(null)
+    setPhoneErrorMessage(null)
     try {
       const res = await fetch("/api/verify/phone/check", {
         method: "POST",
@@ -127,11 +133,30 @@ function VerifyContent() {
         setPhoneResult("rate_limited")
       } else {
         setPhoneResult("error")
+        setPhoneErrorMessage(resolvePhoneErrorMessage(data.error, data.message))
       }
     } catch {
       setPhoneResult("error")
+      setPhoneErrorMessage("Verification failed. Please try again.")
     } finally {
       setPhoneVerifying(false)
+    }
+  }
+
+  function resolvePhoneErrorMessage(error?: string, fallback?: string): string {
+    switch (error) {
+      case "PHONE_VERIFY_NOT_CONFIGURED":
+        return "Phone verification is not configured on the server yet."
+      case "INVALID_PHONE":
+        return "Please enter a valid phone number with country code."
+      case "UNAUTHENTICATED":
+        return "Please sign in first, then try again."
+      case "SEND_FAILED":
+        return "The verification text could not be sent right now."
+      case "VERIFY_FAILED":
+        return "The verification check failed right now."
+      default:
+        return fallback || "Something went wrong. Please try again."
     }
   }
 
@@ -377,7 +402,7 @@ function VerifyContent() {
                 )}
                 {phoneResult === "error" && (
                   <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
-                    Something went wrong. Please try again.
+                    {phoneErrorMessage ?? "Something went wrong. Please try again."}
                   </div>
                 )}
 
@@ -471,5 +496,4 @@ export default function VerifyPage() {
     </Suspense>
   )
 }
-
 

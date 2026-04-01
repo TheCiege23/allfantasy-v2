@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/adminAuth'
 import { runProviderHealthCheck } from '@/lib/ai-orchestration-engine'
 import { runClearSportsHealthCheck } from '@/lib/clear-sports/client'
+import { runRollingInsightsHealthCheck } from '@/lib/rolling-insights'
 import { sanitizeProviderError } from '@/lib/ai-orchestration/provider-utils'
 import { getProviderStatus } from '@/lib/provider-config'
 
@@ -15,13 +16,14 @@ export const dynamic = 'force-dynamic'
 type ProviderHealthState = 'configured' | 'available' | 'degraded' | 'unavailable'
 
 interface SafeProviderHealthRow {
-  id: 'openai' | 'deepseek' | 'xai' | 'clearsports'
+  id: 'openai' | 'deepseek' | 'xai' | 'clearsports' | 'rolling_insights'
   configured: boolean
   available: boolean
   healthy?: boolean
   state: ProviderHealthState
   latencyMs?: number
   error?: string
+  metadata?: Record<string, unknown>
 }
 
 function resolveState(input: {
@@ -43,9 +45,10 @@ export async function GET() {
   if (!gate.ok) return gate.res
 
   try {
-    const [healthEntries, clearSportsHealth] = await Promise.all([
+    const [healthEntries, clearSportsHealth, rollingInsightsHealth] = await Promise.all([
       runProviderHealthCheck(),
       runClearSportsHealthCheck(),
+      runRollingInsightsHealthCheck(),
     ])
     const status = getProviderStatus()
 
@@ -92,8 +95,32 @@ export async function GET() {
       error: clearSportsHealth.error ? sanitizeProviderError(clearSportsHealth.error) : undefined,
     }
 
+    const rollingInsightsConfigured = status.rollingInsights || rollingInsightsHealth.configured
+    const rollingInsightsProbePresent = true
+    const rollingInsightsAvailable = rollingInsightsConfigured && rollingInsightsHealth.available
+    const rollingInsightsRow: SafeProviderHealthRow = {
+      id: 'rolling_insights',
+      configured: rollingInsightsConfigured,
+      available: rollingInsightsAvailable,
+      healthy: rollingInsightsHealth.available,
+      state: resolveState({
+        configured: rollingInsightsConfigured,
+        probePresent: rollingInsightsProbePresent,
+        available: rollingInsightsAvailable,
+        healthy: rollingInsightsHealth.available,
+      }),
+      latencyMs: rollingInsightsHealth.latencyMs,
+      error: rollingInsightsHealth.error
+        ? sanitizeProviderError(rollingInsightsHealth.error)
+        : undefined,
+      metadata: {
+        authMode: rollingInsightsHealth.authMode ?? null,
+        enabledSports: rollingInsightsHealth.enabledSports,
+      },
+    }
+
     return NextResponse.json({
-      providers: [...aiRows, clearSportsRow],
+      providers: [...aiRows, clearSportsRow, rollingInsightsRow],
       generatedAt: Date.now(),
     })
   } catch (error) {

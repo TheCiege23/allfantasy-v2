@@ -13,6 +13,7 @@ import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
+import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveTheme } from '@/lib/theme';
 import {
@@ -54,9 +55,16 @@ export const metadata: Metadata = {
     ],
     apple: '/af-crest.png',
   },
+  manifest: '/manifest.webmanifest',
   robots: {
     index: true,
     follow: true,
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'mobile-web-app-capable': 'yes',
+    'format-detection': 'telephone=no',
   },
 };
 
@@ -75,7 +83,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang={htmlLang}
       data-lang={htmlLang}
       data-mode={htmlMode}
-      className={`${inter.variable}`}
+      className={`${inter.variable} scroll-smooth`}
       suppressHydrationWarning
     >
       <head>
@@ -200,6 +208,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <LanguageProviderClient>
               <ErrorTrackingInit />
               <WebVitalsTracker />
+              <ServiceWorkerRegistration />
               <ReferralTracker />
               <SyncProfilePreferences />
               <ErrorBoundaryClient>

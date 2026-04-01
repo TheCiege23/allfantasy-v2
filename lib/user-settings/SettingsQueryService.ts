@@ -17,6 +17,7 @@ async function queryBaseProfile(
       id: true,
       username: true,
       email: true,
+      emailVerified: true,
       displayName: true,
       avatarUrl: true,
       passwordHash: true,
@@ -53,6 +54,7 @@ async function queryBaseProfile(
     profile?.preferredLanguage === "es" || profile?.preferredLanguage === "en"
       ? (profile.preferredLanguage as "en" | "es")
       : null
+  const resolvedEmailVerifiedAt = profile?.emailVerifiedAt ?? user.emailVerified ?? null
 
   return {
     userId: user.id,
@@ -66,7 +68,7 @@ async function queryBaseProfile(
     themePreference: (profile?.themePreference as "dark" | "light" | "legacy") ?? null,
     phone: profile?.phone ?? null,
     phoneVerifiedAt: profile?.phoneVerifiedAt ?? null,
-    emailVerifiedAt: profile?.emailVerifiedAt ?? null,
+    emailVerifiedAt: resolvedEmailVerifiedAt,
     ageConfirmedAt: profile?.ageConfirmedAt ?? null,
     verificationMethod:
       profile?.verificationMethod === "PHONE" || profile?.verificationMethod === "EMAIL"

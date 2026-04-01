@@ -258,7 +258,7 @@ function AccountSettings({
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <Link
-          href="/verify"
+          href="/verify?returnTo=%2Fsettings%3Ftab%3Dsecurity"
           onClick={onClose}
           className="inline-flex rounded-xl border px-4 py-2 text-xs font-semibold"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
@@ -402,4 +402,3 @@ function BlockedUsersSettings() {
     </div>
   )
 }
-

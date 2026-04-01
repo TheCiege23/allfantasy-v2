@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { ArrowRight, Shield } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
+import { InstallButton, ShareButton } from '@/components/PWAButtons'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
@@ -283,6 +284,7 @@ export default function LandingPageClient() {
   const { status } = useSession()
   const copy = LANDING_COPY[language === 'es' ? 'es' : 'en']
   const isAuthenticated = status === 'authenticated'
+  const wordmarkSrc = '/af-logo-text.png'
 
   const primaryHref = isAuthenticated ? '/app' : signupUrlWithIntent('/dashboard')
   const secondaryHref = isAuthenticated ? '/dashboard' : loginUrlWithIntent('/dashboard')
@@ -303,23 +305,16 @@ export default function LandingPageClient() {
         <div className="mx-auto flex h-[60px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link
             href="/"
-            className="flex items-center rounded-2xl border px-4 py-2.5"
+            className="flex items-center gap-2 px-2 py-1.5 transition-opacity hover:opacity-80"
             aria-label="AllFantasy home"
-            style={{
-              borderColor: 'color-mix(in srgb, white 10%, var(--border))',
-              background: 'color-mix(in srgb, var(--panel) 72%, transparent)',
-              backdropFilter: 'blur(14px)',
-              WebkitBackdropFilter: 'blur(14px)',
-            }}
           >
             <Image
               src="/af-logo-text.png"
-              alt="AllFantasy"
+              alt="AllFantasy - AI-powered fantasy sports"
               width={1024}
               height={512}
               priority
-              className="h-[26px] w-auto object-contain sm:h-[32px]"
-              style={{ mixBlendMode: 'screen' }}
+              className="nav-logo-img h-[36px] w-auto object-contain sm:h-[44px]"
             />
           </Link>
 
@@ -339,50 +334,49 @@ export default function LandingPageClient() {
               <Shield className="mr-1 h-3.5 w-3.5" />
               {copy.nav.admin}
             </Link>
-            <Link
-              href={secondaryHref}
-              className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
-              style={{
-                borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                color: 'var(--muted)',
-                background: 'transparent',
-              }}
-              data-testid="landing-nav-secondary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: secondaryLabel,
-                  cta_destination: secondaryHref,
-                  cta_type: 'secondary',
-                  source: 'nav',
-                })
-              }
-            >
-              {secondaryLabel}
-            </Link>
-            <Link
-              href={primaryHref}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-              style={{
-                backgroundImage:
-                  'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-                color: 'var(--on-accent-bg)',
-              }}
-              data-testid="landing-nav-primary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: primaryLabel,
-                  cta_destination: primaryHref,
-                  cta_type: 'primary',
-                  source: 'nav',
-                })
-              }
-            >
-              {primaryLabel}
-            </Link>
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                href={secondaryHref}
+                className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                  color: 'var(--muted)',
+                  background: 'transparent',
+                }}
+                data-testid="landing-nav-secondary"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: secondaryLabel,
+                    cta_destination: secondaryHref,
+                    cta_type: 'secondary',
+                    source: 'nav',
+                  })
+                }
+              >
+                {secondaryLabel}
+              </Link>
+              <Link
+                href={primaryHref}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                  color: 'var(--on-accent-bg)',
+                }}
+                data-testid="landing-nav-primary"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: primaryLabel,
+                    cta_destination: primaryHref,
+                    cta_type: 'primary',
+                    source: 'nav',
+                  })
+                }
+              >
+                {primaryLabel}
+              </Link>
+            </div>
           </div>
-        </div>
-        <div className="mx-auto flex max-w-7xl items-center justify-end px-4 pb-2 md:hidden">
-          <LanguageToggle />
         </div>
       </header>
 
@@ -403,7 +397,7 @@ export default function LandingPageClient() {
         <div className="relative z-10 mb-8">
           <div className="landing-crest-glow absolute left-1/2 top-1/2 h-[360px] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[520px] sm:w-[520px]" aria-hidden="true" />
           <div
-            className="landing-float relative flex flex-col items-center justify-center gap-4 px-4 py-2 sm:gap-5 sm:px-6 sm:py-4"
+            className="landing-float hero-logo-wrap relative flex flex-col items-center justify-center gap-4 px-4 py-2 sm:gap-5 sm:px-6 sm:py-4"
             style={{
               filter: 'drop-shadow(0 28px 90px rgba(4,9,21,0.42))',
             }}
@@ -416,39 +410,28 @@ export default function LandingPageClient() {
                   'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 68%, color-mix(in srgb, var(--accent-purple) 12%, transparent) 0%, transparent 74%)',
               }}
             />
-            <div className="relative flex items-center justify-center">
-              <div
-                className="pointer-events-none absolute h-[180px] w-[180px] rounded-full sm:h-[220px] sm:w-[220px]"
-                aria-hidden="true"
-                style={{
-                  background:
-                    'radial-gradient(circle, color-mix(in srgb, var(--accent-cyan) 18%, transparent) 0%, transparent 70%)',
-                }}
-              />
+            <div className="hero-logo-wrap relative flex flex-col items-center justify-center gap-2">
+              <div className="relative flex items-center justify-center">
+                <div className="pointer-events-none absolute inset-0 scale-150 rounded-full bg-cyan-500/10 blur-3xl" />
+                <Image
+                  src="/branding/allfantasy-crest-chatgpt.png"
+                  alt="AllFantasy - AI-powered fantasy sports platform"
+                  className="mode-logo-safe relative h-[120px] w-auto object-contain sm:h-[160px] lg:h-[200px]"
+                  priority
+                  width={400}
+                  height={400}
+                />
+              </div>
+
               <Image
-                src="/af-crest.png"
-                alt="AllFantasy crest"
-                width={768}
-                height={768}
+                src={wordmarkSrc}
+                alt="AllFantasy"
+                className="nav-logo-img relative h-[44px] w-auto object-contain sm:h-[56px] lg:h-[68px]"
                 priority
-                className="mode-logo-safe relative h-[132px] w-auto object-contain sm:h-[170px]"
-                style={{
-                  mixBlendMode: 'screen',
-                  filter: 'brightness(1.04) saturate(1.08) drop-shadow(0 18px 42px rgba(14,165,233,0.22))',
-                }}
+                width={600}
+                height={100}
               />
             </div>
-            <Image
-              src="/af-logo-text.png"
-              alt="AllFantasy"
-              width={1024}
-              height={512}
-              className="relative h-[34px] w-auto object-contain sm:h-[46px]"
-              style={{
-                mixBlendMode: 'screen',
-                filter: 'brightness(1.04) saturate(1.08) drop-shadow(0 10px 24px rgba(59,130,246,0.16))',
-              }}
-            />
           </div>
         </div>
 
@@ -478,51 +461,57 @@ export default function LandingPageClient() {
           {copy.hero.subtitle}
         </p>
 
-        <div className="relative z-10 mb-10 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href={primaryHref}
-            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-            style={{
-              backgroundImage:
-                'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-              color: 'var(--on-accent-bg)',
-            }}
-            data-testid="landing-hero-primary"
-            onClick={() =>
-              trackLandingCtaClick({
-                cta_label: primaryLabel,
-                cta_destination: primaryHref,
-                cta_type: 'primary',
-                source: 'hero',
-              })
-            }
-          >
-            {primaryLabel}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href={secondaryHref}
-            className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
-            style={{
-              background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-              color: 'var(--text)',
-            }}
-            data-testid="landing-hero-secondary"
-            onClick={() =>
-              trackLandingCtaClick({
-                cta_label: secondaryLabel,
-                cta_destination: secondaryHref,
-                cta_type: 'secondary',
-                source: 'hero',
-              })
-            }
-          >
-            {secondaryLabel}
-          </Link>
+        <div className="relative z-10 mb-10">
+          <div className="flex w-full flex-col items-center gap-3 px-6 sm:w-auto sm:flex-row sm:px-0">
+            <Link
+              href={primaryHref}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+              style={{
+                backgroundImage:
+                  'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                color: 'var(--on-accent-bg)',
+              }}
+              data-testid="landing-hero-primary"
+              onClick={() =>
+                trackLandingCtaClick({
+                  cta_label: primaryLabel,
+                  cta_destination: primaryHref,
+                  cta_type: 'primary',
+                  source: 'hero',
+                })
+              }
+            >
+              {primaryLabel}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href={secondaryHref}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
+              style={{
+                background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                color: 'var(--text)',
+              }}
+              data-testid="landing-hero-secondary"
+              onClick={() =>
+                trackLandingCtaClick({
+                  cta_label: secondaryLabel,
+                  cta_destination: secondaryHref,
+                  cta_type: 'secondary',
+                  source: 'hero',
+                })
+              }
+            >
+              {secondaryLabel}
+            </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <InstallButton className="w-full justify-center sm:w-auto" />
+            <ShareButton className="w-full justify-center sm:w-auto" />
+          </div>
         </div>
 
-        <div className="relative z-10 flex max-w-4xl flex-wrap items-center justify-center gap-2" aria-label="Supported sports">
+        <div className="relative z-10 mx-auto flex max-w-sm flex-wrap items-center justify-center gap-2 px-4 sm:max-w-none" aria-label="Supported sports">
           {copy.sports.map((sport) => (
             <span
               key={sport}
@@ -718,61 +707,38 @@ export default function LandingPageClient() {
         <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-2xl border px-4 py-2.5"
+            className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100"
             aria-label="AllFantasy home"
-            style={{
-              borderColor: 'color-mix(in srgb, white 10%, var(--border))',
-              background: 'color-mix(in srgb, var(--panel) 68%, transparent)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-            }}
           >
             <Image
               src="/af-logo-text.png"
               alt="AllFantasy"
               width={1024}
               height={512}
-              className="h-[24px] w-auto object-contain sm:h-[28px]"
-              style={{ mixBlendMode: 'screen' }}
+              className="nav-wordmark footer-logo h-[28px] w-auto object-contain"
             />
             <span className="text-sm" style={{ color: 'var(--muted2)' }}>
               © {new Date().getFullYear()} AllFantasy.ai. All rights reserved.
             </span>
           </Link>
 
-          <nav className="flex flex-wrap items-center gap-4 text-sm" aria-label="Footer navigation">
-            <Link href="/privacy" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
+          <nav className="flex flex-wrap items-center gap-x-6 gap-y-2" aria-label="Footer navigation">
+            <Link href="/privacy" className="text-sm text-white/55 transition-colors hover:text-white">
               {copy.footer.privacy}
             </Link>
-            <Link href="/terms" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
+            <Link href="/terms" className="text-sm text-white/55 transition-colors hover:text-white">
               {copy.footer.terms}
             </Link>
-            <Link href="/data-deletion" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
+            <Link href="/data-deletion" className="text-sm text-white/55 transition-colors hover:text-white">
               {copy.footer.dataDeletion}
             </Link>
             <Link
-              href="/app"
-              style={{ color: 'var(--muted2)' }}
-              className="transition hover:opacity-100"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: copy.footer.openApp,
-                  cta_destination: '/app',
-                  cta_type: 'primary',
-                  source: 'footer',
-                })
-              }
-            >
-              {copy.footer.openApp}
-            </Link>
-            <Link
               href={loginUrlWithIntent('/dashboard')}
-              style={{ color: 'var(--muted2)' }}
-              className="transition hover:opacity-100"
+              className="text-sm text-white/55 transition-colors hover:text-white"
             >
               {copy.footer.signIn}
             </Link>
-            <Link href="/admin" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
+            <Link href="/admin" className="text-sm text-white/55 transition-colors hover:text-white">
               {copy.footer.admin}
             </Link>
           </nav>
@@ -802,6 +768,26 @@ export default function LandingPageClient() {
 
         .landing-float {
           animation: landingFloat 5s ease-in-out infinite;
+        }
+
+        .hero-crest {
+          mix-blend-mode: screen;
+          filter:
+            drop-shadow(0 0 32px rgba(6, 182, 212, 0.45))
+            drop-shadow(0 0 80px rgba(59, 130, 246, 0.2))
+            brightness(1.05);
+          isolation: isolate;
+        }
+
+        .hero-wordmark {
+          mix-blend-mode: screen;
+          filter: brightness(1.2) contrast(1.05);
+          isolation: isolate;
+        }
+
+        .hero-logo-wrap {
+          background: transparent !important;
+          isolation: auto;
         }
 
         @keyframes landingFloat {
