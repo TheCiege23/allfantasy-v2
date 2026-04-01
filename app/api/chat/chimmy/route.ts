@@ -59,6 +59,14 @@ type ChimmyPECRExecutionOutput = {
   processingMs: number
 }
 
+type ChimmyPECRPlanContext = {
+  legacyEnrichmentContext: string
+  enrichmentLoaded: boolean
+  enrichmentSources: string[]
+  legacyMemoryLoaded: boolean
+  legacyMemorySection: string
+}
+
 const PECR_VALID_TOOL_ROUTES = new Set([
   '/trade-analyzer',
   '/waiver-wire',
@@ -1031,21 +1039,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const unifiedRequest = requestContractToUnified(
-    {
-      tool: 'chimmy_chat',
-      sport,
-      leagueId: leagueId ?? null,
-      userId,
-      leagueSettings,
-      deterministicContext,
-      userMessage,
-      aiMode: 'unified_brain',
-      provider: null,
-    },
-    userId
-  )
-
   let pecrIntent = 'general'
   try {
     const pecrResult = await runPECR(
@@ -1075,9 +1068,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             }),
           ])
 
+          const legacyEnrichmentContext =
+            legacyEnrichment.status === 'fulfilled' ? legacyEnrichment.value.context : ''
+
           const enrichmentLoaded =
             legacyEnrichment.status === 'fulfilled' &&
-            (legacyEnrichment.value.context.trim().length > 0 ||
+            (legacyEnrichmentContext.trim().length > 0 ||
               legacyEnrichment.value.audit.sourcesUsed.length > 0)
 
           const legacyMemorySection =
@@ -1089,6 +1085,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             intent,
             steps: ['classify intent', 'run current chimmy orchestration', 'validate answer'],
             context: {
+              legacyEnrichmentContext,
               enrichmentLoaded,
               enrichmentSources:
                 legacyEnrichment.status === 'fulfilled'
@@ -1100,8 +1097,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             refineHints: [],
           }
         },
-        execute: async () => {
-          const run = await runUnifiedOrchestration(unifiedRequest)
+        execute: async (plan) => {
+          const planContext = plan.context as ChimmyPECRPlanContext
+          const pecrDeterministicContext = compactRecord({
+            ...deterministicContext,
+            pecrContext: compactRecord({
+              intent: plan.intent,
+              legacyEnrichmentContext: planContext.legacyEnrichmentContext || undefined,
+              enrichmentLoaded: planContext.enrichmentLoaded,
+              enrichmentSources: planContext.enrichmentSources,
+              legacyMemorySection: planContext.legacyMemorySection || undefined,
+              legacyMemoryLoaded: planContext.legacyMemoryLoaded,
+              refineHints: plan.refineHints.length > 0 ? plan.refineHints : undefined,
+            }),
+          })
+          const pecrUnifiedRequest = requestContractToUnified(
+            {
+              tool: 'chimmy_chat',
+              sport,
+              leagueId: leagueId ?? null,
+              userId,
+              leagueSettings,
+              deterministicContext: pecrDeterministicContext,
+              userMessage,
+              aiMode: 'unified_brain',
+              provider: null,
+            },
+            userId
+          )
+          const run = await runUnifiedOrchestration(pecrUnifiedRequest)
           if (!run.ok) {
             throw new ChimmyPECRExecutionError(
               run.error.message,

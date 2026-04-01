@@ -18,10 +18,22 @@ class AutoSyncUnauthorizedError extends Error {
   }
 }
 
+function getBearerToken(req: Request): string | null {
+  const authHeader = req.headers.get('authorization')?.trim();
+  if (!authHeader) return null;
+  if (!authHeader.toLowerCase().startsWith('bearer ')) return null;
+
+  const token = authHeader.slice(7).trim();
+  return token || null;
+}
+
 function requireCron(req: Request): boolean {
   const provided =
-    req.headers.get('x-cron-secret') ?? req.headers.get('x-admin-secret') ?? '';
-  const cronSecret = process.env.LEAGUE_CRON_SECRET;
+    getBearerToken(req) ??
+    req.headers.get('x-cron-secret') ??
+    req.headers.get('x-admin-secret') ??
+    '';
+  const cronSecret = process.env.CRON_SECRET || process.env.LEAGUE_CRON_SECRET;
   const adminSecret = process.env.BRACKET_ADMIN_SECRET || process.env.ADMIN_PASSWORD;
   return !!(
     provided &&
@@ -136,10 +148,16 @@ export async function POST(req: Request) {
           results,
         };
       },
-      check: (output) => ({
-        passed: output !== null && output !== undefined,
-        failures: output === null ? ['sync returned null'] : [],
-      }),
+      check: (output) => {
+        const failures: string[] = [];
+        if (output === null) failures.push('sync returned null');
+        if (output === undefined) failures.push('sync returned undefined');
+
+        return {
+          passed: failures.length === 0,
+          failures,
+        };
+      },
     });
 
     return NextResponse.json(pecrResult.output);
