@@ -1,0 +1,43 @@
+// ═══════════════════════════════════════════════════════════════
+// ADD THESE MODELS TO THE BOTTOM OF prisma/schema.prisma
+// Then run: npx prisma migrate dev --name add_behavior_rules_and_working_memory
+// ═══════════════════════════════════════════════════════════════
+
+// Logs every behavior rule violation so we can audit AI behavior
+// Mirrors the exact pattern of NarrativeValidationLog
+model AIRuleViolationLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  feature   String                    // chimmy | trade | waiver | simulation
+  ruleId    String                    // e.g. 'no-break-existing'
+  severity  String                    // hard | soft
+  reason    String
+  iteration Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([feature])
+  @@index([ruleId])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("ai_rule_violation_logs")
+}
+
+// User- or admin-configurable custom behavior rules stored in DB
+// These supplement the built-in rules in lib/ai/behavior-rules.ts
+model AICustomRule {
+  id              String   @id @default(uuid())
+  description     String
+  prompt          String   @db.Text
+  severity        String                    // hard | soft
+  category        String                    // safety | quality | scope | memory | style
+  blockedPattern  String?                   // regex — if matched, rule fails
+  requiredPattern String?                   // regex — if NOT found, rule fails
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([category])
+  @@map("ai_custom_rules")
+}

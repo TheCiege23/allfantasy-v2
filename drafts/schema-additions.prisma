@@ -1,0 +1,48 @@
+// ═══════════════════════════════════════════════════════════════
+//  ADD THESE MODELS TO YOUR prisma/schema.prisma
+//  Paste them at the bottom of the file, then run:
+//  npx prisma migrate dev --name add_codebase_memory
+// ═══════════════════════════════════════════════════════════════
+
+// Tracks every AI-driven file edit so the codebase memory
+// knows what changed and why
+model AICodebaseEdit {
+  id           String   @id @default(uuid())
+  filePath     String
+  editedAt     DateTime @default(now())
+  summary      String
+  reason       String
+  linesAdded   Int      @default(0)
+  linesRemoved Int      @default(0)
+
+  @@index([filePath])
+  @@index([editedAt])
+  @@map("ai_codebase_edits")
+}
+
+// Singleton: the full compressed repo memory blob
+// Updated by the repo-memory worker job
+model AIRepoMemory {
+  id        String   @id
+  memory    String   // JSON blob of RepoMemory type
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_repo_memory")
+}
+
+// PECR run log — every Plan→Execute→Check→Repeat cycle
+// Mirrors the pattern from NarrativeValidationLog
+model PECRLog {
+  id          String   @id @default(uuid())
+  feature     String                    // chimmy | trade | waiver | simulation | cron-*
+  iterations  Int
+  passed      Boolean
+  durationMs  Int
+  allFailures Json                      // string[][]
+  createdAt   DateTime @default(now())
+
+  @@index([feature])
+  @@index([createdAt])
+  @@index([passed])
+  @@map("pecr_logs")
+}
