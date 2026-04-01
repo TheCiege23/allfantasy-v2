@@ -190,7 +190,10 @@ const prismaBin = path.join(
 
 const hasLocalPrisma = fs.existsSync(prismaBin);
 const command = hasLocalPrisma ? prismaBin : "npx";
-const failedMigrationName = "20260363000000_add_ai_memory_and_chat_history";
+const recoverableFailedMigrations = new Set([
+  "20260363000000_add_ai_memory_and_chat_history",
+  "20260401000000_add_devy_c2c_rollout_foundation",
+]);
 
 function buildArgs(prismaArgs) {
   return hasLocalPrisma ? prismaArgs : ["prisma", ...prismaArgs];
@@ -221,14 +224,32 @@ function outputMentionsFailedMigration(output, migrationName) {
   );
 }
 
+function extractFailedMigrationName(output) {
+  const migrationNameMatch = output.match(/Migration name:\s*([^\s]+)/);
+  if (migrationNameMatch?.[1]) return migrationNameMatch[1];
+
+  const failedMigrationMatch = output.match(/The `([^`]+)` migration/);
+  if (failedMigrationMatch?.[1]) return failedMigrationMatch[1];
+
+  for (const migrationName of recoverableFailedMigrations) {
+    if (outputMentionsFailedMigration(output, migrationName)) {
+      return migrationName;
+    }
+  }
+
+  return null;
+}
+
 const output = `${result.stdout || ""}\n${result.stderr || ""}`;
-const shouldRetryFailedChatHistoryMigration =
+const failedMigrationName = extractFailedMigrationName(output);
+const shouldRetryFailedMigration =
   typeof result.status === "number" &&
   result.status !== 0 &&
   (output.includes("P3018") || output.includes("P3009")) &&
-  outputMentionsFailedMigration(output, failedMigrationName);
+  !!failedMigrationName &&
+  recoverableFailedMigrations.has(failedMigrationName);
 
-if (shouldRetryFailedChatHistoryMigration) {
+if (shouldRetryFailedMigration && failedMigrationName) {
   console.warn(
     `[db:migrate:deploy] Detected failed migration ${failedMigrationName}; marking it rolled back and retrying deploy once.`
   );
