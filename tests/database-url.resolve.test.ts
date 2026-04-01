@@ -18,4 +18,13 @@ describe('resolveDatabaseUrl', () => {
     const url = resolveDatabaseUrl({ DATABASE_URL: input })
     expect(url).toBe(input)
   })
+
+  it('skips non-postgres schemes and falls back to the next valid database env', () => {
+    const input = 'postgresql://u:p@db.example.com:5432/app?sslmode=require'
+    const url = resolveDatabaseUrl({
+      DATABASE_URL: 'prisma://accelerate.example.net/?api_key=secret',
+      POSTGRES_URL: input,
+    })
+    expect(url).toBe(input)
+  })
 })

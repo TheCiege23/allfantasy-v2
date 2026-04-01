@@ -27,19 +27,72 @@ function readEnvFileValue(filePath, key) {
   return null;
 }
 
-function normalizeDatabaseUrl(runtimeUrl, fileUrl) {
-  const baseUrl = runtimeUrl || fileUrl;
-  if (!baseUrl) {
+function hasSupportedPostgresScheme(value) {
+  return /^(postgres|postgresql):\/\//i.test(value.trim());
+}
+
+function readCandidate(envRuntime, envFile, key) {
+  const runtime = envRuntime[key] ? stripQuotes(envRuntime[key]) : null;
+  const file = envFile[key] ? stripQuotes(envFile[key]) : null;
+  return { runtime, file };
+}
+
+function selectDatabaseUrl(envRuntime, envFile) {
+  const preferenceOrder = [
+    "DIRECT_URL",
+    "POSTGRES_URL_NON_POOLING",
+    "POSTGRES_URL",
+    "DATABASE_URL",
+    "POSTGRES_PRISMA_URL",
+  ];
+
+  const invalid = [];
+  let selected = null;
+
+  for (const key of preferenceOrder) {
+    const candidate = readCandidate(envRuntime, envFile, key);
+    const value = candidate.runtime || candidate.file;
+    if (!value) continue;
+    if (!hasSupportedPostgresScheme(value)) {
+      invalid.push(`${key} uses unsupported scheme`);
+      continue;
+    }
+    selected = { key, value };
+    break;
+  }
+
+  if (!selected) {
+    return {
+      url: null,
+      reason: invalid.length > 0 ? invalid.join("; ") : "No valid Postgres database URL was found in env",
+    };
+  }
+
+  const poolerCandidate =
+    preferenceOrder
+      .map((key) => ({ key, ...readCandidate(envRuntime, envFile, key) }))
+      .flatMap((entry) => [entry.runtime, entry.file].filter(Boolean))
+      .find((value) => {
+        if (!value || !hasSupportedPostgresScheme(value)) return false;
+        try {
+          const parsed = new URL(value);
+          return parsed.hostname.endsWith("pooler.supabase.com") && parsed.port === "6543";
+        } catch {
+          return false;
+        }
+      }) || null;
+
+  return normalizeDatabaseUrl(selected.value, poolerCandidate, selected.key);
+}
+
+function normalizeDatabaseUrl(candidate, poolerUrl, sourceKey) {
+  if (!candidate) {
     return { url: null, reason: "DATABASE_URL is not set" };
   }
 
-  const cleanRuntime = runtimeUrl ? stripQuotes(runtimeUrl) : null;
-  const cleanFile = fileUrl ? stripQuotes(fileUrl) : null;
-  const candidate = cleanRuntime || cleanFile;
-
   try {
     const parsed = new URL(candidate);
-    const parsedFile = cleanFile ? new URL(cleanFile) : null;
+    const parsedPooler = poolerUrl ? new URL(poolerUrl) : null;
 
     if (
       parsed.hostname.endsWith("pooler.supabase.com") &&
@@ -48,48 +101,59 @@ function normalizeDatabaseUrl(runtimeUrl, fileUrl) {
       parsed.port = "5432";
       return {
         url: parsed.toString(),
-        reason: "switched Supabase pooler from :6543 to :5432",
+        reason: `${sourceKey}: switched Supabase pooler from :6543 to :5432`,
       };
     }
 
     if (
-      parsedFile &&
-      parsedFile.hostname.endsWith("pooler.supabase.com") &&
-      parsedFile.port === "6543" &&
+      parsedPooler &&
+      parsedPooler.hostname.endsWith("pooler.supabase.com") &&
+      parsedPooler.port === "6543" &&
       /^db\..+\.supabase\.co$/i.test(parsed.hostname) &&
       parsed.port === "5432"
     ) {
-      parsed.hostname = parsedFile.hostname;
+      parsed.hostname = parsedPooler.hostname;
       parsed.port = "5432";
-      parsed.username = parsedFile.username;
-      parsed.password = parsedFile.password;
-      parsed.pathname = parsedFile.pathname;
-      if (!parsed.search && parsedFile.search) {
-        parsed.search = parsedFile.search;
+      parsed.username = parsedPooler.username;
+      parsed.password = parsedPooler.password;
+      parsed.pathname = parsedPooler.pathname;
+      if (!parsed.search && parsedPooler.search) {
+        parsed.search = parsedPooler.search;
       }
       return {
         url: parsed.toString(),
-        reason: "replaced direct Supabase host with reachable pooler host",
+        reason: `${sourceKey}: replaced direct Supabase host with reachable pooler host`,
       };
     }
 
-    return { url: parsed.toString(), reason: null };
-  } catch {
-    return { url: candidate, reason: null };
+    return { url: parsed.toString(), reason: `${sourceKey}: using valid Postgres URL` };
+  } catch (error) {
+    return {
+      url: null,
+      reason: `${sourceKey}: failed to parse database URL (${error instanceof Error ? error.message : String(error)})`,
+    };
   }
 }
 
 const envPath = path.join(process.cwd(), ".env");
-const fileDatabaseUrl = readEnvFileValue(envPath, "DATABASE_URL");
-const runtimeDatabaseUrl = process.env.DATABASE_URL || null;
-
-const { url: databaseUrl, reason } = normalizeDatabaseUrl(
-  runtimeDatabaseUrl,
-  fileDatabaseUrl
+const envKeys = [
+  "DATABASE_URL",
+  "DIRECT_URL",
+  "POSTGRES_PRISMA_URL",
+  "POSTGRES_URL",
+  "POSTGRES_URL_NON_POOLING",
+];
+const fileEnv = Object.fromEntries(
+  envKeys.map((key) => [key, readEnvFileValue(envPath, key)])
+);
+const runtimeEnv = Object.fromEntries(
+  envKeys.map((key) => [key, process.env[key] || null])
 );
 
+const { url: databaseUrl, reason } = selectDatabaseUrl(runtimeEnv, fileEnv);
+
 if (!databaseUrl) {
-  console.error("db:migrate:deploy error: DATABASE_URL is missing.");
+  console.error(`db:migrate:deploy error: ${reason || "No valid database URL found."}`);
   process.exit(1);
 }
 

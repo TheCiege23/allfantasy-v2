@@ -20,6 +20,8 @@ import { buildDeterministicPostDraftRecap } from '@/lib/post-draft'
 import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import { runDraftAIAssist } from '@/lib/draft-ai-engine'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
+import { getDevyConfig } from '@/lib/devy/DevyLeagueConfig'
+import { getC2CConfig } from '@/lib/merged-devy-c2c/C2CLeagueConfig'
 import {
   type ADPSource,
   type ADPRanking,
@@ -79,7 +81,17 @@ export type DraftPlayerPoolEntry = {
   position: string
   team: string | null
   adp: number | null
+  source?: 'pro' | 'college'
+  poolType?: 'college' | 'pro'
+  school?: string | null
+  conference?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
+  nextGameLabel?: string | null
+  isDevy?: boolean
   projectedPoints?: number | null
+  weeklyPoints?: number | null
   rosteredPercent?: number | null
   headshotUrl?: string | null
 }
@@ -152,7 +164,12 @@ function normalizeAdpSource(raw: unknown): ADPSource {
   return 'blended'
 }
 
-async function resolvePlayerById(leagueId: string, sport: string, playerId: string) {
+async function resolvePlayerById(
+  leagueId: string,
+  sport: string,
+  playerId: string,
+  settings?: Record<string, unknown> | null
+) {
   const fromPool = await getPlayerPoolForLeague(leagueId, sport as any, { limit: 500 }).catch(() => [])
   const poolMatch = fromPool.find((entry: any) => {
     const ids = [
@@ -174,6 +191,36 @@ async function resolvePlayerById(leagueId: string, sport: string, playerId: stri
       position: String(poolMatch.position ?? ''),
       team: poolMatch.team_abbreviation ?? poolMatch.team ?? null,
       byeWeek: null,
+      pickSource: null,
+    }
+  }
+
+  const devyPlayer = await prisma.devyPlayer.findUnique({
+    where: { id: playerId },
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      school: true,
+      graduatedToNFL: true,
+    },
+  }).catch(() => null)
+  if (devyPlayer?.id) {
+    const requestedDraftType = String(settings?.requested_draft_type ?? settings?.draft_type ?? '').toLowerCase()
+    const pickSource =
+      devyPlayer.graduatedToNFL
+        ? 'promoted_devy'
+        : requestedDraftType.startsWith('devy_')
+          ? 'devy'
+          : 'college'
+
+    return {
+      playerId: devyPlayer.id,
+      playerName: devyPlayer.name,
+      position: devyPlayer.position,
+      team: devyPlayer.school ?? null,
+      byeWeek: null,
+      pickSource,
     }
   }
 
@@ -188,6 +235,7 @@ async function resolvePlayerById(leagueId: string, sport: string, playerId: stri
       position: player.position,
       team: player.team ?? null,
       byeWeek: null,
+      pickSource: null,
     }
   }
 
@@ -204,6 +252,7 @@ async function resolvePlayerById(leagueId: string, sport: string, playerId: stri
       position: sportsPlayer.position ?? '',
       team: sportsPlayer.team ?? null,
       byeWeek: null,
+      pickSource: null,
     }
   }
 
@@ -213,11 +262,21 @@ async function resolvePlayerById(leagueId: string, sport: string, playerId: stri
 async function buildAvailablePlayers(
   leagueId: string,
   sport: string,
-  draftedNames: Set<string>
+  draftedNames: Set<string>,
+  settings?: Record<string, unknown> | null
 ): Promise<DraftPlayerPoolEntry[]> {
   const pool = await getPlayerPoolForLeague(leagueId, sport as any, { limit: 500 }).catch(() => [])
+  const [devyConfig, c2cConfig] = await Promise.all([
+    getDevyConfig(leagueId).catch(() => null),
+    getC2CConfig(leagueId).catch(() => null),
+  ])
+  const requestedDraftType = String(settings?.requested_draft_type ?? settings?.draft_type ?? '').toLowerCase()
+  const isDevyDraft = requestedDraftType.startsWith('devy_')
+  const isC2CDraft = requestedDraftType.startsWith('c2c_')
+  const includeCollege = isDevyDraft || isC2CDraft || Boolean(devyConfig) || Boolean(c2cConfig)
+  const collegeOnly = isDevyDraft || (isC2CDraft && c2cConfig?.mixProPlayers === false)
 
-  return pool
+  const proEntries = pool
     .filter((entry: any) => !draftedNames.has(String(entry.full_name ?? '').trim()))
     .map((entry: any, index: number) => ({
       playerId: String(
@@ -238,12 +297,76 @@ async function buildAvailablePlayers(
         entry.metadata?.projected_points != null
           ? Number(entry.metadata.projected_points)
           : null,
+      source: 'pro' as const,
+      poolType: 'pro' as const,
       rosteredPercent:
         entry.metadata?.rostered_percent != null
           ? Number(entry.metadata.rostered_percent)
           : null,
       headshotUrl: null,
     }))
+
+  if (!includeCollege) {
+    return proEntries
+  }
+
+  const collegeSports = Array.from(
+    new Set(
+      [
+        ...(devyConfig?.collegeSports ?? []),
+        ...(c2cConfig?.collegeSports ?? []),
+      ].filter(Boolean)
+    )
+  )
+  const collegeEntries = await prisma.devyPlayer.findMany({
+    where: {
+      graduatedToNFL: false,
+      ...(collegeSports.length > 0 ? { sport: { in: collegeSports } } : {}),
+    },
+    orderBy: [{ devyAdp: 'asc' }, { draftProjectionScore: 'desc' }],
+    take: 300,
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      school: true,
+      conference: true,
+      classYearLabel: true,
+      draftGrade: true,
+      nflTeam: true,
+      nextGameLabel: true,
+      devyAdp: true,
+      projectedC2CPoints: true,
+      c2cPointsWeek: true,
+      headshotUrl: true,
+    },
+  }).catch(() => [])
+
+  const normalizedDrafted = new Set(Array.from(draftedNames).map((name) => name.trim().toLowerCase()))
+  const collegeMapped = collegeEntries
+    .filter((entry) => !normalizedDrafted.has(entry.name.trim().toLowerCase()))
+    .map((entry, index) => ({
+      playerId: entry.id,
+      name: entry.name,
+      position: entry.position,
+      team: entry.school ?? null,
+      adp: entry.devyAdp != null ? Number(entry.devyAdp) : index + 1,
+      source: 'college' as const,
+      poolType: 'college' as const,
+      school: entry.school ?? null,
+      conference: entry.conference ?? null,
+      classYearLabel: entry.classYearLabel ?? null,
+      draftGrade: entry.draftGrade ?? null,
+      projectedLandingSpot: entry.nflTeam ?? null,
+      nextGameLabel: entry.nextGameLabel ?? null,
+      isDevy: true,
+      projectedPoints: entry.projectedC2CPoints ?? null,
+      weeklyPoints: entry.c2cPointsWeek ?? null,
+      headshotUrl: entry.headshotUrl ?? null,
+      rosteredPercent: null,
+    }))
+
+  return collegeOnly ? collegeMapped : [...proEntries, ...collegeMapped]
 }
 
 export class DraftWorker {
@@ -276,7 +399,8 @@ export class DraftWorker {
     ])
 
     const draftedNames = new Set(snapshot.picks.map((pick) => pick.playerName))
-    const availablePlayers = await buildAvailablePlayers(context.leagueId, context.sport, draftedNames)
+    const leagueSettings = (league?.settings as Record<string, unknown> | null | undefined) ?? null
+    const availablePlayers = await buildAvailablePlayers(context.leagueId, context.sport, draftedNames, leagueSettings)
 
     const draftIntel =
       this.options.viewerUserId
@@ -287,7 +411,7 @@ export class DraftWorker {
           }).catch(() => null)
         : null
 
-    const adpSource = normalizeAdpSource((league?.settings as Record<string, unknown> | null | undefined)?.draft_adp_source)
+    const adpSource = normalizeAdpSource(leagueSettings?.draft_adp_source)
     const budgets =
       snapshot.auction?.budgets && typeof snapshot.auction.budgets === 'object'
         ? (snapshot.auction.budgets as Record<string, number>)
@@ -430,7 +554,12 @@ export class DraftWorker {
       throw new Error('It is not your turn to pick')
     }
 
-    const player = await resolvePlayerById(context.leagueId, context.sport, playerId)
+    const league = await prisma.league.findUnique({
+      where: { id: context.leagueId },
+      select: { settings: true },
+    })
+    const leagueSettings = (league?.settings as Record<string, unknown> | null | undefined) ?? null
+    const player = await resolvePlayerById(context.leagueId, context.sport, playerId, leagueSettings)
     if (!player) {
       throw new Error('Player not found')
     }
@@ -443,7 +572,7 @@ export class DraftWorker {
       playerId: player.playerId,
       byeWeek: player.byeWeek,
       rosterId: snapshot.currentPick.rosterId,
-      source: commissioner ? 'commissioner' : 'user',
+      source: player.pickSource ?? (commissioner ? 'commissioner' : 'user'),
     })
 
     if (!result.success) {

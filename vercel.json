@@ -57,20 +57,20 @@
       "schedule": "0 4 * * 2"
     },
     {
-      "path": "/api/cron/devy-import",
-      "schedule": "0 5 * * *"
+      "path": "/api/cron/import-college-stats",
+      "schedule": "0 3 * * 2"
     },
     {
-      "path": "/api/cron/devy-projections",
-      "schedule": "30 5 * * *"
+      "path": "/api/cron/import-draft-grades",
+      "schedule": "0 4 * * 2"
     },
     {
-      "path": "/api/cron/devy-transfer-portal",
+      "path": "/api/cron/check-transfer-portal",
       "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/c2c-live-scores",
-      "schedule": "*/20 * * * *"
+      "schedule": "*/5 10-23 * * 6"
     }
   ]
 }

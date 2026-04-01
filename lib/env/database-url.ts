@@ -30,10 +30,16 @@ function normalizeDatabaseUrl(url: string): string {
   }
 }
 
+function hasSupportedPostgresScheme(url: string): boolean {
+  return /^(postgres|postgresql):\/\//i.test(url.trim())
+}
+
 export function resolveDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): string | null {
   for (const key of DATABASE_URL_ENV_KEYS) {
     const value = env[key]?.trim()
-    if (value) return normalizeDatabaseUrl(value)
+    if (!value) continue
+    if (!hasSupportedPostgresScheme(value)) continue
+    return normalizeDatabaseUrl(value)
   }
 
   return null

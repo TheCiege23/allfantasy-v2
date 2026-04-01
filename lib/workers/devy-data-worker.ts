@@ -257,6 +257,14 @@ async function getLeagueIdsHoldingCollegeSportAssets(sport: string): Promise<str
   )
 }
 
+async function getLeagueIdsHoldingPlayer(playerId: string): Promise<string[]> {
+  const rights = await prisma.devyRights.findMany({
+    where: { devyPlayerId: playerId },
+    select: { leagueId: true },
+  })
+  return Array.from(new Set(rights.map((right) => right.leagueId).filter(Boolean)))
+}
+
 async function notifyLeagueManagers(input: {
   leagueId: string
   title: string
@@ -308,20 +316,37 @@ export async function refreshDraftProjections(sport: string): Promise<DevyWorker
   const resolvedSport = resolveCollegeSport(sport)
   const players = await prisma.devyPlayer.findMany({
     where: { sport: resolvedSport },
-    select: { id: true, projectedDraftRound: true, draftProjectionScore: true, c2cPointsSeason: true },
+    select: {
+      id: true,
+      name: true,
+      draftGrade: true,
+      projectedDraftRound: true,
+      draftProjectionScore: true,
+      c2cPointsSeason: true,
+    },
   })
   let updated = 0
+  const movers: Array<{ playerId: string; name: string; nextGrade: string | null; round: number | null }> = []
   for (const player of players) {
+    const nextGrade = toDraftGrade(player.projectedDraftRound, player.draftProjectionScore)
     await prisma.devyPlayer.update({
       where: { id: player.id },
       data: {
-        draftGrade: toDraftGrade(player.projectedDraftRound, player.draftProjectionScore),
+        draftGrade: nextGrade,
         stockTrendDelta:
           player.draftProjectionScore != null && player.c2cPointsSeason != null
             ? Number(((player.draftProjectionScore / 100) * 10 + player.c2cPointsSeason / 10).toFixed(2))
             : null,
       },
     })
+    if (nextGrade && nextGrade !== player.draftGrade) {
+      movers.push({
+        playerId: player.id,
+        name: player.name,
+        nextGrade,
+        round: player.projectedDraftRound ?? null,
+      })
+    }
     updated += 1
   }
   if (updated > 0) {
@@ -338,6 +363,22 @@ export async function refreshDraftProjections(sport: string): Promise<DevyWorker
       )
     )
   }
+  await Promise.all(
+    movers.slice(0, 12).map(async (mover) => {
+      const leagueIds = await getLeagueIdsHoldingPlayer(mover.playerId)
+      await Promise.all(
+        leagueIds.map((leagueId) =>
+          notifyLeagueManagers({
+            leagueId,
+            type: 'devy_stock_rising',
+            title: `Draft stock rising: ${mover.name}`,
+            body: `${mover.name} is now tracking toward ${mover.round != null ? `Round ${mover.round}` : 'a higher board slot'} with a ${mover.nextGrade} grade.`,
+            meta: { sport: resolvedSport, playerId: mover.playerId, draftGrade: mover.nextGrade, projectedRound: mover.round },
+          })
+        )
+      )
+    })
+  )
   return { ok: true, sport: resolvedSport, processed: players.length, updated, errors: [] }
 }
 
@@ -345,9 +386,18 @@ export async function refreshTransferPortal(sport: string): Promise<DevyWorkerRe
   const resolvedSport = resolveCollegeSport(sport)
   const players = await prisma.devyPlayer.findMany({
     where: { sport: resolvedSport },
-    select: { id: true, transferStatus: true, transferToSchool: true, transferFromSchool: true, school: true },
+    select: {
+      id: true,
+      name: true,
+      portalStatus: true,
+      transferStatus: true,
+      transferToSchool: true,
+      transferFromSchool: true,
+      school: true,
+    },
   })
   let updated = 0
+  const portalAlerts: Array<{ playerId: string; name: string; school: string | null; status: string }> = []
   for (const player of players) {
     const portalStatus =
       player.transferStatus
@@ -362,6 +412,14 @@ export async function refreshTransferPortal(sport: string): Promise<DevyWorkerRe
         nextGameLabel: portalStatus ? `${player.school} transfer update` : null,
       },
     })
+    if (portalStatus && portalStatus !== player.portalStatus) {
+      portalAlerts.push({
+        playerId: player.id,
+        name: player.name,
+        school: player.school ?? null,
+        status: portalStatus,
+      })
+    }
     updated += 1
   }
   if (updated > 0) {
@@ -378,6 +436,22 @@ export async function refreshTransferPortal(sport: string): Promise<DevyWorkerRe
       )
     )
   }
+  await Promise.all(
+    portalAlerts.slice(0, 12).map(async (alert) => {
+      const leagueIds = await getLeagueIdsHoldingPlayer(alert.playerId)
+      await Promise.all(
+        leagueIds.map((leagueId) =>
+          notifyLeagueManagers({
+            leagueId,
+            type: 'devy_transfer_portal',
+            title: `${alert.name} entered the transfer portal`,
+            body: `${alert.name}${alert.school ? ` from ${alert.school}` : ''} now carries ${alert.status.toLowerCase()} risk for devy and C2C formats.`,
+            meta: { sport: resolvedSport, playerId: alert.playerId, portalStatus: alert.status },
+          })
+        )
+      )
+    })
+  )
   return { ok: true, sport: resolvedSport, processed: players.length, updated, errors: [] }
 }
 
@@ -476,6 +550,19 @@ export async function calculateC2CPointsForLeague(input: {
       meta: { season, week, logsWritten },
     })
   }
+  const nextGames = players
+    .filter((player) => player.nextGameLabel)
+    .slice(0, 3)
+    .map((player) => `${player.name}: ${player.nextGameLabel}`)
+  if (nextGames.length > 0) {
+    await notifyLeagueManagers({
+      leagueId: input.leagueId,
+      type: 'c2c_game_reminder',
+      title: 'Upcoming college games',
+      body: nextGames.join(' | '),
+      meta: { season, week, reminders: nextGames.length },
+    })
+  }
 
   return {
     ok: true,
@@ -497,7 +584,17 @@ export async function promoteEligiblePlayers(input: {
       leagueId: input.leagueId,
       state: { in: ['PROMOTION_ELIGIBLE', 'DRAFTED_RIGHTS_HELD'] },
     },
+    select: {
+      id: true,
+      devyPlayerId: true,
+      rosterId: true,
+    },
   })
+  const players = await prisma.devyPlayer.findMany({
+    where: { id: { in: promotable.map((right) => right.devyPlayerId) } },
+    select: { id: true, name: true, nflTeam: true, projectedDraftRound: true },
+  })
+  const playerById = new Map(players.map((player) => [player.id, player]))
   let updated = 0
   for (const right of promotable) {
     await prisma.devyRights.update({
@@ -509,6 +606,21 @@ export async function promoteEligiblePlayers(input: {
         seasonYear: season,
       },
     })
+    const player = playerById.get(right.devyPlayerId)
+    if (player) {
+      await notifyLeagueManagers({
+        leagueId: input.leagueId,
+        type: 'devy_player_promoted_detail',
+        title: `${player.name} went pro`,
+        body: `${player.name} is ready to move into your pro pipeline${player.nflTeam ? ` with ${player.nflTeam}` : ''}.`,
+        meta: {
+          season,
+          playerId: player.id,
+          projectedRound: player.projectedDraftRound ?? null,
+          nflTeam: player.nflTeam ?? null,
+        },
+      })
+    }
     updated += 1
   }
   if (updated > 0) {
