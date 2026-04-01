@@ -12,6 +12,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 export interface LeagueForGrouping {
   id: string
   name?: string | null
+  memberCount?: number | null
   sport?: string | null
   sport_type?: string | null
   leagueVariant?: string | null
