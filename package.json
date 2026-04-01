@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "vercel-build": "npm run db:migrate:deploy && node scripts/vercel-next-build.cjs --no-lint",
+    "build": "node scripts/vercel-next-build.cjs --no-lint",
+    "vercel-build": "npm run db:migrate:deploy && npm run build",
     "start": "next start",
     "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",

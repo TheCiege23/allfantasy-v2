@@ -9,13 +9,12 @@ export default function OfflinePage() {
       <img src="/af-crest.png" alt="AllFantasy" className="mb-6 h-20 w-auto opacity-80" />
       <h1 className="mb-2 text-2xl font-bold">You&apos;re offline</h1>
       <p className="mb-6 text-white/55">Check your connection and try again.</p>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
+      <a
+        href="."
         className="rounded-xl bg-cyan-500 px-6 py-3 font-bold text-black transition hover:bg-cyan-400"
       >
         Retry
-      </button>
+      </a>
     </main>
   );
 }
