@@ -6,12 +6,14 @@ export {
   getDisclaimerUrl,
   getTermsUrl,
   getPrivacyUrl,
+  getDataDeletionUrl,
 } from "./legal-route-resolver"
 export {
   getSignupReturnUrl as resolveSignupReturnUrl,
   getDisclaimerUrl as resolveDisclaimerUrl,
   getTermsUrl as resolveTermsUrl,
   getPrivacyUrl as resolvePrivacyUrl,
+  getDataDeletionUrl as resolveDataDeletionUrl,
 } from "./LegalRouteResolver"
 export {
   validateAgreementAcceptance,

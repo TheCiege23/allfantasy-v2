@@ -382,6 +382,10 @@ function AppLandingInner() {
           <Link href="/terms" className="text-white/50 hover:text-white/80">
             {t('landing.footer.terms')}
           </Link>
+          <span className="text-white/30">•</span>
+          <Link href="/data-deletion" className="text-white/50 hover:text-white/80">
+            {t('landing.footer.dataDeletion')}
+          </Link>
         </div>
       </footer>
     </main>

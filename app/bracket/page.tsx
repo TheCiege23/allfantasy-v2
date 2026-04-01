@@ -408,6 +408,10 @@ function BracketLandingInner() {
           <Link href="/terms" className="text-white/50 hover:text-white/80">
             Terms
           </Link>
+          <span className="text-white/30">•</span>
+          <Link href="/data-deletion" className="text-white/50 hover:text-white/80">
+            Data Deletion
+          </Link>
         </div>
       </footer>
     </main>

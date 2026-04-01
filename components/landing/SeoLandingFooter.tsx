@@ -73,6 +73,10 @@ export default function SeoLandingFooter() {
           <Link href="/terms" className="hover:underline" style={{ color: 'var(--muted)' }}>
             Terms
           </Link>
+          <span style={{ color: 'var(--border)' }}>·</span>
+          <Link href="/data-deletion" className="hover:underline" style={{ color: 'var(--muted)' }}>
+            {t('landing.footer.dataDeletion')}
+          </Link>
         </div>
       </div>
     </footer>

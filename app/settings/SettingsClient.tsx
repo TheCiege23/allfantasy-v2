@@ -1849,6 +1849,9 @@ function LegalSection({
         <Link href="/privacy" className="rounded-lg border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
           Privacy Policy
         </Link>
+        <Link href="/data-deletion" className="rounded-lg border px-4 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+          Data Deletion
+        </Link>
       </div>
     </div>
   )

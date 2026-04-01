@@ -29,3 +29,11 @@ export function getPrivacyUrl(fromSignup?: boolean, next?: string | null): strin
   const q = params.toString()
   return q ? `/privacy?${q}` : "/privacy"
 }
+
+export function getDataDeletionUrl(fromSignup?: boolean, next?: string | null): string {
+  const params = new URLSearchParams()
+  if (fromSignup) params.set("from", "signup")
+  if (next && next.startsWith("/") && !next.startsWith("//")) params.set("next", next)
+  const q = params.toString()
+  return q ? `/data-deletion?${q}` : "/data-deletion"
+}

@@ -47,6 +47,9 @@ export default function LegalPageShell({
           <Link href="/privacy" className="text-cyan-400 hover:text-cyan-300 transition">
             Privacy Policy
           </Link>
+          <Link href="/data-deletion" className="text-cyan-400 hover:text-cyan-300 transition">
+            Data Deletion
+          </Link>
           <Link href="/" className="text-white/60 hover:text-white transition">
             Home
           </Link>

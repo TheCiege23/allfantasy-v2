@@ -125,6 +125,7 @@ const LANDING_COPY = {
     footer: {
       privacy: 'Privacy',
       terms: 'Terms',
+      dataDeletion: 'Data Deletion',
       openApp: 'Open App',
       signIn: 'Sign In',
       admin: 'Admin',
@@ -243,6 +244,7 @@ const LANDING_COPY = {
     footer: {
       privacy: 'Privacidad',
       terms: 'Términos',
+      dataDeletion: 'Eliminar datos',
       openApp: 'Abrir app',
       signIn: 'Iniciar sesión',
       admin: 'Admin',
@@ -653,6 +655,9 @@ export default function LandingPageClient() {
             </Link>
             <Link href="/terms" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
               {copy.footer.terms}
+            </Link>
+            <Link href="/data-deletion" style={{ color: 'var(--muted2)' }} className="transition hover:opacity-100">
+              {copy.footer.dataDeletion}
             </Link>
             <Link
               href="/app"

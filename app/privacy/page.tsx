@@ -1,3 +1,4 @@
+import Link from "next/link"
 import LegalPageRenderer, { LEGAL_LAST_UPDATED } from "@/components/legal/LegalPageRenderer"
 import { getSignupReturnUrl } from "@/lib/legal/LegalRouteResolver"
 
@@ -100,7 +101,17 @@ export default async function PrivacyPage({ searchParams }: PrivacyPageProps) {
 
       <section>
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">7. Your Rights</h2>
-        <p>Depending on location, you may have rights to access, correct, delete, or port your data, and to opt out of marketing. Contact us to exercise these rights.</p>
+        <p>
+          Depending on location, you may have rights to access, correct, delete, or port your data, and to opt out of marketing.
+          Contact us to exercise these rights.
+        </p>
+        <p className="mt-3">
+          For account deletion requests, visit our{" "}
+          <Link href="/data-deletion" className="text-cyan-400 hover:text-cyan-300">
+            Data Deletion
+          </Link>{" "}
+          page.
+        </p>
       </section>
 
       <section>
