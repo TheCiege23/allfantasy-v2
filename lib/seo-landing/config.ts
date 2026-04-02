@@ -22,6 +22,7 @@ export type ToolSlug =
   | 'manager-compare'
   | 'social-pulse'
   | 'career-share'
+  | 'season-strategy'
   | 'ai-draft-assistant'
   | 'matchup-simulator'
   | 'bracket-challenge'
@@ -47,6 +48,7 @@ export const TOOL_SLUGS: ToolSlug[] = [
   'manager-compare',
   'social-pulse',
   'career-share',
+  'season-strategy',
   'ai-draft-assistant',
   'matchup-simulator',
   'bracket-challenge',
@@ -96,6 +98,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Mock Draft', href: '/mock-draft' },
       { label: 'Waiver Wire Advisor', href: '/waiver-ai' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Manager Comparison', href: '/manager-compare' },
       { label: 'Social Pulse', href: '/social-pulse' },
       { label: 'Sports App', href: '/app' },
@@ -116,6 +119,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Mock Draft', href: '/mock-draft' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Social Pulse', href: '/social-pulse' },
       { label: 'Power Rankings', href: '/app/power-rankings' },
       { label: 'Sports App', href: '/app' },
@@ -135,6 +139,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
       { label: 'Mock Draft', href: '/mock-draft' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Sports App', href: '/app' },
       { label: 'Chimmy AI', href: '/chimmy' },
     ],
@@ -153,6 +158,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Mock Draft', href: '/mock-draft' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Sports App', href: '/app' },
       { label: 'Legacy', href: '/af-legacy' },
     ],
@@ -170,6 +176,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
     toolHrefs: [
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Sports App', href: '/app' },
       { label: 'Chimmy AI', href: '/chimmy' },
     ],
@@ -187,6 +194,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
     toolHrefs: [
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Sports App', href: '/app' },
       { label: 'Legacy & Dynasty', href: '/af-legacy' },
     ],
@@ -205,6 +213,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Bracket Challenge', href: '/bracket' },
       { label: 'Bracket Hub', href: '/brackets' },
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
+      { label: 'Season Strategy', href: '/season-strategy' },
       { label: 'Sports App', href: '/app' },
     ],
   },
@@ -354,6 +363,30 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
       { q: 'What can I generate inside Career Share?', a: 'Career Share supports five fantasy post types: ranking flex, trade debate, league standing, player stock, and waiver pickup captions.' },
       { q: 'Do I have to load the dynasty report first?', a: 'No. The dynasty report is optional and loads separately so you can generate a caption immediately without waiting on it.' },
       { q: 'How do the reward tokens work?', a: 'Copying or sharing a generated caption records a daily reward entry and can award one token per day for that share flow.' },
+    ],
+  },
+  'season-strategy': {
+    slug: 'season-strategy',
+    title: 'Season Strategy Planner – AI Fantasy GM Roadmap | AllFantasy',
+    description:
+      'Your AI GM for the full season. Analyze one specific Sleeper team inside one specific league and get a complete plan for win window, roster pressure points, trade targets, waiver priorities, schedule leverage, and opponent intelligence.',
+    headline: 'Season Strategy Planner',
+    benefitSummary:
+      'Get one cohesive, league-aware blueprint instead of isolated advice. The planner prices your roster, scans the rest of the league, and maps the next moves that actually fit your team direction.',
+    openToolHref: '/season-strategy',
+    icon: '🧠',
+    badge: 'GPT-4o',
+    examples: [
+      'Classify your roster as contender, fringe, rebuilder, or transition using real league context',
+      'Surface specific trade targets, sell candidates, waiver stash ideas, and schedule pressure points',
+      'See opponent tendencies and a staged weekly action plan instead of one-off advice',
+    ],
+    relatedToolSlugs: ['trade-finder', 'waiver-wire-advisor', 'power-rankings', 'career-share'],
+    keywords: ['season strategy planner', 'fantasy season roadmap', 'ai gm planner', 'fantasy roster blueprint', 'league strategy tool'],
+    faqs: [
+      { q: 'What does Season Strategy Planner analyze?', a: 'It reviews your selected Sleeper league, values your roster, looks across the other teams, and returns one full-season plan for trades, waivers, picks, and matchup timing.' },
+      { q: 'Do I need to pick a league first?', a: 'Yes. This tool is league-gated because the strategy is built from your exact roster, league settings, and opponent context.' },
+      { q: 'Is this just trade advice?', a: 'No. Trade ideas are only one part of the output. You also get a win-window read, waiver plan, schedule notes, draft-pick guidance, and opponent intelligence.' },
     ],
   },
   'ai-draft-assistant': {

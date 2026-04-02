@@ -26,6 +26,7 @@ const TOOL_CATEGORIES: Record<ToolSlug, ToolCategoryId[]> = {
   'manager-compare': ['ai', 'rankings'],
   'social-pulse': ['ai'],
   'career-share': ['ai'],
+  'season-strategy': ['ai'],
   'ai-draft-assistant': ['ai'],
   'matchup-simulator': ['simulate'],
   'bracket-challenge': ['bracket'],
@@ -43,6 +44,7 @@ const FEATURED_SLUGS: ToolSlug[] = [
   'manager-compare',
   'social-pulse',
   'career-share',
+  'season-strategy',
   'ai-draft-assistant',
   'league-transfer',
 ]

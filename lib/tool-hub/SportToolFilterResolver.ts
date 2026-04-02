@@ -5,7 +5,7 @@
 import { SPORT_CONFIG, SPORT_SLUGS, type SportSlug, type ToolSlug } from '@/lib/seo-landing/config'
 import { getAllTools } from './ToolHubService'
 
-const UNIVERSAL_TOOL_SLUGS: ToolSlug[] = ['league-transfer', 'trade-finder', 'career-share']
+const UNIVERSAL_TOOL_SLUGS: ToolSlug[] = ['league-transfer', 'trade-finder', 'career-share', 'season-strategy']
 
 export type SportFilterOption = {
   slug: SportSlug
@@ -51,6 +51,7 @@ const HREF_TOOL_ALIASES: Record<string, ToolSlug> = {
   '/manager-compare': 'manager-compare',
   '/social-pulse': 'social-pulse',
   '/career-share': 'career-share',
+  '/season-strategy': 'season-strategy',
   '/af-legacy?tab=mock-draft': 'ai-draft-assistant',
   '/app/simulation-lab': 'matchup-simulator',
   '/matchup-simulator': 'matchup-simulator',
