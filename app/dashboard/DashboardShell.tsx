@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { AFChatPanel } from './components/AFChatPanel'
 import { LeagueListPanel } from './components/LeagueListPanel'
 import type { DashboardConnectedLeague, UserLeague } from './types'
 
@@ -199,58 +200,6 @@ function SelectedLeagueCenter({
   )
 }
 
-function RightPanel({
-  selectedLeague,
-  leagues,
-  onSelectLeague,
-}: {
-  selectedLeague: UserLeague | null
-  leagues: DashboardConnectedLeague[]
-  onSelectLeague: (league: UserLeague) => void
-}) {
-  if (!selectedLeague) {
-    return (
-      <aside className="hidden w-[300px] flex-shrink-0 border-l border-white/[0.07] bg-[#0a0a1f] md:flex md:flex-col">
-        <div className="border-b border-white/[0.07] px-4 py-3">
-          <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">AF Chat</p>
-          <p className="mt-1 text-sm font-semibold text-white/80">Chimmy</p>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden p-2">
-          <ChimmyChat />
-        </div>
-      </aside>
-    )
-  }
-
-  return (
-    <aside className="hidden w-[300px] flex-shrink-0 border-l border-white/[0.07] bg-[#0a0a1f] md:flex md:flex-col">
-      <div className="h-[200px] flex-shrink-0 overflow-hidden border-b border-white/[0.07] px-4 py-3">
-        <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">AF Chat</p>
-        <div className="mt-3 inline-flex rounded-xl border border-white/[0.07] bg-white/[0.03] p-1">
-          <div className="rounded-lg bg-white/8 px-3 py-1.5 text-[11px] font-semibold text-white">League</div>
-          <div className="px-3 py-1.5 text-[11px] font-semibold text-white/40">Chimmy</div>
-        </div>
-        <div className="mt-4 rounded-2xl border border-white/[0.07] bg-[#0c0c1e] p-4">
-          <p className="text-sm font-semibold text-white">League chat context ready</p>
-          <p className="mt-2 text-sm text-white/60">
-            {selectedLeague.name} is selected. Phase 3 will wire AF Chat tabs, direct messages,
-            groups, and league chat into this top panel.
-          </p>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <LeagueListPanel
-          leagues={leagues}
-          selectedId={selectedLeague.id}
-          onSelect={onSelectLeague}
-          compact
-          loading={false}
-        />
-      </div>
-    </aside>
-  )
-}
-
 export function DashboardShell({ userId, userName }: DashboardShellProps) {
   const [selectedLeague, setSelectedLeague] = useState<UserLeague | null>(null)
   const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
@@ -342,7 +291,15 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
         </div>
       </div>
 
-      <RightPanel selectedLeague={selectedLeague} leagues={leagues} onSelectLeague={setSelectedLeague} />
+      <div className="hidden md:flex">
+        <AFChatPanel
+          selectedLeague={selectedLeague}
+          userId={userId}
+          leagues={leagues}
+          onSelectLeague={setSelectedLeague}
+          loadingLeagues={loadingLeagues}
+        />
+      </div>
 
       <button
         type="button"
