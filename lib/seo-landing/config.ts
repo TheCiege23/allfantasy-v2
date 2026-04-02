@@ -21,6 +21,7 @@ export type ToolSlug =
   | 'waiver-wire-advisor'
   | 'manager-compare'
   | 'social-pulse'
+  | 'career-share'
   | 'ai-draft-assistant'
   | 'matchup-simulator'
   | 'bracket-challenge'
@@ -45,6 +46,7 @@ export const TOOL_SLUGS: ToolSlug[] = [
   'waiver-wire-advisor',
   'manager-compare',
   'social-pulse',
+  'career-share',
   'ai-draft-assistant',
   'matchup-simulator',
   'bracket-challenge',
@@ -328,6 +330,30 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
       { q: 'What sports does Social Pulse support today?', a: 'NFL and NBA live sentiment research today, using X and web search inside AllFantasy.' },
       { q: 'Does Social Pulse use live data?', a: 'Yes. Social Pulse uses Grok with live X search and web search to summarize recent narratives from the last seven days.' },
       { q: 'Can I move from Social Pulse into another tool?', a: 'Yes. After a run, you can send the searched names into the Trade Analyzer to continue researching a possible deal.' },
+    ],
+  },
+  'career-share': {
+    slug: 'career-share',
+    title: 'Career Share – AI Fantasy Social Captions & Rewards | AllFantasy',
+    description:
+      'Generate AI-powered social captions for your fantasy career rank, trades, league standings, player takes, and waiver wins. Load a dynasty report, edit the caption, and earn reward tokens for sharing.',
+    headline: 'Career Share',
+    benefitSummary:
+      'Turn your fantasy moments into post-ready captions with Grok AI, optional dynasty report context, platform-aware formatting, and daily share rewards.',
+    openToolHref: '/career-share',
+    icon: '🚀',
+    badge: 'Grok AI',
+    examples: [
+      'Create a ranking flex post from your AllFantasy career tier and XP snapshot',
+      'Generate social copy for trade debates, league standing updates, player stock takes, and waiver pickups',
+      'Copy or share a caption and earn a daily token reward inside AllFantasy',
+    ],
+    relatedToolSlugs: ['social-pulse', 'manager-compare', 'power-rankings', 'legacy-dynasty'],
+    keywords: ['career share', 'fantasy social captions', 'grok fantasy captions', 'share reward tokens', 'fantasy post generator'],
+    faqs: [
+      { q: 'What can I generate inside Career Share?', a: 'Career Share supports five fantasy post types: ranking flex, trade debate, league standing, player stock, and waiver pickup captions.' },
+      { q: 'Do I have to load the dynasty report first?', a: 'No. The dynasty report is optional and loads separately so you can generate a caption immediately without waiting on it.' },
+      { q: 'How do the reward tokens work?', a: 'Copying or sharing a generated caption records a daily reward entry and can award one token per day for that share flow.' },
     ],
   },
   'ai-draft-assistant': {
