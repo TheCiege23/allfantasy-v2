@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
 
 export type ChimmyConversationMessage = {
+  id: string
   role: 'user' | 'assistant'
   content: string
   imageUrl?: string | null
@@ -20,9 +21,11 @@ export interface ChimmyConversationThreadProps {
   messages: ChimmyConversationMessage[]
   isTyping?: boolean
   onFollowUpClick?: (prompt: string) => void
-  onListenToLast?: () => void
-  onListenToLastFull?: () => void
-  isVoicePlaying?: boolean
+  onPlayVoice?: (text: string, messageId: string) => void
+  onVoiceEnabledToggle?: () => void
+  voiceEnabled?: boolean
+  voiceLoadingId?: string | null
+  voicePlayingId?: string | null
   className?: string
 }
 
@@ -34,9 +37,11 @@ export default function ChimmyConversationThread({
   messages,
   isTyping = false,
   onFollowUpClick,
-  onListenToLast,
-  onListenToLastFull,
-  isVoicePlaying = false,
+  onPlayVoice,
+  onVoiceEnabledToggle,
+  voiceEnabled = true,
+  voiceLoadingId = null,
+  voicePlayingId = null,
   className = '',
 }: ChimmyConversationThreadProps) {
   const endRef = useRef<HTMLDivElement>(null)
@@ -50,7 +55,7 @@ export default function ChimmyConversationThread({
       {messages.map((msg, i) => (
         // Premium-lock and error replies should present a clear next step instead of generic follow-ups.
         <ChimmyMessageBubble
-          key={i}
+          key={msg.id}
           role={msg.role}
           content={msg.content}
           imageUrl={msg.imageUrl}
@@ -65,23 +70,16 @@ export default function ChimmyConversationThread({
               : undefined
           }
           onFollowUpClick={onFollowUpClick}
-          showListen={
-            msg.role === 'assistant' &&
-            i === messages.length - 1 &&
-            !isTyping &&
-            msg.meta?.variant !== 'premium_gate' &&
-            msg.meta?.variant !== 'error'
+          showVoiceButton={msg.role === 'assistant' && msg.meta?.variant !== 'premium_gate' && msg.meta?.variant !== 'error'}
+          onVoiceToggle={
+            onPlayVoice
+              ? () => onPlayVoice(msg.content, msg.id)
+              : undefined
           }
-          onListen={onListenToLast}
-          showListenFull={
-            msg.role === 'assistant' &&
-            i === messages.length - 1 &&
-            !isTyping &&
-            msg.meta?.variant !== 'premium_gate' &&
-            msg.meta?.variant !== 'error'
-          }
-          onListenFull={onListenToLastFull}
-          isListening={isVoicePlaying}
+          onVoiceEnabledToggle={onVoiceEnabledToggle}
+          voiceEnabled={voiceEnabled}
+          voiceLoading={voiceLoadingId === msg.id}
+          voicePlaying={voicePlayingId === msg.id}
         />
       ))}
 

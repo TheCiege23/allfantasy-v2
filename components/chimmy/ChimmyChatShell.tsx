@@ -3,8 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Send, Image as ImageIcon, Loader2, X, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface'
-import type { ChimmyTtsVoice, ChimmyVoicePreset } from '@/lib/chimmy-interface'
+import { getDefaultChimmyChips, type ChimmyVoicePreset } from '@/lib/chimmy-interface'
 import {
   getAIThreadStorageKey,
   loadAIThreadMessages,
@@ -26,11 +25,16 @@ import {
   CHIMMY_PREMIUM_CTA_LABEL,
 } from '@/lib/chimmy-chat/response-copy'
 import {
-  buildChimmyFullSpeechText,
-  buildChimmyVoiceSummary,
-} from '@/lib/chimmy-chat/presentation'
+  canPlayChimmyVoice,
+  getVoiceConfig,
+  playChimmyVoice,
+  saveVoiceConfig,
+  stopCurrentVoice,
+  type VoiceConfig,
+} from '@/lib/chimmy-voice'
 
 export type ChimmyChatMessage = {
+  id: string
   role: 'user' | 'assistant'
   content: string
   imageUrl?: string | null
@@ -39,7 +43,28 @@ export type ChimmyChatMessage = {
 
 const CHIMMY_GREETING =
   "I'm Chimmy — your calm, evidence-based fantasy assistant. Ask about trades, waivers, drafts, or your league. I'll keep it clear and data-backed."
-const CHIMMY_TTS_VOICE_STORAGE_KEY = 'chimmy_tts_voice'
+
+function createMessageId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `chimmy-msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function buildGreetingMessage(): ChimmyChatMessage {
+  return {
+    id: 'chimmy-greeting',
+    role: 'assistant',
+    content: CHIMMY_GREETING,
+  }
+}
+
+function ensureMessageIds(messages: ChimmyChatMessage[]): ChimmyChatMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    id: message.id || createMessageId(),
+  }))
+}
 
 export interface ChimmyToolContextValue {
   toolName?: string
@@ -89,7 +114,7 @@ export interface ChimmyChatShellProps {
   toolContext?: ChimmyToolContextValue | null
   /** Optional: open provider comparison (e.g. modal or route) */
   onOpenCompare?: () => void
-  /** Voice profile preset (default calm). */
+  /** Voice profile preset (reserved for compatibility). */
   voicePreset?: ChimmyVoicePreset
   /** Enable speech input control (default true). */
   enableSpeechInput?: boolean
@@ -124,26 +149,18 @@ export default function ChimmyChatShell({
   onClose,
   toolContext,
   onOpenCompare,
-  voicePreset = 'calm',
+  voicePreset: _voicePreset = 'calm',
   enableSpeechInput = true,
   className = '',
 }: ChimmyChatShellProps) {
-  const browserCanPlayServerTts =
-    typeof window !== 'undefined' &&
-    typeof window.Audio !== 'undefined' &&
-    typeof window.URL?.createObjectURL === 'function'
-  const browserCanUseSpeechSynthesis =
-    typeof window !== 'undefined' &&
-    typeof window.speechSynthesis !== 'undefined' &&
-    typeof window.SpeechSynthesisUtterance !== 'undefined'
   const [messages, setMessages] = useState<ChimmyChatMessage[]>([
-    { role: 'assistant', content: CHIMMY_GREETING },
+    buildGreetingMessage(),
   ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const [voiceEnabled, setVoiceEnabled] = useState(true)
-  const [selectedVoice, setSelectedVoice] = useState<ChimmyTtsVoice>('rachel')
+  const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(() => getVoiceConfig())
   const [isVoicePlaying, setIsVoicePlaying] = useState(false)
+  const [voiceMessageId, setVoiceMessageId] = useState<string | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [lastMeta, setLastMeta] = useState<Record<string, string> | null>(null)
@@ -210,24 +227,14 @@ export default function ChimmyChatShell({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!browserCanPlayServerTts && !browserCanUseSpeechSynthesis) {
+    if (!canPlayChimmyVoice()) {
       setTtsUnavailable(true)
     }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
       setSpeechInputUnavailable(true)
     }
-
-    const storedVoice = window.localStorage.getItem(CHIMMY_TTS_VOICE_STORAGE_KEY)
-    if (storedVoice === 'rachel' || storedVoice === 'adam') {
-      setSelectedVoice(storedVoice)
-    }
-  }, [browserCanPlayServerTts, browserCanUseSpeechSynthesis])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(CHIMMY_TTS_VOICE_STORAGE_KEY, selectedVoice)
-  }, [selectedVoice])
+  }, [])
 
   useEffect(() => {
     if (initialPrompt && !initialPromptApplied.current) {
@@ -246,10 +253,10 @@ export default function ChimmyChatShell({
   useEffect(() => {
     const restored = loadAIThreadMessages(threadStorageKey)
     if (restored.length > 0) {
-      setMessages(restored as ChimmyChatMessage[])
+      setMessages(ensureMessageIds(restored as ChimmyChatMessage[]))
       return
     }
-    setMessages([{ role: 'assistant', content: CHIMMY_GREETING }])
+    setMessages([buildGreetingMessage()])
   }, [threadStorageKey])
 
   useEffect(() => {
@@ -257,11 +264,8 @@ export default function ChimmyChatShell({
   }, [messages, threadStorageKey])
 
   useEffect(() => {
-    const t = setInterval(() => {
-      if (!isChimmyVoicePlaying() && isVoicePlaying) setIsVoicePlaying(false)
-    }, 500)
-    return () => clearInterval(t)
-  }, [isVoicePlaying])
+    return () => stopCurrentVoice()
+  }, [])
 
   useEffect(() => {
     if (!enableSpeechInput) return
@@ -296,58 +300,68 @@ export default function ChimmyChatShell({
     }
   }, [enableSpeechInput])
 
-  const speak = useCallback(
-    (text: string) => {
-      if (!voiceEnabled || ttsUnavailable || !text?.trim()) return
-      setTtsLoading(true)
-      setIsVoicePlaying(true)
-      speakChimmy(text, voicePreset, {
-        voice: selectedVoice,
-        onEnd: () => {
-          setTtsLoading(false)
-          setIsVoicePlaying(false)
-        },
-        onError: () => {
-          setTtsLoading(false)
-          setIsVoicePlaying(false)
-          toast.error('Voice playback failed. Please try again.')
-        },
-        onUnavailable: (message) => {
-          setTtsLoading(false)
-          setIsVoicePlaying(false)
-          setTtsUnavailable(true)
-          setInlineError(message)
-          toast.error(message)
-        },
-      })
-    },
-    [selectedVoice, voiceEnabled, ttsUnavailable, voicePreset]
-  )
-
-  const handleStopVoice = useCallback(() => {
-    stopChimmyVoice()
-    setTtsLoading(false)
-    setIsVoicePlaying(false)
-  }, [])
-
-  const getSpeechSummary = useCallback((message: ChimmyChatMessage) => {
-    return buildChimmyVoiceSummary({
-      content: message.content,
-      responseStructure: message.meta?.responseStructure,
-      recommendedTool: message.meta?.recommendedTool,
+  const updateVoiceConfig = useCallback((patch: Partial<VoiceConfig>) => {
+    setVoiceConfig((current) => {
+      const next = saveVoiceConfig({ ...current, ...patch })
+      return next
     })
   }, [])
 
-  const getFullSpeechText = useCallback((message: ChimmyChatMessage) => {
-    return buildChimmyFullSpeechText(message.content)
+  const handleStopVoice = useCallback(() => {
+    stopCurrentVoice()
+    setTtsLoading(false)
+    setIsVoicePlaying(false)
+    setVoiceMessageId(null)
   }, [])
 
-  const speakMessage = useCallback(
-    (message: ChimmyChatMessage, mode: 'summary' | 'full' = 'summary') => {
-      const speechText = mode === 'full' ? getFullSpeechText(message) : getSpeechSummary(message)
-      if (speechText) speak(speechText)
+  const handleVoiceToggle = useCallback(() => {
+    const nextEnabled = !voiceConfig.enabled
+    updateVoiceConfig({ enabled: nextEnabled })
+    if (!nextEnabled) {
+      handleStopVoice()
+    }
+  }, [handleStopVoice, updateVoiceConfig, voiceConfig.enabled])
+
+  const handlePlayVoice = useCallback(
+    async (text: string, messageId: string) => {
+      if (ttsUnavailable) {
+        const message = 'Voice playback is unavailable on this browser.'
+        setInlineError(message)
+        toast.error(message)
+        return
+      }
+
+      if (isVoicePlaying && voiceMessageId === messageId) {
+        handleStopVoice()
+        return
+      }
+
+      setInlineError(null)
+      setTtsLoading(true)
+      setVoiceMessageId(messageId)
+
+      await playChimmyVoice(
+        text,
+        voiceConfig,
+        () => {
+          setTtsLoading(false)
+          setIsVoicePlaying(true)
+        },
+        () => {
+          setTtsLoading(false)
+          setIsVoicePlaying(false)
+          setVoiceMessageId(null)
+        },
+        (message) => {
+          setTtsLoading(false)
+          setIsVoicePlaying(false)
+          setVoiceMessageId(null)
+          setInlineError(message)
+          toast.error(message)
+        }
+      )
     },
-    [getFullSpeechText, getSpeechSummary, speak]
+    [handleStopVoice, isVoicePlaying, ttsUnavailable, voiceConfig, voiceMessageId]
   )
 
   const handleFollowUp = useCallback((prompt: string) => {
@@ -377,16 +391,6 @@ export default function ChimmyChatShell({
     }
   }, [enableSpeechInput, isListening, speechInputUnavailable])
 
-  const handleListenToLast = useCallback(() => {
-    const last = [...messages].reverse().find((m) => m.role === 'assistant')
-    if (last?.content) speakMessage(last, 'summary')
-  }, [messages, speakMessage])
-
-  const handleListenToLastFull = useCallback(() => {
-    const last = [...messages].reverse().find((m) => m.role === 'assistant')
-    if (last?.content) speakMessage(last, 'full')
-  }, [messages, speakMessage])
-
   const runSend = useCallback(
     async (
       outgoingText: string,
@@ -395,10 +399,12 @@ export default function ChimmyChatShell({
       options?: { replaceLastAssistant?: boolean }
     ) => {
       const userMsg: ChimmyChatMessage = {
+        id: createMessageId(),
         role: 'user',
         content: outgoingText.trim() || 'Analyze this screenshot.',
         imageUrl: image ? null : undefined,
       }
+      const assistantMessageId = createMessageId()
       let streamedAssistantHandled = false
       const result = await sendChimmyMessage({
         message: outgoingText,
@@ -408,6 +414,7 @@ export default function ChimmyChatShell({
         onChunk: (text) => {
           streamedAssistantHandled = true
           const partialAssistant: ChimmyChatMessage = {
+            id: assistantMessageId,
             role: 'assistant',
             content: text,
             meta: null,
@@ -442,6 +449,7 @@ export default function ChimmyChatShell({
       const providerStatus: ChimmyMessageMeta['providerStatus'] = meta?.providerStatus
 
       const assistantMsg: ChimmyChatMessage = {
+        id: assistantMessageId,
         role: 'assistant',
         content: reply,
         meta: {
@@ -470,9 +478,16 @@ export default function ChimmyChatShell({
       } else {
         setMessages((prev) => [...prev, assistantMsg])
       }
-      speakMessage(assistantMsg, 'summary')
+      if (
+        voiceConfig.enabled &&
+        voiceConfig.autoPlay &&
+        assistantMsg.meta?.variant !== 'premium_gate' &&
+        assistantMsg.meta?.variant !== 'error'
+      ) {
+        void handlePlayVoice(assistantMsg.content, assistantMsg.id)
+      }
     },
-    [requestContext, speakMessage]
+    [handlePlayVoice, requestContext, voiceConfig.autoPlay, voiceConfig.enabled]
   )
 
   const sendMessage = useCallback(async () => {
@@ -481,6 +496,7 @@ export default function ChimmyChatShell({
     sendingRef.current = true
 
     const userMsg: ChimmyChatMessage = {
+      id: createMessageId(),
       role: 'user',
       content: input.trim() || 'Analyze this screenshot.',
       imageUrl: imagePreview || null,
@@ -503,6 +519,7 @@ export default function ChimmyChatShell({
       setMessages((prev) => [
         ...prev,
         {
+          id: createMessageId(),
           role: 'assistant',
           content: CHIMMY_GENERIC_ERROR_MESSAGE,
           meta: { variant: 'error' },
@@ -537,6 +554,7 @@ export default function ChimmyChatShell({
       setMessages((prev) => [
         ...prev,
         {
+          id: createMessageId(),
           role: 'assistant',
           content: CHIMMY_GENERIC_ERROR_MESSAGE,
           meta: { variant: 'error' },
@@ -626,10 +644,8 @@ export default function ChimmyChatShell({
             canCompare={!!canCompare}
           />
           <ChimmyVoiceReadyControls
-            voiceEnabled={voiceEnabled}
-            onVoiceToggle={() => setVoiceEnabled((v) => !v)}
-            selectedVoice={selectedVoice}
-            onVoiceSelect={setSelectedVoice}
+            voiceEnabled={voiceConfig.enabled}
+            onVoiceToggle={handleVoiceToggle}
             isPlaying={isVoicePlaying}
             onStop={handleStopVoice}
             ttsLoading={ttsLoading}
@@ -671,9 +687,11 @@ export default function ChimmyChatShell({
           messages={messages}
           isTyping={isTyping}
           onFollowUpClick={handleFollowUp}
-          onListenToLast={handleListenToLast}
-          onListenToLastFull={handleListenToLastFull}
-          isVoicePlaying={isVoicePlaying}
+          onPlayVoice={handlePlayVoice}
+          onVoiceEnabledToggle={handleVoiceToggle}
+          voiceEnabled={voiceConfig.enabled}
+          voiceLoadingId={ttsLoading ? voiceMessageId : null}
+          voicePlayingId={isVoicePlaying ? voiceMessageId : null}
           className="chimmy-conversation-thread"
         />
       </div>

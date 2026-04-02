@@ -25,6 +25,7 @@ import {
   Gift,
 } from "lucide-react"
 import { ReferralSection } from "@/components/settings/ReferralSection"
+import ChimmyVoiceSettingsCard from "@/components/settings/ChimmyVoiceSettingsCard"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
 import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
@@ -529,6 +530,8 @@ function PreferencesSection({
           ))}
         </div>
       </div>
+
+      <ChimmyVoiceSettingsCard />
 
       <div className="flex flex-wrap gap-2">
         <button

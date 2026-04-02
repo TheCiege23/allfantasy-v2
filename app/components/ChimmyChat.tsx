@@ -1,24 +1,30 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
-import { speakChimmy, stopChimmyVoice, isChimmyVoicePlaying, getDefaultChimmyChips } from '@/lib/chimmy-interface';
-import type { ChimmyTtsVoice } from '@/lib/chimmy-interface';
+import { getDefaultChimmyChips } from '@/lib/chimmy-interface';
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
 import { sendChimmyMessage } from '@/lib/chimmy-chat/ChimmyChatService';
-import { buildChimmyVoiceSummary } from '@/lib/chimmy-chat/presentation';
 import {
   CHIMMY_DEFAULT_UPGRADE_PATH,
   CHIMMY_GENERIC_ERROR_MESSAGE,
   CHIMMY_PREMIUM_CTA_LABEL,
   CHIMMY_PREMIUM_FEATURE_MESSAGE,
 } from '@/lib/chimmy-chat/response-copy';
+import {
+  canPlayChimmyVoice,
+  getVoiceConfig,
+  playChimmyVoice,
+  saveVoiceConfig,
+  stopCurrentVoice,
+  type VoiceConfig,
+} from '@/lib/chimmy-voice';
 
 const HEART_EMOJI = '\u{1F496}';
-const CHIMMY_TTS_VOICE_STORAGE_KEY = 'chimmy_tts_voice';
 
 type ChatMessage = {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   image?: string | null;
@@ -63,6 +69,13 @@ function renderContentWithLinks(content: string) {
 
 const CHIMMY_GREETING = `Hi, I'm Chimmy ${HEART_EMOJI} I'm your calm, evidence-based fantasy assistant. Ask me about your roster, league, trades, waivers, or upload a screenshot and I'll break it down clearly.`;
 
+function createMessageId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `chimmy-msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function createSessionId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -72,13 +85,14 @@ function createSessionId() {
 
 export default function ChimmyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: CHIMMY_GREETING },
+    { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [selectedVoice, setSelectedVoice] = useState<ChimmyTtsVoice>('rachel');
+  const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(() => getVoiceConfig());
   const [isVoicePlaying, setIsVoicePlaying] = useState(false);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceMessageId, setVoiceMessageId] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -93,25 +107,7 @@ export default function ChimmyChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (!isChimmyVoicePlaying() && isVoicePlaying) setIsVoicePlaying(false);
-    }, 500);
-    return () => clearInterval(t);
-  }, [isVoicePlaying]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const storedVoice = window.localStorage.getItem(CHIMMY_TTS_VOICE_STORAGE_KEY);
-    if (storedVoice === 'rachel' || storedVoice === 'adam') {
-      setSelectedVoice(storedVoice);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(CHIMMY_TTS_VOICE_STORAGE_KEY, selectedVoice);
-  }, [selectedVoice]);
+  useEffect(() => () => stopCurrentVoice(), []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -144,31 +140,58 @@ export default function ChimmyChat() {
     };
   }, []);
 
-  const speak = (text: string) => {
-    if (!voiceEnabled) return;
-    setIsVoicePlaying(true);
-    speakChimmy(text, 'calm', {
-      voice: selectedVoice,
-      onEnd: () => setIsVoicePlaying(false),
-      onError: () => {
-        setIsVoicePlaying(false);
-        toast.error('Voice playback failed. Please try again.');
-      },
-      onUnavailable: (message) => {
-        setIsVoicePlaying(false);
-        toast.error(message);
-      },
+  const updateVoiceConfig = useCallback((patch: Partial<VoiceConfig>) => {
+    setVoiceConfig((current) => {
+      const next = saveVoiceConfig({ ...current, ...patch });
+      return next;
     });
-  };
+  }, []);
 
-  const handleStopVoice = () => {
-    stopChimmyVoice();
+  const handleStopVoice = useCallback(() => {
+    stopCurrentVoice();
     setIsVoicePlaying(false);
-  };
+    setVoiceLoading(false);
+    setVoiceMessageId(null);
+  }, []);
+
+  const handlePlayVoice = useCallback(async (text: string, messageId: string) => {
+    if (!canPlayChimmyVoice()) {
+      toast.error('Voice playback is unavailable on this browser.');
+      return;
+    }
+
+    if (isVoicePlaying && voiceMessageId === messageId) {
+      handleStopVoice();
+      return;
+    }
+
+    setVoiceLoading(true);
+    setVoiceMessageId(messageId);
+
+    await playChimmyVoice(
+      text,
+      voiceConfig,
+      () => {
+        setVoiceLoading(false);
+        setIsVoicePlaying(true);
+      },
+      () => {
+        setVoiceLoading(false);
+        setIsVoicePlaying(false);
+        setVoiceMessageId(null);
+      },
+      (message) => {
+        setVoiceLoading(false);
+        setIsVoicePlaying(false);
+        setVoiceMessageId(null);
+        toast.error(message);
+      }
+    );
+  }, [handleStopVoice, isVoicePlaying, voiceConfig, voiceMessageId]);
 
   const startNewConversation = () => {
     handleStopVoice();
-    setMessages([{ role: 'assistant', content: CHIMMY_GREETING }]);
+    setMessages([{ id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING }]);
     setInput('');
     setImagePreview(null);
     setImageFile(null);
@@ -212,6 +235,7 @@ export default function ChimmyChat() {
         setMessages((prev) => [
           ...prev,
           {
+            id: createMessageId(),
             role: 'assistant',
             content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
             upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
@@ -228,6 +252,7 @@ export default function ChimmyChat() {
     }
 
     const userMessage: ChatMessage = {
+      id: createMessageId(),
       role: 'user',
       content: input || 'Analyze this screenshot and tell me what to do.',
       image: imagePreview || null,
@@ -242,6 +267,7 @@ export default function ChimmyChat() {
 
     try {
       let streamedAssistantHandled = false;
+      const assistantMessageId = createMessageId();
       const result = await sendChimmyMessage({
         message: outgoingText || '',
         imageFile,
@@ -260,10 +286,10 @@ export default function ChimmyChat() {
             const last = prev[prev.length - 1];
             if (last?.role === 'assistant') {
               const next = [...prev];
-              next[next.length - 1] = { role: 'assistant', content: text };
+              next[next.length - 1] = { ...last, id: last.id || assistantMessageId, role: 'assistant', content: text };
               return next;
             }
-            return [...prev, { role: 'assistant', content: text }];
+            return [...prev, { id: assistantMessageId, role: 'assistant', content: text }];
           });
         },
       });
@@ -271,18 +297,24 @@ export default function ChimmyChat() {
         setSessionId(result.sessionId);
       }
       const reply = result.response || CHIMMY_GENERIC_ERROR_MESSAGE;
+      const assistantMessage = {
+        id: assistantMessageId,
+        role: 'assistant' as const,
+        content: reply,
+        upgradePath: result.upgradeRequired ? result.upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH : null,
+      };
 
-      if (!streamedAssistantHandled) {
+      if (streamedAssistantHandled) {
+        setMessages((prev) => [...prev.slice(0, -1), assistantMessage]);
+      } else {
         setMessages((prev) => [
           ...prev,
-          {
-            role: 'assistant',
-            content: reply,
-            upgradePath: result.upgradeRequired ? result.upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH : null,
-          },
+          assistantMessage,
         ]);
       }
-      speak(buildChimmyVoiceSummary({ content: reply }));
+      if (voiceConfig.enabled && voiceConfig.autoPlay) {
+        void handlePlayVoice(reply, assistantMessage.id);
+      }
       if (!result.ok && result.error) {
         toast.error(result.error);
       }
@@ -290,7 +322,7 @@ export default function ChimmyChat() {
       toast.error(CHIMMY_GENERIC_ERROR_MESSAGE);
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: CHIMMY_GENERIC_ERROR_MESSAGE, upgradePath: null },
+        { id: createMessageId(), role: 'assistant', content: CHIMMY_GENERIC_ERROR_MESSAGE, upgradePath: null },
       ]);
     } finally {
       setIsTyping(false);
@@ -323,24 +355,26 @@ export default function ChimmyChat() {
             New conversation
           </button>
           <button
-            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            onClick={() => {
+              const nextEnabled = !voiceConfig.enabled;
+              updateVoiceConfig({ enabled: nextEnabled });
+              if (!nextEnabled) handleStopVoice();
+            }}
             className="p-3 rounded-full hover:bg-white/10 transition"
             title="Toggle Chimmy voice replies"
           >
-            {voiceEnabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
+            {voiceConfig.enabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
           </button>
-          <label className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
-            <span>Voice</span>
-            <select
-              value={selectedVoice}
-              onChange={(event) => setSelectedVoice(event.target.value as ChimmyTtsVoice)}
-              className="bg-slate-900 text-white rounded-lg px-2 py-1 outline-none"
-              aria-label="Select Chimmy voice"
+          {isVoicePlaying && (
+            <button
+              onClick={handleStopVoice}
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition"
+              title="Stop Allison voice"
             >
-              <option value="rachel">Rachel</option>
-              <option value="adam">Adam</option>
-            </select>
-          </label>
+              <Square className="w-4 h-4" />
+              Stop
+            </button>
+          )}
         </div>
       </div>
 
@@ -359,10 +393,46 @@ export default function ChimmyChat() {
             ))}
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-5 rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
               {renderContentWithLinks(msg.content)}
+              {msg.role === 'assistant' && (
+                <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => void handlePlayVoice(msg.content, msg.id)}
+                    disabled={voiceLoading || (!voiceConfig.enabled && voiceMessageId !== msg.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                      isVoicePlaying && voiceMessageId === msg.id
+                        ? 'border-cyan-500/30 bg-cyan-500/15 text-cyan-100'
+                        : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+                    } disabled:opacity-50`}
+                  >
+                    {voiceLoading && voiceMessageId === msg.id ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading…
+                      </>
+                    ) : isVoicePlaying && voiceMessageId === msg.id ? (
+                      'Stop'
+                    ) : (
+                      'Allison'
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextEnabled = !voiceConfig.enabled;
+                      updateVoiceConfig({ enabled: nextEnabled });
+                      if (!nextEnabled) handleStopVoice();
+                    }}
+                    className="text-[11px] text-white/50 hover:text-white/80 transition ml-auto"
+                  >
+                    {voiceConfig.enabled ? 'Voice on' : 'Voice off'}
+                  </button>
+                </div>
+              )}
               {msg.role === 'assistant' && msg.upgradePath && (
                 <div className="mt-4">
                   <a

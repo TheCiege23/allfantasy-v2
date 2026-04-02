@@ -41,12 +41,12 @@ export interface ChimmyMessageBubbleProps {
   meta?: ChimmyMessageMeta | null
   onFollowUpClick?: (prompt: string) => void
   followUpChips?: { label: string; prompt: string }[]
-  /** When true, show listen button for TTS */
-  showListen?: boolean
-  onListen?: () => void
-  showListenFull?: boolean
-  onListenFull?: () => void
-  isListening?: boolean
+  showVoiceButton?: boolean
+  onVoiceToggle?: () => void
+  onVoiceEnabledToggle?: () => void
+  voiceEnabled?: boolean
+  voiceLoading?: boolean
+  voicePlaying?: boolean
 }
 
 function renderContentWithLinks(text: string) {
@@ -84,11 +84,12 @@ export default function ChimmyMessageBubble({
   meta,
   onFollowUpClick,
   followUpChips,
-  showListen,
-  onListen,
-  showListenFull,
-  onListenFull,
-  isListening,
+  showVoiceButton,
+  onVoiceToggle,
+  onVoiceEnabledToggle,
+  voiceEnabled = true,
+  voiceLoading = false,
+  voicePlaying = false,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
   const responseStructure = !isUser ? meta?.responseStructure : undefined
@@ -190,35 +191,40 @@ export default function ChimmyMessageBubble({
         )}
         {!isUser && <SuggestedActionRenderer content={content} />}
 
-        {!isUser && showListen && onListen && (
-          <div className="mt-2 flex flex-wrap gap-2">
+        {!isUser && showVoiceButton && onVoiceToggle && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
             <button
               type="button"
-              onClick={onListen}
-              disabled={isListening}
-              data-testid="chimmy-listen-response-button"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50 min-h-[36px]"
-              aria-label="Hear verdict summary"
+              onClick={onVoiceToggle}
+              disabled={voiceLoading || (!voiceEnabled && !voicePlaying)}
+              data-testid="chimmy-play-voice-button"
+              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                voicePlaying
+                  ? 'border-cyan-400/30 bg-cyan-500/15 text-cyan-100'
+                  : 'border-white/20 bg-white/5 text-white/70 hover:bg-white/10'
+              } disabled:opacity-50`}
+              aria-label={voicePlaying ? 'Stop Allison voice' : 'Play Allison voice'}
             >
-              {isListening ? (
+              {voiceLoading ? (
                 <>
-                  <span className="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                  Playing…
+                  <span className="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                  Loading…
                 </>
+              ) : voicePlaying ? (
+                <>Stop</>
               ) : (
-                <>Hear summary</>
+                <>Allison</>
               )}
             </button>
-            {showListenFull && onListenFull && (
+            {onVoiceEnabledToggle && (
               <button
                 type="button"
-                onClick={onListenFull}
-                disabled={isListening}
-                data-testid="chimmy-listen-full-response-button"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50 min-h-[36px]"
-                aria-label="Hear full response"
+                onClick={onVoiceEnabledToggle}
+                data-testid="chimmy-message-voice-toggle-button"
+                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-white/20 bg-white/5 px-2.5 py-1.5 text-[11px] text-white/60 hover:bg-white/10"
+                aria-label={voiceEnabled ? 'Disable Chimmy voice playback' : 'Enable Chimmy voice playback'}
               >
-                Hear full response
+                {voiceEnabled ? 'Voice on' : 'Voice off'}
               </button>
             )}
           </div>

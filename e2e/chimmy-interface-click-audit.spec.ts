@@ -147,7 +147,7 @@ test.describe('@chimmy chimmy interface click audit', () => {
       })
     })
 
-    await page.route('**/api/tts', async (route) => {
+    await page.route('**/api/chimmy/voice', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'audio/mpeg',

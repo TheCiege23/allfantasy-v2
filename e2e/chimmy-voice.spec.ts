@@ -227,7 +227,7 @@ test.describe('@chimmy Chimmy voice coverage', () => {
     })
 
     const ttsBodies: Array<Record<string, unknown>> = []
-    await page.route('**/api/tts', async (route) => {
+    await page.route('**/api/chimmy/voice', async (route) => {
       ttsBodies.push(route.request().postDataJSON() as Record<string, unknown>)
       await route.fulfill({
         status: 200,
@@ -264,14 +264,8 @@ test.describe('@chimmy Chimmy voice coverage', () => {
     await page.waitForTimeout(300)
 
     await expect(shell.getByTestId('chimmy-voice-toggle-button')).toBeEnabled()
-    await expect(shell.getByTestId('chimmy-voice-choice-group')).toBeVisible()
+    await expect(shell.getByTestId('chimmy-voice-choice-group')).toHaveCount(0)
     await expect(shell.getByTestId('chimmy-voice-input-button')).toBeEnabled()
-    await shell.getByTestId('chimmy-voice-choice-adam').evaluate((button) => {
-      ;(button as HTMLButtonElement).click()
-    })
-    await expect
-      .poll(() => page.evaluate(() => window.localStorage.getItem('chimmy_tts_voice')))
-      .toBe('adam')
 
     let micCapturedTranscript = false
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -309,12 +303,9 @@ test.describe('@chimmy Chimmy voice coverage', () => {
         const state = await page.evaluate(() => (window as any).__speechTest)
         return state.audioPlayCalls
       })
-      .toBeGreaterThanOrEqual(1)
+      .toBe(0)
 
-    const speechAfterAutoPlay = await page.evaluate(() => (window as any).__speechTest)
-    expect(speechAfterAutoPlay.audioSources[0]).toContain('blob:chimmy-')
-
-    const listenButton = shell.getByTestId('chimmy-listen-response-button').last()
+    const listenButton = shell.getByTestId('chimmy-play-voice-button').last()
     await expect(listenButton).toBeEnabled()
     await listenButton.click()
 
@@ -323,8 +314,11 @@ test.describe('@chimmy Chimmy voice coverage', () => {
         const state = await page.evaluate(() => (window as any).__speechTest)
         return state.audioPlayCalls
       })
-      .toBeGreaterThanOrEqual(2)
-    expect(ttsBodies.some((body) => body.voice === 'adam')).toBe(true)
+      .toBeGreaterThanOrEqual(1)
+
+    const speechAfterManualPlay = await page.evaluate(() => (window as any).__speechTest)
+    expect(speechAfterManualPlay.audioSources[0]).toContain('blob:chimmy-')
+    expect(ttsBodies[0]?.text).toContain('Calm response 1')
 
     const pauseCallsBeforeStop = await page.evaluate(() => (window as any).__speechTest.audioPauseCalls)
     const stopButton = shell.getByTestId('chimmy-voice-stop-button')
@@ -392,15 +386,15 @@ test.describe('@chimmy Chimmy voice coverage', () => {
       })
     })
 
-    await page.route('**/api/tts', async (route) => {
+    await page.route('**/api/chimmy/voice', async (route) => {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
         headers: {
-          'X-Chimmy-TTS-Fallback': 'browser',
+          'X-Chimmy-Voice-Fallback': 'browser',
         },
         body: JSON.stringify({
-          error: 'Voice APIs are unavailable right now. Falling back to browser speech synthesis when supported.',
+          error: 'TTS not configured',
         }),
       })
     })
@@ -427,6 +421,15 @@ test.describe('@chimmy Chimmy voice coverage', () => {
     await input.fill('Should I do this trade?')
     await shell.getByTestId('chimmy-send-button').click()
     await expect(shell.getByTestId('chimmy-response-structure').last()).toBeVisible()
+
+    await expect
+      .poll(async () => {
+        const state = await page.evaluate(() => (window as any).__speechTest)
+        return state.speechSynthesisCalls
+      })
+      .toBe(0)
+
+    await shell.getByTestId('chimmy-play-voice-button').last().click()
 
     await expect
       .poll(async () => {
