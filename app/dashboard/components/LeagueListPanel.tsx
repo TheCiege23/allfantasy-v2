@@ -336,7 +336,7 @@ export function LeagueListPanel({
                     isDragging ? 'opacity-40' : ''
                   } ${isDropTarget ? 'border-cyan-500/50' : 'border-transparent'}`}
                 >
-                  <div className="flex w-full min-w-0 items-start gap-1">
+                  <div className="flex w-full min-w-0 items-stretch gap-1">
                     <div
                       draggable
                       onDragStart={(event) => {
@@ -346,13 +346,13 @@ export function LeagueListPanel({
                         event.dataTransfer.setData('text/plain', league.id)
                       }}
                       onDragEnd={resetDragState}
-                      className="flex shrink-0 cursor-grab select-none flex-col justify-center rounded-md py-2 pl-0.5 pr-0.5 text-[10px] leading-none text-white/25 hover:text-white/50 active:cursor-grabbing"
+                      className="flex w-4 shrink-0 cursor-grab select-none items-center justify-center self-stretch rounded-md text-white/20 hover:text-white/50 active:cursor-grabbing"
                       aria-label="Reorder league"
                       title="Drag to reorder"
                     >
-                      <span aria-hidden>⋮</span>
-                      <span aria-hidden className="-mt-1">
-                        ⋮
+                      <span aria-hidden className="flex flex-col items-center gap-0 text-[9px] leading-none">
+                        <span>⋮</span>
+                        <span className="-mt-0.5">⋮</span>
                       </span>
                     </div>
 
@@ -403,7 +403,7 @@ export function LeagueListPanel({
                         event.stopPropagation()
                         handleFavoriteToggle(league.id)
                       }}
-                      className="mt-0.5 shrink-0 text-sm leading-none text-white/55 transition hover:text-white"
+                      className="shrink-0 self-start pt-0.5 text-sm leading-none text-white/55 transition hover:text-white"
                       aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
                     >
                       {isFavorite ? '★' : '☆'}
