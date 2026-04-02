@@ -2,13 +2,15 @@ import { startSimulationWorker, stopSimulationWorker } from "../lib/workers/simu
 import { startNotificationWorker, stopNotificationWorker } from "../lib/workers/notification-worker"
 import { startAiWorker, stopAiWorker } from "../lib/workers/ai-worker"
 import { startDevyWorker, stopDevyWorker } from "../lib/workers/devy-worker"
+import { startPowerRankingsWorker, stopPowerRankingsWorker } from "../lib/workers/power-rankings-worker"
 
-console.log("[Worker] Starting background job workers (simulations, notifications, ai, devy)...")
+console.log("[Worker] Starting background job workers (simulations, notifications, ai, devy, power-rankings)...")
 
 startSimulationWorker()
 startNotificationWorker()
 startAiWorker()
 startDevyWorker()
+startPowerRankingsWorker()
 
 async function shutdown() {
   console.log("[Worker] Shutting down...")
@@ -17,6 +19,7 @@ async function shutdown() {
     stopNotificationWorker(),
     stopAiWorker(),
     stopDevyWorker(),
+    stopPowerRankingsWorker(),
   ])
   process.exit(0)
 }
