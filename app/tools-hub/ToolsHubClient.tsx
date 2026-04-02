@@ -69,6 +69,20 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
     return value === key ? fallback : value
   }
 
+  const renderBadge = (badge?: string) => {
+    if (!badge) return null
+    const badgeClassName =
+      badge === 'Live'
+        ? 'border-green-500/30 bg-green-500/20 text-green-300 animate-pulse'
+        : 'border-white/10 bg-white/[0.04] text-white/55'
+
+    return (
+      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${badgeClassName}`}>
+        {badge}
+      </span>
+    )
+  }
+
   const sportOptions = useMemo(() => getSportFilterOptions(), [])
 
   const featuredCards = useMemo(() => {
@@ -83,8 +97,8 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
       .filter((c): c is NonNullable<typeof c> => c != null)
   }, [])
 
-  const filteredToolSlugs = useMemo(() => {
-    let slugs = categoryFilter === 'all'
+  const filteredToolSlugs = useMemo<ToolSlug[]>(() => {
+    let slugs: ToolSlug[] = categoryFilter === 'all'
       ? tools.map((t) => t.slug)
       : getToolsInCategory(categoryFilter).map((t) => t.slug)
     if (sportFilter) {
@@ -96,7 +110,10 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
   }, [tools, categoryFilter, sportFilter])
 
   const filteredTools = useMemo(
-    () => filteredToolSlugs.map((slug) => tools.find((t) => t.slug === slug)).filter(Boolean) as typeof tools,
+    () =>
+      filteredToolSlugs
+        .map((slug) => tools.find((t) => t.slug === slug))
+        .filter((tool): tool is ToolsHubClientProps['tools'][number] => tool != null),
     [filteredToolSlugs, tools]
   )
 
@@ -158,13 +175,18 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <Link
-                          href={card.toolLandingHref}
-                          className="font-medium hover:underline"
-                          data-testid={`tools-hub-featured-detail-${card.slug}`}
-                        >
-                          {getLocalizedToolHeadline(card.slug, card.headline)}
-                        </Link>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                              href={card.toolLandingHref}
+                              className="font-medium hover:underline"
+                              data-testid={`tools-hub-featured-detail-${card.slug}`}
+                            >
+                              {getLocalizedToolHeadline(card.slug, card.headline)}
+                            </Link>
+                            {renderBadge(card.badge)}
+                          </div>
+                        </div>
                         <Link
                           href={card.openToolHref}
                           className="shrink-0 rounded-md px-2 py-1 text-sm font-medium"
@@ -330,6 +352,8 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
               <ul className="grid gap-3 sm:grid-cols-2" data-testid="tools-hub-tool-grid">
               {filteredTools.map((tool) => {
                 const related = getRelatedTools(tool.slug)
+                const card = getToolCardDisplay(tool.slug)
+                const detailHref = `/tools/${tool.slug}`
                 return (
                   <li key={tool.slug} data-testid={`tools-hub-tool-card-${tool.slug}`}>
                     <div
@@ -341,9 +365,14 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <Link href={`/tools/${tool.slug}`} className="font-medium hover:underline" data-testid={`tools-hub-tool-detail-${tool.slug}`}>
-                          {getLocalizedToolHeadline(tool.slug, tool.headline)}
-                        </Link>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link href={detailHref} className="font-medium hover:underline" data-testid={`tools-hub-tool-detail-${tool.slug}`}>
+                              {getLocalizedToolHeadline(tool.slug, tool.headline)}
+                            </Link>
+                            {renderBadge(card?.badge)}
+                          </div>
+                        </div>
                         <Link
                           href={tool.openToolHref}
                           className="shrink-0 rounded-md px-2 py-1 text-sm font-medium"
@@ -354,7 +383,7 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
                         </Link>
                       </div>
                       <span className="mt-1 block text-sm" style={{ color: 'var(--muted)' }}>
-                        {getLocalizedToolDescription(tool.slug, '')}
+                        {getLocalizedToolDescription(tool.slug, card?.description ?? '')}
                       </span>
                       <span className="mt-1 block text-xs" style={{ color: 'var(--muted)' }}>
                         {t('toolsHub.openWithPath')}: {tool.openToolHref}

@@ -16,8 +16,11 @@ export type SportSlug =
 
 export type ToolSlug =
   | 'trade-analyzer'
+  | 'trade-finder'
   | 'mock-draft-simulator'
   | 'waiver-wire-advisor'
+  | 'manager-compare'
+  | 'social-pulse'
   | 'ai-draft-assistant'
   | 'matchup-simulator'
   | 'bracket-challenge'
@@ -37,8 +40,11 @@ export const SPORT_SLUGS: SportSlug[] = [
 
 export const TOOL_SLUGS: ToolSlug[] = [
   'trade-analyzer',
+  'trade-finder',
   'mock-draft-simulator',
   'waiver-wire-advisor',
+  'manager-compare',
+  'social-pulse',
   'ai-draft-assistant',
   'matchup-simulator',
   'bracket-challenge',
@@ -65,6 +71,8 @@ export interface ToolConfig {
   headline: string
   benefitSummary: string
   openToolHref: string
+  icon?: string
+  badge?: string
   examples: string[]
   relatedToolSlugs: ToolSlug[]
   keywords: string[]
@@ -86,6 +94,8 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Mock Draft', href: '/mock-draft' },
       { label: 'Waiver Wire Advisor', href: '/waiver-ai' },
+      { label: 'Manager Comparison', href: '/manager-compare' },
+      { label: 'Social Pulse', href: '/social-pulse' },
       { label: 'Sports App', href: '/app' },
       { label: 'Legacy & Dynasty', href: '/af-legacy' },
     ],
@@ -104,6 +114,7 @@ export const SPORT_CONFIG: Record<SportSlug, SportConfig> = {
       { label: 'Trade Analyzer', href: '/trade-analyzer' },
       { label: 'Mock Draft', href: '/mock-draft' },
       { label: 'Waiver Advisor', href: '/waiver-ai' },
+      { label: 'Social Pulse', href: '/social-pulse' },
       { label: 'Power Rankings', href: '/app/power-rankings' },
       { label: 'Sports App', href: '/app' },
     ],
@@ -220,6 +231,23 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
       { q: 'Do I need to connect my league?', a: 'You can use the analyzer standalone or with a connected league for better context.' },
     ],
   },
+  'trade-finder': {
+    slug: 'trade-finder',
+    title: 'AI Trade Finder - League-Wide Trade Discovery | AllFantasy',
+    description:
+      'AI scans your synced Sleeper league to find the best available fantasy trades based on roster fit, trade goals, partner alignment, and market context.',
+    headline: 'AI Trade Finder',
+    benefitSummary:
+      'Scan your full league for realistic trade paths, partner fits, and analyzer-ready packages without manually checking every roster.',
+    openToolHref: '/trade-finder',
+    examples: [
+      'Scan the full league for win-now, rebuild, or balanced trade paths',
+      'Surface partner matches before sending a package into the analyzer',
+      'Filter opportunities by target position, picks, fairness, and roster fit',
+    ],
+    relatedToolSlugs: ['trade-analyzer', 'waiver-wire-advisor', 'power-rankings'],
+    keywords: ['trade finder', 'ai trade finder', 'fantasy trade ideas', 'league trade scanner'],
+  },
   'mock-draft-simulator': {
     slug: 'mock-draft-simulator',
     title: 'Mock Draft Simulator – Fantasy Football & More | AllFantasy',
@@ -253,6 +281,53 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
     ],
     relatedToolSlugs: ['trade-analyzer', 'mock-draft-simulator', 'ai-draft-assistant', 'matchup-simulator'],
     keywords: ['waiver wire advisor', 'fantasy waiver', 'pickup recommendations', 'lineup help'],
+  },
+  'manager-compare': {
+    slug: 'manager-compare',
+    title: 'Manager Comparison – Head-to-Head Fantasy Manager Grades | AllFantasy',
+    description:
+      'Compare any two fantasy managers head-to-head. AI grades records, win rates, championships, and play style across redraft, dynasty, and specialty formats. Includes trade style and manager DNA.',
+    headline: 'Manager Comparison',
+    benefitSummary:
+      'Stack two Sleeper managers side-by-side with AI grades, verdict hero, DNA signals, trade style context, and shared-league opponent tendencies.',
+    openToolHref: '/manager-compare',
+    icon: '⚔️',
+    badge: 'AI-Powered',
+    examples: [
+      'Compare redraft, dynasty, and specialty format grades for two managers',
+      'See trade style, manager DNA, and shared-league opponent tendencies in one place',
+      'Generate a shareable comparison URL for league chat debates',
+    ],
+    relatedToolSlugs: ['social-pulse', 'power-rankings'],
+    keywords: ['manager comparison', 'fantasy manager grades', 'sleeper manager compare', 'head to head fantasy managers'],
+    faqs: [
+      { q: 'What does Manager Comparison measure?', a: 'It compares Sleeper manager history, format-specific grades, win rates, championships, and play-style tendencies.' },
+      { q: 'Does the tool include AI analysis?', a: 'Yes. The head-to-head verdict, manager grading, and follow-up context are presented through an AI-assisted comparison flow.' },
+      { q: 'Can I share a comparison with someone else?', a: 'Yes. After loading results, you can copy a shareable URL with both manager usernames baked into the page.' },
+    ],
+  },
+  'social-pulse': {
+    slug: 'social-pulse',
+    title: 'Social Pulse – Live Fantasy Sentiment Research | AllFantasy',
+    description:
+      'Real-time player and team sentiment from X and the web. Know what the market is saying before it moves. Powered by Grok AI with live search.',
+    headline: 'Social Pulse',
+    benefitSummary:
+      'Track live fantasy narratives, confidence, impact, and cross-player connections before the market fully reacts.',
+    openToolHref: '/social-pulse',
+    badge: 'Live',
+    examples: [
+      'Search player, team, or coach narratives across X and the web',
+      'Spot buy-low, sell-high, injury, and hype signals with confidence and recency',
+      'Send the names you find directly into the Trade Analyzer workspace',
+    ],
+    relatedToolSlugs: ['trade-analyzer', 'waiver-wire-advisor', 'ai-draft-assistant', 'matchup-simulator'],
+    keywords: ['social pulse', 'fantasy sentiment', 'player sentiment', 'grok live search', 'x search fantasy'],
+    faqs: [
+      { q: 'What sports does Social Pulse support today?', a: 'NFL and NBA live sentiment research today, using X and web search inside AllFantasy.' },
+      { q: 'Does Social Pulse use live data?', a: 'Yes. Social Pulse uses Grok with live X search and web search to summarize recent narratives from the last seven days.' },
+      { q: 'Can I move from Social Pulse into another tool?', a: 'Yes. After a run, you can send the searched names into the Trade Analyzer to continue researching a possible deal.' },
+    ],
   },
   'ai-draft-assistant': {
     slug: 'ai-draft-assistant',

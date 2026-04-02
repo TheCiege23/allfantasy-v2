@@ -20,6 +20,8 @@ export type ToolHubTool = {
   benefitSummary: string
   openToolHref: string
   relatedToolSlugs: ToolSlug[]
+  icon?: string
+  badge?: string
 }
 
 export type ToolHubSport = {
@@ -41,6 +43,8 @@ export function getAllTools(): ToolHubTool[] {
       benefitSummary: c.benefitSummary,
       openToolHref: c.openToolHref,
       relatedToolSlugs: c.relatedToolSlugs ?? [],
+      icon: c.icon,
+      badge: c.badge,
     }
   })
 }
@@ -62,7 +66,7 @@ export function getAllSports(): ToolHubSport[] {
 export function getToolsInCategory(categoryId: ToolCategoryId): ToolHubTool[] {
   const slugs = getToolsByCategory()[categoryId] ?? []
   return slugs
-    .map((slug) => {
+    .map((slug): ToolHubTool | null => {
       const c = TOOL_CONFIG[slug]
       if (!c) return null
       return {
@@ -72,9 +76,11 @@ export function getToolsInCategory(categoryId: ToolCategoryId): ToolHubTool[] {
         benefitSummary: c.benefitSummary,
         openToolHref: c.openToolHref,
         relatedToolSlugs: c.relatedToolSlugs ?? [],
+        icon: c.icon,
+        badge: c.badge,
       }
     })
-    .filter((t): t is ToolHubTool => t != null)
+    .filter((tool): tool is ToolHubTool => tool !== null)
 }
 
 /**
@@ -88,6 +94,7 @@ export function getToolsForSport(sportSlug: SportSlug | null): ToolHubTool[] {
   const alias: Record<string, string> = {
     '/trade-analyzer': '/trade-evaluator',
     '/waiver-wire': '/waiver-ai',
+    '/social-pulse': '/social-pulse',
     '/matchup-simulator': '/app/simulation-lab',
     '/brackets': '/bracket',
   }

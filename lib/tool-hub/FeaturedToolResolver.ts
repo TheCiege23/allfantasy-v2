@@ -18,23 +18,29 @@ const CATEGORY_LABELS: Record<ToolCategoryId, string> = {
 }
 
 /** Slug → category for hub grouping. */
-const TOOL_CATEGORY: Record<ToolSlug, ToolCategoryId> = {
-  'trade-analyzer': 'trade',
-  'mock-draft-simulator': 'draft',
-  'waiver-wire-advisor': 'waiver',
-  'ai-draft-assistant': 'ai',
-  'matchup-simulator': 'simulate',
-  'bracket-challenge': 'bracket',
-  'power-rankings': 'rankings',
-  'legacy-dynasty': 'legacy',
-  'league-transfer': 'transfer',
+const TOOL_CATEGORIES: Record<ToolSlug, ToolCategoryId[]> = {
+  'trade-analyzer': ['trade'],
+  'trade-finder': ['trade'],
+  'mock-draft-simulator': ['draft'],
+  'waiver-wire-advisor': ['waiver'],
+  'manager-compare': ['ai', 'rankings'],
+  'social-pulse': ['ai'],
+  'ai-draft-assistant': ['ai'],
+  'matchup-simulator': ['simulate'],
+  'bracket-challenge': ['bracket'],
+  'power-rankings': ['rankings'],
+  'legacy-dynasty': ['legacy'],
+  'league-transfer': ['transfer'],
 }
 
 /** Featured tool slugs (shown first on hub). */
 const FEATURED_SLUGS: ToolSlug[] = [
   'trade-analyzer',
+  'trade-finder',
   'mock-draft-simulator',
   'waiver-wire-advisor',
+  'manager-compare',
+  'social-pulse',
   'ai-draft-assistant',
   'league-transfer',
 ]
@@ -65,7 +71,11 @@ export function getCategoryLabel(id: ToolCategoryId): string {
 }
 
 export function getCategoryForTool(slug: ToolSlug): ToolCategoryId {
-  return TOOL_CATEGORY[slug] ?? 'legacy'
+  return TOOL_CATEGORIES[slug]?.[0] ?? 'legacy'
+}
+
+export function getCategoriesForTool(slug: ToolSlug): ToolCategoryId[] {
+  return TOOL_CATEGORIES[slug] ?? ['legacy']
 }
 
 export function getFeaturedToolSlugs(): ToolSlug[] {
@@ -91,9 +101,10 @@ export function getToolsByCategory(): Record<ToolCategoryId, ToolSlug[]> {
     ai: [],
     transfer: [],
   }
-  for (const slug of Object.keys(TOOL_CATEGORY) as ToolSlug[]) {
-    const cat = TOOL_CATEGORY[slug]
-    if (!map[cat].includes(slug)) map[cat].push(slug)
+  for (const slug of Object.keys(TOOL_CATEGORIES) as ToolSlug[]) {
+    for (const cat of TOOL_CATEGORIES[slug] ?? []) {
+      if (!map[cat].includes(slug)) map[cat].push(slug)
+    }
   }
   return map
 }

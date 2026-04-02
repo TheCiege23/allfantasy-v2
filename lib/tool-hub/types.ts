@@ -22,6 +22,9 @@ export type ToolCardDisplay = {
   openToolHref: string
   toolLandingHref: string
   category: ToolCategoryId
+  categories?: ToolCategoryId[]
+  icon?: string
+  badge?: string
 }
 
 export type FeaturedToolEntry = {

@@ -4,7 +4,7 @@
 
 import { TOOL_CONFIG, type ToolSlug } from '@/lib/seo-landing/config'
 import type { ToolCardDisplay } from './types'
-import { getCategoryForTool } from './FeaturedToolResolver'
+import { getCategoriesForTool, getCategoryForTool } from './FeaturedToolResolver'
 import { getOpenToolHref, getToolLandingPath } from './ToolDiscoveryNavigationService'
 
 export function getToolCardDisplay(slug: ToolSlug): ToolCardDisplay | null {
@@ -18,6 +18,9 @@ export function getToolCardDisplay(slug: ToolSlug): ToolCardDisplay | null {
     openToolHref: getOpenToolHref(slug),
     toolLandingHref: getToolLandingPath(slug),
     category,
+    categories: getCategoriesForTool(slug),
+    icon: c.icon,
+    badge: c.badge,
   }
 }
 
