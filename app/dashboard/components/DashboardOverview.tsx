@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ChecklistStep, UserLeague } from '../types'
 import { LeagueHubCard } from './LeagueHubCard'
+import { TodayStrip } from './TodayStrip'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 
@@ -494,6 +495,8 @@ export function DashboardOverview({
             </Link>
           </div>
         </section>
+
+        <TodayStrip leagues={leagues} />
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
