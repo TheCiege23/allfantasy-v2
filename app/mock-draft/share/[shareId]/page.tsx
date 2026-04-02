@@ -34,13 +34,44 @@ interface DraftPick {
   notes: string
 }
 
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function stringFromUnknown(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+}
+
+function extractDraftPicks(value: unknown): DraftPick[] {
+  if (Array.isArray(value)) return value as DraftPick[]
+
+  const raw = recordFromUnknown(value)
+  if (!raw) return []
+
+  const picks = raw.picks
+  return Array.isArray(picks) ? (picks as DraftPick[]) : []
+}
+
+function extractDraftSport(results: unknown, metadataValue: unknown): string {
+  const metadata = recordFromUnknown(metadataValue)
+  const resultRecord = recordFromUnknown(results)
+  const settings = recordFromUnknown(resultRecord?.settings)
+
+  return (
+    stringFromUnknown(settings?.sport) ??
+    stringFromUnknown(metadata?.sport) ??
+    DEFAULT_SPORT
+  )
+}
+
 export async function generateMetadata({ params }: { params: { shareId: string } }): Promise<Metadata> {
   const draft = await prisma.mockDraft.findUnique({
     where: { shareId: params.shareId },
     include: { league: { select: { name: true } } },
   })
   if (!draft) return { title: 'Draft Not Found - AllFantasy' }
-  const picks = (draft.results as unknown) as DraftPick[]
+  const picks = extractDraftPicks(draft.results)
   const userPicks = picks.filter(p => p.isUser)
   return {
     title: `${draft.league?.name ?? 'Mock'} Mock Draft - AllFantasy`,
@@ -60,10 +91,9 @@ export default async function SharedDraftPage({ params }: { params: { shareId: s
 
   if (!draft) notFound()
 
-  const picks = Array.isArray(draft.results) ? (draft.results as unknown as DraftPick[]) : []
+  const picks = extractDraftPicks(draft.results)
   if (picks.length === 0) notFound()
-  const metadata = (draft.metadata && typeof draft.metadata === 'object') ? (draft.metadata as { sport?: string }) : null
-  const sport = normalizeToSupportedSport(metadata?.sport ?? DEFAULT_SPORT)
+  const sport = normalizeToSupportedSport(extractDraftSport(draft.results, draft.metadata))
   const totalRounds = Math.max(...picks.map(p => p.round), 1)
   const userPicks = picks.filter(p => p.isUser)
   const positionCounts = userPicks.reduce((acc, p) => {

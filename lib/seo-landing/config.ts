@@ -252,15 +252,16 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
     slug: 'mock-draft-simulator',
     title: 'Mock Draft Simulator – Fantasy Football & More | AllFantasy',
     description:
-      'Run fantasy mock drafts with AllFantasy: snake and auction, multiple sports, AI-powered suggestions. Practice before your real draft.',
+      'Full AI-powered mock draft room that looks and feels like a live draft board. Import your Sleeper league for real managers and draft slots, or run a custom open mock across all supported sports.',
     headline: 'Mock Draft Simulator',
     benefitSummary:
-      'Practice snake or auction drafts with AI recommendations. Use it for NFL, NBA, MLB, and other sports. Save and share results.',
+      'Import a real Sleeper league or build a custom room, then draft against AI teams using ADP, roster needs, and scoring-aware logic in one shareable board.',
+    badge: 'AI-Powered',
     openToolHref: '/mock-draft',
     examples: [
-      'Snake and auction mock drafts',
-      'AI-powered pick suggestions and rankings',
-      'Save drafts and share with league mates',
+      'Import real Sleeper managers, avatars, and draft order when available',
+      'Run open mocks with custom team count, rounds, speed, and scoring',
+      'Save and share a completed draft room recap with league mates',
     ],
     relatedToolSlugs: ['trade-analyzer', 'ai-draft-assistant', 'waiver-wire-advisor', 'legacy-dynasty'],
     keywords: ['mock draft simulator', 'fantasy mock draft', 'draft simulator', 'AI draft'],
