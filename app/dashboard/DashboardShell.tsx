@@ -1,11 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { AFChatPanel } from './components/AFChatPanel'
+import { DashboardOverview } from './components/DashboardOverview'
 import { LeagueListPanel } from './components/LeagueListPanel'
 import type { DashboardConnectedLeague, UserLeague } from './types'
 
@@ -86,72 +86,6 @@ function getLeagueSubtitle(league: UserLeague) {
   return `${formatted} · ${league.teamCount} teams`
 }
 
-function OverviewCenter({ userName, leagueCount }: { userName: string; leagueCount: number }) {
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-[#07071a] p-4 md:p-5 [scrollbar-gutter:stable]">
-      <div className="space-y-4">
-        <section className="rounded-[24px] border border-white/[0.07] bg-[#0c0c1e] p-5">
-          <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">Overview</p>
-          <h1 className="mt-3 text-2xl font-black text-white md:text-3xl">
-            Welcome back, <span className="text-cyan-400">{userName}</span>
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-white/60">
-            Phase 1 sets up the three-panel dashboard shell. Pick a league from the left rail to
-            switch the center pane into league mode and the right pane into the stacked AF Chat
-            layout.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/create-league" className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-black">
-              Create League
-            </Link>
-            <Link href="/import" className="rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white">
-              Import
-            </Link>
-            <Link href="/find-league" className="rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white">
-              Find League
-            </Link>
-          </div>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[24px] border border-white/[0.07] bg-[#0c0c1e] p-5">
-            <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">Get Started</p>
-            <div className="mt-4 space-y-3">
-              {[
-                'Connect your first league',
-                'Open AF Chat',
-                'Select a league from the rail',
-                'Move into the league workspace',
-              ].map((label, index) => (
-                <div key={label} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full border border-white/15 text-[11px] font-bold text-white/70">
-                    {index + 1}
-                  </div>
-                  <div className="text-sm text-white/75">{label}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[24px] border border-white/[0.07] bg-[#0c0c1e] p-5">
-            <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">Rankings Widget</p>
-            <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 p-4">
-              <p className="text-sm font-semibold text-white">Your ranking card will move here</p>
-              <p className="mt-2 text-sm text-white/60">
-                Phase 7 rebuilds the dashboard rankings view and plugs the tier widget into this
-                overview state.
-              </p>
-            </div>
-            <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-              <p className="text-sm text-white/70">{leagueCount} connected leagues ready for the shell</p>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
-  )
-}
-
 function SelectedLeagueCenter({
   league,
   onBack,
@@ -206,6 +140,7 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
   const [loadingLeagues, setLoadingLeagues] = useState(true)
   const [mobileLeagueListOpen, setMobileLeagueListOpen] = useState(false)
   const [mobileChatOpen, setMobileChatOpen] = useState(false)
+  const [chatPanelVersion, setChatPanelVersion] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -243,8 +178,21 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
     }
   }, [leagues, selectedLeague])
 
-  const leagueCount = leagues.length
   const selectedLeagueLabel = selectedLeague?.name ?? 'AF Chat'
+
+  const handleTriggerImport = () => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('af-dashboard-open-import'))
+    window.location.assign('/import')
+  }
+
+  const handleOpenChimmy = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('af-dashboard-open-chimmy'))
+    }
+    setChatPanelVersion((current) => current + 1)
+    setMobileChatOpen(true)
+  }
 
   return (
     <div data-dashboard-user-id={userId} className="flex h-screen overflow-hidden bg-[#07071a] text-white">
@@ -286,13 +234,20 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
           {selectedLeague ? (
             <SelectedLeagueCenter league={selectedLeague} onBack={() => setSelectedLeague(null)} />
           ) : (
-            <OverviewCenter userName={userName} leagueCount={leagueCount} />
+            <DashboardOverview
+              userName={userName}
+              leagues={leagues}
+              onSelectLeague={setSelectedLeague}
+              onTriggerImport={handleTriggerImport}
+              onOpenChimmy={handleOpenChimmy}
+            />
           )}
         </div>
       </div>
 
       <div className="hidden md:flex">
         <AFChatPanel
+          key={`desktop-chat-${chatPanelVersion}`}
           selectedLeague={selectedLeague}
           userId={userId}
           leagues={leagues}
