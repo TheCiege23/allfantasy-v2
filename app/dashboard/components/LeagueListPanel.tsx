@@ -282,7 +282,7 @@ export function LeagueListPanel({
   )
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#0a0a1f]">
+    <div className="flex h-full min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#0a0a1f]">
       {!compact ? (
         <div className="border-b border-white/[0.07] px-3 py-3">
           <div className="flex items-center rounded-xl border border-white/[0.07] bg-white/[0.05] px-3 py-2">
@@ -298,7 +298,11 @@ export function LeagueListPanel({
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 [scrollbar-gutter:stable]">
+      <div
+        className={`min-h-0 min-w-0 w-full flex-1 overflow-y-auto overflow-x-hidden px-2 py-2 ${
+          compact ? '' : '[scrollbar-gutter:stable]'
+        }`}
+      >
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -306,7 +310,7 @@ export function LeagueListPanel({
             ))}
           </div>
         ) : displayedLeagues.length ? (
-          <div className="space-y-1.5">
+          <div className="w-full min-w-0 space-y-1.5">
             {displayedLeagues.map((league) => {
               const isSelected = league.id === selectedId
               const isFavorite = favoriteSet.has(league.id)
@@ -328,11 +332,11 @@ export function LeagueListPanel({
                     event.preventDefault()
                     handleDrop(league.id)
                   }}
-                  className={`rounded-xl border transition-all duration-150 ${
+                  className={`w-full min-w-0 rounded-xl border transition-all duration-150 ${
                     isDragging ? 'opacity-40' : ''
                   } ${isDropTarget ? 'border-cyan-500/50' : 'border-transparent'}`}
                 >
-                  <div className="flex items-start gap-1">
+                  <div className="flex w-full min-w-0 items-start gap-1">
                     <div
                       draggable
                       onDragStart={(event) => {
@@ -354,7 +358,7 @@ export function LeagueListPanel({
 
                     <Link
                       href={`/league/${league.id}`}
-                      className={`min-w-0 flex-1 rounded-xl border-l-2 px-2 py-2 text-left transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-2 text-left transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                         isSelected
                           ? 'border-l-cyan-500 bg-cyan-500/[0.08]'
                           : 'border-l-transparent hover:bg-white/[0.04]'

@@ -246,7 +246,7 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
         </div>
       </div>
 
-      <aside className="hidden h-full md:flex">
+      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[300px] md:max-w-[300px] md:flex-shrink-0">
         <RightControlPanel
           leagues={leagues}
           leaguesLoading={leaguesLoading}
