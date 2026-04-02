@@ -192,7 +192,7 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
   const isLeagueRoute = Boolean(activeLeagueId)
 
   return (
-    <div data-dashboard-user-id={userId} className="flex h-screen overflow-hidden bg-[#07071a] text-white">
+    <div data-dashboard-user-id={userId} className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white">
       <aside className="hidden h-full md:flex">
         <LeftChatPanel
           selectedLeague={selectedLeague}
