@@ -1,17 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
-import ChimmyChat from '@/app/components/ChimmyChat'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { DashboardOverview } from './components/DashboardOverview'
 import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
-import type { DashboardConnectedLeague } from './types'
+import type { DashboardConnectedLeague, UserLeague } from './types'
 
 type DashboardShellProps = {
   userId: string
   userName: string
+  /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
+  activeLeagueId?: string | null
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -72,11 +74,68 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
   }
 }
 
-export function DashboardShell({ userId, userName }: DashboardShellProps) {
+function LeagueCenterContent({
+  leagueId,
+  league,
+  leaguesLoading,
+}: {
+  leagueId: string
+  league: UserLeague | null
+  leaguesLoading: boolean
+}) {
+  if (leaguesLoading) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#07071a] px-6">
+        <p className="text-sm text-white/50">Loading league…</p>
+      </div>
+    )
+  }
+
+  if (!league) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#07071a] px-6 text-center">
+        <p className="text-sm font-semibold text-white/70">League not found</p>
+        <p className="mt-2 text-xs text-white/35">No league with id &quot;{leagueId}&quot; in your connected list.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-full min-h-0 overflow-y-auto bg-[#07071a] [scrollbar-gutter:stable]">
+      <div className="mx-auto w-full max-w-3xl space-y-4 px-6 py-6">
+        <p className="text-[10px] uppercase tracking-widest text-white/30">League workspace</p>
+        <h1 className="text-2xl font-black text-white">{league.name}</h1>
+        <p className="text-sm text-white/45">
+          Draft, Team, League, Players, Trend, Trades, and Scores tabs will appear here (LEAGUE_PAGE_TASK).
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export function DashboardShell({ userId, userName, activeLeagueId = null }: DashboardShellProps) {
+  const router = useRouter()
   const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
-  const [loadingLeagues, setLoadingLeagues] = useState(true)
+  const [leaguesLoading, setLeaguesLoading] = useState(true)
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
+
+  const selectedLeague = useMemo((): UserLeague | null => {
+    if (!activeLeagueId) return null
+    const found = leagues.find((l) => l.id === activeLeagueId)
+    return found ?? null
+  }, [leagues, activeLeagueId])
+
+  const handleSelectLeague = useCallback(
+    (league: UserLeague | null) => {
+      if (league) {
+        router.push(`/league/${league.id}`)
+      } else {
+        router.push('/dashboard')
+      }
+    },
+    [router]
+  )
 
   useEffect(() => {
     const openMobileLeft = () => {
@@ -108,7 +167,7 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
       })
       .finally(() => {
         if (!active) return
-        setLoadingLeagues(false)
+        setLeaguesLoading(false)
       })
 
     return () => {
@@ -130,10 +189,16 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
     setMobileLeftOpen(true)
   }
 
+  const isLeagueRoute = Boolean(activeLeagueId)
+
   return (
     <div data-dashboard-user-id={userId} className="flex h-screen overflow-hidden bg-[#07071a] text-white">
       <aside className="hidden h-full md:flex">
-        <LeftChatPanel selectedLeagueId={null} />
+        <LeftChatPanel
+          selectedLeague={selectedLeague}
+          userId={userId}
+          rootId="dashboard-left-chat"
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -148,7 +213,9 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
               <Menu className="h-5 w-5" />
             </button>
             <div className="min-w-0 flex-1 text-center">
-              <p className="truncate text-sm font-semibold text-white/85">Dashboard</p>
+              <p className="truncate text-sm font-semibold text-white/85">
+                {isLeagueRoute ? selectedLeague?.name ?? 'League' : 'Dashboard'}
+              </p>
             </div>
             <button
               type="button"
@@ -162,17 +229,32 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
         </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <DashboardOverview
-            userName={userName}
-            leagues={leagues}
-            onTriggerImport={handleTriggerImport}
-            onOpenChimmy={handleOpenChimmy}
-          />
+          {isLeagueRoute && activeLeagueId ? (
+            <LeagueCenterContent
+              leagueId={activeLeagueId}
+              league={selectedLeague}
+              leaguesLoading={leaguesLoading}
+            />
+          ) : (
+            <DashboardOverview
+              userName={userName}
+              leagues={leagues}
+              onTriggerImport={handleTriggerImport}
+              onOpenChimmy={handleOpenChimmy}
+            />
+          )}
         </div>
       </div>
 
       <aside className="hidden h-full md:flex">
-        <RightControlPanel leagues={leagues} loadingLeagues={loadingLeagues} onImport={handleTriggerImport} />
+        <RightControlPanel
+          leagues={leagues}
+          leaguesLoading={leaguesLoading}
+          selectedId={selectedLeague?.id ?? null}
+          onSelectLeague={handleSelectLeague}
+          userId={userId}
+          onImport={handleTriggerImport}
+        />
       </aside>
 
       <button
@@ -208,7 +290,7 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              <LeftChatPanel selectedLeagueId={null} rootId={null} />
+              <LeftChatPanel selectedLeague={selectedLeague} userId={userId} rootId={null} />
             </div>
           </div>
         </div>
@@ -232,7 +314,10 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
               <div className="h-full w-full max-w-none">
                 <RightControlPanel
                   leagues={leagues}
-                  loadingLeagues={loadingLeagues}
+                  leaguesLoading={leaguesLoading}
+                  selectedId={selectedLeague?.id ?? null}
+                  onSelectLeague={handleSelectLeague}
+                  userId={userId}
                   onImport={handleTriggerImport}
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
                 />
@@ -242,7 +327,7 @@ export function DashboardShell({ userId, userName }: DashboardShellProps) {
         </div>
       ) : null}
 
-      {loadingLeagues ? (
+      {leaguesLoading ? (
         <div className="pointer-events-none fixed inset-x-0 top-0 z-30 flex justify-center py-2">
           <div className="rounded-full border border-white/[0.07] bg-[#0c0c1e] px-3 py-1 text-xs text-white/60">
             Loading leagues...

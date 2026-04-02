@@ -21,7 +21,8 @@ export interface UserLeague {
 export type LeftChatPanelLayoutProps = {
   selectedLeague: UserLeague | null
   userId: string
-  width: number
+  /** Default: DASHBOARD_LEFT_PANEL_WIDTH */
+  width?: number
   rootId?: string | null
 }
 

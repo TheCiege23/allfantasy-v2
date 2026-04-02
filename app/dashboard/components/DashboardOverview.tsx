@@ -414,8 +414,8 @@ export function DashboardOverview({
   const visibleLeagues = leagues.slice(0, 6)
 
   return (
-    <div className="h-full w-full overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto max-w-3xl space-y-5 px-6 py-6">
+    <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {!hideChecklist ? (
           <section className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e]">
             <button
