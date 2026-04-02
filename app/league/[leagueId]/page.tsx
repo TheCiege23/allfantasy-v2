@@ -2,7 +2,8 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DashboardShell } from '@/app/dashboard/DashboardShell'
+import { getLeagueDrafts } from '@/lib/sleeper-client'
+import { LeagueShell } from './LeagueShell'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,27 +17,57 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
     redirect(`/login?callbackUrl=${encodeURIComponent(`/league/${leagueId}`)}`)
   }
 
+  const userId = session.user.id
+
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
-    include: { teams: true },
+    include: {
+      teams: { orderBy: { externalId: 'asc' } },
+      invites: {
+        where: { isActive: true },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+    },
   })
 
   if (!league) {
     redirect('/dashboard')
   }
 
-  const userId = session.user.id
   const isOwner = league.userId === userId
-  const userTeam = league.teams.find((t) => t.claimedByUserId === userId)
+  const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
   if (!isOwner && !userTeam) {
     redirect('/dashboard')
   }
 
+  const allLeagues = await prisma.league.findMany({
+    where: {
+      OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
+    },
+    orderBy: { updatedAt: 'desc' },
+    take: 50,
+  })
+
+  let draftDateIso: string | null = null
+  if (league.platform === 'sleeper' && league.platformLeagueId) {
+    type SleeperDraftSummary = { start_time?: number | null }
+    const drafts = (await getLeagueDrafts(league.platformLeagueId).catch(() => [])) as SleeperDraftSummary[]
+    const draft = drafts[0] ?? null
+    if (draft?.start_time != null && Number.isFinite(draft.start_time)) {
+      draftDateIso = new Date(draft.start_time).toISOString()
+    }
+  }
+
   return (
-    <DashboardShell
+    <LeagueShell
+      league={league}
+      userTeam={userTeam}
+      isOwner={isOwner}
+      allLeagues={allLeagues}
       userId={userId}
       userName={session.user.name ?? session.user.email ?? 'Manager'}
-      activeLeagueId={leagueId}
+      draftDateIso={draftDateIso}
     />
   )
 }
