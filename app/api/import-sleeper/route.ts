@@ -6,6 +6,8 @@ import { LeagueSport } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireVerifiedUser } from "@/lib/auth-guard";
 import { onMatchupCommentary } from "@/lib/commentary-engine";
+import { upsertPlatformIdentity, isPlatformRankLocked, lockPlatformRank } from '@/lib/platform-identity'
+import { computeAndSaveRank } from '@/lib/ranking/computeAndSaveRank'
 import { normalizeToSupportedSport } from "@/lib/sport-scope";
 import {
   consumeRateLimit,
@@ -55,7 +57,9 @@ type SleeperLeague = {
 
 type SleeperUser = {
   user_id?: string;
+  username?: string;
   display_name?: string;
+  avatar?: string | null;
   metadata?: {
     team_name?: string;
     avatar?: string;
@@ -697,6 +701,37 @@ export async function POST(req: Request) {
     const imported = successfulImports.length;
     const failed = results.length - imported;
     const commentaryTelemetry = sumCommentaryTelemetry(successfulImports);
+
+    try {
+      const [sleeperUser, legacyUser] = await Promise.all([
+        cachedSleeperFetch<SleeperUser>(
+          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}`,
+          `sleeper:user_profile:${sleeperUserId}`
+        ),
+        prisma.legacyUser.findUnique({
+          where: { sleeperUserId },
+          select: { id: true },
+        }),
+      ])
+
+      await upsertPlatformIdentity({
+        afUserId: userId,
+        platform: 'sleeper',
+        platformUserId: sleeperUser?.user_id ?? sleeperUserId,
+        platformUsername: sleeperUser?.username ?? sleeperUserId,
+        displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
+        avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
+        sport,
+      })
+
+      const isLocked = await isPlatformRankLocked(userId, 'sleeper')
+      if (!isLocked && legacyUser) {
+        await computeAndSaveRank(userId, legacyUser)
+        await lockPlatformRank(userId, 'sleeper')
+      }
+    } catch (err) {
+      console.error('[import-sleeper] rank lock error:', err)
+    }
 
     return NextResponse.json({
       success: true,
