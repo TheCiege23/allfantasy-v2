@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { ChecklistStep, UserLeague } from '../types'
+import { LeagueHubCard } from './LeagueHubCard'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 
@@ -84,48 +84,6 @@ function writeOnboardingState(value: OnboardingState) {
   try {
     window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(value))
   } catch {}
-}
-
-function getStatusBadge(status: string | undefined) {
-  switch ((status || '').toLowerCase()) {
-    case 'pre_draft':
-    case 'pre-draft':
-      return {
-        label: 'Pre-Draft',
-        className: 'border-amber-500/30 bg-amber-500/20 text-amber-400',
-      }
-    case 'in_season':
-    case 'in-season':
-    case 'active':
-      return {
-        label: 'Active',
-        className: 'border-emerald-500/30 bg-emerald-500/20 text-emerald-400',
-      }
-    case 'completed':
-      return {
-        label: 'Done',
-        className: 'border-gray-500/30 bg-gray-500/20 text-gray-400',
-      }
-    case 'off_season':
-    case 'off-season':
-      return {
-        label: 'Off-Season',
-        className: 'border-white/15 bg-white/10 text-white/40',
-      }
-    default:
-      return {
-        label: '—',
-        className: 'border-white/15 bg-white/10 text-white/40',
-      }
-  }
-}
-
-function getSportLabel(sport: string) {
-  return normalizeToSupportedSport(sport) ?? sport
-}
-
-function getFormatLabel(league: UserLeague) {
-  return (league.format || 'league').replace(/_/g, ' ')
 }
 
 function getPlatformBadge(platform: string) {
@@ -537,58 +495,34 @@ export function DashboardOverview({
           </div>
         </section>
 
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-normal uppercase tracking-widest text-white/30">Your Leagues</p>
+            <Link href="/dashboard" className="text-[12px] text-white/40 transition hover:text-white/60">
+              View all
+            </Link>
+          </div>
+
+          {visibleLeagues.length === 0 ? (
+            <button
+              type="button"
+              onClick={handleImport}
+              className="w-full rounded-2xl border border-dashed border-white/[0.12] bg-[#0c0c1e] px-4 py-6 text-center text-sm font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.03]"
+            >
+              + Import or create your first league
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {visibleLeagues.map((league) => (
+                <LeagueHubCard key={league.id} league={league} onClick={() => {}} />
+              ))}
+            </div>
+          )}
+        </section>
+
         <section>
           <RankingWidget leagues={leagues} onTriggerImport={handleImport} />
         </section>
-
-        {visibleLeagues.length ? (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">League Summary</p>
-              <span className="text-xs text-white/40">{visibleLeagues.length} ready</span>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {visibleLeagues.map((league) => {
-                const statusBadge = getStatusBadge(league.status)
-                const record =
-                  typeof league.settings?.wins === 'number' && typeof league.settings?.losses === 'number'
-                    ? `${league.settings.wins}-${league.settings.losses}`
-                    : null
-
-                return (
-                  <div key={league.id} className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">{league.name}</p>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55">
-                            {getSportLabel(league.sport)} · {getFormatLabel(league)}
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}
-                      >
-                        {statusBadge.label}
-                      </span>
-                    </div>
-
-                    {record ? <p className="mt-3 text-[11px] text-white/55">Record: {record}</p> : null}
-
-                    <Link
-                      href={`/league/${league.id}`}
-                      className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-                    >
-                      Open
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        ) : null}
 
         <section className="space-y-3">
           <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">AI Shortcuts</p>
