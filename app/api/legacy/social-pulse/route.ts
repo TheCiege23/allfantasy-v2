@@ -109,6 +109,61 @@ function collectSources(rawJson: unknown, annotationCandidates: string[]) {
   return dedupeSources([...fromModel, ...annotationCandidates])
 }
 
+function parseJsonObject(text: string) {
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+function parseReasonRecencyHours(reason?: string) {
+  const text = (reason ?? "").toLowerCase()
+  if (!text) return null
+
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b/)
+  if (hourMatch) {
+    return Math.max(1, Math.round(Number(hourMatch[1])))
+  }
+
+  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:d|day|days)\b/)
+  if (dayMatch) {
+    return Math.max(1, Math.round(Number(dayMatch[1]) * 24))
+  }
+
+  if (/\bjust now\b|\bminutes? ago\b|\btoday\b|\bthis morning\b|\bthis afternoon\b|\bthis evening\b|\btonight\b/.test(text)) {
+    return 2
+  }
+
+  if (/\byesterday\b|\blast night\b/.test(text)) {
+    return 24
+  }
+
+  return null
+}
+
+function parseLastUpdatedRecencyHours(lastUpdated?: string) {
+  if (!lastUpdated) return null
+
+  const timestamp = Date.parse(lastUpdated)
+  if (Number.isNaN(timestamp)) return null
+
+  const diffMs = Date.now() - timestamp
+  const diffHours = Math.round(diffMs / (1000 * 60 * 60))
+  return Math.max(1, diffHours)
+}
+
+function resolveRecencyHours(recencyHours: number | undefined, reason?: string, lastUpdated?: string) {
+  if (typeof recencyHours === "number" && Number.isFinite(recencyHours) && recencyHours >= 0) {
+    return recencyHours
+  }
+
+  return parseReasonRecencyHours(reason) ?? parseLastUpdatedRecencyHours(lastUpdated) ?? 24
+}
+
 function estimateSignalConfidence(signal: string, reason?: string) {
   let base = 62
   if (signal === 'traded' || signal === 'released' || signal === 'injury') base += 18
@@ -132,7 +187,7 @@ function estimateImpactScore(signal: string, reason?: string) {
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/social-pulse", tool: "LegacySocialPulse" })(async (req: NextRequest) => {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
       return NextResponse.json(
         { error: "Unauthorized", message: "Sign in to use Social Pulse." },
@@ -145,7 +200,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/social-pulse", tool: "
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Invalid request format", details: parsed.error.errors },
+        { error: "Invalid request format", details: parsed.error.issues },
         { status: 400 }
       )
     }
@@ -211,16 +266,14 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/social-pulse", tool: "
       return NextResponse.json({ error: "Failed to parse xAI response" }, { status: 500 })
     }
 
-    let json: any = null
-    try {
-      json = JSON.parse(text)
-    } catch {
+    const json = parseJsonObject(text)
+    if (!json) {
       return NextResponse.json({ error: "xAI did not return valid JSON" }, { status: 500 })
     }
 
     const annotationSources = dedupeSources(
       (grok._annotations ?? [])
-        .map((annotation) => annotation.url ?? annotation.title ?? "")
+        .flatMap((annotation) => [annotation.title, annotation.url])
         .filter((source): source is string => typeof source === "string" && source.trim().length > 0)
     )
     const sources = collectSources(json, annotationSources)
@@ -244,7 +297,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/social-pulse", tool: "
       ...m,
       confidence: m.confidence ?? estimateSignalConfidence(m.signal, m.reason),
       impactScore: m.impactScore ?? estimateImpactScore(m.signal, m.reason),
-      recencyHours: m.recencyHours ?? 24,
+      recencyHours: resolveRecencyHours(m.recencyHours, m.reason, out.data.lastUpdated),
     }))
 
     const pulseScore = enrichedMarket.length > 0

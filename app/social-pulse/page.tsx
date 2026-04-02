@@ -8,12 +8,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
-import type { SocialPulseResponse } from '@/lib/social-pulse-schema'
+import { SOCIAL_PULSE_SIGNAL_VALUES, type SocialPulseResponse, type SocialPulseSignal } from '@/lib/social-pulse-schema'
 
 type SocialPulseSport = 'NFL' | 'NBA'
 type SocialPulseFormat = 'dynasty' | 'redraft'
 type MarketEntry = NonNullable<SocialPulseResponse['market']>[number]
-type MarketSignal = MarketEntry['signal']
+type MarketSignal = SocialPulseSignal
 
 type RecentSearch = {
   id: string
@@ -59,6 +59,8 @@ const QUICK_PICKS: Record<SocialPulseSport, string[]> = {
     'Injury report',
   ],
 }
+
+const MARKET_SIGNAL_SET = new Set<SocialPulseSignal>(SOCIAL_PULSE_SIGNAL_VALUES)
 
 const SIGNAL_META: Record<
   MarketSignal,
@@ -133,6 +135,10 @@ const SIGNAL_META: Record<
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isMarketSignal(value: unknown): value is MarketSignal {
+  return typeof value === 'string' && MARKET_SIGNAL_SET.has(value as MarketSignal)
 }
 
 function parseSearchInput(input: string): string[] {
@@ -270,6 +276,17 @@ function normalizeSources(value: unknown): string[] {
   return sources.slice(0, 20)
 }
 
+function extractErrorMessage(value: unknown): string | null {
+  const record = isRecord(value) ? value : null
+  if (!record) return null
+
+  if (typeof record.message === 'string' && record.message.trim().length > 0) return record.message
+  if (typeof record.error === 'string' && record.error.trim().length > 0) return record.error
+  if (typeof record.details === 'string' && record.details.trim().length > 0) return record.details
+
+  return null
+}
+
 function normalizeSocialPulseResult(payload: unknown): SocialPulseResult | null {
   const record = isRecord(payload) ? payload : null
   const candidate = isRecord(record?.data)
@@ -291,8 +308,8 @@ function normalizeSocialPulseResult(payload: unknown): SocialPulseResult | null 
 
   const market = Array.isArray(candidate.market)
     ? candidate.market.filter((item): item is MarketEntry => {
-        return isRecord(item) && typeof item.player === 'string' && typeof item.signal === 'string'
-      }) as MarketEntry[]
+        return isRecord(item) && typeof item.player === 'string' && isMarketSignal(item.signal)
+      })
     : []
 
   return {
@@ -304,6 +321,16 @@ function normalizeSocialPulseResult(payload: unknown): SocialPulseResult | null 
     pulseScore: typeof candidate.pulseScore === 'number' ? candidate.pulseScore : undefined,
     sources: normalizeSources(candidate.sources),
   }
+}
+
+function LoadingDots() {
+  return (
+    <span className="inline-flex items-center gap-1" aria-hidden="true">
+      <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+      <span className="h-2 w-2 rounded-full bg-current animate-pulse [animation-delay:150ms]" />
+      <span className="h-2 w-2 rounded-full bg-current animate-pulse [animation-delay:300ms]" />
+    </span>
+  )
 }
 
 function buildTradeAnalyzerHref(players: string[]): string {
@@ -564,6 +591,7 @@ export default function SocialPulsePage() {
         const normalized = normalizeSocialPulseResult(payload)
         const payloadRecord = isRecord(payload) ? payload : null
         const rateLimitRecord = isRecord(payloadRecord?.rate_limit) ? payloadRecord.rate_limit : null
+        const payloadErrorMessage = extractErrorMessage(payload)
         const retryValue = rateLimitRecord?.retryAfterSec
         const topLevelRetry = payloadRecord?.retryAfterSec
         const parsedRetry =
@@ -575,26 +603,26 @@ export default function SocialPulsePage() {
 
         if (response.status === 401) {
           setErrorStatus(401)
-          setErrorMessage('Sign in to use Social Pulse')
+          setErrorMessage(payloadErrorMessage ?? 'Sign in to use Social Pulse')
           return
         }
 
         if (response.status === 429) {
           setErrorStatus(429)
           setRetryAfterSec(parsedRetry ?? 60)
-          setErrorMessage('Rate limit reached.')
+          setErrorMessage(payloadErrorMessage ?? 'Rate limit reached.')
           return
         }
 
         if (!response.ok) {
           setErrorStatus(response.status)
-          setErrorMessage('Grok search failed. Try again.')
+          setErrorMessage(payloadErrorMessage ?? 'Grok search failed. Try again.')
           return
         }
 
         if (!normalized) {
           setErrorStatus(500)
-          setErrorMessage('Grok search failed. Try again.')
+          setErrorMessage(payloadErrorMessage ?? 'Grok search failed. Try again.')
           return
         }
 
@@ -657,6 +685,10 @@ export default function SocialPulsePage() {
   const pulseScore = Math.max(0, Math.min(100, Math.round(result?.pulseScore ?? 50)))
   const pulseMeta = pulseScoreMeta(pulseScore)
   const tradeAnalyzerHref = useMemo(() => buildTradeAnalyzerHref(submittedPlayers), [submittedPlayers])
+  const sourceSummary =
+    result && result.sources.length > 0
+      ? `${result.sources.length} source${result.sources.length === 1 ? '' : 's'}`
+      : 'X + Web'
 
   return (
     <>
@@ -855,7 +887,14 @@ export default function SocialPulsePage() {
                 }}
                 data-testid="social-pulse-submit"
               >
-                {loading ? 'Searching X and the web...' : 'Get Social Pulse'}
+                {loading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span>Searching X and the web</span>
+                    <LoadingDots />
+                  </span>
+                ) : (
+                  'Get Social Pulse'
+                )}
               </button>
 
               <div className="mt-6">
@@ -935,10 +974,8 @@ export default function SocialPulsePage() {
                       📡
                     </div>
                     <h3 className="mt-5 text-2xl font-black">Searching X and the web...</h3>
-                    <div className="mt-3 inline-flex items-center gap-1 text-sm text-white/55">
-                      <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:150ms]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:300ms]" />
+                    <div className="mt-3 inline-flex items-center text-sm text-white/55">
+                      <LoadingDots />
                     </div>
                     <p className="mt-4 text-sm leading-6 text-white/50">Using Grok AI with live X search and web search.</p>
                   </div>
@@ -986,7 +1023,7 @@ export default function SocialPulsePage() {
                     </div>
 
                     <div className={`mt-3 text-sm ${pulseMeta.textClass}`}>
-                      Last updated: {result.lastUpdated ?? (lastRunAt ? 'just now' : 'just now')} • Sources: X + Web • 7-day window
+                      Last updated: {result.lastUpdated ?? (lastRunAt ? 'just now' : 'just now')} • Sources: {sourceSummary} • 7-day window
                     </div>
                   </div>
 

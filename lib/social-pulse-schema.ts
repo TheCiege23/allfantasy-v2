@@ -1,5 +1,20 @@
 import { z } from "zod"
 
+export const SOCIAL_PULSE_SIGNAL_VALUES = [
+  "up",
+  "down",
+  "mixed",
+  "injury",
+  "hype",
+  "buy_low",
+  "sell_high",
+  "released",
+  "traded",
+  "idp_scarcity",
+] as const
+
+export const SocialPulseSignalSchema = z.enum(SOCIAL_PULSE_SIGNAL_VALUES)
+
 export const SocialPulseRequestSchema = z.object({
   sport: z.enum(["NFL", "NBA"]),
   format: z.enum(["redraft", "dynasty", "specialty"]),
@@ -14,7 +29,7 @@ export const SocialPulseResponseSchema = z.object({
   market: z.array(
     z.object({
       player: z.string(),
-      signal: z.enum(["up", "down", "mixed", "injury", "hype", "buy_low", "sell_high", "released", "traded", "idp_scarcity"]),
+      signal: SocialPulseSignalSchema,
       reason: z.string().optional(),
       confidence: z.number().min(0).max(100).optional(),
       impactScore: z.number().min(0).max(100).optional(),
@@ -29,3 +44,4 @@ export const SocialPulseResponseSchema = z.object({
 
 export type SocialPulseRequest = z.infer<typeof SocialPulseRequestSchema>
 export type SocialPulseResponse = z.infer<typeof SocialPulseResponseSchema>
+export type SocialPulseSignal = z.infer<typeof SocialPulseSignalSchema>
