@@ -16,10 +16,23 @@ import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import type { InsightType } from '@/lib/ai-simulation-integration'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { enrichChatWithData } from '@/lib/chat-data-enrichment'
+import {
+  buildBehaviorRulesPrompt,
+  checkBehaviorRules,
+  checkCustomRules,
+  loadCustomRules,
+  logRuleViolations,
+} from '@/lib/ai/behavior-rules'
 import { buildMemoryPromptSection, getFullAIContext } from '@/lib/ai-memory'
 import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
+import {
+  prepareWorkingMemory,
+  recordAIResponse,
+  recordDecision,
+  recordToolCall,
+} from '@/lib/ai/working-memory'
 import { buildAgentPrompt, inferAgentFromMessage } from '@/lib/agents/pipeline'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
@@ -166,6 +179,7 @@ const ChimmyFormSchema = z.object({
   }, z.string().max(MAX_MESSAGE_CHARS)),
   confirmTokenSpend: booleanFormField,
   conversationId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
+  sessionId: optionalTrimmedStringField(MAX_GENERIC_FIELD_CHARS),
   privateMode: booleanFormField,
   targetUsername: optionalTrimmedStringField(MAX_USERNAME_CHARS),
   strategyMode: optionalTrimmedStringField(MAX_STRATEGY_MODE_CHARS),
@@ -700,6 +714,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     message: formData.get('message'),
     confirmTokenSpend: formData.get('confirmTokenSpend'),
     conversationId: formData.get('conversationId'),
+    sessionId: formData.get('sessionId'),
     privateMode: formData.get('privateMode'),
     targetUsername: formData.get('targetUsername'),
     strategyMode: formData.get('strategyMode'),
@@ -734,6 +749,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     message,
     confirmTokenSpend,
     conversationId: explicitConversationId,
+    sessionId: rawSessionId,
     privateMode,
     targetUsername,
     strategyMode,
@@ -757,15 +773,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const imageFile = imageValidation.file
   const sport = normalizeToSupportedSport(sportRaw || undefined)
   const effectiveStrategyMode = strategyMode ?? riskMode
+  const initialIntent = classifyPecrIntent(message)
   const conversationId = buildChimmyConversationId({
     userId,
     leagueId: leagueId ?? null,
     explicitConversationId,
   })
+  const sessionId = String(rawSessionId ?? `${userId}-${Date.now()}`)
+  const behaviorRulesBlock = buildBehaviorRulesPrompt()
+  const workingMemoryMessage = message || '[image-only request]'
+  const { prompt: memPrompt, currentTags } = await prepareWorkingMemory({
+    sessionId,
+    userId,
+    message: workingMemoryMessage,
+    featureTags: [initialIntent],
+  })
+  const customRulesTask = loadCustomRules()
 
   if (!message && !hasImage) {
     return NextResponse.json({
       response: 'Ask me a fantasy sports question, share roster context, or upload a screenshot for analysis.',
+      sessionId,
     })
   }
 
@@ -774,6 +802,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       response:
         "I'm Chimmy, your fantasy sports assistant. I can help with trades, waivers, matchups, and lineup strategy.",
+      sessionId,
       meta: {
         confidencePct: 100,
         providerStatus: {
@@ -833,17 +862,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const insightSummary = insightResult.status === 'fulfilled' ? insightResult.value?.summary : undefined
   const insightSources = insightResult.status === 'fulfilled' ? insightResult.value?.sources ?? [] : []
   const memorySection = memoryResult.status === 'fulfilled' ? memoryResult.value : undefined
+  const combinedMemorySection = [memPrompt.contextBlock, memorySection].filter(Boolean).join('\n\n')
+  const promptPrelude = [behaviorRulesBlock, memPrompt.systemBlock].filter(Boolean).join('\n\n')
 
   if (screenshotSummary) dataSources.push('screenshot_vision')
   if (insightSources.length > 0) dataSources.push(...insightSources)
   if (memorySection) dataSources.push('ai_memory', 'chat_history')
+  if (memPrompt.contextBlock) dataSources.push('working_memory')
 
-  const baseUserMessage = buildUserMessage({
+  const baseUserMessageBody = buildUserMessage({
     message,
     conversation,
     screenshotSummary,
     insightSummary,
-    memorySection,
+    memorySection: combinedMemorySection || undefined,
     leagueFormat,
     scoring,
     strategyMode: effectiveStrategyMode,
@@ -853,6 +885,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     privateMode,
     targetUsername,
   })
+  const baseUserMessage = promptPrelude
+    ? `${promptPrelude}\n\n${baseUserMessageBody}`
+    : baseUserMessageBody
 
   const deterministicContext = compactRecord({
     contextSnapshot: compactRecord({
@@ -873,6 +908,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       riskMode,
       source,
       conversationId,
+      sessionId,
     }),
     matchupData: insightType === 'matchup'
       ? compactRecord({ leagueId, teamId, week, season, summary: insightSummary })
@@ -893,10 +929,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ? compactRecord({ summary: insightSummary || message.slice(0, 280) })
       : undefined,
     screenshotEvidence: screenshotSummary,
-    memoryContext: memorySection
+    memoryContext: combinedMemorySection
       ? compactRecord({
           conversationId,
-          promptSection: memorySection.slice(0, 4000),
+          promptSection: combinedMemorySection.slice(0, 4000),
+        })
+      : undefined,
+    workingMemoryContext: memPrompt.contextBlock
+      ? compactRecord({
+          sessionId,
+          tags: currentTags,
+          promptSection: memPrompt.contextBlock.slice(0, 4000),
         })
       : undefined,
   })
@@ -949,6 +992,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { status: 400 }
     )
   }
+
+  const customRules = await customRulesTask
 
   const spendService = new TokenSpendService()
   let tokenPreview: TokenSpendPreview | null = null
@@ -1071,6 +1116,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           const legacyEnrichmentContext =
             legacyEnrichment.status === 'fulfilled' ? legacyEnrichment.value.context : ''
 
+          if (legacyEnrichment.status === 'fulfilled') {
+            recordToolCall(
+              sessionId,
+              userId,
+              'enrichChatWithData',
+              `loaded ${legacyEnrichment.value.audit.sourcesUsed.length} data sources`
+            ).catch(() => {})
+          }
+
           const enrichmentLoaded =
             legacyEnrichment.status === 'fulfilled' &&
             (legacyEnrichmentContext.trim().length > 0 ||
@@ -1171,6 +1225,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         check: (output, plan) => {
           const failures: string[] = []
           const answer = output.sanitizedAiExplanation.trim()
+          const fullAnswer = [output.sanitizedAiExplanation, output.sanitizedActionPlan]
+            .filter(Boolean)
+            .join('\n\n')
 
           if (answer.length <= 30) {
             failures.push('answer length must be greater than 30 characters')
@@ -1189,12 +1246,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             failures.push(`invalid tool links: ${invalidToolLinks.join(', ')}`)
           }
 
+          const builtInCheck = checkBehaviorRules(fullAnswer, {
+            input: message,
+            featureName: 'chimmy',
+            contextBlock: combinedMemorySection,
+          })
+          const customViolations = checkCustomRules(fullAnswer, customRules)
+          const hardRuleViolations = [
+            ...builtInCheck.violations,
+            ...customViolations,
+          ].filter((violation) => violation.severity === 'hard')
+
+          if (hardRuleViolations.length > 0) {
+            failures.push(
+              ...hardRuleViolations.map(
+                (violation) => `behavior rule ${violation.ruleId} violated: ${violation.reason}`
+              )
+            )
+          }
+
           return {
             passed: failures.length === 0,
             failures,
             refineHint:
               failures.length > 0
-                ? 'Player and league context is loaded. Reference it explicitly in your answer.'
+                ? 'Player and league context is loaded. Reference it explicitly and stay within the requested scope.'
                 : undefined,
           }
         },
@@ -1202,6 +1278,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
 
     const pecrOutput = pecrResult.output
+    const finalAnswer = [pecrOutput.sanitizedAiExplanation, pecrOutput.sanitizedActionPlan]
+      .filter(Boolean)
+      .join('\n\n')
+    const builtInRuleCheck = checkBehaviorRules(finalAnswer, {
+      input: message,
+      featureName: 'chimmy',
+      contextBlock: combinedMemorySection,
+    })
+    const customViolations = checkCustomRules(finalAnswer, customRules)
+    const allRuleViolations = [...builtInRuleCheck.violations, ...customViolations]
+
+    logRuleViolations(userId, 'chimmy', allRuleViolations, pecrResult.iterations).catch(() => {})
+
+    if (
+      builtInRuleCheck.hardFailed ||
+      customViolations.some((violation) => violation.severity === 'hard')
+    ) {
+      console.warn(
+        '[Chimmy] Hard behavior rule violated:',
+        allRuleViolations
+          .filter((violation) => violation.severity === 'hard')
+          .map((violation) => violation.ruleId)
+      )
+    }
+
     await logUsageToSupabase({
       userId,
       intent: specialistAgent,
@@ -1238,6 +1339,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (userId) {
       const assistantResponse = pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
+      recordAIResponse(sessionId, userId, assistantResponse, 0.6).catch(() => {})
+      if (/start|sit|accept|decline|add|drop/i.test(assistantResponse)) {
+        recordDecision(sessionId, userId, assistantResponse.slice(0, 200), 0.8).catch(() => {})
+      }
       const persistTasks = [
         appendChatHistory({
           conversationId,
@@ -1277,6 +1382,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         response: pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
+        sessionId,
         meta,
       },
       {

@@ -35,6 +35,7 @@ export type AIChatContext = {
   season?: number
   week?: number
   conversationId?: string
+  sessionId?: string
   privateMode?: boolean
   targetUsername?: string
   strategyMode?: string

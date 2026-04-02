@@ -32,6 +32,7 @@ import { getCalibratedWeights } from '@/lib/trade-engine/accept-calibration'
 import { parsePickLabel } from '@/lib/parsePickLabel'
 import { logTradeOfferEvent } from '@/lib/trade-engine/trade-event-logger'
 import { logNarrativeValidation } from '@/lib/trade-engine/narrative-validation-logger'
+import { checkBehaviorRules, logRuleViolations } from '@/lib/ai/behavior-rules'
 import { detectTradeLabels, getPositiveLabels, getWarningLabels, TradeAsset } from '@/lib/trade-labels'
 import { evaluateVeto } from '@/lib/trade-veto'
 import { buildLeagueDecisionContext, summarizeLeagueDecisionContext, LeagueDecisionContext } from '@/lib/league-decision-context'
@@ -1749,13 +1750,20 @@ Fairness score: ${fairnessScore}/100
       ...(grokTrendResult && { trendIntelligence: grokTrendResult }),
       aiProviders,
     }
+    const tradeRecommendation = resolveTradeRecommendation(evalData) ?? ''
+    const tradeRuleCheck = checkBehaviorRules(tradeRecommendation, {
+      input: JSON.stringify({ giving: senderPlayerNames, receiving: receiverPlayerNames }),
+      featureName: 'trade',
+    })
+    logRuleViolations(userId ?? null, 'trade', tradeRuleCheck.violations, 1).catch(() => {})
+
     if (cacheKey && config.cacheTtlMs) {
       setCachedResponse(cacheKey, { ...payload, tokenSpend: null }, config.cacheTtlMs)
     }
     return NextResponse.json(
       await runTradeEvaluatorPECR({
         payload,
-        recommendation: resolveTradeRecommendation(evalData),
+        recommendation: tradeRecommendation || null,
         valueDelta: teamANetValue,
         qualityGate: extractTradeQualityGate(evalData),
       })

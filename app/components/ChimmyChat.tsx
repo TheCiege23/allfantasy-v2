@@ -63,6 +63,13 @@ function renderContentWithLinks(content: string) {
 
 const CHIMMY_GREETING = `Hi, I'm Chimmy ${HEART_EMOJI} I'm your calm, evidence-based fantasy assistant. Ask me about your roster, league, trades, waivers, or upload a screenshot and I'll break it down clearly.`;
 
+function createSessionId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `chimmy-${Date.now()}`;
+}
+
 export default function ChimmyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: CHIMMY_GREETING },
@@ -75,6 +82,7 @@ export default function ChimmyChat() {
   const [isListening, setIsListening] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [sessionId, setSessionId] = useState(() => createSessionId());
 
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -158,6 +166,15 @@ export default function ChimmyChat() {
     setIsVoicePlaying(false);
   };
 
+  const startNewConversation = () => {
+    handleStopVoice();
+    setMessages([{ role: 'assistant', content: CHIMMY_GREETING }]);
+    setInput('');
+    setImagePreview(null);
+    setImageFile(null);
+    setSessionId(createSessionId());
+  };
+
   const toggleListening = () => {
     if (!recognitionRef.current) {
       toast.error('Voice input is not supported on this browser.');
@@ -233,6 +250,9 @@ export default function ChimmyChat() {
           content: m.content,
           imageUrl: m.image ?? null,
         })),
+        context: {
+          sessionId,
+        },
         confirmTokenSpend: false,
         onChunk: (text) => {
           streamedAssistantHandled = true;
@@ -247,6 +267,9 @@ export default function ChimmyChat() {
           });
         },
       });
+      if (result.sessionId) {
+        setSessionId(result.sessionId);
+      }
       const reply = result.response || CHIMMY_GENERIC_ERROR_MESSAGE;
 
       if (!streamedAssistantHandled) {
@@ -289,25 +312,36 @@ export default function ChimmyChat() {
           </div>
         </div>
 
-        <button
-          onClick={() => setVoiceEnabled(!voiceEnabled)}
-          className="p-3 rounded-full hover:bg-white/10 transition"
-          title="Toggle Chimmy voice replies"
-        >
-          {voiceEnabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
-        </button>
-        <label className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
-          <span>Voice</span>
-          <select
-            value={selectedVoice}
-            onChange={(event) => setSelectedVoice(event.target.value as ChimmyTtsVoice)}
-            className="bg-slate-900 text-white rounded-lg px-2 py-1 outline-none"
-            aria-label="Select Chimmy voice"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={startNewConversation}
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 transition"
+            title="Start a new conversation"
           >
-            <option value="rachel">Rachel</option>
-            <option value="adam">Adam</option>
-          </select>
-        </label>
+            <Square className="w-4 h-4 text-cyan-400" />
+            New conversation
+          </button>
+          <button
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            className="p-3 rounded-full hover:bg-white/10 transition"
+            title="Toggle Chimmy voice replies"
+          >
+            {voiceEnabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
+          </button>
+          <label className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
+            <span>Voice</span>
+            <select
+              value={selectedVoice}
+              onChange={(event) => setSelectedVoice(event.target.value as ChimmyTtsVoice)}
+              className="bg-slate-900 text-white rounded-lg px-2 py-1 outline-none"
+              aria-label="Select Chimmy voice"
+            >
+              <option value="rachel">Rachel</option>
+              <option value="adam">Adam</option>
+            </select>
+          </label>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">

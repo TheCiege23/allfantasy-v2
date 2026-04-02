@@ -25,6 +25,7 @@ type SendChimmyMessageResult = {
   error?: string
   upgradeRequired?: boolean
   upgradePath?: string
+  sessionId?: string
 }
 
 function toConversationPayload(conversation: ChimmyThreadMessage[] = []) {
@@ -156,6 +157,7 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
       season: input.context?.season,
       week: input.context?.week,
       conversationId: input.context?.conversationId,
+      sessionId: input.context?.sessionId,
       privateMode: input.context?.privateMode,
       targetUsername: input.context?.targetUsername,
       strategyMode: input.context?.strategyMode,
@@ -312,6 +314,7 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     ok: true,
     response: response || fallbackResponse,
     meta,
+    sessionId: typeof data?.sessionId === "string" ? data.sessionId : undefined,
     ...(upgradeRequired
       ? {
           upgradeRequired: true,

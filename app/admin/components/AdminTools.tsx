@@ -17,6 +17,14 @@ type PurgeResult = {
 
 type ToolUsage = { name: string; count: number; err: number; p95: number | null };
 type PECRHealthItem = { feature: string; avgIterations: number; passRate: number; lastRun: string | null };
+type AIBehaviorStats = {
+  totalViolations: number;
+  hardCount: number;
+  softCount: number;
+  topRule: { ruleId: string; count: number } | null;
+  customRuleCount: number;
+  countsByRule: Array<{ ruleId: string; count: number }>;
+};
 
 export default function AdminTools() {
   const { formatInTimezone, formatDateInTimezone } = useUserTimezone();
@@ -40,6 +48,8 @@ export default function AdminTools() {
   const [aiUsage, setAiUsage] = useState<{ topTools: ToolUsage[]; totalCalls: number } | null>(null);
   const [pecrHealth, setPecrHealth] = useState<{ totalRuns: number; features: PECRHealthItem[] } | null>(null);
   const [pecrLoading, setPecrLoading] = useState(false);
+  const [aiBehavior, setAiBehavior] = useState<AIBehaviorStats | null>(null);
+  const [aiBehaviorLoading, setAiBehaviorLoading] = useState(false);
 
   const [analyticsStats, setAnalyticsStats] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -169,6 +179,7 @@ export default function AdminTools() {
     checkApiStatus();
     fetchUsageData();
     loadPecrHealth();
+    loadAiBehavior();
   }, []);
 
   const loadPecrHealth = async () => {
@@ -189,6 +200,56 @@ export default function AdminTools() {
       setPecrHealth({ totalRuns: 0, features: [] });
     } finally {
       setPecrLoading(false);
+    }
+  };
+
+  const loadAiBehavior = async () => {
+    setAiBehaviorLoading(true);
+    try {
+      const res = await fetch("/api/admin/ai-behavior", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        setAiBehavior({
+          totalViolations: Number(data.totalViolations ?? 0),
+          hardCount: Number(data.hardCount ?? 0),
+          softCount: Number(data.softCount ?? 0),
+          topRule:
+            data.topRule && typeof data.topRule === "object"
+              ? {
+                  ruleId: String(data.topRule.ruleId ?? "unknown"),
+                  count: Number(data.topRule.count ?? 0),
+                }
+              : null,
+          customRuleCount: Number(data.customRuleCount ?? 0),
+          countsByRule: Array.isArray(data.countsByRule)
+            ? data.countsByRule.map((item: any) => ({
+                ruleId: String(item.ruleId ?? "unknown"),
+                count: Number(item.count ?? 0),
+              }))
+            : [],
+        });
+      } else {
+        setAiBehavior({
+          totalViolations: 0,
+          hardCount: 0,
+          softCount: 0,
+          topRule: null,
+          customRuleCount: 0,
+          countsByRule: [],
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch AI behavior stats", e);
+      setAiBehavior({
+        totalViolations: 0,
+        hardCount: 0,
+        softCount: 0,
+        topRule: null,
+        customRuleCount: 0,
+        countsByRule: [],
+      });
+    } finally {
+      setAiBehaviorLoading(false);
     }
   };
 
@@ -390,6 +451,62 @@ export default function AdminTools() {
                   <span className="text-xs font-mono text-violet-400 shrink-0">{t.count.toLocaleString()}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border p-3 sm:p-5 md:col-span-3" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>AI Behavior (7d)</h4>
+            {aiBehavior != null && (
+              <span className="text-[10px] ml-auto font-mono" style={{ color: "var(--muted2)" }}>
+                {aiBehavior.totalViolations.toLocaleString()} violations
+              </span>
+            )}
+          </div>
+          {aiBehaviorLoading ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>Loading…</p>
+          ) : aiBehavior == null ? (
+            <p className="text-xs" style={{ color: "var(--muted2)" }}>No behavior data yet</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                  <div className="text-[10px]" style={{ color: "var(--muted2)" }}>Hard</div>
+                  <div className="mt-1 text-lg font-mono text-red-400">{aiBehavior.hardCount.toLocaleString()}</div>
+                </div>
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                  <div className="text-[10px]" style={{ color: "var(--muted2)" }}>Soft</div>
+                  <div className="mt-1 text-lg font-mono text-amber-400">{aiBehavior.softCount.toLocaleString()}</div>
+                </div>
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                  <div className="text-[10px]" style={{ color: "var(--muted2)" }}>Top Rule</div>
+                  <div className="mt-1 text-sm font-medium" style={{ color: "var(--text)" }}>
+                    {aiBehavior.topRule?.ruleId ?? "—"}
+                  </div>
+                  <div className="text-[10px] font-mono" style={{ color: "var(--muted2)" }}>
+                    {aiBehavior.topRule ? `${aiBehavior.topRule.count.toLocaleString()} hits` : "No violations"}
+                  </div>
+                </div>
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                  <div className="text-[10px]" style={{ color: "var(--muted2)" }}>Custom Rules</div>
+                  <div className="mt-1 text-lg font-mono text-cyan-400">{aiBehavior.customRuleCount.toLocaleString()}</div>
+                </div>
+              </div>
+
+              {aiBehavior.countsByRule.length === 0 ? (
+                <p className="text-xs" style={{ color: "var(--muted2)" }}>No rule violations recorded in the last 7 days.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {aiBehavior.countsByRule.slice(0, 6).map((item) => (
+                    <div key={item.ruleId} className="flex items-center justify-between gap-2 rounded-xl border p-3" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--text) 3%, transparent)" }}>
+                      <span className="text-xs truncate" style={{ color: "var(--muted)" }}>{item.ruleId}</span>
+                      <span className="text-xs font-mono text-amber-400 shrink-0">{item.count.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

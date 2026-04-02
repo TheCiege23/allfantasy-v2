@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This league is not currently accepting orphan adoption requests." }, { status: 400 })
   }
 
+  // TODO: enforce tier when League.requiredTier is added. This request flow is the right
+  // place for the 1-tier join gate; invite-code joins stay exempt because they are explicit invites.
+
   const alreadyInLeague = await prisma.roster.findFirst({
     where: { leagueId, platformUserId: userId },
     select: { id: true },

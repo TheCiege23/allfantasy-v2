@@ -1616,6 +1616,28 @@ model PecrLog {
   @@map("pecr_logs")
 }
 
+model AICodebaseEdit {
+  id           String   @id @default(uuid())
+  filePath     String
+  editedAt     DateTime @default(now())
+  summary      String
+  reason       String
+  linesAdded   Int      @default(0)
+  linesRemoved Int      @default(0)
+
+  @@index([filePath])
+  @@index([editedAt])
+  @@map("ai_codebase_edits")
+}
+
+model AIRepoMemory {
+  id        String   @id
+  memory    String
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_repo_memory")
+}
+
 model ManagerDNA {
   id                 String   @id @default(uuid())
   sleeperUsername    String
@@ -7559,4 +7581,39 @@ model PlatformConfig {
   updatedAt DateTime @updatedAt
 
   @@map("platform_config")
+}
+
+model AIRuleViolationLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  feature   String
+  ruleId    String
+  severity  String
+  reason    String
+  iteration Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([feature])
+  @@index([ruleId])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("ai_rule_violation_logs")
+}
+
+model AICustomRule {
+  id              String   @id @default(uuid())
+  description     String
+  prompt          String   @db.Text
+  severity        String
+  category        String
+  blockedPattern  String?
+  requiredPattern String?
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([category])
+  @@map("ai_custom_rules")
 }

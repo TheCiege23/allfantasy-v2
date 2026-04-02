@@ -72,6 +72,7 @@ const ChimmyJsonRequestSchema = z.object({
     season: z.number().int().min(1900).max(3000).optional(),
     week: z.number().int().min(1).max(100).optional(),
     conversationId: z.string().trim().min(1).max(120).optional(),
+    sessionId: z.string().trim().min(1).max(120).optional(),
     privateMode: z.boolean().optional(),
     targetUsername: z.string().trim().min(1).max(80).optional(),
     strategyMode: z.string().trim().min(1).max(48).optional(),
@@ -155,7 +156,10 @@ async function toCompatibilityResponse(response: Response): Promise<NextResponse
   })
 }
 
-function buildAnthropicSuccessPayload(body: Awaited<ReturnType<typeof runAgentPipeline>>) {
+function buildAnthropicSuccessPayload(
+  body: Awaited<ReturnType<typeof runAgentPipeline>>,
+  sessionId?: string
+) {
   const upgradeRequired = body.upgradeRequired === true
   const recommendedTool =
     body.intent === 'trade_evaluation'
@@ -174,6 +178,7 @@ function buildAnthropicSuccessPayload(body: Awaited<ReturnType<typeof runAgentPi
     ...body,
     response: body.result,
     result: body.result,
+    sessionId,
     meta: {
       responseStructure: buildChimmyResponseStructure(body.result),
       recommendedTool,
@@ -372,6 +377,9 @@ function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJ
   if (payload.userContext.conversationId) {
     formData.append('conversationId', payload.userContext.conversationId)
   }
+  if (payload.userContext.sessionId) {
+    formData.append('sessionId', payload.userContext.sessionId)
+  }
   if (payload.userContext.privateMode) {
     formData.append('privateMode', 'true')
   }
@@ -526,7 +534,7 @@ export async function POST(req: NextRequest) {
                   userId,
                   leagueId: parseResult.data.userContext.leagueId ?? undefined,
                 })
-                push('done', buildAnthropicSuccessPayload(result))
+                push('done', buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId))
                 controller.close()
                 return
               }
@@ -538,7 +546,7 @@ export async function POST(req: NextRequest) {
                 model: result.model,
               })
 
-              push('done', buildAnthropicSuccessPayload(result))
+              push('done', buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId))
               controller.close()
             } catch (error) {
               await refundAnthropicTokenFallbackIfNeeded({
@@ -583,7 +591,10 @@ export async function POST(req: NextRequest) {
         userId,
         leagueId: parseResult.data.userContext.leagueId ?? undefined,
       })
-      return NextResponse.json(buildAnthropicSuccessPayload(result), { status: 200 })
+      return NextResponse.json(
+        buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId),
+        { status: 200 }
+      )
     }
 
     await logAnthropicUsageToSupabase({
@@ -593,7 +604,10 @@ export async function POST(req: NextRequest) {
       model: result.model,
     })
 
-    return NextResponse.json(buildAnthropicSuccessPayload(result), { status: 200 })
+    return NextResponse.json(
+      buildAnthropicSuccessPayload(result, parseResult.data.userContext.sessionId),
+      { status: 200 }
+    )
   } catch (error) {
     await refundAnthropicTokenFallbackIfNeeded({
       tokenSpendId,
