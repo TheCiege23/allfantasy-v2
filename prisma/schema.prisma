@@ -441,11 +441,34 @@ model LegacyUserRankCache {
   lastCalculatedAt              DateTime   @default(now()) @map("last_calculated_at")
   lastRefreshAt                 DateTime?  @map("last_refresh_at")
   computedFromImportCompletedAt DateTime?  @map("computed_from_import_completed_at")
+  rankImportCount               Int        @default(0) @map("rank_import_count")
+  rankSources                   Json?      @map("rank_sources")
+  lastRankResetAt               DateTime?  @map("last_rank_reset_at")
   user                          LegacyUser @relation(fields: [legacyUserId], references: [id], onDelete: Cascade)
 
   @@index([lastCalculatedAt], map: "legacy_user_rank_cache_last_calculated_idx")
   @@index([lastRefreshAt], map: "legacy_user_rank_cache_last_refresh_idx")
   @@map("legacy_user_rank_cache")
+}
+
+model PlatformIdentity {
+  id               String   @id @default(uuid())
+  userId           String
+  platform         String
+  platformUserId   String
+  platformUsername String
+  displayName      String?
+  avatarUrl        String?
+  sport            String   @default("nfl")
+  isVerified       Boolean  @default(false)
+  firstImportAt    DateTime?
+  rankLocked       Boolean  @default(false)
+  lastSyncedAt     DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([platform, platformUserId])
+  @@index([userId])
 }
 
 model LegacyImportJob {
@@ -3922,6 +3945,8 @@ model League {
   aiCommissionerConfig     AiCommissionerConfig?
   aiCommissionerAlerts     AiCommissionerAlert[]
   aiCommissionerActionLogs AiCommissionerActionLog[]
+  invites                  LeagueInvite[]
+  managerClaims            LeagueManagerClaim[]
   user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
   legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
   legacyLeagueId     String?               @unique
@@ -4346,6 +4371,38 @@ enum LeagueSport {
   SOCCER
 }
 
+model LeagueInvite {
+  id        String   @id @default(uuid())
+  leagueId   String
+  token      String   @unique @default(uuid())
+  createdBy  String
+  expiresAt  DateTime?
+  maxUses    Int      @default(50)
+  useCount   Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([leagueId])
+}
+
+model LeagueManagerClaim {
+  id             String   @id @default(uuid())
+  leagueId       String
+  afUserId       String
+  teamExternalId String
+  platformUserId String?
+  claimedAt      DateTime @default(now())
+  isConfirmed    Boolean  @default(false)
+
+  league         League   @relation(fields: [leagueId], references: [id])
+
+  @@unique([leagueId, afUserId])
+  @@unique([leagueId, teamExternalId])
+}
+
 model Roster {
   id             String   @id @default(uuid())
   leagueId       String
@@ -4375,6 +4432,10 @@ model LeagueTeam {
   ownerName     String
   teamName      String
   avatarUrl     String?
+  role          String   @default("member")
+  isOrphan      Boolean  @default(false)
+  claimedByUserId String?
+  platformUserId  String?
   wins          Int      @default(0)
   losses        Int      @default(0)
   ties          Int      @default(0)
