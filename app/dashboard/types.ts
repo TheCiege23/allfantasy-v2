@@ -15,6 +15,8 @@ export interface UserLeague {
   isDynasty?: boolean
   settings?: Record<string, unknown>
   sleeperLeagueId?: string
+  /** ISO string from league detail / Sleeper draft when available */
+  draftDate?: string | null
 }
 
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */
@@ -59,6 +61,9 @@ export interface LeagueTeamSlot {
   ties: number
   pointsFor: number
 }
+
+/** League team row for tab UIs (draft, league, trades) */
+export type UserLeagueTeam = LeagueTeamSlot
 
 export interface LeagueDetail {
   id: string
