@@ -1,6 +1,5 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
 import ChimmyChat from '@/app/components/ChimmyChat'
@@ -24,7 +23,6 @@ type RightControlPanelProps = {
 }
 
 export function RightControlPanel({ leagues, loadingLeagues, onImport, onAfterLeagueNavigate }: RightControlPanelProps) {
-  const router = useRouter()
   const [afTab, setAfTab] = useState<AfSubTab>('chimmy')
 
   const openFullChimmy = () => {
@@ -107,8 +105,7 @@ export function RightControlPanel({ leagues, loadingLeagues, onImport, onAfterLe
           <LeagueListPanel
             leagues={leagues}
             selectedId={null}
-            onSelect={(l) => {
-              router.push(`/league/${l.id}`)
+            onSelect={() => {
               onAfterLeagueNavigate?.()
             }}
             compact

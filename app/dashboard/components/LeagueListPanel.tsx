@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -317,19 +318,6 @@ export function LeagueListPanel({
               return (
                 <div
                   key={league.id}
-                  draggable
-                  onClick={() => onSelect(league)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onSelect(league)
-                    }
-                  }}
-                  onDragStart={() => {
-                    draggedLeagueIdRef.current = league.id
-                    setDraggingId(league.id)
-                  }}
-                  onDragEnd={resetDragState}
                   onDragOver={(event) => {
                     event.preventDefault()
                     if (draggedLeagueIdRef.current && draggedLeagueIdRef.current !== league.id) {
@@ -340,54 +328,82 @@ export function LeagueListPanel({
                     event.preventDefault()
                     handleDrop(league.id)
                   }}
-                  role="button"
-                  tabIndex={0}
-                  className={`cursor-pointer rounded-xl border-l-2 px-2.5 py-2 text-left transition-all duration-150 ${
-                    isSelected
-                      ? 'border-l-cyan-500 bg-cyan-500/[0.08]'
-                      : 'border-l-transparent hover:bg-white/[0.04]'
-                  } ${isDragging ? 'opacity-40' : ''} ${isDropTarget ? 'border border-cyan-500/50' : 'border border-transparent'}`}
+                  className={`rounded-xl border transition-all duration-150 ${
+                    isDragging ? 'opacity-40' : ''
+                  } ${isDropTarget ? 'border-cyan-500/50' : 'border-transparent'}`}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="pt-0.5 text-base">{getPlatformEmoji(league.platform)}</div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-[12px] font-semibold text-white/85">{league.name}</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              handleFavoriteToggle(league.id)
-                            }}
-                            className="text-sm leading-none text-white/55 transition hover:text-white"
-                            aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
-                          >
-                            {isFavorite ? '★' : '☆'}
-                          </button>
-                          <span
-                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}
-                          >
-                            {statusBadge.label}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-1">
-                        <span
-                          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${conceptBadge.className}`}
-                        >
-                          {conceptBadge.label}
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-[10px] text-white/40">
-                        {(league.format || 'League').replace(/_/g, ' ')} · {league.teamCount} teams
-                      </p>
+                  <div className="flex items-start gap-1">
+                    <div
+                      draggable
+                      onDragStart={(event) => {
+                        draggedLeagueIdRef.current = league.id
+                        setDraggingId(league.id)
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', league.id)
+                      }}
+                      onDragEnd={resetDragState}
+                      className="flex shrink-0 cursor-grab select-none flex-col justify-center rounded-md py-2 pl-0.5 pr-0.5 text-[10px] leading-none text-white/25 hover:text-white/50 active:cursor-grabbing"
+                      aria-label="Reorder league"
+                      title="Drag to reorder"
+                    >
+                      <span aria-hidden>⋮</span>
+                      <span aria-hidden className="-mt-1">
+                        ⋮
+                      </span>
                     </div>
+
+                    <Link
+                      href={`/league/${league.id}`}
+                      className={`min-w-0 flex-1 rounded-xl border-l-2 px-2 py-2 text-left transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                        isSelected
+                          ? 'border-l-cyan-500 bg-cyan-500/[0.08]'
+                          : 'border-l-transparent hover:bg-white/[0.04]'
+                      }`}
+                      onClick={() => onSelect(league)}
+                      scroll
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className="pt-0.5 text-base">{getPlatformEmoji(league.platform)}</div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-[12px] font-semibold text-white/85">{league.name}</p>
+                            </div>
+                            <span
+                              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}
+                            >
+                              {statusBadge.label}
+                            </span>
+                          </div>
+
+                          <div className="mt-1">
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${conceptBadge.className}`}
+                            >
+                              {conceptBadge.label}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-[10px] text-white/40">
+                            {(league.format || 'League').replace(/_/g, ' ')} · {league.teamCount} teams
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        handleFavoriteToggle(league.id)
+                      }}
+                      className="mt-0.5 shrink-0 text-sm leading-none text-white/55 transition hover:text-white"
+                      aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
+                    >
+                      {isFavorite ? '★' : '☆'}
+                    </button>
                   </div>
                 </div>
               )

@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -320,7 +319,6 @@ export function DashboardOverview({
   onTriggerImport,
   onOpenChimmy,
 }: DashboardOverviewProps) {
-  const router = useRouter()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   const [expanded, setExpanded] = useState(true)
   const [hideChecklist, setHideChecklist] = useState(false)
@@ -571,14 +569,13 @@ export function DashboardOverview({
 
                     {record ? <p className="mt-3 text-[11px] text-white/55">Record: {record}</p> : null}
 
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/league/${league.id}`)}
+                    <Link
+                      href={`/league/${league.id}`}
                       className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
                     >
                       Open
                       <ArrowRight className="h-4 w-4" />
-                    </button>
+                    </Link>
                   </div>
                 )
               })}
