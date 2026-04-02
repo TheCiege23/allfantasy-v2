@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { ChecklistStep, UserLeague } from '../types'
@@ -320,7 +320,8 @@ export function DashboardOverview({
   onOpenChimmy,
 }: DashboardOverviewProps) {
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
-  const [expanded, setExpanded] = useState(true)
+  /** UI-only per session — not persisted */
+  const [checklistExpanded, setChecklistExpanded] = useState(false)
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
@@ -409,24 +410,27 @@ export function DashboardOverview({
           <p className="text-xs text-cyan-400/95">
             ✓ All set! You&apos;re ready to get the most out of AllFantasy.
           </p>
-        ) : (
+        ) : checklistExpanded ? (
           <section className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e]">
             <button
               type="button"
-              onClick={() => setExpanded((current) => !current)}
+              onClick={() => setChecklistExpanded(false)}
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
             >
               <div>
                 <p className="text-sm font-bold text-white">Get Started</p>
                 <p className="mt-1 text-xs text-white/40">{completedCount} of 5 complete</p>
               </div>
-              <div className="flex items-center gap-2 text-white/40">
-                {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
+              <span
+                className="inline-block text-lg leading-none text-white/40 transition-transform duration-200"
+                style={{ transform: 'rotate(90deg)' }}
+                aria-hidden
+              >
+                ›
+              </span>
             </button>
 
-            {expanded ? (
-              <div className="border-t border-white/8">
+            <div className="border-t border-white/8">
                 {checklistSteps.map((step) => (
                   <div key={step.id} className="flex items-center gap-3 border-b border-white/6 px-4 py-3 last:border-b-0">
                     <div
@@ -484,9 +488,24 @@ export function DashboardOverview({
                     ) : null}
                   </div>
                 ))}
-              </div>
-            ) : null}
+            </div>
           </section>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setChecklistExpanded(true)}
+            className="flex h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/50 transition hover:bg-white/[0.06]"
+          >
+            <span>
+              Setup · <span className="text-white/80">{completedCount}/5</span> complete
+            </span>
+            <span
+              className="text-white/40 transition-transform"
+              aria-hidden
+            >
+              ›
+            </span>
+          </button>
         )}
 
         <section className="border-b border-white/[0.07] pb-5">
