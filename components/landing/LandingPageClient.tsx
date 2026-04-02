@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { ArrowRight, Shield } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
-import { InstallButton, ShareButton } from '@/components/PWAButtons'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
@@ -16,9 +15,8 @@ const LANDING_COPY = {
     nav: {
       brand: 'AllFantasy',
       signIn: 'Sign In',
-      createAccount: 'Create Free Account',
+      signUp: 'Sign Up',
       dashboard: 'Dashboard',
-      openApp: 'Open App',
       admin: 'Admin',
     },
     badge: 'Coming Spring 2026! Early Signups Available',
@@ -27,10 +25,9 @@ const LANDING_COPY = {
       titleBottom: 'With AI Superpowers',
       subtitle:
         'The only fantasy sports platform with an AI that actually knows your league. Draft smarter, analyze trades, dominate waivers, and win across every sport.',
-      primary: 'Create Free Account',
+      primary: 'Sign Up Free',
       secondary: 'Sign In',
-      primaryAuthed: 'Open App',
-      secondaryAuthed: 'Dashboard',
+      primaryAuthed: 'Go to Dashboard',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA Football', 'NCAA Basketball', 'Soccer'],
     whatIs: {
@@ -141,9 +138,8 @@ const LANDING_COPY = {
     nav: {
       brand: 'AllFantasy',
       signIn: 'Iniciar sesión',
-      createAccount: 'Crear cuenta gratis',
+      signUp: 'Crear cuenta',
       dashboard: 'Panel',
-      openApp: 'Abrir app',
       admin: 'Admin',
     },
     badge: 'Llega en primavera de 2026. Registros anticipados disponibles',
@@ -154,8 +150,7 @@ const LANDING_COPY = {
         'La única plataforma de fantasy sports con una IA que realmente conoce tu liga. Draftea mejor, analiza trades, domina waivers y gana en cualquier deporte.',
       primary: 'Crear cuenta gratis',
       secondary: 'Iniciar sesión',
-      primaryAuthed: 'Abrir app',
-      secondaryAuthed: 'Panel',
+      primaryAuthed: 'Ir al panel',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'Fútbol NCAA', 'Baloncesto NCAA', 'Soccer'],
     whatIs: {
@@ -284,12 +279,9 @@ export default function LandingPageClient() {
   const { status } = useSession()
   const copy = LANDING_COPY[language === 'es' ? 'es' : 'en']
   const isAuthenticated = status === 'authenticated'
-  const wordmarkSrc = '/af-logo-text.png'
-
-  const primaryHref = isAuthenticated ? '/app' : signupUrlWithIntent('/dashboard')
-  const secondaryHref = isAuthenticated ? '/dashboard' : loginUrlWithIntent('/dashboard')
-  const primaryLabel = isAuthenticated ? copy.hero.primaryAuthed : copy.hero.primary
-  const secondaryLabel = isAuthenticated ? copy.hero.secondaryAuthed : copy.hero.secondary
+  const signupHref = signupUrlWithIntent('/dashboard')
+  const loginHref = loginUrlWithIntent('/dashboard')
+  const dashboardHref = '/dashboard'
 
   return (
     <main className="mode-readable min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
@@ -335,46 +327,71 @@ export default function LandingPageClient() {
               {copy.nav.admin}
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
-              <Link
-                href={secondaryHref}
-                className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
-                style={{
-                  borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                  color: 'var(--muted)',
-                  background: 'transparent',
-                }}
-                data-testid="landing-nav-secondary"
-                onClick={() =>
-                  trackLandingCtaClick({
-                    cta_label: secondaryLabel,
-                    cta_destination: secondaryHref,
-                    cta_type: 'secondary',
-                    source: 'nav',
-                  })
-                }
-              >
-                {secondaryLabel}
-              </Link>
-              <Link
-                href={primaryHref}
-                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-                  color: 'var(--on-accent-bg)',
-                }}
-                data-testid="landing-nav-primary"
-                onClick={() =>
-                  trackLandingCtaClick({
-                    cta_label: primaryLabel,
-                    cta_destination: primaryHref,
-                    cta_type: 'primary',
-                    source: 'nav',
-                  })
-                }
-              >
-                {primaryLabel}
-              </Link>
+              {isAuthenticated ? (
+                <Link
+                  href={dashboardHref}
+                  className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
+                  style={{
+                    borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                    color: 'var(--muted)',
+                    background: 'transparent',
+                  }}
+                  data-testid="landing-nav-dashboard"
+                  onClick={() =>
+                    trackLandingCtaClick({
+                      cta_label: copy.nav.dashboard,
+                      cta_destination: dashboardHref,
+                      cta_type: 'secondary',
+                      source: 'nav',
+                    })
+                  }
+                >
+                  {copy.nav.dashboard}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href={loginHref}
+                    className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
+                    style={{
+                      borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                      color: 'var(--muted)',
+                      background: 'transparent',
+                    }}
+                    data-testid="landing-nav-sign-in"
+                    onClick={() =>
+                      trackLandingCtaClick({
+                        cta_label: copy.nav.signIn,
+                        cta_destination: loginHref,
+                        cta_type: 'secondary',
+                        source: 'nav',
+                      })
+                    }
+                >
+                  {copy.nav.signIn}
+                  </Link>
+                  <Link
+                    href={signupHref}
+                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                      color: 'var(--on-accent-bg)',
+                    }}
+                    data-testid="landing-nav-sign-up"
+                    onClick={() =>
+                      trackLandingCtaClick({
+                        cta_label: copy.nav.signUp,
+                        cta_destination: signupHref,
+                        cta_type: 'primary',
+                        source: 'nav',
+                      })
+                    }
+                  >
+                    {copy.nav.signUp}
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -410,28 +427,14 @@ export default function LandingPageClient() {
                   'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 68%, color-mix(in srgb, var(--accent-purple) 12%, transparent) 0%, transparent 74%)',
               }}
             />
-            <div className="hero-logo-wrap relative flex flex-col items-center justify-center gap-2">
-              <div className="relative flex items-center justify-center">
-                <div className="pointer-events-none absolute inset-0 scale-150 rounded-full bg-cyan-500/10 blur-3xl" />
-                <Image
-                  src="/branding/allfantasy-crest-chatgpt.png"
-                  alt="AllFantasy - AI-powered fantasy sports platform"
-                  className="mode-logo-safe relative h-[120px] w-auto object-contain sm:h-[160px] lg:h-[200px]"
-                  priority
-                  width={400}
-                  height={400}
-                />
-              </div>
-
-              <Image
-                src={wordmarkSrc}
-                alt="AllFantasy"
-                className="nav-logo-img relative h-[44px] w-auto object-contain sm:h-[56px] lg:h-[68px]"
-                priority
-                width={600}
-                height={100}
-              />
-            </div>
+            <Image
+              src="/branding/allfantasy-crest-chatgpt.png"
+              alt="AllFantasy crest"
+              className="mode-logo-safe relative h-[120px] w-auto object-contain drop-shadow-lg sm:h-[160px] lg:h-[200px]"
+              priority
+              width={400}
+              height={400}
+            />
           </div>
         </div>
 
@@ -462,53 +465,75 @@ export default function LandingPageClient() {
         </p>
 
         <div className="relative z-10 mb-10">
-          <div className="flex w-full flex-col items-center gap-3 px-6 sm:w-auto sm:flex-row sm:px-0">
-            <Link
-              href={primaryHref}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-              style={{
-                backgroundImage:
-                  'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-                color: 'var(--on-accent-bg)',
-              }}
-              data-testid="landing-hero-primary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: primaryLabel,
-                  cta_destination: primaryHref,
-                  cta_type: 'primary',
-                  source: 'hero',
-                })
-              }
-            >
-              {primaryLabel}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href={secondaryHref}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
-              style={{
-                background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
-                borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                color: 'var(--text)',
-              }}
-              data-testid="landing-hero-secondary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: secondaryLabel,
-                  cta_destination: secondaryHref,
-                  cta_type: 'secondary',
-                  source: 'hero',
-                })
-              }
-            >
-              {secondaryLabel}
-            </Link>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <InstallButton className="w-full justify-center sm:w-auto" />
-            <ShareButton className="w-full justify-center sm:w-auto" />
-          </div>
+          {isAuthenticated ? (
+            <div className="flex w-full flex-col items-center gap-3 px-6 sm:w-auto sm:flex-row sm:px-0">
+              <Link
+                href={dashboardHref}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                  color: 'var(--on-accent-bg)',
+                }}
+                data-testid="landing-hero-dashboard"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: copy.hero.primaryAuthed,
+                    cta_destination: dashboardHref,
+                    cta_type: 'primary',
+                    source: 'hero',
+                  })
+                }
+              >
+                {copy.hero.primaryAuthed}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          ) : (
+            <div className="flex w-full flex-col items-center gap-3 px-6 sm:w-auto sm:flex-row sm:px-0">
+              <Link
+                href={signupHref}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                  color: 'var(--on-accent-bg)',
+                }}
+                data-testid="landing-hero-sign-up"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: copy.hero.primary,
+                    cta_destination: signupHref,
+                    cta_type: 'primary',
+                    source: 'hero',
+                  })
+                }
+              >
+                {copy.hero.primary}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href={loginHref}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-8 py-3.5 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
+                style={{
+                  background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                  color: 'var(--text)',
+                }}
+                data-testid="landing-hero-sign-in"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: copy.hero.secondary,
+                    cta_destination: loginHref,
+                    cta_type: 'secondary',
+                    source: 'hero',
+                  })
+                }
+              >
+                {copy.hero.secondary}
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="relative z-10 mx-auto flex max-w-sm flex-wrap items-center justify-center gap-2 px-4 sm:max-w-none" aria-label="Supported sports">
@@ -659,7 +684,7 @@ export default function LandingPageClient() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
-              href={primaryHref}
+              href={isAuthenticated ? dashboardHref : signupHref}
               className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
               style={{
                 backgroundImage:
@@ -670,7 +695,7 @@ export default function LandingPageClient() {
               onClick={() =>
                 trackLandingCtaClick({
                   cta_label: isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary,
-                  cta_destination: primaryHref,
+                  cta_destination: isAuthenticated ? dashboardHref : signupHref,
                   cta_type: 'primary',
                   source: 'cta-band',
                 })
@@ -680,7 +705,7 @@ export default function LandingPageClient() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href={secondaryHref}
+              href={isAuthenticated ? dashboardHref : loginHref}
               className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
               style={{
                 background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
@@ -691,7 +716,7 @@ export default function LandingPageClient() {
               onClick={() =>
                 trackLandingCtaClick({
                   cta_label: isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary,
-                  cta_destination: secondaryHref,
+                  cta_destination: isAuthenticated ? dashboardHref : loginHref,
                   cta_type: 'secondary',
                   source: 'cta-band',
                 })
