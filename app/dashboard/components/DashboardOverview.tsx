@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -44,7 +45,6 @@ type RankPayload = {
 type DashboardOverviewProps = {
   userName: string
   leagues: UserLeague[]
-  onSelectLeague: (league: UserLeague) => void
   onTriggerImport: () => void
   onOpenChimmy: () => void
 }
@@ -317,10 +317,10 @@ function RankingWidget({
 export function DashboardOverview({
   userName,
   leagues,
-  onSelectLeague,
   onTriggerImport,
   onOpenChimmy,
 }: DashboardOverviewProps) {
+  const router = useRouter()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   const [expanded, setExpanded] = useState(true)
   const [hideChecklist, setHideChecklist] = useState(false)
@@ -573,7 +573,7 @@ export function DashboardOverview({
 
                     <button
                       type="button"
-                      onClick={() => onSelectLeague(league)}
+                      onClick={() => router.push(`/league/${league.id}`)}
                       className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
                     >
                       Open

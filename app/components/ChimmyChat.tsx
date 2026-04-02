@@ -83,7 +83,12 @@ function createSessionId() {
   return `chimmy-${Date.now()}`;
 }
 
-export default function ChimmyChat() {
+type ChimmyChatProps = {
+  /** Slimmer chrome for dashboard side panels */
+  embedded?: boolean
+}
+
+export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
   ]);
@@ -332,61 +337,92 @@ export default function ChimmyChat() {
   };
 
   return (
-    <div className="flex flex-col h-fill-dynamic bg-slate-950 rounded-3xl border border-slate-800 overflow-hidden touch-scroll">
-      <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900">
-        <div className="flex items-center gap-4">
-          <div className="w-11 h-11 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl flex items-center justify-center text-2xl">
-            {HEART_EMOJI}
+    <div
+      className={`flex flex-col overflow-hidden touch-scroll bg-slate-950 ${
+        embedded ? 'h-full min-h-0 rounded-xl border border-white/10' : 'h-fill-dynamic rounded-3xl border border-slate-800'
+      }`}
+    >
+      {!embedded ? (
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900 p-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-purple-500 text-2xl">
+              {HEART_EMOJI}
+            </div>
+            <div>
+              <div className="font-semibold">Chimmy</div>
+              <div className="text-xs text-emerald-400">Feminine, kind, and straight-to-the-point</div>
+            </div>
           </div>
-          <div>
-            <div className="font-semibold">Chimmy</div>
-            <div className="text-xs text-emerald-400">Feminine, kind, and straight-to-the-point</div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={startNewConversation}
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300 transition hover:bg-slate-700"
+              title="Start a new conversation"
+            >
+              <Square className="h-4 w-4 text-cyan-400" />
+              New conversation
+            </button>
+            <button
+              onClick={() => {
+                const nextEnabled = !voiceConfig.enabled
+                updateVoiceConfig({ enabled: nextEnabled })
+                if (!nextEnabled) handleStopVoice()
+              }}
+              className="rounded-full p-3 transition hover:bg-white/10"
+              title="Toggle Chimmy voice replies"
+            >
+              {voiceConfig.enabled ? <Volume2 className="h-5 w-5 text-cyan-400" /> : <VolumeX className="h-5 w-5 text-slate-400" />}
+            </button>
+            {isVoicePlaying && (
+              <button
+                onClick={handleStopVoice}
+                className="inline-flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition"
+                title="Stop Allison voice"
+              >
+                <Square className="h-4 w-4" />
+                Stop
+              </button>
+            )}
           </div>
         </div>
-
-        <div className="flex items-center gap-2">
+      ) : (
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.07] bg-slate-900/80 px-2 py-1.5">
           <button
             type="button"
             onClick={startNewConversation}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 transition"
-            title="Start a new conversation"
+            className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/80 transition hover:bg-white/10"
+            title="New conversation"
           >
-            <Square className="w-4 h-4 text-cyan-400" />
-            New conversation
+            New
           </button>
           <button
+            type="button"
             onClick={() => {
-              const nextEnabled = !voiceConfig.enabled;
-              updateVoiceConfig({ enabled: nextEnabled });
-              if (!nextEnabled) handleStopVoice();
+              const nextEnabled = !voiceConfig.enabled
+              updateVoiceConfig({ enabled: nextEnabled })
+              if (!nextEnabled) handleStopVoice()
             }}
-            className="p-3 rounded-full hover:bg-white/10 transition"
-            title="Toggle Chimmy voice replies"
+            className="rounded-full p-1.5 transition hover:bg-white/10"
+            title="Toggle voice"
           >
-            {voiceConfig.enabled ? <Volume2 className="w-5 h-5 text-cyan-400" /> : <VolumeX className="w-5 h-5 text-slate-400" />}
+            {voiceConfig.enabled ? <Volume2 className="h-4 w-4 text-cyan-400" /> : <VolumeX className="h-4 w-4 text-slate-400" />}
           </button>
-          {isVoicePlaying && (
-            <button
-              onClick={handleStopVoice}
-              className="inline-flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition"
-              title="Stop Allison voice"
-            >
-              <Square className="w-4 h-4" />
-              Stop
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className={`flex-1 space-y-6 overflow-y-auto ${embedded ? 'p-3' : 'p-6'}`}>
         {messages.length <= 1 && suggestedChips.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {suggestedChips.slice(0, 4).map((chip) => (
+            {suggestedChips.slice(0, embedded ? 3 : 4).map((chip) => (
               <button
                 key={chip.id}
                 type="button"
                 onClick={() => setInput(chip.prompt)}
-                className="px-4 py-2 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 text-sm hover:border-cyan-500/50 hover:bg-slate-700 transition"
+                className={`rounded-2xl border border-slate-600 bg-slate-800 text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700 ${
+                  embedded ? 'px-2 py-1 text-[11px]' : 'px-4 py-2 text-sm'
+                }`}
               >
                 {chip.label}
               </button>
@@ -395,7 +431,11 @@ export default function ChimmyChat() {
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] p-5 rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
+            <div
+              className={`max-w-[85%] rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'} ${
+                embedded ? 'p-3 text-sm' : 'p-5'
+              }`}
+            >
               {renderContentWithLinks(msg.content)}
               {msg.role === 'assistant' && (
                 <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
@@ -461,37 +501,60 @@ export default function ChimmyChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-5 border-t border-slate-800 bg-slate-900">
-        <div className="flex gap-3">
-          <label className="p-4 bg-slate-800 rounded-2xl cursor-pointer hover:bg-slate-700 transition flex items-center justify-center">
-            <ImageIcon className="w-6 h-6 text-cyan-400" />
+      <div className={`border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
+        <div className={`flex ${embedded ? 'gap-1.5' : 'gap-3'}`}>
+          <label
+            className={`flex cursor-pointer items-center justify-center rounded-2xl bg-slate-800 transition hover:bg-slate-700 ${
+              embedded ? 'p-2' : 'p-4'
+            }`}
+          >
+            <ImageIcon className={`text-cyan-400 ${embedded ? 'h-4 w-4' : 'h-6 w-6'}`} />
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
           </label>
 
           <button
             type="button"
             onClick={toggleListening}
-            className={`p-4 rounded-2xl transition flex items-center justify-center ${isListening ? 'bg-pink-600/80 hover:bg-pink-500/80' : 'bg-slate-800 hover:bg-slate-700'}`}
+            className={`flex items-center justify-center rounded-2xl transition ${
+              embedded ? 'p-2' : 'p-4'
+            } ${isListening ? 'bg-pink-600/80 hover:bg-pink-500/80' : 'bg-slate-800 hover:bg-slate-700'}`}
             title="Voice message"
           >
-            {isListening ? <MicOff className="w-6 h-6 text-white" /> : <Mic className="w-6 h-6 text-cyan-400" />}
+            {isListening ? (
+              <MicOff className={`text-white ${embedded ? 'h-4 w-4' : 'h-6 w-6'}`} />
+            ) : (
+              <Mic className={`text-cyan-400 ${embedded ? 'h-4 w-4' : 'h-6 w-6'}`} />
+            )}
           </button>
 
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage()
+              }
+            }}
             placeholder="Ask about your roster, league, trades, waivers, or upload a screenshot"
-            className="flex-1 bg-slate-800 border border-slate-700 rounded-2xl px-6 py-4 text-white placeholder-slate-500 focus:border-cyan-400 outline-none"
+            className={`flex-1 rounded-2xl border border-slate-700 bg-slate-800 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400 ${
+              embedded ? 'px-3 py-2 text-xs' : 'px-6 py-4'
+            }`}
           />
 
           <button
             onClick={sendMessage}
             disabled={isTyping}
-            className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-2xl flex items-center justify-center hover:scale-105 transition disabled:opacity-50"
+            className={`flex items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-500 transition hover:scale-105 disabled:opacity-50 ${
+              embedded ? 'h-9 w-9' : 'h-14 w-14'
+            }`}
           >
-            {isTyping ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
+            {isTyping ? (
+              <Loader2 className={`animate-spin ${embedded ? 'h-4 w-4' : 'h-6 w-6'}`} />
+            ) : (
+              <Send className={embedded ? 'h-4 w-4' : 'h-6 w-6'} />
+            )}
           </button>
         </div>
 
