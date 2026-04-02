@@ -23,6 +23,7 @@ export type ToolSlug =
   | 'bracket-challenge'
   | 'power-rankings'
   | 'legacy-dynasty'
+  | 'league-transfer'
 
 export const SPORT_SLUGS: SportSlug[] = [
   'fantasy-football',
@@ -43,6 +44,7 @@ export const TOOL_SLUGS: ToolSlug[] = [
   'bracket-challenge',
   'power-rankings',
   'legacy-dynasty',
+  'league-transfer',
 ]
 
 export interface SportConfig {
@@ -336,6 +338,23 @@ export const TOOL_CONFIG: Record<ToolSlug, ToolConfig> = {
     ],
     relatedToolSlugs: ['trade-analyzer', 'mock-draft-simulator', 'waiver-wire-advisor', 'bracket-challenge'],
     keywords: ['dynasty fantasy', 'legacy fantasy', 'hall of fame fantasy', 'fantasy commissioner'],
+  },
+  'league-transfer': {
+    slug: 'league-transfer',
+    title: 'League Transfer – Move Your League to AllFantasy | AllFantasy',
+    description:
+      'Move your full league from Sleeper, Yahoo, MFL, ESPN, Fleaflicker, or Fantrax to AllFantasy with manager names, settings, rosters, draft history, playoffs, and trades copied over.',
+    headline: 'League Transfer',
+    benefitSummary:
+      'Commissioners can move a league into AllFantasy with an exact transfer flow for league settings, managers, rosters, and historical context.',
+    openToolHref: '/league-transfer',
+    examples: [
+      'Transfer a full Sleeper league into AllFantasy',
+      'Preview manager names, format, and roster positions before import',
+      'Bring draft history, playoff brackets, and trade history into one commissioner workspace',
+    ],
+    relatedToolSlugs: ['power-rankings', 'legacy-dynasty', 'trade-analyzer'],
+    keywords: ['league transfer', 'commissioner tools', 'import fantasy league', 'move Sleeper league'],
   },
 }
 

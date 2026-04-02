@@ -13,6 +13,7 @@ export type ToolCategoryId =
   | 'rankings'
   | 'legacy'
   | 'ai'
+  | 'transfer'
 
 export type ToolCardDisplay = {
   slug: ToolSlug

@@ -5,6 +5,8 @@
 import { SPORT_CONFIG, SPORT_SLUGS, type SportSlug, type ToolSlug } from '@/lib/seo-landing/config'
 import { getAllTools } from './ToolHubService'
 
+const UNIVERSAL_TOOL_SLUGS: ToolSlug[] = ['league-transfer']
+
 export type SportFilterOption = {
   slug: SportSlug
   label: string
@@ -77,6 +79,10 @@ export function getToolSlugsForSport(sportSlug: SportSlug | null): ToolSlug[] {
   for (const href of hrefSet) {
     const slug = resolveToolSlugFromHref(href, allToolSlugsByHref)
     if (slug) slugs.add(slug)
+  }
+
+  for (const slug of UNIVERSAL_TOOL_SLUGS) {
+    slugs.add(slug)
   }
 
   if (slugs.size > 0) return Array.from(slugs)

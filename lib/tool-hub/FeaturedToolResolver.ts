@@ -14,6 +14,7 @@ const CATEGORY_LABELS: Record<ToolCategoryId, string> = {
   rankings: 'Rankings',
   legacy: 'Legacy & Dynasty',
   ai: 'AI & Assistant',
+  transfer: 'Transfer',
 }
 
 /** Slug → category for hub grouping. */
@@ -26,6 +27,7 @@ const TOOL_CATEGORY: Record<ToolSlug, ToolCategoryId> = {
   'bracket-challenge': 'bracket',
   'power-rankings': 'rankings',
   'legacy-dynasty': 'legacy',
+  'league-transfer': 'transfer',
 }
 
 /** Featured tool slugs (shown first on hub). */
@@ -34,6 +36,7 @@ const FEATURED_SLUGS: ToolSlug[] = [
   'mock-draft-simulator',
   'waiver-wire-advisor',
   'ai-draft-assistant',
+  'league-transfer',
 ]
 
 /** Trending tool slugs (shown in separate momentum rail). */
@@ -54,6 +57,7 @@ export const CATEGORY_ORDER: ToolCategoryId[] = [
   'rankings',
   'legacy',
   'ai',
+  'transfer',
 ]
 
 export function getCategoryLabel(id: ToolCategoryId): string {
@@ -85,6 +89,7 @@ export function getToolsByCategory(): Record<ToolCategoryId, ToolSlug[]> {
     rankings: [],
     legacy: [],
     ai: [],
+    transfer: [],
   }
   for (const slug of Object.keys(TOOL_CATEGORY) as ToolSlug[]) {
     const cat = TOOL_CATEGORY[slug]
