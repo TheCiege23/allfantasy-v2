@@ -151,12 +151,15 @@ export async function GET(req: Request) {
           teamId: team.id,
           externalId: team.externalId,
           teamName: team.teamName || `${team.ownerName}'s Team`,
+          managerName: team.ownerName || team.teamName || `Team ${team.externalId}`,
           record: `${team.wins}-${team.losses}${team.ties > 0 ? `-${team.ties}` : ''}`,
           needs: teamNeeds,
           strengths: teamStrengths,
           yourOffer,
           theirOffer,
           matchScore,
+          role: team.role ?? 'member',
+          isOrphan: team.isOrphan === true,
           rosterSummary: summarizeRoster(team.legacyRoster),
           reputation: rep
             ? {
@@ -218,6 +221,7 @@ Return ONLY a JSON array of partner objects. No markdown, no commentary.`;
               teamId: det?.teamId || '',
               externalId: det?.externalId || '',
               teamName: p.teamName || det?.teamName || 'Unknown',
+              managerName: det?.managerName || det?.teamName || p.teamName || 'Manager',
               record: det?.record || '',
               needs: Array.isArray(p.needs) ? p.needs : det?.needs || [],
               strengths: det?.strengths || [],
@@ -225,6 +229,8 @@ Return ONLY a JSON array of partner objects. No markdown, no commentary.`;
               theirOffer: p.theirOffer || det?.theirOffer || '',
               matchScore: typeof p.matchScore === 'number' ? p.matchScore : det?.matchScore || 50,
               tradeAngle: p.tradeAngle || '',
+              role: det?.role || 'member',
+              isOrphan: det?.isOrphan === true,
               reputation: det?.reputation || null,
             };
           }).sort((a: any, b: any) => b.matchScore - a.matchScore);

@@ -42,10 +42,15 @@ type SleeperLeague = {
   league_id?: string | number;
   name?: string;
   avatar?: string | null;
+  commissioner_id?: string | null;
   total_rosters?: number | null;
   status?: string | null;
   scoring_settings?: {
     rec?: number | null;
+  } | null;
+  metadata?: {
+    co_commissioners?: string[] | null;
+    [key: string]: unknown;
   } | null;
   settings?: {
     type?: number | null;
@@ -466,10 +471,16 @@ async function processLeague(
 
   const teamUpserts = rosters
     .map((roster) => {
-      const owner = roster.owner_id ? userMap.get(roster.owner_id) : undefined;
+      const ownerId = roster.owner_id ?? null;
+      const owner = ownerId ? userMap.get(ownerId) : undefined;
       const ownerName = owner?.display_name || `Owner ${roster.roster_id ?? "Unknown"}`;
       const teamName = owner?.metadata?.team_name || `${ownerName}'s Team`;
       const externalId = roster.roster_id?.toString() || roster.owner_id?.toString();
+      const coCommissioners = Array.isArray(leagueData.metadata?.co_commissioners)
+        ? leagueData.metadata.co_commissioners.filter(
+            (value): value is string => typeof value === "string"
+          )
+        : [];
 
       if (!externalId) {
         return null;
@@ -483,6 +494,16 @@ async function processLeague(
       const pointsAgainst =
         (roster.settings?.fpts_against ?? 0) +
         (roster.settings?.fpts_against_decimal ?? 0) / 100;
+      const isCommissioner = ownerId === leagueData.commissioner_id;
+      const isCoCommissioner = !!ownerId && coCommissioners.includes(ownerId);
+      const isOrphan = !ownerId || ownerId === "";
+      const role = isCommissioner
+        ? "commissioner"
+        : isCoCommissioner
+          ? "co_commissioner"
+          : isOrphan
+            ? "orphan"
+            : "member";
 
       return prisma.leagueTeam.upsert({
         where: {
@@ -502,6 +523,9 @@ async function processLeague(
           ties,
           pointsFor,
           pointsAgainst,
+          role,
+          isOrphan,
+          platformUserId: ownerId,
         },
         create: {
           leagueId: league.id,
@@ -516,6 +540,9 @@ async function processLeague(
           ties,
           pointsFor,
           pointsAgainst,
+          role,
+          isOrphan,
+          platformUserId: ownerId,
         },
       });
     })

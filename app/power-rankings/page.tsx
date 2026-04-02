@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { ManagerRoleBadge } from "@/components/ManagerRoleBadge";
 import {
   DEFAULT_SPORT,
   normalizeToSupportedSport,
@@ -94,6 +95,8 @@ interface RawTeam {
   username: string | null;
   displayName: string | null;
   avatar: string | null;
+  role?: string | null;
+  isOrphan?: boolean;
   winScore: number;
   powerScore: number;
   luckScore: number;
@@ -233,6 +236,8 @@ interface TeamRanking {
   rosterId: number;
   teamName: string;
   managerName: string;
+  role: string;
+  isOrphan: boolean;
   record: string;
   score: number;
   winScore: number;
@@ -494,6 +499,8 @@ function mapTeamSummary(raw: RawTeam): TeamRanking {
     rosterId: raw.rosterId,
     teamName,
     managerName,
+    role: raw.role ?? "member",
+    isOrphan: raw.isOrphan === true,
     record: formatRecord(raw.record),
     score: Math.round(raw.composite),
     winScore: Math.round(raw.winScore),
@@ -894,6 +901,19 @@ function ExpandedTeamDetail({
     <div className="border-t border-cyan-500/20 bg-white/[0.02] px-4 py-5">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)]">
         <div className="space-y-4">
+          <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">
+              Manager Detail
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="text-xl font-black text-white">{team.managerName}</div>
+              <ManagerRoleBadge role={team.isOrphan ? "orphan" : team.role ?? "member"} />
+            </div>
+            <div className="mt-1 text-sm text-white/45">
+              {team.teamName} · {team.record}
+            </div>
+          </div>
+
           {rankExplanation ? (
             <CollapsibleCard
               title="Rank Explanation"
@@ -1300,7 +1320,10 @@ function TeamRow({
           )}
           <div className="min-w-0">
             <div className="truncate text-sm font-bold text-white">{team.teamName}</div>
-            <div className="truncate text-xs text-white/40">{team.managerName}</div>
+            <div className="flex items-center gap-1.5 truncate text-xs text-white/40">
+              <span className="truncate">{team.managerName}</span>
+              <ManagerRoleBadge role={team.isOrphan ? "orphan" : team.role ?? "member"} />
+            </div>
           </div>
         </div>
         <div className="text-center text-sm text-white/65">{team.record}</div>
@@ -1355,7 +1378,10 @@ function TeamRow({
                 {team.phase}
               </span>
             </div>
-            <div className="mt-1 text-xs text-white/40">{team.managerName}</div>
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-white/40">
+              <span className="truncate">{team.managerName}</span>
+              <ManagerRoleBadge role={team.isOrphan ? "orphan" : team.role ?? "member"} />
+            </div>
             <div className="mt-3 grid grid-cols-3 gap-3 text-center">
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-2">
                 <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Record</div>

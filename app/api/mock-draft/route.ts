@@ -31,6 +31,8 @@ type LeagueMockManager = {
   avatarUrl: string | null
   isUser: boolean
   slotPredicted: boolean
+  role: string | null
+  isOrphan: boolean
   record: LeagueMockRecord
 }
 
@@ -296,6 +298,8 @@ export async function GET(req: NextRequest) {
                 externalId: true,
                 ownerName: true,
                 avatarUrl: true,
+                role: true,
+                isOrphan: true,
                 wins: true,
                 losses: true,
                 ties: true,
@@ -404,6 +408,8 @@ export async function GET(req: NextRequest) {
       managerName,
       avatarUrl: buildSleeperAvatarUrl(user?.avatar) ?? leagueTeam?.avatarUrl ?? null,
       isUser: detectedUserRosterId === roster.roster_id,
+      role: leagueTeam?.role ?? null,
+      isOrphan: leagueTeam?.isOrphan === true,
       record: {
         wins: roster.settings?.wins ?? leagueTeam?.wins ?? 0,
         losses: roster.settings?.losses ?? leagueTeam?.losses ?? 0,

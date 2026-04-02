@@ -70,6 +70,8 @@ export interface TeamScore {
   username: string | null
   displayName: string | null
   avatar: string | null
+  role: string | null
+  isOrphan: boolean
 
   winScore: number
   powerScore: number
@@ -321,6 +323,37 @@ interface RosterRecord {
   isChampion: boolean
   players: string[]
   starters: string[]
+}
+
+async function fetchUnifiedLeagueTeamMeta(leagueId: string): Promise<Map<number, { role: string | null; isOrphan: boolean }>> {
+  const unifiedLeague = await prisma.league.findFirst({
+    where: {
+      platform: 'sleeper',
+      platformLeagueId: leagueId,
+    },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      teams: {
+        select: {
+          externalId: true,
+          role: true,
+          isOrphan: true,
+        },
+      },
+    },
+  })
+
+  const metaByRosterId = new Map<number, { role: string | null; isOrphan: boolean }>()
+  for (const team of unifiedLeague?.teams ?? []) {
+    const rosterId = Number(team.externalId)
+    if (!Number.isFinite(rosterId)) continue
+    metaByRosterId.set(rosterId, {
+      role: team.role ?? null,
+      isOrphan: team.isOrphan === true,
+    })
+  }
+
+  return metaByRosterId
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -2777,12 +2810,13 @@ export async function computeLeagueRankingsV2(
   const leagueClassKey = isDynasty ? (isSF ? 'DYN_SF' : 'DYN_1QB') : (isSF ? 'RED_SF' : 'RED_1QB')
   const segmentKey = `${leagueClassKey}_${phase}`
 
-  const [dbRosterRecords, learnedParams, previousSnapshots, sparklineMap, adaptiveComponentWeights] = await Promise.all([
+  const [dbRosterRecords, learnedParams, previousSnapshots, sparklineMap, adaptiveComponentWeights, teamRoleMeta] = await Promise.all([
     fetchRosterRecords(leagueId),
     getActiveCompositeParams(segmentKey).catch(() => null),
     getPreviousWeekSnapshots({ leagueId, season, currentWeek: week }).catch(() => new Map()),
     getLeagueSparklines({ leagueId, season, maxWeeks: 12 }).catch(() => new Map()),
     getActiveWeightsForSegment(segmentKey).catch(() => null),
+    fetchUnifiedLeagueTeamMeta(leagueId),
   ])
 
   const fcSettings: FantasyCalcSettings = { isDynasty, numQbs: isSF ? 2 : 1, numTeams, ppr }
@@ -3139,6 +3173,7 @@ export async function computeLeagueRankingsV2(
     )
 
     const dbRoster = dbRosterRecords?.get(roster.roster_id)
+    const teamMeta = teamRoleMeta.get(roster.roster_id)
     const unownedLabel = roster.owner_id ? null : `Team ${roster.roster_id}`
     const resolvedUsername = user?.username || user?.display_name || dbRoster?.ownerName || unownedLabel || null
     const resolvedDisplayName = user?.display_name || user?.username || dbRoster?.ownerName || unownedLabel || null
@@ -3166,6 +3201,8 @@ export async function computeLeagueRankingsV2(
       username: resolvedUsername,
       displayName: resolvedDisplayName,
       avatar: user?.avatar || null,
+      role: teamMeta?.role ?? null,
+      isOrphan: teamMeta?.isOrphan === true,
 
       winScore,
       powerScore,

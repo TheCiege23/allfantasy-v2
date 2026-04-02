@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 type EntryStep = 'entry' | 'league' | 'open' | 'draft' | 'complete'
@@ -40,6 +41,8 @@ interface LeagueManager {
   avatarUrl: string | null
   isUser: boolean
   slotPredicted: boolean
+  role: string | null
+  isOrphan: boolean
   record: LeagueRecord
 }
 
@@ -96,6 +99,8 @@ interface TeamSlot {
   avatarUrl: string | null
   isUser: boolean
   isAI: boolean
+  role: string | null
+  isOrphan: boolean
   picks: DraftPick[]
   rosterNeeds: string[]
   slotPredicted?: boolean
@@ -424,6 +429,8 @@ function createOpenMockTeams(settings: DraftSettings): TeamSlot[] {
       avatarUrl: null,
       isUser: slot === settings.myPickSlot,
       isAI: slot !== settings.myPickSlot,
+      role: null,
+      isOrphan: false,
       picks: [],
       rosterNeeds: [],
     }
@@ -445,6 +452,8 @@ function createLeagueMockTeams(payload: LeagueMockPayload['league'], settings: D
       avatarUrl: manager.avatarUrl,
       isUser: manager.slot === settings.myPickSlot,
       isAI: manager.slot !== settings.myPickSlot,
+      role: manager.role,
+      isOrphan: manager.isOrphan,
       picks: [],
       rosterNeeds: [],
       slotPredicted: manager.slotPredicted,
@@ -1286,7 +1295,10 @@ export default function MockDraftSleeperRoomClient() {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-white">{manager.managerName}</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="truncate text-sm font-semibold text-white">{manager.managerName}</div>
+                          <ManagerRoleBadge role={manager.isOrphan ? 'orphan' : manager.role ?? 'member'} />
+                        </div>
                         <div className="text-[11px] text-white/40">
                           Slot {manager.slot}
                           {manager.slotPredicted ? ' (predicted)' : ''}
@@ -1866,7 +1878,10 @@ export default function MockDraftSleeperRoomClient() {
                           </div>
                         )}
                       </div>
-                      <div className="truncate text-[10px] font-bold text-white/70">{team.managerName}</div>
+                      <div className="flex items-center justify-center gap-1">
+                        <div className="truncate text-[10px] font-bold text-white/70">{team.managerName}</div>
+                        <ManagerRoleBadge role={team.isOrphan ? 'orphan' : team.role ?? 'member'} />
+                      </div>
                       {team.isUser ? <div className="text-[9px] text-cyan-400">YOU</div> : null}
                       {team.slotPredicted ? <div className="text-[9px] text-amber-300">(predicted)</div> : null}
                     </div>
@@ -1947,7 +1962,10 @@ export default function MockDraftSleeperRoomClient() {
                   >
                     {draftState.teams.map((team) => (
                       <div key={team.slot} className="border-r border-white/6 p-2 text-center">
-                        <div className="truncate text-[10px] font-bold text-white/70">{team.managerName}</div>
+                        <div className="flex items-center justify-center gap-1">
+                          <div className="truncate text-[10px] font-bold text-white/70">{team.managerName}</div>
+                          <ManagerRoleBadge role={team.isOrphan ? 'orphan' : team.role ?? 'member'} />
+                        </div>
                         {team.isUser ? <div className="text-[9px] text-cyan-400">YOU</div> : null}
                       </div>
                     ))}

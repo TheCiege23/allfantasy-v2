@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 
 // ─── TYPES ────────────────────────────────────────────────────────
 
@@ -63,6 +64,8 @@ interface PartnerMatch {
   compatibility:  number
   whyTheyTrade:   string
   sharedNeeds:    string[]
+  role:           string
+  isOrphan:       boolean
 }
 
 // ─── CONSTANTS ────────────────────────────────────────────────────
@@ -548,12 +551,14 @@ export default function TradeFinderPage() {
       const raw  = data.partners ?? data.matches ?? data ?? []
       setPartners((Array.isArray(raw) ? raw : []).map((p: Record<string,unknown>) => ({
         rosterId:      Number(p.rosterId ?? p.roster_id ?? 0),
-        managerName:   String(p.managerName ?? p.name ?? ''),
+        managerName:   String(p.managerName ?? p.ownerName ?? p.teamName ?? p.name ?? ''),
         teamRecord:    String(p.teamRecord ?? p.record ?? ''),
         objective:     String(p.objective ?? p.strategy ?? ''),
         compatibility: Number(p.compatibility ?? p.score ?? 5),
         whyTheyTrade:  String(p.whyTheyTrade ?? p.reason ?? ''),
         sharedNeeds:   ((p.sharedNeeds ?? p.needs ?? []) as unknown[]).filter((item): item is string => typeof item === 'string'),
+        role:          String(p.role ?? 'member'),
+        isOrphan:      p.isOrphan === true,
       })))
       partnerSortRef.current = false
     } catch {
@@ -917,7 +922,10 @@ export default function TradeFinderPage() {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-white text-sm truncate">{partner.managerName}</h3>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="min-w-0 truncate font-bold text-white text-sm">{partner.managerName}</h3>
+                            <ManagerRoleBadge role={partner.isOrphan ? 'orphan' : partner.role ?? 'member'} />
+                          </div>
                           <div className="flex items-center gap-1.5 text-[11px] text-white/40 mt-0.5">
                             <span>{partner.teamRecord}</span>
                             <span>·</span>

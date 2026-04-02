@@ -9,6 +9,7 @@ import { useSession } from 'next-auth/react'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import SeoLandingFooter from '@/components/landing/SeoLandingFooter'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
+import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import {
   getLeagueMatchups,
   getLeagueRosters,
@@ -35,6 +36,7 @@ type FormatGrade = {
 
 type ComparisonManager = {
   username: string
+  role?: string | null
   overall_grade: string
   grades_by_type: Record<CompareFormat, FormatGrade>
   specialty_formats_note: string
@@ -719,7 +721,10 @@ function ManagerSummaryCard({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">{title}</div>
-            <h3 className="mt-2 text-2xl font-black text-white">{manager.username}</h3>
+            <div className="mt-2 flex items-center gap-2">
+              <h3 className="text-2xl font-black text-white">{manager.username}</h3>
+              <ManagerRoleBadge role={manager.role ?? 'member'} />
+            </div>
             <div className="mt-2 text-sm text-white/45">
               Active sample: {activeStats.leagues} leagues · {formatRecordLabel(activeStats)}
             </div>
@@ -1833,6 +1838,7 @@ export default function ManagerComparePage() {
                           winner: currentComparison.winner === 'A',
                           loser: currentComparison.winner === 'B',
                           name: currentComparison.manager_a.username,
+                          role: currentComparison.manager_a.role ?? 'member',
                           grade: currentComparison.manager_a.overall_grade,
                         },
                         {
@@ -1840,6 +1846,7 @@ export default function ManagerComparePage() {
                           winner: currentComparison.winner === 'B',
                           loser: currentComparison.winner === 'A',
                           name: currentComparison.manager_b.username,
+                          role: currentComparison.manager_b.role ?? 'member',
                           grade: currentComparison.manager_b.overall_grade,
                         },
                       ].map((item, index) => {
@@ -1859,7 +1866,10 @@ export default function ManagerComparePage() {
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">{index === 0 ? 'Manager A' : 'Manager B'}</div>
-                                <div className="mt-2 text-2xl font-black text-white">{item.name}</div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <div className="text-2xl font-black text-white">{item.name}</div>
+                                  <ManagerRoleBadge role={item.role} />
+                                </div>
                               </div>
                               <span className={`rounded-full border px-3 py-1 text-sm font-black ${tone.pill}`}>{item.grade}</span>
                             </div>
