@@ -1,3 +1,7 @@
+/** 3-panel dashboard layout widths (px) — master spec */
+export const DASHBOARD_LEFT_PANEL_WIDTH = 280
+export const DASHBOARD_RIGHT_PANEL_WIDTH = 300
+
 export interface UserLeague {
   id: string
   name: string
@@ -11,6 +15,25 @@ export interface UserLeague {
   isDynasty?: boolean
   settings?: Record<string, unknown>
   sleeperLeagueId?: string
+}
+
+/** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */
+export type LeftChatPanelLayoutProps = {
+  selectedLeague: UserLeague | null
+  userId: string
+  width: number
+  rootId?: string | null
+}
+
+/** Props contract for `RightControlPanel` */
+export type RightControlPanelLayoutProps = {
+  leagues: UserLeague[]
+  leaguesLoading: boolean
+  selectedId: string | null
+  onSelectLeague: (league: UserLeague | null) => void
+  userId: string
+  onImport: () => void
+  onAfterLeagueNavigate?: () => void
 }
 
 export interface DashboardConnectedLeague extends UserLeague {
