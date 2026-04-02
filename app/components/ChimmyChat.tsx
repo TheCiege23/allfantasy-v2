@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDefaultChimmyChips } from '@/lib/chimmy-interface';
@@ -88,9 +88,18 @@ type ChimmyChatProps = {
   embedded?: boolean
   /** Parent renders New — hide toolbar button and listen for `af-chimmy-new-conversation` */
   parentControlsNew?: boolean
+  /** Shown above the message composer (e.g. league context row) */
+  footerSlot?: ReactNode
+  /** Active league name for suggested chips (truncated inside getDefaultChimmyChips) */
+  chipContextLeagueName?: string | null
 }
 
-export default function ChimmyChat({ embedded = false, parentControlsNew = false }: ChimmyChatProps) {
+export default function ChimmyChat({
+  embedded = false,
+  parentControlsNew = false,
+  footerSlot,
+  chipContextLeagueName = null,
+}: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
   ]);
@@ -108,7 +117,10 @@ export default function ChimmyChat({ embedded = false, parentControlsNew = false
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const suggestedChips = useMemo(() => getDefaultChimmyChips(), []);
+  const suggestedChips = useMemo(() => {
+    const name = chipContextLeagueName?.trim()
+    return getDefaultChimmyChips({ leagueName: name ?? undefined, hasLeagues: !!name })
+  }, [chipContextLeagueName])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -527,6 +539,10 @@ export default function ChimmyChat({ embedded = false, parentControlsNew = false
         <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {footerSlot ? (
+        <div className="flex-shrink-0 border-t border-white/[0.07] bg-slate-900/95 px-2 py-2">{footerSlot}</div>
+      ) : null}
 
       <div className={`flex-shrink-0 border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
         <div className={`flex ${embedded ? 'gap-1.5' : 'gap-3'}`}>

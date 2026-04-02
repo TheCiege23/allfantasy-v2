@@ -26,6 +26,8 @@ export type LeftChatPanelLayoutProps = {
   /** Default: DASHBOARD_LEFT_PANEL_WIDTH */
   width?: number
   rootId?: string | null
+  /** Dashboard home: connected leagues for Chimmy context selector */
+  leagues?: UserLeague[]
 }
 
 /** Props contract for `RightControlPanel` */

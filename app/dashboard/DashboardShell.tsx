@@ -198,6 +198,7 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
           selectedLeague={selectedLeague}
           userId={userId}
           rootId="dashboard-left-chat"
+          leagues={leagues}
         />
       </aside>
 
@@ -290,7 +291,12 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden">
-              <LeftChatPanel selectedLeague={selectedLeague} userId={userId} rootId={null} />
+              <LeftChatPanel
+                selectedLeague={selectedLeague}
+                userId={userId}
+                rootId={null}
+                leagues={leagues}
+              />
             </div>
           </div>
         </div>

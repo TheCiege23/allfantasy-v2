@@ -29,7 +29,14 @@ export function getDefaultChimmyChips(options?: {
   ]
 
   if (hasLeagues && league) {
+    const short = league.length > 12 ? `${league.slice(0, 12)}…` : league
     return [
+      {
+        id: 'start-sit-league',
+        label: `Start/sit for ${short}`,
+        prompt: `Who should I start and sit this week in my "${league}" league?`,
+        category: 'lineup',
+      },
       { id: 'weak-spots', label: `Weak spots in ${league}`, prompt: `What are my weakest positions in "${league}"?`, category: 'league' },
       { id: 'trade-targets', label: `Trade targets in ${league}`, prompt: `Who are the best trade targets for my team in "${league}"?`, category: 'league' },
       { id: 'next-moves', label: `Next moves in ${league}`, prompt: `What moves should I make to improve in "${league}"?`, category: 'league' },

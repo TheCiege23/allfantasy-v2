@@ -130,6 +130,7 @@ export function LeagueShell({
           userId={userId}
           width={DASHBOARD_LEFT_PANEL_WIDTH}
           rootId="league-left-chat"
+          leagues={leagueList}
         />
       </aside>
 
