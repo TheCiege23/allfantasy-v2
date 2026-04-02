@@ -1,31 +1,23 @@
 import { redirect } from 'next/navigation'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getLeagueHomeData } from '@/lib/data/league-home'
-import LeagueHomeClient from '@/components/league/LeagueHomeClient'
 
-export const dynamic = 'force-dynamic'
-
-export default async function AppLeaguePage({
+/** Legacy URL: `/app/league/[id]` → canonical `/league/[id]` */
+export default async function AppLeagueLegacyRedirect({
   params,
   searchParams,
 }: {
   params: Promise<{ leagueId: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const [{ leagueId }, resolvedSearchParams] = await Promise.all([params, searchParams])
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-
-  if (!userId) {
-    redirect(`/login?callbackUrl=${encodeURIComponent(`/app/league/${leagueId}`)}`)
+  const [{ leagueId }, sp] = await Promise.all([params, searchParams])
+  const q = new URLSearchParams()
+  for (const [key, value] of Object.entries(sp)) {
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      for (const v of value) q.append(key, v)
+    } else {
+      q.append(key, value)
+    }
   }
-
-  const data = await getLeagueHomeData(leagueId, userId, resolvedSearchParams?.tab)
-
-  if (!data) {
-    redirect('/app/home')
-  }
-
-  return <LeagueHomeClient data={data} />
+  const suffix = q.toString() ? `?${q.toString()}` : ''
+  redirect(`/league/${leagueId}${suffix}`)
 }
