@@ -3,474 +3,672 @@
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
-import React, { Suspense, useMemo, useState } from 'react'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import {
-  addPlayerSlot,
-  buildTradeSummaryForAI,
-  canSubmitTradeByAssets,
-  estimateTradeValueLens,
-  formatValueBreakdown,
-  getDefaultPickRounds,
-  getFairnessColorClass,
-  getFairnessScore as getFairnessScoreUtil,
-  getNamedPlayerCount,
-  getResultStaleBadge,
-  getSportOptions,
-  getTotalTradeAssetCount,
-  getTradeAnalyzerAIChatUrl,
-  getWinnerLabel as getWinnerLabelUtil,
-  removeAssetAtIndex,
-  shouldShowResult,
-  supportsDraftPicksForSport,
-  TRADE_ANALYZER_EMPTY_SUBTITLE,
-  TRADE_ANALYZER_EMPTY_TITLE,
-} from '@/lib/trade-analyzer'
-import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
-import { IdpTradeLineupWarning } from '@/components/idp/IdpTradeLineupWarning'
-import { useUserTimezone } from '@/hooks/useUserTimezone'
-import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
-import { ErrorStateRenderer } from '@/components/ui-states'
-import { resolveRecoveryActions } from '@/lib/ui-state'
-import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
+import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
+import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from "@/lib/sport-scope"
+import type { NegotiationToolkit } from "@/lib/trade-engine/types"
 
-interface PlayerInput {
+type LeagueFormat = "dynasty" | "keeper" | "redraft"
+type QBFormat = "sf" | "1qb"
+type ScoringFormat =
+  | "PPR"
+  | "Half PPR"
+  | "Standard"
+  | "TE Premium"
+  | "Superflex"
+  | "Points"
+  | "Categories"
+
+type PhaseKey = "plan" | "pricing" | "engine" | "ai" | "check"
+type VerdictKey =
+  | "SMASH ACCEPT"
+  | "ACCEPT"
+  | "LEAN ACCEPT"
+  | "FAIR"
+  | "LEAN DECLINE"
+  | "DECLINE"
+  | "SMASH DECLINE"
+
+interface TradePlayer {
+  id: string
   name: string
   position: string
   team: string
   age: string
 }
 
-interface PickInput {
+interface TradePick {
+  id: string
   year: string
   round: string
-  projected_range: 'early' | 'mid' | 'late' | 'unknown'
+  projectedRange: "early" | "mid" | "late" | "unknown"
 }
 
-interface TeamInput {
-  manager_name: string
-  is_af_pro: boolean
-  record_or_rank: string
-  gives_players: PlayerInput[]
-  gives_picks: PickInput[]
-  gives_faab: number
+interface TradeSide {
+  teamName: string
+  record: string
+  isProMember: boolean
+  players: TradePlayer[]
+  picks: TradePick[]
+  faab: number
 }
 
-interface TradeInsightLabel {
+interface TradeDriver {
+  id: string
+  direction: "positive" | "negative" | "neutral"
+  strength: "strong" | "moderate" | "weak"
+  label: string
+  detail: string
+}
+
+interface TradeLabelChip {
   id: string
   name: string
   emoji: string
   description: string
+  kind: "positive" | "warning"
 }
 
-interface TradeInsights {
+interface TradeResult {
+  verdict: VerdictKey
   fairnessScore: number
-  fairnessMethod: 'lineup' | 'composite'
-  netDeltaPct: number
-  labels: TradeInsightLabel[]
-  warnings: TradeInsightLabel[]
-  veto: boolean
-  vetoReason: string | null
-  expertWarning: string | null
-  idpLineupWarning?: string | null
+  fairnessMethod: string | null
+  senderGrade: string
+  receiverGrade: string
+  valueDelta: number
+  confidencePct: number
+  recommendation: string
+  analysisBullets: string[]
+  providers: string[]
+  pECRIterations?: number
+  pECRPassed?: boolean
+  drivers: TradeDriver[]
+  labels: TradeLabelChip[]
+  warnings: string[]
+  counterOffer?: string
+  negotiationSteps: string[]
+  betterAlternatives: Array<{ teamId: string; whyBetter: string; tradeFramework: string; fitScore: number }>
+  rawPayload: ApiTradeResponse
 }
 
-interface EvaluationResult {
-  trade_id?: string
+interface ApiDriver {
+  id: string
+  name?: string
+  direction?: string
+  strength?: string
+  value?: number
+  evidence?: {
+    metric?: string
+    raw?: number
+    unit?: string
+    note?: string
+  }
+}
+
+interface ApiTradeResponse {
   evaluation?: {
-    fairness_score_0_to_100?: number
-    fairness_score?: number
-    winner?: 'sender' | 'receiver' | 'even'
-    summary?: string
-    explanation?: string
-    key_reasons?: string[]
-    risk_flags?: string[]
-    league_balance_impact?: string
+    verdict?: {
+      overall?: string
+      teamA?: string
+      teamB?: string
+    }
+    explanation?: {
+      summary?: string
+      teamAReasoning?: string
+      teamBReasoning?: string
+      leagueContextNotes?: string[]
+    }
+    confidence?: {
+      score?: number
+      rating?: string
+      drivers?: string[]
+    }
+    betterAlternatives?: Array<{
+      teamId: string
+      fitScore: number
+      whyBetter: string
+      tradeFramework: string
+    }>
+    riskFlags?: string[]
+    negotiation?: {
+      dmMessages?: Array<{ tone?: string; hook?: string; message?: string }>
+      counters?: Array<{ label?: string; rationale?: string; ifTheyObject?: string }>
+      sweeteners?: Array<{ label?: string; whenToUse?: string }>
+      redLines?: string[]
+    }
   }
-  teams?: {
-    sender?: { archetype?: string; roster_strengths?: string[]; roster_weaknesses?: string[] }
-    receiver?: { archetype?: string; roster_strengths?: string[]; roster_weaknesses?: string[] }
+  tradeInsights?: {
+    fairnessScore?: number
+    fairnessMethod?: string
+    netDeltaPct?: number
+    labels?: Array<{ id: string; name: string; emoji: string; description: string }>
+    warnings?: Array<{ id: string; name: string; emoji: string; description: string }>
+    veto?: boolean
+    vetoReason?: string | null
+    expertWarning?: string | null
+    idpLineupWarning?: string | null
   }
-  team_fit?: { sender_fit?: string; receiver_fit?: string }
-  improvements?: {
-    best_counter_offer?: { sender_gives_changes?: string[]; receiver_gives_changes?: string[]; why_this_is_better?: string }
-    small_tweaks?: string[]
+  valuationReport?: {
+    teamA?: {
+      netValue?: number
+      totalGiven?: number
+      totalReceived?: number
+      fairnessScore?: number
+    }
+    teamB?: {
+      netValue?: number
+      totalGiven?: number
+      totalReceived?: number
+      fairnessScore?: number
+    }
   }
-  user_message?: { to_sender?: string; to_receiver?: string }
-  dynasty_idp_outlook?: { sender?: string; receiver?: string }
-  end_of_season_projection?: { sender?: string; receiver?: string }
-  tradeInsights?: TradeInsights
+  serverConfidence?: {
+    score?: number
+  }
+  acceptProbability?: {
+    probability?: number
+    percentDisplay?: string
+    verdict?: string
+    lean?: string
+    drivers?: ApiDriver[]
+    confidenceDrivers?: ApiDriver[]
+    acceptBullets?: string[]
+    sensitivitySentence?: string
+  }
+  negotiationToolkit?: NegotiationToolkit
+  dualModeGrades?: {
+    atTheTime?: { percentDiff?: number; grade?: string }
+    withHindsight?: { percentDiff?: number; grade?: string }
+    comparison?: string
+  }
+  aiProviders?: {
+    openai?: string
+    deepseek?: string
+    grok?: string
+  }
 }
 
-const defaultPlayer: PlayerInput = { name: '', position: '', team: '', age: '' }
-const defaultPick: PickInput = { year: '2025', round: '1', projected_range: 'mid' }
-
-const defaultTeam: TeamInput = {
-  manager_name: '',
-  is_af_pro: false,
-  record_or_rank: '',
-  gives_players: [{ ...defaultPlayer }],
-  gives_picks: [],
-  gives_faab: 0,
+const SPORT_LABELS: Record<SupportedSport, string> = {
+  NFL: "NFL",
+  NHL: "NHL",
+  NBA: "NBA",
+  MLB: "MLB",
+  NCAAF: "NCAA Football",
+  NCAAB: "NCAA Basketball",
+  SOCCER: "Soccer",
 }
 
-const SPORT_OPTIONS = getSportOptions()
+const FORMAT_OPTIONS: Array<{ value: LeagueFormat; label: string }> = [
+  { value: "dynasty", label: "Dynasty" },
+  { value: "keeper", label: "Keeper" },
+  { value: "redraft", label: "Redraft" },
+]
 
-type SetTeamFn = React.Dispatch<React.SetStateAction<TeamInput>>
+const QB_FORMAT_OPTIONS: Array<{ value: QBFormat; label: string }> = [
+  { value: "sf", label: "Superflex (2QB)" },
+  { value: "1qb", label: "1QB" },
+]
 
-function TradeEvaluatorInner() {
-  const { formatInTimezone } = useUserTimezone()
-  const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
-  const searchParams = useSearchParams()
+const SCORING_OPTIONS: ScoringFormat[] = [
+  "PPR",
+  "Half PPR",
+  "Standard",
+  "TE Premium",
+  "Superflex",
+  "Points",
+  "Categories",
+]
 
-  const [sender, setSender] = useState<TeamInput>(() => {
-    const previewName = searchParams.get('previewSender') || ''
-    return {
-      ...defaultTeam,
-      manager_name: 'Sender Team',
-      gives_players: [{ ...defaultPlayer, name: previewName }],
-    }
-  })
+const PHASES: Array<{ key: PhaseKey; label: string; icon: string }> = [
+  { key: "plan", label: "Planning", icon: "📋" },
+  { key: "pricing", label: "Pricing", icon: "💰" },
+  { key: "engine", label: "Engine", icon: "⚙️" },
+  { key: "ai", label: "AI", icon: "🧠" },
+  { key: "check", label: "Check", icon: "✅" },
+]
 
-  const [receiver, setReceiver] = useState<TeamInput>(() => {
-    const previewName = searchParams.get('previewReceiver') || ''
-    return {
-      ...defaultTeam,
-      manager_name: 'Receiver Team',
-      gives_players: [{ ...defaultPlayer, name: previewName }],
-    }
-  })
-  const [leagueFormat, setLeagueFormat] = useState<'dynasty' | 'keeper' | 'redraft'>('dynasty')
-  const [sport, setSport] = useState<string>(DEFAULT_SPORT)
-  const [scoring, setScoring] = useState('PPR')
-  const [qbFormat, setQbFormat] = useState<'1qb' | 'sf'>('sf')
-  const [asOfDate, setAsOfDate] = useState<string>('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [result, setResult] = useState<EvaluationResult | null>(null)
-  const [activeResultTab, setActiveResultTab] = useState<'overview' | 'breakdown' | 'outlook'>('overview')
-  const [outlookMode, setOutlookMode] = useState<'current' | 'future'>('current')
-  const [lastAnalyzedSignature, setLastAnalyzedSignature] = useState<string | null>(null)
+const VERDICT_CONFIG: Record<VerdictKey, { color: string; glow: string; emoji: string }> = {
+  "SMASH ACCEPT": { color: "#10b981", glow: "rgba(16,185,129,0.35)", emoji: "🚀" },
+  ACCEPT: { color: "#34d399", glow: "rgba(52,211,153,0.32)", emoji: "✅" },
+  "LEAN ACCEPT": { color: "#6ee7b7", glow: "rgba(110,231,183,0.28)", emoji: "📈" },
+  FAIR: { color: "#fbbf24", glow: "rgba(251,191,36,0.30)", emoji: "⚖️" },
+  "LEAN DECLINE": { color: "#fb923c", glow: "rgba(251,146,60,0.28)", emoji: "📉" },
+  DECLINE: { color: "#f87171", glow: "rgba(248,113,113,0.30)", emoji: "❌" },
+  "SMASH DECLINE": { color: "#ef4444", glow: "rgba(239,68,68,0.35)", emoji: "🚫" },
+}
 
-  const pickRoundOptions = useMemo(() => getDefaultPickRounds(sport), [sport])
-  const pickSupportEnabled = useMemo(() => supportsDraftPicksForSport(sport), [sport])
-  const currentInputSignature = useMemo(
-    () =>
-      JSON.stringify({
-        sender,
-        receiver,
-        leagueFormat,
-        sport,
-        scoring,
-        qbFormat,
-        asOfDate,
-      }),
-    [sender, receiver, leagueFormat, sport, scoring, qbFormat, asOfDate]
+const POSITION_OPTIONS = ["", "QB", "RB", "WR", "TE", "K", "DEF", "PG", "SG", "SF", "PF", "C", "SP", "RP", "OF", "SS", "2B", "3B", "1B", "LW", "RW", "D", "G", "UTIL", "FLEX", "IDP"]
+const PICK_YEAR_OPTIONS = ["2025", "2026", "2027", "2028", "2029"]
+const PICK_ROUND_OPTIONS = ["1", "2", "3", "4", "5"]
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function emptyPlayer(name = ""): TradePlayer {
+  return {
+    id: uid(),
+    name,
+    position: "",
+    team: "",
+    age: "",
+  }
+}
+
+function emptyPick(): TradePick {
+  return {
+    id: uid(),
+    year: "2026",
+    round: "1",
+    projectedRange: "mid",
+  }
+}
+
+function emptySide(name: string, firstPlayerName = ""): TradeSide {
+  return {
+    teamName: name,
+    record: "",
+    isProMember: false,
+    players: [emptyPlayer(firstPlayerName)],
+    picks: [],
+    faab: 0,
+  }
+}
+
+function clampScore(value: unknown, fallback = 50) {
+  const score = Number(value)
+  if (!Number.isFinite(score)) return fallback
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
+function humanizeKey(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function driverDirection(value: string | undefined): TradeDriver["direction"] {
+  if (value === "UP") return "positive"
+  if (value === "DOWN") return "negative"
+  return "neutral"
+}
+
+function driverStrength(value: string | undefined): TradeDriver["strength"] {
+  if (value === "STRONG") return "strong"
+  if (value === "MEDIUM") return "moderate"
+  return "weak"
+}
+
+function driverDetail(driver: ApiDriver) {
+  const evidence = driver.evidence
+  if (!evidence) return "Deterministic trade engine signal."
+
+  const pieces = [
+    evidence.metric ? humanizeKey(evidence.metric) : null,
+    typeof evidence.raw === "number" ? `${evidence.raw}${evidence.unit ? ` ${evidence.unit}` : ""}` : null,
+    evidence.note ?? null,
+  ].filter(Boolean)
+
+  return pieces.length > 0 ? pieces.join(" · ") : "Deterministic trade engine signal."
+}
+
+function gradeFromPercentDiff(percentDiff: number): string {
+  if (percentDiff > 20) return "A+"
+  if (percentDiff > 10) return "A"
+  if (percentDiff > 5) return "B+"
+  if (percentDiff > -5) return "B"
+  if (percentDiff > -10) return "C+"
+  if (percentDiff > -20) return "C"
+  return "D"
+}
+
+function pickPercentDiff(payload: ApiTradeResponse, asOfDate: string) {
+  if (payload.dualModeGrades) {
+    const preferred = asOfDate ? payload.dualModeGrades.atTheTime : payload.dualModeGrades.withHindsight
+    if (typeof preferred?.percentDiff === "number") return preferred.percentDiff
+    if (typeof payload.dualModeGrades.withHindsight?.percentDiff === "number") return payload.dualModeGrades.withHindsight.percentDiff
+    if (typeof payload.dualModeGrades.atTheTime?.percentDiff === "number") return payload.dualModeGrades.atTheTime.percentDiff
+  }
+
+  const received = Number(payload.valuationReport?.teamA?.totalReceived ?? 0)
+  const given = Number(payload.valuationReport?.teamA?.totalGiven ?? 0)
+  const total = received + given
+  const diff = Number(payload.valuationReport?.teamA?.netValue ?? 0)
+  if (total <= 0) return 0
+  return (diff / total) * 100
+}
+
+function verdictFromPayload(payload: ApiTradeResponse, fairnessScore: number, valueDelta: number): VerdictKey {
+  if (payload.tradeInsights?.veto) return "SMASH DECLINE"
+
+  const engineVerdict = payload.acceptProbability?.verdict
+  const lean = payload.acceptProbability?.lean
+  if (engineVerdict === "Elite Asset Theft") return lean === "Them" ? "SMASH DECLINE" : "SMASH ACCEPT"
+  if (engineVerdict === "Strong Win") return lean === "Them" ? "DECLINE" : "ACCEPT"
+  if (engineVerdict === "Slight Win") return lean === "Them" ? "LEAN DECLINE" : "LEAN ACCEPT"
+  if (engineVerdict === "Fair") return "FAIR"
+  if (engineVerdict === "Overpay Risk") return fairnessScore < 40 || valueDelta < 0 ? "DECLINE" : "LEAN DECLINE"
+  if (engineVerdict === "Major Overpay") return "SMASH DECLINE"
+
+  const overall = payload.evaluation?.verdict?.overall
+  if (overall === "FAIR") {
+    if (fairnessScore >= 55 || valueDelta > 0) return "LEAN ACCEPT"
+    if (fairnessScore <= 45 || valueDelta < 0) return "LEAN DECLINE"
+    return "FAIR"
+  }
+  if (overall === "FAIR_UPSIDE_SKEWED") return valueDelta >= 0 ? "LEAN ACCEPT" : "LEAN DECLINE"
+  if (overall === "UNFAIR_TEAM_A") return valueDelta >= 0 ? "ACCEPT" : "DECLINE"
+  if (overall === "UNFAIR_TEAM_B") return valueDelta >= 0 ? "DECLINE" : "ACCEPT"
+
+  if (fairnessScore >= 60 || valueDelta > 0) return "ACCEPT"
+  if (fairnessScore <= 35 || valueDelta < -1000) return "SMASH DECLINE"
+  if (fairnessScore <= 45 || valueDelta < 0) return "DECLINE"
+  return "FAIR"
+}
+
+function providerList(payload: ApiTradeResponse) {
+  const providers = payload.aiProviders
+  if (!providers) return ["AI"]
+
+  const labels: string[] = []
+  if (providers.openai === "ok") labels.push("OpenAI")
+  if (providers.deepseek === "ok") labels.push("DeepSeek")
+  if (providers.grok === "ok") labels.push("Grok")
+  return labels.length > 0 ? labels : ["AI"]
+}
+
+function buildNegotiationSteps(payload: ApiTradeResponse) {
+  const toolkit = payload.negotiationToolkit
+  if (toolkit) {
+    const steps: string[] = []
+    steps.push(`Open with leverage: ${toolkit.dmMessages.opener}`)
+    steps.push(`Lead the rationale with: ${toolkit.dmMessages.rationale}`)
+    if (toolkit.counters[0]?.description) steps.push(`Primary counter: ${toolkit.counters[0].description}`)
+    if (toolkit.sweeteners[0]?.suggestion) steps.push(`Sweetener if needed: ${toolkit.sweeteners[0].suggestion}`)
+    if (toolkit.redLines[0]?.rule) steps.push(`Red line: ${toolkit.redLines[0].rule}`)
+    if (toolkit.dmMessages.fallback) steps.push(`Fallback close: ${toolkit.dmMessages.fallback}`)
+    return steps.slice(0, 6)
+  }
+
+  const legacy = payload.evaluation?.negotiation
+  if (!legacy) return []
+
+  const steps: string[] = []
+  if (legacy.dmMessages?.[0]?.message) steps.push(legacy.dmMessages[0].message)
+  if (legacy.counters?.[0]?.rationale) steps.push(`Counter with: ${legacy.counters[0].rationale}`)
+  if (legacy.sweeteners?.[0]?.whenToUse) steps.push(`Use a sweetener when: ${legacy.sweeteners[0].whenToUse}`)
+  if (legacy.redLines?.[0]) steps.push(`Red line: ${legacy.redLines[0]}`)
+  return steps
+}
+
+function buildCounterOffer(payload: ApiTradeResponse) {
+  if (payload.negotiationToolkit?.counters[0]?.description) return payload.negotiationToolkit.counters[0].description
+  if (payload.evaluation?.negotiation?.counters?.[0]?.rationale) return payload.evaluation.negotiation.counters[0].rationale
+  return undefined
+}
+
+function buildWarnings(payload: ApiTradeResponse) {
+  return [
+    payload.tradeInsights?.vetoReason ?? null,
+    payload.tradeInsights?.expertWarning ?? null,
+    payload.tradeInsights?.idpLineupWarning ?? null,
+    ...(payload.evaluation?.riskFlags ?? []),
+  ].filter((value): value is string => Boolean(value && value.trim()))
+}
+
+function mapApiResponse(payload: ApiTradeResponse, headers: Headers, asOfDate: string): TradeResult {
+  const fairnessScore = clampScore(
+    payload.tradeInsights?.fairnessScore ?? payload.valuationReport?.teamA?.fairnessScore ?? 50,
+    50
   )
-  const analysisStale = shouldShowResult(result, loading, error || null) && lastAnalyzedSignature !== currentInputSignature
-  const staleBanner = getResultStaleBadge(analysisStale)
+  const valueDelta = Number(payload.valuationReport?.teamA?.netValue ?? 0)
+  const percentDiff = pickPercentDiff(payload, asOfDate)
+  const senderGrade =
+    (asOfDate ? payload.dualModeGrades?.atTheTime?.grade : payload.dualModeGrades?.withHindsight?.grade) ??
+    gradeFromPercentDiff(percentDiff)
+  const receiverGrade = gradeFromPercentDiff(-percentDiff)
+  const analysisBullets = [
+    ...(payload.acceptProbability?.acceptBullets ?? []),
+    ...(payload.evaluation?.explanation?.leagueContextNotes ?? []),
+  ].filter(Boolean)
+  const labels: TradeLabelChip[] = [
+    ...(payload.tradeInsights?.labels ?? []).map((label) => ({ ...label, kind: "positive" as const })),
+    ...(payload.tradeInsights?.warnings ?? []).map((label) => ({ ...label, kind: "warning" as const })),
+  ]
+  const drivers = (payload.acceptProbability?.drivers ?? []).map((driver) => ({
+    id: driver.id,
+    direction: driverDirection(driver.direction),
+    strength: driverStrength(driver.strength),
+    label: driver.name ?? humanizeKey(driver.id),
+    detail: driverDetail(driver),
+  }))
 
-  const senderAssetCount = getTotalTradeAssetCount(sender.gives_players, sender.gives_picks, sender.gives_faab)
-  const receiverAssetCount = getTotalTradeAssetCount(receiver.gives_players, receiver.gives_picks, receiver.gives_faab)
-  const canAnalyzeTrade = canSubmitTradeByAssets(senderAssetCount, receiverAssetCount, true)
+  const pecrIterations = headers.get("x-pecr-iterations")
+  const pecrPassed = headers.get("x-pecr-passed")
 
-  const evaluateTrade = async () => {
-    setLoading(true)
-    setResult(null)
-
-    const formatPlayers = (players: PlayerInput[]) =>
-      players.filter(p => p.name.trim()).map(p => ({
-        name: p.name,
-        position: p.position || undefined,
-        team: p.team || undefined,
-        age: p.age ? parseInt(p.age) : undefined,
-      }))
-
-    const formatPicks = (picks: PickInput[]) =>
-      picks
-        .filter((pick) => String(pick.year).trim() && String(pick.round).trim())
-        .map(p => ({
-          year: parseInt(p.year, 10),
-          round: parseInt(p.round, 10),
-          projected_range: p.projected_range,
-        }))
-
-    try {
-      const res = await fetch('/api/trade-evaluator', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trade_id: `trade_${Date.now()}`,
-          sender: {
-            manager_name: sender.manager_name,
-            is_af_pro: sender.is_af_pro,
-            record_or_rank: sender.record_or_rank || undefined,
-            gives_players: formatPlayers(sender.gives_players),
-            gives_picks: formatPicks(sender.gives_picks),
-            gives_faab: sender.gives_faab,
-          },
-          receiver: {
-            manager_name: receiver.manager_name,
-            is_af_pro: receiver.is_af_pro,
-            record_or_rank: receiver.record_or_rank || undefined,
-            gives_players: formatPlayers(receiver.gives_players),
-            gives_picks: formatPicks(receiver.gives_picks),
-            gives_faab: receiver.gives_faab,
-          },
-          league: {
-            format: leagueFormat,
-            sport: normalizeToSupportedSport(sport),
-            scoring_summary: scoring,
-            qb_format: qbFormat,
-          },
-          asOfDate: asOfDate || undefined,
-          confirmTokenSpend: true,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data?.error || 'Failed to evaluate trade')
-        return
-      }
-
-      setResult(data)
-      setLastAnalyzedSignature(currentInputSignature)
-      setActiveResultTab('overview')
-      setError('')
-    } catch {
-      setError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+  return {
+    verdict: verdictFromPayload(payload, fairnessScore, valueDelta),
+    fairnessScore,
+    fairnessMethod: payload.tradeInsights?.fairnessMethod ?? null,
+    senderGrade,
+    receiverGrade,
+    valueDelta,
+    confidencePct: clampScore(
+      payload.serverConfidence?.score ??
+        payload.evaluation?.confidence?.score ??
+        (typeof payload.acceptProbability?.probability === "number" ? payload.acceptProbability.probability * 100 : 70),
+      70
+    ),
+    recommendation:
+      payload.evaluation?.explanation?.summary ??
+      payload.acceptProbability?.sensitivitySentence ??
+      "Trade analysis complete.",
+    analysisBullets,
+    providers: providerList(payload),
+    pECRIterations: pecrIterations ? Number(pecrIterations) : undefined,
+    pECRPassed: pecrPassed ? pecrPassed === "true" : undefined,
+    drivers,
+    labels,
+    warnings: buildWarnings(payload),
+    counterOffer: buildCounterOffer(payload),
+    negotiationSteps: buildNegotiationSteps(payload),
+    betterAlternatives: payload.evaluation?.betterAlternatives ?? [],
+    rawPayload: payload,
   }
+}
 
-  const addPlayer = (team: 'sender' | 'receiver') => {
-    if (team === 'sender') {
-      setSender((prev) => ({ ...prev, gives_players: addPlayerSlot(prev.gives_players, { ...defaultPlayer }) }))
-    } else {
-      setReceiver((prev) => ({ ...prev, gives_players: addPlayerSlot(prev.gives_players, { ...defaultPlayer }) }))
-    }
-  }
-
-  const removePlayer = (team: 'sender' | 'receiver', index: number) => {
-    if (team === 'sender') {
-      setSender((prev) => ({ ...prev, gives_players: removeAssetAtIndex(prev.gives_players, index) }))
-    } else {
-      setReceiver((prev) => ({ ...prev, gives_players: removeAssetAtIndex(prev.gives_players, index) }))
-    }
-  }
-
-  const updatePlayer = (team: 'sender' | 'receiver', index: number, field: keyof PlayerInput, value: string) => {
-    if (team === 'sender') {
-      setSender((prev) => {
-        const players = [...prev.gives_players]
-        players[index] = { ...players[index], [field]: value }
-        return { ...prev, gives_players: players }
-      })
-    } else {
-      setReceiver((prev) => {
-        const players = [...prev.gives_players]
-        players[index] = { ...players[index], [field]: value }
-        return { ...prev, gives_players: players }
-      })
-    }
-  }
-
-  const addPick = (team: 'sender' | 'receiver') => {
-    if (!pickSupportEnabled) return
-    if (team === 'sender') {
-      setSender((prev) => ({ ...prev, gives_picks: [...prev.gives_picks, { ...defaultPick }] }))
-    } else {
-      setReceiver((prev) => ({ ...prev, gives_picks: [...prev.gives_picks, { ...defaultPick }] }))
-    }
-  }
-
-  const removePick = (team: 'sender' | 'receiver', index: number) => {
-    if (team === 'sender') {
-      setSender((prev) => ({ ...prev, gives_picks: removeAssetAtIndex(prev.gives_picks, index) }))
-    } else {
-      setReceiver((prev) => ({ ...prev, gives_picks: removeAssetAtIndex(prev.gives_picks, index) }))
-    }
-  }
-
-  const clearTeamAssets = (team: 'sender' | 'receiver') => {
-    if (team === 'sender') {
-      setSender((prev) => ({
-        ...prev,
-        gives_players: [{ ...defaultPlayer }],
-        gives_picks: [],
-        gives_faab: 0,
-      }))
-    } else {
-      setReceiver((prev) => ({
-        ...prev,
-        gives_players: [{ ...defaultPlayer }],
-        gives_picks: [],
-        gives_faab: 0,
-      }))
-    }
-    setResult(null)
-    setLastAnalyzedSignature(null)
-    setError('')
-  }
-
-  const updatePick = (team: 'sender' | 'receiver', index: number, field: keyof PickInput, value: string) => {
-    if (team === 'sender') {
-      setSender((prev) => {
-        const picks = [...prev.gives_picks]
-        picks[index] = { ...picks[index], [field]: value } as PickInput
-        return { ...prev, gives_picks: picks }
-      })
-    } else {
-      setReceiver((prev) => {
-        const picks = [...prev.gives_picks]
-        picks[index] = { ...picks[index], [field]: value } as PickInput
-        return { ...prev, gives_picks: picks }
-      })
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    if (!canAnalyzeTrade) {
-      setError('Add at least one trade asset (player, pick, or FAAB) to each side.')
-      return
-    }
-    await evaluateTrade()
-  }
-
-  const getFairnessScore = (r: EvaluationResult): number => getFairnessScoreUtil(r)
-  const getFairnessColor = (score: number) => getFairnessColorClass(score)
-  const getWinnerLabel = (winner?: string) => getWinnerLabelUtil(winner, sender.manager_name || 'Sender', receiver.manager_name || 'Receiver')
-
-  const resetTrade = () => {
-    setSender({ ...defaultTeam, manager_name: 'Sender Team', gives_players: [{ ...defaultPlayer }] })
-    setReceiver({ ...defaultTeam, manager_name: 'Receiver Team', gives_players: [{ ...defaultPlayer }] })
-    setLeagueFormat('dynasty')
-    setSport(DEFAULT_SPORT)
-    setScoring('PPR')
-    setQbFormat('sf')
-    setAsOfDate('')
-    setResult(null)
-    setError('')
-    setLastAnalyzedSignature(null)
-    setActiveResultTab('overview')
-    setOutlookMode('current')
-  }
-
-  const swapSides = () => {
-    const senderSnapshot = { ...sender }
-    const receiverSnapshot = { ...receiver }
-    setSender({ ...receiverSnapshot, manager_name: receiverSnapshot.manager_name || 'Sender Team' })
-    setReceiver({ ...senderSnapshot, manager_name: senderSnapshot.manager_name || 'Receiver Team' })
-    setResult(null)
-    setError('')
-    setLastAnalyzedSignature(null)
-  }
-
-  const renderTeamForm = (team: TeamInput, setTeam: SetTeamFn, label: string, teamKey: 'sender' | 'receiver') => (
+function ResultBadge({ verdict }: { verdict: VerdictKey }) {
+  const config = VERDICT_CONFIG[verdict]
+  return (
     <div
-      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 backdrop-blur"
-      data-testid={`trade-team-builder-${teamKey}`}
+      className="rounded-2xl border px-5 py-4 text-center"
+      style={{ borderColor: `${config.color}55`, background: `radial-gradient(circle at top, ${config.glow}, rgba(9,12,24,0.94))` }}
     >
-      <div className="mb-3 flex items-center justify-between gap-3 sm:mb-4">
+      <div className="text-4xl">{config.emoji}</div>
+      <div className="mt-2 text-xl font-black" style={{ color: config.color }}>
+        {verdict}
+      </div>
+      <div className="mt-1 text-[11px] uppercase tracking-[0.25em] text-white/40">Verdict</div>
+    </div>
+  )
+}
+
+function LoadingState({ phase }: { phase: PhaseKey }) {
+  const activeIndex = PHASES.findIndex((item) => item.key === phase)
+
+  return (
+    <div className="rounded-3xl border border-white/8 bg-[#0c0c1e] p-6 sm:p-8">
+      <div className="text-center">
+        <div className="mx-auto flex w-fit items-center gap-1.5">
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              className="h-2.5 w-2.5 rounded-full bg-cyan-400"
+              style={{ animation: "pulse 1s ease-in-out infinite", animationDelay: `${index * 0.18}s` }}
+            />
+          ))}
+        </div>
+        <h2 className="mt-5 text-xl font-bold text-white">Running multi-stage trade analysis</h2>
+        <p className="mt-2 text-sm text-white/50">Planning, pricing, engine reasoning, AI synthesis, and output checks.</p>
+      </div>
+
+      <div className="mt-8 grid gap-3 sm:grid-cols-5">
+        {PHASES.map((item, index) => {
+          const isDone = index < activeIndex
+          const isActive = index === activeIndex
+          return (
+            <div
+              key={item.key}
+              className={`rounded-2xl border px-4 py-4 text-center transition-all ${
+                isActive
+                  ? "border-cyan-400/35 bg-cyan-500/10"
+                  : isDone
+                    ? "border-emerald-400/20 bg-emerald-500/10"
+                    : "border-white/8 bg-white/[0.02]"
+              }`}
+            >
+              <div className="text-2xl">{item.icon}</div>
+              <div className="mt-2 text-sm font-semibold text-white">{item.label}</div>
+              <div className="mt-1 text-[11px] text-white/45">{isDone ? "Done" : isActive ? "In progress" : "Queued"}</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function AssetPanel({
+  label,
+  accent,
+  side,
+  onChange,
+  onClear,
+}: {
+  label: string
+  accent: string
+  side: TradeSide
+  onChange: (side: TradeSide) => void
+  onClear: () => void
+}) {
+  const playerCount = side.players.filter((player) => player.name.trim()).length
+  const pickCount = side.picks.length
+
+  return (
+    <div className="rounded-3xl border border-white/8 bg-[#0c0c1e] p-5 sm:p-6" data-testid={`trade-side-${label.toLowerCase().includes("sender") ? "sender" : "receiver"}`}>
+      <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-base sm:text-lg font-medium text-white/90">{label}</h3>
-          <p className="text-xs text-white/45">
-            {getNamedPlayerCount(team.gives_players)} players, {team.gives_picks.length} picks, {team.gives_faab} FAAB
-          </p>
+          <div className="text-xs font-bold uppercase tracking-[0.28em]" style={{ color: accent }}>
+            {label}
+          </div>
+          <div className="mt-2 text-xs text-white/45">
+            {playerCount} player{playerCount === 1 ? "" : "s"} · {pickCount} pick{pickCount === 1 ? "" : "s"} · {side.faab} FAAB
+          </div>
         </div>
         <button
           type="button"
-          onClick={() => clearTeamAssets(teamKey)}
-          data-testid={`trade-clear-side-${teamKey}`}
-          className="rounded-lg border border-white/15 bg-white/[0.03] px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/[0.08] hover:text-white/85"
+          onClick={onClear}
+          className="rounded-xl border border-white/10 px-3 py-1.5 text-xs text-white/45 hover:border-white/20 hover:text-white/75"
         >
-          Clear side
+          Clear
         </button>
       </div>
 
       <div className="space-y-4">
-        <div>
-          <label htmlFor={`trade-${teamKey}-manager-name`} className="block text-sm text-white/60 mb-1.5">Manager/Team Name</label>
-          <input
-            id={`trade-${teamKey}-manager-name`}
-            type="text"
-            value={team.manager_name}
-            onChange={(e) => setTeam((prev) => ({ ...prev, manager_name: e.target.value }))}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
-            placeholder="e.g., Dynasty Destroyers"
-          />
-        </div>
+        <input
+          value={side.teamName}
+          onChange={(event) => onChange({ ...side, teamName: event.target.value })}
+          placeholder="Manager / Team name"
+          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
+        />
 
-        <div>
-          <label htmlFor={`trade-${teamKey}-record-rank`} className="block text-sm text-white/60 mb-1.5">Record/Rank <span className="text-white/40">(optional)</span></label>
-          <input
-            id={`trade-${teamKey}-record-rank`}
-            type="text"
-            value={team.record_or_rank}
-            onChange={(e) => setTeam((prev) => ({ ...prev, record_or_rank: e.target.value }))}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
-            placeholder="e.g., 3rd place, 8-4"
-          />
-        </div>
+        <input
+          value={side.record}
+          onChange={(event) => onChange({ ...side, record: event.target.value })}
+          placeholder="Record / rank (optional)"
+          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
+        />
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-white/60">Players Giving</label>
+        <label className="flex items-center gap-2 text-sm text-white/70">
+          <input
+            type="checkbox"
+            checked={side.isProMember}
+            onChange={(event) => onChange({ ...side, isProMember: event.target.checked })}
+            className="h-4 w-4 rounded border-white/20 bg-transparent"
+          />
+          AF Pro member
+        </label>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">Players Giving</span>
             <button
               type="button"
-              onClick={() => addPlayer(teamKey)}
-              data-testid={`trade-add-player-${teamKey}`}
-              className="text-xs text-cyan-400 hover:text-cyan-300"
+              onClick={() => onChange({ ...side, players: [...side.players, emptyPlayer()] })}
+              data-testid={`trade-add-player-${label.toLowerCase().includes("sender") ? "sender" : "receiver"}`}
+              className="text-xs font-semibold"
+              style={{ color: accent }}
             >
               + Add Player
             </button>
           </div>
-          {team.gives_players.map((player, i) => (
-            <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 mb-2">
+
+          {side.players.map((player, index) => (
+            <div key={player.id} className="grid grid-cols-12 gap-2">
               <input
-                type="text"
                 value={player.name}
-                onChange={(e) => updatePlayer(teamKey, i, 'name', e.target.value)}
-                aria-label={`${teamKey} player ${i + 1} name`}
-                className="col-span-2 sm:col-span-5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 sm:py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
+                onChange={(event) => {
+                  const players = [...side.players]
+                  players[index] = { ...players[index], name: event.target.value }
+                  onChange({ ...side, players })
+                }}
                 placeholder="Player name"
+                className="col-span-12 sm:col-span-5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
               />
-              <input
-                type="text"
+              <select
                 value={player.position}
-                onChange={(e) => updatePlayer(teamKey, i, 'position', e.target.value)}
-                aria-label={`${teamKey} player ${i + 1} position`}
-                className="col-span-1 sm:col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 sm:py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
-                placeholder="Pos"
-              />
+                onChange={(event) => {
+                  const players = [...side.players]
+                  players[index] = { ...players[index], position: event.target.value }
+                  onChange({ ...side, players })
+                }}
+                className="col-span-4 sm:col-span-2 rounded-xl border border-white/10 bg-[#101224] px-3 py-2.5 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {POSITION_OPTIONS.map((position) => (
+                  <option key={position || "blank"} value={position}>
+                    {position || "Pos"}
+                  </option>
+                ))}
+              </select>
               <input
-                type="text"
                 value={player.team}
-                onChange={(e) => updatePlayer(teamKey, i, 'team', e.target.value)}
-                aria-label={`${teamKey} player ${i + 1} team`}
-                className="col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
+                onChange={(event) => {
+                  const players = [...side.players]
+                  players[index] = { ...players[index], team: event.target.value }
+                  onChange({ ...side, players })
+                }}
                 placeholder="Team"
+                className="col-span-4 sm:col-span-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
               />
               <input
-                type="text"
+                type="number"
+                min={0}
                 value={player.age}
-                onChange={(e) => updatePlayer(teamKey, i, 'age', e.target.value)}
-                aria-label={`${teamKey} player ${i + 1} age`}
-                className="col-span-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
+                onChange={(event) => {
+                  const players = [...side.players]
+                  players[index] = { ...players[index], age: event.target.value }
+                  onChange({ ...side, players })
+                }}
                 placeholder="Age"
+                className="col-span-3 sm:col-span-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
               />
               <button
                 type="button"
-                onClick={() => removePlayer(teamKey, i)}
-                data-testid={`trade-remove-player-${teamKey}-${i}`}
-                aria-label={`Remove ${teamKey} player ${i + 1}`}
-                className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
+                onClick={() => onChange({ ...side, players: side.players.filter((_, rowIndex) => rowIndex !== index) })}
+                className="col-span-1 rounded-xl text-lg text-red-300/70 hover:bg-red-500/10 hover:text-red-300"
+                aria-label="Remove player"
               >
                 ×
               </button>
@@ -478,47 +676,62 @@ function TradeEvaluatorInner() {
           ))}
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-white/60">Draft Picks Giving</label>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">Draft Picks</span>
             <button
               type="button"
-              onClick={() => addPick(teamKey)}
-              disabled={!pickSupportEnabled}
-              data-testid={`trade-add-pick-${teamKey}`}
-              className="text-xs text-cyan-400 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => onChange({ ...side, picks: [...side.picks, emptyPick()] })}
+              data-testid={`trade-add-pick-${label.toLowerCase().includes("sender") ? "sender" : "receiver"}`}
+              className="text-xs font-semibold"
+              style={{ color: accent }}
             >
               + Add Pick
             </button>
           </div>
-          {pickSupportEnabled ? (
-            <>
-              <p className="mb-2 text-[11px] text-white/40">
-                Round options adapt to {sport}. Available rounds: {pickRoundOptions.join(', ')}.
-              </p>
-              {team.gives_picks.map((pick, i) => (
-            <div key={i} className="grid grid-cols-12 gap-2 mb-2">
-              <input
-                type="text"
-                value={pick.year}
-                onChange={(e) => updatePick(teamKey, i, 'year', e.target.value)}
-                aria-label={`${teamKey} pick ${i + 1} year`}
-                className="col-span-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
-                placeholder="Year"
-              />
+
+          {side.picks.length === 0 ? <div className="text-xs italic text-white/25">No picks added</div> : null}
+
+          {side.picks.map((pick, index) => (
+            <div key={pick.id} className="grid grid-cols-12 gap-2">
               <select
-                value={pick.round}
-                onChange={(e) => updatePick(teamKey, i, 'round', e.target.value)}
-                aria-label={`${teamKey} pick ${i + 1} round`}
-                className="col-span-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                value={pick.year}
+                onChange={(event) => {
+                  const picks = [...side.picks]
+                  picks[index] = { ...picks[index], year: event.target.value }
+                  onChange({ ...side, picks })
+                }}
+                className="col-span-4 rounded-xl border border-white/10 bg-[#101224] px-3 py-2.5 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
               >
-                {pickRoundOptions.map(r => <option key={r} value={r}>Round {r}</option>)}
+                {PICK_YEAR_OPTIONS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
               </select>
               <select
-                value={pick.projected_range}
-                onChange={(e) => updatePick(teamKey, i, 'projected_range', e.target.value)}
-                aria-label={`${teamKey} pick ${i + 1} projected range`}
-                className="col-span-5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white focus:border-cyan-400/50 focus:outline-none"
+                value={pick.round}
+                onChange={(event) => {
+                  const picks = [...side.picks]
+                  picks[index] = { ...picks[index], round: event.target.value }
+                  onChange({ ...side, picks })
+                }}
+                className="col-span-3 rounded-xl border border-white/10 bg-[#101224] px-3 py-2.5 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {PICK_ROUND_OPTIONS.map((round) => (
+                  <option key={round} value={round}>
+                    R{round}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={pick.projectedRange}
+                onChange={(event) => {
+                  const picks = [...side.picks]
+                  picks[index] = { ...picks[index], projectedRange: event.target.value as TradePick["projectedRange"] }
+                  onChange({ ...side, picks })
+                }}
+                className="col-span-4 rounded-xl border border-white/10 bg-[#101224] px-3 py-2.5 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
               >
                 <option value="early">Early</option>
                 <option value="mid">Mid</option>
@@ -527,263 +740,190 @@ function TradeEvaluatorInner() {
               </select>
               <button
                 type="button"
-                onClick={() => removePick(teamKey, i)}
-                data-testid={`trade-remove-pick-${teamKey}-${i}`}
-                aria-label={`Remove ${teamKey} pick ${i + 1}`}
-                className="col-span-1 text-red-400/60 hover:text-red-400 text-lg"
+                onClick={() => onChange({ ...side, picks: side.picks.filter((_, rowIndex) => rowIndex !== index) })}
+                className="col-span-1 rounded-xl text-lg text-red-300/70 hover:bg-red-500/10 hover:text-red-300"
+                aria-label="Remove pick"
               >
                 ×
               </button>
             </div>
-              ))}
-            </>
-          ) : (
-            <p className="mb-2 text-[11px] text-white/40">Draft picks are not currently configurable for {sport} in this flow.</p>
-          )}
+          ))}
         </div>
 
         <div>
-          <label htmlFor={`trade-${teamKey}-faab`} className="block text-sm text-white/60 mb-1.5">FAAB Giving</label>
+          <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">FAAB Included</label>
           <input
-            id={`trade-${teamKey}-faab`}
             type="number"
-            value={team.gives_faab}
-            onChange={(e) => setTeam((prev) => ({ ...prev, gives_faab: Number(e.target.value) }))}
-            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-400/50 focus:outline-none"
-            placeholder="$0"
             min={0}
+            value={side.faab}
+            onChange={(event) => onChange({ ...side, faab: Number(event.target.value) || 0 })}
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none"
           />
         </div>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={team.is_af_pro}
-            onChange={(e) => setTeam((prev) => ({ ...prev, is_af_pro: e.target.checked }))}
-            aria-label={`${teamKey} AF Pro member`}
-            className="w-4 h-4 rounded border-white/20 bg-white/5 text-cyan-400"
-          />
-          <span className="text-sm text-white/70">AF Pro Member</span>
-        </label>
       </div>
     </div>
-  );
-
-  const senderAssetLabels = [
-    ...sender.gives_players.map((p) => p.name.trim()).filter(Boolean),
-    ...sender.gives_picks
-      .map((p) => (String(p.year).trim() && String(p.round).trim() ? `${p.year} Round ${p.round}` : ""))
-      .filter(Boolean),
-    ...(sender.gives_faab > 0 ? [`${sender.gives_faab} FAAB`] : []),
-  ]
-  const receiverAssetLabels = [
-    ...receiver.gives_players.map((p) => p.name.trim()).filter(Boolean),
-    ...receiver.gives_picks
-      .map((p) => (String(p.year).trim() && String(p.round).trim() ? `${p.year} Round ${p.round}` : ""))
-      .filter(Boolean),
-    ...(receiver.gives_faab > 0 ? [`${receiver.gives_faab} FAAB`] : []),
-  ]
-  const valueBreakdown = formatValueBreakdown(
-    {
-      label: sender.manager_name || "Sender",
-      assets: senderAssetLabels,
-    },
-    {
-      label: receiver.manager_name || "Receiver",
-      assets: receiverAssetLabels,
-    }
   )
-  const senderValueLens = estimateTradeValueLens(sender.gives_players, sender.gives_picks, sender.gives_faab)
-  const receiverValueLens = estimateTradeValueLens(receiver.gives_players, receiver.gives_picks, receiver.gives_faab)
-  const currentValueDelta = Number((senderValueLens.current - receiverValueLens.current).toFixed(1))
-  const futureValueDelta = Number((senderValueLens.future - receiverValueLens.future).toFixed(1))
+}
 
-  const content = (
-    <div role="main" className="min-h-screen bg-[#05060a] text-white relative overflow-hidden">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-48 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[160px]" />
-        <div className="absolute top-52 -left-56 h-[520px] w-[520px] rounded-full bg-fuchsia-500/7 blur-[180px]" />
-        <div className="absolute -bottom-64 right-0 h-[560px] w-[560px] rounded-full bg-indigo-500/9 blur-[190px]" />
-      </div>
+function TradeHubInner() {
+  const searchParams = useSearchParams()
+  const previewSender = searchParams.get("previewSender") ?? ""
+  const previewReceiver = searchParams.get("previewReceiver") ?? ""
 
-      <div className="pointer-events-none absolute inset-0 noise-overlay" />
-      <div className="pointer-events-none absolute inset-0 scanline-overlay" />
+  const [sender, setSender] = useState<TradeSide>(() => emptySide("Sender Team", previewSender))
+  const [receiver, setReceiver] = useState<TradeSide>(() => emptySide("Receiver Team", previewReceiver))
+  const [format, setFormat] = useState<LeagueFormat>("dynasty")
+  const [qbFormat, setQbFormat] = useState<QBFormat>("sf")
+  const [sport, setSport] = useState<SupportedSport>(DEFAULT_SPORT)
+  const [scoring, setScoring] = useState<ScoringFormat>("PPR")
+  const [asOfDate, setAsOfDate] = useState("")
+  const [phase, setPhase] = useState<PhaseKey>("plan")
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<TradeResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const resultRef = useRef<HTMLDivElement | null>(null)
 
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-12">
-        <Link href="/" className="inline-flex items-center gap-2 text-white/60 hover:text-white/90 transition-colors mb-8">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to Home
-        </Link>
+  const senderHasAssets = useMemo(
+    () => sender.players.some((player) => player.name.trim()) || sender.picks.length > 0 || sender.faab > 0,
+    [sender]
+  )
+  const receiverHasAssets = useMemo(
+    () => receiver.players.some((player) => player.name.trim()) || receiver.picks.length > 0 || receiver.faab > 0,
+    [receiver]
+  )
+  const canEvaluate = senderHasAssets && receiverHasAssets && !loading
 
-        <div className="text-center mb-10">
-          <div className="mx-auto w-fit rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-white/75 backdrop-blur mb-4">
-            AI-Powered Analysis v2
-          </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold tracking-tight">
-            <span className="bg-gradient-to-b from-white via-white/85 to-white/55 bg-clip-text text-transparent">
-              AF Trade Analyzer
-            </span>
-          </h1>
-          <p className="mt-3 text-white/65 max-w-xl mx-auto">
-            Get comprehensive AI analysis of your fantasy trade with sender/receiver breakdown.
-          </p>
-          <p className="mt-1 text-xs text-white/45 max-w-lg mx-auto">
-            Add players and picks to each side, then click Evaluate Trade. Supports NFL, NBA, MLB, NHL, NCAA Football, NCAA Basketball, and Soccer.
-          </p>
-        </div>
+  useEffect(() => {
+    if (result && resultRef.current) {
+      resultRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [result])
 
-        <InContextMonetizationCard
-          title="Trade Analyzer access"
-          featureId="trade_analyzer"
-          tokenRuleCodes={['ai_trade_analyzer_full_review']}
-          className="mb-6"
-          testIdPrefix="trade-monetization"
-        />
+  const resetTrade = useCallback(() => {
+    setSender(emptySide("Sender Team"))
+    setReceiver(emptySide("Receiver Team"))
+    setFormat("dynasty")
+    setQbFormat("sf")
+    setSport(DEFAULT_SPORT)
+    setScoring("PPR")
+    setAsOfDate("")
+    setPhase("plan")
+    setResult(null)
+    setError(null)
+  }, [])
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid md:grid-cols-2 gap-6">
-            {renderTeamForm(sender, setSender, 'Sender (Proposing)', 'sender')}
-            {renderTeamForm(receiver, setReceiver, 'Receiver (Responding)', 'receiver')}
-          </div>
+  const swapSides = useCallback(() => {
+    setSender(receiver)
+    setReceiver(sender)
+    setResult(null)
+    setError(null)
+  }, [receiver, sender])
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur">
-            <h3 className="text-lg font-medium text-white/90 mb-4">League Settings</h3>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-              <div>
-                <label htmlFor="trade-league-format" className="block text-sm text-white/60 mb-1.5">Format</label>
-                <select
-                  id="trade-league-format"
-                  value={leagueFormat}
-                  onChange={(e) => setLeagueFormat(e.target.value as 'dynasty' | 'keeper' | 'redraft')}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
-                >
-                  <option value="dynasty">Dynasty</option>
-                  <option value="keeper">Keeper</option>
-                  <option value="redraft">Redraft</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="trade-qb-format" className="block text-sm text-white/60 mb-1.5">QB Format</label>
-                <select
-                  id="trade-qb-format"
-                  value={qbFormat}
-                  onChange={(e) => setQbFormat(e.target.value as '1qb' | 'sf')}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
-                >
-                  <option value="sf">Superflex (2QB)</option>
-                  <option value="1qb">1QB</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="trade-sport" className="block text-sm text-white/60 mb-1.5">Sport</label>
-                <select
-                  id="trade-sport"
-                  value={sport}
-                  onChange={(e) => setSport(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
-                >
-                  {SPORT_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="trade-scoring" className="block text-sm text-white/60 mb-1.5">Scoring</label>
-                <select
-                  id="trade-scoring"
-                  value={scoring}
-                  onChange={(e) => setScoring(e.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none"
-                >
-                  <option value="PPR">PPR</option>
-                  <option value="Half PPR">Half PPR</option>
-                  <option value="Standard">Standard</option>
-                  <option value="TE Premium">TE Premium</option>
-                  <option value="Superflex">Superflex</option>
-                  <option value="Points">Points (NBA/NHL)</option>
-                  <option value="Categories">Categories (NBA)</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2 lg:col-span-2">
-                <label htmlFor="trade-as-of-date" className="block text-sm text-white/60 mb-1.5">
-                  As Of Date <span className="text-white/40">(optional - for historical analysis)</span>
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="trade-as-of-date"
-                    type="date"
-                    value={asOfDate}
-                    onChange={(e) => setAsOfDate(e.target.value)}
-                    max={new Date().toISOString().split('T')[0]}
-                    min="2020-04-01"
-                    className="flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white focus:border-cyan-400/50 focus:outline-none [color-scheme:dark]"
-                    placeholder="Leave empty for today's values"
-                  />
-                  {asOfDate && (
-                    <button
-                      type="button"
-                      onClick={() => setAsOfDate('')}
-                      aria-label="Clear as-of date"
-                      className="px-3 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-white/60 hover:text-white hover:bg-white/[0.08] transition-colors"
-                    >
-                      Clear
-                    </button>
-                  )}
-                </div>
-                {asOfDate && (
-                  <p className="text-xs text-cyan-400/80 mt-1.5">
-                    Using historical market values from {formatInTimezone(asOfDate, { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </p>
-                )}
-              </div>
+  const evaluate = useCallback(async () => {
+    if (!canEvaluate) return
+
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    setPhase("plan")
+
+    const timers = [
+      window.setTimeout(() => setPhase("pricing"), 700),
+      window.setTimeout(() => setPhase("engine"), 1800),
+      window.setTimeout(() => setPhase("ai"), 3300),
+      window.setTimeout(() => setPhase("check"), 5200),
+    ]
+
+    try {
+      const response = await fetch("/api/trade-evaluator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          trade_id: `trade_${Date.now()}`,
+          confirmTokenSpend: true,
+          sender: {
+            manager_name: sender.teamName.trim() || "Sender Team",
+            is_af_pro: sender.isProMember,
+            record_or_rank: sender.record.trim() || undefined,
+            gives_players: sender.players
+              .filter((player) => player.name.trim())
+              .map((player) => ({
+                name: player.name.trim(),
+                position: player.position.trim() || undefined,
+                team: player.team.trim() || undefined,
+                age: player.age.trim() ? Number(player.age) : undefined,
+              })),
+            gives_picks: sender.picks.map((pick) => ({
+              year: Number(pick.year),
+              round: Number(pick.round),
+              projected_range: pick.projectedRange,
+            })),
+            gives_faab: sender.faab,
+          },
+          receiver: {
+            manager_name: receiver.teamName.trim() || "Receiver Team",
+            is_af_pro: receiver.isProMember,
+            record_or_rank: receiver.record.trim() || undefined,
+            gives_players: receiver.players
+              .filter((player) => player.name.trim())
+              .map((player) => ({
+                name: player.name.trim(),
+                position: player.position.trim() || undefined,
+                team: player.team.trim() || undefined,
+                age: player.age.trim() ? Number(player.age) : undefined,
+              })),
+            gives_picks: receiver.picks.map((pick) => ({
+              year: Number(pick.year),
+              round: Number(pick.round),
+              projected_range: pick.projectedRange,
+            })),
+            gives_faab: receiver.faab,
+          },
+          league: {
+            format,
+            sport: normalizeToSupportedSport(sport),
+            scoring_summary: scoring,
+            qb_format: qbFormat,
+          },
+          asOfDate: asOfDate || undefined,
+        }),
+      })
+
+      const data = (await response.json().catch(() => ({}))) as ApiTradeResponse & { error?: string }
+      if (!response.ok) {
+        throw new Error(data.error ?? `Trade evaluator returned ${response.status}`)
+      }
+
+      setResult(mapApiResponse(data, response.headers, asOfDate))
+    } catch (requestError: unknown) {
+      setError(requestError instanceof Error ? requestError.message : "Trade analysis failed.")
+    } finally {
+      timers.forEach((timer) => window.clearTimeout(timer))
+      setLoading(false)
+    }
+  }, [asOfDate, canEvaluate, format, qbFormat, receiver, scoring, sender, sport])
+
+  return (
+    <div className="min-h-screen bg-[#07071a] text-white">
+      <div className="border-b border-white/6 bg-[#07071a]/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.24em] text-cyan-300">
+                AI Trade Analyzer
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.24em] text-white/50">
+                PECR
+              </span>
             </div>
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">Trade Hub</h1>
           </div>
-
-          {error && (
-            <ErrorStateRenderer
-              compact
-              title="Trade evaluation failed"
-              message={error}
-              onRetry={
-                error.includes("Add at least one trade asset")
-                  ? undefined
-                  : () => void evaluateTrade()
-              }
-              actions={resolveRecoveryActions("tool_page").map((action) => ({
-                id: action.id,
-                label: action.label,
-                href: action.href,
-              }))}
-              testId="trade-evaluator-error-state"
-            />
-          )}
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              type="submit"
-              disabled={loading || !canAnalyzeTrade}
-              data-testid="trade-evaluate-button"
-              className="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 px-6 py-4 font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all hover:shadow-cyan-500/40 hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed sm:flex-1"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Analyzing Trade...
-                </span>
-              ) : (
-                'Evaluate Trade'
-              )}
-            </button>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={swapSides}
               data-testid="trade-swap-sides-button"
-              className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/80 hover:bg-white/[0.08] transition-all"
+              className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60 hover:border-white/20 hover:text-white"
             >
               Swap sides
             </button>
@@ -791,345 +931,359 @@ function TradeEvaluatorInner() {
               type="button"
               onClick={resetTrade}
               data-testid="trade-reset-button"
-              className="rounded-xl border border-white/20 bg-white/[0.04] px-4 py-3 font-medium text-white/60 hover:bg-white/[0.08] transition-all"
+              className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white/60 hover:border-white/20 hover:text-white"
             >
-              Reset trade
+              Reset
             </button>
           </div>
-          {!canAnalyzeTrade && (
-            <p className="text-xs text-white/45">Add at least one player, pick, or FAAB on both sides to analyze.</p>
-          )}
-        </form>
+        </div>
+      </div>
 
-        {result && (
-          <div className="mt-10 space-y-6">
-            <div className="flex flex-wrap items-center gap-2">
-              {(["overview", "breakdown", "outlook"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveResultTab(tab)}
-                  data-testid={`trade-result-tab-${tab}`}
-                  className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-                    activeResultTab === tab
-                      ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-200"
-                      : "border-white/15 bg-white/[0.03] text-white/65 hover:text-white/90"
-                  }`}
-                >
-                  {tab === "overview" ? "Summary" : tab === "breakdown" ? "Value Breakdown" : "Current/Future Outlook"}
-                </button>
-              ))}
-            </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-white/45 hover:text-white/75">
+          <span>←</span>
+          <span>Back to Home</span>
+        </Link>
 
-            {staleBanner && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
-                {staleBanner}
+        <div className="mt-6 rounded-3xl border border-white/8 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),transparent_45%),#0a0d1a] p-6 sm:p-8">
+          <div className="max-w-3xl">
+            <div className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-300/80">Premium Analysis</div>
+            <h2 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">
+              Run the same backend trade engine through a modern visual workspace.
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-white/60 sm:text-base">
+              Planning, pricing, engine reasoning, AI synthesis, and output checks flow into one premium trade review.
+            </p>
+          </div>
+        </div>
+
+        <InContextMonetizationCard
+          className="mt-6"
+          title="Trade Analyzer access"
+          featureId="trade_analyzer"
+          tokenRuleCodes={["ai_trade_analyzer_full_review"]}
+          testIdPrefix="trade-monetization"
+        />
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <AssetPanel label="Sender · Giving" accent="#06b6d4" side={sender} onChange={setSender} onClear={() => setSender(emptySide("Sender Team"))} />
+          <AssetPanel label="Receiver · Giving" accent="#a78bfa" side={receiver} onChange={setReceiver} onClear={() => setReceiver(emptySide("Receiver Team"))} />
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-white/8 bg-[#0c0c1e] p-5 sm:p-6">
+          <div className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-white/45">League Settings</div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">Format</span>
+              <select
+                value={format}
+                onChange={(event) => setFormat(event.target.value as LeagueFormat)}
+                className="w-full rounded-xl border border-white/10 bg-[#101224] px-3 py-3 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {FORMAT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">QB Format</span>
+              <select
+                value={qbFormat}
+                onChange={(event) => setQbFormat(event.target.value as QBFormat)}
+                className="w-full rounded-xl border border-white/10 bg-[#101224] px-3 py-3 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {QB_FORMAT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">Sport</span>
+              <select
+                value={sport}
+                onChange={(event) => setSport(normalizeToSupportedSport(event.target.value))}
+                className="w-full rounded-xl border border-white/10 bg-[#101224] px-3 py-3 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {SUPPORTED_SPORTS.map((supportedSport) => (
+                  <option key={supportedSport} value={supportedSport}>
+                    {SPORT_LABELS[supportedSport]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">Scoring</span>
+              <select
+                value={scoring}
+                onChange={(event) => setScoring(event.target.value as ScoringFormat)}
+                className="w-full rounded-xl border border-white/10 bg-[#101224] px-3 py-3 text-sm text-white focus:border-cyan-500/40 focus:outline-none"
+              >
+                {SCORING_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">As Of Date</span>
+              <input
+                type="date"
+                value={asOfDate}
+                onChange={(event) => setAsOfDate(event.target.value)}
+                className="w-full rounded-xl border border-white/10 bg-[#101224] px-3 py-3 text-sm text-white focus:border-cyan-500/40 focus:outline-none [color-scheme:dark]"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void evaluate()}
+            disabled={!canEvaluate}
+            data-testid="trade-evaluate-button"
+            className="w-full max-w-xl rounded-2xl px-6 py-4 text-base font-black tracking-wide text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+            style={{
+              background: canEvaluate ? "linear-gradient(135deg, #0891b2, #7c3aed)" : "rgba(255,255,255,0.05)",
+              boxShadow: canEvaluate ? "0 10px 32px rgba(8,145,178,0.28)" : "none",
+            }}
+          >
+            {loading ? "Analyzing Trade..." : "Evaluate Trade"}
+          </button>
+          {!senderHasAssets || !receiverHasAssets ? (
+            <p className="text-xs text-white/35">Add at least one player, pick, or FAAB on both sides to enable analysis.</p>
+          ) : null}
+        </div>
+
+        {error ? (
+          <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-8">
+            <LoadingState phase={phase} />
+          </div>
+        ) : null}
+
+        {!loading && result ? (
+          <div ref={resultRef} className="mt-8 space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <ResultBadge verdict={result.verdict} />
+
+                <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Score Cards</div>
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-center">
+                      <div className="text-2xl font-black text-white">{result.fairnessScore}</div>
+                      <div className="mt-1 text-[10px] text-white/35">Fairness</div>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-center">
+                      <div className={`text-2xl font-black ${result.valueDelta >= 0 ? "text-emerald-300" : "text-red-300"}`}>
+                        {result.valueDelta > 0 ? "+" : ""}
+                        {Math.round(result.valueDelta)}
+                      </div>
+                      <div className="mt-1 text-[10px] text-white/35">Value Delta</div>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-center">
+                      <div className="text-2xl font-black text-white">{result.confidencePct}%</div>
+                      <div className="mt-1 text-[10px] text-white/35">Confidence</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Grades</div>
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-center">
+                      <div className="text-3xl font-black text-cyan-200">{result.senderGrade}</div>
+                      <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-cyan-100/70">Sender</div>
+                    </div>
+                    <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-center">
+                      <div className="text-3xl font-black text-fuchsia-200">{result.receiverGrade}</div>
+                      <div className="mt-1 text-[10px] uppercase tracking-[0.24em] text-fuchsia-100/70">Receiver</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Providers</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {result.providers.map((provider) => (
+                      <span key={provider} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-white/70">
+                        {provider}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
 
-            {activeResultTab === "overview" && (
-              <>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 backdrop-blur text-center">
-                  <div className="mb-4">
-                    <span className="text-sm text-white/50 uppercase tracking-wider">Fairness Score</span>
-                    <div className={`text-6xl font-bold mt-2 ${getFairnessColor(getFairnessScore(result))}`}>
-                      {getFairnessScore(result)}
-                    </div>
-                    <div className="text-white/40 text-sm mt-1">out of 100 (50 = perfectly fair)</div>
-                  </div>
-
-                  <div className="inline-block rounded-full px-4 py-2 bg-white/[0.06] border border-white/10">
-                    <span className="text-white/60">Winner: </span>
-                    <span className="text-white font-medium">{getWinnerLabel(result.evaluation?.winner)}</span>
-                  </div>
-
-                  <p className="mt-6 text-white/70 max-w-2xl mx-auto">
-                    {result.evaluation?.summary || result.evaluation?.explanation}
-                  </p>
-                  <Link
-                    href={
-                      aiAssistantEnabled
-                        ? getTradeAnalyzerAIChatUrl(
-                            buildTradeSummaryForAI(
-                              senderAssetLabels.join(', ') || '—',
-                              receiverAssetLabels.join(', ') || '—',
-                              sport,
-                              {
-                                fairnessScore: getFairnessScore(result),
-                                winnerLabel: getWinnerLabel(result.evaluation?.winner),
-                              }
-                            ),
-                            {
-                              insightType: 'trade',
-                              sport,
-                            }
-                          )
-                        : `/trade-finder?context=analyzer&sport=${encodeURIComponent(sport)}`
-                    }
-                    data-testid="trade-ai-explanation-link"
-                    className="mt-4 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/20 transition-colors"
-                  >
-                    <span>
-                      {aiAssistantEnabled
-                        ? 'Discuss in AI Chat'
-                        : aiAvailabilityLoading
-                          ? 'Checking AI availability...'
-                          : 'Open deterministic trade finder'}
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-white/8 bg-[#0c0c1e] p-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-cyan-300">
+                      AI Analysis
                     </span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  </Link>
-                </div>
-
-                {result.tradeInsights && (
-                  <div className="space-y-4">
-                    {result.tradeInsights.veto && (
-                      <div className="rounded-2xl border-2 border-red-500/50 bg-red-500/10 p-6">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">🚫</span>
-                          <h3 className="text-lg font-bold text-red-400">Trade Not Recommended</h3>
-                        </div>
-                        <p className="text-red-300">{result.tradeInsights.vetoReason}</p>
-                      </div>
-                    )}
-                    {result.tradeInsights.expertWarning && !result.tradeInsights.veto && (
-                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">⚠️</span>
-                          <span className="text-amber-300 font-medium">Expert Warning:</span>
-                          <span className="text-amber-200/80">{result.tradeInsights.expertWarning}</span>
-                        </div>
-                      </div>
-                    )}
-                    <IdpTradeLineupWarning idpLineupWarning={result.tradeInsights.idpLineupWarning} />
-                    {result.tradeInsights.labels.length > 0 && (
-                      <div className="flex flex-wrap gap-3 justify-center">
-                        {result.tradeInsights.labels.map((label) => (
-                          <div
-                            key={label.id}
-                            className="group relative rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 cursor-help"
-                          >
-                            <span className="text-emerald-400 font-medium">{label.emoji} {label.name}</span>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                              <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
-                                {label.description}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {result.tradeInsights.warnings.length > 0 && (
-                      <div className="flex flex-wrap gap-3 justify-center">
-                        {result.tradeInsights.warnings.map((warning) => (
-                          <div
-                            key={warning.id}
-                            className="group relative rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 cursor-help"
-                          >
-                            <span className="text-orange-400 font-medium">{warning.emoji} {warning.name}</span>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
-                              <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 text-sm text-white shadow-xl whitespace-nowrap max-w-xs">
-                                {warning.description}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="text-center text-sm text-white/50">
-                      Fairness Score: <span className={result.tradeInsights.fairnessScore >= 45 && result.tradeInsights.fairnessScore <= 55 ? 'text-emerald-400' : result.tradeInsights.fairnessScore >= 40 ? 'text-yellow-400' : 'text-red-400'}>
-                        {result.tradeInsights.fairnessScore}/100
+                    {result.fairnessMethod ? (
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-white/45">
+                        {result.fairnessMethod}
                       </span>
-                      <span className="ml-2 text-xs text-white/30">
-                        ({result.tradeInsights.fairnessMethod === 'lineup' ? 'lineup-based' : 'value-based'})
+                    ) : null}
+                    {typeof result.pECRIterations === "number" && result.pECRIterations > 1 ? (
+                      <span className="ml-auto rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-white/50">
+                        {result.pECRIterations} PECR iterations
                       </span>
-                    </div>
+                    ) : null}
                   </div>
-                )}
-              </>
-            )}
-
-            {activeResultTab === "breakdown" && (
-              <>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                    <h3 className="mb-3 text-lg font-medium text-cyan-300">{sender.manager_name || "Sender"} gives</h3>
-                    <p className="text-sm text-white/70">{valueBreakdown.sideA}</p>
-                  </div>
-                  <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
-                    <h3 className="mb-3 text-lg font-medium text-fuchsia-300">{receiver.manager_name || "Receiver"} gives</h3>
-                    <p className="text-sm text-white/70">{valueBreakdown.sideB}</p>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-white/60">Current vs Future Value Lens</h3>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
-                      <div className="text-xs text-cyan-200">{sender.manager_name || "Sender"}</div>
-                      <div className="mt-1 text-xs text-white/70">Current: <span className="font-semibold text-white">{senderValueLens.current}</span></div>
-                      <div className="text-xs text-white/70">Future: <span className="font-semibold text-white">{senderValueLens.future}</span></div>
-                    </div>
-                    <div className="rounded-xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-3">
-                      <div className="text-xs text-fuchsia-200">{receiver.manager_name || "Receiver"}</div>
-                      <div className="mt-1 text-xs text-white/70">Current: <span className="font-semibold text-white">{receiverValueLens.current}</span></div>
-                      <div className="text-xs text-white/70">Future: <span className="font-semibold text-white">{receiverValueLens.future}</span></div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                    <span className="rounded-full border border-white/15 bg-white/[0.03] px-2 py-1 text-white/65">
-                      Current delta: <span className={currentValueDelta >= 0 ? 'text-cyan-300' : 'text-fuchsia-300'}>{currentValueDelta >= 0 ? '+' : ''}{currentValueDelta}</span>
-                    </span>
-                    <span className="rounded-full border border-white/15 bg-white/[0.03] px-2 py-1 text-white/65">
-                      Future delta: <span className={futureValueDelta >= 0 ? 'text-cyan-300' : 'text-fuchsia-300'}>{futureValueDelta >= 0 ? '+' : ''}{futureValueDelta}</span>
-                    </span>
-                  </div>
+                  <p className="mt-4 text-base leading-7 text-white/80">{result.recommendation}</p>
+                  {result.analysisBullets.length > 0 ? (
+                    <ul className="mt-4 space-y-2">
+                      {result.analysisBullets.map((bullet, index) => (
+                        <li key={`${bullet}-${index}`} className="flex gap-3 text-sm leading-6 text-white/60">
+                          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                          <span>{bullet}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
 
-                {result.evaluation?.risk_flags && result.evaluation.risk_flags.length > 0 && (
-                  <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/5 p-6">
-                    <h3 className="text-lg font-medium text-yellow-400 mb-3">Risk Flags</h3>
-                    <ul className="space-y-2">
-                      {result.evaluation.risk_flags.map((flag, i) => (
-                        <li key={i} className="flex gap-2 text-white/70 text-sm">
-                          <span className="text-yellow-400">!</span>
-                          {flag}
+                {result.labels.length > 0 ? (
+                  <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Trade Signals</div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {result.labels.map((label) => (
+                        <div
+                          key={label.id}
+                          className={`rounded-2xl border px-3 py-2 ${
+                            label.kind === "positive"
+                              ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                              : "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                          }`}
+                          title={label.description}
+                        >
+                          <div className="text-xs font-semibold">
+                            {label.emoji} {label.name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {result.drivers.length > 0 ? (
+                  <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Trade Drivers</div>
+                    <div className="mt-4 space-y-3">
+                      {result.drivers.map((driver) => (
+                        <div key={driver.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`h-2.5 w-2.5 rounded-full ${
+                                driver.direction === "positive"
+                                  ? "bg-emerald-400"
+                                  : driver.direction === "negative"
+                                    ? "bg-red-400"
+                                    : "bg-amber-400"
+                              }`}
+                            />
+                            <div className="text-sm font-semibold text-white">{driver.label}</div>
+                            <div className="ml-auto text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">{driver.strength}</div>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-white/55">{driver.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {result.counterOffer && (result.verdict === "DECLINE" || result.verdict === "SMASH DECLINE" || result.verdict === "LEAN DECLINE") ? (
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-300">Counter-Offer</div>
+                    <p className="mt-3 text-sm leading-6 text-white/75">{result.counterOffer}</p>
+                  </div>
+                ) : null}
+
+                {result.negotiationSteps.length > 0 ? (
+                  <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Negotiation Playbook</div>
+                    <ol className="mt-4 space-y-3">
+                      {result.negotiationSteps.map((step, index) => (
+                        <li key={`${step}-${index}`} className="flex gap-3 text-sm leading-6 text-white/65">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[11px] font-bold text-white/50">
+                            {index + 1}
+                          </span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+
+                {result.betterAlternatives.length > 0 ? (
+                  <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">Better Alternatives</div>
+                    <div className="mt-4 space-y-3">
+                      {result.betterAlternatives.map((alternative) => (
+                        <div key={`${alternative.teamId}-${alternative.tradeFramework}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-sm font-semibold text-white">{alternative.teamId}</div>
+                            <div className="text-xs text-cyan-200">Fit {alternative.fitScore}</div>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-white/60">{alternative.whyBetter}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-white/35">{alternative.tradeFramework}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {result.warnings.length > 0 ? (
+                  <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-red-200">Warnings</div>
+                    <ul className="mt-4 space-y-2">
+                      {result.warnings.map((warning, index) => (
+                        <li key={`${warning}-${index}`} className="flex gap-3 text-sm leading-6 text-red-100/85">
+                          <span className="mt-2 h-1.5 w-1.5 rounded-full bg-red-300" />
+                          <span>{warning}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
-                )}
-
-                {result.improvements?.best_counter_offer && (
-                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                    <h3 className="text-lg font-medium text-cyan-400 mb-3">Suggested Counter-Offer</h3>
-                    <p className="text-white/70 text-sm mb-4">{result.improvements.best_counter_offer.why_this_is_better}</p>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      {result.improvements.best_counter_offer.sender_gives_changes?.length ? (
-                        <div>
-                          <h4 className="text-sm text-white/60 mb-2">Sender adjustments:</h4>
-                          <ul className="space-y-1">
-                            {result.improvements.best_counter_offer.sender_gives_changes.map((adj, i) => (
-                              <li key={i} className="text-white/70 text-sm">→ {adj}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                      {result.improvements.best_counter_offer.receiver_gives_changes?.length ? (
-                        <div>
-                          <h4 className="text-sm text-white/60 mb-2">Receiver adjustments:</h4>
-                          <ul className="space-y-1">
-                            {result.improvements.best_counter_offer.receiver_gives_changes.map((adj, i) => (
-                              <li key={i} className="text-white/70 text-sm">→ {adj}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-
-                {result.user_message && (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
-                      <h3 className="text-lg font-medium text-cyan-400 mb-3">Message for {sender.manager_name || 'Sender'}</h3>
-                      <p className="text-white/70 text-sm">{result.user_message.to_sender}</p>
-                    </div>
-                    <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5 p-6">
-                      <h3 className="text-lg font-medium text-fuchsia-400 mb-3">Message for {receiver.manager_name || 'Receiver'}</h3>
-                      <p className="text-white/70 text-sm">{result.user_message.to_receiver}</p>
-                    </div>
-                  </div>
-                )}
-
-                <Link
-                  href={`/trade-finder?context=analyzer&sport=${encodeURIComponent(sport)}`}
-                  data-testid="trade-propose-flow-link"
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/[0.04] px-4 py-2 text-sm text-white/80 hover:bg-white/[0.08]"
-                >
-                  Open trade finder / propose flow
-                </Link>
-              </>
-            )}
-
-            {activeResultTab === "outlook" && (
-              <>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOutlookMode('current')}
-                    data-testid="trade-outlook-current-toggle"
-                    className={`rounded-lg border px-3 py-1.5 text-sm ${outlookMode === 'current' ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200' : 'border-white/15 bg-white/[0.03] text-white/65'}`}
-                  >
-                    Current season outlook
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOutlookMode('future')}
-                    data-testid="trade-outlook-future-toggle"
-                    className={`rounded-lg border px-3 py-1.5 text-sm ${outlookMode === 'future' ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200' : 'border-white/15 bg-white/[0.03] text-white/65'}`}
-                  >
-                    Future / dynasty outlook
-                  </button>
-                </div>
-
-                {outlookMode === 'current' && result.end_of_season_projection && (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                    <h3 className="text-lg font-medium text-white/90 mb-3">End of Season Projection</h3>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="text-white/50">{sender.manager_name || 'Sender'}: </span>
-                        <span className="text-white/70">{result.end_of_season_projection.sender}</span>
-                      </div>
-                      <div>
-                        <span className="text-white/50">{receiver.manager_name || 'Receiver'}: </span>
-                        <span className="text-white/70">{result.end_of_season_projection.receiver}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {outlookMode === 'future' && result.dynasty_idp_outlook && (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-                    <h3 className="text-lg font-medium text-white/90 mb-3">Dynasty Outlook</h3>
-                    <div className="space-y-3 text-sm">
-                      <div>
-                        <span className="text-white/50">{sender.manager_name || 'Sender'}: </span>
-                        <span className="text-white/70">{result.dynasty_idp_outlook.sender}</span>
-                      </div>
-                      <div>
-                        <span className="text-white/50">{receiver.manager_name || 'Receiver'}: </span>
-                        <span className="text-white/70">{result.dynasty_idp_outlook.receiver}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {((outlookMode === 'current' && !result.end_of_season_projection) ||
-                  (outlookMode === 'future' && !result.dynasty_idp_outlook)) && (
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-6 text-sm text-white/55">
-                    No {outlookMode === 'current' ? 'current season' : 'future dynasty'} outlook data returned for this trade.
-                  </div>
-                )}
-              </>
-            )}
+                ) : null}
+              </div>
+            </div>
           </div>
-        )}
+        ) : null}
 
-        {!result && !loading && !error && (
-          <div className="mt-10 rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center">
-            <h2 className="text-lg font-semibold text-white/85">{TRADE_ANALYZER_EMPTY_TITLE}</h2>
-            <p className="mt-2 text-sm text-white/55">{TRADE_ANALYZER_EMPTY_SUBTITLE}</p>
+        {!loading && !result && !error ? (
+          <div className="mt-8 rounded-3xl border border-dashed border-white/12 bg-white/[0.02] p-8 text-center">
+            <h3 className="text-lg font-semibold text-white/85">Build both sides and evaluate the trade</h3>
+            <p className="mt-2 text-sm text-white/45">
+              Add players, picks, or FAAB to each side. The analyzer will keep the same backend route and surface the structured results in this new UI.
+            </p>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
-  );
-  return content;
+  )
 }
 
 export default function TradeEvaluatorPage() {
   return (
-    <Suspense fallback={<div role="main" className="min-h-screen mode-readable" />}>
-      <TradeEvaluatorInner />
+    <Suspense fallback={<div className="min-h-screen bg-[#07071a]" />}>
+      <TradeHubInner />
     </Suspense>
   )
 }
