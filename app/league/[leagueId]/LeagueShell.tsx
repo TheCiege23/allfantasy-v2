@@ -141,7 +141,7 @@ export function LeagueShell({
           isOwner={isOwner}
         />
 
-        <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
           {activeTab === 'draft' && (
             <DraftTab
               league={selectedLeague}
