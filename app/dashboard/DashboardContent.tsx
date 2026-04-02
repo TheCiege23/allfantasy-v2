@@ -882,7 +882,7 @@ export default function DashboardContent({
       </section>
 
       <Link
-        href="/rankings"
+        href="/dashboard/rankings"
         className="flex items-center gap-4 rounded-[24px] border border-white/10 bg-[#16102a] px-5 py-4 hover:bg-[#1c1535]"
       >
         <div className="text-5xl font-black leading-none text-cyan-300">{careerTier}</div>
@@ -929,7 +929,7 @@ export default function DashboardContent({
             icon: "🔍",
           },
           {
-            href: "/rankings",
+            href: "/dashboard/rankings",
             label: "My Rankings",
             subtitle: `Tier ${careerTier} · Level up`,
             icon: "🏆",
