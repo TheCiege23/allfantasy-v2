@@ -47,17 +47,27 @@ export function LeftChatPanel({
     >
       {modeDashboard ? (
         <div className="flex min-h-0 flex-1 flex-col p-2">
-          <div className="flex flex-shrink-0 items-center gap-2 border-b border-white/[0.07] px-1 pb-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-              <Bot className="h-4 w-4" aria-hidden />
+          <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-1 pb-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+                <Bot className="h-4 w-4" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-white">Chimmy</p>
+                <p className="text-[10px] text-white/35">AI assistant</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold text-white">Chimmy</p>
-              <p className="text-[10px] text-white/35">AI assistant</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('af-chimmy-new-conversation'))}
+              className="shrink-0 rounded-lg border border-white/[0.08] bg-transparent px-2 py-1 text-[10px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/90"
+              title="New conversation"
+            >
+              New
+            </button>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden pt-2">
-            <ChimmyChat embedded />
+            <ChimmyChat embedded parentControlsNew />
           </div>
         </div>
       ) : (
@@ -106,9 +116,19 @@ export function LeftChatPanel({
 
             {activeTab === 'chimmy' ? (
               <div className="flex h-full min-h-0 flex-col p-2">
-                <p className="flex-shrink-0 px-1 pb-2 text-xs font-semibold text-white/85">Chimmy</p>
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <ChimmyChat embedded />
+                <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-1 pb-2">
+                  <p className="text-xs font-semibold text-white/85">Chimmy</p>
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('af-chimmy-new-conversation'))}
+                    className="shrink-0 rounded-lg border border-white/[0.08] bg-transparent px-2 py-1 text-[10px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/90"
+                    title="New conversation"
+                  >
+                    New
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden pt-2">
+                  <ChimmyChat embedded parentControlsNew />
                 </div>
               </div>
             ) : null}

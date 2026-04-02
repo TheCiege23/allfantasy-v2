@@ -86,9 +86,11 @@ function createSessionId() {
 type ChimmyChatProps = {
   /** Slimmer chrome for dashboard side panels */
   embedded?: boolean
+  /** Parent renders New — hide toolbar button and listen for `af-chimmy-new-conversation` */
+  parentControlsNew?: boolean
 }
 
-export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
+export default function ChimmyChat({ embedded = false, parentControlsNew = false }: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
   ]);
@@ -194,14 +196,21 @@ export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
     );
   }, [handleStopVoice, isVoicePlaying, voiceConfig, voiceMessageId]);
 
-  const startNewConversation = () => {
+  const startNewConversation = useCallback(() => {
     handleStopVoice();
     setMessages([{ id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING }]);
     setInput('');
     setImagePreview(null);
     setImageFile(null);
     setSessionId(createSessionId());
-  };
+  }, [handleStopVoice]);
+
+  useEffect(() => {
+    if (!embedded || !parentControlsNew) return;
+    const onNew = () => startNewConversation();
+    window.addEventListener('af-chimmy-new-conversation', onNew);
+    return () => window.removeEventListener('af-chimmy-new-conversation', onNew);
+  }, [embedded, parentControlsNew, startNewConversation]);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -338,7 +347,7 @@ export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
 
   return (
     <div
-      className={`flex flex-col overflow-hidden touch-scroll bg-slate-950 ${
+      className={`flex min-h-0 flex-col overflow-hidden touch-scroll bg-slate-950 ${
         embedded ? 'h-full min-h-0 rounded-xl border border-white/10' : 'h-fill-dynamic rounded-3xl border border-slate-800'
       }`}
     >
@@ -388,15 +397,21 @@ export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-2 border-b border-white/[0.07] bg-slate-900/80 px-2 py-1.5">
-          <button
-            type="button"
-            onClick={startNewConversation}
-            className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/80 transition hover:bg-white/10"
-            title="New conversation"
-          >
-            New
-          </button>
+        <div
+          className={`flex items-center gap-2 border-b border-white/[0.07] bg-slate-900/80 px-2 py-1.5 ${
+            parentControlsNew ? 'justify-end' : 'justify-between'
+          }`}
+        >
+          {!parentControlsNew ? (
+            <button
+              type="button"
+              onClick={startNewConversation}
+              className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/80 transition hover:bg-white/10"
+              title="New conversation"
+            >
+              New
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -412,16 +427,27 @@ export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
         </div>
       )}
 
-      <div className={`flex-1 space-y-6 overflow-y-auto ${embedded ? 'p-3' : 'p-6'}`}>
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${embedded ? 'p-3' : 'p-6'}`}
+      >
+        <div
+          className={`min-h-0 flex-1 overflow-y-auto ${embedded ? 'space-y-3' : 'space-y-6'}`}
+        >
         {messages.length <= 1 && suggestedChips.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div
+            className={
+              embedded
+                ? 'flex flex-nowrap gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]'
+                : 'flex flex-wrap gap-2'
+            }
+          >
             {suggestedChips.slice(0, embedded ? 3 : 4).map((chip) => (
               <button
                 key={chip.id}
                 type="button"
                 onClick={() => setInput(chip.prompt)}
-                className={`rounded-2xl border border-slate-600 bg-slate-800 text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700 ${
-                  embedded ? 'px-2 py-1 text-[11px]' : 'px-4 py-2 text-sm'
+                className={`shrink-0 rounded-full border border-slate-600 bg-slate-800 text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700 ${
+                  embedded ? 'px-2 py-1 text-[10px]' : 'px-4 py-2 text-sm'
                 }`}
               >
                 {chip.label}
@@ -499,9 +525,10 @@ export default function ChimmyChat({ embedded = false }: ChimmyChatProps) {
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className={`border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
+      <div className={`flex-shrink-0 border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
         <div className={`flex ${embedded ? 'gap-1.5' : 'gap-3'}`}>
           <label
             className={`flex cursor-pointer items-center justify-center rounded-2xl bg-slate-800 transition hover:bg-slate-700 ${

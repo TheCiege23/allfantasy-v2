@@ -1,14 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { Bot, MessageCircle, Users } from 'lucide-react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 
 type AfSubTab = 'chimmy' | 'direct' | 'groups'
 
-const AF_SUB_TABS: Array<{ id: AfSubTab; label: string }> = [
-  { id: 'chimmy', label: '🤖 Chimmy' },
-  { id: 'direct', label: '👤 Direct' },
-  { id: 'groups', label: '👥 Groups' },
+const AF_SUB_TABS: Array<{
+  id: AfSubTab
+  label: string
+  title: string
+  Icon: typeof MessageCircle
+}> = [
+  { id: 'direct', label: 'Direct', title: 'Direct messages', Icon: MessageCircle },
+  { id: 'chimmy', label: 'Chimmy', title: 'Chimmy — full view in left panel', Icon: Bot },
+  { id: 'groups', label: 'Groups', title: 'Group chats', Icon: Users },
 ]
 
 type AFChatDMPanelProps = {
@@ -19,7 +25,7 @@ type AFChatDMPanelProps = {
  * Right column top (~55%): AF Chat DMs / Chimmy shortcut — not league chat.
  */
 export function AFChatDMPanel({ userId }: AFChatDMPanelProps) {
-  const [afTab, setAfTab] = useState<AfSubTab>('chimmy')
+  const [afTab, setAfTab] = useState<AfSubTab>('direct')
 
   const openFullChimmy = () => {
     if (typeof window === 'undefined') return
@@ -35,19 +41,22 @@ export function AFChatDMPanel({ userId }: AFChatDMPanelProps) {
     <div className="flex h-full min-h-0 flex-col" data-af-chat-user-id={userId}>
       <p className="flex-shrink-0 px-3 pt-2.5 text-[10px] font-semibold uppercase tracking-widest text-white/30">AF Chat</p>
 
-      <div className="flex flex-shrink-0 border-b border-white/[0.07]">
+      <div className="flex flex-shrink-0 justify-center gap-0 border-b border-white/[0.07] px-0.5">
         {AF_SUB_TABS.map((tab) => {
           const isActive = afTab === tab.id
+          const Icon = tab.Icon
           return (
             <button
               key={tab.id}
               type="button"
+              title={tab.title}
               onClick={() => setAfTab(tab.id)}
-              className={`flex-1 py-2 text-center text-[10px] font-semibold transition-colors ${
-                isActive ? 'border-b-2 border-cyan-500 bg-white/[0.04] text-white' : 'text-white/40 hover:text-white/65'
+              className={`flex flex-1 items-center justify-center py-2 transition-colors ${
+                isActive ? 'border-b-2 border-cyan-500 bg-white/[0.04] text-cyan-300' : 'text-white/40 hover:text-white/70'
               }`}
             >
-              {tab.label}
+              <Icon className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="sr-only">{tab.label}</span>
             </button>
           )
         })}

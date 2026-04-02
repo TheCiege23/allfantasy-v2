@@ -358,9 +358,9 @@ export function LeagueListPanel({
 
                     <Link
                       href={`/league/${league.id}`}
-                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-2 text-left transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-2 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                         isSelected
-                          ? 'border-l-cyan-500 bg-cyan-500/[0.08]'
+                          ? 'border-l-cyan-500 bg-cyan-500/[0.08] hover:bg-cyan-500/12'
                           : 'border-l-transparent hover:bg-white/[0.04]'
                       }`}
                       onClick={() => onSelect(league)}
@@ -372,7 +372,7 @@ export function LeagueListPanel({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="truncate text-[12px] font-semibold text-white/85">{league.name}</p>
+                              <p className="truncate text-[13px] font-semibold text-white/85">{league.name}</p>
                             </div>
                             <span
                               className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}

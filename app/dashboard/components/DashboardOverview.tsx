@@ -217,12 +217,12 @@ function RankingWidget({
   }, [leagues])
 
   if (loading) {
-    return <div className="h-[188px] rounded-2xl bg-white/5 animate-pulse" />
+    return <div className="h-[188px] rounded-2xl border-l-2 border-cyan-500 bg-white/5 animate-pulse" />
   }
 
   if (!payload?.imported || !payload.rank) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
         <div className="text-2xl">🏆</div>
         <p className="mt-3 text-sm font-semibold text-white">Complete your import to unlock your ranking</p>
         <button
@@ -259,7 +259,7 @@ function RankingWidget({
   const record = `${totals.wins}-${totals.losses}${totals.ties ? `-${totals.ties}` : ''}`
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+    <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400 bg-clip-text text-5xl font-black text-transparent">
@@ -321,7 +321,6 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   const [expanded, setExpanded] = useState(true)
-  const [hideChecklist, setHideChecklist] = useState(false)
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
@@ -381,16 +380,6 @@ export function DashboardOverview({
   const completedCount = checklistSteps.filter((step) => step.done).length
   const allDone = completedCount === checklistSteps.length
 
-  useEffect(() => {
-    if (!allDone) {
-      setHideChecklist(false)
-      return
-    }
-
-    const timeout = window.setTimeout(() => setHideChecklist(true), 5000)
-    return () => window.clearTimeout(timeout)
-  }, [allDone])
-
   const handleImport = () => {
     updateOnboardingStep('step2')
     onTriggerImport()
@@ -415,8 +404,12 @@ export function DashboardOverview({
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
-        {!hideChecklist ? (
+      <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+        {allDone ? (
+          <p className="text-xs text-cyan-400/95">
+            ✓ All set! You&apos;re ready to get the most out of AllFantasy.
+          </p>
+        ) : (
           <section className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e]">
             <button
               type="button"
@@ -427,17 +420,12 @@ export function DashboardOverview({
                 <p className="text-sm font-bold text-white">Get Started</p>
                 <p className="mt-1 text-xs text-white/40">{completedCount} of 5 complete</p>
               </div>
-              <div className="flex items-center gap-3 text-white/40">
-                <span className="text-xs">{completedCount} of 5 complete</span>
+              <div className="flex items-center gap-2 text-white/40">
                 {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
             </button>
 
-            {allDone ? (
-              <div className="border-t border-white/8 px-4 py-3 text-sm italic text-emerald-300">
-                All set! You&apos;re ready to get the most out of AllFantasy.
-              </div>
-            ) : expanded ? (
+            {expanded ? (
               <div className="border-t border-white/8">
                 {checklistSteps.map((step) => (
                   <div key={step.id} className="flex items-center gap-3 border-b border-white/6 px-4 py-3 last:border-b-0">
@@ -499,11 +487,11 @@ export function DashboardOverview({
               </div>
             ) : null}
           </section>
-        ) : null}
+        )}
 
-        <section className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-5">
+        <section className="border-b border-white/[0.07] pb-5">
           <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">Dashboard Overview</p>
-          <h1 className="mt-3 text-3xl font-black text-white">
+          <h1 className="mt-2 text-[22px] font-black leading-tight text-white">
             Welcome back, <span className="font-bold text-cyan-400">{userName}</span>
           </h1>
 
