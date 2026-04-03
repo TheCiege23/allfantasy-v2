@@ -1,333 +1,277 @@
 import { NextResponse } from "next/server";
-import { LeagueSport } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { Prisma, LeagueSport } from "@prisma/client";
 
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireVerifiedUser } from "@/lib/auth-guard";
-import {
-  processLeague,
-  upsertSleeperLeagueMetadataOnly,
-  type SleeperLeague,
-} from "@/lib/league/sleeper-import-process";
-import { upsertPlatformIdentity, isPlatformRankLocked, lockPlatformRank } from "@/lib/platform-identity";
-import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
-import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
-import {
-  consumeRateLimit,
-  getClientIp,
-  buildRateLimit429,
-} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 /** Vercel Pro / Enterprise: extend serverless timeout for multi-year Sleeper scans. */
 export const maxDuration = 60;
 
-const SLEEPER_LAUNCH_YEAR = 2017;
+const LAUNCH_YEAR = 2017;
+const SPORTS = ["nfl", "nba"] as const;
 
-const sportMap: Record<"nfl" | "nba", LeagueSport> = {
-  nfl: LeagueSport.NFL,
-  nba: LeagueSport.NBA,
+type SleeperUserApi = {
+  user_id?: string;
+  display_name?: string;
+  username?: string;
+  avatar?: string | null;
 };
 
-type SleeperLeagueWithMeta = SleeperLeague & { _year: number; _sport: "nfl" | "nba" };
-
-function getSleeperAvatarUrl(avatar: string | null | undefined): string | null {
-  if (!avatar) return null;
-  return `https://sleepercdn.com/avatars/${avatar}`;
+interface SleeperLeague {
+  league_id?: string | number;
+  name?: string;
+  sport?: string;
+  season?: string | number;
+  status?: string | null;
+  settings?: {
+    num_teams?: number;
+    type?: number;
+    scoring_settings?: Record<string, number>;
+  } | null;
+  _sport?: string;
+  _year?: number;
 }
 
-async function fetchJson<T>(url: string): Promise<T | null> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(t);
+function abortAfter(ms: number): AbortSignal {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(ms);
   }
+  const c = new AbortController();
+  setTimeout(() => c.abort(), ms);
+  return c.signal;
 }
 
-function buildYearRange(): number[] {
-  const currentYear = new Date().getFullYear();
-  const len = currentYear - SLEEPER_LAUNCH_YEAR + 2;
-  return Array.from({ length: len }, (_, i) => SLEEPER_LAUNCH_YEAR + i);
+function mapSport(league: SleeperLeague): LeagueSport {
+  const raw = String(league.sport || league._sport || "nfl").toLowerCase();
+  if (raw === "nba") return LeagueSport.NBA;
+  return LeagueSport.NFL;
 }
 
-async function fetchUserLeaguesForYear(
-  sleeperUserId: string,
-  sport: "nfl" | "nba",
-  year: number
-): Promise<SleeperLeagueWithMeta[]> {
-  const url = `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${sport}/${year}`;
-  const rows = await fetchJson<SleeperLeague[]>(url);
-  if (!Array.isArray(rows)) return [];
-  return rows.map((l) => ({ ...l, _year: year, _sport: sport }));
-}
-
-/** All NFL/NBA × years concurrently to stay under Vercel timeouts. */
-async function fetchAllSleeperLeaguesParallel(sleeperUserId: string): Promise<SleeperLeagueWithMeta[]> {
-  const years = buildYearRange();
-  const sports: ("nfl" | "nba")[] = ["nfl", "nba"];
-  const requests = sports.flatMap((sport) => years.map((year) => ({ sport, year })));
-
-  const allResults = await Promise.allSettled(
-    requests.map(({ sport, year }) => fetchUserLeaguesForYear(sleeperUserId, sport, year))
-  );
-
-  const flat: SleeperLeagueWithMeta[] = [];
-  for (const r of allResults) {
-    if (r.status === "fulfilled") flat.push(...r.value);
-  }
-  return flat;
+function scoringFromSettings(ss?: Record<string, number> | null): string {
+  if (!ss) return "standard";
+  const rec = Number(ss.rec ?? 0);
+  if (rec >= 1) return "ppr";
+  if (rec >= 0.5) return "half-ppr";
+  return "standard";
 }
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    console.log("[import] body:", JSON.stringify(body));
-
-    const rawUsername = body.username ?? body.sleeperUsername ?? body.sleeper_username;
-    const platform = typeof body.platform === "string" ? body.platform : "sleeper";
-
-    if (platform !== "sleeper") {
-      return NextResponse.json({ error: "Only Sleeper imports are supported in this endpoint." }, { status: 400 });
-    }
-
-    if (!rawUsername || typeof rawUsername !== "string") {
-      return NextResponse.json({ error: "Username is required" }, { status: 400 });
-    }
-
-    const username = rawUsername.trim();
-    if (!username || username.length > 100) {
-      return NextResponse.json({ error: "Invalid username" }, { status: 400 });
-    }
-
-    const auth = await requireVerifiedUser();
-    if (!auth.ok) {
-      return auth.response;
-    }
-    const userId = auth.userId;
-    const ip = getClientIp(req);
-
-    const rl = consumeRateLimit({
-      scope: "import",
-      action: "sleeper_multi_year",
-      ip,
-      maxRequests: 3,
-      windowMs: 60 * 1000,
-    });
-    if (!rl.success) {
-      return NextResponse.json(buildRateLimit429({ rl }), { status: 429 });
-    }
-
-    console.log("[import] Starting for user:", userId, "username:", username);
-
-    const profileUrl = `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    let sleeperProfile: {
-      user_id?: string;
-      username?: string;
-      display_name?: string;
-      avatar?: string | null;
-    };
+    let body: Record<string, unknown>;
     try {
-      const sleeperUserRes = await fetch(profileUrl, {
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!sleeperUserRes.ok) {
-        return NextResponse.json(
-          { error: "Sleeper user not found. Check your username." },
-          { status: 404 }
-        );
-      }
-      sleeperProfile = (await sleeperUserRes.json()) as typeof sleeperProfile;
-    } catch (err: unknown) {
-      clearTimeout(timeout);
-      console.error("[import] Sleeper profile fetch failed:", err);
-      return NextResponse.json(
-        { error: "Could not reach Sleeper. Try again." },
-        { status: 502 }
-      );
+      body = (await req.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    if (!sleeperProfile?.user_id) {
+    const raw =
+      (typeof body.username === "string" && body.username) ||
+      (typeof body.sleeperUsername === "string" && body.sleeperUsername) ||
+      "";
+    const username = raw.trim();
+    if (!username) {
+      return NextResponse.json({ error: "Sleeper username is required" }, { status: 400 });
+    }
+
+    const session = (await getServerSession(authOptions as never)) as {
+      user?: { id?: string };
+    } | null;
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "You must be logged in to import" }, { status: 401 });
+    }
+    const userId = session.user.id;
+
+    let sleeperUser: SleeperUserApi | null = null;
+    try {
+      const r = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`, {
+        signal: abortAfter(8000),
+        headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" },
+      });
+      if (r.ok) {
+        sleeperUser = (await r.json()) as SleeperUserApi;
+      }
+    } catch (e: unknown) {
+      console.error("[import] Sleeper user lookup failed:", e);
+    }
+
+    if (!sleeperUser?.user_id) {
       return NextResponse.json(
-        { error: "Could not find Sleeper account for that username." },
+        {
+          error: `Sleeper account "${username}" not found. Double-check your username at sleeper.app.`,
+        },
         { status: 404 }
       );
     }
 
-    const sleeperUserId = sleeperProfile.user_id;
-    console.log("[import] Sleeper user_id:", sleeperUserId);
+    const sleeperId = sleeperUser.user_id;
+    console.log("[import] Found Sleeper user:", sleeperId, "for username:", username);
 
-    await prisma.userProfile.upsert({
-      where: { userId },
-      update: {
-        sleeperUserId,
-        sleeperUsername: sleeperProfile.username ?? username,
-        sleeperLinkedAt: new Date(),
-      },
-      create: {
-        userId,
-        sleeperUserId,
-        sleeperUsername: sleeperProfile.username ?? username,
-        sleeperLinkedAt: new Date(),
-      },
-    });
+    try {
+      await prisma.userProfile.upsert({
+        where: { userId },
+        update: {
+          sleeperUserId: sleeperId,
+          sleeperUsername: sleeperUser.username ?? username,
+          sleeperLinkedAt: new Date(),
+        },
+        create: {
+          userId,
+          sleeperUserId: sleeperId,
+          sleeperUsername: sleeperUser.username ?? username,
+          sleeperLinkedAt: new Date(),
+        },
+      });
+    } catch (e: unknown) {
+      console.warn("[import] Could not save sleeperUserId:", e);
+    }
 
-    const flat = await fetchAllSleeperLeaguesParallel(sleeperUserId);
-    console.log("[import] Total leagues found:", flat.length);
+    const thisYear = new Date().getFullYear();
+    const years: number[] = [];
+    for (let y = LAUNCH_YEAR; y <= thisYear + 1; y++) years.push(y);
+
+    console.log(`[import] Fetching ${SPORTS.length * years.length} year/sport combos concurrently`);
+
+    const fetchPromises = SPORTS.flatMap((sport) =>
+      years.map((year) =>
+        fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperId)}/leagues/${sport}/${year}`, {
+          signal: abortAfter(8000),
+          headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" },
+        })
+          .then((res) => (res.ok ? res.json() : Promise.resolve([])))
+          .then((leagues: unknown) => {
+            if (!Array.isArray(leagues)) return [] as SleeperLeague[];
+            return leagues.map((l) => ({ ...(l as object), _sport: sport, _year: year })) as SleeperLeague[];
+          })
+          .catch(() => [] as SleeperLeague[])
+      )
+    );
+
+    const results = await Promise.allSettled(fetchPromises);
+    const allLeagues = results
+      .filter((r): r is PromiseFulfilledResult<SleeperLeague[]> => r.status === "fulfilled")
+      .flatMap((r) => r.value)
+      .filter((l) => Boolean(l?.league_id));
+
+    console.log(`[import] Found ${allLeagues.length} total league rows`);
 
     const sportCounts: Record<string, number> = {};
-    for (const l of flat) {
-      const s = (l._sport || "nfl").toUpperCase();
-      sportCounts[s] = (sportCounts[s] || 0) + 1;
-    }
-    const uniqueSeasons = new Set(flat.map((l) => l._year)).size;
-    const yearsList = [...new Set(flat.map((l) => l._year))].sort((a, b) => a - b);
+    const skipped: string[] = [];
 
-    if (flat.length === 0) {
-      await refreshUserRankingsContext(userId);
-      return NextResponse.json({
-        success: true,
-        imported: 0,
-        scannedRows: 0,
-        uniqueLeagues: 0,
-        seasons: 0,
-        years: [] as number[],
-        sports: {} as Record<string, number>,
-        leagues: [] as { name: string; sport: string; seasons: string[] }[],
-        sleeperUserId,
-      });
-    }
-
-    const byLeagueId = new Map<string, SleeperLeagueWithMeta[]>();
-    for (const league of flat) {
-      const id = league.league_id?.toString();
-      if (!id) continue;
-      const arr = byLeagueId.get(id) ?? [];
-      arr.push(league);
-      byLeagueId.set(id, arr);
-    }
-
-    let seasonRows = 0;
-    const leagueSummaries: { name: string; sport: string; seasons: string[] }[] = [];
-    const historySyncJobs: { leagueId: string; platformLeagueId: string }[] = [];
-
-    for (const [, versions] of byLeagueId) {
-      const sorted = [...versions].sort((a, b) => a._year - b._year);
-      const latest = sorted[sorted.length - 1];
-      const sportKey = latest._sport;
-      const sportLabel = sportMap[sportKey];
-
-      const seasonLabels = [...new Set(sorted.map((v) => String(v._year)))].sort(
-        (a, b) => Number(a) - Number(b)
-      );
-      leagueSummaries.push({
-        name: latest.name || "Unnamed League",
-        sport: sportLabel,
-        seasons: seasonLabels,
-      });
-
-      for (let i = 0; i < sorted.length - 1; i++) {
-        const v = sorted[i];
-        const { _year, _sport, ...rest } = v;
-        void _sport;
-        await upsertSleeperLeagueMetadataOnly(rest, userId, _year, sportLabel);
-        seasonRows += 1;
+    async function upsertOne(league: SleeperLeague): Promise<{ ok: true; sport: string } | { ok: false }> {
+      const sportEnum = mapSport(league);
+      const sportLabel = sportEnum === LeagueSport.NBA ? "NBA" : "NFL";
+      const rawSeason = league.season ?? league._year;
+      const season = typeof rawSeason === "number" ? rawSeason : parseInt(String(rawSeason ?? ""), 10);
+      if (!Number.isFinite(season)) {
+        skipped.push(String(league.league_id ?? ""));
+        return { ok: false };
       }
 
-      const last = sorted[sorted.length - 1];
-      const { _year, _sport, ...rest } = last;
-      void _sport;
-      const processed = await processLeague(rest, userId, _year, sportLabel).catch((err) => {
-        console.error(`[leagues/import] processLeague ${last.league_id}:`, err);
-        return null;
-      });
-      if (processed) {
-        seasonRows += 1;
-      } else {
-        await upsertSleeperLeagueMetadataOnly(rest, userId, _year, sportLabel);
-        seasonRows += 1;
-      }
+      const ss = league.settings?.scoring_settings ?? undefined;
+      const scoring = scoringFromSettings(ss ?? null);
+      const isDynasty = (league.settings?.type ?? 0) === 2;
+      const platformLeagueId = String(league.league_id);
+      const settingsJson: Prisma.InputJsonValue =
+        (league.settings as Prisma.InputJsonValue) ?? ({} as Prisma.InputJsonValue);
 
-      const sleeperPid = String(last.league_id);
-      const row = await prisma.league.findUnique({
+      await prisma.league.upsert({
         where: {
           userId_platform_platformLeagueId_season: {
             userId,
             platform: "sleeper",
-            platformLeagueId: sleeperPid,
-            season: _year,
+            platformLeagueId,
+            season,
           },
         },
-        select: { id: true },
+        update: {
+          userId,
+          name: league.name || "Unnamed League",
+          status: league.status || "pre_draft",
+          settings: settingsJson,
+          scoring,
+          leagueSize: league.settings?.num_teams ?? undefined,
+          isDynasty,
+          sport: sportEnum,
+          leagueVariant: isDynasty ? "dynasty" : "redraft",
+        },
+        create: {
+          userId,
+          platformLeagueId,
+          name: league.name || "Unnamed League",
+          sport: sportEnum,
+          season,
+          platform: "sleeper",
+          leagueVariant: isDynasty ? "dynasty" : "redraft",
+          scoring,
+          leagueSize: league.settings?.num_teams ?? 12,
+          isDynasty,
+          status: league.status || "pre_draft",
+          settings: settingsJson,
+        },
       });
-      if (row) {
-        historySyncJobs.push({ leagueId: row.id, platformLeagueId: sleeperPid });
+
+      return { ok: true, sport: sportLabel };
+    }
+
+    const upsertResults = await Promise.allSettled(allLeagues.map((l) => upsertOne(l)));
+    let importedCount = 0;
+    for (const r of upsertResults) {
+      if (r.status === "rejected") {
+        const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+        console.warn("[import] upsert failed:", msg);
+        continue;
+      }
+      const v = r.value;
+      if (v.ok) {
+        importedCount += 1;
+        sportCounts[v.sport] = (sportCounts[v.sport] || 0) + 1;
       }
     }
 
-    const uniqueLeagues = byLeagueId.size;
+    console.log(`[import] Done. Imported: ${importedCount}, Skipped: ${skipped.length}`);
 
     try {
-      await upsertPlatformIdentity({
-        afUserId: userId,
-        platform: "sleeper",
-        platformUserId: sleeperProfile.user_id,
-        platformUsername: sleeperProfile.username ?? username,
-        displayName: sleeperProfile.display_name ?? sleeperProfile.username ?? username,
-        avatarUrl: getSleeperAvatarUrl(sleeperProfile.avatar) ?? undefined,
-        sport: "nfl",
-      });
-
-      const legacyUser = await prisma.legacyUser.findUnique({
-        where: { sleeperUserId },
-        select: { id: true },
-      });
-      const isLocked = await isPlatformRankLocked(userId, "sleeper");
-      if (!isLocked && legacyUser) {
-        await computeAndSaveRank(userId, legacyUser);
-        await lockPlatformRank(userId, "sleeper");
-      }
-    } catch (err) {
-      console.error("[leagues/import] rank lock error:", err);
+      await refreshUserRankingsContext(userId);
+    } catch (e: unknown) {
+      console.warn("[import] rankings refresh failed (non-fatal):", e);
     }
 
-    await refreshUserRankingsContext(userId);
+    const uniqueSeasons = new Set(
+      allLeagues.map((l) => {
+        const raw = l.season ?? l._year;
+        return typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+      })
+    ).size;
 
-    for (const job of historySyncJobs) {
-      void syncLeagueHistory(job.leagueId, job.platformLeagueId, userId).catch((err) =>
-        console.error(`[leagues/import] History sync failed for ${job.platformLeagueId}:`, err)
-      );
-    }
+    const yearNums = [
+      ...new Set(
+        allLeagues
+          .map((l) => {
+            const raw = l.season ?? l._year;
+            const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+            return Number.isFinite(n) ? n : null;
+          })
+          .filter((n): n is number => n != null)
+      ),
+    ].sort((a, b) => a - b);
 
     return NextResponse.json({
       success: true,
-      imported: flat.length,
-      scannedRows: flat.length,
-      uniqueLeagues,
+      imported: importedCount,
       seasons: uniqueSeasons,
-      years: yearsList,
       sports: sportCounts,
-      seasonRows,
-      leagues: leagueSummaries,
-      sleeperUserId,
+      years: yearNums,
+      sleeperUserId: sleeperId,
+      displayName: sleeperUser?.display_name || sleeperUser?.username || username,
+      skipped: skipped.length,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Import failed";
-    const stack = err instanceof Error ? err.stack?.slice(0, 300) : undefined;
-    console.error("[import] ERROR:", message, stack);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[import] Fatal error:", message);
     return NextResponse.json({ error: message || "Import failed" }, { status: 500 });
   }
 }
