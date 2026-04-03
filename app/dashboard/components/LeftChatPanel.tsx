@@ -7,6 +7,94 @@ import { DiscordIcon } from '@/app/components/icons/DiscordIcon'
 import type { LeftChatPanelLayoutProps, UserLeague } from '../types'
 import { LeagueAvatar } from './LeagueAvatar'
 import { LeagueChatInPanel } from './LeagueChatInPanel'
+import {
+  CHIMMY_VOICES,
+  CHIMMY_VOICE_ID_STORAGE_KEY,
+  DEFAULT_VOICE_ID,
+} from '@/lib/tts/voices'
+
+function ChimmyVoicePicker({
+  selectedVoiceId,
+  onVoiceChange,
+}: {
+  selectedVoiceId: string
+  onVoiceChange: (voiceId: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        {selectedVoice.name}
+        <span className="text-[9px] text-white/30" aria-hidden>
+          ▾
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          className="absolute bottom-full left-0 z-50 mb-1 w-[200px] overflow-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
+          role="listbox"
+          aria-label="Chimmy voice"
+        >
+          <p className="border-b border-white/[0.06] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
+            Chimmy Voice
+          </p>
+          {CHIMMY_VOICES.map((voice) => (
+            <button
+              key={voice.id}
+              type="button"
+              role="option"
+              aria-selected={voice.id === selectedVoiceId}
+              onClick={() => {
+                onVoiceChange(voice.id)
+                setOpen(false)
+              }}
+              className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
+                voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold text-white">{voice.name}</span>
+                  <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
+              </div>
+              {voice.id === selectedVoiceId ? (
+                <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
+                  ✓
+                </span>
+              ) : null}
+            </button>
+          ))}
+          <div className="border-t border-white/[0.06] px-3 py-2">
+            <p className="text-[9px] text-white/20">More voices at elevenlabs.io</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function ChimmyLeagueContextBar({
   leagues,
@@ -188,6 +276,28 @@ export function LeftChatPanel({
   const activeChimmyLeague =
     leagues.find((l) => l.id === activeChimmyLeagueId) ?? leagues[0] ?? null
 
+  const [selectedVoiceId, setSelectedVoiceId] = useState(DEFAULT_VOICE_ID)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CHIMMY_VOICE_ID_STORAGE_KEY)
+      if (saved && CHIMMY_VOICES.some((v) => v.id === saved)) {
+        setSelectedVoiceId(saved)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const handleVoiceChange = (voiceId: string) => {
+    setSelectedVoiceId(voiceId)
+    try {
+      localStorage.setItem(CHIMMY_VOICE_ID_STORAGE_KEY, voiceId)
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
     <div
       id={rootId ?? undefined}
@@ -281,7 +391,8 @@ export function LeftChatPanel({
 
         {activeTab === 'chimmy' ? (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-2 pb-2 pt-1">
-            <div className="flex shrink-0 justify-end pb-1">
+            <div className="flex shrink-0 items-center justify-between gap-2 pb-1">
+              <ChimmyVoicePicker selectedVoiceId={selectedVoiceId} onVoiceChange={handleVoiceChange} />
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent('af-chimmy-new-conversation'))}
@@ -295,6 +406,7 @@ export function LeftChatPanel({
               <ChimmyChat
                 embedded
                 parentControlsNew
+                ttsVoiceId={selectedVoiceId}
                 chipContextLeagueName={activeChimmyLeague?.name ?? null}
                 footerSlot={
                   leagues.length > 0 ? (

@@ -47,6 +47,8 @@ export interface ChimmyMessageBubbleProps {
   voiceEnabled?: boolean
   voiceLoading?: boolean
   voicePlaying?: boolean
+  /** ElevenLabs / Chimmy TTS voice name shown on the play button */
+  voiceDisplayName?: string
 }
 
 function renderContentWithLinks(text: string) {
@@ -90,6 +92,7 @@ export default function ChimmyMessageBubble({
   voiceEnabled = true,
   voiceLoading = false,
   voicePlaying = false,
+  voiceDisplayName = 'Voice',
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
   const responseStructure = !isUser ? meta?.responseStructure : undefined
@@ -203,7 +206,9 @@ export default function ChimmyMessageBubble({
                   ? 'border-cyan-400/30 bg-cyan-500/15 text-cyan-100'
                   : 'border-white/20 bg-white/5 text-white/70 hover:bg-white/10'
               } disabled:opacity-50`}
-              aria-label={voicePlaying ? 'Stop Allison voice' : 'Play Allison voice'}
+              aria-label={
+                voicePlaying ? `Stop ${voiceDisplayName} voice` : `Play ${voiceDisplayName} voice`
+              }
             >
               {voiceLoading ? (
                 <>
@@ -213,7 +218,7 @@ export default function ChimmyMessageBubble({
               ) : voicePlaying ? (
                 <>Stop</>
               ) : (
-                <>Allison</>
+                <>{voiceDisplayName}</>
               )}
             </button>
             {onVoiceEnabledToggle && (

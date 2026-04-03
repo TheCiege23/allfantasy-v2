@@ -26,6 +26,8 @@ export interface ChimmyConversationThreadProps {
   voiceEnabled?: boolean
   voiceLoadingId?: string | null
   voicePlayingId?: string | null
+  /** Shown on the per-message TTS play button */
+  voiceDisplayName?: string
   className?: string
 }
 
@@ -42,6 +44,7 @@ export default function ChimmyConversationThread({
   voiceEnabled = true,
   voiceLoadingId = null,
   voicePlayingId = null,
+  voiceDisplayName = 'Voice',
   className = '',
 }: ChimmyConversationThreadProps) {
   const endRef = useRef<HTMLDivElement>(null)
@@ -80,6 +83,7 @@ export default function ChimmyConversationThread({
           voiceEnabled={voiceEnabled}
           voiceLoading={voiceLoadingId === msg.id}
           voicePlaying={voicePlayingId === msg.id}
+          voiceDisplayName={voiceDisplayName}
         />
       ))}
 
