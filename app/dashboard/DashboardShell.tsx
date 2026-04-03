@@ -183,19 +183,24 @@ export function DashboardShell({
     return () => window.removeEventListener('af-dashboard-open-mobile-left', openMobileLeft)
   }, [])
 
+  const applyLeaguesPayload = useCallback((payload: unknown) => {
+    const root = toRecord(payload)
+    const rawLeagues =
+      Array.isArray(root?.leagues) ? root?.leagues : Array.isArray(payload) ? payload : []
+    const nextLeagues = rawLeagues
+      .map((league) => mapLeague(league))
+      .filter((league): league is DashboardConnectedLeague => Boolean(league))
+    setLeagues(nextLeagues)
+  }, [])
+
   useEffect(() => {
     let active = true
+    setLeaguesLoading(true)
     fetch('/api/league/list', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load leagues'))))
       .then((payload: unknown) => {
         if (!active) return
-        const root = toRecord(payload)
-        const rawLeagues =
-          Array.isArray(root?.leagues) ? root?.leagues : Array.isArray(payload) ? payload : []
-        const nextLeagues = rawLeagues
-          .map((league) => mapLeague(league))
-          .filter((league): league is DashboardConnectedLeague => Boolean(league))
-        setLeagues(nextLeagues)
+        applyLeaguesPayload(payload)
       })
       .catch(() => {
         if (!active) return
@@ -209,7 +214,16 @@ export function DashboardShell({
     return () => {
       active = false
     }
-  }, [])
+  }, [applyLeaguesPayload])
+
+  const onLeaguesRefresh = useCallback(() => {
+    fetch('/api/league/list', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load leagues'))))
+      .then((payload: unknown) => {
+        applyLeaguesPayload(payload)
+      })
+      .catch(() => {})
+  }, [applyLeaguesPayload])
 
   const handleTriggerImport = () => {
     if (typeof window === 'undefined') return
@@ -253,6 +267,7 @@ export function DashboardShell({
           userName={userName}
           userImage={userImage}
           onImport={handleTriggerImport}
+          onLeaguesRefresh={onLeaguesRefresh}
         />
       }
     >
@@ -377,6 +392,7 @@ export function DashboardShell({
                   userImage={userImage}
                   onImport={handleTriggerImport}
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
+                  onLeaguesRefresh={onLeaguesRefresh}
                 />
               </div>
             </div>

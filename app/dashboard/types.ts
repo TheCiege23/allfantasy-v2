@@ -60,6 +60,8 @@ export type RightControlPanelLayoutProps = {
   userSubtitle?: string | null
   onImport: () => void
   onAfterLeagueNavigate?: () => void
+  /** Refetch league list (e.g. after Sleeper refresh) */
+  onLeaguesRefresh?: () => void
 }
 
 export interface DashboardConnectedLeague extends UserLeague {

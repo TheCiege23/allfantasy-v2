@@ -2,6 +2,7 @@ import pLimit from "p-limit";
 import { LeagueSport } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 import { onMatchupCommentary } from "@/lib/commentary-engine";
 import { normalizeToSupportedSport } from "@/lib/sport-scope";
 
@@ -88,8 +89,7 @@ const EMPTY_MATCHUP_COMMENTARY_TELEMETRY: MatchupCommentaryTelemetry = {
 };
 
 export function getSleeperAvatarUrl(avatar: string | null | undefined): string | null {
-  if (!avatar) return null;
-  return `https://sleepercdn.com/avatars/${avatar}`;
+  return sleeperAvatarUrl(avatar);
 }
 
 function getScoringType(league: SleeperLeague): "ppr" | "half-ppr" | "standard" {

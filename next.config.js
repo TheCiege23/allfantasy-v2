@@ -24,6 +24,7 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "sleepercdn.com" },
+      { protocol: "https", hostname: "cdn.sleeper.app" },
       { protocol: "https", hostname: "a.espncdn.com" },
       { protocol: "https", hostname: "static.www.nfl.com" },
       { protocol: "https", hostname: "cdn.nba.com" },

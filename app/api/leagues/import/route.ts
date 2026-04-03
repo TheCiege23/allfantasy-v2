@@ -5,6 +5,7 @@ import { Prisma, LeagueSport } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
+import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ interface SleeperLeague {
   sport?: string;
   season?: string | number;
   status?: string | null;
+  avatar?: string | null;
   settings?: {
     num_teams?: number;
     type?: number;
@@ -57,6 +59,12 @@ function scoringFromSettings(ss?: Record<string, number> | null): string {
   if (rec >= 1) return "ppr";
   if (rec >= 0.5) return "half-ppr";
   return "standard";
+}
+
+function seasonOf(league: SleeperLeague): number {
+  const raw = league.season ?? league._year;
+  const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 export async function POST(req: Request) {
@@ -158,6 +166,61 @@ export async function POST(req: Request) {
 
     console.log(`[import] Found ${allLeagues.length} total league rows`);
 
+    const currentYear = new Date().getFullYear();
+    const historicalLeagues = allLeagues.filter((l) => {
+      const s = seasonOf(l);
+      return Number.isFinite(s) && s < currentYear;
+    });
+    const currentEraLeagues = allLeagues.filter((l) => {
+      const s = seasonOf(l);
+      return Number.isFinite(s) && s >= currentYear;
+    });
+
+    const uniqueCurrentByLeagueId = new Map<string, SleeperLeague>();
+    for (const l of currentEraLeagues) {
+      const id = String(l.league_id);
+      if (!uniqueCurrentByLeagueId.has(id)) uniqueCurrentByLeagueId.set(id, l);
+    }
+
+    const commissionerChecks = await Promise.allSettled(
+      [...uniqueCurrentByLeagueId.values()].map(async (league) => {
+        try {
+          const usersRes = await fetch(
+            `https://api.sleeper.app/v1/league/${encodeURIComponent(String(league.league_id))}/users`,
+            { signal: abortAfter(5000), headers: { Accept: "application/json" } }
+          );
+          const users: unknown = usersRes.ok ? await usersRes.json() : [];
+          const arr = Array.isArray(users) ? users : [];
+          const currentUser = arr.find(
+            (u: { user_id?: string }) => String(u.user_id) === String(sleeperId)
+          ) as { is_owner?: boolean } | undefined;
+          const isCommissioner = currentUser?.is_owner === true;
+          return { leagueId: String(league.league_id), isCommissioner };
+        } catch {
+          return { leagueId: String(league.league_id), isCommissioner: false };
+        }
+      })
+    );
+
+    const commissionerIds = new Set<string>();
+    for (const r of commissionerChecks) {
+      if (r.status !== "fulfilled") continue;
+      if (r.value.isCommissioner) commissionerIds.add(r.value.leagueId);
+    }
+
+    const leaguesToImport = allLeagues.filter((l) => {
+      const s = seasonOf(l);
+      if (!Number.isFinite(s)) return false;
+      if (s < currentYear) return true;
+      return commissionerIds.has(String(l.league_id));
+    });
+
+    const commissionerLeagueCount = commissionerIds.size;
+
+    console.log(
+      `[import] Filter: historical rows=${historicalLeagues.length}, current-era rows=${currentEraLeagues.length}, commissioner league ids=${commissionerLeagueCount}, import rows=${leaguesToImport.length}`
+    );
+
     const sportCounts: Record<string, number> = {};
     const skipped: string[] = [];
 
@@ -178,6 +241,8 @@ export async function POST(req: Request) {
       const settingsJson: Prisma.InputJsonValue =
         (league.settings as Prisma.InputJsonValue) ?? ({} as Prisma.InputJsonValue);
 
+      const resolvedAvatarUrl = sleeperAvatarUrl(league.avatar);
+
       await prisma.league.upsert({
         where: {
           userId_platform_platformLeagueId_season: {
@@ -197,6 +262,7 @@ export async function POST(req: Request) {
           isDynasty,
           sport: sportEnum,
           leagueVariant: isDynasty ? "dynasty" : "redraft",
+          ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
         },
         create: {
           userId,
@@ -211,13 +277,14 @@ export async function POST(req: Request) {
           isDynasty,
           status: league.status || "pre_draft",
           settings: settingsJson,
+          ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
         },
       });
 
       return { ok: true, sport: sportLabel };
     }
 
-    const upsertResults = await Promise.allSettled(allLeagues.map((l) => upsertOne(l)));
+    const upsertResults = await Promise.allSettled(leaguesToImport.map((l) => upsertOne(l)));
     let importedCount = 0;
     for (const r of upsertResults) {
       if (r.status === "rejected") {
@@ -241,7 +308,7 @@ export async function POST(req: Request) {
     }
 
     const uniqueSeasons = new Set(
-      allLeagues.map((l) => {
+      leaguesToImport.map((l) => {
         const raw = l.season ?? l._year;
         return typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
       })
@@ -249,7 +316,7 @@ export async function POST(req: Request) {
 
     const yearNums = [
       ...new Set(
-        allLeagues
+        leaguesToImport
           .map((l) => {
             const raw = l.season ?? l._year;
             const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
@@ -268,6 +335,8 @@ export async function POST(req: Request) {
       sleeperUserId: sleeperId,
       displayName: sleeperUser?.display_name || sleeperUser?.username || username,
       skipped: skipped.length,
+      commissionerLeagues: commissionerLeagueCount,
+      historicalLeagues: historicalLeagues.length,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";

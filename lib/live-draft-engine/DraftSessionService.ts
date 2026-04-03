@@ -19,6 +19,8 @@ import {
 import type { DraftSessionSnapshot, DraftPickSnapshot, SlotOrderEntry, TradedPickRecord, AuctionSessionSnapshot, KeeperSessionSnapshot, DevySessionSnapshot, C2CSessionSnapshot } from './types'
 import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
+import { draftOrderSlotsToSlotOrder } from '@/lib/league/league-settings-draft-sync'
+import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
 
 export async function getOrCreateDraftSession(leagueId: string): Promise<{
   session: { id: string; leagueId: string; status: string; slotOrder: unknown; teamCount: number; rounds: number; draftType: string; thirdRoundReversal: boolean; timerSeconds: number | null; timerEndAt: Date | null; pausedRemainingSeconds: number | null; version: number; updatedAt: Date }
@@ -31,7 +33,7 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    include: { rosters: true, teams: true },
+    include: { rosters: true, teams: true, leagueSettings: true },
   })
   if (!league) throw new Error('League not found')
 
@@ -40,19 +42,47 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
     getDraftUISettingsForLeague(leagueId),
   ])
   const teamCount = league.leagueSize ?? 12
-  const rounds = config?.rounds ?? 15
-  const draftType = (config?.draft_type ?? 'snake') as string
-  const thirdRoundReversal = config?.third_round_reversal ?? false
+  let rounds = config?.rounds ?? 15
+  let draftType = (config?.draft_type ?? 'snake') as string
+  let thirdRoundReversal = config?.third_round_reversal ?? false
   const baseTimerSeconds = config?.timer_seconds ?? 90
   const slowTimerSeconds = config?.slow_timer_seconds ?? Math.max(3600, baseTimerSeconds)
-  const timerSeconds =
+  let timerSeconds =
     uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
       ? slowTimerSeconds
       : baseTimerSeconds
 
+  const ls = league.leagueSettings
+  let aiAutoPick = false
+  let cpuAutoPick = true
+  let playerPool = 'all'
+  let alphabeticalSort = false
+  if (ls) {
+    rounds = Math.max(1, Math.min(50, ls.rounds))
+    const dt = ls.draftType
+    if (dt === '3rd_reversal') {
+      draftType = 'snake'
+      thirdRoundReversal = true
+    } else if (dt === 'auction') {
+      draftType = 'auction'
+      thirdRoundReversal = false
+    } else if (dt === 'linear') {
+      draftType = 'linear'
+      thirdRoundReversal = false
+    } else {
+      draftType = 'snake'
+      thirdRoundReversal = false
+    }
+    timerSeconds = pickTimerSecondsFromLeagueSettings(ls.pickTimerPreset, ls.pickTimerCustomValue)
+    aiAutoPick = ls.aiAutoPick
+    cpuAutoPick = ls.cpuAutoPick
+    playerPool = ls.playerPool
+    alphabeticalSort = ls.alphabeticalSort
+  }
+
   const teams = league.teams ?? []
   const rosters = league.rosters ?? []
-  const slotOrder: SlotOrderEntry[] = (rosters.length >= teamCount
+  let slotOrder: SlotOrderEntry[] = (rosters.length >= teamCount
     ? rosters.slice(0, teamCount).map((r, i) => ({
         slot: i + 1,
         rosterId: r.id,
@@ -77,6 +107,13 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
     )
   }
 
+  if (ls) {
+    const fromSettings = draftOrderSlotsToSlotOrder(ls.draftOrderSlots, teamCount)
+    if (fromSettings.length > 0) {
+      slotOrder = fromSettings
+    }
+  }
+
   session = await (prisma as any).draftSession.create({
     data: {
       leagueId,
@@ -87,6 +124,10 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
       teamCount,
       thirdRoundReversal,
       timerSeconds,
+      aiAutoPick,
+      cpuAutoPick,
+      playerPool,
+      alphabeticalSort,
       slotOrder: slotOrder as any,
     },
   })
@@ -308,6 +349,20 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'pre_draft') return false
 
+  const ls = await prisma.leagueSettings.findUnique({ where: { leagueId } })
+  if (ls) {
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        aiAutoPick: ls.aiAutoPick,
+        cpuAutoPick: ls.cpuAutoPick,
+        playerPool: ls.playerPool,
+        alphabeticalSort: ls.alphabeticalSort,
+        version: { increment: 1 },
+      },
+    })
+  }
+
   if (session.draftType === 'auction') {
     const { initializeAuctionForSession } = await import('./auction/AuctionEngine')
     await initializeAuctionForSession(leagueId)
@@ -504,6 +559,8 @@ export async function resetDraftSession(leagueId: string): Promise<boolean> {
       where: { id: session.id },
       data: {
         status: 'pre_draft',
+        nextOverallPick: 1,
+        currentRoundNum: 1,
         timerEndAt: null,
         pausedRemainingSeconds: null,
         auctionBudgets: Prisma.JsonNull,

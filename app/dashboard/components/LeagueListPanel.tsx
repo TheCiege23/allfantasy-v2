@@ -17,6 +17,8 @@ type LeagueListPanelProps = {
   onSelect: (league: UserLeague) => void
   compact?: boolean
   loading?: boolean
+  /** Refetch dashboard league list after a successful Sleeper refresh */
+  onLeaguesRefresh?: () => void
 }
 
 type ConceptBadge = {
@@ -151,14 +153,18 @@ export function LeagueListPanel({
   onSelect,
   compact = false,
   loading = false,
+  onLeaguesRefresh,
 }: LeagueListPanelProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [refreshing, setRefreshing] = useState<Record<string, boolean>>({})
+  const [refreshed, setRefreshed] = useState<Record<string, boolean>>({})
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [orderedIds, setOrderedIds] = useState<string[]>([])
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const draggedLeagueIdRef = useRef<string | null>(null)
+  const refreshInFlightRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     const syncFromStorage = () => {
@@ -267,6 +273,38 @@ export function LeagueListPanel({
     [displayedLeagues, favoriteSortedLeagues, persistOrderedIds, resetDragState]
   )
 
+  const handleRefresh = useCallback(
+    async (e: React.MouseEvent, leagueId: string) => {
+      e.stopPropagation()
+      e.preventDefault()
+      if (refreshInFlightRef.current.has(leagueId)) return
+      refreshInFlightRef.current.add(leagueId)
+
+      setRefreshing((prev) => ({ ...prev, [leagueId]: true }))
+      try {
+        const res = await fetch('/api/league/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ leagueId }),
+        })
+        if (res.ok) {
+          setRefreshed((prev) => ({ ...prev, [leagueId]: true }))
+          window.setTimeout(() => {
+            setRefreshed((prev) => ({ ...prev, [leagueId]: false }))
+          }, 2000)
+          onLeaguesRefresh?.()
+        }
+      } catch (err) {
+        console.error('refresh failed', err)
+      } finally {
+        refreshInFlightRef.current.delete(leagueId)
+        setRefreshing((prev) => ({ ...prev, [leagueId]: false }))
+      }
+    },
+    [onLeaguesRefresh]
+  )
+
   return (
     <div className="flex h-full min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#0a0a1f]">
       {!compact ? (
@@ -326,10 +364,33 @@ export function LeagueListPanel({
                     event.preventDefault()
                     handleDrop(league.id)
                   }}
-                  className={`w-full min-w-0 rounded-xl border transition-all duration-150 ${
+                  className={`group relative w-full min-w-0 rounded-xl border transition-all duration-150 ${
                     isDragging ? 'opacity-40' : ''
                   } ${isDropTarget ? 'border-cyan-500/50' : 'border-transparent'}`}
                 >
+                  {(league.platform || '').toLowerCase() === 'sleeper' ? (
+                    <button
+                      type="button"
+                      onClick={(e) => void handleRefresh(e, league.id)}
+                      title="Refresh league data from Sleeper"
+                      className={`absolute top-1.5 right-9 z-20 flex h-6 w-6 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 ${
+                        refreshing[league.id]
+                          ? 'cursor-wait bg-cyan-500/20 text-cyan-400'
+                          : refreshed[league.id]
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-white/[0.08] text-white/40 opacity-0 hover:bg-white/[0.15] hover:text-white group-hover:opacity-100'
+                      }`}
+                      aria-label="Refresh league from Sleeper"
+                    >
+                      {refreshing[league.id] ? (
+                        <span className="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
+                      ) : refreshed[league.id] ? (
+                        <span className="text-[10px]">✓</span>
+                      ) : (
+                        <span className="text-[11px]">↻</span>
+                      )}
+                    </button>
+                  ) : null}
                   <div className="flex w-full min-w-0 items-stretch gap-1">
                     <div
                       draggable

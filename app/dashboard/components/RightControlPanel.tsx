@@ -29,6 +29,7 @@ export function RightControlPanel({
   userSubtitle,
   onImport,
   onAfterLeagueNavigate,
+  onLeaguesRefresh,
 }: RightControlPanelLayoutProps) {
   const resolvedSelectedId = activeLeagueId ?? selectedId
   const subtitle =
@@ -63,6 +64,7 @@ export function RightControlPanel({
             }}
             compact
             loading={leaguesLoading}
+            onLeaguesRefresh={onLeaguesRefresh}
           />
         </div>
       </div>

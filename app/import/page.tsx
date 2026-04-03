@@ -14,6 +14,8 @@ type ImportResult = {
   sports: Record<string, number>;
   years: number[];
   displayName: string;
+  commissionerLeagues?: number;
+  historicalLeagues?: number;
 };
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
@@ -103,6 +105,8 @@ export default function ImportPage() {
         sports: data.sports ?? {},
         years: Array.isArray(data.years) ? data.years : [],
         displayName: data.displayName ?? trimmed,
+        commissionerLeagues: typeof data.commissionerLeagues === "number" ? data.commissionerLeagues : undefined,
+        historicalLeagues: typeof data.historicalLeagues === "number" ? data.historicalLeagues : undefined,
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Import failed. Please try again.");
@@ -219,6 +223,12 @@ export default function ImportPage() {
                       {Object.entries(result.sports)
                         .map(([s, n]) => `${s}: ${n} league${n !== 1 ? "s" : ""}`)
                         .join(" · ")}
+                    </p>
+                  ) : null}
+                  {result.commissionerLeagues != null && result.historicalLeagues != null ? (
+                    <p className="mt-1 text-[12px] text-white/40">
+                      Commissioner leagues: {result.commissionerLeagues} current season ·{" "}
+                      {result.historicalLeagues} historical seasons included
                     </p>
                   ) : null}
                   <Link
