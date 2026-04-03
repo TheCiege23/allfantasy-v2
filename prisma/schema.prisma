@@ -4076,6 +4076,22 @@ model League {
   bestBallRosterValidations   BestBallRosterValidation[]
   bestBallAIInsights          BestBallAIInsight[]
 
+  /// Guillotine survival (lowest score eliminated each period)
+  guillotineMode                  Boolean? @default(false)
+  guillotineEndgame               String?  @default("last_team_standing")
+  guillotineEndgameThreshold      Int?     @default(1)
+  guillotineEliminationsPerPeriod Int?     @default(1)
+  guillotineProtectedWeek1        Boolean? @default(false)
+  guillotineAcceleratedWeeks      String?  @default("[]")
+  guillotineTiebreaker            String?  @default("lowest_bench_points")
+  guillotineSamePeriodPickups     Boolean? @default(false)
+  guillotineWaiverDelay           Int?     @default(0)
+  guillotineRosterExpansion       Json?    @default("[]")
+  guillotineFinalStageScoring     String?  @default("cumulative")
+
+  guillotineSeasons    GuillotineSeason[]
+  guillotineAiInsights GuillotineAIInsight[]
+
   rosters                     Roster[]
   teams                       LeagueTeam[]
   divisions                   LeagueDivision[]
@@ -8202,6 +8218,7 @@ model RedraftSeason {
   keeperPickAdjustments KeeperPickAdjustment[]
   keeperAuditLogs     KeeperAuditLog[]
   bestBallOptimizedLineups BestBallOptimizedLineup[]
+  guillotineSeason         GuillotineSeason?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8241,6 +8258,9 @@ model RedraftRoster {
   aiRosterInsights RedraftAIRosterInsight[]
   keeperRecords    KeeperRecord[]
   bestBallOptimizedLineups BestBallOptimizedLineup[]
+  guillotineSurvivalLogs   GuillotineSurvivalLog[]
+
+  isEliminated Boolean @default(false)
 
   @@unique([seasonId, ownerId])
   @@index([seasonId])
@@ -8757,4 +8777,131 @@ model BestBallAIInsight {
   @@index([leagueId, type])
   @@index([contestId, type])
   @@map("best_ball_ai_insights")
+}
+
+// ========== Guillotine survival engine (elimination seasons) ==========
+
+model GuillotineSeason {
+  id                    String   @id @default(cuid())
+  leagueId              String
+  league                League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  redraftSeasonId       String?  @unique
+  redraftSeason         RedraftSeason? @relation(fields: [redraftSeasonId], references: [id], onDelete: SetNull)
+
+  sport                 String
+  season                Int
+  status                String   @default("setup")
+  totalTeamsStarted     Int
+  currentTeamsActive    Int
+  currentScoringPeriod  Int      @default(0)
+  isInFinalStage        Boolean  @default(false)
+  finalStageStartPeriod Int?
+
+  eliminations   GuillotineElimination[]
+  survivalLog    GuillotineSurvivalLog[]
+  waiverReleases GuillotineWaiverRelease[]
+  aiInsights     GuillotineAIInsight[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leagueId])
+  @@map("guillotine_seasons")
+}
+
+model GuillotineElimination {
+  id                 String           @id @default(cuid())
+  seasonId           String
+  season             GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId           String
+
+  eliminatedRosterId String
+  eliminatedTeamName   String
+  eliminatedOwnerId  String
+
+  scoringPeriod      Int
+  finalScore         Float
+  rankAmongActive    Int
+  marginBelowSafe    Float
+
+  wasTiebreaker   Boolean @default(false)
+  tiebreakerType    String?
+  tiedWithRosterId  String?
+
+  aiEliminationSummary String?
+  aiCollapseReason     String?
+
+  eliminatedAt DateTime @default(now())
+
+  @@index([seasonId, scoringPeriod])
+  @@index([leagueId])
+  @@map("guillotine_eliminations")
+}
+
+model GuillotineSurvivalLog {
+  id                    String           @id @default(cuid())
+  seasonId              String
+  season                GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId              String
+  rosterId              String
+  roster                RedraftRoster    @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  scoringPeriod         Int
+  totalScore            Float
+  rankAmongActive       Int
+  teamsActiveThisPeriod Int
+  survivalStatus        String
+  marginAboveChopLine   Float
+  wasInDangerZone       Boolean          @default(false)
+
+  @@unique([seasonId, rosterId, scoringPeriod])
+  @@index([seasonId, scoringPeriod])
+  @@index([rosterId])
+  @@map("guillotine_survival_logs")
+}
+
+model GuillotineWaiverRelease {
+  id                 String           @id @default(cuid())
+  seasonId           String
+  season             GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId           String
+
+  eliminatedRosterId String
+  scoringPeriod      Int
+
+  playerId   String
+  playerName String
+  position   String
+  team       String?
+  sport      String
+
+  releaseStatus     String   @default("pending")
+  availableAt       DateTime
+  claimedByRosterId String?
+  claimedAt         DateTime?
+  winningBid        Float?
+
+  @@index([seasonId, releaseStatus])
+  @@index([leagueId, scoringPeriod])
+  @@map("guillotine_waiver_releases")
+}
+
+model GuillotineAIInsight {
+  id              String           @id @default(cuid())
+  leagueId      String
+  league        League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  seasonId      String
+  season        GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  scoringPeriod Int?
+
+  rosterId String?
+  type     String
+  content  Json
+  narrative String?
+
+  generatedAt DateTime @default(now())
+
+  @@index([seasonId, type])
+  @@index([rosterId, type])
+  @@map("guillotine_ai_insights")
 }

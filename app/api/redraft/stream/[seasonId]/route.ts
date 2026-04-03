@@ -45,9 +45,24 @@ export async function GET(
           note: 'Wire Redis pub/sub for keeper_submitted / keeper_locked events.',
         })
       }, 15000)
+      const ivGuillotine = setInterval(() => {
+        send({
+          type: 'guillotine_score_update',
+          seasonId,
+          rosterId: null,
+          teamName: null,
+          currentScore: 0,
+          survivalRank: 0,
+          teamsActive: 0,
+          marginAboveChopLine: 0,
+          isInDangerZone: false,
+          note: 'Wire live scores → survival snapshot.',
+        })
+      }, 12000)
       const close = () => {
         clearInterval(iv)
         clearInterval(ivKeeper)
+        clearInterval(ivGuillotine)
         try {
           controller.close()
         } catch {

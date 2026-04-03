@@ -34,6 +34,7 @@ import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
 import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
+import { GuillotineTab } from './tabs/GuillotineTab'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -122,6 +123,11 @@ export function LeagueShell({
       const bb = { id: 'bestball', label: 'Best Ball' }
       base = idx >= 0 ? [...base.slice(0, idx + 1), bb, ...base.slice(idx + 1)] : [bb, ...base]
     }
+    if (league.guillotineMode) {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const g = { id: 'guillotine', label: 'Guillotine' }
+      base = idx >= 0 ? [...base.slice(0, idx + 1), g, ...base.slice(idx + 1)] : [g, ...base]
+    }
     if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
@@ -129,7 +135,14 @@ export function LeagueShell({
       return [...base, { id: 'settings', label: '⚙ Settings' }]
     }
     return base
-  }, [league.sport, league.leagueType, league.keeperPhaseActive, league.bestBallMode, isCommissioner])
+  }, [
+    league.sport,
+    league.leagueType,
+    league.keeperPhaseActive,
+    league.bestBallMode,
+    league.guillotineMode,
+    isCommissioner,
+  ])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
 
   useEffect(() => {
@@ -312,6 +325,8 @@ function LeagueTabRouter({
       return <RedraftTab leagueId={leagueId} />
     case 'bestball':
       return <BestBallTab leagueId={leagueId} sport={sport} />
+    case 'guillotine':
+      return <GuillotineTab leagueId={leagueId} sport={sport} />
     case 'keeper':
       return <KeeperSelectionTab leagueId={leagueId} />
     case 'team':

@@ -31,7 +31,12 @@ export function useRedraftStream(seasonId: string | null) {
           parsed.type === 'keeper_locked' ||
           parsed.type === 'keeper_conflict' ||
           parsed.type === 'keeper_phase_opened' ||
-          parsed.type === 'keeper_phase_closed'
+          parsed.type === 'keeper_phase_closed' ||
+          parsed.type === 'guillotine_score_update' ||
+          parsed.type === 'guillotine_elimination' ||
+          parsed.type === 'guillotine_players_available' ||
+          parsed.type === 'guillotine_final_stage' ||
+          parsed.type === 'guillotine_champion'
         ) {
           setNotifications((n) => [...n.slice(-20), parsed])
         }
