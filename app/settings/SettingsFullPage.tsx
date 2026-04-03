@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
+import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
+import { discordAvatarUrl } from "@/lib/discord/avatar"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 
 const CARD =
@@ -149,6 +152,20 @@ export default function SettingsFullPage() {
     () => (profile?.notificationPreferences as Record<string, unknown> | null) ?? null,
     [profile?.notificationPreferences]
   )
+
+  const discordParamToastDone = useRef(false)
+  useEffect(() => {
+    if (typeof window === "undefined" || discordParamToastDone.current) return
+    const p = new URLSearchParams(window.location.search)
+    const d = p.get("discord")
+    if (!d) return
+    discordParamToastDone.current = true
+    if (d === "connected") toast.success("Discord connected")
+    if (d === "error") toast.error("Discord connection failed")
+    if (d === "bot-linked") toast.success("Discord server linked for bot setup")
+    if (d === "bot-not-ready") toast.message("Discord bot is not configured on this environment yet.")
+    window.history.replaceState({}, "", "/settings")
+  }, [])
 
   useEffect(() => {
     if (!profile) return
@@ -350,6 +367,7 @@ export default function SettingsFullPage() {
   }
 
   const sleeperConnected = !!profile.sleeperUsername
+  const discordConnected = !!profile.discordUserId
 
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
@@ -507,6 +525,67 @@ export default function SettingsFullPage() {
                   </Link>
                 )}
               </div>
+            </div>
+            <div className="border-t border-white/[0.06] pt-4">
+              {!discordConnected ? (
+                <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
+                  <div className="mb-3 flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#5865F2]/20">
+                      <DiscordIcon size={20} className="text-[#5865F2]" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-semibold">Discord</p>
+                      <p className="text-[11px] text-white/40">Not connected</p>
+                    </div>
+                  </div>
+                  <p className="mb-4 text-[12px] text-white/50">
+                    Connect your Discord account to show your Discord avatar across the platform and unlock league chat
+                    sync in Phase 2.
+                  </p>
+                  <a
+                    href="/api/auth/discord"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#5865F2] px-4 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#4752c4]"
+                  >
+                    <DiscordIcon size={14} />
+                    Connect Discord
+                  </a>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
+                  <div className="mb-4 flex items-center gap-3">
+                    <img
+                      src={discordAvatarUrl(profile.discordUserId!, profile.discordAvatar)}
+                      className="h-10 w-10 rounded-full"
+                      alt="Discord avatar"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold">{profile.discordUsername ?? "Discord"}</p>
+                      <p className="text-[11px] text-white/40">{profile.discordEmail ?? "Discord connected"}</p>
+                    </div>
+                    <span className="rounded-full border border-green-500/30 bg-green-500/20 px-2 py-0.5 text-[10px] text-green-400">
+                      ✓ Connected
+                    </span>
+                  </div>
+                  <div className="mb-4 rounded-xl border border-white/[0.05] bg-white/[0.03] px-3 py-2.5 opacity-60">
+                    <p className="mb-0.5 text-[11px] font-semibold text-white/60">League Chat Sync</p>
+                    <p className="text-[10px] text-white/40">
+                      Coming soon — invite the AllFantasy bot to your Discord server to sync league chat and receive
+                      alerts.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void fetch("/api/auth/discord/disconnect", { method: "POST" }).then(() =>
+                        window.location.reload()
+                      )
+                    }
+                    className="text-[11px] text-white/30 underline transition-colors hover:text-red-400"
+                  >
+                    Disconnect Discord
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
               <span className="text-sm text-white/70">Yahoo Fantasy</span>

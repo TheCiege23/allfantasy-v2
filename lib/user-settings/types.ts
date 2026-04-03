@@ -83,6 +83,12 @@ export interface UserProfileForSettings {
   profileComplete: boolean
   sleeperUsername: string | null
   sleeperLinkedAt: Date | null
+  discordUserId: string | null
+  discordUsername: string | null
+  discordEmail: string | null
+  discordAvatar: string | null
+  discordGuildId: string | null
+  discordConnectedAt: Date | null
   bio: string | null
   preferredSports: PreferredSportCode[] | null
   /** Notification preferences (NotificationPreferences shape from lib/notification-settings). */

@@ -2602,6 +2602,7 @@ model AppUser {
   draftAutopickSettings   DraftAutopickSetting[]
   activeLeagueId          String?
   leagueChatMessages      LeagueChatMessage[]
+  discordGuildLinks       DiscordGuildLink[]
   leagueIntroViews        LeagueIntroView[]
   bracketLeagueMessages   BracketLeagueMessage[]   @relation("BracketLeagueMessages")
   bracketMessageReactions BracketMessageReaction[] @relation("BracketMessageReactions")
@@ -3846,6 +3847,16 @@ model UserProfile {
   onboardingCompletedAt   DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
   retentionNudgeDismissedAt Json?
+  /// Discord OAuth (Tier 1) — optional guild from bot install flow (Tier 2).
+  discordUserId        String?   @unique
+  discordUsername      String?
+  discordEmail         String?
+  discordAvatar        String?
+  discordAccessToken   String?   @db.Text
+  discordRefreshToken  String?   @db.Text
+  discordConnectedAt   DateTime?
+  discordGuildId       String?
+
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
@@ -3854,6 +3865,58 @@ model UserProfile {
   @@index([sleeperUsername])
   @@index([phone])
   @@map("user_profiles")
+}
+
+/// Discord server linked by a commissioner (Tier 2 prep).
+model DiscordGuildLink {
+  id             String   @id @default(cuid())
+  guildId        String   @unique
+  guildName      String?
+  linkedByUserId String
+  user           AppUser  @relation(fields: [linkedByUserId], references: [id], onDelete: Cascade)
+  leagueChannels DiscordLeagueChannel[]
+  createdAt      DateTime @default(now())
+
+  @@index([linkedByUserId])
+  @@map("discord_guild_links")
+}
+
+/// Maps an AllFantasy league to a Discord channel for chat sync.
+model DiscordLeagueChannel {
+  id                   String           @id @default(cuid())
+  leagueId             String
+  league               League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  guildId              String
+  channelId            String           @unique
+  channelName          String?
+  webhookId            String?
+  webhookToken         String?          @db.Text
+  lastSyncedMessageId  String?
+  syncEnabled          Boolean          @default(true)
+  syncOutbound         Boolean          @default(true)
+  syncInbound          Boolean          @default(false)
+  guild                DiscordGuildLink @relation(fields: [guildId], references: [guildId])
+  createdAt            DateTime         @default(now())
+
+  @@unique([leagueId, guildId])
+  @@index([leagueId])
+  @@index([guildId])
+  @@map("discord_league_channels")
+}
+
+/// Dedup + audit for Discord ↔ AllFantasy message sync.
+model DiscordMessageLink {
+  id                String   @id @default(cuid())
+  leagueMessageId   String?
+  discordMessageId  String?
+  direction         String   @db.VarChar(16)
+  guildId           String?
+  channelId         String?
+  createdAt         DateTime @default(now())
+
+  @@index([leagueMessageId])
+  @@index([discordMessageId])
+  @@map("discord_message_links")
 }
 
 model PendingSignup {
@@ -3949,6 +4012,7 @@ model League {
   mockDrafts         MockDraft[]
   draftSessions      DraftSession[]
   chatMessages       LeagueChatMessage[]
+  discordLeagueChannels DiscordLeagueChannel[]
   aiCommissionerConfig     AiCommissionerConfig?
   aiCommissionerAlerts     AiCommissionerAlert[]
   aiCommissionerActionLogs AiCommissionerActionLog[]
@@ -4365,6 +4429,8 @@ model LeagueChatMessage {
   metadata  Json?
   /// 'draft' = draft-only (when sync off); null = league chat (or draft when sync on)
   source    String?  @db.VarChar(16)
+  discordMessageId String? @db.VarChar(64)
+  sourceDiscord    Boolean @default(false)
   createdAt DateTime @default(now())
 
   @@index([leagueId])
