@@ -56,6 +56,7 @@
     "@tailwindcss/forms": "^0.5.11",
     "@tanstack/react-virtual": "^3.13.23",
     "@types/topojson-specification": "^1.0.5",
+    "@vercel/blob": "^2.3.3",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.70.0",
     "canvas-confetti": "^1.9.3",

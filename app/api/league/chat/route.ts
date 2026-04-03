@@ -37,6 +37,7 @@ function toClientMessage(message: {
   body: string
   createdAt: string
   messageType?: string | null
+  metadata?: Record<string, unknown> | null
 }) {
   return {
     id: message.id,
@@ -45,6 +46,7 @@ function toClientMessage(message: {
     text: message.body,
     createdAt: message.createdAt,
     messageType: message.messageType ?? 'text',
+    metadata: message.metadata ?? null,
   }
 }
 
@@ -80,6 +82,7 @@ export async function GET(req: NextRequest) {
         body: message.body,
         createdAt: message.createdAt,
         messageType: message.messageType ?? 'text',
+        metadata: message.metadata ?? null,
       })
     ),
   })
@@ -96,12 +99,29 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   const leagueId = toStringValue(body?.leagueId).trim()
   const message = toStringValue(body?.message).trim()
+  const metadataRaw = body?.metadata
+  const metadata =
+    metadataRaw && typeof metadataRaw === 'object' && !Array.isArray(metadataRaw)
+      ? (metadataRaw as Record<string, unknown>)
+      : undefined
 
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
-  if (!message) {
-    return NextResponse.json({ error: 'message required' }, { status: 400 })
+
+  const metaStr = metadata ? JSON.stringify(metadata) : ''
+  if (metaStr.length > 120_000) {
+    return NextResponse.json({ error: 'Metadata too large' }, { status: 400 })
+  }
+
+  const hasRich =
+    Boolean(metadata && Object.keys(metadata).length > 0) ||
+    Boolean(toStringValue(body?.gifId)) ||
+    Boolean(body?.poll) ||
+    (Array.isArray(body?.attachments) && body.attachments.length > 0)
+
+  if (!message && !hasRich) {
+    return NextResponse.json({ error: 'message or media payload required' }, { status: 400 })
   }
   if (message.length > 1000) {
     return NextResponse.json({ error: 'Message too long' }, { status: 400 })
@@ -112,7 +132,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const created = await createLeagueChatMessage(leagueId, userId, message, {})
+  const bodyText =
+    message ||
+    (metadata?.gifUrl || metadata?.giphyId || metadata?.gifId ? '🎬 GIF' : '') ||
+    (metadata?.poll ? '📊 Poll' : '') ||
+    (metadata?.attachments ? '📎 Media' : '') ||
+    '[Media]'
+
+  const created = await createLeagueChatMessage(leagueId, userId, bodyText, {
+    metadata: metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
+  })
   if (!created) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
@@ -125,6 +154,7 @@ export async function POST(req: NextRequest) {
       body: created.body,
       createdAt: created.createdAt,
       messageType: created.messageType ?? 'text',
+      metadata: created.metadata ?? null,
     }),
   })
 }

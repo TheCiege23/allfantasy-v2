@@ -4279,7 +4279,38 @@ model TournamentParticipant {
   @@map("tournament_participants")
 }
 
+/// Curated GIFs for league chat composer (Giphy-backed).
+model ChatGif {
+  id          String   @id @default(cuid())
+  giphyId     String   @unique
+  title       String
+  url         String
+  previewUrl  String
+  tags        String[]
+  category    String   @default("general")
+  width       Int      @default(0)
+  height      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@map("chat_gifs")
+}
+
+/// Emoji catalog for league chat picker.
+model ChatEmoji {
+  id        String @id @default(cuid())
+  char      String @unique
+  name      String
+  shortcode String @unique
+  category  String
+  tags      String[]
+  sortOrder Int    @default(0)
+
+  @@index([category])
+  @@map("chat_emojis")
+}
+
 /// League chat (main app League). Syncs with draft chat when liveDraftChatSyncEnabled during active draft.
+/// Rich media (gifId, attachments, poll) — store in `metadata` until migrated; see prisma/seeds/chat-media.ts header SQL.
 model LeagueChatMessage {
   id        String   @id @default(cuid())
   leagueId  String

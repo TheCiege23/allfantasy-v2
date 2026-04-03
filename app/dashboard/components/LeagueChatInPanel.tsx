@@ -1,8 +1,8 @@
 'use client'
 
-import { Send, Smile } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UserLeague } from '../types'
+import { ChatComposer, type LeagueComposerPayload } from './chat/ChatComposer'
 
 type LeagueChatMessage = {
   id: string
@@ -14,6 +14,7 @@ type LeagueChatMessage = {
   activityText?: string
   playerName?: string
   createdAt: string
+  metadata?: Record<string, unknown> | null
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -24,20 +25,6 @@ function toRecord(value: unknown): Record<string, unknown> | null {
 
 function toStringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
-}
-
-function safeParseSystemMessage(message: string) {
-  try {
-    const parsed: unknown = JSON.parse(message)
-    const data = toRecord(parsed)
-    if (data?.isSystem === true) {
-      return {
-        content: toStringValue(data.content, 'League activity'),
-      }
-    }
-  } catch {}
-
-  return null
 }
 
 function buildRelativeTime(value: string) {
@@ -70,80 +57,21 @@ function getInitials(name: string) {
   )
 }
 
-function buildStubMessages(leagueName: string): LeagueChatMessage[] {
-  const now = Date.now()
-  return [
-    {
-      id: `${leagueName}-stub-1`,
-      authorId: 'system',
-      authorName: 'AllFantasy',
-      authorAvatar: null,
-      text: '',
-      isActivity: true,
-      activityText: 'Waiver activity: added ',
-      playerName: 'Jordan Addison',
-      createdAt: new Date(now - 18 * 60_000).toISOString(),
-    },
-    {
-      id: `${leagueName}-stub-2`,
-      authorId: 'system',
-      authorName: 'AllFantasy',
-      authorAvatar: null,
-      text: '',
-      isActivity: true,
-      activityText: 'Trade block update for ',
-      playerName: 'Brandon Aiyuk',
-      createdAt: new Date(now - 43 * 60_000).toISOString(),
-    },
-    {
-      id: `${leagueName}-stub-3`,
-      authorId: 'system',
-      authorName: 'AllFantasy',
-      authorAvatar: null,
-      text: '',
-      isActivity: true,
-      activityText: 'League pulse moved around ',
-      playerName: '2027 1st',
-      createdAt: new Date(now - 95 * 60_000).toISOString(),
-    },
-  ]
-}
-
-function mapBracketMessage(rawValue: unknown): LeagueChatMessage | null {
-  const raw = toRecord(rawValue)
-  if (!raw) return null
-
-  const id = toStringValue(raw.id)
-  const createdAt = toStringValue(raw.createdAt, new Date().toISOString())
-  const rawMessage = toStringValue(raw.message)
-  const user = toRecord(raw.user)
-  const displayName =
-    toStringValue(user?.displayName) ||
-    toStringValue(user?.email).split('@')[0] ||
-    'Manager'
-
-  const systemMessage = safeParseSystemMessage(rawMessage)
-  if (systemMessage) {
-    return {
-      id: id || `system-${createdAt}`,
-      authorId: 'system',
-      authorName: 'AllFantasy',
-      authorAvatar: null,
-      text: '',
-      isActivity: true,
-      activityText: systemMessage.content,
-      createdAt,
-    }
-  }
-
+function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
+  const o = toRecord(raw)
+  if (!o) return null
+  const id = toStringValue(o.id)
+  if (!id) return null
+  const meta = toRecord(o.metadata)
   return {
-    id: id || `msg-${createdAt}`,
-    authorId: toStringValue(user?.id, 'unknown'),
-    authorName: displayName,
-    authorAvatar: toStringValue(user?.avatarUrl) || null,
-    text: rawMessage,
+    id,
+    authorId: toStringValue(o.authorId, 'unknown'),
+    authorName: toStringValue(o.authorName, 'Manager'),
+    authorAvatar: typeof o.authorAvatar === 'string' || o.authorAvatar === null ? (o.authorAvatar as string | null) : null,
+    text: toStringValue(o.text),
     isActivity: false,
-    createdAt,
+    createdAt: toStringValue(o.createdAt, new Date().toISOString()),
+    metadata: meta,
   }
 }
 
@@ -155,13 +83,12 @@ type LeagueChatInPanelProps = {
 
 /**
  * League chat thread (left panel / AF Chat league tab).
- * Fetches bracket league chat; falls back to stub activity on error.
+ * Uses `/api/league/chat` (main app League + LeagueChatMessage).
  */
 export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: LeagueChatInPanelProps) {
   const [messages, setMessages] = useState<LeagueChatMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
-  const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const errorTimeoutRef = useRef<number | null>(null)
@@ -192,27 +119,28 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
 
     try {
       const response = await fetch(
-        `/api/bracket/leagues/${encodeURIComponent(selectedLeague.id)}/chat?limit=50`,
+        `/api/league/chat?leagueId=${encodeURIComponent(selectedLeague.id)}&limit=50`,
         { cache: 'no-store' }
       )
 
       if (!response.ok) {
-        throw new Error('Bracket chat unavailable for this league')
+        throw new Error('League chat unavailable')
       }
 
       const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
       const rawMessages = Array.isArray(payload.messages) ? payload.messages : []
       const nextMessages = rawMessages
-        .map((message) => mapBracketMessage(message))
+        .map((message) => mapLeagueApiMessage(message))
         .filter((message): message is LeagueChatMessage => Boolean(message))
 
       setMessages(nextMessages)
     } catch {
-      setMessages(buildStubMessages(selectedLeague.name))
+      setMessages([])
+      showTimedError('Could not load league chat')
     } finally {
       setLoading(false)
     }
-  }, [clearError, selectedLeague])
+  }, [clearError, selectedLeague.id, showTimedError])
 
   useEffect(() => {
     void loadMessages()
@@ -230,54 +158,97 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
     }
   }, [])
 
-  const handleSend = useCallback(async () => {
-    const text = inputValue.trim()
-    if (!text || sending) return
+  const handleComposerSend = useCallback(
+    async (payload: LeagueComposerPayload) => {
+      // eslint-disable-next-line no-console -- intentional for rich-payload debugging until UI renders all types
+      console.log('[league-chat] composer payload', payload)
 
-    clearError()
-    setSending(true)
-    setInputValue('')
+      const text = payload.text.trim()
+      const metadata: Record<string, unknown> = {}
 
-    const optimisticMessage: LeagueChatMessage = {
-      id: `temp-${Date.now()}`,
-      authorId: userId,
-      authorName: 'You',
-      authorAvatar: null,
-      text,
-      isActivity: false,
-      createdAt: new Date().toISOString(),
-    }
-
-    setMessages((current) => [...current, optimisticMessage])
-
-    try {
-      const response = await fetch(`/api/bracket/leagues/${encodeURIComponent(selectedLeague.id)}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          message: text,
-        }),
-      })
-
-      const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>
-      if (!response.ok) {
-        throw new Error(toStringValue(payload.error, 'Unable to send message'))
+      if (payload.gifUrl || payload.giphyId) {
+        if (payload.gifId) metadata.gifId = payload.gifId
+        if (payload.giphyId) metadata.giphyId = payload.giphyId
+        if (payload.gifUrl) metadata.gifUrl = payload.gifUrl
+        if (payload.previewUrl) metadata.previewUrl = payload.previewUrl
+        if (payload.gifTitle) metadata.gifTitle = payload.gifTitle
       }
 
-      const serverMessage = mapBracketMessage(payload.message)
-      setMessages((current) =>
-        current.map((message) => (message.id === optimisticMessage.id ? serverMessage ?? optimisticMessage : message))
-      )
-    } catch (err) {
-      setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id))
-      showTimedError(err instanceof Error ? err.message : 'Unable to send message')
-    } finally {
-      setSending(false)
-    }
-  }, [clearError, inputValue, selectedLeague, sending, showTimedError, userId])
+      if (payload.attachments?.length) {
+        metadata.attachments = payload.attachments.map((a) => ({
+          type: a.type,
+          url: a.url,
+          duration: a.duration,
+          mimeType: a.mimeType,
+        }))
+      }
+
+      if (payload.poll) {
+        metadata.poll = {
+          question: payload.poll.question,
+          options: payload.poll.options.map((t, i) => ({
+            id: `opt-${i}-${Date.now()}`,
+            text: t,
+            votes: [] as string[],
+          })),
+          closeAt: payload.poll.closeAt.toISOString(),
+          allowMultiple: payload.poll.allowMultiple,
+        }
+      }
+
+      const displayText =
+        text ||
+        (payload.gifUrl || payload.giphyId ? '🎬 GIF' : '') ||
+        (payload.poll ? `📊 ${payload.poll.question}` : '') ||
+        (payload.attachments?.length ? '📎 Media' : '')
+
+      if (!displayText && !Object.keys(metadata).length) return
+
+      setSending(true)
+      clearError()
+
+      const optimisticMessage: LeagueChatMessage = {
+        id: `temp-${Date.now()}`,
+        authorId: userId,
+        authorName: 'You',
+        authorAvatar: null,
+        text: displayText,
+        isActivity: false,
+        createdAt: new Date().toISOString(),
+        metadata: Object.keys(metadata).length ? metadata : null,
+      }
+
+      setMessages((current) => [...current, optimisticMessage])
+
+      try {
+        const response = await fetch('/api/league/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leagueId: selectedLeague.id,
+            message: displayText,
+            ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+          }),
+        })
+
+        const resPayload = (await response.json().catch(() => ({}))) as Record<string, unknown>
+        if (!response.ok) {
+          throw new Error(toStringValue(resPayload.error, 'Unable to send message'))
+        }
+
+        const serverMessage = mapLeagueApiMessage(resPayload.message)
+        setMessages((current) =>
+          current.map((message) => (message.id === optimisticMessage.id ? serverMessage ?? optimisticMessage : message))
+        )
+      } catch (err) {
+        setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id))
+        showTimedError(err instanceof Error ? err.message : 'Unable to send message')
+      } finally {
+        setSending(false)
+      }
+    },
+    [clearError, selectedLeague.id, showTimedError, userId]
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -296,6 +267,13 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
           <div className="space-y-3">
             {messages.map((message) => {
               const avatarUrl = resolveAvatarUrl(message.authorAvatar)
+              const meta = message.metadata
+              const gifPreview =
+                meta && typeof meta.previewUrl === 'string'
+                  ? meta.previewUrl
+                  : meta && typeof meta.gifUrl === 'string'
+                    ? meta.gifUrl
+                    : null
               return (
                 <div key={message.id} className="flex gap-2">
                   {avatarUrl ? (
@@ -322,7 +300,16 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
                         ) : null}
                       </p>
                     ) : (
-                      <p className="mt-1 text-[11px] leading-relaxed text-white/70">{message.text}</p>
+                      <div className="mt-1 space-y-1">
+                        {gifPreview ? (
+                          <img
+                            src={gifPreview}
+                            alt=""
+                            className="max-h-32 max-w-[200px] rounded-lg border border-white/10 object-cover"
+                          />
+                        ) : null}
+                        <p className="text-[11px] leading-relaxed text-white/70">{message.text}</p>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -335,46 +322,21 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
 
       <div className="border-t border-white/[0.07] px-2.5 py-2">
         {error ? <p className="mb-1.5 text-[10px] text-rose-300">{error}</p> : null}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            title="Coming soon"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.05] text-white/50"
-          >
-            <Smile className="h-4 w-4" />
-          </button>
-
-          <input
-            value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void handleSend()
-              }
-            }}
+        <div className="flex items-end gap-2">
+          <ChatComposer
+            leagueId={selectedLeague.id}
+            onSend={handleComposerSend}
             placeholder="Message league..."
-            className="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.05] px-2.5 py-1.5 text-[11px] text-white outline-none placeholder:text-white/30"
           />
-
           <button
             type="button"
             onClick={onAskChimmy}
-            className="rounded-md bg-violet-500/20 px-2 py-1 text-[9px] font-bold text-violet-300"
+            className="shrink-0 rounded-md bg-violet-500/20 px-2 py-1.5 text-[9px] font-bold text-violet-300"
           >
             Ask Chimmy
           </button>
-
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={!inputValue.trim() || sending}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-cyan-500 disabled:opacity-40"
-            aria-label="Send league message"
-          >
-            <Send className="h-4 w-4" />
-          </button>
         </div>
+        {sending ? <p className="mt-1 text-[9px] text-white/35">Sending…</p> : null}
       </div>
     </div>
   )
