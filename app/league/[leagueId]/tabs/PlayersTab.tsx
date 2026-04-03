@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
+import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
+import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 
 export type PlayersTabProps = {
   league: UserLeague
@@ -13,16 +15,15 @@ type PosFilter = 'ALL' | 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF' | 'MORE'
 
 const POSITIONS: PosFilter[] = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'MORE']
 
-/** Stub pool for layout — replace with API / getAllPlayers later. */
-const STUB_PLAYERS: Array<{ id: string; name: string; pos: string; rostered?: boolean }> = [
-  { id: '4046', name: 'Patrick Mahomes', pos: 'QB', rostered: true },
-  { id: '4984', name: 'Josh Allen', pos: 'QB', rostered: false },
-  { id: '9509', name: 'Bijan Robinson', pos: 'RB', rostered: true },
-  { id: '6786', name: 'CeeDee Lamb', pos: 'WR', rostered: false },
-  { id: '8130', name: 'Travis Kelce', pos: 'TE', rostered: true },
-]
+const LIST_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DST'])
+
+function badgePosition(p: SlimPlayer): string {
+  if (p.position === 'DST') return 'DEF'
+  return p.position
+}
 
 export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
+  const { players, loading } = useSleeperPlayers()
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
   const [freeAgents, setFreeAgents] = useState(false)
@@ -30,17 +31,34 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
   const [rookies, setRookies] = useState(false)
   const [query, setQuery] = useState('')
 
+  const playerList = useMemo(() => {
+    return Object.values(players)
+      .filter((p) => p.position && LIST_POSITIONS.has(p.position))
+      .slice(0, 200)
+  }, [players])
+
   const filtered = useMemo(() => {
-    let rows = STUB_PLAYERS
+    let rows = playerList
     if (pos !== 'ALL' && pos !== 'MORE') {
-      rows = rows.filter((p) => p.pos === pos)
+      if (pos === 'DEF') {
+        rows = rows.filter((p) => p.position === 'DEF' || p.position === 'DST')
+      } else {
+        rows = rows.filter((p) => p.position === pos)
+      }
+    } else if (pos === 'MORE') {
+      rows = rows.filter((p) => !LIST_POSITIONS.has(p.position))
     }
     if (freeAgents) {
-      rows = rows.filter((p) => !p.rostered)
+      rows = rows.filter(() => false)
     }
     const q = query.trim().toLowerCase()
     if (q) {
-      rows = rows.filter((p) => p.name.toLowerCase().includes(q) || p.id.includes(q))
+      rows = rows.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.id.includes(q) ||
+          (p.team && p.team.toLowerCase().includes(q)),
+      )
     }
     if (rookies) {
       rows = rows.filter(() => false)
@@ -49,7 +67,7 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
       rows = rows.filter(() => false)
     }
     return rows
-  }, [pos, query, freeAgents, watchlist, rookies])
+  }, [playerList, pos, query, freeAgents, watchlist, rookies])
 
   const thumb = useCallback(
     (playerId: string) => {
@@ -161,40 +179,64 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
             <div className="min-w-0 flex-1 text-right">PASS</div>
           </div>
           <div className="divide-y divide-white/[0.05]">
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onPlayerClick(p.id)}
-                className="flex w-full items-center gap-2 py-2 text-left transition hover:bg-white/[0.03]"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] text-white/60">
-                  +
-                </span>
-                <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-white/10">
-                  <img src={thumb(p.id)} alt="" className="h-full w-full object-cover" />
+            {loading ? (
+              Array.from({ length: 10 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex animate-pulse items-center gap-2 py-2"
+                >
+                  <span className="h-7 w-7 shrink-0 rounded-full bg-white/10" />
+                  <span className="h-7 w-7 shrink-0 rounded-full bg-white/10" />
+                  <div className="w-[200px] shrink-0 space-y-1.5">
+                    <div className="h-3 w-28 rounded bg-white/10" />
+                    <div className="h-2.5 w-20 rounded bg-white/[0.06]" />
+                  </div>
+                  <div className="w-16 shrink-0 text-right">
+                    <div className="ml-auto h-3 w-6 rounded bg-white/[0.06]" />
+                  </div>
+                  <div className="w-28 shrink-0 text-right">
+                    <div className="ml-auto h-2.5 w-16 rounded bg-white/[0.05]" />
+                  </div>
+                  <div className="w-36 shrink-0 text-right">
+                    <div className="ml-auto h-2.5 w-20 rounded bg-white/[0.05]" />
+                  </div>
+                  <div className="min-w-0 flex-1 text-right">
+                    <div className="ml-auto h-2.5 w-24 rounded bg-white/[0.05]" />
+                  </div>
                 </div>
-                <div className="w-[200px] shrink-0">
-                  <p className="text-xs font-semibold text-white">{p.name}</p>
-                  <p className="text-[10px] text-white/40">
-                    {p.pos} · {league.sport}
-                    {p.rostered ? (
-                      <span className="ml-2 rounded border border-white/15 bg-white/5 px-1 text-[9px] text-white/50">
-                        ROSTERED
-                      </span>
-                    ) : (
-                      <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" title="Free agent" />
-                    )}
-                  </p>
-                </div>
-                <div className="w-16 shrink-0 text-right text-[11px] text-white/60">—</div>
-                <div className="w-28 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
-                <div className="w-36 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
-                <div className="min-w-0 flex-1 text-right text-[10px] text-white/45">— · — · —</div>
-              </button>
-            ))}
+              ))
+            ) : (
+              filtered.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onPlayerClick(p.id)}
+                  className="flex w-full items-center gap-2 py-2 text-left transition hover:bg-white/[0.03]"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] text-white/60">
+                    +
+                  </span>
+                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-white/10">
+                    <img src={thumb(p.id)} alt="" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="w-[200px] shrink-0">
+                    <p className="text-xs font-semibold text-white">{p.name}</p>
+                    <p className="text-[10px] text-white/40">
+                      <span className="rounded border border-white/15 bg-white/5 px-1 text-[9px] font-semibold text-white/60">
+                        {badgePosition(p)}
+                      </span>{' '}
+                      <span className="text-white/45">{p.team}</span>
+                    </p>
+                  </div>
+                  <div className="w-16 shrink-0 text-right text-[11px] text-white/60">—</div>
+                  <div className="w-28 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
+                  <div className="w-36 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
+                  <div className="min-w-0 flex-1 text-right text-[10px] text-white/45">— · — · —</div>
+                </button>
+              ))
+            )}
           </div>
-          {filtered.length === 0 ? (
+          {!loading && filtered.length === 0 ? (
             <p className="py-8 text-center text-sm text-white/40">No players match filters.</p>
           ) : null}
         </div>

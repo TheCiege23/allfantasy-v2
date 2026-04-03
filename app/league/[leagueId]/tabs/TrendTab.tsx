@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
+import {
+  normalizeTrendPosition,
+  type PlayerMap,
+  resolvePlayerName,
+  useSleeperPlayers,
+} from '@/lib/hooks/useSleeperPlayers'
 
 export type TrendTabProps = {
   league: UserLeague
@@ -29,6 +35,7 @@ function playerThumb(playerId: string, sport: string): string {
 }
 
 export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
+  const { players, loading: playersLoading } = useSleeperPlayers()
   const sportParam = useMemo(() => sleeperSportParam(league.sport), [league.sport])
   const [up, setUp] = useState<TrendEntry[]>([])
   const [down, setDown] = useState<TrendEntry[]>([])
@@ -80,6 +87,8 @@ export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
         onFilterChange={setFilterUp}
         onPlayerClick={onPlayerClick}
         sign="add"
+        players={players}
+        playersLoading={playersLoading}
       />
       <TrendColumn
         title="Trending down"
@@ -91,6 +100,8 @@ export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
         onFilterChange={setFilterDown}
         onPlayerClick={onPlayerClick}
         sign="drop"
+        players={players}
+        playersLoading={playersLoading}
       />
     </div>
   )
@@ -106,6 +117,8 @@ function TrendColumn({
   onFilterChange,
   onPlayerClick,
   sign,
+  players,
+  playersLoading,
 }: {
   title: string
   entries: TrendEntry[]
@@ -116,8 +129,22 @@ function TrendColumn({
   onFilterChange: (p: TrendPill) => void
   onPlayerClick: (id: string) => void
   sign: 'add' | 'drop'
+  players: PlayerMap
+  playersLoading: boolean
 }) {
   const rows = entries.filter((e) => e.player_id)
+
+  const filteredRows = useMemo(() => {
+    if (filter === 'ALL') return rows
+    if (playersLoading) return rows
+    return rows.filter((e) => {
+      const id = e.player_id ?? ''
+      const r = resolvePlayerName(id, players)
+      const pos = normalizeTrendPosition(r.position)
+      return pos === filter
+    })
+  }, [rows, filter, players, playersLoading])
+
   return (
     <section className="flex min-h-[280px] flex-col rounded-2xl border border-white/[0.07] bg-[#0c0c1e]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.07] px-4 py-3">
@@ -142,13 +169,19 @@ function TrendColumn({
           <p className="px-2 py-6 text-center text-sm text-white/40">Loading…</p>
         ) : error ? (
           <p className="px-2 py-6 text-center text-sm text-amber-300/90">{error}</p>
-        ) : rows.length === 0 ? (
+        ) : filteredRows.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-white/40">No trending data.</p>
         ) : (
           <ul className="space-y-1">
-            {rows.map((e, i) => {
+            {filteredRows.map((e, i) => {
               const id = e.player_id ?? ''
               const delta = typeof e.count === 'number' ? e.count : 0
+              const resolved = resolvePlayerName(id, players)
+              const displayName = playersLoading ? `Player ${id.slice(-4)}` : resolved.name
+              const sub =
+                playersLoading || (!resolved.position && !resolved.team)
+                  ? '— · —'
+                  : `${resolved.position || '—'} · ${resolved.team || '—'}`
               return (
                 <li key={id || i}>
                   <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-white/[0.04]">
@@ -159,8 +192,8 @@ function TrendColumn({
                       <img src={playerThumb(id, league.sport)} alt="" className="h-full w-full object-cover" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-semibold text-white">Player {id.slice(-4)}</p>
-                      <p className="text-[10px] text-white/40">— · —</p>
+                      <p className="truncate text-xs font-semibold text-white">{displayName}</p>
+                      <p className="text-[10px] text-white/40">{sub}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span
