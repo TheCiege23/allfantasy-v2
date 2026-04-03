@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Settings } from 'lucide-react'
 import type { LeagueTeam } from '@prisma/client'
 import { PlayerImage } from '@/app/components/PlayerImage'
+import { TeamLogo } from '@/app/components/TeamLogo'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
 import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
@@ -186,10 +187,7 @@ function RosterRow({
   const resolved = resolvePlayerName(playerId, players)
   const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
   const pos = resolved.position || '—'
-  const sub =
-    playersLoading || (!resolved.position && !resolved.team)
-      ? '— · —'
-      : `${resolved.position || '—'} · ${resolved.team || '—'}`
+  const showTeam = resolved.team && resolved.team !== 'FA'
   const leftBadge = slotLabel ?? pos
   const badgeClass = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass(pos)
   return (
@@ -211,6 +209,7 @@ function RosterRow({
           name={label}
           position={resolved.position}
           espnId={players[playerId]?.espn_id}
+          nbaId={players[playerId]?.nba_id}
           size={28}
           variant="round"
         />
@@ -222,7 +221,24 @@ function RosterRow({
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-white">{label}</p>
-        <p className="text-[10px] text-white/40">{sub}</p>
+        <p className="flex flex-wrap items-center gap-1 text-[10px] text-white/40">
+          {playersLoading ? (
+            '— · —'
+          ) : (
+            <>
+              <span>{resolved.position || '—'}</span>
+              <span className="text-white/25">·</span>
+              {showTeam ? (
+                <>
+                  <TeamLogo teamAbbr={resolved.team} sport={sport} size={16} />
+                  <span className="text-white/45">{resolved.team}</span>
+                </>
+              ) : (
+                <span>—</span>
+              )}
+            </>
+          )}
+        </p>
       </div>
       <div className="flex shrink-0 gap-3 text-right text-xs text-white/45">
         <span className="w-10">—</span>
@@ -253,7 +269,7 @@ function SkeletonRows() {
 }
 
 export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTabProps) {
-  const { players, loading: playersLoading } = useSleeperPlayers()
+  const { players, loading: playersLoading } = useSleeperPlayers(league.sport)
   const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))

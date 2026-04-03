@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { PlayerImage } from '@/app/components/PlayerImage'
+import { TeamLogo } from '@/app/components/TeamLogo'
 import {
   normalizeTrendPosition,
   type PlayerMap,
@@ -171,10 +172,7 @@ function TrendColumn({
               const delta = typeof e.count === 'number' ? e.count : 0
               const resolved = resolvePlayerName(id, players)
               const displayName = playersLoading ? `Player ${id.slice(-4)}` : resolved.name
-              const sub =
-                playersLoading || (!resolved.position && !resolved.team)
-                  ? '— · —'
-                  : `${resolved.position || '—'} · ${resolved.team || '—'}`
+              const showTeam = resolved.team && resolved.team !== 'FA'
               return (
                 <li key={id || i}>
                   <div className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-white/[0.04]">
@@ -187,12 +185,30 @@ function TrendColumn({
                       name={displayName}
                       position={resolved.position}
                       espnId={players[id]?.espn_id}
+                      nbaId={players[id]?.nba_id}
                       size={36}
                       variant="round"
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-white">{displayName}</p>
-                      <p className="text-[10px] text-white/40">{sub}</p>
+                      <p className="flex flex-wrap items-center gap-1 text-[10px] text-white/40">
+                        {playersLoading ? (
+                          '— · —'
+                        ) : (
+                          <>
+                            <span>{resolved.position || '—'}</span>
+                            <span className="text-white/25">·</span>
+                            {showTeam ? (
+                              <>
+                                <TeamLogo teamAbbr={resolved.team} sport={league.sport} size={16} />
+                                <span className="text-white/45">{resolved.team}</span>
+                              </>
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </>
+                        )}
+                      </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span

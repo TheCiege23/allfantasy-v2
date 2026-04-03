@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { PlayerImage } from '@/app/components/PlayerImage'
+import { TeamLogo } from '@/app/components/TeamLogo'
 import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 
@@ -24,7 +25,7 @@ function badgePosition(p: SlimPlayer): string {
 }
 
 export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
-  const { players, loading } = useSleeperPlayers()
+  const { players, loading } = useSleeperPlayers(league.sport)
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
   const [freeAgents, setFreeAgents] = useState(false)
@@ -212,16 +213,24 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
                     name={p.name}
                     position={p.position}
                     espnId={p.espn_id}
+                    nbaId={p.nba_id}
                     size={28}
                     variant="round"
                   />
                   <div className="w-[200px] shrink-0">
                     <p className="text-xs font-semibold text-white">{p.name}</p>
-                    <p className="text-[10px] text-white/40">
+                    <p className="flex flex-wrap items-center gap-1 text-[10px] text-white/40">
                       <span className="rounded border border-white/15 bg-white/5 px-1 text-[9px] font-semibold text-white/60">
                         {badgePosition(p)}
-                      </span>{' '}
-                      <span className="text-white/45">{p.team}</span>
+                      </span>
+                      {p.team && p.team !== 'FA' ? (
+                        <>
+                          <TeamLogo teamAbbr={p.team} sport={league.sport} size={16} />
+                          <span className="text-white/45">{p.team}</span>
+                        </>
+                      ) : (
+                        <span className="text-white/45">FA</span>
+                      )}
                     </p>
                   </div>
                   <div className="w-16 shrink-0 text-right text-[11px] text-white/60">—</div>

@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { buildEnrichedPlayer, resolveHeadshotCandidates } from '@/lib/players/buildPlayerMap'
+import {
+  buildEnrichedPlayer,
+  resolveHeadshot,
+  resolveHeadshotCandidates,
+} from '@/lib/players/buildPlayerMap'
 
 type PlayerImageProps = {
   sleeperId: string
@@ -12,10 +16,47 @@ type PlayerImageProps = {
   headshotUrl?: string | null
   espnId?: string
   riId?: string
+  nbaId?: string
+  mlbId?: string
+  nhlId?: string
+  pgaId?: string
   size?: number
   className?: string
   /** rounded-full for roster rows; rounded-[8px] for card-style */
   variant?: 'round' | 'card'
+}
+
+export type PlayerImageUrlOpts = {
+  headshotUrl?: string | null
+  riId?: string
+  nbaId?: string
+  mlbId?: string
+  nhlId?: string
+  pgaId?: string
+}
+
+/** First URL in the sport-specific headshot chain (for SSR or static markup). */
+export function getPlayerImageUrl(
+  sleeperId: string,
+  sport: string = 'nfl',
+  espnId?: string,
+  opts?: PlayerImageUrlOpts,
+): string {
+  const enriched = buildEnrichedPlayer({
+    sleeper_id: sleeperId,
+    full_name: '',
+    position: '',
+    team: '',
+    sport,
+    espn_id: espnId,
+    ri_id: opts?.riId,
+    headshot_url: opts?.headshotUrl ?? undefined,
+    nba_id: opts?.nbaId,
+    mlb_id: opts?.mlbId,
+    nhl_id: opts?.nhlId,
+    pga_id: opts?.pgaId,
+  })
+  return resolveHeadshot(enriched)
 }
 
 function positionBgClass(position: string | undefined): string {
@@ -50,6 +91,10 @@ export function PlayerImage({
   headshotUrl,
   espnId,
   riId,
+  nbaId,
+  mlbId,
+  nhlId,
+  pgaId,
   size = 32,
   className = '',
   variant = 'round',
@@ -65,14 +110,18 @@ export function PlayerImage({
       sport,
       espn_id: espnId,
       ri_id: riId,
+      nba_id: nbaId,
+      mlb_id: mlbId,
+      nhl_id: nhlId,
+      pga_id: pgaId,
       headshot_url: headshotUrl ?? undefined,
     })
     return resolveHeadshotCandidates(enriched)
-  }, [sleeperId, sport, name, position, headshotUrl, espnId, riId])
+  }, [sleeperId, sport, name, position, headshotUrl, espnId, riId, nbaId, mlbId, nhlId, pgaId])
 
   useEffect(() => {
     setFallbackIndex(0)
-  }, [sleeperId, sport, espnId, riId, headshotUrl])
+  }, [sleeperId, sport, espnId, riId, nbaId, mlbId, nhlId, pgaId, headshotUrl])
 
   const currentUrl = urls[fallbackIndex] ?? ''
   const exhausted = urls.length === 0 || fallbackIndex >= urls.length

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedRiPlayerMap } from '@/lib/players/ri-players-server'
 
-const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'PGA'])
+const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'PGA', 'SOCCER'])
 
 export async function GET(req: NextRequest) {
   const sport = (req.nextUrl.searchParams.get('sport') || 'NFL').trim().toUpperCase()

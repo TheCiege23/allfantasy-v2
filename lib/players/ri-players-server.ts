@@ -11,6 +11,8 @@ export type RiPlayerValue = {
   headshot_url: string | null
   position: string
   team: string
+  /** ESPN player id when present in RI payloads (espnId / espn_id / ESPNId). */
+  espn_id?: string | null
 }
 
 export type RiPlayerMap = Record<string, RiPlayerValue>
@@ -27,7 +29,8 @@ function getRiToken(): string {
   )
 }
 
-function normalizeSportParam(sport: string): string {
+/** Maps common aliases to Rolling Insights REST `{SPORT}` path segment. */
+export function normalizeSportParam(sport: string): string {
   const u = sport.toUpperCase()
   const map: Record<string, string> = {
     NFL: 'NFL',
@@ -37,6 +40,11 @@ function normalizeSportParam(sport: string): string {
     NCAAFB: 'NCAAFB',
     NCAABB: 'NCAABB',
     PGA: 'PGA',
+    SOCCER: 'SOCCER',
+    NCAAF: 'NCAAFB',
+    NCAAB: 'NCAABB',
+    EPL: 'SOCCER',
+    MLS: 'SOCCER',
   }
   return map[u] || u
 }
@@ -79,11 +87,18 @@ function parseRiRestPayload(data: unknown): RiPlayerMap {
           ? String((p.team as { abbrv?: string; abbreviation?: string }).abbrv ?? '')
           : ''
 
+    const espnRaw = p.espnId ?? p.espn_id ?? p.ESPNId ?? p.espnID
+    let espn_id: string | null | undefined
+    if (espnRaw != null && espnRaw !== '') {
+      espn_id = typeof espnRaw === 'number' ? String(espnRaw) : String(espnRaw).trim()
+    }
+
     out[id] = {
       name: fullName || id,
       headshot_url: headshot,
       position,
       team: team || 'FA',
+      ...(espn_id ? { espn_id } : {}),
     }
   }
 
