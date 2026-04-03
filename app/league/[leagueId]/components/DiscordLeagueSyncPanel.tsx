@@ -108,8 +108,10 @@ export function DiscordLeagueSyncPanel({ ctx }: { ctx: SubPanelContext }) {
     }
   }
 
-  if (!ctx.isCommissioner) {
-    return <p className="text-[12px] text-white/45">Only the commissioner can configure Discord sync.</p>
+  /** AllFantasy league owner (imported league) — not Sleeper-only `isCommissioner` */
+  const isLeagueOwner = ctx.league.userId === ctx.userId
+  if (!isLeagueOwner) {
+    return <p className="text-[12px] text-white/45">Only the league owner can configure Discord sync.</p>
   }
 
   if (loading || !status) {

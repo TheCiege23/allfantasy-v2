@@ -57,6 +57,7 @@ type CardDef = {
 }
 
 const GENERAL_CARDS: CardDef[] = [
+  { id: 'discord-sync', title: 'Discord Sync', description: 'Link league chat to a Discord channel', icon: Link2 },
   { id: 'my-team', title: 'My Team', description: 'Update your team avatar, name & player nicknames', icon: User },
   { id: 'general-info', title: 'General', description: 'View league general settings', icon: Settings },
   { id: 'draft', title: 'Draft', description: 'View draft settings and history', icon: ClipboardList },
@@ -71,7 +72,6 @@ const GENERAL_CARDS: CardDef[] = [
 ]
 
 const COMMISH_CARDS: CardDef[] = [
-  { id: 'discord-sync', title: 'Discord Sync', description: 'Link league chat to a Discord channel', icon: Link2 },
   { id: 'commish-general', title: 'General Settings', description: 'Update league general settings', icon: Star },
   { id: 'division-settings', title: 'Division Settings', description: 'Update division settings', icon: Zap },
   { id: 'members-commish', title: 'Members', description: 'Manage league members', icon: MessageSquare },
