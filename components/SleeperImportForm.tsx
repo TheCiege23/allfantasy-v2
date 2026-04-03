@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
-const CURRENT_IMPORT_SEASON = new Date().getFullYear();
-const SEASON_OPTIONS = Array.from({ length: 4 }, (_, index) => CURRENT_IMPORT_SEASON - index);
+const SLEEPER_LAUNCH_YEAR = 2017;
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
   if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing leagues.';
@@ -19,36 +19,41 @@ function getImportErrorMessage(data: { error?: string } | null | undefined, fall
 }
 
 export default function SleeperImportForm() {
-  const [userId, setUserId] = useState('');
-  const [season, setSeason] = useState(CURRENT_IMPORT_SEASON);
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState<{
+    imported: number;
+    seasons: number;
+    years: number[];
+  } | null>(null);
+
+  const scanEndYear = new Date().getFullYear() + 1;
 
   const handleImport = async () => {
-    if (!userId.trim()) return;
+    if (!username.trim()) return;
     setLoading(true);
+    setDone(null);
 
     try {
-      const userRes = await fetch(`https://api.sleeper.app/v1/user/${userId.trim()}`);
-      if (!userRes.ok) {
-        toast.error('Sleeper username not found. Please check and try again.');
-        setLoading(false);
-        return;
-      }
-      const userData = await userRes.json();
-
-      const res = await fetch('/api/import-sleeper', {
+      const res = await fetch('/api/leagues/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sleeperUserId: userData.user_id,
-          sport: 'nfl',
-          season,
+          username: username.trim(),
+          platform: 'sleeper',
         }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(`Imported ${data.imported} league${data.imported !== 1 ? 's' : ''}! View them on the Rankings page.`);
+        setDone({
+          imported: data.imported ?? 0,
+          seasons: data.seasons ?? 0,
+          years: Array.isArray(data.years) ? data.years : [],
+        });
+        toast.success(
+          `Imported ${data.imported ?? 0} unique league${(data.imported ?? 0) !== 1 ? 's' : ''} (${data.seasons ?? 0} season rows).`
+        );
       } else {
         toast.error(getImportErrorMessage(data, 'Import failed'));
       }
@@ -60,55 +65,80 @@ export default function SleeperImportForm() {
   };
 
   return (
-    <Card className="border-cyan-900/30 bg-black/40 backdrop-blur-sm">
+    <Card className="border-white/10 bg-[#0a1228]/90 backdrop-blur-sm">
       <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-xl">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-600 text-sm font-bold">S</span>
-          Import from Sleeper
+        <CardTitle className="flex items-center gap-3 text-xl text-white">
+          {/* Sleeper logo used for platform identification under nominative fair use for integration UI — similar to OAuth connect buttons. Replace with official asset if Sleeper provides brand guidelines. */}
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[16px] font-black text-white"
+            style={{ background: 'linear-gradient(135deg, #1a9e5c, #16a34a)' }}
+            aria-hidden
+          >
+            S
+          </div>
+          <span>Import from Sleeper</span>
         </CardTitle>
-        <CardDescription>
-          Enter your Sleeper username to import your NFL leagues, current team records, and weekly scores.
+        <CardDescription className="text-slate-400">
+          Connect your Sleeper account to import all your leagues and every season automatically — from {SLEEPER_LAUNCH_YEAR}{' '}
+          to {scanEndYear}.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {done ? (
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4 text-slate-200">
+            <p className="font-semibold text-emerald-400">Import complete</p>
+            <p className="mt-1 text-sm">
+              {done.imported} unique leagues · {done.seasons} season records
+              {done.years.length > 0 ? ` · years: ${done.years.join(', ')}` : ''}
+            </p>
+            <Button asChild className="mt-4 w-full bg-sky-600/90 hover:bg-sky-500">
+              <Link href="/dashboard">Go to Dashboard</Link>
+            </Button>
+          </div>
+        ) : null}
+
         <div>
-          <label htmlFor="sleeper-username" className="mb-1 block text-sm text-gray-400">
+          <label htmlFor="sleeper-username" className="mb-1 block text-sm text-slate-400">
             Sleeper Username
           </label>
           <Input
             id="sleeper-username"
-            placeholder="e.g. cjabar (find at sleeper.app)"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            placeholder="e.g. your Sleeper username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             disabled={loading}
-            className="border-cyan-600/40 bg-gray-900 focus:border-cyan-500"
+            className="border-white/15 bg-[#040915] text-white placeholder:text-slate-500 focus-visible:ring-sky-500/40"
           />
         </div>
 
-        <div>
-          <label htmlFor="sleeper-season" className="mb-1 block text-sm text-gray-400">
-            Season
-          </label>
-          <select
-            id="sleeper-season"
-            value={season}
-            onChange={(e) => setSeason(Number(e.target.value))}
-            className="w-full rounded-md border border-cyan-600/40 bg-gray-900 px-4 py-2 text-white focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            disabled={loading}
-          >
-            {SEASON_OPTIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </div>
+        <ul className="space-y-1 text-sm text-slate-400">
+          <li className="flex gap-2">
+            <span className="text-emerald-500">✓</span> All sports we scan on Sleeper (NFL, NBA)
+          </li>
+          <li className="flex gap-2">
+            <span className="text-emerald-500">✓</span> All seasons ({SLEEPER_LAUNCH_YEAR} → {scanEndYear})
+          </li>
+          <li className="flex gap-2">
+            <span className="text-emerald-500">✓</span> Dynasty, redraft, and best ball
+          </li>
+        </ul>
 
-        <Button
-          onClick={handleImport}
-          disabled={loading || !userId.trim()}
-          className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-600 hover:to-purple-700 disabled:opacity-50"
-        >
-          {loading ? 'Importing...' : 'Import Leagues & Weekly Data'}
-        </Button>
+        {loading ? (
+          <div className="space-y-2 rounded-lg border border-white/10 bg-[#040915] p-4">
+            <p className="text-center text-sm text-slate-300">Scanning {SLEEPER_LAUNCH_YEAR}–{scanEndYear}…</p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-sky-600 to-emerald-600" />
+            </div>
+          </div>
+        ) : (
+          <Button
+            onClick={handleImport}
+            disabled={!username.trim()}
+            className="w-full bg-sky-600 hover:bg-sky-500 disabled:opacity-50"
+          >
+            Import All Leagues
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

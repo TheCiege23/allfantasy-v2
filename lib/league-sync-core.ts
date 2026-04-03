@@ -8,6 +8,8 @@ export interface LeaguePayload {
   scoring: string;
   isDynasty: boolean;
   settings: any;
+  /** Season year for this league row (required for DB uniqueness). */
+  season: number;
   rosters: {
     platformUserId: string;
     playerData: string[];
@@ -49,12 +51,18 @@ export async function fetchSleeperLeague(platformLeagueId: string): Promise<Leag
   const leagueData = await leagueRes.json();
   const rostersData = await rostersRes.json();
 
+  const season =
+    leagueData.season != null && leagueData.season !== ''
+      ? Number(leagueData.season)
+      : new Date().getFullYear();
+
   return {
     name: leagueData.name || 'Unknown League',
     leagueSize: leagueData.total_rosters || 12,
     scoring: detectScoring(leagueData),
     isDynasty: detectDynasty(leagueData),
     settings: leagueData.settings || {},
+    season: Number.isFinite(season) ? season : new Date().getFullYear(),
     rosters: (Array.isArray(rostersData) ? rostersData : [])
       .filter((r: any) => !!r.owner_id)
       .map((r: any) => ({
@@ -126,6 +134,7 @@ export async function fetchMflLeague(platformLeagueId: string, apiKey: string): 
     scoring,
     isDynasty: league?.keeper === 'yes' || league?.type === 'dynasty' || false,
     settings: league,
+    season: year,
     rosters,
   };
 }
@@ -157,6 +166,7 @@ export async function fetchEspnLeague(platformLeagueId: string, swid: string, s2
     scoring,
     isDynasty: settings.keeperCount > 0 || settings.draftSettings?.keeperCount > 0 || false,
     settings: settings,
+    season: year,
     rosters: teams.map((t: any) => {
       const players = (t.roster?.entries || []).map((e: any) =>
         String(e.playerId || e.playerPoolEntry?.id || '')
@@ -323,12 +333,16 @@ export async function fetchYahooLeague(
     }
   }
 
+  const season =
+    parseInt(String(league.season ?? ''), 10) || new Date().getFullYear();
+
   return {
     name: leagueName,
     leagueSize: numTeams,
     scoring,
     isDynasty,
     settings: { scoringType, season: league.season },
+    season,
     rosters,
   };
 }
@@ -394,13 +408,15 @@ export async function syncLeague(
   platformLeagueId: string
 ): Promise<SyncResult> {
   const leaguePayload = await fetchLeaguePayload(userId, platform, platformLeagueId);
+  const season = leaguePayload.season;
 
   const league = await (prisma as any).league.upsert({
     where: {
-      userId_platform_platformLeagueId: {
+      userId_platform_platformLeagueId_season: {
         userId,
         platform,
         platformLeagueId,
+        season,
       },
     },
     update: {
@@ -409,6 +425,7 @@ export async function syncLeague(
       scoring: leaguePayload.scoring,
       isDynasty: leaguePayload.isDynasty,
       settings: leaguePayload.settings,
+      season,
       lastSyncedAt: new Date(),
       syncStatus: 'success',
       syncError: null,
@@ -418,6 +435,7 @@ export async function syncLeague(
       platform,
       platformLeagueId,
       userId,
+      season,
       name: leaguePayload.name,
       leagueSize: leaguePayload.leagueSize,
       scoring: leaguePayload.scoring,

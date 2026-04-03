@@ -2596,6 +2596,10 @@ model AppUser {
   leagueAuths             LeagueAuth[]
   sleeperLeagues          SleeperLeague[]
   mockDrafts              MockDraft[]
+  mockDraftRoomsCreated   MockDraftRoom[]        @relation("MockDraftRoomCreator")
+  draftRoomUserQueues     DraftRoomUserQueue[]
+  draftRoomChatMessages   DraftRoomChatMessage[]
+  draftAutopickSettings   DraftAutopickSetting[]
   activeLeagueId          String?
   leagueChatMessages      LeagueChatMessage[]
   leagueIntroViews        LeagueIntroView[]
@@ -3836,6 +3840,8 @@ model UserProfile {
   bio                String?             @db.Text
   preferredSports         Json?   // string[] e.g. ["NFL","NBA"]
   notificationPreferences  Json?   // NotificationPreferences shape
+  /// Aggregated scoring/league context after imports — feeds rankings / AI personalization.
+  rankingsContext          Json?
   onboardingStep          String?  // welcome | app_walkthrough | sport_selection | tool_suggestions | league_prompt | completed
   onboardingCompletedAt   DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
@@ -3893,7 +3899,8 @@ model League {
   name             String?
   sport            LeagueSport @default(NFL)
   leagueVariant    String?     @db.VarChar(32)
-  season           Int?
+  /// Season year for this row (Sleeper may have one row per league per year).
+  season           Int         @default(2024)
   leagueSize       Int?
   scoring          String?
   isDynasty        Boolean     @default(false)
@@ -3954,7 +3961,7 @@ model League {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, platform, platformLeagueId])
+  @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
   @@index([userId, updatedAt])
   @@index([userId, isDynasty])
@@ -7708,4 +7715,121 @@ model AICustomRule {
   @@index([enabled])
   @@index([category])
   @@map("ai_custom_rules")
+}
+
+/// Unified mock draft room (AllFantasy Draft Room UI). Distinct from legacy `mock_drafts`.
+model MockDraftRoom {
+  id             String   @id @default(uuid())
+  createdById    String?
+  createdBy      AppUser? @relation("MockDraftRoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sport          String   @default("NFL")
+  numTeams       Int      @default(12)
+  numRounds      Int      @default(15)
+  timerSeconds   Int      @default(60)
+  scoringType    String   @default("PPR")
+  rosterSettings Json?
+  playerPool     String   @default("all")
+  inviteCode     String?  @unique
+  status         String   @default("waiting")
+  draftOrder     Json?
+  settings       Json?
+  createdAt      DateTime @default(now())
+
+  picks DraftRoomPickRecord[]
+
+  @@index([createdById])
+  @@map("mock_draft_rooms")
+}
+
+/// Picks for mock/live draft room UI (separate from legacy `draft_picks` / DraftSession engine).
+model DraftRoomPickRecord {
+  id              String        @id @default(uuid())
+  leagueId        String?
+  roomId          String?
+  mockRoom        MockDraftRoom? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  round           Int
+  pickNumber      Int
+  overallPick     Int
+  originalOwnerId String
+  currentOwnerId  String
+  pickedById      String?
+  playerId        String?
+  playerName      String?
+  position        String?
+  team            String?
+  isTraded        Boolean       @default(false)
+  tradeSource     Json?
+  autopicked      Boolean       @default(false)
+  timestamp       DateTime      @default(now())
+
+  @@index([leagueId])
+  @@index([roomId])
+  @@index([roomId, overallPick])
+  @@index([leagueId, overallPick])
+  @@map("draft_room_pick_records")
+}
+
+model DraftRoomUserQueue {
+  id         String   @id @default(uuid())
+  userId     String
+  user       AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionKey String
+  leagueId   String?
+  roomId     String?
+  playerIds  Json     @default("[]")
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, sessionKey])
+  @@index([sessionKey])
+  @@map("draft_room_user_queues")
+}
+
+model DraftRoomChatMessage {
+  id                String   @id @default(uuid())
+  sessionKey        String
+  leagueId          String?
+  roomId            String?
+  userId            String?
+  user              AppUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  authorDisplayName String?
+  authorAvatar      String?
+  message           String   @db.Text
+  type              String   @default("user")
+  createdAt         DateTime @default(now())
+
+  @@index([sessionKey, createdAt])
+  @@map("draft_room_chat_messages")
+}
+
+model DraftRoomStateRow {
+  id               String    @id
+  mode             String
+  status           String    @default("waiting")
+  currentPick      Int       @default(1)
+  currentRound     Int       @default(1)
+  currentTeamIndex Int       @default(0)
+  timerEndsAt      DateTime?
+  timerPaused      Boolean   @default(false)
+  pickOrder        Json?
+  leagueId         String?
+  roomId           String?
+  numTeams         Int       @default(12)
+  numRounds        Int       @default(15)
+  timerSeconds     Int       @default(60)
+  updatedAt        DateTime  @updatedAt
+
+  @@index([leagueId])
+  @@index([roomId])
+  @@map("draft_room_state")
+}
+
+model DraftAutopickSetting {
+  userId     String
+  user       AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionKey String
+  enabled    Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  @@id([userId, sessionKey])
+  @@map("draft_autopick_settings")
 }

@@ -22,7 +22,7 @@ export async function GET() {
     const [genericLeagues, sleeperLeagues] = await Promise.all([
       (prisma as any).league.findMany({
         where: { userId },
-        orderBy: { lastSyncedAt: 'desc' },
+        orderBy: [{ season: 'desc' }, { name: 'asc' }],
         select: {
           id: true,
           name: true,
@@ -83,11 +83,15 @@ export async function GET() {
       }),
     ]);
 
-    const unifiedSleeperLeagueIdMap = new Map(
-      genericLeagues
-        .filter((lg: any) => lg.platform === 'sleeper' && typeof lg.platformLeagueId === 'string')
-        .map((lg: any) => [lg.platformLeagueId, lg.id] as const)
-    );
+    const sleeperGenericSorted = genericLeagues
+      .filter((lg: any) => lg.platform === 'sleeper' && typeof lg.platformLeagueId === 'string')
+      .sort((a: any, b: any) => (b.season ?? 0) - (a.season ?? 0));
+    const unifiedSleeperLeagueIdMap = new Map<string, string>();
+    for (const lg of sleeperGenericSorted) {
+      if (!unifiedSleeperLeagueIdMap.has(lg.platformLeagueId)) {
+        unifiedSleeperLeagueIdMap.set(lg.platformLeagueId, lg.id);
+      }
+    }
 
     const normalizedGeneric = genericLeagues.map((lg: any) => ({
       ...lg,

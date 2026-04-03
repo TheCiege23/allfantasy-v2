@@ -299,6 +299,7 @@ export async function syncSleeperLeague(
       userId,
       platform: 'sleeper',
       platformLeagueId: sleeperLeagueId,
+      season: seasonNumber,
     },
     select: {
       id: true,
