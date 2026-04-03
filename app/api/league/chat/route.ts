@@ -32,6 +32,7 @@ async function canAccessLeague(leagueId: string, userId: string) {
 
 function toClientMessage(message: {
   id: string
+  senderUserId?: string | null
   senderName: string | null
   senderAvatarUrl: string | null
   body: string
@@ -41,6 +42,7 @@ function toClientMessage(message: {
 }) {
   return {
     id: message.id,
+    authorId: message.senderUserId ?? '',
     authorName: message.senderName ?? 'Manager',
     authorAvatar: message.senderAvatarUrl ?? null,
     text: message.body,
@@ -77,6 +79,7 @@ export async function GET(req: NextRequest) {
     messages: messages.map((message) =>
       toClientMessage({
         id: message.id,
+        senderUserId: message.senderUserId ?? null,
         senderName: message.senderName ?? null,
         senderAvatarUrl: message.senderAvatarUrl ?? null,
         body: message.body,
@@ -149,6 +152,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     message: toClientMessage({
       id: created.id,
+      senderUserId: created.senderUserId ?? null,
       senderName: created.senderName ?? 'Manager',
       senderAvatarUrl: created.senderAvatarUrl ?? null,
       body: created.body,

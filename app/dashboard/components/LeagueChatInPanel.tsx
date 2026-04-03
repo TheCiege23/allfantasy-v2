@@ -27,15 +27,24 @@ function toStringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
-function buildRelativeTime(value: string) {
-  const timestamp = new Date(value).getTime()
-  if (Number.isNaN(timestamp)) return 'just now'
-
-  const diffMs = Date.now() - timestamp
-  if (diffMs < 60_000) return 'just now'
-  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`
-  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`
-  return `${Math.floor(diffMs / 86_400_000)}d ago`
+export function formatChatTime(d: Date | string): string {
+  const date = new Date(d)
+  const diff = Date.now() - date.getTime()
+  if (diff < 60_000) return 'just now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
+  if (diff < 86_400_000) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  }
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  }
+  return (
+    date.toLocaleDateString([], { month: 'short', day: 'numeric' }) +
+    ' ' +
+    date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  )
 }
 
 function resolveAvatarUrl(value: string | null) {
@@ -46,15 +55,10 @@ function resolveAvatarUrl(value: string | null) {
   return `https://sleepercdn.com/avatars/${value}`
 }
 
-function getInitials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
-      .join('') || 'AF'
-  )
+function displayInitials(name: string): string {
+  const t = name.trim()
+  if (!t) return 'AF'
+  return t.slice(0, 2).toUpperCase()
 }
 
 function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
@@ -65,7 +69,7 @@ function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
   const meta = toRecord(o.metadata)
   return {
     id,
-    authorId: toStringValue(o.authorId, 'unknown'),
+    authorId: toStringValue(o.authorId, ''),
     authorName: toStringValue(o.authorName, 'Manager'),
     authorAvatar: typeof o.authorAvatar === 'string' || o.authorAvatar === null ? (o.authorAvatar as string | null) : null,
     text: toStringValue(o.text),
@@ -73,6 +77,29 @@ function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
     createdAt: toStringValue(o.createdAt, new Date().toISOString()),
     metadata: meta,
   }
+}
+
+function ChatAvatar({ url, name }: { url: string | null; name: string }) {
+  const [broken, setBroken] = useState(false)
+  const resolved = resolveAvatarUrl(url)
+  if (resolved && !broken) {
+    return (
+      <img
+        src={resolved}
+        alt=""
+        className="mt-0.5 h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 object-cover"
+        onError={() => setBroken(true)}
+      />
+    )
+  }
+  return (
+    <div
+      className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 text-[9px] font-bold uppercase text-white"
+      aria-hidden
+    >
+      {displayInitials(name)}
+    </div>
+  )
 }
 
 type LeagueChatInPanelProps = {
@@ -266,51 +293,77 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
         ) : (
           <div className="space-y-3">
             {messages.map((message) => {
-              const avatarUrl = resolveAvatarUrl(message.authorAvatar)
               const meta = message.metadata
+              const isSystem =
+                message.authorName === 'AllFantasy' ||
+                (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true)
+
               const gifPreview =
                 meta && typeof meta.previewUrl === 'string'
                   ? meta.previewUrl
                   : meta && typeof meta.gifUrl === 'string'
                     ? meta.gifUrl
                     : null
+
+              if (message.isActivity) {
+                return (
+                  <p key={message.id} className="px-2 py-1 text-center text-[10px] text-white/35">
+                    <span className="italic">{message.activityText}</span>
+                    {message.playerName ? (
+                      <span className="font-semibold not-italic text-cyan-400/90"> {message.playerName}</span>
+                    ) : null}
+                  </p>
+                )
+              }
+
+              if (isSystem) {
+                return (
+                  <p key={message.id} className="px-2 py-1 text-center text-[10px] text-white/35">
+                    {message.text}
+                  </p>
+                )
+              }
+
+              const isOutgoing = message.authorId === userId
+
+              if (isOutgoing) {
+                return (
+                  <div key={message.id} className="flex flex-col items-end">
+                    <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[12px] text-white">
+                      {gifPreview ? (
+                        <img
+                          src={gifPreview}
+                          alt=""
+                          className="mb-1 max-h-[160px] max-w-full rounded-xl object-cover"
+                        />
+                      ) : null}
+                      {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
+                    </div>
+                    <span className="mt-0.5 text-right text-[9px] text-white/25">
+                      {formatChatTime(message.createdAt)}
+                    </span>
+                  </div>
+                )
+              }
+
               return (
                 <div key={message.id} className="flex gap-2">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-[10px] font-semibold text-white/60">
-                      {getInitials(message.authorName)}
-                    </div>
-                  )}
-
+                  <ChatAvatar url={message.authorAvatar} name={message.authorName} />
                   <div className="min-w-0 flex-1">
-                    <div className="text-[9px] text-white/30">
-                      {message.authorName} · {buildRelativeTime(message.createdAt)}
+                    <div className="mb-0.5 flex flex-wrap items-baseline gap-x-1.5">
+                      <span className="text-[10px] font-semibold text-white/55">{message.authorName}</span>
+                      <span className="text-[9px] text-white/30">{formatChatTime(message.createdAt)}</span>
                     </div>
-                    {message.isActivity ? (
-                      <p className="mt-1 text-[10px] italic text-white/45">
-                        {message.activityText}
-                        {message.playerName ? (
-                          <span className="font-semibold not-italic text-cyan-400">{message.playerName}</span>
-                        ) : null}
-                      </p>
-                    ) : (
-                      <div className="mt-1 space-y-1">
-                        {gifPreview ? (
-                          <img
-                            src={gifPreview}
-                            alt=""
-                            className="max-h-32 max-w-[200px] rounded-lg border border-white/10 object-cover"
-                          />
-                        ) : null}
-                        <p className="text-[11px] leading-relaxed text-white/70">{message.text}</p>
-                      </div>
-                    )}
+                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[12px] text-white/90">
+                      {gifPreview ? (
+                        <img
+                          src={gifPreview}
+                          alt=""
+                          className="mb-1 max-h-[160px] max-w-full rounded-xl object-cover"
+                        />
+                      ) : null}
+                      {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
+                    </div>
                   </div>
                 </div>
               )
