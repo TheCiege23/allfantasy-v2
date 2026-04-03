@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Globe, Settings } from 'lucide-react'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
@@ -82,6 +83,7 @@ function useDraftCountdown(draftDateIso: string | null | undefined): TimerParts 
 }
 
 export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps) {
+  const router = useRouter()
   const sorted = useMemo(() => sortTeamsForDisplay(teams), [teams])
   const filled = teams.length
   const cap = league.teamCount
@@ -107,6 +109,27 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
   const handleSetTime = useCallback(() => {
     console.log('DraftTab: Set Time (stub)', { leagueId: league.id })
   }, [league.id])
+
+  const handleMockDrafts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/draft/room/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id, sport: league.sport }),
+      })
+      if (!res.ok) return
+      const data = (await res.json()) as { roomId?: string }
+      if (data.roomId) {
+        router.push(`/draft/mock/${data.roomId}`)
+      }
+    } catch {
+      // ignore
+    }
+  }, [league.id, league.sport, router])
+
+  const handleDraftRoom = useCallback(() => {
+    router.push(`/draft/live/${league.id}`)
+  }, [league.id, router])
 
   return (
     <div className="space-y-4 p-5">
@@ -203,6 +226,7 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch">
           <button
             type="button"
+            onClick={() => void handleMockDrafts()}
             className="flex flex-1 flex-col items-center justify-center rounded-xl border border-white/25 bg-white/15 px-4 py-2 text-left transition hover:bg-white/20 sm:min-w-[140px]"
           >
             <span className="text-sm font-semibold">Mock Drafts</span>
@@ -210,9 +234,10 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
           </button>
           <button
             type="button"
+            onClick={handleDraftRoom}
             className="flex flex-1 items-center justify-center rounded-xl bg-cyan-500 px-5 py-2 text-sm font-bold text-black transition hover:bg-cyan-400 sm:min-w-[120px]"
           >
-            Draftroom
+            Draft Room
           </button>
           {isOwner ? (
             <button
