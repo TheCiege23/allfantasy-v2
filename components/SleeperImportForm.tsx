@@ -1,74 +1,81 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { useState } from 'react'
+import Link from 'next/link'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-const SLEEPER_LAUNCH_YEAR = 2017;
+const SLEEPER_LAUNCH_YEAR = 2017
+
+export type SleeperImportResult = {
+  imported: number
+  seasons: number
+  years?: number[]
+  sports?: Record<string, number>
+  sleeperUserId?: string
+  success?: boolean
+  leagues?: { name: string; sport: string; seasons: string[] }[]
+}
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
-  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing leagues.';
-  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing leagues.';
-  if (data?.error === 'UNAUTHENTICATED' || data?.error === 'Unauthorized' || data?.error === 'Authentication required') {
-    return 'Sign in to import leagues.';
+  if (data?.error === 'VERIFICATION_REQUIRED') return 'Verify your email or phone before importing leagues.'
+  if (data?.error === 'AGE_REQUIRED') return 'Confirm that you are 18+ before importing leagues.'
+  if (
+    data?.error === 'UNAUTHENTICATED' ||
+    data?.error === 'Unauthorized' ||
+    data?.error === 'Not authenticated' ||
+    data?.error === 'Authentication required'
+  ) {
+    return 'Sign in to import leagues.'
   }
-  return data?.error || fallback;
+  return data?.error || fallback
 }
 
 export default function SleeperImportForm() {
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState<{
-    imported: number;
-    seasons: number;
-    years: number[];
-  } | null>(null);
+  const [sleeperUsername, setSleeperUsername] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<SleeperImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const scanEndYear = new Date().getFullYear() + 1;
+  const scanEndYear = new Date().getFullYear() + 1
 
-  const handleImport = async () => {
-    if (!username.trim()) return;
-    setLoading(true);
-    setDone(null);
+  async function handleImport() {
+    if (!sleeperUsername.trim()) {
+      setError('Please enter your Sleeper username')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    setResult(null)
 
     try {
       const res = await fetch('/api/leagues/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username.trim(),
-          platform: 'sleeper',
-        }),
-      });
+        credentials: 'include',
+        body: JSON.stringify({ username: sleeperUsername.trim(), platform: 'sleeper' }),
+      })
 
-      const data = await res.json();
-      if (res.ok) {
-        setDone({
-          imported: data.imported ?? 0,
-          seasons: data.seasons ?? 0,
-          years: Array.isArray(data.years) ? data.years : [],
-        });
-        toast.success(
-          `Imported ${data.imported ?? 0} unique league${(data.imported ?? 0) !== 1 ? 's' : ''} (${data.seasons ?? 0} season rows).`
-        );
-      } else {
-        toast.error(getImportErrorMessage(data, 'Import failed'));
+      const text = await res.text()
+      let data: SleeperImportResult & { error?: string }
+      try {
+        data = JSON.parse(text) as SleeperImportResult & { error?: string }
+      } catch {
+        throw new Error(`Server error: ${text.slice(0, 100)}`)
       }
-    } catch {
-      toast.error('Something went wrong. Please try again.');
+
+      if (!res.ok) throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`))
+      setResult(data)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Import failed. Please try again.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <Card className="border-white/10 bg-[#0a1228]/90 backdrop-blur-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-3 text-xl text-white">
-          {/* Sleeper logo used for platform identification under nominative fair use for integration UI — similar to OAuth connect buttons. Replace with official asset if Sleeper provides brand guidelines. */}
           <div
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[16px] font-black text-white"
             style={{ background: 'linear-gradient(135deg, #1a9e5c, #16a34a)' }}
@@ -84,30 +91,22 @@ export default function SleeperImportForm() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {done ? (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-950/20 p-4 text-slate-200">
-            <p className="font-semibold text-emerald-400">Import complete</p>
-            <p className="mt-1 text-sm">
-              {done.imported} unique leagues · {done.seasons} season records
-              {done.years.length > 0 ? ` · years: ${done.years.join(', ')}` : ''}
-            </p>
-            <Button asChild className="mt-4 w-full bg-sky-600/90 hover:bg-sky-500">
-              <Link href="/dashboard">Go to Dashboard</Link>
-            </Button>
-          </div>
-        ) : null}
-
         <div>
           <label htmlFor="sleeper-username" className="mb-1 block text-sm text-slate-400">
             Sleeper Username
           </label>
-          <Input
+          <input
             id="sleeper-username"
+            type="text"
+            value={sleeperUsername}
+            onChange={(e) => setSleeperUsername(e.target.value)}
             placeholder="e.g. your Sleeper username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             disabled={loading}
-            className="border-white/15 bg-[#040915] text-white placeholder:text-slate-500 focus-visible:ring-sky-500/40"
+            className="w-full min-h-[44px] rounded-xl border border-white/[0.10] bg-white/[0.06] px-4 py-3 text-[14px] text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
 
@@ -123,23 +122,47 @@ export default function SleeperImportForm() {
           </li>
         </ul>
 
-        {loading ? (
-          <div className="space-y-2 rounded-lg border border-white/10 bg-[#040915] p-4">
-            <p className="text-center text-sm text-slate-300">Scanning {SLEEPER_LAUNCH_YEAR}–{scanEndYear}…</p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-sky-600 to-emerald-600" />
-            </div>
+        <button
+          type="button"
+          onClick={() => void handleImport()}
+          disabled={loading || !sleeperUsername.trim()}
+          className="w-full rounded-xl bg-cyan-600 py-3 text-[14px] font-bold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Scanning all Sleeper seasons...
+            </span>
+          ) : (
+            'Import All Leagues'
+          )}
+        </button>
+
+        {error ? <p className="text-center text-[13px] text-red-400">⚠ {error}</p> : null}
+
+        {result ? (
+          <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center">
+            <p className="mb-1 text-[16px] font-bold text-green-400">✅ Import Complete!</p>
+            <p className="mb-1 text-[13px] text-white/70">
+              {result.imported} league{result.imported !== 1 ? 's' : ''} found across {result.seasons} season
+              {result.seasons !== 1 ? 's' : ''}
+            </p>
+            {result.sports && Object.keys(result.sports).length > 0 ? (
+              <p className="mb-3 text-[11px] text-white/40">
+                {Object.entries(result.sports)
+                  .map(([s, n]) => `${s}: ${n}`)
+                  .join(' · ')}
+              </p>
+            ) : null}
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400"
+            >
+              View My Leagues →
+            </Link>
           </div>
-        ) : (
-          <Button
-            onClick={handleImport}
-            disabled={!username.trim()}
-            className="w-full bg-sky-600 hover:bg-sky-500 disabled:opacity-50"
-          >
-            Import All Leagues
-          </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
-  );
+  )
 }

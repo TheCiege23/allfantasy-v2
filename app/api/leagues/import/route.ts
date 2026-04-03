@@ -94,6 +94,36 @@ async function fetchAllSleeperLeaguesBatched(sleeperUserId: string): Promise<Sle
 
 export async function POST(req: Request) {
   try {
+    const rawBody = (await req.json().catch(() => null)) as Record<string, unknown> | null;
+    console.log("[import] body received:", JSON.stringify(rawBody));
+
+    const usernameRaw =
+      (typeof rawBody?.username === "string" ? rawBody.username : null) ??
+      (typeof rawBody?.sleeperUsername === "string" ? rawBody.sleeperUsername : null) ??
+      (typeof rawBody?.sleeper_username === "string" ? rawBody.sleeper_username : null) ??
+      "";
+    const usernameTrimmed = usernameRaw.trim();
+    console.log("[import] username:", usernameTrimmed);
+
+    if (!usernameTrimmed) {
+      console.log("[import] ERROR: no username in body");
+      return NextResponse.json({ error: "Username required" }, { status: 400 });
+    }
+
+    const parsed = bodySchema.safeParse({
+      username: usernameTrimmed,
+      platform: "sleeper" as const,
+    });
+    if (!parsed.success) {
+      console.log("[import] validation error:", parsed.error.flatten().fieldErrors);
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const { username } = parsed.data;
+
     const auth = await requireVerifiedUser();
     if (!auth.ok) {
       return auth.response;
@@ -112,25 +142,22 @@ export async function POST(req: Request) {
       return NextResponse.json(buildRateLimit429({ rl }), { status: 429 });
     }
 
-    const json = await req.json().catch(() => null);
-    const parsed = bodySchema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
-    }
-
-    const { username } = parsed.data;
-
-    const sleeperProfile = await fetchJson<{
+    const sleeperUserUrl = `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`;
+    console.log("[import] fetching Sleeper user:", username);
+    const userRes = await fetch(sleeperUserUrl, {
+      headers: { Accept: "application/json" },
+    });
+    console.log("[import] Sleeper user status:", userRes.status);
+    const sleeperProfile = (await userRes.json().catch(() => null)) as {
       user_id?: string;
       username?: string;
       display_name?: string;
       avatar?: string | null;
-    }>(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`);
+    } | null;
+    console.log("[import] Sleeper user data:", JSON.stringify(sleeperProfile));
 
     if (!sleeperProfile?.user_id) {
+      console.log("[import] ERROR: Sleeper user not found");
       return NextResponse.json({ error: "Sleeper username not found" }, { status: 404 });
     }
 
@@ -161,6 +188,7 @@ export async function POST(req: Request) {
         seasons: 0,
         years: [] as number[],
         leagues: [] as { name: string; sport: string; seasons: string[] }[],
+        sports: {} as Record<string, number>,
         sleeperUserId,
       });
     }
@@ -268,12 +296,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const sportsCounts: Record<string, number> = {};
+    for (const row of leagueSummaries) {
+      const k = String(row.sport);
+      sportsCounts[k] = (sportsCounts[k] ?? 0) + 1;
+    }
+
     return NextResponse.json({
       success: true,
       imported: uniqueLeagues,
       seasons: seasonRows,
       years: yearsWithData,
       leagues: leagueSummaries,
+      sports: sportsCounts,
       sleeperUserId,
     });
   } catch (error) {
