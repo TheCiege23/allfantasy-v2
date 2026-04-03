@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UserLeague } from '../types'
 import { ChatComposer, type LeagueComposerPayload } from './chat/ChatComposer'
 import { ChatSenderAvatar } from './chat/ChatSenderAvatar'
-import { formatChatMessageTimestamp, isLeagueMessageThreaded } from './chat/chat-timestamps'
+import { isLeagueMessageThreaded } from './chat/chat-timestamps'
 
 export type LeagueChatMessage = {
   id: string
   authorId: string
   author_display_name: string
   author_avatar: string | null
+  messageType?: string
   /** Unix ms (Sleeper-style); preferred for display */
   created: number
   text: string
@@ -31,23 +32,17 @@ function toStringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
 }
 
-/** Clock time for chat bubbles (e.g. 9:41 PM) — legacy helper */
-export function formatChatClock(d: Date | string): string {
-  const date = new Date(d)
-  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true })
-}
-
 export function formatChatTime(d: Date | string): string {
-  const date = new Date(d)
+  const date = typeof d === 'string' ? new Date(d) : d
   const diff = Date.now() - date.getTime()
   if (diff < 60_000) return 'just now'
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
   if (diff < 86_400_000) {
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   }
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) {
+  const yday = new Date()
+  yday.setDate(yday.getDate() - 1)
+  if (date.toDateString() === yday.toDateString()) {
     return `Yesterday ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
   }
   return (
@@ -131,14 +126,16 @@ function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
   const id = toStringValue(o.id)
   if (!id) return null
   const meta = toRecord(o.metadata)
-  const nameRaw = o.author_display_name ?? o.authorName
-  const avatarRaw = o.author_avatar ?? o.authorAvatar
+  const nameRaw = o.authorName ?? o.author_display_name
+  const avatarRaw = o.authorAvatarUrl ?? o.author_avatar
   const createdMs = parseCreatedUnixMs(o)
+  const messageType = toStringValue(o.messageType, '')
   return {
     id,
     authorId: toStringValue(o.authorId, ''),
     author_display_name: toStringValue(nameRaw, 'Manager'),
     author_avatar: typeof avatarRaw === 'string' || avatarRaw === null ? (avatarRaw as string | null) : null,
+    messageType: messageType || undefined,
     created: createdMs,
     text: toStringValue(o.text),
     isActivity: false,
@@ -355,8 +352,9 @@ export function LeagueChatInPanel({
           <div>
             {messages.map((message, index) => {
               const meta = message.metadata
-              const isSystem =
+              const isSystemLine =
                 message.author_display_name === 'AllFantasy' ||
+                message.messageType === 'system' ||
                 (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true)
 
               const gifDisplay = meta ? getGifDisplay(meta) : null
@@ -372,9 +370,12 @@ export function LeagueChatInPanel({
                 )
               }
 
-              if (isSystem) {
+              if (isSystemLine) {
                 return (
-                  <p key={message.id} className="mt-2 px-2 py-1 text-center text-[10px] text-white/35">
+                  <p
+                    key={message.id}
+                    className="px-1 py-1 text-center text-[10px] text-white/35 italic"
+                  >
                     {message.text}
                   </p>
                 )
@@ -382,11 +383,16 @@ export function LeagueChatInPanel({
 
               const isOutgoing = message.authorId === userId
               const prev = index > 0 ? messages[index - 1] : undefined
+              const prevSystem =
+                prev &&
+                (prev.author_display_name === 'AllFantasy' ||
+                  prev.messageType === 'system' ||
+                  (prev.metadata && typeof prev.metadata.isSystem === 'boolean' && prev.metadata.isSystem === true) ||
+                  !prev.author_display_name.trim())
               const threaded =
                 prev &&
                 !prev.isActivity &&
-                !(prev.metadata && typeof prev.metadata.isSystem === 'boolean' && prev.metadata.isSystem === true) &&
-                !(prev.author_display_name === 'AllFantasy') &&
+                !prevSystem &&
                 isLeagueMessageThreaded(
                   { authorId: prev.authorId, created: prev.created },
                   { authorId: message.authorId, created: message.created }
@@ -396,14 +402,14 @@ export function LeagueChatInPanel({
 
               if (isOutgoing) {
                 return (
-                  <div key={message.id} className={`flex justify-end ${groupGap}`}>
-                    <div className="flex min-w-0 max-w-full flex-col items-end">
-                      <div className="ml-auto w-fit max-w-full rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[12px] text-white">
+                  <div key={message.id} className={`flex justify-end py-1.5 ${index > 0 ? groupGap : ''}`}>
+                    <div className="ml-auto flex min-w-0 max-w-[82%] flex-col items-end">
+                      <div className="rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[12px] text-white">
                         {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                         {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                       </div>
-                      <span className="mt-1 text-[10px] text-white/40">
-                        {formatChatMessageTimestamp(message.created)}
+                      <span className="mt-0.5 text-right text-[9px] text-white/25">
+                        {formatChatTime(message.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -411,10 +417,16 @@ export function LeagueChatInPanel({
               }
 
               return (
-                <div key={message.id} className={`flex gap-2 ${groupGap}`}>
-                  <div className="w-8 shrink-0">
-                    {threaded ? null : (
+                <div
+                  key={message.id}
+                  className={`flex items-start gap-2 py-1.5 ${index > 0 ? groupGap : ''}`}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {threaded ? (
+                      <div className="h-[26px] w-[26px]" aria-hidden />
+                    ) : (
                       <ChatSenderAvatar
+                        size={26}
                         authorAvatar={message.author_avatar}
                         authorDisplayName={message.author_display_name}
                       />
@@ -422,13 +434,22 @@ export function LeagueChatInPanel({
                   </div>
                   <div className="min-w-0 flex-1">
                     {threaded ? null : (
-                      <p className="mb-0.5 text-[11px] font-semibold text-white">{message.author_display_name}</p>
+                      <div className="mb-0.5 flex min-w-0 items-baseline">
+                        <span className="min-w-0 truncate text-[10px] font-semibold text-white/55">
+                          {message.author_display_name}
+                        </span>
+                        <span className="ml-1.5 shrink-0 text-[9px] text-white/30">
+                          {formatChatTime(message.createdAt)}
+                        </span>
+                      </div>
                     )}
-                    <div className="w-full max-w-full rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[12px] text-white/90">
+                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[12px] text-white/90">
                       {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                       {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                     </div>
-                    <p className="mt-1 text-[10px] text-white/40">{formatChatMessageTimestamp(message.created)}</p>
+                    {threaded ? (
+                      <p className="mt-0.5 text-[9px] text-white/30">{formatChatTime(message.createdAt)}</p>
+                    ) : null}
                   </div>
                 </div>
               )

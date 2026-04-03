@@ -20,49 +20,37 @@ export function chatSenderInitials(displayName: string): string {
   return (n[0]! + n[0]!).toUpperCase()
 }
 
-function fallbackBgClass(name: string): string {
-  let h = 0
-  const p = name.trim()
-  for (let i = 0; i < p.length; i++) h = (h + p.charCodeAt(i) * (i + 1)) % 7
-  const classes = [
-    "bg-red-500/80",
-    "bg-green-500/80",
-    "bg-blue-500/80",
-    "bg-orange-500/80",
-    "bg-purple-500/80",
-    "bg-indigo-500/80",
-    "bg-slate-500/80",
-  ]
-  return classes[h] ?? "bg-slate-500/80"
-}
-
-const SIZE_PX = 32
-
 type ChatSenderAvatarProps = {
   authorAvatar: string | null
   authorDisplayName: string
+  /** Pixel size (width/height). Default 32 (Chimmy); league chat uses 26. */
+  size?: number
   className?: string
 }
 
 /**
- * 32px avatar: Sleeper CDN when `author_avatar` is set; initials circle on missing/broken image.
- * Uses `onError` increment pattern like `PlayerImage` (single URL → fallback UI).
+ * Avatar: Sleeper CDN when hash/URL set; gradient initials on missing/broken image.
  */
-export function ChatSenderAvatar({ authorAvatar, authorDisplayName, className = "" }: ChatSenderAvatarProps) {
+export function ChatSenderAvatar({
+  authorAvatar,
+  authorDisplayName,
+  size = 32,
+  className = '',
+}: ChatSenderAvatarProps) {
   const [broken, setBroken] = useState(false)
   const resolved = resolveSleeperAvatarUrl(authorAvatar)
 
   if (resolved && !broken) {
     return (
       <div
-        className={`relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-white/[0.12] ${className}`}
-        style={{ width: SIZE_PX, height: SIZE_PX }}
+        className={`relative shrink-0 overflow-hidden rounded-full border border-white/[0.12] ${className}`}
+        style={{ width: size, height: size }}
       >
         <img
           src={resolved}
           alt=""
           className="h-full w-full object-cover"
-          style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)" }}
+          style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)' }}
           onError={() => setBroken(true)}
         />
       </div>
@@ -71,8 +59,8 @@ export function ChatSenderAvatar({ authorAvatar, authorDisplayName, className = 
 
   return (
     <div
-      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.12] text-[10px] font-bold uppercase text-white ${fallbackBgClass(authorDisplayName)} ${className}`}
-      style={{ width: SIZE_PX, height: SIZE_PX }}
+      className={`flex shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-gradient-to-br from-indigo-500 to-cyan-500 text-[9px] font-bold uppercase text-white ${className}`}
+      style={{ width: size, height: size }}
       aria-hidden
     >
       {chatSenderInitials(authorDisplayName)}

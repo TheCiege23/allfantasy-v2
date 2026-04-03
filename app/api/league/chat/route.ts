@@ -46,16 +46,16 @@ function toClientMessage(message: {
   metadata?: Record<string, unknown> | null
 }) {
   const authorName = message.senderName ?? 'Manager'
-  const authorAvatar = message.senderAvatarUrl ?? null
+  const authorAvatarUrl = message.senderAvatarUrl ?? null
   const createdMs = createdAtToUnixMs(message.createdAt)
   return {
     id: message.id,
     authorId: message.senderUserId ?? '',
     authorName,
-    authorAvatar,
+    authorAvatarUrl,
     /** Sleeper-style field names — pass through to clients */
     author_display_name: authorName,
-    author_avatar: authorAvatar,
+    author_avatar: authorAvatarUrl,
     text: message.body,
     createdAt: message.createdAt,
     /** Unix timestamp in ms (Sleeper-compatible) */
