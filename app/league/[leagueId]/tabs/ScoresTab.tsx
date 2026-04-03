@@ -5,13 +5,15 @@ import type { UserLeague } from '@/app/dashboard/types'
 
 export type ScoresTabProps = {
   league: UserLeague
+  sport?: string
 }
 
-export function ScoresTab({ league }: ScoresTabProps) {
+export function ScoresTab({ league, sport }: ScoresTabProps) {
+  const resolvedSport = sport ?? league.sport
   const [week, setWeek] = useState(1)
 
   return (
-    <div className="space-y-4 p-5">
+    <div className="space-y-4 p-5" data-sport={resolvedSport}>
       <div className="flex items-center justify-center gap-3">
         <button
           type="button"

@@ -11,6 +11,7 @@ import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 export type PlayersTabProps = {
   league: UserLeague
   onPlayerClick: (playerId: string) => void
+  sport?: string
 }
 
 type PosFilter = 'ALL' | 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF' | 'MORE'
@@ -24,8 +25,9 @@ function badgePosition(p: SlimPlayer): string {
   return p.position
 }
 
-export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
-  const { players, loading } = useSleeperPlayers(league.sport)
+export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
+  const resolvedSport = sport ?? league.sport
+  const { players, loading } = useSleeperPlayers(resolvedSport)
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
   const [freeAgents, setFreeAgents] = useState(false)
@@ -209,7 +211,7 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
                   </span>
                   <PlayerImage
                     sleeperId={p.id}
-                    sport={league.sport}
+                    sport={resolvedSport}
                     name={p.name}
                     position={p.position}
                     espnId={p.espn_id}
@@ -225,7 +227,7 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
                       </span>
                       {p.team && p.team !== 'FA' ? (
                         <>
-                          <TeamLogo teamAbbr={p.team} sport={league.sport} size={16} />
+                          <TeamLogo teamAbbr={p.team} sport={resolvedSport} size={16} />
                           <span className="text-white/45">{p.team}</span>
                         </>
                       ) : (

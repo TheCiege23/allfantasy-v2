@@ -7,9 +7,11 @@ import { Home } from 'lucide-react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
+import AppShell from '@/app/components/AppShell'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
-import type { UserLeague } from '@/app/dashboard/types'
+import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
+import { getLeagueTabs, leagueTabSportEmoji, type TabDef } from './LeagueTabs'
 import { DraftTab } from './tabs/DraftTab'
 import { TeamTab } from './tabs/TeamTab'
 import { LeagueTab } from './tabs/LeagueTab'
@@ -18,6 +20,14 @@ import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { ScoresTab } from './tabs/ScoresTab'
 import { HistoryTab } from './tabs/HistoryTab'
+import { StandingsTab } from './tabs/StandingsTab'
+import { FixturesTab } from './tabs/FixturesTab'
+import { TransfersTab } from './tabs/TransfersTab'
+import { TableTab } from './tabs/TableTab'
+import { LeaderboardTab } from './tabs/LeaderboardTab'
+import { MyPicksTab } from './tabs/MyPicksTab'
+import { ScheduleTab } from './tabs/ScheduleTab'
+import { LeagueTabPlaceholder } from './tabs/LeagueTabPlaceholder'
 import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 
@@ -27,19 +37,6 @@ export type LeagueShellLeague = League & {
   teams: LeagueTeam[]
   invites: LeagueInvite[]
 }
-
-type LeagueShellTab = 'draft' | 'team' | 'league' | 'players' | 'trend' | 'trades' | 'scores' | 'history'
-
-const TABS: { id: LeagueShellTab; label: string }[] = [
-  { id: 'draft', label: 'Draft' },
-  { id: 'team', label: 'Team' },
-  { id: 'league', label: 'League' },
-  { id: 'players', label: 'Players' },
-  { id: 'trend', label: 'Trend' },
-  { id: 'trades', label: 'Trades' },
-  { id: 'scores', label: 'Scores' },
-  { id: 'history', label: 'History' },
-]
 
 function weekFromLeagueSettings(settings: unknown): number | null {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null
@@ -78,16 +75,6 @@ function prismaLeagueToUserLeague(
   }
 }
 
-function sportEmoji(sport: string): string {
-  const u = sport.toUpperCase()
-  if (u === 'NFL' || u === 'NCAAF') return '🏈'
-  if (u === 'NBA' || u === 'NCAAB') return '🏀'
-  if (u === 'MLB') return '⚾'
-  if (u === 'NHL') return '🏒'
-  if (u === 'SOCCER') return '⚽'
-  return '🏟️'
-}
-
 export type LeagueShellProps = {
   league: LeagueShellLeague
   userTeam: LeagueTeam | null
@@ -118,7 +105,13 @@ export function LeagueShell({
   discordConnected = false,
 }: LeagueShellProps) {
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<LeagueShellTab>('draft')
+  const tabDefs = useMemo(() => getLeagueTabs(String(league.sport)), [league.sport])
+  const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
+
+  useEffect(() => {
+    const ids = new Set(tabDefs.map((t) => t.id))
+    setActiveTab((prev) => (ids.has(prev) ? prev : tabDefs[0]?.id ?? 'draft'))
+  }, [tabDefs])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [portalMounted, setPortalMounted] = useState(false)
@@ -173,74 +166,58 @@ export function LeagueShell({
   const closePlayerCard = () => setSelectedPlayer(null)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#07071a] text-white">
-      <aside className="hidden h-full w-[35%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
-        <LeftChatPanel
-          selectedLeague={selectedLeague}
-          activeLeagueId={league.id}
-          userId={userId}
-          userDisplayName={userName}
-          userImage={userImage}
-          rootId="league-left-chat"
-          leagues={leagueList}
-          discordConnected={discordConnected}
-        />
-      </aside>
+    <>
+      <AppShell
+        leftPanel={
+          <LeftChatPanel
+            selectedLeague={selectedLeague}
+            activeLeagueId={league.id}
+            userId={userId}
+            userDisplayName={userName}
+            userImage={userImage}
+            rootId="league-left-chat"
+            leagues={leagueList}
+            discordConnected={discordConnected}
+          />
+        }
+        rightPanel={
+          <RightControlPanel
+            leagues={leagueList}
+            leaguesLoading={false}
+            selectedId={league.id}
+            activeLeagueId={league.id}
+            onSelectLeague={handleLeagueSelect}
+            userId={userId}
+            userName={userName}
+            userImage={userImage}
+            onImport={handleImport}
+          />
+        }
+      >
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <LeagueHeader
+            league={selectedLeague}
+            tabs={tabDefs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onGoHome={() => router.push('/dashboard')}
+          />
 
-      <main className="flex min-h-0 min-w-0 w-[35%] flex-none flex-col overflow-hidden">
-        <LeagueHeader
-          league={selectedLeague}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onGoHome={() => router.push('/dashboard')}
-        />
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
-          {activeTab === 'draft' && (
-            <DraftTab
-              league={selectedLeague}
-              teams={teamSlots}
-              isOwner={isOwner}
-              inviteToken={inviteToken}
-            />
-          )}
-          {activeTab === 'team' && (
-            <TeamTab
-              league={selectedLeague}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+            <LeagueTabRouter
+              activeTab={activeTab}
+              tabDefs={tabDefs}
+              selectedLeague={selectedLeague}
               userTeam={userTeam}
-              onPlayerClick={handlePlayerClick}
+              teamSlots={teamSlots}
               inviteToken={inviteToken}
+              isOwner={isOwner}
+              onPlayerClick={handlePlayerClick}
             />
-          )}
-          {activeTab === 'league' && <LeagueTab league={selectedLeague} teams={teamSlots} />}
-          {activeTab === 'players' && (
-            <PlayersTab league={selectedLeague} onPlayerClick={handlePlayerClick} />
-          )}
-          {activeTab === 'trend' && (
-            <TrendTab league={selectedLeague} onPlayerClick={handlePlayerClick} />
-          )}
-          {activeTab === 'trades' && (
-            <TradesTab league={selectedLeague} teams={teamSlots} />
-          )}
-          {activeTab === 'scores' && <ScoresTab league={selectedLeague} />}
-          {activeTab === 'history' && <HistoryTab league={selectedLeague} />}
-        </div>
-      </main>
-
-      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[30%] md:max-w-[30%] md:flex-shrink-0">
-        <RightControlPanel
-          leagues={leagueList}
-          leaguesLoading={false}
-          selectedId={league.id}
-          activeLeagueId={league.id}
-          onSelectLeague={handleLeagueSelect}
-          userId={userId}
-          userName={userName}
-          userImage={userImage}
-          onImport={handleImport}
-        />
-      </aside>
+          </div>
+        </main>
+      </AppShell>
 
       {selectedPlayer ? (
         <PlayerStatCard
@@ -265,26 +242,105 @@ export function LeagueShell({
               sleeperMemberMap={sleeperUsersByPlatformId}
               onGoToDraftTab={() => {
                 setSettingsOpen(false)
-                setActiveTab('draft')
+                const ids = tabDefs.map((t) => t.id)
+                setActiveTab(ids.includes('draft') ? 'draft' : ids[0] ?? 'draft')
               }}
             />,
             document.body,
           )
         : null}
-    </div>
+    </>
   )
+}
+
+function LeagueTabRouter({
+  activeTab,
+  tabDefs,
+  selectedLeague,
+  userTeam,
+  teamSlots,
+  inviteToken,
+  isOwner,
+  onPlayerClick,
+}: {
+  activeTab: string
+  tabDefs: TabDef[]
+  selectedLeague: UserLeague
+  userTeam: LeagueTeam | null
+  teamSlots: UserLeagueTeam[]
+  inviteToken: string | undefined
+  isOwner: boolean
+  onPlayerClick: (playerId: string) => void
+}) {
+  const tab = tabDefs.find((t) => t.id === activeTab)
+  const tabLabel = tab?.label ?? activeTab
+  const sport = selectedLeague.sport
+
+  switch (activeTab) {
+    case 'draft':
+      return (
+        <DraftTab
+          league={selectedLeague}
+          teams={teamSlots}
+          isOwner={isOwner}
+          inviteToken={inviteToken}
+        />
+      )
+    case 'team':
+    case 'roster':
+    case 'squad':
+      return (
+        <TeamTab
+          league={selectedLeague}
+          userTeam={userTeam}
+          onPlayerClick={onPlayerClick}
+          inviteToken={inviteToken}
+          sport={sport}
+        />
+      )
+    case 'league':
+      return <LeagueTab league={selectedLeague} teams={teamSlots} />
+    case 'players':
+      return <PlayersTab league={selectedLeague} onPlayerClick={onPlayerClick} sport={sport} />
+    case 'trend':
+      return <TrendTab league={selectedLeague} onPlayerClick={onPlayerClick} sport={sport} />
+    case 'trades':
+      return <TradesTab league={selectedLeague} teams={teamSlots} />
+    case 'scores':
+      return <ScoresTab league={selectedLeague} sport={sport} />
+    case 'history':
+      return <HistoryTab league={selectedLeague} />
+    case 'standings':
+      return <StandingsTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'fixtures':
+      return <FixturesTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'transfers':
+      return <TransfersTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'table':
+      return <TableTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'leaderboard':
+      return <LeaderboardTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'my-picks':
+      return <MyPicksTab league={selectedLeague} tabLabel={tabLabel} />
+    case 'schedule':
+      return <ScheduleTab league={selectedLeague} tabLabel={tabLabel} />
+    default:
+      return <LeagueTabPlaceholder league={selectedLeague} tabLabel={tabLabel} />
+  }
 }
 
 function LeagueHeader({
   league,
+  tabs,
   activeTab,
   onTabChange,
   onOpenSettings,
   onGoHome,
 }: {
   league: UserLeague
-  activeTab: LeagueShellTab
-  onTabChange: (t: LeagueShellTab) => void
+  tabs: TabDef[]
+  activeTab: string
+  onTabChange: (t: string) => void
   onOpenSettings: () => void
   onGoHome: () => void
 }) {
@@ -295,7 +351,7 @@ function LeagueHeader({
           className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] text-base"
           style={{ background: 'linear-gradient(135deg, #1e3a5f, #0e4a6e)' }}
         >
-          {sportEmoji(league.sport)}
+          {leagueTabSportEmoji(league.sport)}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
@@ -329,7 +385,7 @@ function LeagueHeader({
       </div>
 
       <div className="scrollbar-none mt-2 flex overflow-x-auto px-5">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"

@@ -16,6 +16,8 @@ export type TeamTabProps = {
   userTeam: LeagueTeam | null
   onPlayerClick: (playerId: string) => void
   inviteToken?: string | null
+  /** When set, overrides `league.sport` for Sleeper hooks / position labels */
+  sport?: string
 }
 
 type DbRosterPayload = {
@@ -278,8 +280,9 @@ function SkeletonRows() {
   )
 }
 
-export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTabProps) {
-  const { players, loading: playersLoading } = useSleeperPlayers(league.sport)
+export function TeamTab({ league, userTeam, onPlayerClick, inviteToken, sport }: TeamTabProps) {
+  const resolvedSport = sport ?? league.sport
+  const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
   const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
@@ -487,7 +490,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                 <RosterRow
                   key={`${id}-${i}`}
                   playerId={id}
-                  sport={league.sport}
+                  sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
@@ -504,7 +507,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                 <RosterRow
                   key={id}
                   playerId={id}
-                  sport={league.sport}
+                  sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
@@ -521,7 +524,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                   <RosterRow
                     key={id}
                     playerId={id}
-                    sport={league.sport}
+                    sport={resolvedSport}
                     players={players}
                     playersLoading={playersLoading}
                     onPlayerClick={onPlayerClick}
@@ -539,7 +542,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                   <RosterRow
                     key={id}
                     playerId={id}
-                    sport={league.sport}
+                    sport={resolvedSport}
                     players={players}
                     playersLoading={playersLoading}
                     onPlayerClick={onPlayerClick}
@@ -585,7 +588,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                 <RosterRow
                   key={id}
                   playerId={id}
-                  sport={league.sport}
+                  sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
@@ -601,7 +604,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                 <RosterRow
                   key={id}
                   playerId={id}
-                  sport={league.sport}
+                  sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
@@ -619,7 +622,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                     <RosterRow
                       key={id}
                       playerId={id}
-                      sport={league.sport}
+                      sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
                       onPlayerClick={onPlayerClick}
@@ -641,7 +644,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
                     <RosterRow
                       key={id}
                       playerId={id}
-                      sport={league.sport}
+                      sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
                       onPlayerClick={onPlayerClick}

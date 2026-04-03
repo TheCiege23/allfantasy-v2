@@ -14,6 +14,7 @@ import {
 export type TrendTabProps = {
   league: UserLeague
   onPlayerClick: (playerId: string) => void
+  sport?: string
 }
 
 type TrendPill = 'ALL' | 'QB' | 'RB' | 'WR' | 'TE' | 'K' | 'DEF'
@@ -28,9 +29,10 @@ function sleeperSportParam(sport: string): string {
   return 'nfl'
 }
 
-export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
-  const { players, loading: playersLoading } = useSleeperPlayers()
-  const sportParam = useMemo(() => sleeperSportParam(league.sport), [league.sport])
+export function TrendTab({ league, onPlayerClick, sport }: TrendTabProps) {
+  const resolvedSport = sport ?? league.sport
+  const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
+  const sportParam = useMemo(() => sleeperSportParam(resolvedSport), [resolvedSport])
   const [up, setUp] = useState<TrendEntry[]>([])
   const [down, setDown] = useState<TrendEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,6 +77,7 @@ export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
         title="Trending up"
         entries={up}
         league={league}
+        sport={resolvedSport}
         loading={loading}
         error={err}
         filter={filterUp}
@@ -88,6 +91,7 @@ export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
         title="Trending down"
         entries={down}
         league={league}
+        sport={resolvedSport}
         loading={loading}
         error={err}
         filter={filterDown}
@@ -105,6 +109,7 @@ function TrendColumn({
   title,
   entries,
   league,
+  sport,
   loading,
   error,
   filter,
@@ -117,6 +122,7 @@ function TrendColumn({
   title: string
   entries: TrendEntry[]
   league: UserLeague
+  sport: string
   loading: boolean
   error: string | null
   filter: TrendPill
@@ -181,7 +187,7 @@ function TrendColumn({
                     </span>
                     <PlayerImage
                       sleeperId={id}
-                      sport={league.sport}
+                      sport={sport}
                       name={displayName}
                       position={resolved.position}
                       espnId={players[id]?.espn_id}
@@ -200,7 +206,7 @@ function TrendColumn({
                             <span className="text-white/25">·</span>
                             {showTeam ? (
                               <>
-                                <TeamLogo teamAbbr={resolved.team} sport={league.sport} size={16} />
+                                <TeamLogo teamAbbr={resolved.team} sport={sport} size={16} />
                                 <span className="text-white/45">{resolved.team}</span>
                               </>
                             ) : (

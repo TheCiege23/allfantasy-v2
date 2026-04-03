@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
+import AppShell from '@/app/components/AppShell'
 import { DashboardOverview } from './components/DashboardOverview'
 import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
@@ -227,8 +228,9 @@ export function DashboardShell({
   const isLeagueRoute = Boolean(activeLeagueId)
 
   return (
-    <div data-dashboard-user-id={userId} className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white">
-      <aside className="hidden h-full w-[35%] flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
+    <AppShell
+      rootProps={{ 'data-dashboard-user-id': userId }}
+      leftPanel={
         <LeftChatPanel
           selectedLeague={selectedLeague}
           activeLeagueId={activeLeagueId}
@@ -239,10 +241,24 @@ export function DashboardShell({
           leagues={leagues}
           discordConnected={discordConnected}
         />
-      </aside>
-
-      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:w-[35%] md:flex-none">
-        <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
+      }
+      rightPanel={
+        <RightControlPanel
+          leagues={leagues}
+          leaguesLoading={leaguesLoading}
+          selectedId={selectedLeague?.id ?? null}
+          activeLeagueId={activeLeagueId}
+          onSelectLeague={handleSelectLeague}
+          userId={userId}
+          userName={userName}
+          userImage={userImage}
+          onImport={handleTriggerImport}
+        />
+      }
+    >
+      <>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -284,21 +300,7 @@ export function DashboardShell({
             />
           )}
         </div>
-      </div>
-
-      <aside className="hidden h-full w-[30%] min-w-0 max-w-[30%] flex-shrink-0 overflow-hidden md:flex">
-        <RightControlPanel
-          leagues={leagues}
-          leaguesLoading={leaguesLoading}
-          selectedId={selectedLeague?.id ?? null}
-          activeLeagueId={activeLeagueId}
-          onSelectLeague={handleSelectLeague}
-          userId={userId}
-          userName={userName}
-          userImage={userImage}
-          onImport={handleTriggerImport}
-        />
-      </aside>
+        </div>
 
       <button
         type="button"
@@ -389,6 +391,7 @@ export function DashboardShell({
           </div>
         </div>
       ) : null}
-    </div>
+      </>
+    </AppShell>
   )
 }
