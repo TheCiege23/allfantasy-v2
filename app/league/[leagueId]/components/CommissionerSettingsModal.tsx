@@ -6,6 +6,7 @@ import { useAutosave } from '@/lib/hooks/useAutosave'
 import { LeagueSettingsPanel } from './settings/LeagueSettingsPanel'
 import { PlaceholderPanel } from './settings/PlaceholderPanel'
 import { SettingsNav, type SettingsNavTabId } from './settings/SettingsNav'
+import { KeeperCommissionerDashboard } from './KeeperCommissionerDashboard'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -105,7 +106,11 @@ export function CommissionerSettingsModal({
           ) : activeTab === 'coowners' ? (
             <PlaceholderPanel title="Co-owner Settings" />
           ) : activeTab === 'commissioner' ? (
-            <PlaceholderPanel title="Commissioner Control" />
+            initialData?.leagueType === 'keeper' ? (
+              <KeeperCommissionerDashboard leagueId={leagueId} />
+            ) : (
+              <PlaceholderPanel title="Commissioner Control" />
+            )
           ) : activeTab === 'previous' ? (
             <PlaceholderPanel title="Previous Leagues" />
           ) : activeTab === 'delete' ? (

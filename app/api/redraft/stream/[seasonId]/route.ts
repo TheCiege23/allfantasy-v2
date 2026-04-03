@@ -38,8 +38,16 @@ export async function GET(
       const iv = setInterval(() => {
         send({ type: 'heartbeat', t: Date.now() })
       }, 5000)
+      const ivKeeper = setInterval(() => {
+        send({
+          type: 'keeper_phase_tick',
+          seasonId,
+          note: 'Wire Redis pub/sub for keeper_submitted / keeper_locked events.',
+        })
+      }, 15000)
       const close = () => {
         clearInterval(iv)
+        clearInterval(ivKeeper)
         try {
           controller.close()
         } catch {

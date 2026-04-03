@@ -53,6 +53,21 @@ export type CommissionerSettingsFormData = {
   name?: string | null
   scoring?: string | null
   isDynasty?: boolean | null
+
+  keeperCount?: number | null
+  keeperCostSystem?: string | null
+  keeperMaxYears?: number | null
+  keeperWaiverAllowed?: boolean | null
+  keeperEligibilityRule?: string | null
+  keeperMinRoundsHeld?: number | null
+  keeperRoundPenalty?: number | null
+  keeperInflationRate?: number | null
+  keeperAuctionPctIncrease?: number | null
+  keeperSelectionDeadline?: string | null
+  keeperPhaseActive?: boolean | null
+  dynastySeasonPhase?: string | null
+  keeperConflictRule?: string | null
+  keeperMissedDeadlineRule?: string | null
 }
 
 export function commissionerLeagueFieldsFromRow(
@@ -109,6 +124,20 @@ export function commissionerLeagueFieldsFromRow(
     | 'leagueSize'
     | 'scoring'
     | 'isDynasty'
+    | 'keeperCount'
+    | 'keeperCostSystem'
+    | 'keeperMaxYears'
+    | 'keeperWaiverAllowed'
+    | 'keeperEligibilityRule'
+    | 'keeperMinRoundsHeld'
+    | 'keeperRoundPenalty'
+    | 'keeperInflationRate'
+    | 'keeperAuctionPctIncrease'
+    | 'keeperSelectionDeadline'
+    | 'keeperPhaseActive'
+    | 'dynastySeasonPhase'
+    | 'keeperConflictRule'
+    | 'keeperMissedDeadlineRule'
   >,
 ): CommissionerSettingsFormData {
   return {
@@ -163,6 +192,20 @@ export function commissionerLeagueFieldsFromRow(
     leagueSize: league.leagueSize,
     scoring: league.scoring,
     isDynasty: league.isDynasty,
+    keeperCount: league.keeperCount,
+    keeperCostSystem: league.keeperCostSystem,
+    keeperMaxYears: league.keeperMaxYears,
+    keeperWaiverAllowed: league.keeperWaiverAllowed,
+    keeperEligibilityRule: league.keeperEligibilityRule,
+    keeperMinRoundsHeld: league.keeperMinRoundsHeld,
+    keeperRoundPenalty: league.keeperRoundPenalty,
+    keeperInflationRate: league.keeperInflationRate,
+    keeperAuctionPctIncrease: league.keeperAuctionPctIncrease,
+    keeperSelectionDeadline: league.keeperSelectionDeadline?.toISOString() ?? null,
+    keeperPhaseActive: league.keeperPhaseActive,
+    dynastySeasonPhase: league.dynastySeasonPhase,
+    keeperConflictRule: league.keeperConflictRule,
+    keeperMissedDeadlineRule: league.keeperMissedDeadlineRule,
   }
 }
 
@@ -218,6 +261,20 @@ const LEAGUE_PATCH_KEYS: (keyof Prisma.LeagueUpdateInput)[] = [
   'leagueSize',
   'scoring',
   'isDynasty',
+  'keeperCount',
+  'keeperCostSystem',
+  'keeperMaxYears',
+  'keeperWaiverAllowed',
+  'keeperEligibilityRule',
+  'keeperMinRoundsHeld',
+  'keeperRoundPenalty',
+  'keeperInflationRate',
+  'keeperAuctionPctIncrease',
+  'keeperSelectionDeadline',
+  'keeperPhaseActive',
+  'dynastySeasonPhase',
+  'keeperConflictRule',
+  'keeperMissedDeadlineRule',
 ]
 
 export function buildLeagueUpdateFromBody(body: Record<string, unknown>): {
@@ -229,8 +286,13 @@ export function buildLeagueUpdateFromBody(body: Record<string, unknown>): {
 
   for (const key of LEAGUE_PATCH_KEYS) {
     if (body[key as string] === undefined) continue
-    const v = body[key as string]
-    ;(data as Record<string, unknown>)[key as string] = v
+    const raw = body[key as string]
+    if (key === 'keeperSelectionDeadline') {
+      ;(data as Record<string, unknown>)[key] =
+        raw === null ? null : new Date(String(raw))
+    } else {
+      ;(data as Record<string, unknown>)[key as string] = raw
+    }
     keys.push(key as string)
   }
 

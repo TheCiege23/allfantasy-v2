@@ -23,7 +23,16 @@ export function useRedraftStream(seasonId: string | null) {
         if (parsed.type === 'player_locked' && parsed.playerId) {
           setLocks((l) => [...new Set([...l, String(parsed.playerId)])])
         }
-        if (parsed.type === 'waiver_result' || parsed.type === 'trade_update' || parsed.type === 'recap_ready') {
+        if (
+          parsed.type === 'waiver_result' ||
+          parsed.type === 'trade_update' ||
+          parsed.type === 'recap_ready' ||
+          parsed.type === 'keeper_submitted' ||
+          parsed.type === 'keeper_locked' ||
+          parsed.type === 'keeper_conflict' ||
+          parsed.type === 'keeper_phase_opened' ||
+          parsed.type === 'keeper_phase_closed'
+        ) {
           setNotifications((n) => [...n.slice(-20), parsed])
         }
       } catch {

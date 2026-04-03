@@ -4041,6 +4041,22 @@ model League {
   aiModeration               Boolean @default(false)
   aiPowerRankings            Boolean @default(false)
 
+  /// Keeper league — max keepers per team per season (0 = effectively redraft for keepers).
+  keeperCount          Int?     @default(3)
+  keeperCostSystem     String?  @default("round_based")
+  keeperMaxYears       Int?     @default(3)
+  keeperWaiverAllowed  Boolean? @default(true)
+  keeperEligibilityRule String? @default("any")
+  keeperMinRoundsHeld  Int?     @default(0)
+  keeperRoundPenalty   Int?     @default(1)
+  keeperInflationRate  Int?     @default(1)
+  keeperAuctionPctIncrease Float? @default(0.2)
+  keeperSelectionDeadline DateTime?
+  keeperPhaseActive    Boolean? @default(false)
+  dynastySeasonPhase   String?  @default("regular")
+  keeperConflictRule   String?  @default("player_chooses")
+  keeperMissedDeadlineRule String? @default("auto_no_keepers")
+
   rosters                     Roster[]
   teams                       LeagueTeam[]
   divisions                   LeagueDivision[]
@@ -4092,6 +4108,11 @@ model League {
   redraftWaiverClaims       RedraftWaiverClaim[]
   redraftLeagueTrades       RedraftLeagueTrade[]
   redraftLeagueTransactions RedraftLeagueTransaction[]
+  keeperRecords             KeeperRecord[]
+  keeperSelectionSessions   KeeperSelectionSession[]
+  keeperEligibilities       KeeperEligibility[]
+  keeperPickAdjustments     KeeperPickAdjustment[]
+  keeperAuditLogs           KeeperAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8156,6 +8177,11 @@ model RedraftSeason {
   redraftLeagueTrades RedraftLeagueTrade[]
   playoffBracket      RedraftPlayoffBracket?
   aiLeagueInsights    RedraftAILeagueInsight[]
+  keeperRecords       KeeperRecord[]
+  keeperSelectionSession KeeperSelectionSession?
+  keeperEligibilities KeeperEligibility[]
+  keeperPickAdjustments KeeperPickAdjustment[]
+  keeperAuditLogs     KeeperAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8193,6 +8219,7 @@ model RedraftRoster {
   tradesReceived   RedraftLeagueTrade[]       @relation("RedraftTradeReceiver")
   transactions     RedraftLeagueTransaction[]
   aiRosterInsights RedraftAIRosterInsight[]
+  keeperRecords    KeeperRecord[]
 
   @@unique([seasonId, ownerId])
   @@index([seasonId])
@@ -8217,6 +8244,9 @@ model RedraftRosterPlayer {
 
   addedAt   DateTime  @default(now())
   droppedAt DateTime?
+
+  acquisitionType String @default("drafted")
+  isKept          Boolean @default(false)
 
   @@index([rosterId])
   @@index([playerId])
@@ -8398,4 +8428,141 @@ model RedraftAIRosterInsight {
   @@unique([rosterId, week])
   @@index([leagueId, week])
   @@map("redraft_ai_roster_insights")
+}
+
+model KeeperRecord {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+  position   String
+  team       String?
+  sport      String
+
+  originalDraftRound   Int?
+  originalDraftYear    Int
+  originalAuctionPrice Float?
+  yearsKept            Int @default(1)
+
+  costRound        Int?
+  costAuctionValue Float?
+  costLabel        String?
+
+  status String @default("pending")
+
+  submittedAt DateTime?
+  lockedAt    DateTime?
+
+  acquisitionType String @default("drafted")
+
+  pickAdjustments KeeperPickAdjustment[]
+
+  @@unique([seasonId, rosterId, playerId])
+  @@index([leagueId, seasonId])
+  @@index([rosterId, seasonId])
+  @@map("keeper_records")
+}
+
+model KeeperSelectionSession {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  seasonId String @unique
+  season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  status String @default("open")
+
+  openedAt DateTime @default(now())
+  deadline DateTime
+  lockedAt DateTime?
+
+  totalTeams     Int
+  teamsSubmitted Int @default(0)
+  teamsLocked    Int @default(0)
+
+  conflictsDetected Json?
+  conflictsResolved Boolean @default(false)
+
+  @@index([leagueId])
+  @@map("keeper_selection_sessions")
+}
+
+model KeeperEligibility {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  rosterId String
+  playerId String
+
+  isEligible       Boolean @default(true)
+  ineligibleReason String?
+
+  yearsKept Int @default(0)
+
+  projectedCost          String?
+  projectedCostRound     Int?
+  projectedCostAuction Float?
+
+  computedAt DateTime @default(now())
+
+  @@unique([seasonId, rosterId, playerId])
+  @@index([leagueId, seasonId])
+  @@map("keeper_eligibilities")
+}
+
+model KeeperPickAdjustment {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  rosterId String
+
+  keeperRecordId String
+  keeperRecord   KeeperRecord @relation(fields: [keeperRecordId], references: [id], onDelete: Cascade)
+
+  pickRoundForfeited Int
+  pickSlotForfeited  Int?
+
+  reason String
+  status String @default("applied")
+
+  @@index([seasonId, rosterId])
+  @@map("keeper_pick_adjustments")
+}
+
+model KeeperAuditLog {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  seasonId String
+  season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  rosterId String
+
+  action       String
+  playerId     String?
+  playerName   String?
+  detail       Json?
+  performedBy  String
+  performedAt  DateTime @default(now())
+
+  @@index([leagueId, seasonId])
+  @@map("keeper_audit_logs")
 }

@@ -32,6 +32,7 @@ import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
 import { RedraftTab } from './tabs/RedraftTab'
+import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -114,12 +115,15 @@ export function LeagueShell({
 }: LeagueShellProps) {
   const router = useRouter()
   const tabDefs = useMemo(() => {
-    const base = getLeagueTabs(String(league.sport))
+    let base = getLeagueTabs(String(league.sport))
+    if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
+      base = [{ id: 'keeper', label: 'Keepers' }, ...base]
+    }
     if (isCommissioner) {
       return [...base, { id: 'settings', label: '⚙ Settings' }]
     }
     return base
-  }, [league.sport, isCommissioner])
+  }, [league.sport, league.leagueType, league.keeperPhaseActive, isCommissioner])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
 
   useEffect(() => {
@@ -300,6 +304,8 @@ function LeagueTabRouter({
       )
     case 'redraft':
       return <RedraftTab leagueId={leagueId} />
+    case 'keeper':
+      return <KeeperSelectionTab leagueId={leagueId} />
     case 'team':
     case 'roster':
     case 'squad':

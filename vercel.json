@@ -111,6 +111,14 @@
     {
       "path": "/api/redraft/ai/power-rankings",
       "schedule": "0 10 * * 2"
+    },
+    {
+      "path": "/api/keeper/session",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/keeper/ai/storyline",
+      "schedule": "0 12 * * 2"
     }
   ]
 }
