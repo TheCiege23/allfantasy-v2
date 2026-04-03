@@ -1,3 +1,7 @@
+/**
+ * One team slot in the serialized pick order (DraftRoomStateRow.pickOrder / mock draft JSON).
+ * Snake routing uses overall pick + numTeams — see `lib/draft/snake.ts` / `execute-pick`.
+ */
 export type DraftPickOrderSlot = {
   id: string
   label: string
