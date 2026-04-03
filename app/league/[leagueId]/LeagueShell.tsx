@@ -30,6 +30,7 @@ import { ScheduleTab } from './tabs/ScheduleTab'
 import { LeagueTabPlaceholder } from './tabs/LeagueTabPlaceholder'
 import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
+import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -79,6 +80,8 @@ export type LeagueShellProps = {
   league: LeagueShellLeague
   userTeam: LeagueTeam | null
   isOwner: boolean
+  /** League owner or team role commissioner — controls ⚙ Settings tab. */
+  isCommissioner: boolean
   allLeagues: League[]
   userId: string
   userName: string
@@ -94,6 +97,7 @@ export function LeagueShell({
   league,
   userTeam,
   isOwner,
+  isCommissioner,
   allLeagues,
   userId,
   userName,
@@ -105,7 +109,13 @@ export function LeagueShell({
   discordConnected = false,
 }: LeagueShellProps) {
   const router = useRouter()
-  const tabDefs = useMemo(() => getLeagueTabs(String(league.sport)), [league.sport])
+  const tabDefs = useMemo(() => {
+    const base = getLeagueTabs(String(league.sport))
+    if (isCommissioner) {
+      return [...base, { id: 'settings', label: '⚙ Settings' }]
+    }
+    return base
+  }, [league.sport, isCommissioner])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
 
   useEffect(() => {
@@ -208,6 +218,7 @@ export function LeagueShell({
             <LeagueTabRouter
               activeTab={activeTab}
               tabDefs={tabDefs}
+              leagueId={league.id}
               selectedLeague={selectedLeague}
               userTeam={userTeam}
               teamSlots={teamSlots}
@@ -256,6 +267,7 @@ export function LeagueShell({
 function LeagueTabRouter({
   activeTab,
   tabDefs,
+  leagueId,
   selectedLeague,
   userTeam,
   teamSlots,
@@ -265,6 +277,7 @@ function LeagueTabRouter({
 }: {
   activeTab: string
   tabDefs: TabDef[]
+  leagueId: string
   selectedLeague: UserLeague
   userTeam: LeagueTeam | null
   teamSlots: UserLeagueTeam[]
@@ -310,6 +323,8 @@ function LeagueTabRouter({
       return <ScoresTab league={selectedLeague} sport={sport} />
     case 'history':
       return <HistoryTab league={selectedLeague} />
+    case 'settings':
+      return <LeagueSettingsTab leagueId={leagueId} />
     case 'standings':
       return <StandingsTab league={selectedLeague} tabLabel={tabLabel} />
     case 'fixtures':

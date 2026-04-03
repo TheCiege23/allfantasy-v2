@@ -8,6 +8,14 @@ export type DraftPickOrderSlot = {
   isCpu?: boolean
 }
 
+/** Commissioner draft order row stored in LeagueSettings.draftOrderSlots JSON. */
+export type DraftOrderSlotRow = {
+  slot: number
+  ownerId: string
+  ownerName: string
+  avatarUrl?: string | null
+}
+
 export function buildMockPickOrder(numTeams: number, humanUserId: string, humanLabel = 'You'): DraftPickOrderSlot[] {
   const order: DraftPickOrderSlot[] = [
     { id: humanUserId, label: humanLabel, isCpu: false },

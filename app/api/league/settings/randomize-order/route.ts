@@ -1,0 +1,114 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { Prisma } from '@prisma/client'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { assertLeagueCommissioner } from '@/lib/league/league-access'
+import { syncDraftSessionFromLeagueSettings } from '@/lib/league/league-settings-draft-sync'
+
+export const dynamic = 'force-dynamic'
+
+function fisherYates<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j]!, a[i]!]
+  }
+  return a
+}
+
+export async function POST(req: NextRequest) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: { leagueId?: string; count?: number }
+  try {
+    body = (await req.json()) as { leagueId?: string; count?: number }
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
+  const count = Number(body.count)
+  if (!leagueId) {
+    return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
+  }
+  if (!Number.isFinite(count) || count < 1 || count > 50) {
+    return NextResponse.json({ error: 'count must be 1–50' }, { status: 400 })
+  }
+
+  const gate = await assertLeagueCommissioner(leagueId, userId)
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.status === 404 ? 'League not found' : 'Forbidden' }, {
+      status: gate.status,
+    })
+  }
+
+  const league = await prisma.league.findFirst({
+    where: { id: leagueId },
+    include: { teams: { orderBy: { externalId: 'asc' } } },
+  })
+  if (!league) {
+    return NextResponse.json({ error: 'League not found' }, { status: 404 })
+  }
+
+  let order = [...league.teams]
+  for (let i = 0; i < count; i++) {
+    order = fisherYates(order)
+  }
+
+  const slots = order.map((t, idx) => ({
+    slot: idx + 1,
+    ownerId: t.id,
+    ownerName: t.teamName?.trim() || t.ownerName?.trim() || 'Team',
+    avatarUrl: t.avatarUrl ?? null,
+  }))
+
+  const existing = await prisma.leagueSettings.findUnique({ where: { leagueId } })
+  let history: unknown[] = []
+  if (existing?.randomizeHistory != null) {
+    const h = existing.randomizeHistory
+    history = Array.isArray(h) ? [...h] : []
+  }
+  history.push({
+    count,
+    performedAt: new Date().toISOString(),
+    performedBy: userId,
+  })
+
+  const updated = await prisma.leagueSettings.upsert({
+    where: { leagueId },
+    create: {
+      leagueId,
+      draftOrderMethod: 'randomized',
+      draftOrderSlots: slots as unknown as Prisma.InputJsonValue,
+      randomizeHistory: history as unknown as Prisma.InputJsonValue,
+      updatedBy: userId,
+    },
+    update: {
+      draftOrderMethod: 'randomized',
+      draftOrderSlots: slots as unknown as Prisma.InputJsonValue,
+      randomizeHistory: history as unknown as Prisma.InputJsonValue,
+      updatedBy: userId,
+    },
+  })
+
+  try {
+    await syncDraftSessionFromLeagueSettings(leagueId, updated, league.leagueSize ?? league.teams.length)
+  } catch (e) {
+    console.warn('[randomize-order] syncDraftSessionFromLeagueSettings', e)
+  }
+
+  return NextResponse.json({
+    slots,
+    history: updated.randomizeHistory,
+    settings: {
+      ...updated,
+      draftDateUtc: updated.draftDateUtc?.toISOString() ?? null,
+      updatedAt: updated.updatedAt.toISOString(),
+    },
+  })
+}

@@ -38,6 +38,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
   const isOwner = league.userId === userId
   const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
+  const isCommissioner = isOwner || userTeam?.role === 'commissioner'
   if (!isOwner && !userTeam) {
     redirect('/dashboard')
   }
@@ -96,6 +97,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       league={league}
       userTeam={userTeam}
       isOwner={isOwner}
+      isCommissioner={isCommissioner}
       allLeagues={allLeagues}
       userId={userId}
       userName={session.user.name ?? session.user.email ?? 'Manager'}

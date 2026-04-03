@@ -4019,6 +4019,7 @@ model League {
   invites                  LeagueInvite[]
   managerClaims            LeagueManagerClaim[]
   seasons                  LeagueSeason[]
+  leagueSettings           LeagueSettings?
   user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
   legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
   legacyLeagueId     String?               @unique
@@ -4034,6 +4035,60 @@ model League {
   @@index([status])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+/// Commissioner-managed draft & league draft-time settings (one row per league).
+model LeagueSettings {
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  draftDateUtc DateTime?
+  timezone     String?   @default("America/New_York")
+
+  autostart      Boolean @default(false)
+  slowDraftPause Boolean @default(false)
+  slowPauseFrom  String?
+  slowPauseUntil String?
+  cpuAutoPick    Boolean @default(true)
+  aiAutoPick     Boolean @default(false)
+
+  draftType            String @default("snake")
+  pickTimerPreset      String @default("120s")
+  pickTimerCustomValue Int?
+  rounds               Int    @default(15)
+
+  draftOrderMethod String  @default("manual")
+  randomizeCount   Int?
+  draftOrderSlots  Json?
+  draftOrderLocked Boolean @default(false)
+
+  keeperCount     Int     @default(0)
+  keeperRoundCost Boolean @default(false)
+  keeperSlots     Json?
+  dynastyCarryover Boolean @default(false)
+
+  playerPool         String  @default("all")
+  alphabeticalSort   Boolean @default(false)
+
+  aiQueueSuggestions Boolean @default(true)
+  aiBestAvailable    Boolean @default(true)
+  aiRosterGuidance   Boolean @default(true)
+  aiScarcityAlerts   Boolean @default(true)
+  aiDraftGrade       Boolean @default(true)
+  aiSleeperAlerts    Boolean @default(true)
+  aiByeAwareness     Boolean @default(true)
+  aiStackSuggestions Boolean @default(false)
+  aiRiskUpsideNotes  Boolean @default(true)
+  aiScope            String  @default("everyone")
+
+  randomizeHistory Json?
+  resetHistory     Json?
+
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("league_settings")
 }
 
 /// Per-season snapshot for a league (Sleeper chain via previous_league_id).
@@ -6554,6 +6609,13 @@ model DraftSession {
   devyConfig             Json?
   /// C2C: { enabled: boolean, collegeRounds: number[] } (1-based rounds that are college-only; rest are pro-only)
   c2cConfig              Json?
+  /// Chimmy AI auto-pick when timer expires (mirrors LeagueSettings.aiAutoPick at draft start).
+  aiAutoPick             Boolean   @default(false)
+  /// Rules-based auto-pick fallback when timer expires.
+  cpuAutoPick            Boolean   @default(true)
+  /// all | rookies_only | veterans_only
+  playerPool             String    @default("all")
+  alphabeticalSort       Boolean   @default(false)
   version               Int       @default(0)          // optimistic lock
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
