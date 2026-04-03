@@ -227,7 +227,7 @@ test.describe('@chimmy Chimmy voice coverage', () => {
     })
 
     const ttsBodies: Array<Record<string, unknown>> = []
-    await page.route('**/api/chimmy/voice', async (route) => {
+    await page.route('**/api/tts', async (route) => {
       ttsBodies.push(route.request().postDataJSON() as Record<string, unknown>)
       await route.fulfill({
         status: 200,
@@ -386,12 +386,12 @@ test.describe('@chimmy Chimmy voice coverage', () => {
       })
     })
 
-    await page.route('**/api/chimmy/voice', async (route) => {
+    await page.route('**/api/tts', async (route) => {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
         headers: {
-          'X-Chimmy-Voice-Fallback': 'browser',
+          'X-Chimmy-TTS-Fallback': 'browser',
         },
         body: JSON.stringify({
           error: 'TTS not configured',

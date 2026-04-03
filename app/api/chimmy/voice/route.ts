@@ -8,6 +8,7 @@ const OPENAI_TTS_MODEL = 'tts-1'
 const OPENAI_TTS_VOICE = 'nova'
 const OPENAI_TTS_SPEED = 1.05
 const ELEVENLABS_DEFAULT_MODEL = 'eleven_turbo_v2'
+const ELEVENLABS_RACHEL_PREMADE_ID = '21m00Tcm4TlvDq8ikWAM'
 
 function normalizeTtsInput(raw: string): string {
   return raw
@@ -24,13 +25,18 @@ function trimTtsInput(raw: string): string {
 }
 
 function getAllisonElevenLabsVoiceId(): string {
-  return process.env.ELEVENLABS_VOICE_ID?.trim() || ''
+  return (
+    process.env.ELEVENLABS_VOICE_ID?.trim() ||
+    process.env.ELEVENLABS_RACHEL_VOICE_ID?.trim() ||
+    ELEVENLABS_RACHEL_PREMADE_ID
+  )
 }
 
 async function synthesizeWithElevenLabs(text: string): Promise<Response | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim()
+  if (!apiKey) return null
+
   const voiceId = getAllisonElevenLabsVoiceId()
-  if (!apiKey || !voiceId) return null
 
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: 'POST',
@@ -43,9 +49,9 @@ async function synthesizeWithElevenLabs(text: string): Promise<Response | null> 
       text,
       model_id: process.env.ELEVENLABS_MODEL_ID?.trim() || ELEVENLABS_DEFAULT_MODEL,
       voice_settings: {
-        stability: 0.3,
-        similarity_boost: 0.82,
-        style: 0.35,
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.0,
         use_speaker_boost: true,
       },
     }),

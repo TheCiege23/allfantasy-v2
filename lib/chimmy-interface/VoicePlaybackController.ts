@@ -120,6 +120,8 @@ export function stopChimmyVoice(): void {
 
 export interface SpeakChimmyOptions {
   voice?: ChimmyTtsVoice
+  /** 0–1, applied to HTMLAudioElement when using server audio */
+  volume?: number
   onStart?: () => void
   onEnd?: () => void
   onError?: () => void
@@ -208,6 +210,11 @@ export function speakChimmy(
       })
       const objectUrl = URL.createObjectURL(blob)
       const audio = new Audio(objectUrl)
+      const vol =
+        typeof options?.volume === "number" && Number.isFinite(options.volume)
+          ? Math.min(1, Math.max(0, options.volume))
+          : 0.85
+      audio.volume = vol
 
       activeObjectUrl = objectUrl
       activeAudio = audio
