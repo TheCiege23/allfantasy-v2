@@ -14,6 +14,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { sleeperUserId: true },
+    });
+
     const [genericLeagues, sleeperLeagues] = await Promise.all([
       (prisma as any).league.findMany({
         where: { userId },
@@ -137,7 +142,10 @@ export async function GET() {
         return bDate - aDate;
       });
 
-    return NextResponse.json({ leagues });
+    return NextResponse.json({
+      leagues,
+      sleeperUserId: profile?.sleeperUserId ?? null,
+    });
   } catch (error: any) {
     console.error('[League List]', error);
     return NextResponse.json({ error: 'Failed to fetch leagues' }, { status: 500 });

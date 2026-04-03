@@ -8,6 +8,7 @@ import { PlayerImage } from '@/app/components/PlayerImage'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
 import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
+import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
 
 export type TeamTabProps = {
   league: UserLeague
@@ -16,10 +17,42 @@ export type TeamTabProps = {
   inviteToken?: string | null
 }
 
-type RosterPayload = {
+type DbRosterPayload = {
+  source?: 'db'
   roster: unknown
   faabRemaining?: number
   slotLimits?: { starters: number; bench: number; ir: number; taxi: number; devy: number } | null
+}
+
+type SleeperRosterBody = {
+  roster_id: number
+  starters: string[]
+  players: string[]
+  reserve: string[]
+  taxi: string[]
+  picks: unknown[]
+  settings: {
+    wins: number
+    losses: number
+    ties: number
+    fpts: number
+    fpts_decimal: number
+    waiver_budget_used: number
+    waiver_position: number
+  }
+}
+
+type SleeperUsersMap = Record<
+  string,
+  { display_name: string; avatar: string | null; team_name: string | null }
+>
+
+type SleeperApiPayload = {
+  source: 'sleeper'
+  roster: SleeperRosterBody | null
+  ownerId?: string | null
+  users: SleeperUsersMap
+  rosterPositions?: string[]
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -51,7 +84,7 @@ function getTaxiIds(playerData: unknown): string[] {
 
 function partitionRoster(
   playerData: unknown,
-  slotLimits: RosterPayload['slotLimits'],
+  slotLimits: DbRosterPayload['slotLimits'],
 ): { starters: string[]; bench: string[]; ir: string[]; taxi: string[] } {
   const all = getRosterPlayerIds(playerData)
   const starterIds = getStarterIds(playerData)
@@ -79,6 +112,39 @@ function partitionRoster(
   return { starters, bench, ir, taxi }
 }
 
+function partitionSleeperRoster(r: SleeperRosterBody): {
+  starters: string[]
+  bench: string[]
+  ir: string[]
+  taxi: string[]
+} {
+  const starters = r.starters.map(String)
+  const reserve = new Set((r.reserve ?? []).map(String))
+  const taxiSet = new Set((r.taxi ?? []).map(String))
+  const starterSet = new Set(starters)
+  const players = (r.players ?? []).map(String)
+  const bench = players.filter(
+    (id) => !starterSet.has(id) && !reserve.has(id) && !taxiSet.has(id),
+  )
+  return {
+    starters,
+    bench,
+    ir: (r.reserve ?? []).map(String),
+    taxi: (r.taxi ?? []).map(String),
+  }
+}
+
+function formatDraftPick(p: unknown): string {
+  if (!p || typeof p !== 'object') return 'Draft pick'
+  const o = p as Record<string, unknown>
+  const season = o.season ?? o.year
+  const round = o.round
+  const order = o.order ?? o.pick_no
+  if (season == null && round == null) return 'Draft pick'
+  const line = `${season} Round ${round} Pick`
+  return order != null ? `${line} #${order}` : line
+}
+
 function positionBadgeClass(pos: string): string {
   const p = pos.toUpperCase()
   if (p === 'QB') return 'border-red-500/35 bg-red-500/25 text-red-400'
@@ -90,18 +156,32 @@ function positionBadgeClass(pos: string): string {
   return 'border-white/15 bg-white/10 text-white/60'
 }
 
+function slotBadgeClass(slot: string): string {
+  const u = slot.toUpperCase()
+  if (u.includes('QB')) return 'border-red-500/35 bg-red-500/25 text-red-400'
+  if (u.includes('RB')) return 'border-emerald-500/35 bg-emerald-500/25 text-emerald-400'
+  if (u.includes('WR')) return 'border-blue-500/35 bg-blue-500/25 text-blue-400'
+  if (u.includes('TE')) return 'border-orange-500/35 bg-orange-500/25 text-orange-400'
+  if (u.includes('FLEX') || u.includes('SF') || u.includes('SUPER')) return 'border-cyan-500/35 bg-cyan-500/25 text-cyan-400'
+  if (u.includes('K')) return 'border-gray-500/35 bg-gray-500/25 text-gray-400'
+  if (u.includes('DEF') || u.includes('DST')) return 'border-purple-500/35 bg-purple-500/25 text-purple-400'
+  return 'border-white/15 bg-white/10 text-white/60'
+}
+
 function RosterRow({
   playerId,
   sport,
   players,
   playersLoading,
   onPlayerClick,
+  slotLabel,
 }: {
   playerId: string
   sport: string
   players: PlayerMap
   playersLoading: boolean
   onPlayerClick: (id: string) => void
+  slotLabel?: string
 }) {
   const resolved = resolvePlayerName(playerId, players)
   const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
@@ -110,26 +190,36 @@ function RosterRow({
     playersLoading || (!resolved.position && !resolved.team)
       ? '— · —'
       : `${resolved.position || '—'} · ${resolved.team || '—'}`
+  const leftBadge = slotLabel ?? pos
+  const badgeClass = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass(pos)
   return (
     <button
       type="button"
       onClick={() => onPlayerClick(playerId)}
       className="flex w-full items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]"
+      data-testid={`roster-row-${playerId}`}
     >
       <span
-        className={`inline-flex min-w-[2rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${positionBadgeClass(pos)}`}
+        className={`inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass}`}
       >
-        {pos}
+        {leftBadge}
       </span>
-      <PlayerImage
-        sleeperId={playerId}
-        sport={sport}
-        name={label}
-        position={resolved.position}
-        espnId={players[playerId]?.espn_id}
-        size={28}
-        variant="round"
-      />
+      <div className="relative shrink-0">
+        <PlayerImage
+          sleeperId={playerId}
+          sport={sport}
+          name={label}
+          position={resolved.position}
+          espnId={players[playerId]?.espn_id}
+          size={28}
+          variant="round"
+        />
+        <span
+          className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-[#0a1228] bg-white/25"
+          title="Injury status (coming soon)"
+          aria-hidden
+        />
+      </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-white">{label}</p>
         <p className="text-[10px] text-white/40">{sub}</p>
@@ -164,48 +254,79 @@ function SkeletonRows() {
 
 export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTabProps) {
   const { players, loading: playersLoading } = useSleeperPlayers()
+  const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
-  const [loading, setLoading] = useState(Boolean(userTeam))
+  const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
-  const [payload, setPayload] = useState<RosterPayload | null>(null)
+  const [payload, setPayload] = useState<DbRosterPayload | SleeperApiPayload | null>(null)
 
   const load = useCallback(async () => {
-    if (!userTeam) return
+    if (!isSleeper && !userTeam) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(`/api/league/roster?leagueId=${encodeURIComponent(league.id)}`, {
         cache: 'no-store',
       })
+      const data = (await res.json()) as Record<string, unknown>
+
       if (!res.ok) {
-        const errText = res.status === 404 ? 'No roster synced yet for your account.' : 'Could not load roster.'
+        const errText =
+          res.status === 404 ? 'No roster synced yet for your account.' : 'Could not load roster.'
         setError(errText)
         setPayload(null)
         return
       }
-      const data = (await res.json()) as RosterPayload
-      setPayload(data)
+
+      if (data.source === 'sleeper') {
+        setPayload(data as unknown as SleeperApiPayload)
+        return
+      }
+
+      setPayload(data as unknown as DbRosterPayload)
     } catch {
       setError('Could not load roster.')
       setPayload(null)
     } finally {
       setLoading(false)
     }
-  }, [league.id, userTeam])
+  }, [isSleeper, league.id, userTeam])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  const parts = useMemo(() => {
-    if (!payload?.roster) return null
+  const sleeperParts = useMemo(() => {
+    if (!payload || payload.source !== 'sleeper' || !payload.roster) return null
+    return partitionSleeperRoster(payload.roster)
+  }, [payload])
+
+  const sleeperStarterLabels = useMemo(() => {
+    if (!payload || payload.source !== 'sleeper' || !payload.roster) return []
+    const rp = payload.rosterPositions?.length
+      ? payload.rosterPositions
+      : ((league.settings as Record<string, unknown> | undefined)?.roster_positions as string[] | undefined) ??
+        []
+    return rp.length > 0 ? getStarterSlotLabels(rp) : payload.roster.starters.map((_, i) => `S${i + 1}`)
+  }, [payload, league.settings])
+
+  const dbParts = useMemo(() => {
+    if (!payload || payload.source === 'sleeper') return null
+    if (!payload.roster) return null
     return partitionRoster(payload.roster, payload.slotLimits ?? null)
   }, [payload])
 
-  const showIrSection = (parts?.ir.length ?? 0) > 0 || (payload?.slotLimits?.ir ?? 0) > 0
-  const showTaxiSection = league.isDynasty === true && ((parts?.taxi.length ?? 0) > 0 || (payload?.slotLimits?.taxi ?? 0) > 0)
+  const showIrSectionSleeper = (sleeperParts?.ir.length ?? 0) > 0
+  const showTaxiSectionSleeper = (sleeperParts?.taxi.length ?? 0) > 0
+  const showIrSectionDb = (dbParts?.ir.length ?? 0) > 0 || ((payload as DbRosterPayload)?.slotLimits?.ir ?? 0) > 0
+  const showTaxiSectionDb =
+    league.isDynasty === true &&
+    ((dbParts?.taxi.length ?? 0) > 0 || ((payload as DbRosterPayload)?.slotLimits?.taxi ?? 0) > 0)
 
-  if (!userTeam) {
+  if (!isSleeper && !userTeam) {
     const href = inviteToken ? `/join/${inviteToken}` : '/dashboard'
     return (
       <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 p-6 text-center">
@@ -220,12 +341,46 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
     )
   }
 
+  if (isSleeper && !loading && !error && payload?.source === 'sleeper' && payload.roster === null) {
+    const href = inviteToken ? `/join/${inviteToken}` : '/dashboard'
+    return (
+      <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 p-6 text-center">
+        <p className="text-sm font-semibold text-white/80">
+          No Sleeper roster linked to your account in this league
+        </p>
+        <p className="max-w-sm text-xs text-white/45">
+          Link your Sleeper profile in settings or claim a team so we can match your owner ID.
+        </p>
+        <Link
+          href={href}
+          className="rounded-xl border border-white/[0.12] px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
+        >
+          Back to dashboard
+        </Link>
+      </div>
+    )
+  }
+
+  const headerTeamName =
+    payload?.source === 'sleeper' && payload.ownerId && payload.users[payload.ownerId]
+      ? payload.users[payload.ownerId].team_name ||
+        payload.users[payload.ownerId].display_name ||
+        userTeam?.teamName
+      : userTeam?.teamName ?? 'Your team'
+
+  const waiverLine =
+    payload?.source === 'sleeper' && payload.roster
+      ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 · Waiver position: #${payload.roster.settings.waiver_position}`
+      : payload && payload.source !== 'sleeper' && (payload as DbRosterPayload).faabRemaining != null
+        ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} · Trade hub (soon)`
+        : 'FAAB: — · Trade hub (soon)'
+
   return (
     <div className="space-y-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-bold text-white">{userTeam.teamName}</h2>
+            <h2 className="text-base font-bold text-white">{headerTeamName}</h2>
             <button
               type="button"
               className="rounded-lg p-1 text-white/40 hover:bg-white/10 hover:text-white/70"
@@ -234,9 +389,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
               <Settings className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-white/35">
-            FAAB: {payload?.faabRemaining != null ? `$${payload.faabRemaining}` : '—'} · Trade hub (soon)
-          </p>
+          <p className="mt-1 text-[11px] text-white/35">{waiverLine}</p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-2 py-1">
           <button
@@ -265,7 +418,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
         <p className="rounded-xl border border-white/[0.07] bg-[#0c0c1e] px-4 py-3 text-sm text-white/50">{error}</p>
       ) : null}
 
-      {!loading && !error && parts ? (
+      {!loading && !error && payload?.source === 'sleeper' && payload.roster && sleeperParts ? (
         <>
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
@@ -279,7 +432,105 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
               </div>
             </div>
             <div className="space-y-1">
-              {parts.starters.map((id) => (
+              {sleeperParts.starters.map((id, i) => (
+                <RosterRow
+                  key={`${id}-${i}`}
+                  playerId={id}
+                  sport={league.sport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                  slotLabel={sleeperStarterLabels[i]}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Bench</p>
+            <div className="space-y-1">
+              {sleeperParts.bench.map((id) => (
+                <RosterRow
+                  key={id}
+                  playerId={id}
+                  sport={league.sport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                />
+              ))}
+            </div>
+          </section>
+
+          {showTaxiSectionSleeper ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Taxi</p>
+              <div className="space-y-1">
+                {sleeperParts.taxi.map((id) => (
+                  <RosterRow
+                    key={id}
+                    playerId={id}
+                    sport={league.sport}
+                    players={players}
+                    playersLoading={playersLoading}
+                    onPlayerClick={onPlayerClick}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {showIrSectionSleeper ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Reserve / IR</p>
+              <div className="space-y-1">
+                {sleeperParts.ir.map((id) => (
+                  <RosterRow
+                    key={id}
+                    playerId={id}
+                    sport={league.sport}
+                    players={players}
+                    playersLoading={playersLoading}
+                    onPlayerClick={onPlayerClick}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {payload.roster.picks.length > 0 ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Draft picks</p>
+              <ul className="space-y-1 text-xs text-white/70">
+                {payload.roster.picks.map((p, i) => (
+                  <li
+                    key={`pick-${i}`}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2"
+                  >
+                    {formatDraftPick(p)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {!loading && !error && payload && payload.source !== 'sleeper' && dbParts ? (
+        <>
+          <section>
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Starters</p>
+                <p className="text-[11px] text-white/35">Click a row to open the player card (stub).</p>
+              </div>
+              <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+                <span className="w-10 text-right">OWN%</span>
+                <span className="w-10 text-right">START%</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {dbParts.starters.map((id) => (
                 <RosterRow
                   key={id}
                   playerId={id}
@@ -295,7 +546,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
           <section>
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Bench</p>
             <div className="space-y-1">
-              {parts.bench.map((id) => (
+              {dbParts.bench.map((id) => (
                 <RosterRow
                   key={id}
                   playerId={id}
@@ -308,12 +559,12 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
             </div>
           </section>
 
-          {showIrSection ? (
+          {showIrSectionDb ? (
             <section>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">IR</p>
               <div className="space-y-1">
-                {parts.ir.length > 0 ? (
-                  parts.ir.map((id) => (
+                {dbParts.ir.length > 0 ? (
+                  dbParts.ir.map((id) => (
                     <RosterRow
                       key={id}
                       playerId={id}
@@ -330,12 +581,12 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
             </section>
           ) : null}
 
-          {showTaxiSection ? (
+          {showTaxiSectionDb ? (
             <section>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Taxi</p>
               <div className="space-y-1">
-                {parts.taxi.length > 0 ? (
-                  parts.taxi.map((id) => (
+                {dbParts.taxi.length > 0 ? (
+                  dbParts.taxi.map((id) => (
                     <RosterRow
                       key={id}
                       playerId={id}
@@ -354,7 +605,11 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
         </>
       ) : null}
 
-      {!loading && !error && !parts ? (
+      {!loading && !error && payload?.source === 'sleeper' && payload.roster && !sleeperParts ? (
+        <p className="text-sm text-white/45">No roster data.</p>
+      ) : null}
+
+      {!loading && !error && payload && payload.source !== 'sleeper' && !dbParts ? (
         <p className="text-sm text-white/45">No roster data.</p>
       ) : null}
     </div>
