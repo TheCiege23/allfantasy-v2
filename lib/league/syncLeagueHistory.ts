@@ -4,6 +4,7 @@ import {
   getLeagueRosters,
   getLeagueUsers,
   getPlayoffBracket,
+  type SleeperLeague,
   type SleeperPlayoffBracket,
   type SleeperRoster,
 } from "@/lib/sleeper-client";
@@ -81,16 +82,16 @@ export async function syncLeagueHistory(
   const yearsFound: number[] = [];
 
   for (let step = 0; step < MAX_CHAIN && currentId; step++) {
-    const [sleague, rosters, users, bracket] = await Promise.all([
+    const [sleeperLeague, rosters, users, bracket] = (await Promise.all([
       getLeagueInfo(currentId),
       getLeagueRosters(currentId),
       getLeagueUsers(currentId),
       getPlayoffBracket(currentId),
-    ]);
+    ])) as [SleeperLeague | null, SleeperRoster[], SleeperUserRow[], SleeperPlayoffBracket[]];
 
-    if (!sleague) break;
+    if (!sleeperLeague) break;
 
-    const seasonYear = parseInt(String(sleague.season), 10);
+    const seasonYear = parseInt(String(sleeperLeague.season), 10);
     if (!Number.isFinite(seasonYear)) break;
 
     const userByOwner = new Map<string, SleeperUserRow>();
@@ -157,9 +158,9 @@ export async function syncLeagueHistory(
         ? sortedByRecord[0].managerName
         : null;
 
-    const recRaw = sleague.scoring_settings as Record<string, number> | undefined;
+    const recRaw = sleeperLeague.scoring_settings as Record<string, number> | undefined;
     const rec = recRaw?.rec;
-    const settings = sleague.settings as Record<string, unknown> | undefined;
+    const settings = sleeperLeague.settings as Record<string, unknown> | undefined;
     const typeVal = settings?.type;
     const isDynasty = typeVal === 2 || typeVal === "2";
 
@@ -178,10 +179,10 @@ export async function syncLeagueHistory(
         runnerUpName,
         regularSeasonWinnerName,
         teamRecords: teamRecords as unknown as object[],
-        teamCount: sleague.total_rosters ?? null,
+        teamCount: sleeperLeague.total_rosters ?? null,
         scoringFormat: scoringFormatFromSettings(rec),
         isDynasty,
-        status: sleague.status === "complete" ? "complete" : "in_season",
+        status: sleeperLeague.status === "complete" ? "complete" : "in_season",
       },
       create: {
         leagueId,
@@ -193,18 +194,19 @@ export async function syncLeagueHistory(
         runnerUpName,
         regularSeasonWinnerName,
         teamRecords: teamRecords as unknown as object[],
-        teamCount: sleague.total_rosters ?? null,
+        teamCount: sleeperLeague.total_rosters ?? null,
         scoringFormat: scoringFormatFromSettings(rec),
         isDynasty,
-        status: sleague.status === "complete" ? "complete" : "in_season",
+        status: sleeperLeague.status === "complete" ? "complete" : "in_season",
       },
     });
 
     count += 1;
     yearsFound.push(seasonYear);
 
-    const prev = sleague.previous_league_id;
-    currentId = prev && String(prev).length > 0 ? String(prev) : null;
+    const previousLeagueId = sleeperLeague.previous_league_id as string | null | undefined;
+    currentId =
+      previousLeagueId != null && String(previousLeagueId).length > 0 ? String(previousLeagueId) : null;
     if (currentId) await sleep(DELAY_MS);
   }
 
