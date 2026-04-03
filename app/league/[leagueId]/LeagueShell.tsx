@@ -225,7 +225,7 @@ export function LeagueShell({
         </div>
       </main>
 
-      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[300px] md:max-w-[300px] md:flex-shrink-0">
+      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[200px] md:max-w-[200px] md:flex-shrink-0">
         <RightControlPanel
           leagues={leagueList}
           leaguesLoading={false}

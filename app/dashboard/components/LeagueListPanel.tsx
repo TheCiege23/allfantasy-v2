@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search } from 'lucide-react'
+import { Search, Star } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UserLeague } from '../types'
 import { LeagueAvatar } from './LeagueAvatar'
@@ -292,7 +292,10 @@ export function LeagueListPanel({
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="h-14 rounded-xl bg-white/5 animate-pulse" />
+              <div
+                key={index}
+                className={`rounded-xl bg-white/5 animate-pulse ${compact ? 'h-[52px]' : 'h-14'}`}
+              />
             ))}
           </div>
         ) : displayedLeagues.length ? (
@@ -349,46 +352,72 @@ export function LeagueListPanel({
 
                     <Link
                       href={`/league/${league.id}`}
-                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-1.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                         isSelected
                           ? 'border-l-cyan-500 bg-cyan-500/[0.08] hover:bg-cyan-500/12'
                           : 'border-l-transparent hover:bg-white/[0.04]'
-                      } ${compact ? 'min-h-[70px]' : ''}`}
+                      } ${
+                        compact
+                          ? 'min-h-[52px] px-2 py-2'
+                          : 'min-w-0 px-2 py-1.5'
+                      }`}
                       onClick={() => onSelect(league)}
                       scroll
                     >
-                      <div className={`flex items-start gap-2 ${compact ? 'min-h-[64px]' : ''}`}>
-                        <div className="shrink-0 pt-0.5">
-                          <LeagueAvatar league={league} size={compact ? 32 : 36} />
+                      <div className={`flex gap-2 ${compact ? 'items-center' : 'items-start'}`}>
+                        <div className={`shrink-0 ${compact ? '' : 'pt-0.5'}`}>
+                          <LeagueAvatar league={league} size={compact ? 24 : 36} />
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-1.5">
-                            <p className="min-w-0 truncate text-[13px] font-semibold text-white/90">{league.name}</p>
+                          <div className="flex min-w-0 items-start justify-between gap-1">
+                            <p
+                              className={`min-w-0 truncate font-semibold text-white/90 ${
+                                compact ? 'text-[11px]' : 'text-[13px]'
+                              }`}
+                            >
+                              {league.name}
+                            </p>
                             <span
-                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadge.className}`}
+                              className={`shrink-0 font-semibold ${
+                                compact
+                                  ? `rounded-md px-1.5 py-0.5 text-[8px] ${statusBadge.className}`
+                                  : `rounded-full px-1.5 py-0.5 text-[9px] ${statusBadge.className}`
+                              }`}
                             >
                               {statusBadge.label}
                             </span>
                           </div>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <div
+                            className={`flex flex-wrap items-center gap-0.5 ${compact ? 'mt-0.5' : 'mt-1 gap-1'}`}
+                          >
                             <span
-                              className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${platformPill.className}`}
+                              className={`rounded font-bold uppercase tracking-wide ${platformPill.className} ${
+                                compact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]'
+                              }`}
                             >
                               {platformPill.label}
                             </span>
-                            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/55">
+                            <span
+                              className={`rounded bg-white/[0.06] font-semibold uppercase tracking-wide text-white/55 ${
+                                compact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]'
+                              }`}
+                            >
                               {sportLabel}
                             </span>
-                            <span
-                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${conceptBadge.className}`}
-                            >
-                              {conceptBadge.label}
-                            </span>
+                            {!compact ? (
+                              <span
+                                className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${conceptBadge.className}`}
+                              >
+                                {conceptBadge.label}
+                              </span>
+                            ) : null}
                           </div>
 
-                          <p className="mt-1 text-[10px] text-white/40">
+                          <p
+                            className={`truncate text-white/40 ${compact ? 'mt-0.5 text-[8px]' : 'mt-1 text-[10px]'}`}
+                          >
                             {league.teamCount}-team · {seasonLabel} · {scoringLabel}
                           </p>
                         </div>
@@ -402,10 +431,21 @@ export function LeagueListPanel({
                         event.stopPropagation()
                         handleFavoriteToggle(league.id)
                       }}
-                      className="shrink-0 self-start pt-0.5 text-sm leading-none text-white/55 transition hover:text-white"
+                      className={`shrink-0 text-white/55 transition hover:text-white ${
+                        compact ? 'self-center p-0.5' : 'self-start pt-0.5 text-sm leading-none'
+                      }`}
                       aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
                     >
-                      {isFavorite ? '★' : '☆'}
+                      {compact ? (
+                        <Star
+                          className={`h-3 w-3 ${isFavorite ? 'fill-amber-400 text-amber-400' : 'text-white/55'}`}
+                          strokeWidth={isFavorite ? 0 : 1.5}
+                        />
+                      ) : isFavorite ? (
+                        '★'
+                      ) : (
+                        '☆'
+                      )}
                     </button>
                   </div>
                 </div>

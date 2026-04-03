@@ -41,7 +41,7 @@ export function RightControlPanel({
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-3 py-2">
+        <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-2 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">My Leagues</p>
           <button
             type="button"
@@ -78,31 +78,31 @@ export function RightControlPanel({
       */}
 
       <div
-        className="flex h-14 flex-shrink-0 items-center gap-3 border-t border-white/[0.07] bg-[#0a0a1f] px-3"
+        className="flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-2 py-2"
         data-dashboard-user-id={userId}
         data-dashboard-profile-footer
       >
-        <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
+        <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
           {userImage ? (
             <img src={userImage} alt="" className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-[11px] font-bold uppercase text-white">
+            <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase text-white">
               {profileInitials(userName)}
             </span>
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold text-white">{userName}</p>
+          <p className="truncate text-[12px] font-semibold text-white">{userName}</p>
           {subtitle ? (
-            <p className="truncate text-[10px] text-white/40">{subtitle}</p>
+            <p className="truncate text-[9px] leading-tight text-white/40">{subtitle}</p>
           ) : null}
         </div>
         <Link
           href="/settings"
-          className="flex flex-shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/[0.06]"
+          className="flex shrink-0 rounded-lg p-1 transition-colors hover:bg-white/[0.06]"
           aria-label="Settings"
         >
-          <Settings size={16} className="text-white/40 transition-colors hover:text-white/80" />
+          <Settings className="h-3.5 w-3.5 text-white/40 transition-colors hover:text-white/80" />
         </Link>
       </div>
     </div>

@@ -1,6 +1,6 @@
-/** Legacy pixel defaults; desktop `DashboardShell` uses w-[40%] / w-[35%] / w-[25%] for left/center/right. */
+/** Legacy pixel defaults; desktop `DashboardShell` uses w-[40%] / w-[35%] / w-[200px] for left/center/right. */
 export const DASHBOARD_LEFT_PANEL_WIDTH = 280
-export const DASHBOARD_RIGHT_PANEL_WIDTH = 300
+export const DASHBOARD_RIGHT_PANEL_WIDTH = 200
 
 export type LeagueListStatus = 'pre_draft' | 'drafting' | 'in_season' | 'complete' | string
 
