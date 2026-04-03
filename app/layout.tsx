@@ -15,7 +15,7 @@ import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
 import { buildSeoMeta } from '@/lib/seo';
-import { resolveTheme } from '@/lib/theme';
+import { resolveEffectiveDataMode } from '@/lib/theme';
 import {
   buildLanguageInitScript,
   buildThemeInitScript,
@@ -73,7 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieLang = cookieStore.get('af_lang')?.value;
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const cookieMode = cookieStore.get('af_mode')?.value;
-  const htmlMode = resolveTheme(cookieMode);
+  const htmlMode = resolveEffectiveDataMode(cookieMode);
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';

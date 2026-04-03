@@ -30,6 +30,11 @@ async function canAccessLeague(leagueId: string, userId: string) {
   return league.teams.some((team) => team.claimedByUserId === userId)
 }
 
+function createdAtToUnixMs(createdAt: string): number {
+  const t = new Date(createdAt).getTime()
+  return Number.isFinite(t) ? t : Date.now()
+}
+
 function toClientMessage(message: {
   id: string
   senderUserId?: string | null
@@ -40,13 +45,21 @@ function toClientMessage(message: {
   messageType?: string | null
   metadata?: Record<string, unknown> | null
 }) {
+  const authorName = message.senderName ?? 'Manager'
+  const authorAvatar = message.senderAvatarUrl ?? null
+  const createdMs = createdAtToUnixMs(message.createdAt)
   return {
     id: message.id,
     authorId: message.senderUserId ?? '',
-    authorName: message.senderName ?? 'Manager',
-    authorAvatar: message.senderAvatarUrl ?? null,
+    authorName,
+    authorAvatar,
+    /** Sleeper-style field names — pass through to clients */
+    author_display_name: authorName,
+    author_avatar: authorAvatar,
     text: message.body,
     createdAt: message.createdAt,
+    /** Unix timestamp in ms (Sleeper-compatible) */
+    created: createdMs,
     messageType: message.messageType ?? 'text',
     metadata: message.metadata ?? null,
   }

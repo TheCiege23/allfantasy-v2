@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Bot, MessageCircle, Users } from 'lucide-react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 
-type AfSubTab = 'chimmy' | 'direct' | 'groups'
+type AfSubTab = 'chimmy' | 'direct' | 'af_huddle'
 
 const AF_SUB_TABS: Array<{
   id: AfSubTab
@@ -14,7 +14,7 @@ const AF_SUB_TABS: Array<{
 }> = [
   { id: 'direct', label: 'Direct', title: 'Direct messages', Icon: MessageCircle },
   { id: 'chimmy', label: 'Chimmy', title: 'Chimmy — full view in left panel', Icon: Bot },
-  { id: 'groups', label: 'Groups', title: 'Group chats', Icon: Users },
+  { id: 'af_huddle', label: 'AF Huddle', title: 'AF Huddle', Icon: Users },
 ]
 
 type AFChatDMPanelProps = {
@@ -84,7 +84,7 @@ export function AFChatDMPanel({ userId }: AFChatDMPanelProps) {
           </div>
         ) : null}
 
-        {afTab === 'groups' ? (
+        {afTab === 'af_huddle' ? (
           <div className="flex h-full min-h-0 items-center justify-center px-4 text-center">
             <p className="text-[12px] text-white/35">No group chats yet</p>
           </div>

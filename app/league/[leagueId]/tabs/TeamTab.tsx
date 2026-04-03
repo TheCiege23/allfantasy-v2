@@ -157,6 +157,16 @@ function positionBadgeClass(pos: string): string {
   return 'border-white/15 bg-white/10 text-white/60'
 }
 
+function managerInitials(name: string): string {
+  const t = name.trim()
+  if (!t) return '?'
+  const parts = t.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
+  }
+  return t.slice(0, 2).toUpperCase()
+}
+
 function slotBadgeClass(slot: string): string {
   const u = slot.toUpperCase()
   if (u.includes('QB')) return 'border-red-500/35 bg-red-500/25 text-red-400'
@@ -384,6 +394,15 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
         userTeam?.teamName
       : userTeam?.teamName ?? 'Your team'
 
+  const sleeperOwner =
+    payload?.source === 'sleeper' && payload.ownerId ? payload.users[payload.ownerId] : null
+  const ownerAvatarSrc = (() => {
+    if (!sleeperOwner?.avatar?.trim()) return null
+    const raw = sleeperOwner.avatar.trim()
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+    return `https://sleepercdn.com/avatars/${raw}`
+  })()
+
   const waiverLine =
     payload?.source === 'sleeper' && payload.roster
       ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 · Waiver position: #${payload.roster.settings.waiver_position}`
@@ -396,6 +415,22 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
+            {sleeperOwner ? (
+              ownerAvatarSrc ? (
+                <img
+                  src={ownerAvatarSrc}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-full border border-white/10 object-cover"
+                />
+              ) : (
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/80 to-cyan-600/80 text-[11px] font-bold text-white"
+                  aria-hidden
+                >
+                  {managerInitials(sleeperOwner.display_name ?? headerTeamName ?? 'Manager')}
+                </div>
+              )
+            ) : null}
             <h2 className="text-base font-bold text-white">{headerTeamName}</h2>
             <button
               type="button"

@@ -7,7 +7,7 @@ import {
   THEME_STORAGE_KEY,
   THEME_COOKIE_KEY,
   DEFAULT_THEME,
-  resolveTheme,
+  normalizeStoredTheme,
   type ThemeId,
 } from "@/lib/theme"
 import { applyThemeToDocument } from "@/lib/preferences/HtmlPreferenceSync"
@@ -18,20 +18,20 @@ export function getStoredTheme(): ThemeMode {
   if (typeof window === "undefined") return DEFAULT_THEME
   try {
     const v = window.localStorage.getItem(THEME_STORAGE_KEY)
-    return resolveTheme(v)
+    return normalizeStoredTheme(v)
   } catch {}
   return DEFAULT_THEME
 }
 
 export function setStoredTheme(mode: ThemeMode): void {
-  const resolvedMode = resolveTheme(mode)
+  const stored = normalizeStoredTheme(mode)
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, resolvedMode)
+    window.localStorage.setItem(THEME_STORAGE_KEY, stored)
   } catch {}
   try {
-    document.cookie = `${THEME_COOKIE_KEY}=${resolvedMode}; path=/; max-age=31536000; samesite=lax`
+    document.cookie = `${THEME_COOKIE_KEY}=${stored}; path=/; max-age=31536000; samesite=lax`
   } catch {}
   try {
-    applyThemeToDocument(resolvedMode)
+    applyThemeToDocument(stored)
   } catch {}
 }

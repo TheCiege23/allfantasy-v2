@@ -75,6 +75,7 @@
     "openai": "^6.17.0",
     "p-limit": "^7.2.0",
     "p-retry": "^7.1.1",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-day-picker": "^9.13.2",
     "react-dom": "^18.3.1",

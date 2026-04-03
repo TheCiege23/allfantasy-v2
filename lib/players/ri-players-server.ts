@@ -1,39 +1,36 @@
 /**
- * Rolling Insights DataFeeds:
- * - GraphQL + OAuth (client_credentials): NFL, MLB rosters/teams
- * - REST (?RSC_token=CLIENT_ID): NBA, NHL, NCAAFB, NCAABB, SOCCER, PGA (RSC = `ROLLING_INSIGHTS_CLIENT_ID2`)
+ * Rolling Insights DataFeeds
+ * GraphQL → NFL, MLB (`players` query + `nflTeams` / `mlbTeams`)
+ * REST   → NBA, NHL, SOCCER, PGA, NCAABB, NCAAFB (`/api/v1/player-info/{sport}`)
  */
 
 import { unstable_cache } from 'next/cache'
 
-// ── Legacy map shape (consumers: Player enrichment, /api/players/sync) ─────
+// ── Legacy map shape (caching, enrichment) ──────────────────────────────────
 export type RiPlayerValue = {
   name: string
   headshot_url: string | null
   position: string
   team: string
-  /** ESPN player id when present in RI payloads */
   espn_id?: string | null
 }
 
 export type RiPlayerMap = Record<string, RiPlayerValue>
 
-const DEFAULT_REST_BASE = 'http://rest.datafeeds.rolling-insights.com/api/v1'
+const RI_REST_BASE = 'http://rest.datafeeds.rolling-insights.com'
+const RI_GRAPHQL_URL = 'https://datafeeds.rolling-insights.com/graphql'
+const RI_AUTH_URL = 'https://datafeeds.rolling-insights.com/auth/token'
 
-function getRestBase(): string {
-  const b = process.env.ROLLING_INSIGHTS_REST_BASE?.trim().replace(/\/+$/, '')
-  return b || DEFAULT_REST_BASE
-}
+// ─── Auth (cached per client id) ───────────────────────────────────────────
 
-// ── OAuth token cache (GraphQL only) ───────────────────────────────────────
 const tokenCache: Record<string, { token: string; expiresAt: number }> = {}
 
-async function getAccessToken(clientId: string, clientSecret: string): Promise<string> {
+async function getRIBearerToken(clientId: string, clientSecret: string): Promise<string> {
   const cacheKey = clientId
   const cached = tokenCache[cacheKey]
   if (cached && Date.now() < cached.expiresAt - 60_000) return cached.token
 
-  const res = await fetch('https://datafeeds.rolling-insights.com/auth/token', {
+  const res = await fetch(RI_AUTH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -43,82 +40,34 @@ async function getAccessToken(clientId: string, clientSecret: string): Promise<s
     }),
   })
   if (!res.ok) throw new Error(`RI auth failed: ${res.status} ${await res.text()}`)
-  const data = (await res.json()) as { access_token?: string; expires_in?: number }
-  const token = data.access_token
-  if (!token) throw new Error('RI auth: missing access_token')
-  const expiresIn = data.expires_in ?? 3600
-  tokenCache[cacheKey] = { token, expiresAt: Date.now() + expiresIn * 1000 }
-  return token
+  const json = (await res.json()) as { access_token?: string; expires_in?: number }
+  const access = json.access_token
+  if (!access) throw new Error('RI auth: missing access_token')
+  const expiresIn = json.expires_in ?? 3600
+  tokenCache[cacheKey] = { token: access, expiresAt: Date.now() + expiresIn * 1000 }
+  return access
 }
 
-async function riQuery(query: string, clientId: string, clientSecret: string): Promise<unknown> {
-  const token = await getAccessToken(clientId, clientSecret)
-  const res = await fetch('https://datafeeds.rolling-insights.com/graphql', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query }),
-    signal: AbortSignal.timeout(30_000),
-  })
-  if (!res.ok) throw new Error(`RI GraphQL failed: ${res.status} ${await res.text()}`)
-  const json = (await res.json()) as { data?: unknown; errors?: unknown }
-  if (json.errors) console.warn('RI GraphQL errors:', json.errors)
-  return json.data
-}
+// ─── Shared player shape ───────────────────────────────────────────────────
 
-function getGraphQLCredentials(sport: string): { clientId: string; clientSecret: string } {
-  const set2Sports = ['MLB']
-  if (set2Sports.includes(sport.toUpperCase())) {
-    return {
-      clientId: process.env.ROLLING_INSIGHTS_CLIENT_ID2 ?? '',
-      clientSecret: process.env.ROLLING_INSIGHTS_CLIENT_SECRET2 ?? '',
-    }
-  }
-  return {
-    clientId: process.env.ROLLING_INSIGHTS_CLIENT_ID ?? '',
-    clientSecret: process.env.ROLLING_INSIGHTS_CLIENT_SECRET ?? '',
-  }
-}
-
-const SPORT_QUERY_MAP: Record<string, { roster: string; teams: string }> = {
-  NFL: { roster: 'nflRoster', teams: 'nflTeams' },
-  MLB: { roster: 'mlbRoster', teams: 'mlbTeams' },
-}
-
-function getCurrentSeason(): string {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const startYear = month >= 8 ? year : year - 1
-  return `${startYear}-${startYear + 1}`
-}
-
-/** GraphQL `img` is often a bare filename/UUID until CDN base is documented — skip for headshot chain. */
-function graphqlPlayerImgToHeadshotUrl(img: unknown): string {
-  const s = String(img ?? '').trim()
-  if (!s) return ''
-  if (/^https?:\/\//i.test(s)) return s
-  return ''
-}
-
-function graphqlTeamImgToUrl(img: unknown): string {
-  const s = String(img ?? '').trim()
-  if (!s) return ''
-  if (/^https?:\/\//i.test(s)) return s
-  return ''
-}
-
-export type RIPlayer = {
+export interface RIPlayer {
   ri_id: string
-  name: string
+  full_name: string
   position: string
-  team_abbr: string
-  team_name: string
-  team_img: string
-  headshot_url: string
+  team: string
+  team_id: string | null
   sport: string
+  /** Empty when no usable RI image — PlayerImage falls through to ESPN CDN */
+  headshot_url: string
+  espn_id: string | null
+  status: string | null
+  jersey_number: string | null
+  height: string | null
+  weight: number | null
+  college: string | null
+  bats: string | null // MLB only: "R" | "L" | "S"
+  throws: string | null // MLB only: "R" | "L"
+  all_star: boolean | null // MLB only
 }
 
 export type RITeam = {
@@ -130,38 +79,221 @@ export type RITeam = {
   sport: string
 }
 
-const GRAPHQL_SPORTS = new Set(['NFL', 'MLB'])
+// ─── REST: player-info ─────────────────────────────────────────────────────
 
-const REST_SPORTS = new Set(['NBA', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER', 'PGA'])
-
-function getRscTokenSet2(): string {
-  return process.env.ROLLING_INSIGHTS_CLIENT_ID2?.trim() ?? ''
-}
-
-/** One log per sport per process — sample raw REST player shape. */
-const restPlayerSampleLogged = new Set<string>()
-
-function logRestFirstPlayerSample(sport: string, raw: unknown) {
-  if (restPlayerSampleLogged.has(sport)) return
-  restPlayerSampleLogged.add(sport)
-  try {
-    console.log('[RI REST] first player object', sport, JSON.stringify(raw))
-  } catch {
-    console.log('[RI REST] first player object', sport, raw)
+function mapRESTPlayer(raw: Record<string, unknown>, sport: string): RIPlayer {
+  return {
+    ri_id: String(raw.player_id ?? ''),
+    full_name: String(raw.player ?? ''),
+    position: String(raw.position ?? raw.position_category ?? ''),
+    team: String(raw.team ?? ''),
+    team_id: raw.team_id != null ? String(raw.team_id) : null,
+    sport,
+    headshot_url: '',
+    espn_id: null,
+    status: raw.status != null ? String(raw.status) : null,
+    jersey_number: raw.number != null ? String(raw.number) : null,
+    height: raw.height != null ? String(raw.height) : null,
+    weight: typeof raw.weight === 'number' ? raw.weight : null,
+    college: (raw.college as string) ?? null,
+    bats: (raw.bats as string) ?? null,
+    throws: (raw.throws as string) ?? null,
+    all_star: raw.all_star != null ? Boolean(raw.all_star) : null,
   }
 }
 
-function extractRestRecordArray(data: unknown): Record<string, unknown>[] {
+export async function fetchRIPlayersREST(sport: string): Promise<RIPlayer[]> {
+  /** REST `RSC_token` is the DataFeeds RSC credential (set 2 secret), not the OAuth client id. */
+  const rscToken = process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim()
+  if (!rscToken) throw new Error('ROLLING_INSIGHTS_CLIENT_SECRET2 is not set (RSC token for REST)')
+  const authToken: string = rscToken
+
+  async function load(key: string): Promise<Record<string, unknown>[]> {
+    const leagueParam = key === 'SOCCER' ? '&league=EPL' : ''
+    const url = `${RI_REST_BASE}/api/v1/player-info/${key}?RSC_token=${encodeURIComponent(authToken)}${leagueParam}`
+    console.log(`[RI REST] fetching player-info for ${key}${leagueParam ? ' (league=EPL)' : ''}`)
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(55_000),
+      headers: { Accept: 'application/json' },
+    })
+
+    if (res.status === 304) {
+      console.log(`[RI REST] ${key} — 304 Not Modified, no new data`)
+      return []
+    }
+
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`[RI REST] ${key} HTTP ${res.status}: ${text.slice(0, 200)}`)
+    }
+
+    const json = (await res.json()) as { data?: Record<string, unknown[]> }
+    // SOCCER responses are keyed as "EPL" in the data envelope, not "SOCCER"
+    const dataKey = key === 'SOCCER' ? 'EPL' : key
+    const raw = json?.data?.[dataKey] ?? []
+    return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
+  }
+
+  const rows = await load(sport)
+  const dataKey = sport === 'SOCCER' ? 'EPL' : sport
+
+  console.log(`[RI REST] ${dataKey} — ${rows.length} players`)
+  if (rows.length > 0) {
+    console.log(`[RI REST] first player object ${dataKey}`, rows[0])
+  }
+
+  return rows.map((p) => mapRESTPlayer(p, dataKey))
+}
+
+// ─── GraphQL: NFL players only (MLB players use REST player-info) ───────────
+
+const NFL_PLAYERS_QUERY = `
+  query Players($sport: String!) {
+    players(sport: $sport) {
+      id
+      firstName
+      lastName
+      position
+      team
+      teamId
+      img
+      espnId
+      status
+      jerseyNumber
+    }
+  }
+`
+
+function mapGraphQLPlayer(raw: Record<string, unknown>): RIPlayer {
+  const fn = String(raw.firstName ?? '').trim()
+  const ln = String(raw.lastName ?? '').trim()
+  const fullName = [fn, ln].filter(Boolean).join(' ')
+
+  const imgStr = String(raw.img ?? '')
+  const isUUID = /^[0-9a-f-]{36}\./i.test(imgStr)
+  const headshot_url = imgStr && !isUUID ? imgStr : ''
+
+  return {
+    ri_id: String(raw.id ?? ''),
+    full_name: fullName,
+    position: String(raw.position ?? ''),
+    team: String(raw.team ?? ''),
+    team_id: raw.teamId != null ? String(raw.teamId) : null,
+    sport: 'NFL',
+    headshot_url,
+    espn_id: raw.espnId != null ? String(raw.espnId) : null,
+    status: raw.status != null ? String(raw.status) : null,
+    jersey_number: raw.jerseyNumber != null ? String(raw.jerseyNumber) : null,
+    height: null,
+    weight: null,
+    college: null,
+    bats: null,
+    throws: null,
+    all_star: null,
+  }
+}
+
+/** NFL roster via GraphQL — MLB uses `fetchRIPlayersREST('MLB')`. */
+export async function fetchRIPlayersGraphQL(): Promise<RIPlayer[]> {
+  const clientId = process.env.ROLLING_INSIGHTS_CLIENT_ID
+  const clientSecret = process.env.ROLLING_INSIGHTS_CLIENT_SECRET
+
+  if (!clientId?.trim() || !clientSecret?.trim()) {
+    throw new Error('Missing RI GraphQL credentials for NFL')
+  }
+
+  const token = await getRIBearerToken(clientId.trim(), clientSecret.trim())
+
+  const res = await fetch(RI_GRAPHQL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query: NFL_PLAYERS_QUERY, variables: { sport: 'NFL' } }),
+    signal: AbortSignal.timeout(55_000),
+  })
+
+  if (!res.ok) throw new Error(`[RI GraphQL] NFL HTTP ${res.status} ${await res.text().then((t) => t.slice(0, 200))}`)
+
+  const json = (await res.json()) as { data?: { players?: unknown[] }; errors?: unknown }
+  if (json.errors) throw new Error(`[RI GraphQL] NFL errors: ${JSON.stringify(json.errors)}`)
+
+  const raw = (json?.data?.players ?? []) as Record<string, unknown>[]
+  console.log(`[RI GraphQL] NFL — ${raw.length} players`)
+
+  return raw.map((p) => mapGraphQLPlayer(p)).filter((p) => p.ri_id && p.full_name)
+}
+
+// ─── GraphQL teams (NFL / MLB only — roster-style queries) ───────────────────
+
+function graphqlTeamImgToUrl(img: unknown): string {
+  const s = String(img ?? '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  return ''
+}
+
+async function fetchGraphQLTeamsNflMlb(sport: 'NFL' | 'MLB'): Promise<RITeam[]> {
+  const query =
+    sport === 'NFL'
+      ? `{ nflTeams { id team abbrv mascot img } }`
+      : `{ mlbTeams { id team abbrv mascot img } }`
+
+  const isMLB = sport === 'MLB'
+  const clientId = isMLB ? process.env.ROLLING_INSIGHTS_CLIENT_ID2 : process.env.ROLLING_INSIGHTS_CLIENT_ID
+  const clientSecret = isMLB
+    ? process.env.ROLLING_INSIGHTS_CLIENT_SECRET2
+    : process.env.ROLLING_INSIGHTS_CLIENT_SECRET
+
+  if (!clientId?.trim() || !clientSecret?.trim()) return []
+
+  const token = await getRIBearerToken(clientId.trim(), clientSecret.trim())
+  const res = await fetch(RI_GRAPHQL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query }),
+    signal: AbortSignal.timeout(55_000),
+  })
+  if (!res.ok) return []
+
+  const json = (await res.json()) as { data?: Record<string, unknown[]>; errors?: unknown }
+  if (json.errors) {
+    console.warn('RI GraphQL teams errors:', json.errors)
+    return []
+  }
+
+  const key = sport === 'NFL' ? 'nflTeams' : 'mlbTeams'
+  const rows = (json.data?.[key] as unknown[]) ?? []
+
+  return rows
+    .map((r: unknown) => {
+      const t = r as Record<string, unknown>
+      return {
+        ri_id: String(t.id ?? ''),
+        name: String(t.team ?? ''),
+        abbr: String(t.abbrv ?? ''),
+        mascot: String(t.mascot ?? ''),
+        logo_url: graphqlTeamImgToUrl(t.img),
+        sport,
+      }
+    })
+    .filter((t) => t.ri_id)
+}
+
+// ─── REST teams ──────────────────────────────────────────────────────────────
+
+function extractRestArray(data: unknown): Record<string, unknown>[] {
   if (Array.isArray(data)) {
     return data.filter((x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x))
   }
   if (data && typeof data === 'object') {
     const d = data as Record<string, unknown>
-    const nested = d.data ?? d.Data
-    if (Array.isArray(nested)) {
-      return nested.filter((x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x))
-    }
-    for (const key of ['players', 'Players', 'teams', 'Teams', 'data', 'results', 'items']) {
+    for (const key of ['teams', 'Teams', 'data', 'players']) {
       const v = d[key]
       if (Array.isArray(v)) {
         return v.filter((x): x is Record<string, unknown> => x !== null && typeof x === 'object' && !Array.isArray(x))
@@ -171,340 +303,55 @@ function extractRestRecordArray(data: unknown): Record<string, unknown>[] {
   return []
 }
 
-async function restGetJson(path: string, rscToken: string): Promise<unknown> {
-  const base = getRestBase()
-  const url = `${base}/${path.replace(/^\//, '')}?RSC_token=${encodeURIComponent(rscToken)}`
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(60_000),
-  })
-  const text = await res.text()
-  if (!res.ok) {
-    console.warn(`RI REST ${path} failed: ${res.status} ${text.slice(0, 200)}`)
-    return null
-  }
-  try {
-    return JSON.parse(text) as unknown
-  } catch {
-    console.warn(`RI REST ${path}: non-JSON response`)
-    return null
-  }
-}
-
-function str(v: unknown): string {
-  if (v == null) return ''
-  if (typeof v === 'string') return v.trim()
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  return ''
-}
-
-function pickPlayerId(p: Record<string, unknown>): string {
-  for (const k of ['id', 'player_id', 'PlayerId', 'playerId', 'RI_ID', 'ri_id', 'playerID']) {
-    const v = str(p[k])
-    if (v) return v
-  }
-  return ''
-}
-
-function pickPlayerName(p: Record<string, unknown>): string {
-  for (const k of [
-    'full_name',
-    'fullName',
-    'player',
-    'name',
-    'PlayerName',
-    'player_name',
-    'displayName',
-    'display_name',
-  ]) {
-    const v = str(p[k])
-    if (v) return v
-  }
-  return ''
-}
-
-function pickPosition(p: Record<string, unknown>): string {
-  for (const k of ['position', 'pos', 'Position', 'primary_position']) {
-    const v = str(p[k])
-    if (v) return v
-  }
-  return ''
-}
-
-function pickHeadshotRest(p: Record<string, unknown>): string {
-  for (const k of [
-    'headshot_url',
-    'HeadshotUrl',
-    'headshotUrl',
-    'headshot',
-    'Headshot',
-    'image',
-    'img',
-    'photo',
-    'PhotoUrl',
-    'photo_url',
-    'picture',
-    'PictureUrl',
-  ]) {
-    const v = p[k]
-    if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) return v.trim()
-  }
-  for (const [k, v] of Object.entries(p)) {
-    if (typeof v !== 'string') continue
-    const t = v.trim()
-    if (!/^https?:\/\//i.test(t)) continue
-    if (/head|shot|photo|image|img|avatar|thumb|picture/i.test(k)) return t
-  }
-  return ''
-}
-
-function mergeTeamFields(p: Record<string, unknown>): Record<string, unknown> {
-  const team = p.team
-  if (team && typeof team === 'object' && !Array.isArray(team)) {
-    return { ...p, ...(team as Record<string, unknown>) }
-  }
-  return p
-}
-
-function pickTeamAbbr(p: Record<string, unknown>): string {
-  const m = mergeTeamFields(p)
-  for (const k of ['abbrv', 'abbr', 'abbreviation', 'team_abbr', 'teamAbbr', 'TeamAbbr', 'code']) {
-    const v = str(m[k])
-    if (v && v.length <= 8) return v
-  }
-  return ''
-}
-
-function pickTeamName(p: Record<string, unknown>): string {
-  const m = mergeTeamFields(p)
-  for (const k of ['team_name', 'teamName', 'team', 'club', 'ClubName', 'name', 'city']) {
-    const v = str(m[k])
-    if (v && v.length > 1 && !/^https?:/i.test(v)) return v
-  }
-  return ''
-}
-
-function pickTeamImgRest(p: Record<string, unknown>): string {
-  const m = mergeTeamFields(p)
-  for (const k of ['team_logo', 'logo_url', 'logo', 'img', 'image', 'crest', 'badge']) {
-    const v = m[k]
-    if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) return v.trim()
-  }
-  return ''
-}
-
-function mapRestPlayerRow(raw: Record<string, unknown>, sport: string): RIPlayer | null {
-  const id = pickPlayerId(raw)
-  const name = pickPlayerName(raw)
-  if (!id || !name) return null
-  const m = mergeTeamFields(raw)
-  return {
-    ri_id: id,
-    name,
-    position: pickPosition(raw),
-    team_abbr: pickTeamAbbr(m),
-    team_name: pickTeamName(m),
-    team_img: pickTeamImgRest(m),
-    headshot_url: pickHeadshotRest(raw),
-    sport,
-  }
-}
-
-function pickTeamId(t: Record<string, unknown>): string {
-  for (const k of ['id', 'team_id', 'TeamId', 'teamId']) {
-    const v = str(t[k])
-    if (v) return v
-  }
-  return ''
-}
-
-function pickTeamDisplayName(t: Record<string, unknown>): string {
-  for (const k of ['team', 'name', 'full_name', 'club', 'nickname', 'city']) {
-    const v = str(t[k])
-    if (v) return v
-  }
-  return ''
-}
-
-function pickMascot(t: Record<string, unknown>): string {
-  const v = str(t.mascot ?? t.Mascot)
-  return v
-}
-
-function pickTeamLogoRest(t: Record<string, unknown>): string {
-  for (const k of ['img', 'image', 'logo', 'logo_url', 'crest', 'badge', 'photo']) {
-    const v = t[k]
-    if (typeof v === 'string' && /^https?:\/\//i.test(v.trim())) return v.trim()
-  }
-  for (const [k, v] of Object.entries(t)) {
-    if (typeof v !== 'string') continue
-    const s = v.trim()
-    if (/^https?:\/\//i.test(s) && /logo|crest|badge|image|img/i.test(k)) return s
-  }
-  return ''
-}
-
-function mapRestTeamRow(raw: Record<string, unknown>, sport: string): RITeam | null {
-  const id = pickTeamId(raw)
-  if (!id) return null
-  const abbr = pickTeamAbbr(raw) || str(raw.code) || str(raw.short_name)
-  const name = pickTeamDisplayName(raw)
-  return {
-    ri_id: id,
-    name: name || abbr || id,
-    abbr,
-    mascot: pickMascot(raw),
-    logo_url: pickTeamLogoRest(raw),
-    sport,
-  }
-}
-
-async function fetchRESTPlayersForSport(sport: string): Promise<RIPlayer[]> {
-  const token = getRscTokenSet2()
-  if (!token) {
-    console.warn('RI REST: missing ROLLING_INSIGHTS_CLIENT_ID2 (RSC_token)')
-    return []
-  }
-
-  let pathSport = sport
-  let data = await restGetJson(`players/${pathSport}`, token)
-  let rows = extractRestRecordArray(data)
-
-  if (sport === 'SOCCER' && rows.length === 0) {
-    data = await restGetJson('players/EPL', token)
-    rows = extractRestRecordArray(data)
-    pathSport = 'EPL(fallback)'
-  }
-
-  if (rows.length > 0) logRestFirstPlayerSample(sport, rows[0])
-
-  return rows.map((r) => mapRestPlayerRow(r, sport)).filter((p): p is RIPlayer => p !== null)
-}
-
-async function fetchRESTTeamsForSport(sport: string): Promise<RITeam[]> {
-  const token = getRscTokenSet2()
+async function fetchRESTTeams(sport: string): Promise<RITeam[]> {
+  const token = process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim()
   if (!token) return []
 
-  let data = await restGetJson(`teams/${sport}`, token)
-  let rows = extractRestRecordArray(data)
+  const leagueParam = sport === 'SOCCER' ? '&league=EPL' : ''
+  const url = `${RI_REST_BASE}/api/v1/teams/${sport}?RSC_token=${encodeURIComponent(token)}${leagueParam}`
+  const res = await fetch(url, { signal: AbortSignal.timeout(55_000), headers: { Accept: 'application/json' } })
+  if (res.status === 304) return []
+  if (!res.ok) return []
 
-  if (sport === 'SOCCER' && rows.length === 0) {
-    data = await restGetJson('teams/EPL', token)
-    rows = extractRestRecordArray(data)
-  }
-
-  return rows.map((r) => mapRestTeamRow(r, sport)).filter((t): t is RITeam => t !== null)
-}
-
-async function fetchGraphQLPlayers(sport: string): Promise<RIPlayer[]> {
-  const s = sport.toUpperCase()
-  const queryMap = SPORT_QUERY_MAP[s]
-  if (!queryMap) return []
-
-  const { clientId, clientSecret } = getGraphQLCredentials(s)
-  if (!clientId || !clientSecret) {
-    console.warn(`RI GraphQL: no credentials for ${s}`)
-    return []
-  }
-
-  const season = getCurrentSeason()
-  const query = `{
-    ${queryMap.roster}(season: "${season}") {
-      id
-      player
-      position
-      img
-      status
-      team {
-        id
-        team
-        abbrv
-        mascot
-        img
-      }
-    }
-  }`
-
+  let data: unknown
   try {
-    const data = (await riQuery(query, clientId, clientSecret)) as Record<string, unknown>
-    const rows = (data?.[queryMap.roster] as unknown[]) ?? []
-
-    return rows
-      .map((r: unknown) => {
-        const p = r as Record<string, unknown>
-        const team = (p.team ?? {}) as Record<string, unknown>
-        const rawImg = p.img
-        return {
-          ri_id: String(p.id ?? ''),
-          name: String(p.player ?? ''),
-          position: String(p.position ?? ''),
-          team_abbr: String(team.abbrv ?? ''),
-          team_name: String(team.team ?? ''),
-          team_img: graphqlTeamImgToUrl(team.img),
-          headshot_url: graphqlPlayerImgToHeadshotUrl(rawImg),
-          sport: s,
-        }
-      })
-      .filter((p) => p.ri_id && p.name)
-  } catch (err) {
-    console.error(`RI fetchGraphQLPlayers(${s}) failed:`, err)
+    data = await res.json()
+  } catch {
     return []
   }
+  const rows = extractRestArray(data)
+
+  return rows
+    .map((t) => {
+      const id = String(t.id ?? t.team_id ?? '')
+      if (!id) return null
+      return {
+        ri_id: id,
+        name: String(t.team ?? t.name ?? ''),
+        abbr: String(t.abbrv ?? t.abbr ?? t.code ?? ''),
+        mascot: String(t.mascot ?? ''),
+        logo_url: typeof t.img === 'string' && /^https?:\/\//i.test(t.img) ? t.img : '',
+        sport,
+      } as RITeam
+    })
+    .filter((t): t is RITeam => t !== null)
 }
 
-async function fetchGraphQLTeams(sport: string): Promise<RITeam[]> {
-  const s = sport.toUpperCase()
-  const queryMap = SPORT_QUERY_MAP[s]
-  if (!queryMap) return []
+// ─── Public API ─────────────────────────────────────────────────────────────
 
-  const { clientId, clientSecret } = getGraphQLCredentials(s)
-  if (!clientId || !clientSecret) return []
-
-  const query = `{
-    ${queryMap.teams} {
-      id
-      team
-      abbrv
-      mascot
-      img
-    }
-  }`
-
-  try {
-    const data = (await riQuery(query, clientId, clientSecret)) as Record<string, unknown>
-    const rows = (data?.[queryMap.teams] as unknown[]) ?? []
-
-    return rows
-      .map((r: unknown) => {
-        const t = r as Record<string, unknown>
-        return {
-          ri_id: String(t.id ?? ''),
-          name: String(t.team ?? ''),
-          abbr: String(t.abbrv ?? ''),
-          mascot: String(t.mascot ?? ''),
-          logo_url: graphqlTeamImgToUrl(t.img),
-          sport: s,
-        }
-      })
-      .filter((t) => t.ri_id)
-  } catch (err) {
-    console.error(`RI fetchGraphQLTeams(${s}) failed:`, err)
-    return []
-  }
-}
+const REST_SPORTS = new Set(['NBA', 'NHL', 'MLB', 'SOCCER', 'PGA', 'NCAABB', 'NCAAFB'])
 
 export async function fetchRIPlayers(sport: string): Promise<RIPlayer[]> {
   const s = sport.toUpperCase()
-  if (GRAPHQL_SPORTS.has(s)) return fetchGraphQLPlayers(s)
-  if (REST_SPORTS.has(s)) return fetchRESTPlayersForSport(s)
-  throw new Error(`Unsupported RI sport: ${sport}`)
+  if (s === 'NFL') return fetchRIPlayersGraphQL()
+  if (REST_SPORTS.has(s)) return fetchRIPlayersREST(s)
+  throw new Error(`Unknown RI sport: ${sport}`)
 }
 
 export async function fetchRITeams(sport: string): Promise<RITeam[]> {
   const s = sport.toUpperCase()
-  if (GRAPHQL_SPORTS.has(s)) return fetchGraphQLTeams(s)
-  if (REST_SPORTS.has(s)) return fetchRESTTeamsForSport(s)
+  if (s === 'NFL' || s === 'MLB') return fetchGraphQLTeamsNflMlb(s as 'NFL' | 'MLB')
+  if (REST_SPORTS.has(s)) return fetchRESTTeams(s)
   return []
 }
 
@@ -517,16 +364,16 @@ function riPlayersToLegacyMap(players: RIPlayer[]): RiPlayerMap {
   const out: RiPlayerMap = {}
   for (const p of players) {
     out[p.ri_id] = {
-      name: p.name,
+      name: p.full_name,
       headshot_url: p.headshot_url || null,
       position: p.position,
-      team: p.team_abbr || 'FA',
+      team: p.team || 'FA',
+      espn_id: p.espn_id ?? null,
     }
   }
   return out
 }
 
-/** Uncached legacy map — used by sync route + cache bust. */
 export async function fetchRiPlayersUncached(sport: string): Promise<RiPlayerMap> {
   const players = await fetchRIPlayers(sport)
   return riPlayersToLegacyMap(players)
@@ -543,7 +390,7 @@ function getCachedRIPlayersFn(sport: string): CachedFn {
     const tag = `ri-players-${key.toLowerCase()}`
     fn = unstable_cache(
       async () => fetchRIPlayers(key),
-      ['ri-players-mixed', key],
+      ['ri-players-v3', key],
       { revalidate: 86400, tags: [tag] }
     )
     riPlayersCacheBySport.set(key, fn)
@@ -551,7 +398,6 @@ function getCachedRIPlayersFn(sport: string): CachedFn {
   return fn
 }
 
-/** Cached RI players (24h) — per-sport revalidateTag(`ri-players-${sport}`). */
 export async function getCachedRIPlayersList(sport: string): Promise<RIPlayer[]> {
   return getCachedRIPlayersFn(sport)()
 }

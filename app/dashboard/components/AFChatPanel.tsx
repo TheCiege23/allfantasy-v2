@@ -17,7 +17,8 @@ type AFChatPanelProps = {
 const CHAT_TABS: Array<{ id: AFChatTab; label: string }> = [
   { id: 'chimmy', label: '🤖 Chimmy' },
   { id: 'direct', label: '👤 Direct' },
-  { id: 'groups', label: '👥 Groups' },
+  { id: 'af_huddle', label: 'AF Huddle' },
+  { id: 'dms', label: 'DMs' },
   { id: 'league', label: '🏈 League' },
 ]
 
@@ -73,12 +74,22 @@ export function AFChatPanel({
       )
     }
 
-    if (activeTab === 'groups') {
+    if (activeTab === 'af_huddle') {
       return (
         <EmptyTabState
           icon="👥"
           title="No group chats yet"
           subtitle="Create a group with your league managers"
+        />
+      )
+    }
+
+    if (activeTab === 'dms') {
+      return (
+        <EmptyTabState
+          icon="💬"
+          title="No other DMs yet"
+          subtitle="Start a conversation with a league member"
         />
       )
     }

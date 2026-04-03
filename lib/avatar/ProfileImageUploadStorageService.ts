@@ -1,6 +1,5 @@
 import { randomUUID } from "crypto"
-import { mkdir, writeFile } from "fs/promises"
-import path from "path"
+import { put } from "@vercel/blob"
 
 export const MAX_PROFILE_IMAGE_BYTES = 3 * 1024 * 1024
 export const ALLOWED_PROFILE_IMAGE_TYPES = [
@@ -58,17 +57,25 @@ export async function persistProfileImageBytes(params: {
     throw new Error("Only JPEG, PNG, GIF, WebP allowed")
   }
 
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("Storage not configured")
+  }
+
   const fileFromName = params.originalFilename?.split(".").pop()?.toLowerCase() ?? ""
   const canonical = MIME_EXTENSION_MAP[params.mimeType]
   const ext = ["jpg", "jpeg", "png", "gif", "webp"].includes(fileFromName)
     ? fileFromName
     : canonical
   const filename = `${randomUUID()}.${ext}`
+  const key = `avatars/${filename}`
 
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "avatars")
-  await mkdir(uploadDir, { recursive: true })
-  const filepath = path.join(uploadDir, filename)
-  await writeFile(filepath, params.bytes)
+  const body = Buffer.from(params.bytes)
 
-  return { url: `/uploads/avatars/${filename}` }
+  const blob = await put(key, body, {
+    access: "public",
+    contentType: params.mimeType,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+  })
+
+  return { url: blob.url }
 }

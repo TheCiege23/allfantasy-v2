@@ -1,5 +1,5 @@
 import { resolveLanguage, type LanguageCode } from "@/lib/i18n/constants"
-import { resolveTheme, type ThemeId } from "@/lib/theme/constants"
+import { normalizeStoredTheme, type ThemeId } from "@/lib/theme/constants"
 import { isAllowedSignupTimezone, resolveSignupTimezone } from "@/lib/signup/TimezoneSelectorService"
 import type { ProfileUpdatePayload, PreferredLanguage, ThemePreference } from "./types"
 
@@ -58,13 +58,13 @@ function resolveThemeWithFallback(
   fallback: string | null | undefined
 ): ThemePreference | null {
   if (typeof theme === "string") {
-    return resolveTheme(theme) as ThemeId
+    return normalizeStoredTheme(theme) as ThemeId
   }
   if (theme === null) return null
   if (typeof fallback === "string") {
-    return resolveTheme(fallback) as ThemeId
+    return normalizeStoredTheme(fallback) as ThemeId
   }
-  return resolveTheme(null) as ThemeId
+  return normalizeStoredTheme(null) as ThemeId
 }
 
 export function resolveUniversalPreferences(

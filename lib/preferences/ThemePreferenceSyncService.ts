@@ -1,7 +1,7 @@
 import {
   DEFAULT_THEME,
   isValidTheme,
-  resolveTheme,
+  normalizeStoredTheme,
   type ThemeId,
 } from "@/lib/theme/constants"
 
@@ -33,7 +33,7 @@ export function resolveThemePreferenceSync(
   }
 
   return {
-    theme: resolveTheme(DEFAULT_THEME),
+    theme: normalizeStoredTheme(DEFAULT_THEME),
     shouldPersistToProfile: false,
   }
 }

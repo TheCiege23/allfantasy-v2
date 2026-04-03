@@ -3,7 +3,7 @@
  * Used across Sports App, Bracket Challenge, and AllFantasy Legacy.
  */
 
-export type ThemePreference = "dark" | "light" | "legacy"
+export type ThemePreference = "dark" | "light" | "legacy" | "system"
 export type PreferredLanguage = "en" | "es"
 
 /** Supported sport code (aligns with LeagueSport). */

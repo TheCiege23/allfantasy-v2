@@ -1,6 +1,5 @@
 import type { ReactNode } from "react"
-import ProductShellLayout from "@/components/navigation/ProductShellLayout"
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
-  return <ProductShellLayout>{children}</ProductShellLayout>
+  return <div className="min-h-screen bg-[#0d1117]">{children}</div>
 }

@@ -20,6 +20,8 @@ import {
   stopCurrentVoice,
   type VoiceConfig,
 } from '@/lib/chimmy-voice';
+import { formatChatMessageTimestamp, isChimmyMessageThreaded } from '@/app/dashboard/components/chat/chat-timestamps';
+import { ChimmyAssistantAvatar } from '@/app/dashboard/components/chat/ChimmyAssistantAvatar';
 
 const HEART_EMOJI = '\u{1F496}';
 
@@ -29,6 +31,8 @@ type ChatMessage = {
   content: string;
   image?: string | null;
   upgradePath?: string | null;
+  /** Unix ms — for timestamps & threaded grouping */
+  createdAt: number;
 };
 
 declare global {
@@ -104,7 +108,7 @@ export default function ChimmyChat({
   panelFill = false,
 }: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
+    { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING, createdAt: Date.now() },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -215,7 +219,7 @@ export default function ChimmyChat({
 
   const startNewConversation = useCallback(() => {
     handleStopVoice();
-    setMessages([{ id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING }]);
+    setMessages([{ id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING, createdAt: Date.now() }]);
     setInput('');
     setImagePreview(null);
     setImageFile(null);
@@ -271,6 +275,7 @@ export default function ChimmyChat({
             role: 'assistant',
             content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
             upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
+            createdAt: Date.now(),
           },
         ]);
         return;
@@ -289,6 +294,7 @@ export default function ChimmyChat({
       role: 'user',
       content: outgoingText || 'Analyze this screenshot and tell me what to do.',
       image: fromShortcut ? null : imagePreview || null,
+      createdAt: Date.now(),
     };
 
     const nextMessages = [...messagesRef.current, userMessage];
@@ -300,6 +306,7 @@ export default function ChimmyChat({
     try {
       let streamedAssistantHandled = false;
       const assistantMessageId = createMessageId();
+      const assistantCreatedAt = Date.now();
       const result = await sendChimmyMessage({
         message: outgoingText || '',
         imageFile: fromShortcut ? null : imageFile,
@@ -318,10 +325,19 @@ export default function ChimmyChat({
             const last = prev[prev.length - 1];
             if (last?.role === 'assistant') {
               const next = [...prev];
-              next[next.length - 1] = { ...last, id: last.id || assistantMessageId, role: 'assistant', content: text };
+              next[next.length - 1] = {
+                ...last,
+                id: last.id || assistantMessageId,
+                role: 'assistant',
+                content: text,
+                createdAt: last.createdAt ?? assistantCreatedAt,
+              };
               return next;
             }
-            return [...prev, { id: assistantMessageId, role: 'assistant', content: text }];
+            return [
+              ...prev,
+              { id: assistantMessageId, role: 'assistant', content: text, createdAt: assistantCreatedAt },
+            ];
           });
         },
       });
@@ -329,11 +345,12 @@ export default function ChimmyChat({
         setSessionId(result.sessionId);
       }
       const reply = result.response || CHIMMY_GENERIC_ERROR_MESSAGE;
-      const assistantMessage = {
+      const assistantMessage: ChatMessage = {
         id: assistantMessageId,
-        role: 'assistant' as const,
+        role: 'assistant',
         content: reply,
         upgradePath: result.upgradeRequired ? result.upgradePath ?? CHIMMY_DEFAULT_UPGRADE_PATH : null,
+        createdAt: assistantCreatedAt,
       };
 
       if (streamedAssistantHandled) {
@@ -354,7 +371,13 @@ export default function ChimmyChat({
       toast.error(CHIMMY_GENERIC_ERROR_MESSAGE);
       setMessages((prev) => [
         ...prev,
-        { id: createMessageId(), role: 'assistant', content: CHIMMY_GENERIC_ERROR_MESSAGE, upgradePath: null },
+        {
+          id: createMessageId(),
+          role: 'assistant',
+          content: CHIMMY_GENERIC_ERROR_MESSAGE,
+          upgradePath: null,
+          createdAt: Date.now(),
+        },
       ]);
     } finally {
       setIsTyping(false);
@@ -499,66 +522,101 @@ export default function ChimmyChat({
             ))}
           </div>
         )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[85%] rounded-3xl ${msg.role === 'user' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-200'} ${
-                embedded ? 'p-3 text-sm' : 'p-5'
-              }`}
-            >
-              {renderContentWithLinks(msg.content)}
-              {msg.role === 'assistant' && (
-                <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => void handlePlayVoice(msg.content, msg.id)}
-                    disabled={voiceLoading || (!voiceConfig.enabled && voiceMessageId !== msg.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
-                      isVoicePlaying && voiceMessageId === msg.id
-                        ? 'border-cyan-500/30 bg-cyan-500/15 text-cyan-100'
-                        : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
-                    } disabled:opacity-50`}
+        {messages.map((msg, index) => {
+          const prev = index > 0 ? messages[index - 1] : undefined;
+          const threaded =
+            prev &&
+            isChimmyMessageThreaded(
+              { role: prev.role, createdAt: prev.createdAt },
+              { role: msg.role, createdAt: msg.createdAt }
+            );
+          const gap = threaded ? 'mt-0.5' : 'mt-2';
+          const ts = formatChatMessageTimestamp(msg.createdAt ?? Date.now());
+
+          const widePanel = embedded && panelFill;
+          if (msg.role === 'user') {
+            return (
+              <div key={msg.id} className={`flex justify-end ${gap}`}>
+                <div
+                  className={`flex min-w-0 flex-col items-end ${widePanel ? 'max-w-full' : 'max-w-[85%]'}`}
+                >
+                  <div
+                    className={`ml-auto w-fit max-w-full rounded-3xl bg-cyan-600 text-white ${embedded ? 'p-3 text-sm' : 'p-5'}`}
                   >
-                    {voiceLoading && voiceMessageId === msg.id ? (
-                      <>
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Loading…
-                      </>
-                    ) : isVoicePlaying && voiceMessageId === msg.id ? (
-                      'Stop'
-                    ) : (
-                      'Allison'
+                    {renderContentWithLinks(msg.content)}
+                    {msg.image && (
+                      <img src={msg.image} alt="Uploaded screenshot" className="mt-4 max-w-full rounded-2xl shadow-lg" />
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextEnabled = !voiceConfig.enabled;
-                      updateVoiceConfig({ enabled: nextEnabled });
-                      if (!nextEnabled) handleStopVoice();
-                    }}
-                    className="text-[11px] text-white/50 hover:text-white/80 transition ml-auto"
-                  >
-                    {voiceConfig.enabled ? 'Voice on' : 'Voice off'}
-                  </button>
+                  </div>
+                  <span className="mt-1 text-[10px] text-white/40">{ts}</span>
                 </div>
-              )}
-              {msg.role === 'assistant' && msg.upgradePath && (
-                <div className="mt-4">
-                  <a
-                    href={msg.upgradePath}
-                    className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/25"
-                  >
-                    {CHIMMY_PREMIUM_CTA_LABEL}
-                  </a>
+              </div>
+            );
+          }
+
+          return (
+            <div key={msg.id} className={`flex gap-2 ${gap}`}>
+              <div className="w-8 shrink-0">{threaded ? null : <ChimmyAssistantAvatar />}</div>
+              <div className="min-w-0 flex-1">
+                {threaded ? null : (
+                  <p className="mb-0.5 text-[11px] font-semibold text-white">Chimmy</p>
+                )}
+                <div
+                  className={`rounded-3xl bg-slate-800 text-slate-200 ${
+                    widePanel ? 'w-full max-w-full' : 'max-w-[85%]'
+                  } ${embedded ? 'p-3 text-sm' : 'p-5'}`}
+                >
+                  {renderContentWithLinks(msg.content)}
+                  <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => void handlePlayVoice(msg.content, msg.id)}
+                      disabled={voiceLoading || (!voiceConfig.enabled && voiceMessageId !== msg.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
+                        isVoicePlaying && voiceMessageId === msg.id
+                          ? 'border-cyan-500/30 bg-cyan-500/15 text-cyan-100'
+                          : 'border-white/15 bg-white/5 text-white/70 hover:bg-white/10'
+                      } disabled:opacity-50`}
+                    >
+                      {voiceLoading && voiceMessageId === msg.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Loading…
+                        </>
+                      ) : isVoicePlaying && voiceMessageId === msg.id ? (
+                        'Stop'
+                      ) : (
+                        'Allison'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextEnabled = !voiceConfig.enabled;
+                        updateVoiceConfig({ enabled: nextEnabled });
+                        if (!nextEnabled) handleStopVoice();
+                      }}
+                      className="ml-auto text-[11px] text-white/50 transition hover:text-white/80"
+                    >
+                      {voiceConfig.enabled ? 'Voice on' : 'Voice off'}
+                    </button>
+                  </div>
+                  {msg.upgradePath && (
+                    <div className="mt-4">
+                      <a
+                        href={msg.upgradePath}
+                        className="inline-flex min-h-[40px] items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/25"
+                      >
+                        {CHIMMY_PREMIUM_CTA_LABEL}
+                      </a>
+                    </div>
+                  )}
                 </div>
-              )}
-              {msg.image && (
-                <img src={msg.image} alt="Uploaded screenshot" className="mt-4 rounded-2xl max-w-full shadow-lg" />
-              )}
+                <span className="mt-1 text-[10px] text-white/40">{ts}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {isTyping && (
           <div className="flex items-center gap-2 text-slate-400 pl-4">

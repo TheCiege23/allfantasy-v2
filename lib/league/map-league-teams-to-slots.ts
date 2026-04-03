@@ -29,6 +29,7 @@ export function mapLeagueTeamsToSlots(teams: LeagueTeam[], settings: unknown): L
     teamName: t.teamName,
     ownerName: t.ownerName,
     avatarUrl: t.avatarUrl,
+    platformUserId: t.platformUserId ?? null,
     role: t.role,
     isOrphan: t.isOrphan,
     claimedByUserId: t.claimedByUserId,

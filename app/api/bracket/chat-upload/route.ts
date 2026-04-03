@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { randomUUID } from "crypto"
+import { put } from "@vercel/blob"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { writeFile, mkdir } from "fs/promises"
-import path from "path"
-import { randomUUID } from "crypto"
 
 const MAX_SIZE = 5 * 1024 * 1024
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
@@ -12,6 +11,10 @@ export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({ error: "Storage not configured" }, { status: 503 })
+  }
 
   try {
     const formData = await req.formData()
@@ -27,15 +30,17 @@ export async function POST(req: NextRequest) {
 
     const ext = file.name.split(".").pop() || "png"
     const filename = `${randomUUID()}.${ext}`
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "chat")
-    await mkdir(uploadDir, { recursive: true })
-    const filepath = path.join(uploadDir, filename)
+    const key = `bracket-chat/${userId}/${filename}`
 
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    await writeFile(filepath, bytes)
+    const blob = await put(key, file, {
+      access: "public",
+      contentType: file.type || "application/octet-stream",
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    })
 
-    return NextResponse.json({ url: `/uploads/chat/${filename}` })
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Upload failed" }, { status: 500 })
+    return NextResponse.json({ url: blob.url })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Upload failed"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

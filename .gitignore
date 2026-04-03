@@ -50,4 +50,7 @@ prisma/*.db-journal
 /playwright/.cache/
 /playwright/.auth/
 
+# local RI probe (do not commit)
+scripts/ri-import-all.ts
+
 .vercel

@@ -7,8 +7,8 @@ import {
 import {
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
-  resolveTheme,
-  type ThemeId,
+  normalizeStoredTheme,
+  resolveEffectiveDataMode,
 } from "@/lib/theme";
 
 function getDocumentElement(): HTMLElement | null {
@@ -16,8 +16,10 @@ function getDocumentElement(): HTMLElement | null {
   return document.documentElement;
 }
 
-export function applyThemeToDocument(value: string | null | undefined): ThemeId {
-  const resolved = resolveTheme(value);
+export function applyThemeToDocument(
+  value: string | null | undefined
+): "light" | "dark" | "legacy" {
+  const resolved = resolveEffectiveDataMode(value);
   const root = getDocumentElement();
   if (root) {
     root.setAttribute("data-mode", resolved);
@@ -39,19 +41,33 @@ export function applyLanguageToDocument(
 }
 
 export function buildThemeInitScript(serverMode?: string | null): string {
-  const fallbackMode = resolveTheme(serverMode ?? DEFAULT_THEME);
-  const fallbackColorScheme = fallbackMode === "light" ? "light" : "dark";
+  const fallbackStored = normalizeStoredTheme(serverMode ?? DEFAULT_THEME);
+  const fallbackEffective = resolveEffectiveDataMode(serverMode ?? DEFAULT_THEME);
+  const fallbackColorScheme = fallbackEffective === "light" ? "light" : "dark";
 
   return `
     (function(){
       try {
-        var fallbackMode = ${JSON.stringify(fallbackMode)};
-        var mode = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)}) || fallbackMode;
-        if (mode !== "dark" && mode !== "light" && mode !== "legacy") mode = fallbackMode;
-        document.documentElement.setAttribute("data-mode", mode);
-        document.documentElement.style.colorScheme = mode === "light" ? "light" : "dark";
+        var fallbackEffective = ${JSON.stringify(fallbackEffective)};
+        var raw = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
+        var stored = raw;
+        if (stored !== "dark" && stored !== "light" && stored !== "legacy" && stored !== "system") {
+          stored = ${JSON.stringify(fallbackStored)};
+        }
+        var eff;
+        if (stored === "legacy") eff = "legacy";
+        else if (stored === "system") {
+          try {
+            eff = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+          } catch (e) {
+            eff = fallbackEffective === "legacy" ? "dark" : fallbackEffective;
+          }
+        } else if (stored === "light" || stored === "dark") eff = stored;
+        else eff = fallbackEffective === "legacy" ? "dark" : fallbackEffective;
+        document.documentElement.setAttribute("data-mode", eff);
+        document.documentElement.style.colorScheme = eff === "light" ? "light" : "dark";
       } catch (e) {
-        document.documentElement.setAttribute("data-mode", ${JSON.stringify(fallbackMode)});
+        document.documentElement.setAttribute("data-mode", ${JSON.stringify(fallbackEffective)});
         document.documentElement.style.colorScheme = ${JSON.stringify(fallbackColorScheme)};
       }
     })();

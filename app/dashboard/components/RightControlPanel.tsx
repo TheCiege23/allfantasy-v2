@@ -21,6 +21,7 @@ export function RightControlPanel({
   leagues,
   leaguesLoading,
   selectedId,
+  activeLeagueId,
   onSelectLeague,
   userId,
   userName,
@@ -29,6 +30,7 @@ export function RightControlPanel({
   onImport,
   onAfterLeagueNavigate,
 }: RightControlPanelLayoutProps) {
+  const resolvedSelectedId = activeLeagueId ?? selectedId
   const subtitle =
     userSubtitle === ''
       ? null
@@ -54,7 +56,7 @@ export function RightControlPanel({
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <LeagueListPanel
             leagues={leagues}
-            selectedId={selectedId}
+            selectedId={resolvedSelectedId}
             onSelect={(league: UserLeague) => {
               onSelectLeague(league)
               onAfterLeagueNavigate?.()

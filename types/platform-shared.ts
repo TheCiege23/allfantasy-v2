@@ -43,4 +43,9 @@ export type PlatformChatMessage = {
   body: string
   createdAt: string
   metadata?: Record<string, unknown>
+  /** Sleeper-style passthrough / league chat API (optional) */
+  author_avatar?: string | null
+  author_display_name?: string | null
+  /** Unix timestamp in ms (Sleeper-style) */
+  created?: number
 }

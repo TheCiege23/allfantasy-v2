@@ -10,13 +10,17 @@ import {
 
 /**
  * POST /api/user/profile/avatar
- * Upload a profile image. Saves to public/uploads/avatars and sets AppUser.avatarUrl.
+ * Upload a profile image to Vercel Blob; sets AppUser.avatarUrl to the public HTTPS URL.
  * Returns { url } or error.
  */
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return NextResponse.json({ error: "Storage not configured" }, { status: 503 })
+  }
 
   try {
     const formData = await req.formData()

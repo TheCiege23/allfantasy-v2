@@ -10,6 +10,8 @@ export {
   THEME_DISPLAY_NAMES,
   getThemeDisplayName,
   isValidTheme,
+  normalizeStoredTheme,
+  resolveEffectiveDataMode,
   resolveTheme,
   getNextTheme,
   type ThemeId,

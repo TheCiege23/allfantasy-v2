@@ -91,9 +91,14 @@ export async function PATCH(req: Request) {
     profilePayload.preferredLanguage = (preferredLanguage === "es" ? "es" : preferredLanguage === "en" ? "en" : null) as PreferredLanguage | null
   if (timezone !== undefined) profilePayload.timezone = timezone ?? null
   if (themePreference !== undefined)
-    profilePayload.themePreference = (themePreference === "dark" || themePreference === "light" || themePreference === "legacy"
-      ? themePreference
-      : null) as ThemePreference | null
+    profilePayload.themePreference = (
+      themePreference === "dark" ||
+      themePreference === "light" ||
+      themePreference === "legacy" ||
+      themePreference === "system"
+        ? themePreference
+        : null
+    ) as ThemePreference | null
   if (displayName !== undefined) profilePayload.displayName = displayName ?? null
   if (avatarPreset !== undefined) profilePayload.avatarPreset = avatarPreset ?? null
   if (avatarUrl !== undefined) profilePayload.avatarUrl = avatarUrl ?? null

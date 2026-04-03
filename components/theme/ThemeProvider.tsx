@@ -4,11 +4,12 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import {
   THEME_STORAGE_KEY,
   DEFAULT_THEME,
-  resolveTheme,
+  normalizeStoredTheme,
   getNextTheme,
   type ThemeId,
 } from "@/lib/theme"
 import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
+import { applyThemeToDocument } from "@/lib/preferences/HtmlPreferenceSync"
 
 export type AppMode = ThemeId
 
@@ -20,31 +21,51 @@ type ThemeCtx = {
 
 const Ctx = createContext<ThemeCtx | null>(null)
 
-export function ThemeProvider(props: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<AppMode>(() => {
-    if (typeof document !== "undefined") {
-      const current = document.documentElement.dataset.mode
-      return resolveTheme(current)
+/** SSR-safe: match <html data-mode> from server; localStorage applied in useEffect. */
+function readInitialModeFromDocument(): AppMode {
+  if (typeof document !== "undefined") {
+    const current = document.documentElement.dataset.mode
+    if (current === "light" || current === "dark" || current === "legacy") {
+      return current
     }
-    return DEFAULT_THEME
-  })
+  }
+  return DEFAULT_THEME
+}
+
+export function ThemeProvider(props: { children: React.ReactNode }) {
+  const [mode, setModeState] = useState<AppMode>(readInitialModeFromDocument)
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    const saved = window.localStorage.getItem(THEME_STORAGE_KEY)
-    const resolved = resolveTheme(saved)
-    setModeState(resolved)
+    try {
+      const saved = window.localStorage.getItem(THEME_STORAGE_KEY)
+      setModeState(normalizeStoredTheme(saved))
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   useEffect(() => {
     if (typeof window === "undefined") return
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== THEME_STORAGE_KEY) return
-      setModeState(resolveTheme(event.newValue))
+      setModeState(normalizeStoredTheme(event.newValue))
     }
     window.addEventListener("storage", handleStorage)
     return () => window.removeEventListener("storage", handleStorage)
   }, [])
+
+  /** When theme is System, repaint when OS light/dark preference changes. */
+  useEffect(() => {
+    if (typeof window === "undefined" || mode !== "system") return
+    const mq = window.matchMedia("(prefers-color-scheme: light)")
+    const onChange = () => {
+      applyThemeToDocument("system")
+    }
+    mq.addEventListener("change", onChange)
+    applyThemeToDocument("system")
+    return () => mq.removeEventListener("change", onChange)
+  }, [mode])
 
   useEffect(() => {
     if (typeof document === "undefined") return

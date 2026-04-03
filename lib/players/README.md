@@ -11,7 +11,7 @@
 ## Env
 
 - `ROLLING_INSIGHTS_CLIENT_ID` / `ROLLING_INSIGHTS_CLIENT_SECRET` — OAuth client credentials, **set 1 (NFL)**.
-- `ROLLING_INSIGHTS_CLIENT_ID2` / `ROLLING_INSIGHTS_CLIENT_SECRET2` — **set 2** (NBA, MLB, NHL, Soccer, NCAABB, NCAAFB).
+- `ROLLING_INSIGHTS_CLIENT_ID2` / `ROLLING_INSIGHTS_CLIENT_SECRET2` — **set 2** (NBA, MLB, NHL, Soccer, NCAABB, NCAAFB). For **REST** `/api/v1/player-info` and `/teams`, the `RSC_token` query param must be **`ROLLING_INSIGHTS_CLIENT_SECRET2`** (not `CLIENT_ID2`).
 
 Optional legacy vars (`ROLLING_INSIGHTS_API_KEY`, `ROLLING_INSIGHTS_RSC_TOKEN`) are not used by the GraphQL player sync.
 

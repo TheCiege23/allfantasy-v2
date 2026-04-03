@@ -1,7 +1,7 @@
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
 import { resolveSignupTimezone } from "@/lib/signup/TimezoneSelectorService"
 import { resolveLanguage } from "@/lib/i18n/constants"
-import { resolveTheme } from "@/lib/theme/constants"
+import { normalizeStoredTheme } from "@/lib/theme/constants"
 import type { ProfileUpdatePayload, UserProfileForSettings } from "./types"
 
 interface SharedProfileBootstrapInput {
@@ -36,7 +36,7 @@ export function resolveSharedProfileBootstrap(
     patchPayload.preferredLanguage = resolvedLanguage
   }
 
-  const resolvedTheme = resolveTheme(profile.themePreference)
+  const resolvedTheme = normalizeStoredTheme(profile.themePreference)
   if (profile.themePreference !== resolvedTheme) {
     profile.themePreference = resolvedTheme
     patchPayload.themePreference = resolvedTheme

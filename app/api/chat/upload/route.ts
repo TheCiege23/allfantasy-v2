@@ -51,11 +51,14 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file')
   const type = toStringValue(formData.get('type')).trim() as 'image' | 'video' | 'voice'
   const leagueId = toStringValue(formData.get('leagueId')).trim()
+  const purpose = toStringValue(formData.get('purpose')).trim()
 
-  if (!leagueId) {
+  const isProfileAvatarUpload = !leagueId && purpose === 'profile' && type === 'image'
+
+  if (!leagueId && !isProfileAvatarUpload) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
-  if (!(await canAccessLeague(leagueId, userId))) {
+  if (leagueId && !(await canAccessLeague(leagueId, userId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -97,9 +100,13 @@ export async function POST(req: NextRequest) {
       ? (file as File).name.replace(/[^a-zA-Z0-9._-]/g, '_')
       : 'upload.bin'
 
-  const key = `chat/${leagueId}/${type}/${Date.now()}-${filename}`
+  const key = isProfileAvatarUpload
+    ? `profile/${userId}/image/${Date.now()}-${filename}`
+    : `chat/${leagueId}/${type}/${Date.now()}-${filename}`
 
   try {
+    // Public access so chat UI can render images / audio / video inline via direct HTTPS URLs.
+    // Persist `blob.url` in LeagueChatMessage.metadata (or imageUrl) as returned — do not replace with signed or proxied URLs.
     const blob = await put(key, file, {
       access: 'public',
       contentType: mimeType,

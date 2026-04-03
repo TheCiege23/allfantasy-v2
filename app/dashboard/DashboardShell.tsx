@@ -226,19 +226,17 @@ export function DashboardShell({
 
   return (
     <div data-dashboard-user-id={userId} className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white">
-      <aside
-        className="hidden h-full flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex"
-        style={{ width: '45%', maxWidth: '420px', minWidth: '300px' }}
-      >
+      <aside className="hidden h-full w-[40%] flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
         <LeftChatPanel
           selectedLeague={selectedLeague}
+          activeLeagueId={activeLeagueId}
           userId={userId}
           rootId="dashboard-left-chat"
           leagues={leagues}
         />
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:w-[35%] md:flex-none">
         <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -283,11 +281,12 @@ export function DashboardShell({
         </div>
       </div>
 
-      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[300px] md:max-w-[300px] md:flex-shrink-0">
+      <aside className="hidden h-full w-[25%] min-w-0 flex-shrink-0 overflow-hidden md:flex">
         <RightControlPanel
           leagues={leagues}
           leaguesLoading={leaguesLoading}
           selectedId={selectedLeague?.id ?? null}
+          activeLeagueId={activeLeagueId}
           onSelectLeague={handleSelectLeague}
           userId={userId}
           userName={userName}
@@ -331,6 +330,7 @@ export function DashboardShell({
             <div className="min-h-0 flex-1 overflow-hidden">
               <LeftChatPanel
                 selectedLeague={selectedLeague}
+                activeLeagueId={activeLeagueId}
                 userId={userId}
                 rootId={null}
                 leagues={leagues}
@@ -360,6 +360,7 @@ export function DashboardShell({
                   leagues={leagues}
                   leaguesLoading={leaguesLoading}
                   selectedId={selectedLeague?.id ?? null}
+                  activeLeagueId={activeLeagueId}
                   onSelectLeague={handleSelectLeague}
                   userId={userId}
                   userName={userName}

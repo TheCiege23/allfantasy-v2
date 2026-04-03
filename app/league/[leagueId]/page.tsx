@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getLeagueDrafts } from '@/lib/sleeper-client'
+import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
 
@@ -56,13 +56,38 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
   })
   const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
 
+  const userProfile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: { sleeperUserId: true },
+  })
+  const currentSleeperUserId = userProfile?.sleeperUserId ?? null
+
+  let sleeperCommissionerId: string | null = null
+  let sleeperUsersByPlatformId: Record<string, { display_name: string; avatar: string | null }> = {}
+
   let draftDateIso: string | null = null
   if (league.platform === 'sleeper' && league.platformLeagueId) {
     type SleeperDraftSummary = { start_time?: number | null }
-    const drafts = (await getLeagueDrafts(league.platformLeagueId).catch(() => [])) as SleeperDraftSummary[]
+    const [drafts, sleeperLeague, sleeperUsers] = await Promise.all([
+      getLeagueDrafts(league.platformLeagueId).catch(() => []) as Promise<SleeperDraftSummary[]>,
+      getLeagueInfo(league.platformLeagueId),
+      getLeagueUsers(league.platformLeagueId),
+    ])
     const draft = drafts[0] ?? null
     if (draft?.start_time != null && Number.isFinite(draft.start_time)) {
       draftDateIso = new Date(draft.start_time).toISOString()
+    }
+    const comm = sleeperLeague as { commissioner_id?: string } | null
+    if (comm?.commissioner_id) {
+      sleeperCommissionerId = String(comm.commissioner_id)
+    }
+    for (const u of sleeperUsers) {
+      if (u?.user_id) {
+        sleeperUsersByPlatformId[u.user_id] = {
+          display_name: u.display_name || u.username || 'Manager',
+          avatar: u.avatar ?? null,
+        }
+      }
     }
   }
 
@@ -76,6 +101,9 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       userName={session.user.name ?? session.user.email ?? 'Manager'}
       userImage={userImage}
       draftDateIso={draftDateIso}
+      sleeperCommissionerId={sleeperCommissionerId}
+      sleeperUsersByPlatformId={sleeperUsersByPlatformId}
+      currentSleeperUserId={currentSleeperUserId}
     />
   )
 }

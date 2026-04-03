@@ -1,7 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { Home } from 'lucide-react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
@@ -16,6 +18,9 @@ import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { ScoresTab } from './tabs/ScoresTab'
 import { PlayerStatCard } from './components/PlayerStatCard'
+import { LeagueSettingsModal } from './components/LeagueSettingsModal'
+
+export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
 export type LeagueShellLeague = League & {
   teams: LeagueTeam[]
@@ -90,6 +95,9 @@ export type LeagueShellProps = {
   userName: string
   userImage?: string | null
   draftDateIso: string | null
+  sleeperCommissionerId: string | null
+  sleeperUsersByPlatformId: SleeperMemberMap
+  currentSleeperUserId: string | null
 }
 
 export function LeagueShell({
@@ -101,19 +109,41 @@ export function LeagueShell({
   userName,
   userImage = null,
   draftDateIso,
+  sleeperCommissionerId,
+  sleeperUsersByPlatformId,
+  currentSleeperUserId,
 }: LeagueShellProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<LeagueShellTab>('draft')
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [portalMounted, setPortalMounted] = useState(false)
+
+  useEffect(() => {
+    setPortalMounted(true)
+  }, [])
 
   const selectedLeague = useMemo(
     () => prismaLeagueToUserLeague(league, { draftDate: draftDateIso }),
     [league, draftDateIso],
   )
 
-  const teamSlots = useMemo(
-    () => mapLeagueTeamsToSlots(league.teams, league.settings),
-    [league.teams, league.settings],
+  const teamSlots = useMemo(() => {
+    const base = mapLeagueTeamsToSlots(league.teams, league.settings)
+    if (league.platform !== 'sleeper') return base
+    return base.map((slot) => {
+      const pid = slot.platformUserId
+      if (!pid) return slot
+      const su = sleeperUsersByPlatformId[pid]
+      if (!su?.avatar) return slot
+      return { ...slot, avatarUrl: su.avatar }
+    })
+  }, [league.platform, league.teams, league.settings, sleeperUsersByPlatformId])
+
+  const isSleeperCommissioner = Boolean(
+    currentSleeperUserId &&
+      sleeperCommissionerId &&
+      currentSleeperUserId === sleeperCommissionerId,
   )
 
   const leagueList: UserLeague[] = useMemo(
@@ -146,7 +176,10 @@ export function LeagueShell({
       >
         <LeftChatPanel
           selectedLeague={selectedLeague}
+          activeLeagueId={league.id}
           userId={userId}
+          userDisplayName={userName}
+          userImage={userImage}
           rootId="league-left-chat"
           leagues={leagueList}
         />
@@ -157,7 +190,8 @@ export function LeagueShell({
           league={selectedLeague}
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          isOwner={isOwner}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onGoHome={() => router.push('/dashboard')}
         />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
@@ -196,6 +230,7 @@ export function LeagueShell({
           leagues={leagueList}
           leaguesLoading={false}
           selectedId={league.id}
+          activeLeagueId={league.id}
           onSelectLeague={handleLeagueSelect}
           userId={userId}
           userName={userName}
@@ -212,6 +247,27 @@ export function LeagueShell({
           onClose={closePlayerCard}
         />
       ) : null}
+
+      {portalMounted
+        ? createPortal(
+            <LeagueSettingsModal
+              open={settingsOpen}
+              onClose={() => setSettingsOpen(false)}
+              league={league}
+              displayLeague={selectedLeague}
+              userId={userId}
+              userTeam={userTeam}
+              sleeperLeagueId={league.platform === 'sleeper' ? league.platformLeagueId ?? null : null}
+              isCommissioner={isSleeperCommissioner}
+              sleeperMemberMap={sleeperUsersByPlatformId}
+              onGoToDraftTab={() => {
+                setSettingsOpen(false)
+                setActiveTab('draft')
+              }}
+            />,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
@@ -220,12 +276,14 @@ function LeagueHeader({
   league,
   activeTab,
   onTabChange,
-  isOwner,
+  onOpenSettings,
+  onGoHome,
 }: {
   league: UserLeague
   activeTab: LeagueShellTab
   onTabChange: (t: LeagueShellTab) => void
-  isOwner: boolean
+  onOpenSettings: () => void
+  onGoHome: () => void
 }) {
   return (
     <div className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c1e]">
@@ -245,15 +303,26 @@ function LeagueHeader({
             </span>
           </div>
         </div>
-        {isOwner ? (
+        <div className="flex flex-shrink-0 items-center gap-0.5">
           <button
             type="button"
-            className="text-lg text-white/30 transition-colors hover:text-white/60"
+            onClick={onGoHome}
+            className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
+            aria-label="Dashboard home"
+            data-testid="league-header-home"
+          >
+            <Home className="h-5 w-5" strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="rounded-lg p-1.5 text-lg leading-none text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
             aria-label="League settings"
+            data-testid="league-header-settings"
           >
             ⚙️
           </button>
-        ) : null}
+        </div>
       </div>
 
       <div className="scrollbar-none mt-2 flex overflow-x-auto px-5">

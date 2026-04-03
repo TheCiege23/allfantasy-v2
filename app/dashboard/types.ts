@@ -1,4 +1,4 @@
-/** Legacy default; left panel uses responsive width in DashboardShell / LeftChatPanel */
+/** Legacy pixel defaults; desktop `DashboardShell` uses w-[40%] / w-[35%] / w-[25%] for left/center/right. */
 export const DASHBOARD_LEFT_PANEL_WIDTH = 280
 export const DASHBOARD_RIGHT_PANEL_WIDTH = 300
 
@@ -30,7 +30,12 @@ export interface UserLeague {
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */
 export type LeftChatPanelLayoutProps = {
   selectedLeague: UserLeague | null
+  /** Active league from route / right panel — syncs Chimmy context when it changes */
+  activeLeagueId?: string | null
   userId: string
+  /** For chat bubbles (avatar + display name) */
+  userDisplayName?: string
+  userImage?: string | null
   rootId?: string | null
   /** Dashboard home: connected leagues for Chimmy context selector */
   leagues?: UserLeague[]
@@ -41,6 +46,8 @@ export type RightControlPanelLayoutProps = {
   leagues: UserLeague[]
   leaguesLoading: boolean
   selectedId: string | null
+  /** Optional alias for selectedId (same value from shell / route) */
+  activeLeagueId?: string | null
   onSelectLeague: (league: UserLeague | null) => void
   userId: string
   /** Display name (session name / email / Manager) */
@@ -65,6 +72,8 @@ export interface LeagueTeamSlot {
   teamName: string
   ownerName: string
   avatarUrl: string | null
+  /** Sleeper owner user_id when synced */
+  platformUserId?: string | null
   role: string
   isOrphan: boolean
   claimedByUserId: string | null
@@ -99,8 +108,10 @@ export interface LeagueDetail {
 
 export interface LeagueChatMessage {
   id: string
-  authorName: string
-  authorAvatar: string | null
+  author_display_name: string
+  author_avatar: string | null
+  /** Unix ms (Sleeper-style) */
+  created: number
   text: string
   messageType: string
   relativeTime: string
@@ -125,4 +136,4 @@ export type LeagueTab =
   | 'trades'
   | 'scores'
 
-export type AFChatTab = 'chimmy' | 'direct' | 'groups' | 'league'
+export type AFChatTab = 'chimmy' | 'direct' | 'af_huddle' | 'dms' | 'league'
