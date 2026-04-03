@@ -42,13 +42,21 @@ export async function getLeagueChatMessages(
     include: includeUser,
   })
   return rows.reverse().map((m) => {
+    const rawMeta = ((m as { metadata?: Record<string, unknown> }).metadata ?? null) as Record<
+      string,
+      unknown
+    > | null
+    const discordAuthorName =
+      typeof rawMeta?.discordAuthorName === 'string' ? rawMeta.discordAuthorName : null
+    const discordAuthorAvatarUrl =
+      typeof rawMeta?.discordAuthorAvatarUrl === 'string' ? rawMeta.discordAuthorAvatarUrl : null
     const base = {
       id: m.id,
       threadId: `league:${leagueId}`,
       senderUserId: m.user?.id ?? null,
-      senderName: m.user?.displayName || m.user?.email || 'User',
+      senderName: discordAuthorName || m.user?.displayName || m.user?.email || 'User',
       senderUsername: m.user?.username ?? null,
-      senderAvatarUrl: m.user?.avatarUrl ?? null,
+      senderAvatarUrl: discordAuthorAvatarUrl ?? m.user?.avatarUrl ?? null,
       senderAvatarPreset: m.user?.profile?.avatarPreset ?? null,
       messageType: m.type || 'text',
       body: m.message || '',
@@ -68,7 +76,14 @@ export async function createLeagueChatMessage(
   leagueId: string,
   userId: string,
   message: string,
-  options: { type?: string; imageUrl?: string | null; metadata?: Record<string, unknown>; source?: string | null }
+  options: {
+    type?: string
+    imageUrl?: string | null
+    metadata?: Record<string, unknown>
+    source?: string | null
+    discordMessageId?: string | null
+    sourceDiscord?: boolean
+  }
 ): Promise<PlatformChatMessage | null> {
   const source =
     typeof options.source === 'string' && options.source.trim()
@@ -85,6 +100,8 @@ export async function createLeagueChatMessage(
       imageUrl: options.imageUrl ?? null,
       metadata: options.metadata ?? undefined,
       source,
+      discordMessageId: options.discordMessageId ?? null,
+      sourceDiscord: options.sourceDiscord ?? false,
     },
     include: includeUser,
   })
@@ -98,13 +115,17 @@ export async function createLeagueChatMessage(
       profile?: { avatarPreset?: string | null } | null
     }
   }
+  const cm = (created as { metadata?: Record<string, unknown> }).metadata
+  const inboundName = typeof cm?.discordAuthorName === 'string' ? cm.discordAuthorName : null
+  const inboundAvatar =
+    typeof cm?.discordAuthorAvatarUrl === 'string' ? cm.discordAuthorAvatarUrl : null
   const out: PlatformChatMessage = {
     id: created.id,
     threadId: `league:${leagueId}`,
     senderUserId: withUser.user?.id ?? created.userId,
-    senderName: withUser.user?.displayName || withUser.user?.email || 'User',
+    senderName: inboundName || withUser.user?.displayName || withUser.user?.email || 'User',
     senderUsername: withUser.user?.username ?? null,
-    senderAvatarUrl: withUser.user?.avatarUrl ?? null,
+    senderAvatarUrl: inboundAvatar ?? withUser.user?.avatarUrl ?? null,
     senderAvatarPreset: withUser.user?.profile?.avatarPreset ?? null,
     messageType: created.type || 'text',
     body: created.message || '',

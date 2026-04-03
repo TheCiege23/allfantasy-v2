@@ -22,6 +22,7 @@ import {
   Shield,
   Shuffle,
   Sparkles,
+  Link2,
   Star,
   Swords,
   TrendingUp,
@@ -70,6 +71,7 @@ const GENERAL_CARDS: CardDef[] = [
 ]
 
 const COMMISH_CARDS: CardDef[] = [
+  { id: 'discord-sync', title: 'Discord Sync', description: 'Link league chat to a Discord channel', icon: Link2 },
   { id: 'commish-general', title: 'General Settings', description: 'Update league general settings', icon: Star },
   { id: 'division-settings', title: 'Division Settings', description: 'Update division settings', icon: Zap },
   { id: 'members-commish', title: 'Members', description: 'Manage league members', icon: MessageSquare },

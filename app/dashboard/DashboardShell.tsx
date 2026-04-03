@@ -16,6 +16,7 @@ type DashboardShellProps = {
   userImage?: string | null
   /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
   activeLeagueId?: string | null
+  discordConnected?: boolean
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -146,6 +147,7 @@ export function DashboardShell({
   userName,
   userImage = null,
   activeLeagueId = null,
+  discordConnected = false,
 }: DashboardShellProps) {
   const router = useRouter()
   const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
@@ -231,8 +233,11 @@ export function DashboardShell({
           selectedLeague={selectedLeague}
           activeLeagueId={activeLeagueId}
           userId={userId}
+          userDisplayName={userName}
+          userImage={userImage}
           rootId="dashboard-left-chat"
           leagues={leagues}
+          discordConnected={discordConnected}
         />
       </aside>
 
@@ -332,8 +337,11 @@ export function DashboardShell({
                 selectedLeague={selectedLeague}
                 activeLeagueId={activeLeagueId}
                 userId={userId}
+                userDisplayName={userName}
+                userImage={userImage}
                 rootId={null}
                 leagues={leagues}
+                discordConnected={discordConnected}
               />
             </div>
           </div>

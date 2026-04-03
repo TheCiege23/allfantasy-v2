@@ -100,6 +100,7 @@ export type LeagueShellProps = {
   sleeperCommissionerId: string | null
   sleeperUsersByPlatformId: SleeperMemberMap
   currentSleeperUserId: string | null
+  discordConnected?: boolean
 }
 
 export function LeagueShell({
@@ -114,6 +115,7 @@ export function LeagueShell({
   sleeperCommissionerId,
   sleeperUsersByPlatformId,
   currentSleeperUserId,
+  discordConnected = false,
 }: LeagueShellProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<LeagueShellTab>('draft')
@@ -184,6 +186,7 @@ export function LeagueShell({
           userImage={userImage}
           rootId="league-left-chat"
           leagues={leagueList}
+          discordConnected={discordConnected}
         />
       </aside>
 

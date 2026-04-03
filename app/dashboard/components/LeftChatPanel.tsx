@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronRight, Inbox, MessageCircle, Users, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ChimmyChat from '@/app/components/ChimmyChat'
+import { DiscordIcon } from '@/app/components/icons/DiscordIcon'
 import type { LeftChatPanelLayoutProps, UserLeague } from '../types'
 import { LeagueAvatar } from './LeagueAvatar'
 import { LeagueChatInPanel } from './LeagueChatInPanel'
@@ -140,6 +141,7 @@ export function LeftChatPanel({
   userImage,
   rootId = 'dashboard-left-chat',
   leagues = [],
+  discordConnected = false,
 }: LeftChatPanelLayoutProps) {
   const [activeTab, setActiveTab] = useState<LeftTab>('chimmy')
   const [activeChimmyLeagueId, setActiveChimmyLeagueId] = useState<string | null>(null)
@@ -353,6 +355,21 @@ export function LeftChatPanel({
               <p className="text-[13px] font-semibold text-white/45">No other DMs yet</p>
               <p className="mt-1 max-w-[220px] text-[11px] text-white/30">Start a conversation with a league member</p>
             </div>
+
+            {discordConnected ? (
+              <div className="mt-3 border-t border-white/[0.05] pt-3">
+                <p className="mb-2 text-center text-[10px] text-white/30">Message league managers directly on Discord</p>
+                <a
+                  href="https://discord.com/channels/@me"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#5865F2]/10 py-2 text-[11px] font-semibold text-[#5865F2] transition-colors hover:bg-[#5865F2]/20"
+                >
+                  <DiscordIcon size={12} />
+                  Open Discord DMs
+                </a>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

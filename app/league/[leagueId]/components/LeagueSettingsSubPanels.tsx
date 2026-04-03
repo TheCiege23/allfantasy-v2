@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import type { UserLeague } from '@/app/dashboard/types'
+import { DiscordLeagueSyncPanel } from './DiscordLeagueSyncPanel'
 import {
   detectScoringFlavor,
   getDraftIdFromSettings,
@@ -96,6 +97,8 @@ export function SettingsSubPanelBody({
       : 'https://sleeper.com/'
 
   switch (panelId) {
+    case 'discord-sync':
+      return <DiscordLeagueSyncPanel ctx={ctx} />
     case 'my-team':
       return <MyTeamPanel ctx={ctx} />
     case 'general-info':

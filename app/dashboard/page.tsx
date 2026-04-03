@@ -45,6 +45,11 @@ export default async function DashboardPage() {
       select: { avatarUrl: true },
     })
 
+    const userProfile = await prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { discordUserId: true },
+    })
+
     const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
 
     return (
@@ -52,6 +57,7 @@ export default async function DashboardPage() {
         userId={session.user.id}
         userName={session.user.name ?? session.user.email ?? 'Manager'}
         userImage={userImage}
+        discordConnected={Boolean(userProfile?.discordUserId)}
       />
     )
   } catch (error) {

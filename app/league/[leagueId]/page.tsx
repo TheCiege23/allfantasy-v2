@@ -58,7 +58,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
   const userProfile = await prisma.userProfile.findUnique({
     where: { userId },
-    select: { sleeperUserId: true },
+    select: { sleeperUserId: true, discordUserId: true },
   })
   const currentSleeperUserId = userProfile?.sleeperUserId ?? null
 
@@ -104,6 +104,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       sleeperCommissionerId={sleeperCommissionerId}
       sleeperUsersByPlatformId={sleeperUsersByPlatformId}
       currentSleeperUserId={currentSleeperUserId}
+      discordConnected={Boolean(userProfile?.discordUserId)}
     />
   )
 }

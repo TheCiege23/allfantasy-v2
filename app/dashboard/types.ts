@@ -39,6 +39,8 @@ export type LeftChatPanelLayoutProps = {
   rootId?: string | null
   /** Dashboard home: connected leagues for Chimmy context selector */
   leagues?: UserLeague[]
+  /** Discord OAuth linked (UserProfile.discordUserId) — DMs tab CTA */
+  discordConnected?: boolean
 }
 
 /** Props contract for `RightControlPanel` */

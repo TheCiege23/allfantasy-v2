@@ -6,9 +6,16 @@ import {
   createLeagueChatMessage,
   getLeagueChatMessages,
 } from '@/lib/league-chat/LeagueChatMessageService'
+import { syncOutboundLeagueChat } from '@/lib/discord/sync-outbound'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
+}
+
+function gifUrlFromMetadata(meta: Record<string, unknown> | undefined): string | null {
+  if (!meta) return null
+  const g = meta.gifUrl ?? meta.previewUrl ?? meta.imageUrl
+  return typeof g === 'string' ? g : null
 }
 
 async function canAccessLeague(leagueId: string, userId: string) {
@@ -161,6 +168,15 @@ export async function POST(req: NextRequest) {
   if (!created) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
+
+  void syncOutboundLeagueChat({
+    leagueId,
+    messageId: created.id,
+    authorName: created.senderName ?? 'Manager',
+    authorAvatarUrl: created.senderAvatarUrl ?? null,
+    text: created.body,
+    gifUrl: gifUrlFromMetadata(metadata),
+  }).catch(() => {})
 
   return NextResponse.json({
     message: toClientMessage({
