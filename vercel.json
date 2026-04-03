@@ -95,6 +95,22 @@
     {
       "path": "/api/discord/poll-messages",
       "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/redraft/score-sync",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/redraft/waiver-process",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/redraft/ai/weekly-recap",
+      "schedule": "0 9 * * 2"
+    },
+    {
+      "path": "/api/redraft/ai/power-rankings",
+      "schedule": "0 10 * * 2"
     }
   ]
 }

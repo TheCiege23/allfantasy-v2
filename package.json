@@ -97,6 +97,9 @@
     "zod": "^3.25.76",
     "zod-validation-error": "^5.0.0"
   },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/canvas-confetti": "^1.6.4",

@@ -327,13 +327,13 @@ export async function PATCH(req: NextRequest) {
   let updated = league.leagueSettings
 
   if (shouldPatchLs) {
-    const { updatedBy: _u, ...createRest } = lsUpdate
+    const { updatedBy: _ignore, ...createFields } = lsUpdate
     updated = await prisma.leagueSettings.upsert({
       where: { leagueId },
       create: {
         leagueId,
         updatedBy: userId,
-        ...createRest,
+        ...(createFields as Omit<Prisma.LeagueSettingsUncheckedCreateInput, 'leagueId' | 'updatedBy'>),
       },
       update: lsUpdate,
     })

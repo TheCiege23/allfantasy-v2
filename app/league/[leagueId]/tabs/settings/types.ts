@@ -13,6 +13,8 @@ export type LeagueTeamBrief = {
 
 export type LeagueSettingsApi = {
   userRole?: 'commissioner' | 'co_commissioner' | 'member' | null
+  hasAfCommissionerSub?: boolean
+  canEdit?: boolean
   league: {
     id: string
     name: string | null

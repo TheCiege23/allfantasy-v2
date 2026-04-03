@@ -6,6 +6,7 @@ export type TabDef = {
 
 const NFL_TABS: TabDef[] = [
   { id: 'draft', label: 'Draft' },
+  { id: 'redraft', label: 'Redraft' },
   { id: 'team', label: 'Team' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
@@ -17,6 +18,7 @@ const NFL_TABS: TabDef[] = [
 
 const BASKETBALL_LIKE_TABS: TabDef[] = [
   { id: 'roster', label: 'Roster' },
+  { id: 'redraft', label: 'Redraft' },
   { id: 'team', label: 'My Team' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
@@ -28,6 +30,7 @@ const BASKETBALL_LIKE_TABS: TabDef[] = [
 
 const SOCCER_TABS: TabDef[] = [
   { id: 'squad', label: 'Squad' },
+  { id: 'redraft', label: 'Redraft' },
   { id: 'team', label: 'My Team' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
@@ -39,6 +42,7 @@ const SOCCER_TABS: TabDef[] = [
 
 const NCAAF_TABS: TabDef[] = [
   { id: 'roster', label: 'Roster' },
+  { id: 'redraft', label: 'Redraft' },
   { id: 'team', label: 'My Team' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },
@@ -50,6 +54,7 @@ const NCAAF_TABS: TabDef[] = [
 
 const PGA_TABS: TabDef[] = [
   { id: 'leaderboard', label: 'Leaderboard' },
+  { id: 'redraft', label: 'Redraft' },
   { id: 'my-picks', label: 'My Picks' },
   { id: 'league', label: 'League' },
   { id: 'players', label: 'Players' },

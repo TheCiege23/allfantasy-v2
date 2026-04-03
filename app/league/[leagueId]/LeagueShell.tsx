@@ -31,6 +31,7 @@ import { LeagueTabPlaceholder } from './tabs/LeagueTabPlaceholder'
 import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
+import { RedraftTab } from './tabs/RedraftTab'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -297,6 +298,8 @@ function LeagueTabRouter({
           inviteToken={inviteToken}
         />
       )
+    case 'redraft':
+      return <RedraftTab leagueId={leagueId} />
     case 'team':
     case 'roster':
     case 'squad':

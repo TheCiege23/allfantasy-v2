@@ -1,0 +1,238 @@
+import type { League, Prisma } from '@prisma/client'
+
+/** Subset of `League` exposed to commissioner settings UI (GET + PATCH). */
+export type CommissionerSettingsFormData = {
+  logoUrl?: string | null
+  timezone?: string | null
+  waiverType?: string | null
+  waiverBudget?: number | null
+  waiverMinBid?: number | null
+  waiverClearAfterGames?: boolean | null
+  waiverHours?: number | null
+  customDailyWaivers?: boolean | null
+  waiverProcessTime?: string | null
+  waiverSchedule?: Prisma.JsonValue | null
+  tradeReviewHours?: number | null
+  tradeDeadlineWeek?: number | null
+  draftPickTrading?: boolean | null
+  playoffStartWeek?: number | null
+  playoffTeams?: number | null
+  playoffWeeksPerRound?: number | null
+  playoffSeedingRule?: string | null
+  playoffLowerBracket?: string | null
+  irSlots?: number | null
+  irAllowCovid?: boolean | null
+  irAllowOut?: boolean | null
+  irAllowSuspended?: boolean | null
+  irAllowNA?: boolean | null
+  irAllowDNR?: boolean | null
+  irAllowDoubtful?: boolean | null
+  leagueType?: string | null
+  medianGame?: boolean | null
+  allowPreDraftMoves?: boolean | null
+  preventBenchDrops?: boolean | null
+  lockAllMoves?: boolean | null
+  supplementalDraftRounds?: number | null
+  taxiSlots?: number | null
+  taxiAllowNonRookies?: boolean | null
+  taxiYearsLimit?: number | null
+  taxiDeadlineWeek?: number | null
+  overrideInviteCapacity?: boolean | null
+  disableInviteLinks?: boolean | null
+  aiChimmyEnabled?: boolean | null
+  aiWaiverSuggestions?: boolean | null
+  aiTradeAnalysis?: boolean | null
+  aiLineupHelp?: boolean | null
+  aiDraftRecs?: boolean | null
+  aiRecaps?: boolean | null
+  leagueAiCommissionerAlerts?: boolean | null
+  aiModeration?: boolean | null
+  aiPowerRankings?: boolean | null
+  rosterSize?: number | null
+  leagueSize?: number | null
+  name?: string | null
+  scoring?: string | null
+  isDynasty?: boolean | null
+}
+
+export function commissionerLeagueFieldsFromRow(
+  league: Pick<
+    League,
+    | 'name'
+    | 'logoUrl'
+    | 'timezone'
+    | 'waiverType'
+    | 'waiverBudget'
+    | 'waiverMinBid'
+    | 'waiverClearAfterGames'
+    | 'waiverHours'
+    | 'customDailyWaivers'
+    | 'waiverProcessTime'
+    | 'waiverSchedule'
+    | 'tradeReviewHours'
+    | 'tradeDeadlineWeek'
+    | 'draftPickTrading'
+    | 'playoffStartWeek'
+    | 'playoffTeams'
+    | 'playoffWeeksPerRound'
+    | 'playoffSeedingRule'
+    | 'playoffLowerBracket'
+    | 'irSlots'
+    | 'irAllowCovid'
+    | 'irAllowOut'
+    | 'irAllowSuspended'
+    | 'irAllowNA'
+    | 'irAllowDNR'
+    | 'irAllowDoubtful'
+    | 'leagueType'
+    | 'medianGame'
+    | 'allowPreDraftMoves'
+    | 'preventBenchDrops'
+    | 'lockAllMoves'
+    | 'supplementalDraftRounds'
+    | 'taxiSlots'
+    | 'taxiAllowNonRookies'
+    | 'taxiYearsLimit'
+    | 'taxiDeadlineWeek'
+    | 'overrideInviteCapacity'
+    | 'disableInviteLinks'
+    | 'aiChimmyEnabled'
+    | 'aiWaiverSuggestions'
+    | 'aiTradeAnalysis'
+    | 'aiLineupHelp'
+    | 'aiDraftRecs'
+    | 'aiRecaps'
+    | 'leagueAiCommissionerAlerts'
+    | 'aiModeration'
+    | 'aiPowerRankings'
+    | 'rosterSize'
+    | 'leagueSize'
+    | 'scoring'
+    | 'isDynasty'
+  >,
+): CommissionerSettingsFormData {
+  return {
+    name: league.name,
+    logoUrl: league.logoUrl,
+    timezone: league.timezone,
+    waiverType: league.waiverType,
+    waiverBudget: league.waiverBudget,
+    waiverMinBid: league.waiverMinBid,
+    waiverClearAfterGames: league.waiverClearAfterGames,
+    waiverHours: league.waiverHours,
+    customDailyWaivers: league.customDailyWaivers,
+    waiverProcessTime: league.waiverProcessTime,
+    waiverSchedule: league.waiverSchedule,
+    tradeReviewHours: league.tradeReviewHours,
+    tradeDeadlineWeek: league.tradeDeadlineWeek,
+    draftPickTrading: league.draftPickTrading,
+    playoffStartWeek: league.playoffStartWeek,
+    playoffTeams: league.playoffTeams,
+    playoffWeeksPerRound: league.playoffWeeksPerRound,
+    playoffSeedingRule: league.playoffSeedingRule,
+    playoffLowerBracket: league.playoffLowerBracket,
+    irSlots: league.irSlots,
+    irAllowCovid: league.irAllowCovid,
+    irAllowOut: league.irAllowOut,
+    irAllowSuspended: league.irAllowSuspended,
+    irAllowNA: league.irAllowNA,
+    irAllowDNR: league.irAllowDNR,
+    irAllowDoubtful: league.irAllowDoubtful,
+    leagueType: league.leagueType,
+    medianGame: league.medianGame,
+    allowPreDraftMoves: league.allowPreDraftMoves,
+    preventBenchDrops: league.preventBenchDrops,
+    lockAllMoves: league.lockAllMoves,
+    supplementalDraftRounds: league.supplementalDraftRounds,
+    taxiSlots: league.taxiSlots,
+    taxiAllowNonRookies: league.taxiAllowNonRookies,
+    taxiYearsLimit: league.taxiYearsLimit,
+    taxiDeadlineWeek: league.taxiDeadlineWeek,
+    overrideInviteCapacity: league.overrideInviteCapacity,
+    disableInviteLinks: league.disableInviteLinks,
+    aiChimmyEnabled: league.aiChimmyEnabled,
+    aiWaiverSuggestions: league.aiWaiverSuggestions,
+    aiTradeAnalysis: league.aiTradeAnalysis,
+    aiLineupHelp: league.aiLineupHelp,
+    aiDraftRecs: league.aiDraftRecs,
+    aiRecaps: league.aiRecaps,
+    leagueAiCommissionerAlerts: league.leagueAiCommissionerAlerts,
+    aiModeration: league.aiModeration,
+    aiPowerRankings: league.aiPowerRankings,
+    rosterSize: league.rosterSize,
+    leagueSize: league.leagueSize,
+    scoring: league.scoring,
+    isDynasty: league.isDynasty,
+  }
+}
+
+const LEAGUE_PATCH_KEYS: (keyof Prisma.LeagueUpdateInput)[] = [
+  'name',
+  'logoUrl',
+  'timezone',
+  'waiverType',
+  'waiverBudget',
+  'waiverMinBid',
+  'waiverClearAfterGames',
+  'waiverHours',
+  'customDailyWaivers',
+  'waiverProcessTime',
+  'waiverSchedule',
+  'tradeReviewHours',
+  'tradeDeadlineWeek',
+  'draftPickTrading',
+  'playoffStartWeek',
+  'playoffTeams',
+  'playoffWeeksPerRound',
+  'playoffSeedingRule',
+  'playoffLowerBracket',
+  'irSlots',
+  'irAllowCovid',
+  'irAllowOut',
+  'irAllowSuspended',
+  'irAllowNA',
+  'irAllowDNR',
+  'irAllowDoubtful',
+  'leagueType',
+  'medianGame',
+  'allowPreDraftMoves',
+  'preventBenchDrops',
+  'lockAllMoves',
+  'supplementalDraftRounds',
+  'taxiSlots',
+  'taxiAllowNonRookies',
+  'taxiYearsLimit',
+  'taxiDeadlineWeek',
+  'overrideInviteCapacity',
+  'disableInviteLinks',
+  'aiChimmyEnabled',
+  'aiWaiverSuggestions',
+  'aiTradeAnalysis',
+  'aiLineupHelp',
+  'aiDraftRecs',
+  'aiRecaps',
+  'leagueAiCommissionerAlerts',
+  'aiModeration',
+  'aiPowerRankings',
+  'rosterSize',
+  'leagueSize',
+  'scoring',
+  'isDynasty',
+]
+
+export function buildLeagueUpdateFromBody(body: Record<string, unknown>): {
+  data: Prisma.LeagueUpdateInput
+  keys: string[]
+} {
+  const data: Prisma.LeagueUpdateInput = {}
+  const keys: string[] = []
+
+  for (const key of LEAGUE_PATCH_KEYS) {
+    if (body[key as string] === undefined) continue
+    const v = body[key as string]
+    ;(data as Record<string, unknown>)[key as string] = v
+    keys.push(key as string)
+  }
+
+  return { data, keys }
+}
