@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-export type SlimPlayer = { id: string; name: string; position: string; team: string }
+export type SlimPlayer = { id: string; name: string; position: string; team: string; espn_id?: string }
 export type PlayerMap = Record<string, SlimPlayer>
 
 let cachedPlayers: PlayerMap | null = null

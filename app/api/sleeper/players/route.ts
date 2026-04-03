@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server'
 
 export const revalidate = 86400
 
-export type SlimPlayer = { id: string; name: string; position: string; team: string }
+export type SlimPlayer = {
+  id: string
+  name: string
+  position: string
+  team: string
+  espn_id?: string
+}
 
 /** Slim map of Sleeper NFL players — cached 24h via segment config. */
 export async function GET() {
@@ -30,7 +36,14 @@ export async function GET() {
       const position = typeof p.position === 'string' ? p.position : ''
       const teamRaw = typeof p.team === 'string' ? p.team.trim() : ''
       const team = teamRaw || 'FA'
-      out[playerId] = { id: playerId, name, position, team }
+      const espnRaw = p.espn_id
+      const espn_id =
+        espnRaw != null && espnRaw !== ''
+          ? typeof espnRaw === 'number'
+            ? String(espnRaw)
+            : String(espnRaw).trim()
+          : undefined
+      out[playerId] = { id: playerId, name, position, team, ...(espn_id ? { espn_id } : {}) }
     }
 
     return NextResponse.json(out)

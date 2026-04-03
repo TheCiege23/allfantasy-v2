@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { SlidersHorizontal } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
+import { PlayerImage } from '@/app/components/PlayerImage'
 import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 
@@ -68,17 +69,6 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
     }
     return rows
   }, [playerList, pos, query, freeAgents, watchlist, rookies])
-
-  const thumb = useCallback(
-    (playerId: string) => {
-      const s = league.sport.toUpperCase()
-      if (s === 'NFL' || s === 'NCAAF') {
-        return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
-      }
-      return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
-    },
-    [league.sport],
-  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -216,9 +206,15 @@ export function PlayersTab({ league, onPlayerClick }: PlayersTabProps) {
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] text-white/60">
                     +
                   </span>
-                  <div className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-white/10">
-                    <img src={thumb(p.id)} alt="" className="h-full w-full object-cover" />
-                  </div>
+                  <PlayerImage
+                    sleeperId={p.id}
+                    sport={league.sport}
+                    name={p.name}
+                    position={p.position}
+                    espnId={p.espn_id}
+                    size={28}
+                    variant="round"
+                  />
                   <div className="w-[200px] shrink-0">
                     <p className="text-xs font-semibold text-white">{p.name}</p>
                     <p className="text-[10px] text-white/40">

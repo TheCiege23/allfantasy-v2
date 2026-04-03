@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Settings } from 'lucide-react'
 import type { LeagueTeam } from '@prisma/client'
+import { PlayerImage } from '@/app/components/PlayerImage'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
+import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 
 export type TeamTabProps = {
   league: UserLeague
@@ -77,14 +79,6 @@ function partitionRoster(
   return { starters, bench, ir, taxi }
 }
 
-function playerThumbUrl(sport: string, playerId: string): string {
-  const s = sport.toUpperCase()
-  if (s === 'NFL' || s === 'NCAAF') {
-    return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
-  }
-  return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
-}
-
 function positionBadgeClass(pos: string): string {
   const p = pos.toUpperCase()
   if (p === 'QB') return 'border-red-500/35 bg-red-500/25 text-red-400'
@@ -99,13 +93,23 @@ function positionBadgeClass(pos: string): string {
 function RosterRow({
   playerId,
   sport,
+  players,
+  playersLoading,
   onPlayerClick,
 }: {
   playerId: string
   sport: string
+  players: PlayerMap
+  playersLoading: boolean
   onPlayerClick: (id: string) => void
 }) {
-  const label = `Player ${playerId.length > 6 ? `…${playerId.slice(-6)}` : playerId}`
+  const resolved = resolvePlayerName(playerId, players)
+  const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
+  const pos = resolved.position || '—'
+  const sub =
+    playersLoading || (!resolved.position && !resolved.team)
+      ? '— · —'
+      : `${resolved.position || '—'} · ${resolved.team || '—'}`
   return (
     <button
       type="button"
@@ -113,16 +117,22 @@ function RosterRow({
       className="flex w-full items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]"
     >
       <span
-        className={`inline-flex min-w-[2rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${positionBadgeClass('—')}`}
+        className={`inline-flex min-w-[2rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${positionBadgeClass(pos)}`}
       >
-        —
+        {pos}
       </span>
-      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white/10">
-        <img src={playerThumbUrl(sport, playerId)} alt="" className="h-full w-full object-cover" />
-      </div>
+      <PlayerImage
+        sleeperId={playerId}
+        sport={sport}
+        name={label}
+        position={resolved.position}
+        espnId={players[playerId]?.espn_id}
+        size={28}
+        variant="round"
+      />
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-semibold text-white">{label}</p>
-        <p className="text-[10px] text-white/40">— · —</p>
+        <p className="text-[10px] text-white/40">{sub}</p>
       </div>
       <div className="flex shrink-0 gap-3 text-right text-xs text-white/45">
         <span className="w-10">—</span>
@@ -153,6 +163,7 @@ function SkeletonRows() {
 }
 
 export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTabProps) {
+  const { players, loading: playersLoading } = useSleeperPlayers()
   const [week, setWeek] = useState(1)
   const [loading, setLoading] = useState(Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
@@ -269,7 +280,14 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
             </div>
             <div className="space-y-1">
               {parts.starters.map((id) => (
-                <RosterRow key={id} playerId={id} sport={league.sport} onPlayerClick={onPlayerClick} />
+                <RosterRow
+                  key={id}
+                  playerId={id}
+                  sport={league.sport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                />
               ))}
             </div>
           </section>
@@ -278,7 +296,14 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Bench</p>
             <div className="space-y-1">
               {parts.bench.map((id) => (
-                <RosterRow key={id} playerId={id} sport={league.sport} onPlayerClick={onPlayerClick} />
+                <RosterRow
+                  key={id}
+                  playerId={id}
+                  sport={league.sport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                />
               ))}
             </div>
           </section>
@@ -289,7 +314,14 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
               <div className="space-y-1">
                 {parts.ir.length > 0 ? (
                   parts.ir.map((id) => (
-                    <RosterRow key={id} playerId={id} sport={league.sport} onPlayerClick={onPlayerClick} />
+                    <RosterRow
+                      key={id}
+                      playerId={id}
+                      sport={league.sport}
+                      players={players}
+                      playersLoading={playersLoading}
+                      onPlayerClick={onPlayerClick}
+                    />
                   ))
                 ) : (
                   <p className="text-xs text-white/35">No players on IR</p>
@@ -304,7 +336,14 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken }: TeamTa
               <div className="space-y-1">
                 {parts.taxi.length > 0 ? (
                   parts.taxi.map((id) => (
-                    <RosterRow key={id} playerId={id} sport={league.sport} onPlayerClick={onPlayerClick} />
+                    <RosterRow
+                      key={id}
+                      playerId={id}
+                      sport={league.sport}
+                      players={players}
+                      playersLoading={playersLoading}
+                      onPlayerClick={onPlayerClick}
+                    />
                   ))
                 ) : (
                   <p className="text-xs text-white/35">No taxi squad players</p>

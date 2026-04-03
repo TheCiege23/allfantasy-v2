@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
+import { PlayerImage } from '@/app/components/PlayerImage'
 import {
   normalizeTrendPosition,
   type PlayerMap,
@@ -24,14 +25,6 @@ function sleeperSportParam(sport: string): string {
   const u = sport.toUpperCase()
   if (u === 'NBA') return 'nba'
   return 'nfl'
-}
-
-function playerThumb(playerId: string, sport: string): string {
-  const s = sport.toUpperCase()
-  if (s === 'NFL' || s === 'NCAAF') {
-    return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
-  }
-  return `https://sleepercdn.com/content/nfl/players/thumb/${playerId}.jpg`
 }
 
 export function TrendTab({ league, onPlayerClick }: TrendTabProps) {
@@ -188,9 +181,15 @@ function TrendColumn({
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] text-white/50">
                       {i + 1}
                     </span>
-                    <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white/10">
-                      <img src={playerThumb(id, league.sport)} alt="" className="h-full w-full object-cover" />
-                    </div>
+                    <PlayerImage
+                      sleeperId={id}
+                      sport={league.sport}
+                      name={displayName}
+                      position={resolved.position}
+                      espnId={players[id]?.espn_id}
+                      size={36}
+                      variant="round"
+                    />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold text-white">{displayName}</p>
                       <p className="text-[10px] text-white/40">{sub}</p>
