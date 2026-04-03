@@ -188,7 +188,7 @@ export function ChatComposer({
   }, [attachments, autoResize, canSend, onSend, pendingGif, pollDraft, sending, text])
 
   const toolBtn = (active: boolean) =>
-    `px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+    `px-1.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${
       active ? 'text-cyan-400 bg-cyan-500/10' : 'text-white/40 hover:text-white hover:bg-white/[0.06]'
     }`
 
@@ -253,7 +253,7 @@ export function ChatComposer({
             }}
             placeholder={placeholder}
             rows={1}
-            className="w-full resize-none bg-transparent px-3 pb-1 pt-2.5 text-[12px] leading-[1.4] text-white outline-none placeholder:text-white/30 min-h-[36px] max-h-[120px] overflow-y-auto"
+            className="w-full resize-none bg-transparent px-3 pb-1 pt-2.5 text-[13px] leading-[1.4] text-white outline-none placeholder:text-white/30 min-h-[36px] max-h-[120px] overflow-y-auto"
             data-testid="league-chat-textarea"
           />
 
@@ -356,7 +356,7 @@ export function ChatComposer({
                   <button
                     type="button"
                     onClick={onAskChimmy}
-                    className="rounded-md bg-violet-500/20 px-2 py-1.5 text-[9px] font-bold text-violet-300 transition-colors hover:bg-violet-500/30"
+                    className="rounded-md bg-violet-500/20 px-2 py-1.5 text-[11px] font-bold text-violet-300 transition-colors hover:bg-violet-500/30"
                   >
                     Ask Chimmy
                   </button>

@@ -345,7 +345,7 @@ export function LeagueChatInPanel({
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex h-full min-h-[120px] items-center justify-center px-4 text-center text-[12px] text-white/40">
+          <div className="flex h-full min-h-[120px] items-center justify-center px-4 text-center text-[13px] text-white/40">
             No messages yet. Start the conversation!
           </div>
         ) : (
@@ -361,7 +361,7 @@ export function LeagueChatInPanel({
 
               if (message.isActivity) {
                 return (
-                  <p key={message.id} className="mt-2 px-2 py-1 text-center text-[10px] text-white/35">
+                  <p key={message.id} className="mt-2 px-2 py-1 text-center text-[11px] text-white/35">
                     <span className="italic">{message.activityText}</span>
                     {message.playerName ? (
                       <span className="font-semibold not-italic text-cyan-400/90"> {message.playerName}</span>
@@ -374,7 +374,7 @@ export function LeagueChatInPanel({
                 return (
                   <p
                     key={message.id}
-                    className="px-1 py-1 text-center text-[10px] text-white/35 italic"
+                    className="px-1 py-1 text-center text-[11px] text-white/35 italic"
                   >
                     {message.text}
                   </p>
@@ -404,11 +404,11 @@ export function LeagueChatInPanel({
                 return (
                   <div key={message.id} className={`flex justify-end py-1.5 ${index > 0 ? groupGap : ''}`}>
                     <div className="ml-auto flex min-w-0 max-w-[82%] flex-col items-end">
-                      <div className="rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[12px] text-white">
+                      <div className="rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[13px] text-white">
                         {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                         {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                       </div>
-                      <span className="mt-0.5 text-right text-[9px] text-white/25">
+                      <span className="mt-0.5 text-right text-[11px] text-white/25">
                         {formatChatTime(message.createdAt)}
                       </span>
                     </div>
@@ -435,20 +435,20 @@ export function LeagueChatInPanel({
                   <div className="min-w-0 flex-1">
                     {threaded ? null : (
                       <div className="mb-0.5 flex min-w-0 items-baseline">
-                        <span className="min-w-0 truncate text-[10px] font-semibold text-white/55">
+                        <span className="min-w-0 truncate text-[13px] font-semibold text-white/55">
                           {message.author_display_name}
                         </span>
-                        <span className="ml-1.5 shrink-0 text-[9px] text-white/30">
+                        <span className="ml-1.5 shrink-0 text-[11px] text-white/30">
                           {formatChatTime(message.createdAt)}
                         </span>
                       </div>
                     )}
-                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[12px] text-white/90">
+                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[13px] text-white/90">
                       {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                       {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                     </div>
                     {threaded ? (
-                      <p className="mt-0.5 text-[9px] text-white/30">{formatChatTime(message.createdAt)}</p>
+                      <p className="mt-0.5 text-[11px] text-white/30">{formatChatTime(message.createdAt)}</p>
                     ) : null}
                   </div>
                 </div>
@@ -460,14 +460,14 @@ export function LeagueChatInPanel({
       </div>
 
       <div className="shrink-0 border-t border-white/[0.07] bg-[#0a0a1f] px-2.5 py-2">
-        {error ? <p className="mb-1.5 text-[10px] text-rose-300">{error}</p> : null}
+        {error ? <p className="mb-1.5 text-[11px] text-rose-300">{error}</p> : null}
         <ChatComposer
           leagueId={selectedLeague.id}
           onSend={handleComposerSend}
           placeholder="Message league..."
           onAskChimmy={onAskChimmy}
         />
-        {sending ? <p className="mt-1 text-[9px] text-white/35">Sending…</p> : null}
+        {sending ? <p className="mt-1 text-[11px] text-white/35">Sending…</p> : null}
       </div>
     </div>
   )

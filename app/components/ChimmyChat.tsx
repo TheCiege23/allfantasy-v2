@@ -469,7 +469,7 @@ export default function ChimmyChat({
             <button
               type="button"
               onClick={startNewConversation}
-              className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-semibold text-white/80 transition hover:bg-white/10"
+              className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[11px] font-semibold text-white/80 transition hover:bg-white/10"
               title="New conversation"
             >
               New
@@ -513,7 +513,7 @@ export default function ChimmyChat({
                 onClick={() => setInput(chip.prompt)}
                 className={
                   embedded
-                    ? 'cursor-pointer whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[10px] text-slate-200 transition-colors hover:bg-white/[0.10]'
+                    ? 'cursor-pointer whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[12px] text-slate-200 transition-colors hover:bg-white/[0.10]'
                     : 'shrink-0 rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700'
                 }
               >
@@ -541,14 +541,14 @@ export default function ChimmyChat({
                   className={`flex min-w-0 flex-col items-end ${widePanel ? 'max-w-full' : 'max-w-[85%]'}`}
                 >
                   <div
-                    className={`ml-auto w-fit max-w-full rounded-3xl bg-cyan-600 text-white ${embedded ? 'p-3 text-sm' : 'p-5'}`}
+                    className={`ml-auto w-fit max-w-full rounded-3xl bg-cyan-600 text-white ${embedded ? 'p-3 text-[13px]' : 'p-5'}`}
                   >
                     {renderContentWithLinks(msg.content)}
                     {msg.image && (
                       <img src={msg.image} alt="Uploaded screenshot" className="mt-4 max-w-full rounded-2xl shadow-lg" />
                     )}
                   </div>
-                  <span className="mt-1 text-[10px] text-white/40">{ts}</span>
+                  <span className="mt-1 text-[11px] text-white/40">{ts}</span>
                 </div>
               </div>
             );
@@ -559,12 +559,12 @@ export default function ChimmyChat({
               <div className="w-8 shrink-0">{threaded ? null : <ChimmyAssistantAvatar />}</div>
               <div className="min-w-0 flex-1">
                 {threaded ? null : (
-                  <p className="mb-0.5 text-[11px] font-semibold text-white">Chimmy</p>
+                  <p className="mb-0.5 text-[13px] font-semibold text-white">Chimmy</p>
                 )}
                 <div
                   className={`rounded-3xl bg-slate-800 text-slate-200 ${
                     widePanel ? 'w-full max-w-full' : 'max-w-[85%]'
-                  } ${embedded ? 'p-3 text-sm' : 'p-5'}`}
+                  } ${embedded ? 'p-3 text-[13px]' : 'p-5'}`}
                 >
                   {renderContentWithLinks(msg.content)}
                   <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
@@ -596,7 +596,7 @@ export default function ChimmyChat({
                         updateVoiceConfig({ enabled: nextEnabled });
                         if (!nextEnabled) handleStopVoice();
                       }}
-                      className="ml-auto text-[11px] text-white/50 transition hover:text-white/80"
+                      className="ml-auto text-[12px] text-white/50 transition hover:text-white/80"
                     >
                       {voiceConfig.enabled ? 'Voice on' : 'Voice off'}
                     </button>
@@ -612,7 +612,7 @@ export default function ChimmyChat({
                     </div>
                   )}
                 </div>
-                <span className="mt-1 text-[10px] text-white/40">{ts}</span>
+                <span className="mt-1 text-[11px] text-white/40">{ts}</span>
               </div>
             </div>
           );
@@ -672,7 +672,7 @@ export default function ChimmyChat({
             }}
             placeholder="Ask about your roster, league, trades, waivers, or upload a screenshot"
             className={`flex-1 rounded-2xl border border-slate-700 bg-slate-800 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400 ${
-              embedded ? 'px-3 py-2 text-xs' : 'px-6 py-4'
+              embedded ? 'px-3 py-2 text-[13px]' : 'px-6 py-4'
             }`}
           />
 

@@ -41,7 +41,7 @@ function ChimmyLeagueContextBar({
         onClick={() => {
           if (leagues.length > 1) setOpen((o) => !o)
         }}
-        className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-white/90"
+        className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[14px] font-bold text-white/90"
       >
         <LeagueAvatar league={active} size={22} />
         <span className="min-w-0 flex-1 truncate text-left">{active.name}</span>
@@ -67,7 +67,7 @@ function ChimmyLeagueContextBar({
                 onSelect(l.id)
                 setOpen(false)
               }}
-              className={`flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-[11px] transition-colors hover:bg-white/[0.06] ${
+              className={`flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left text-[14px] font-bold transition-colors hover:bg-white/[0.06] ${
                 l.id === activeLeagueId
                   ? 'bg-cyan-500/15 text-cyan-200'
                   : 'text-white/80'
@@ -197,7 +197,7 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('league')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
             activeTab === 'league'
               ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
@@ -209,7 +209,7 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('chimmy')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
             activeTab === 'chimmy'
               ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
@@ -221,7 +221,7 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('af_huddle')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
             activeTab === 'af_huddle'
               ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
@@ -234,7 +234,7 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('dms')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
             activeTab === 'dms'
               ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
@@ -250,7 +250,7 @@ export function LeftChatPanel({
         {activeTab === 'league' && selectedLeague ? (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-3 py-2">
-              <p className="text-[11px] font-semibold text-white/90">League Chat</p>
+              <p className="text-[14px] font-semibold text-white/90">League Chat</p>
               <button
                 type="button"
                 title="Mute (coming soon)"
@@ -285,7 +285,7 @@ export function LeftChatPanel({
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent('af-chimmy-new-conversation'))}
-                className="rounded-lg border border-white/[0.08] bg-transparent px-2 py-1 text-[10px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/90"
+                className="rounded-lg border border-white/[0.08] bg-transparent px-2 py-1 text-[11px] font-semibold text-white/50 transition hover:bg-white/[0.06] hover:text-white/90"
                 title="New conversation"
               >
                 New
@@ -313,7 +313,7 @@ export function LeftChatPanel({
 
         {activeTab === 'af_huddle' ? (
           <div className="flex h-full min-h-0 items-center justify-center px-4 text-center">
-            <p className="text-[12px] text-white/35">No group chats yet</p>
+            <p className="text-[14px] text-white/35">No group chats yet</p>
           </div>
         ) : null}
 
@@ -342,10 +342,10 @@ export function LeftChatPanel({
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-[12px] font-semibold text-white/90">{row.name}</p>
-                    <p className="truncate text-[10px] text-white/40">{row.preview}</p>
+                    <p className="truncate text-[13px] font-semibold text-white/90">{row.name}</p>
+                    <p className="truncate text-[11px] text-white/40">{row.preview}</p>
                   </div>
-                  <span className="shrink-0 text-[10px] text-white/30">{row.time}</span>
+                  <span className="shrink-0 text-[11px] text-white/30">{row.time}</span>
                 </div>
               ))}
             </div>
@@ -353,17 +353,17 @@ export function LeftChatPanel({
             <div className="mt-6 flex flex-col items-center rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center">
               <Inbox className="mb-2 h-8 w-8 text-white/25" strokeWidth={1.5} aria-hidden />
               <p className="text-[13px] font-semibold text-white/45">No other DMs yet</p>
-              <p className="mt-1 max-w-[220px] text-[11px] text-white/30">Start a conversation with a league member</p>
+              <p className="mt-1 max-w-[220px] text-[12px] text-white/30">Start a conversation with a league member</p>
             </div>
 
             {discordConnected ? (
               <div className="mt-3 border-t border-white/[0.05] pt-3">
-                <p className="mb-2 text-center text-[10px] text-white/30">Message league managers directly on Discord</p>
+                <p className="mb-2 text-center text-[11px] text-white/30">Message league managers directly on Discord</p>
                 <a
                   href="https://discord.com/channels/@me"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#5865F2]/10 py-2 text-[11px] font-semibold text-[#5865F2] transition-colors hover:bg-[#5865F2]/20"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#5865F2]/10 py-2 text-[12px] font-semibold text-[#5865F2] transition-colors hover:bg-[#5865F2]/20"
                 >
                   <DiscordIcon size={12} />
                   Open Discord DMs

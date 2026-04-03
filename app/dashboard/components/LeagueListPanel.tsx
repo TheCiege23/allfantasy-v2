@@ -372,8 +372,8 @@ export function LeagueListPanel({
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-start justify-between gap-1">
                             <p
-                              className={`min-w-0 truncate font-semibold text-white/90 ${
-                                compact ? 'text-[11px]' : 'text-[13px]'
+                              className={`min-w-0 truncate font-bold text-white/90 ${
+                                compact ? 'text-[14px]' : 'text-[13px]'
                               }`}
                             >
                               {league.name}
@@ -381,7 +381,7 @@ export function LeagueListPanel({
                             <span
                               className={`shrink-0 font-semibold ${
                                 compact
-                                  ? `rounded-md px-1.5 py-0.5 text-[8px] ${statusBadge.className}`
+                                  ? `rounded-md px-1.5 py-0.5 text-[9px] ${statusBadge.className}`
                                   : `rounded-full px-1.5 py-0.5 text-[9px] ${statusBadge.className}`
                               }`}
                             >
@@ -394,14 +394,14 @@ export function LeagueListPanel({
                           >
                             <span
                               className={`rounded font-bold uppercase tracking-wide ${platformPill.className} ${
-                                compact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]'
+                                compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
                               }`}
                             >
                               {platformPill.label}
                             </span>
                             <span
                               className={`rounded bg-white/[0.06] font-semibold uppercase tracking-wide text-white/55 ${
-                                compact ? 'px-1 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[9px]'
+                                compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
                               }`}
                             >
                               {sportLabel}
@@ -416,7 +416,7 @@ export function LeagueListPanel({
                           </div>
 
                           <p
-                            className={`truncate text-white/40 ${compact ? 'mt-0.5 text-[8px]' : 'mt-1 text-[10px]'}`}
+                            className={`truncate text-white/40 ${compact ? 'mt-0.5 text-[10px]' : 'mt-1 text-[10px]'}`}
                           >
                             {league.teamCount}-team · {seasonLabel} · {scoringLabel}
                           </p>

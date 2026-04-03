@@ -42,7 +42,7 @@ export function RightControlPanel({
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-2 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">My Leagues</p>
+          <p className="text-[12px] font-semibold uppercase tracking-widest text-white/30">My Leagues</p>
           <button
             type="button"
             onClick={onImport}
@@ -92,9 +92,9 @@ export function RightControlPanel({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-semibold text-white">{userName}</p>
+          <p className="truncate text-[14px] font-semibold text-white">{userName}</p>
           {subtitle ? (
-            <p className="truncate text-[9px] leading-tight text-white/40">{subtitle}</p>
+            <p className="truncate text-[12px] leading-tight text-white/40">{subtitle}</p>
           ) : null}
         </div>
         <Link
