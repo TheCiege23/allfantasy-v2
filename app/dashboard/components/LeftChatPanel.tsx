@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, ChevronRight, VolumeX } from 'lucide-react'
+import { ChevronDown, ChevronRight, MessageSquare, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 import type { LeftChatPanelLayoutProps, UserLeague } from '../types'
@@ -78,13 +78,13 @@ function ChimmyLeagueContextBar({
   )
 }
 
-type LeftTab = 'league' | 'chimmy' | 'groups'
+type LeftTab = 'league' | 'chimmy' | 'af_huddle' | 'dms'
 
-const TABS: Array<{ id: LeftTab; label: string }> = [
-  { id: 'league', label: '🏈 League' },
-  { id: 'chimmy', label: '🤖 Chimmy' },
-  { id: 'groups', label: '👥 Groups' },
-]
+const DM_STUB_ROWS = [
+  { initials: 'JA', name: 'Jordan_A', preview: 'Trade offer: Davante for Hill?', time: '2m' },
+  { initials: 'KF', name: 'KingFantasy', preview: 'You still want that RB?', time: '1h' },
+  { initials: 'RC', name: 'RicoCommish', preview: 'Draft order drops tomorrow', time: '3h' },
+] as const
 
 export function LeftChatPanel({
   selectedLeague,
@@ -129,23 +129,55 @@ export function LeftChatPanel({
       className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#0a0a1f]"
     >
       <div className="flex flex-shrink-0 border-b border-white/[0.07]">
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 cursor-pointer py-2.5 text-center text-[11px] font-semibold transition-colors ${
-                isActive
-                  ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
-                  : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
-              }`}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+        <button
+          type="button"
+          onClick={() => setActiveTab('league')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+            activeTab === 'league'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
+          }`}
+          aria-label="League chat tab"
+        >
+          🏈 League
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('chimmy')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+            activeTab === 'chimmy'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
+          }`}
+          aria-label="Chimmy tab"
+        >
+          🤖 Chimmy
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('af_huddle')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+            activeTab === 'af_huddle'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
+          }`}
+          aria-label="AF Huddle tab"
+        >
+          AF Huddle
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('dms')}
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[11px] font-semibold transition-colors ${
+            activeTab === 'dms'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
+          }`}
+          aria-label="Direct messages tab"
+        >
+          <MessageSquare size={11} className="shrink-0" aria-hidden />
+          DMs
+        </button>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -211,9 +243,41 @@ export function LeftChatPanel({
           </div>
         ) : null}
 
-        {activeTab === 'groups' ? (
+        {activeTab === 'af_huddle' ? (
           <div className="flex min-h-[120px] flex-1 items-center justify-center px-4 text-center">
-            <p className="text-[12px] text-white/35">No group chats yet</p>
+            <p className="text-[12px] text-white/35">No AF Huddle chats yet</p>
+          </div>
+        ) : null}
+
+        {activeTab === 'dms' ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 [scrollbar-gutter:stable]">
+            <div className="flex flex-col items-center text-center">
+              <MessageSquare size={28} className="mb-2.5 text-white/20" aria-hidden />
+              <p className="text-[13px] font-semibold text-white/50">Direct Messages</p>
+              <p className="mt-1 max-w-[180px] text-center text-[11px] text-white/30">
+                Chat privately with other league managers
+              </p>
+            </div>
+            <div className="mt-6 space-y-1">
+              {DM_STUB_ROWS.map((row) => (
+                <div
+                  key={row.name}
+                  className="flex cursor-default items-center gap-2.5 rounded-xl px-3 py-2.5 hover:bg-white/[0.04]"
+                >
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-[10px] font-bold text-white"
+                    aria-hidden
+                  >
+                    {row.initials}
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="truncate text-[12px] font-semibold text-white/90">{row.name}</p>
+                    <p className="truncate text-[10px] text-white/40">{row.preview}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] text-white/30">{row.time}</span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
