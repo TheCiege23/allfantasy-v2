@@ -61,6 +61,63 @@ function displayInitials(name: string): string {
   return t.slice(0, 2).toUpperCase()
 }
 
+function getGifDisplay(meta: Record<string, unknown> | null | undefined): {
+  previewUrl: string
+  url: string
+  title: string
+} | null {
+  if (!meta) return null
+  const nested = meta.gif
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    const g = nested as Record<string, unknown>
+    const previewUrl =
+      (typeof g.previewUrl === 'string' ? g.previewUrl : null) ??
+      (typeof g.url === 'string' ? g.url : null)
+    const url = (typeof g.url === 'string' ? g.url : null) ?? previewUrl
+    if (previewUrl || url) {
+      return {
+        previewUrl: previewUrl ?? url ?? '',
+        url: url ?? previewUrl ?? '',
+        title: typeof g.title === 'string' ? g.title : 'GIF',
+      }
+    }
+  }
+  const previewUrl =
+    (typeof meta.previewUrl === 'string' ? meta.previewUrl : null) ??
+    (typeof meta.gifUrl === 'string' ? meta.gifUrl : null)
+  const url = (typeof meta.gifUrl === 'string' ? meta.gifUrl : null) ?? previewUrl
+  if (!previewUrl && !url) return null
+  return {
+    previewUrl: previewUrl ?? url ?? '',
+    url: url ?? previewUrl ?? '',
+    title: typeof meta.gifTitle === 'string' ? meta.gifTitle : 'GIF',
+  }
+}
+
+function GifWithAttribution({
+  gif,
+}: {
+  gif: { previewUrl: string; url: string; title: string }
+}) {
+  return (
+    <div className="mt-1.5">
+      <img
+        src={gif.previewUrl || gif.url}
+        alt={gif.title || 'GIF'}
+        className="max-h-[160px] max-w-full rounded-xl object-cover"
+      />
+      <a
+        href="https://giphy.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-0.5 block text-right text-[8px] text-white/25 transition-colors hover:text-white/50"
+      >
+        GIPHY
+      </a>
+    </div>
+  )
+}
+
 function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
   const o = toRecord(raw)
   if (!o) return null
@@ -199,6 +256,11 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
         if (payload.gifUrl) metadata.gifUrl = payload.gifUrl
         if (payload.previewUrl) metadata.previewUrl = payload.previewUrl
         if (payload.gifTitle) metadata.gifTitle = payload.gifTitle
+        metadata.gif = {
+          previewUrl: payload.previewUrl ?? payload.gifUrl ?? '',
+          url: payload.gifUrl ?? '',
+          title: payload.gifTitle ?? 'GIF',
+        }
       }
 
       if (payload.attachments?.length) {
@@ -298,12 +360,7 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
                 message.authorName === 'AllFantasy' ||
                 (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true)
 
-              const gifPreview =
-                meta && typeof meta.previewUrl === 'string'
-                  ? meta.previewUrl
-                  : meta && typeof meta.gifUrl === 'string'
-                    ? meta.gifUrl
-                    : null
+              const gifDisplay = meta ? getGifDisplay(meta) : null
 
               if (message.isActivity) {
                 return (
@@ -330,13 +387,7 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
                 return (
                   <div key={message.id} className="flex flex-col items-end">
                     <div className="ml-auto max-w-[82%] rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[12px] text-white">
-                      {gifPreview ? (
-                        <img
-                          src={gifPreview}
-                          alt=""
-                          className="mb-1 max-h-[160px] max-w-full rounded-xl object-cover"
-                        />
-                      ) : null}
+                      {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                       {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                     </div>
                     <span className="mt-0.5 text-right text-[9px] text-white/25">
@@ -355,13 +406,7 @@ export function LeagueChatInPanel({ selectedLeague, userId, onAskChimmy }: Leagu
                       <span className="text-[9px] text-white/30">{formatChatTime(message.createdAt)}</span>
                     </div>
                     <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[12px] text-white/90">
-                      {gifPreview ? (
-                        <img
-                          src={gifPreview}
-                          alt=""
-                          className="mb-1 max-h-[160px] max-w-full rounded-xl object-cover"
-                        />
-                      ) : null}
+                      {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                       {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                     </div>
                   </div>

@@ -3,6 +3,39 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 
+function GiphyAttributionFooter() {
+  const [imgFailed, setImgFailed] = useState(false)
+
+  if (imgFailed) {
+    return (
+      <a
+        href="https://giphy.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-[9px] font-semibold uppercase tracking-widest text-white/40 transition-colors hover:text-white/70"
+      >
+        Powered By GIPHY
+      </a>
+    )
+  }
+
+  return (
+    <a
+      href="https://giphy.com"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="opacity-50 transition-opacity hover:opacity-90"
+    >
+      <img
+        src="/powered-by-giphy.gif"
+        alt="Powered By GIPHY"
+        className="h-[14px] w-auto"
+        onError={() => setImgFailed(true)}
+      />
+    </a>
+  )
+}
+
 export type GifItem = {
   id: string
   giphyId: string
@@ -154,6 +187,10 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
         {loading && page > 0 ? (
           <p className="py-2 text-center text-[10px] text-white/35">Loading…</p>
         ) : null}
+      </div>
+
+      <div className="mt-1.5 flex flex-shrink-0 items-center justify-end border-t border-white/[0.06] pt-1.5">
+        <GiphyAttributionFooter />
       </div>
     </div>
   )
