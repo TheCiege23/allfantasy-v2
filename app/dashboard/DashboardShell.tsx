@@ -34,6 +34,28 @@ function toBooleanValue(value: unknown): boolean {
   return value === true
 }
 
+function parseSeasonValue(raw: unknown): number | string {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && raw.trim()) {
+    const n = parseInt(raw, 10)
+    if (Number.isFinite(n)) return n
+    return raw
+  }
+  return new Date().getFullYear()
+}
+
+function weekFromSettings(settings: unknown): number | null {
+  const o = toRecord(settings)
+  if (!o) return null
+  const w = o.currentWeek ?? o.current_week ?? o.week
+  if (typeof w === 'number' && Number.isFinite(w)) return w
+  if (typeof w === 'string') {
+    const n = parseInt(w, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
 function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
   const raw = toRecord(rawValue)
   if (!raw) return null
@@ -51,6 +73,9 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
   const platform = toStringValue(raw.platform, 'allfantasy')
   const platformLeagueId = toStringValue(raw.platformLeagueId) || null
 
+  const settings = toRecord(raw.settings) ?? undefined
+  const currentWeek = weekFromSettings(raw.settings)
+
   return {
     id: selectedLeagueId,
     sourceLeagueId: sourceLeagueId || selectedLeagueId,
@@ -63,10 +88,11 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
       (toBooleanValue(raw.isDynasty) ? 'dynasty' : 'redraft'),
     scoring: toStringValue(raw.scoring, 'Standard'),
     teamCount: toNumberValue(raw.leagueSize ?? raw.totalTeams),
-    season: toStringValue(raw.season) || String(new Date().getFullYear()),
-    status: toStringValue(raw.status) || toStringValue(raw.syncStatus),
+    season: parseSeasonValue(raw.season),
+    status: toStringValue(raw.status) || toStringValue(raw.syncStatus) || undefined,
+    currentWeek: currentWeek ?? undefined,
     isDynasty: toBooleanValue(raw.isDynasty),
-    settings: undefined,
+    settings,
     sleeperLeagueId: platform === 'sleeper' ? platformLeagueId ?? undefined : undefined,
     syncStatus: toStringValue(raw.syncStatus) || null,
     avatarUrl: toStringValue(raw.avatarUrl) || null,
@@ -193,7 +219,10 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
 
   return (
     <div data-dashboard-user-id={userId} className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white">
-      <aside className="hidden h-full md:flex">
+      <aside
+        className="hidden h-full flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex"
+        style={{ width: '45%', maxWidth: '420px', minWidth: '300px' }}
+      >
         <LeftChatPanel
           selectedLeague={selectedLeague}
           userId={userId}

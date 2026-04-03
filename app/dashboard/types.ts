@@ -1,20 +1,28 @@
-/** 3-panel dashboard layout widths (px) — master spec */
+/** Legacy default; left panel uses responsive width in DashboardShell / LeftChatPanel */
 export const DASHBOARD_LEFT_PANEL_WIDTH = 280
 export const DASHBOARD_RIGHT_PANEL_WIDTH = 300
+
+export type LeagueListStatus = 'pre_draft' | 'drafting' | 'in_season' | 'complete' | string
 
 export interface UserLeague {
   id: string
   name: string
-  platform: string
-  sport: string
+  /** Source platform — always set by list/detail mappers */
+  platform: 'sleeper' | 'yahoo' | 'espn' | 'cbs' | string
+  /** Normalized sport — always set by list/detail mappers */
+  sport: 'NFL' | 'NBA' | 'MLB' | 'NHL' | string
   format: string
-  scoring: string
+  scoring?: string
   teamCount: number
-  season: string | number
-  status?: string
+  season?: number | string
+  status?: LeagueListStatus
+  /** Sleeper-style current week label when in season */
+  currentWeek?: number | null
   isDynasty?: boolean
   settings?: Record<string, unknown>
   sleeperLeagueId?: string
+  /** Sleeper avatar id — resolved to sleepercdn.com/avatars/{id} in UI */
+  avatarUrl?: string | null
   /** ISO string from league detail / Sleeper draft when available */
   draftDate?: string | null
 }
@@ -23,8 +31,6 @@ export interface UserLeague {
 export type LeftChatPanelLayoutProps = {
   selectedLeague: UserLeague | null
   userId: string
-  /** Default: DASHBOARD_LEFT_PANEL_WIDTH */
-  width?: number
   rootId?: string | null
   /** Dashboard home: connected leagues for Chimmy context selector */
   leagues?: UserLeague[]
@@ -44,7 +50,6 @@ export type RightControlPanelLayoutProps = {
 export interface DashboardConnectedLeague extends UserLeague {
   sourceLeagueId: string
   syncStatus?: string | null
-  avatarUrl?: string | null
   platformLeagueId?: string | null
 }
 

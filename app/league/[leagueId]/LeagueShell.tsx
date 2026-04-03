@@ -7,7 +7,6 @@ import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
-import { DASHBOARD_LEFT_PANEL_WIDTH } from '@/app/dashboard/types'
 import type { UserLeague } from '@/app/dashboard/types'
 import { DraftTab } from './tabs/DraftTab'
 import { TeamTab } from './tabs/TeamTab'
@@ -35,11 +34,24 @@ const TABS: { id: LeagueShellTab; label: string }[] = [
   { id: 'scores', label: 'Scores' },
 ]
 
+function weekFromLeagueSettings(settings: unknown): number | null {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null
+  const o = settings as Record<string, unknown>
+  const w = o.currentWeek ?? o.current_week ?? o.week
+  if (typeof w === 'number' && Number.isFinite(w)) return w
+  if (typeof w === 'string') {
+    const n = parseInt(w, 10)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
 function prismaLeagueToUserLeague(
   l: League,
   extra?: { draftDate?: string | null },
 ): UserLeague {
   const sport = normalizeToSupportedSport(String(l.sport)) ?? DEFAULT_SPORT
+  const settings = (l.settings as Record<string, unknown> | undefined) ?? undefined
   return {
     id: l.id,
     name: l.name ?? 'League',
@@ -50,8 +62,10 @@ function prismaLeagueToUserLeague(
     teamCount: l.leagueSize ?? 10,
     season: l.season ?? new Date().getFullYear(),
     status: l.status ?? undefined,
+    currentWeek: weekFromLeagueSettings(l.settings) ?? undefined,
     isDynasty: l.isDynasty,
-    settings: (l.settings as Record<string, unknown> | undefined) ?? undefined,
+    settings,
+    avatarUrl: l.avatarUrl ?? undefined,
     sleeperLeagueId: l.platform === 'sleeper' ? l.platformLeagueId : undefined,
     draftDate: extra?.draftDate ?? undefined,
   }
@@ -124,11 +138,13 @@ export function LeagueShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07071a] text-white">
-      <aside className="hidden h-full min-h-0 md:flex" style={{ width: DASHBOARD_LEFT_PANEL_WIDTH }}>
+      <aside
+        className="hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex"
+        style={{ width: '45%', maxWidth: '420px', minWidth: '300px' }}
+      >
         <LeftChatPanel
           selectedLeague={selectedLeague}
           userId={userId}
-          width={DASHBOARD_LEFT_PANEL_WIDTH}
           rootId="league-left-chat"
           leagues={leagueList}
         />

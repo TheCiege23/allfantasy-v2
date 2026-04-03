@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UserLeague } from '../types'
+import { LeagueAvatar } from './LeagueAvatar'
 
 const FAVORITES_KEY = 'af-league-favorites'
 const ORDER_KEY = 'af-league-order'
@@ -49,55 +50,40 @@ function writeStoredIds(key: string, value: string[]) {
   } catch {}
 }
 
-function getPlatformEmoji(platform: string) {
-  switch (platform.toLowerCase()) {
-    case 'sleeper':
-      return '🌙'
-    case 'yahoo':
-      return '🏈'
-    case 'mfl':
-      return '🏆'
-    case 'fantrax':
-      return '📊'
-    case 'espn':
-      return '🔴'
-    default:
-      return '🏈'
+function getPlatformPill(platform: string | undefined): { label: string; className: string } {
+  const p = (platform || 'allfantasy').toLowerCase()
+  if (p === 'sleeper') return { label: 'Sleeper', className: 'bg-emerald-500/20 text-emerald-400' }
+  if (p === 'yahoo') return { label: 'Yahoo', className: 'bg-violet-500/20 text-violet-400' }
+  if (p === 'espn') return { label: 'ESPN', className: 'bg-red-500/20 text-red-400' }
+  if (p === 'cbs') return { label: 'CBS', className: 'bg-white/10 text-white/50' }
+  return {
+    label: p === 'allfantasy' ? 'AF' : p.replace(/_/g, ' ').slice(0, 12),
+    className: 'bg-white/10 text-white/50',
   }
 }
 
-function getStatusBadge(status: string | undefined) {
-  switch ((status || '').toLowerCase()) {
-    case 'pre_draft':
-    case 'pre-draft':
-      return {
-        label: 'Pre-Draft',
-        className: 'border-amber-500/30 bg-amber-500/20 text-amber-400',
-      }
-    case 'in_season':
-    case 'in-season':
-    case 'active':
-      return {
-        label: 'Active',
-        className: 'border-emerald-500/30 bg-emerald-500/20 text-emerald-400',
-      }
-    case 'completed':
-      return {
-        label: 'Done',
-        className: 'border-gray-500/30 bg-gray-500/20 text-gray-400',
-      }
-    case 'off_season':
-    case 'off-season':
-      return {
-        label: 'Off-Season',
-        className: 'border-white/15 bg-white/10 text-white/40',
-      }
-    default:
-      return {
-        label: '—',
-        className: 'border-white/15 bg-white/10 text-white/40',
-      }
+function getLeagueStatusDisplay(league: UserLeague): { label: string; className: string } {
+  const s = (league.status || '').toLowerCase().replace(/-/g, '_')
+  if (s === 'pre_draft') {
+    return { label: 'Pre-Draft', className: 'bg-orange-500/20 text-orange-400' }
   }
+  if (s === 'drafting') {
+    return { label: 'Drafting', className: 'bg-orange-500/20 text-orange-400' }
+  }
+  if (s === 'in_season' || s === 'active') {
+    const w = league.currentWeek
+    return {
+      label: typeof w === 'number' && w > 0 ? `Week ${w}` : 'In Season',
+      className: 'bg-green-500/20 text-green-400',
+    }
+  }
+  if (s === 'complete' || s === 'completed') {
+    return { label: 'Final', className: 'bg-white/10 text-white/40' }
+  }
+  if (s === 'off_season') {
+    return { label: 'Off-Season', className: 'bg-white/10 text-white/40' }
+  }
+  return { label: '—', className: 'bg-white/10 text-white/40' }
 }
 
 function getConceptBadge(league: UserLeague): ConceptBadge {
@@ -314,8 +300,13 @@ export function LeagueListPanel({
             {displayedLeagues.map((league) => {
               const isSelected = league.id === selectedId
               const isFavorite = favoriteSet.has(league.id)
-              const statusBadge = getStatusBadge(league.status)
+              const statusBadge = getLeagueStatusDisplay(league)
               const conceptBadge = getConceptBadge(league)
+              const platformPill = getPlatformPill(league.platform)
+              const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
+              const seasonLabel =
+                league.season !== undefined && league.season !== null ? String(league.season) : '—'
+              const scoringLabel = league.scoring || 'Standard'
               const isDragging = draggingId === league.id
               const isDropTarget = dropTargetId === league.id && draggingId !== league.id
 
@@ -358,39 +349,47 @@ export function LeagueListPanel({
 
                     <Link
                       href={`/league/${league.id}`}
-                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-2 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
+                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 px-2 py-1.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
                         isSelected
                           ? 'border-l-cyan-500 bg-cyan-500/[0.08] hover:bg-cyan-500/12'
                           : 'border-l-transparent hover:bg-white/[0.04]'
-                      }`}
+                      } ${compact ? 'min-h-[70px]' : ''}`}
                       onClick={() => onSelect(league)}
                       scroll
                     >
-                      <div className="flex items-start gap-2.5">
-                        <div className="pt-0.5 text-base">{getPlatformEmoji(league.platform)}</div>
+                      <div className={`flex items-start gap-2 ${compact ? 'min-h-[64px]' : ''}`}>
+                        <div className="shrink-0 pt-0.5">
+                          <LeagueAvatar league={league} size={compact ? 32 : 36} />
+                        </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-[13px] font-semibold text-white/85">{league.name}</p>
-                            </div>
+                          <div className="flex items-start justify-between gap-1.5">
+                            <p className="min-w-0 truncate text-[13px] font-semibold text-white/90">{league.name}</p>
                             <span
-                              className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}
+                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusBadge.className}`}
                             >
                               {statusBadge.label}
                             </span>
                           </div>
 
-                          <div className="mt-1">
+                          <div className="mt-1 flex flex-wrap items-center gap-1">
                             <span
-                              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${conceptBadge.className}`}
+                              className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${platformPill.className}`}
+                            >
+                              {platformPill.label}
+                            </span>
+                            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/55">
+                              {sportLabel}
+                            </span>
+                            <span
+                              className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${conceptBadge.className}`}
                             >
                               {conceptBadge.label}
                             </span>
                           </div>
 
                           <p className="mt-1 text-[10px] text-white/40">
-                            {(league.format || 'League').replace(/_/g, ' ')} · {league.teamCount} teams
+                            {league.teamCount}-team · {seasonLabel} · {scoringLabel}
                           </p>
                         </div>
                       </div>

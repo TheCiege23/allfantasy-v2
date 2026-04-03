@@ -92,7 +92,7 @@ function ScoringRow({ label, value, highlight }: ScoringRowProps) {
 export function LeagueTab({ league, teams }: LeagueTabProps) {
   const preDraft = isPreDraftLeague(league)
   const sorted = useMemo(() => sortTeamsForStandings(teams, preDraft), [teams, preDraft])
-  const flavor = scoringFlavorFromLeague(league.scoring)
+  const flavor = scoringFlavorFromLeague(league.scoring ?? 'Standard')
   const recHighlight = receptionRowHighlight(flavor)
 
   return (

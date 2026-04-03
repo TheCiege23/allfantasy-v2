@@ -3,8 +3,7 @@
 import { ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { UserLeague } from '../types'
-
-type HubLeague = UserLeague & { avatarUrl?: string | null }
+import { LeagueAvatar } from './LeagueAvatar'
 
 type ConceptBadge = { label: string; className: string }
 
@@ -45,28 +44,56 @@ function getConceptBadge(league: UserLeague): ConceptBadge {
   }
 }
 
-function leagueAvatarSrc(league: HubLeague): string | null {
-  const u = league.avatarUrl?.trim()
-  if (!u) return null
-  if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/')) return u
-  return `https://sleepercdn.com/avatars/${u}`
+function getPlatformPill(platform: string | undefined): { label: string; className: string } {
+  const p = (platform || 'allfantasy').toLowerCase()
+  if (p === 'sleeper') return { label: 'Sleeper', className: 'bg-emerald-500/20 text-emerald-400' }
+  if (p === 'yahoo') return { label: 'Yahoo', className: 'bg-violet-500/20 text-violet-400' }
+  if (p === 'espn') return { label: 'ESPN', className: 'bg-red-500/20 text-red-400' }
+  if (p === 'cbs') return { label: 'CBS', className: 'bg-white/10 text-white/50' }
+  return {
+    label: p === 'allfantasy' ? 'AF' : p.replace(/_/g, ' ').slice(0, 12),
+    className: 'bg-white/10 text-white/50',
+  }
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
-  return name.slice(0, 2).toUpperCase() || 'AF'
+function getLeagueStatusDisplay(league: UserLeague): { label: string; className: string } {
+  const s = (league.status || '').toLowerCase().replace(/-/g, '_')
+  if (s === 'pre_draft') {
+    return { label: 'Pre-Draft', className: 'bg-orange-500/20 text-orange-400' }
+  }
+  if (s === 'drafting') {
+    return { label: 'Drafting', className: 'bg-orange-500/20 text-orange-400' }
+  }
+  if (s === 'in_season' || s === 'active') {
+    const w = league.currentWeek
+    return {
+      label: typeof w === 'number' && w > 0 ? `Week ${w}` : 'In Season',
+      className: 'bg-green-500/20 text-green-400',
+    }
+  }
+  if (s === 'complete' || s === 'completed') {
+    return { label: 'Final', className: 'bg-white/10 text-white/40' }
+  }
+  if (s === 'off_season') {
+    return { label: 'Off-Season', className: 'bg-white/10 text-white/40' }
+  }
+  return { label: '—', className: 'bg-white/10 text-white/40' }
 }
 
 export type LeagueHubCardProps = {
-  league: HubLeague
+  league: UserLeague
   onClick: () => void
 }
 
 export function LeagueHubCard({ league, onClick }: LeagueHubCardProps) {
   const router = useRouter()
-  const badge = getConceptBadge(league)
-  const src = leagueAvatarSrc(league)
+  const formatBadge = getConceptBadge(league)
+  const statusBadge = getLeagueStatusDisplay(league)
+  const platformPill = getPlatformPill(league.platform)
+  const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
+  const seasonLabel =
+    league.season !== undefined && league.season !== null ? String(league.season) : '—'
+  const scoringLabel = league.scoring || 'Standard'
 
   return (
     <button
@@ -78,25 +105,38 @@ export function LeagueHubCard({ league, onClick }: LeagueHubCardProps) {
       className="w-full rounded-2xl border border-white/[0.07] bg-[#0c0c1e] p-4 text-left transition-colors hover:border-white/15"
     >
       <div className="flex items-start gap-3">
-        <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white/10">
-          {src ? (
-            <img src={src} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-[10px] font-bold text-white/60">
-              {initials(league.name)}
-            </span>
-          )}
+        <div className="shrink-0">
+          <LeagueAvatar league={league} size={40} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <p className="truncate text-[14px] font-semibold text-white">{league.name}</p>
-            <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-white/30" aria-hidden />
+            <p className="truncate text-[15px] font-bold text-white">{league.name}</p>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusBadge.className}`}>
+                {statusBadge.label}
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-white/30" aria-hidden />
+            </div>
           </div>
-          <span
-            className={`mt-1.5 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.className}`}
-          >
-            {badge.label}
-          </span>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span
+              className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${platformPill.className}`}
+            >
+              {platformPill.label}
+            </span>
+            <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/55">
+              {sportLabel}
+            </span>
+            <span
+              className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${formatBadge.className}`}
+            >
+              {formatBadge.label}
+            </span>
+            <span className="text-[11px] text-white/45">{scoringLabel}</span>
+          </div>
+          <p className="mt-1 text-[11px] text-white/35">
+            {league.teamCount}-team · Season {seasonLabel}
+          </p>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">

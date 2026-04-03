@@ -92,6 +92,8 @@ type ChimmyChatProps = {
   footerSlot?: ReactNode
   /** Active league name for suggested chips (truncated inside getDefaultChimmyChips) */
   chipContextLeagueName?: string | null
+  /** Fill parent flex column (left panel Chimmy tab): no outer border/radius, flex-1 */
+  panelFill?: boolean
 }
 
 export default function ChimmyChat({
@@ -99,6 +101,7 @@ export default function ChimmyChat({
   parentControlsNew = false,
   footerSlot,
   chipContextLeagueName = null,
+  panelFill = false,
 }: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING },
@@ -357,10 +360,17 @@ export default function ChimmyChat({
     }
   };
 
+  const embeddedShell =
+    embedded && panelFill
+      ? 'h-full min-h-0 flex-1 rounded-none border-0'
+      : embedded
+        ? 'h-full min-h-0 rounded-xl border border-white/10'
+        : ''
+
   return (
     <div
       className={`flex min-h-0 flex-col overflow-hidden touch-scroll bg-slate-950 ${
-        embedded ? 'h-full min-h-0 rounded-xl border border-white/10' : 'h-fill-dynamic rounded-3xl border border-slate-800'
+        embedded ? embeddedShell : 'h-fill-dynamic rounded-3xl border border-slate-800'
       }`}
     >
       {!embedded ? (
@@ -440,7 +450,9 @@ export default function ChimmyChat({
       )}
 
       <div
-        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${embedded ? 'p-3' : 'p-6'}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+          embedded ? (panelFill ? 'p-2' : 'p-3') : 'p-6'
+        }`}
       >
         <div
           className={`min-h-0 flex-1 overflow-y-auto ${embedded ? 'space-y-3' : 'space-y-6'}`}
