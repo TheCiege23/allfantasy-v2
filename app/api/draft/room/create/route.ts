@@ -21,6 +21,13 @@ export async function POST(req: Request) {
   const timerSeconds = Math.min(600, Math.max(10, Number(body?.timerSeconds) || 60))
   const scoringType = typeof body?.scoringType === 'string' ? body.scoringType : 'PPR'
   const playerPool = typeof body?.playerPool === 'string' ? body.playerPool : 'all'
+  const leagueIdMeta = typeof body?.leagueId === 'string' ? body.leagueId.trim() : ''
+  const baseSettings =
+    body?.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
+      ? (body.settings as Record<string, unknown>)
+      : {}
+  const mergedSettings =
+    leagueIdMeta ? { ...baseSettings, sourceLeagueId: leagueIdMeta } : baseSettings
 
   let invite = randomInviteCode()
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -41,7 +48,7 @@ export async function POST(req: Request) {
       inviteCode: invite,
       status: 'waiting',
       draftOrder: buildMockPickOrder(numTeams, userId),
-      settings: (body?.settings as object) ?? undefined,
+      settings: Object.keys(mergedSettings).length > 0 ? mergedSettings : undefined,
     },
   })
 

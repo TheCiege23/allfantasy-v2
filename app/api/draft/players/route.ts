@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
   }
 
   const sport = req.nextUrl.searchParams.get('sport')?.trim() || 'NFL'
+  const _draftId = req.nextUrl.searchParams.get('draftId')?.trim()
   const take = Math.min(600, Number(req.nextUrl.searchParams.get('limit')) || 400)
 
   const rows = await prisma.sportsPlayer.findMany({
@@ -28,15 +29,25 @@ export async function GET(req: NextRequest) {
   })
 
   return NextResponse.json({
+    sport,
+    draftId: _draftId ?? null,
     players: rows.map((r, i) => ({
       id: r.externalId,
+      firstName: '',
+      lastName: '',
+      fullName: r.name,
       name: r.name,
       position: r.position ?? '',
       team: r.team ?? '',
+      sport,
       imageUrl: r.imageUrl,
       adp: i + 1,
+      projPts: 0,
       proj: 0,
+      byeWeek: null,
       bye: null,
+      stats: {},
+      isDrafted: false,
       keyStat: '',
     })),
   })

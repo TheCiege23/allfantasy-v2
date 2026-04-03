@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Globe, Settings } from 'lucide-react'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
+import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
 
 export type DraftTabProps = {
   league: UserLeague
@@ -105,6 +106,10 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
   const draftDateIso = league.draftDate ?? null
   const hasDraftTime = Boolean(draftDateIso && Number.isFinite(new Date(draftDateIso).getTime()))
   const timer = useDraftCountdown(hasDraftTime ? draftDateIso : null)
+  const sleeperDraftId = useMemo(
+    () => getDraftIdFromSettings(league.settings as unknown),
+    [league.settings],
+  )
 
   const handleSetTime = useCallback(() => {
     console.log('DraftTab: Set Time (stub)', { leagueId: league.id })
@@ -112,23 +117,37 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
 
   const handleMockDrafts = useCallback(async () => {
     try {
-      const res = await fetch('/api/draft/room/create', {
+      const res = await fetch('/api/draft/create-mock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leagueId: league.id, sport: league.sport }),
       })
       if (!res.ok) return
-      const data = (await res.json()) as { roomId?: string }
-      if (data.roomId) {
-        router.push(`/draft/mock/${data.roomId}`)
+      const data = (await res.json()) as { draftId?: string; roomId?: string }
+      const id = data.draftId ?? data.roomId
+      if (id) {
+        router.push(`/draft/mock/${id}`)
       }
     } catch {
       // ignore
     }
   }, [league.id, league.sport, router])
 
-  const handleDraftRoom = useCallback(() => {
-    router.push(`/draft/live/${league.id}`)
+  const handleDraftRoom = useCallback(async () => {
+    try {
+      const res = await fetch('/api/draft/session/ensure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id }),
+      })
+      if (!res.ok) return
+      const data = (await res.json()) as { draftSessionId?: string }
+      if (data.draftSessionId) {
+        router.push(`/draft/live/${data.draftSessionId}`)
+      }
+    } catch {
+      // ignore
+    }
   }, [league.id, router])
 
   return (
@@ -223,6 +242,12 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
           </div>
         </div>
 
+        {sleeperDraftId ? (
+          <p className="mt-2 text-[10px] text-white/35">
+            Sleeper draft id: <span className="font-mono text-white/50">{sleeperDraftId}</span>
+          </p>
+        ) : null}
+
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch">
           <button
             type="button"
@@ -234,7 +259,7 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
           </button>
           <button
             type="button"
-            onClick={handleDraftRoom}
+            onClick={() => void handleDraftRoom()}
             className="flex flex-1 items-center justify-center rounded-xl bg-cyan-500 px-5 py-2 text-sm font-bold text-black transition hover:bg-cyan-400 sm:min-w-[120px]"
           >
             Draft Room

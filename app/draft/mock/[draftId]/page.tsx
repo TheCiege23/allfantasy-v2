@@ -2,12 +2,12 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DraftShell } from '../../components/DraftShell'
+import { DraftRoom } from '../../components/DraftRoom'
 import { sessionKeyMock } from '@/lib/draft/session-key'
 
 export const dynamic = 'force-dynamic'
 
-export default async function MockDraftRoomPage({ params }: { params: { roomId: string } }) {
+export default async function MockDraftByDraftIdPage({ params }: { params: { draftId: string } }) {
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string; name?: string | null }
   } | null
@@ -16,7 +16,7 @@ export default async function MockDraftRoomPage({ params }: { params: { roomId: 
   }
 
   const room = await prisma.mockDraftRoom.findUnique({
-    where: { id: params.roomId },
+    where: { id: params.draftId },
     select: { id: true, inviteCode: true, createdById: true },
   })
   if (!room) {
@@ -24,7 +24,7 @@ export default async function MockDraftRoomPage({ params }: { params: { roomId: 
   }
 
   return (
-    <DraftShell
+    <DraftRoom
       mode="mock"
       sessionId={sessionKeyMock(room.id)}
       roomId={room.id}

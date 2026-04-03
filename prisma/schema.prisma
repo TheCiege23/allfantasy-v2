@@ -6517,6 +6517,14 @@ model DraftSession {
   id                    String    @id @default(uuid())
   leagueId              String
   sportType             String?   @db.VarChar(16)
+  /// Sleeper `draft_id` when syncing live drafts from Sleeper (optional).
+  sleeperDraftId        String?   @unique
+  /// `live` = Sleeper-synced; `mock` = AllFantasy mock (may also use MockDraftRoom).
+  sessionKind           String    @default("live")
+  /// Next overall pick number (1-based).
+  nextOverallPick       Int       @default(1)
+  /// Display round (1-based).
+  currentRoundNum       Int       @default(1)
   league                League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   status                String    @default("pre_draft") // pre_draft | in_progress | paused | completed
   draftType             String    @default("snake")    // snake | linear | auction
@@ -6552,6 +6560,8 @@ model DraftSession {
 
   picks   DraftPick[]
   queues  DraftQueue[]
+  queueEntries DraftQueueEntry[]
+  draftChatMessages DraftChatMessage[]
   tradeProposals DraftPickTradeProposal[]
   draftRecaps DraftRecap[]
 
@@ -6579,9 +6589,13 @@ model DraftPick {
   team        String?
   byeWeek     Int?     // for display where data exists
   playerId    String?  // optional external id
+  roundPick   Int?     // pick index within round (1-based)
+  ownerUserId String?  // App user id when known
+  playerImageUrl String?
+  pickedAt    DateTime?
   /// Optional UI metadata when pick was traded: { originalRosterId, previousOwnerName, newOwnerName, showNewOwnerInRed?, tintColor? }
   tradedPickMeta Json?
-  source       String? @default("user") // user | auto | commissioner
+  source       String? @default("user") // user | auto | commissioner | ai | manual
   /// Auction: winning bid amount (dollars or nominal units).
   amount       Int?
   createdAt    DateTime @default(now())
@@ -6654,6 +6668,39 @@ model DraftQueue {
   @@unique([sessionId, userId])
   @@index([sessionId])
   @@map("draft_queues")
+}
+
+/// Per-player queue rows (new draft room UI). Coexists with legacy `DraftQueue` JSON.
+model DraftQueueEntry {
+  id             String       @id @default(cuid())
+  draftSessionId String
+  draftSession   DraftSession @relation(fields: [draftSessionId], references: [id], onDelete: Cascade)
+  userId         String
+  playerId       String
+  playerName     String?
+  priority       Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([draftSessionId, userId])
+  @@map("draft_queue_entries")
+}
+
+model DraftChatMessage {
+  id             String       @id @default(cuid())
+  draftSessionId String
+  draftSession   DraftSession @relation(fields: [draftSessionId], references: [id], onDelete: Cascade)
+  authorId       String?
+  authorName     String
+  authorAvatar   String?
+  text           String       @db.Text
+  messageType    String       @default("message") // message | system | chimmy | pick_notification
+  metadata       Json?
+  /// `private` = Chimmy / user-only; never sync to league chat or Discord.
+  visibility     String       @default("public")
+  createdAt      DateTime     @default(now())
+
+  @@index([draftSessionId])
+  @@map("draft_chat_messages")
 }
 
 /// Backup of draft session state before import (for rollback). One per league; overwritten on each import.
