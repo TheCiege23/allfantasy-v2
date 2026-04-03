@@ -54,9 +54,17 @@ export default function ChimmyVoiceBar({
         onClick={onVoiceToggle}
         disabled={ttsUnavailable}
         data-testid="chimmy-voice-toggle-button"
-        className="rounded-lg border border-white/20 bg-white/5 p-2 text-white/70 hover:bg-white/10 hover:text-white/90 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px] flex items-center justify-center"
-        title={ttsUnavailable ? 'Voice unavailable' : voiceEnabled ? 'Voice on' : 'Voice off'}
-        aria-label={ttsUnavailable ? 'Voice unavailable' : voiceEnabled ? 'Turn voice off' : 'Turn voice on'}
+        className="rounded-lg border border-white/20 bg-white/5 p-2 text-white/70 hover:bg-white/10 hover:text-white/90 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px] min-w-[44px] flex items-center justify-center"
+        title={
+          ttsUnavailable
+            ? 'ElevenLabs API key required'
+            : voiceEnabled
+              ? 'Voice on'
+              : 'Voice off'
+        }
+        aria-label={
+          ttsUnavailable ? 'Voice unavailable' : voiceEnabled ? 'Turn voice off' : 'Turn voice on'
+        }
       >
         {voiceEnabled ? (
           <Volume2 className="h-5 w-5 text-cyan-400/90" />
@@ -134,7 +142,7 @@ export default function ChimmyVoiceBar({
       )}
 
       {ttsUnavailable && (
-        <span className="text-[10px] text-white/40">Voice unavailable</span>
+        <span className="text-[10px] text-white/40">Voice (unavailable)</span>
       )}
       {speechInputUnavailable && onSpeechInputToggle && (
         <span className="text-[10px] text-white/40">Mic unavailable</span>

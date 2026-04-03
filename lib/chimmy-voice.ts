@@ -39,8 +39,8 @@ function normalizeSpeechText(raw: string): string {
 
 function trimSpeechText(raw: string): string {
   const normalized = normalizeSpeechText(raw)
-  if (normalized.length <= 500) return normalized
-  return `${normalized.slice(0, 497)}...`
+  if (normalized.length <= 800) return normalized
+  return `${normalized.slice(0, 797)}...`
 }
 
 export function canPlayChimmyVoice(): boolean {
@@ -90,7 +90,8 @@ export function playChimmyVoice(
   config: VoiceConfig = DEFAULT_VOICE_CONFIG,
   onStart?: () => void,
   onEnd?: () => void,
-  onError?: (message: string) => void
+  onError?: (message: string) => void,
+  elevenLabsVoiceId?: string,
 ): Promise<() => void> {
   const speechText = trimSpeechText(text)
   if (!speechText || !config.enabled) {
@@ -100,6 +101,7 @@ export function playChimmyVoice(
   const stop = speakChimmy(speechText, "calm", {
     voice: "rachel",
     volume: config.volume,
+    elevenLabsVoiceId,
     onStart,
     onEnd,
     onError: () => onError?.("Voice playback failed."),

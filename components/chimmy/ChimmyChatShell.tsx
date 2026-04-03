@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
 import { Send, Image as ImageIcon, Loader2, X, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { getDefaultChimmyChips, type ChimmyVoicePreset } from '@/lib/chimmy-interface'
@@ -25,13 +25,13 @@ import {
   CHIMMY_PREMIUM_CTA_LABEL,
 } from '@/lib/chimmy-chat/response-copy'
 import {
-  canPlayChimmyVoice,
   getVoiceConfig,
   playChimmyVoice,
   saveVoiceConfig,
   stopCurrentVoice,
   type VoiceConfig,
 } from '@/lib/chimmy-voice'
+import { DEFAULT_VOICE_ID, getChimmyVoiceLabel, readStoredChimmyVoiceId } from '@/lib/tts/voices'
 
 export type ChimmyChatMessage = {
   id: string
@@ -170,6 +170,11 @@ export default function ChimmyChatShell({
   const [isListening, setIsListening] = useState(false)
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [retryLoading, setRetryLoading] = useState(false)
+  const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState(DEFAULT_VOICE_ID)
+
+  useLayoutEffect(() => {
+    setElevenLabsVoiceId(readStoredChimmyVoiceId())
+  }, [])
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
@@ -227,14 +232,53 @@ export default function ChimmyChatShell({
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!canPlayChimmyVoice()) {
-      setTtsUnavailable(true)
-    }
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
       setSpeechInputUnavailable(true)
     }
   }, [])
+
+  /** ElevenLabs must return audio — browser speech alone is not enough for "Voice on". */
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (typeof window === 'undefined') return
+      const hasAudioApi = typeof Audio !== 'undefined' && typeof window.URL?.createObjectURL === 'function'
+      if (!hasAudioApi) {
+        if (!cancelled) setTtsUnavailable(true)
+        return
+      }
+      try {
+        const r = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ text: 'test', voiceId: elevenLabsVoiceId }),
+        })
+        const ct = r.headers.get('content-type') || ''
+        const ok = r.ok && (ct.includes('audio') || ct.includes('mpeg'))
+        if (cancelled) return
+        setTtsUnavailable(!ok)
+        if (!ok) {
+          setVoiceConfig((current) => {
+            if (!current.enabled) return current
+            return saveVoiceConfig({ ...current, enabled: false })
+          })
+        }
+      } catch {
+        if (!cancelled) {
+          setTtsUnavailable(true)
+          setVoiceConfig((current) => {
+            if (!current.enabled) return current
+            return saveVoiceConfig({ ...current, enabled: false })
+          })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [elevenLabsVoiceId])
 
   useEffect(() => {
     if (initialPrompt && !initialPromptApplied.current) {
@@ -315,17 +359,21 @@ export default function ChimmyChatShell({
   }, [])
 
   const handleVoiceToggle = useCallback(() => {
+    if (ttsUnavailable) {
+      toast.warning('Voice unavailable — check ElevenLabs API key in settings')
+      return
+    }
     const nextEnabled = !voiceConfig.enabled
     updateVoiceConfig({ enabled: nextEnabled })
     if (!nextEnabled) {
       handleStopVoice()
     }
-  }, [handleStopVoice, updateVoiceConfig, voiceConfig.enabled])
+  }, [handleStopVoice, ttsUnavailable, updateVoiceConfig, voiceConfig.enabled])
 
   const handlePlayVoice = useCallback(
     async (text: string, messageId: string) => {
       if (ttsUnavailable) {
-        const message = 'Voice playback is unavailable on this browser.'
+        const message = 'Voice unavailable — check ElevenLabs API key in settings.'
         setInlineError(message)
         toast.error(message)
         return
@@ -358,10 +406,11 @@ export default function ChimmyChatShell({
           setVoiceMessageId(null)
           setInlineError(message)
           toast.error(message)
-        }
+        },
+        elevenLabsVoiceId,
       )
     },
-    [handleStopVoice, isVoicePlaying, ttsUnavailable, voiceConfig, voiceMessageId]
+    [elevenLabsVoiceId, handleStopVoice, isVoicePlaying, ttsUnavailable, voiceConfig, voiceMessageId]
   )
 
   const handleFollowUp = useCallback((prompt: string) => {
@@ -692,6 +741,7 @@ export default function ChimmyChatShell({
           voiceEnabled={voiceConfig.enabled}
           voiceLoadingId={ttsLoading ? voiceMessageId : null}
           voicePlayingId={isVoicePlaying ? voiceMessageId : null}
+          voiceDisplayName={getChimmyVoiceLabel(elevenLabsVoiceId)}
           className="chimmy-conversation-thread"
         />
       </div>

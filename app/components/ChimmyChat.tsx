@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDefaultChimmyChips } from '@/lib/chimmy-interface';
@@ -13,7 +13,6 @@ import {
   CHIMMY_PREMIUM_FEATURE_MESSAGE,
 } from '@/lib/chimmy-chat/response-copy';
 import {
-  canPlayChimmyVoice,
   getVoiceConfig,
   playChimmyVoice,
   saveVoiceConfig,
@@ -22,6 +21,11 @@ import {
 } from '@/lib/chimmy-voice';
 import { formatChatMessageTimestamp, isChimmyMessageThreaded } from '@/app/dashboard/components/chat/chat-timestamps';
 import { ChimmyAssistantAvatar } from '@/app/dashboard/components/chat/ChimmyAssistantAvatar';
+import {
+  DEFAULT_VOICE_ID,
+  getChimmyVoiceLabel,
+  readStoredChimmyVoiceId,
+} from '@/lib/tts/voices';
 
 const HEART_EMOJI = '\u{1F496}';
 
@@ -98,6 +102,8 @@ type ChimmyChatProps = {
   chipContextLeagueName?: string | null
   /** Fill parent flex column (left panel Chimmy tab): no outer border/radius, flex-1 */
   panelFill?: boolean
+  /** ElevenLabs voice id for TTS (optional; otherwise reads `chimmy_voice_id` from localStorage) */
+  ttsVoiceId?: string
 }
 
 export default function ChimmyChat({
@@ -106,6 +112,7 @@ export default function ChimmyChat({
   footerSlot,
   chipContextLeagueName = null,
   panelFill = false,
+  ttsVoiceId: ttsVoiceIdProp,
 }: ChimmyChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'chimmy-greeting', role: 'assistant', content: CHIMMY_GREETING, createdAt: Date.now() },
@@ -120,6 +127,17 @@ export default function ChimmyChat({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [sessionId, setSessionId] = useState(() => createSessionId());
+  /** Server ElevenLabs TTS must return audio — false when API key missing (503). */
+  const [ttsServerReady, setTtsServerReady] = useState<boolean | null>(null);
+  const [storedVoiceId, setStoredVoiceId] = useState(DEFAULT_VOICE_ID);
+
+  useLayoutEffect(() => {
+    if (ttsVoiceIdProp) return;
+    setStoredVoiceId(readStoredChimmyVoiceId());
+  }, [ttsVoiceIdProp]);
+
+  const effectiveVoiceId = ttsVoiceIdProp ?? storedVoiceId;
+  const voicePlayLabel = getChimmyVoiceLabel(effectiveVoiceId);
 
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -136,6 +154,47 @@ export default function ChimmyChat({
   }, [messages]);
 
   useEffect(() => () => stopCurrentVoice(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (typeof window === 'undefined') return;
+      const hasAudioApi = typeof Audio !== 'undefined' && typeof window.URL?.createObjectURL === 'function';
+      if (!hasAudioApi) {
+        if (!cancelled) setTtsServerReady(false);
+        return;
+      }
+      try {
+        const r = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ text: 'test', voiceId: effectiveVoiceId }),
+        });
+        const ct = r.headers.get('content-type') || '';
+        const ok = r.ok && (ct.includes('audio') || ct.includes('mpeg'));
+        if (cancelled) return;
+        setTtsServerReady(ok);
+        if (!ok) {
+          setVoiceConfig((current) => {
+            if (!current.enabled) return current;
+            return saveVoiceConfig({ ...current, enabled: false });
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setTtsServerReady(false);
+          setVoiceConfig((current) => {
+            if (!current.enabled) return current;
+            return saveVoiceConfig({ ...current, enabled: false });
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveVoiceId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -183,8 +242,12 @@ export default function ChimmyChat({
   }, []);
 
   const handlePlayVoice = useCallback(async (text: string, messageId: string) => {
-    if (!canPlayChimmyVoice()) {
-      toast.error('Voice playback is unavailable on this browser.');
+    if (ttsServerReady === false) {
+      toast.error('Voice unavailable — check ElevenLabs API key in settings.');
+      return;
+    }
+    if (ttsServerReady === null) {
+      toast.error('Voice is still checking availability…');
       return;
     }
 
@@ -213,9 +276,23 @@ export default function ChimmyChat({
         setIsVoicePlaying(false);
         setVoiceMessageId(null);
         toast.error(message);
-      }
+      },
+      effectiveVoiceId,
     );
-  }, [handleStopVoice, isVoicePlaying, voiceConfig, voiceMessageId]);
+  }, [effectiveVoiceId, handleStopVoice, isVoicePlaying, ttsServerReady, voiceConfig, voiceMessageId]);
+
+  const voiceToggleDisabled = ttsServerReady !== true;
+
+  const toggleVoiceReplies = useCallback(() => {
+    if (ttsServerReady === false) {
+      toast.warning('Voice unavailable — check ElevenLabs API key in settings');
+      return;
+    }
+    if (ttsServerReady === null) return;
+    const nextEnabled = !voiceConfig.enabled;
+    updateVoiceConfig({ enabled: nextEnabled });
+    if (!nextEnabled) handleStopVoice();
+  }, [handleStopVoice, ttsServerReady, updateVoiceConfig, voiceConfig.enabled]);
 
   const startNewConversation = useCallback(() => {
     handleStopVoice();
@@ -437,13 +514,15 @@ export default function ChimmyChat({
               New conversation
             </button>
             <button
-              onClick={() => {
-                const nextEnabled = !voiceConfig.enabled
-                updateVoiceConfig({ enabled: nextEnabled })
-                if (!nextEnabled) handleStopVoice()
-              }}
-              className="rounded-full p-3 transition hover:bg-white/10"
-              title="Toggle Chimmy voice replies"
+              type="button"
+              onClick={toggleVoiceReplies}
+              disabled={voiceToggleDisabled}
+              className="rounded-full p-3 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              title={
+                ttsServerReady === false
+                  ? 'ElevenLabs API key required'
+                  : 'Toggle Chimmy voice replies'
+              }
             >
               {voiceConfig.enabled ? <Volume2 className="h-5 w-5 text-cyan-400" /> : <VolumeX className="h-5 w-5 text-slate-400" />}
             </button>
@@ -451,7 +530,7 @@ export default function ChimmyChat({
               <button
                 onClick={handleStopVoice}
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 transition"
-                title="Stop Allison voice"
+                title={`Stop ${voicePlayLabel} voice`}
               >
                 <Square className="h-4 w-4" />
                 Stop
@@ -477,13 +556,10 @@ export default function ChimmyChat({
           ) : null}
           <button
             type="button"
-            onClick={() => {
-              const nextEnabled = !voiceConfig.enabled
-              updateVoiceConfig({ enabled: nextEnabled })
-              if (!nextEnabled) handleStopVoice()
-            }}
-            className="rounded-full p-1.5 transition hover:bg-white/10"
-            title="Toggle voice"
+            onClick={toggleVoiceReplies}
+            disabled={voiceToggleDisabled}
+            className="rounded-full p-1.5 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            title={ttsServerReady === false ? 'ElevenLabs API key required' : 'Toggle voice'}
           >
             {voiceConfig.enabled ? <Volume2 className="h-4 w-4 text-cyan-400" /> : <VolumeX className="h-4 w-4 text-slate-400" />}
           </button>
@@ -586,19 +662,17 @@ export default function ChimmyChat({
                       ) : isVoicePlaying && voiceMessageId === msg.id ? (
                         'Stop'
                       ) : (
-                        'Allison'
+                        voicePlayLabel
                       )}
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        const nextEnabled = !voiceConfig.enabled;
-                        updateVoiceConfig({ enabled: nextEnabled });
-                        if (!nextEnabled) handleStopVoice();
-                      }}
-                      className="ml-auto text-[12px] text-white/50 transition hover:text-white/80"
+                      onClick={toggleVoiceReplies}
+                      disabled={voiceToggleDisabled}
+                      className="ml-auto text-[12px] text-white/50 transition hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+                      title={ttsServerReady === false ? 'Voice (unavailable)' : undefined}
                     >
-                      {voiceConfig.enabled ? 'Voice on' : 'Voice off'}
+                      {ttsServerReady === false ? 'Voice (unavailable)' : voiceConfig.enabled ? 'Voice on' : 'Voice off'}
                     </button>
                   </div>
                   {msg.upgradePath && (

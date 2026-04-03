@@ -1,279 +1,318 @@
 /**
  * VoicePlaybackController — server-backed TTS with stop support.
- * Use in ChimmyChat (or any Chimmy voice UI) for speak/stop behavior.
+ * ElevenLabs via POST /api/tts; browser speech only when API fails (never on 503).
  */
 
-import type { ChimmyTtsVoice, ChimmyVoicePreset } from './types'
-import { getChimmyVoiceStyleProfile, selectChimmyVoice } from './ChimmyVoiceStyleProfile'
+import type { ChimmyTtsVoice, ChimmyVoicePreset } from "./types";
+import { getChimmyVoiceStyleProfile, selectChimmyVoice } from "./ChimmyVoiceStyleProfile";
 
-let activeAudio: HTMLAudioElement | null = null
-let activeObjectUrl: string | null = null
-let activeFetchController: AbortController | null = null
-let activeUtterance: SpeechSynthesisUtterance | null = null
-let activeSessionId = 0
-let activeLoading = false
+let currentAudio: HTMLAudioElement | null = null;
+let activeObjectUrl: string | null = null;
+let activeFetchController: AbortController | null = null;
+let activeUtterance: SpeechSynthesisUtterance | null = null;
+let activeSessionId = 0;
+let activeLoading = false;
 
 function canUseServerAudioPlayback() {
   return (
-    typeof window !== 'undefined' &&
-    typeof Audio !== 'undefined' &&
-    typeof window.URL?.createObjectURL === 'function'
-  )
+    typeof window !== "undefined" &&
+    typeof Audio !== "undefined" &&
+    typeof window.URL?.createObjectURL === "function"
+  );
 }
 
 function canUseBrowserSpeechFallback() {
   return (
-    typeof window !== 'undefined' &&
-    typeof window.speechSynthesis !== 'undefined' &&
-    typeof window.SpeechSynthesisUtterance !== 'undefined'
-  )
+    typeof window !== "undefined" &&
+    typeof window.speechSynthesis !== "undefined" &&
+    typeof window.SpeechSynthesisUtterance !== "undefined"
+  );
 }
 
-function sanitizeForSpeech(raw: string): string {
+/** Strip markdown / noise for TTS (aligned with product voice UX). */
+function cleanTextForTts(raw: string): string {
   return raw
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
-    .replace(/[_*`>#]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\[.*?\]\(.*?\)/g, "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/[\u{1F300}-\u{1FFFF}]/gu, "")
+    .replace(/[_`]/g, "")
     .trim()
+    .slice(0, 800);
 }
 
 function cleanupAudioResources() {
-  if (activeAudio) {
-    activeAudio.pause()
-    activeAudio.src = ''
-    activeAudio = null
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = "";
+    currentAudio = null;
   }
   if (activeObjectUrl) {
-    URL.revokeObjectURL(activeObjectUrl)
-    activeObjectUrl = null
+    URL.revokeObjectURL(activeObjectUrl);
+    activeObjectUrl = null;
   }
   if (activeFetchController) {
-    activeFetchController.abort()
-    activeFetchController = null
+    activeFetchController.abort();
+    activeFetchController = null;
   }
-  activeLoading = false
+  activeLoading = false;
 }
 
 function cleanupSpeechResources() {
-  if (typeof window === 'undefined' || typeof window.speechSynthesis === 'undefined') return
-  window.speechSynthesis.cancel()
-  activeUtterance = null
+  if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") return;
+  window.speechSynthesis.cancel();
+  activeUtterance = null;
 }
 
-function speakWithBrowserFallback(
-  text: string,
-  preset: ChimmyVoicePreset,
-  sessionId: number,
-  options?: SpeakChimmyOptions
-) {
-  if (!canUseBrowserSpeechFallback()) return false
+function fallbackSpeak(text: string, preset: ChimmyVoicePreset, sessionId: number, options?: SpeakChimmyOptions) {
+  if (!canUseBrowserSpeechFallback()) return false;
 
-  const sanitizedText = sanitizeForSpeech(text)
+  const sanitizedText = cleanTextForTts(text);
   if (!sanitizedText) {
-    options?.onEnd?.()
-    return true
+    options?.onEnd?.();
+    return true;
   }
 
-  const synth = window.speechSynthesis
-  const config = getChimmyVoiceStyleProfile(preset)
-  const utterance = new window.SpeechSynthesisUtterance(sanitizedText)
-  utterance.rate = config.rate
-  utterance.pitch = config.pitch
-  utterance.volume = config.volume
+  const synth = window.speechSynthesis;
+  const config = getChimmyVoiceStyleProfile(preset);
+  const utt = new SpeechSynthesisUtterance(sanitizedText);
+  utt.rate = 0.95;
+  utt.pitch = 1.05;
+  utt.volume = config.volume;
 
-  const chosenVoice = selectChimmyVoice(synth.getVoices(), config)
-  if (chosenVoice) {
-    utterance.voice = chosenVoice
+  const voices = synth.getVoices();
+  const preferred = voices.find(
+    (v) =>
+      v.name.includes("Samantha") ||
+      v.name.includes("Google US English") ||
+      v.name.includes("Karen") ||
+      (v.lang === "en-US" && !v.name.includes("Male"))
+  );
+  if (preferred) utt.voice = preferred;
+  else {
+    const chosen = selectChimmyVoice(voices, config);
+    if (chosen) utt.voice = chosen;
   }
 
-  utterance.onend = () => {
-    if (activeSessionId !== sessionId) return
-    activeUtterance = null
-    activeLoading = false
-    options?.onEnd?.()
-  }
+  utt.onend = () => {
+    if (activeSessionId !== sessionId) return;
+    activeUtterance = null;
+    activeLoading = false;
+    options?.onEnd?.();
+  };
 
-  utterance.onerror = () => {
-    if (activeSessionId !== sessionId) return
-    activeUtterance = null
-    activeLoading = false
-    options?.onError?.()
-    options?.onEnd?.()
-  }
+  utt.onerror = () => {
+    if (activeSessionId !== sessionId) return;
+    activeUtterance = null;
+    activeLoading = false;
+    options?.onError?.();
+    options?.onEnd?.();
+  };
 
-  cleanupSpeechResources()
-  activeUtterance = utterance
-  activeLoading = false
-  synth.speak(utterance)
-  return true
+  cleanupSpeechResources();
+  activeUtterance = utt;
+  activeLoading = false;
+  synth.speak(utt);
+  return true;
 }
 
 /**
  * Stop any current Chimmy TTS playback.
  */
 export function stopChimmyVoice(): void {
-  activeSessionId += 1
-  if (typeof window === 'undefined') return
-  cleanupAudioResources()
-  cleanupSpeechResources()
+  activeSessionId += 1;
+  if (typeof window === "undefined") return;
+  cleanupAudioResources();
+  cleanupSpeechResources();
 }
 
 export interface SpeakChimmyOptions {
-  voice?: ChimmyTtsVoice
+  voice?: ChimmyTtsVoice;
   /** 0–1, applied to HTMLAudioElement when using server audio */
-  volume?: number
-  onStart?: () => void
-  onEnd?: () => void
-  onError?: () => void
-  onUnavailable?: (message: string) => void
+  volume?: number;
+  /** ElevenLabs voice_id for POST /api/tts */
+  elevenLabsVoiceId?: string;
+  onStart?: () => void;
+  onEnd?: () => void;
+  onError?: () => void;
+  onUnavailable?: (message: string) => void;
 }
 
 /**
  * Speak text with Chimmy's server-backed TTS route. Cancels any current playback first.
- * Returns a function to stop playback (e.g. for a "Stop" button).
  */
 export function speakChimmy(
   text: string,
-  preset: ChimmyVoicePreset = 'calm',
+  preset: ChimmyVoicePreset = "calm",
   options?: SpeakChimmyOptions
 ): () => void {
-  if (typeof window === 'undefined' || !text?.trim()) {
-    return stopChimmyVoice
+  if (typeof window === "undefined" || !text?.trim()) {
+    return stopChimmyVoice;
   }
 
-  const sessionId = activeSessionId + 1
-  activeSessionId = sessionId
-  cleanupAudioResources()
-  cleanupSpeechResources()
-  options?.onStart?.()
-  activeLoading = true
+  const sessionId = activeSessionId + 1;
+  activeSessionId = sessionId;
+  cleanupAudioResources();
+  cleanupSpeechResources();
+  options?.onStart?.();
+  activeLoading = true;
 
-  const hasServerAudioPlayback = canUseServerAudioPlayback()
-  const hasBrowserSpeechFallback = canUseBrowserSpeechFallback()
+  const clean = cleanTextForTts(text);
+  if (!clean) {
+    activeLoading = false;
+    options?.onEnd?.();
+    return stopChimmyVoice;
+  }
+
+  const hasServerAudioPlayback = canUseServerAudioPlayback();
+  const hasBrowserSpeechFallback = canUseBrowserSpeechFallback();
 
   if (!hasServerAudioPlayback) {
-    const didFallback = speakWithBrowserFallback(text, preset, sessionId, options)
+    const didFallback = fallbackSpeak(text, preset, sessionId, options);
     if (!didFallback) {
-      activeLoading = false
-      options?.onUnavailable?.('Voice playback is unavailable right now.')
-      options?.onEnd?.()
+      activeLoading = false;
+      options?.onUnavailable?.("Voice playback is unavailable right now.");
+      options?.onEnd?.();
     }
-    return stopChimmyVoice
+    return stopChimmyVoice;
   }
 
-  const controller = new AbortController()
-  activeFetchController = controller
+  const controller = new AbortController();
+  activeFetchController = controller;
 
   void (async () => {
     try {
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, preset, voice: options?.voice }),
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          text: clean,
+          ...(options?.elevenLabsVoiceId ? { voiceId: options.elevenLabsVoiceId } : {}),
+        }),
         signal: controller.signal,
-      })
+      });
 
-      if (activeSessionId !== sessionId) return
+      if (activeSessionId !== sessionId) return;
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}))
-        const message =
-          typeof data?.error === 'string'
-            ? data.error
-            : 'Voice playback is unavailable right now.'
-        const shouldBrowserFallback =
-          hasBrowserSpeechFallback &&
-          (response.headers.get('X-Chimmy-TTS-Fallback') === 'browser' || response.status >= 500)
-
-        if (shouldBrowserFallback) {
-          const didFallback = speakWithBrowserFallback(text, preset, sessionId, options)
-          if (!didFallback) {
-            options?.onUnavailable?.(message)
-            options?.onEnd?.()
-          }
-        } else if (response.status === 503 || response.status === 501) {
-          options?.onUnavailable?.(message)
-          options?.onEnd?.()
+      if (!res.ok) {
+        if (res.status === 503) {
+          console.warn("[TTS] ElevenLabs not configured (503); no browser fallback");
+          options?.onUnavailable?.("Voice unavailable — check ElevenLabs API key in settings");
+          options?.onEnd?.();
         } else {
-          options?.onError?.()
-          options?.onEnd?.()
+          console.warn("[TTS] falling back to browser speech:", res.status);
+          if (hasBrowserSpeechFallback) {
+            const did = fallbackSpeak(text, preset, sessionId, options);
+            if (!did) {
+              options?.onUnavailable?.("Voice playback is unavailable right now.");
+              options?.onEnd?.();
+            }
+          } else {
+            options?.onUnavailable?.("Voice playback is unavailable right now.");
+            options?.onEnd?.();
+          }
         }
-        cleanupAudioResources()
-        return
+        activeFetchController = null;
+        cleanupAudioResources();
+        return;
       }
 
-      const buffer = await response.arrayBuffer()
-      if (activeSessionId !== sessionId) return
+      activeFetchController = null;
+      const blob = await res.blob();
+      if (activeSessionId !== sessionId) return;
 
-      const blob = new Blob([buffer], {
-        type: response.headers.get('content-type') || 'audio/mpeg',
-      })
-      const objectUrl = URL.createObjectURL(blob)
-      const audio = new Audio(objectUrl)
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      currentAudio = audio;
+
       const vol =
         typeof options?.volume === "number" && Number.isFinite(options.volume)
           ? Math.min(1, Math.max(0, options.volume))
-          : 0.85
-      audio.volume = vol
+          : 0.85;
+      audio.volume = vol;
 
-      activeObjectUrl = objectUrl
-      activeAudio = audio
-      activeLoading = false
+      activeObjectUrl = url;
+      activeLoading = false;
 
       audio.onended = () => {
-        if (activeSessionId !== sessionId) return
-        cleanupAudioResources()
-        options?.onEnd?.()
-      }
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) currentAudio = null;
+        if (activeObjectUrl === url) activeObjectUrl = null;
+        if (activeSessionId !== sessionId) return;
+        cleanupAudioResources();
+        options?.onEnd?.();
+      };
+
       audio.onerror = () => {
-        if (activeSessionId !== sessionId) return
-        cleanupAudioResources()
-        const didFallback = hasBrowserSpeechFallback
-          ? speakWithBrowserFallback(text, preset, sessionId, options)
-          : false
-        if (!didFallback) {
-          options?.onError?.()
-          options?.onEnd?.()
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) currentAudio = null;
+        if (activeObjectUrl === url) activeObjectUrl = null;
+        if (activeSessionId !== sessionId) return;
+        cleanupAudioResources();
+        if (hasBrowserSpeechFallback) {
+          const did = fallbackSpeak(text, preset, sessionId, options);
+          if (!did) {
+            options?.onError?.();
+            options?.onEnd?.();
+          }
+        } else {
+          options?.onError?.();
+          options?.onEnd?.();
         }
-      }
+      };
 
-      await audio.play().catch(() => {
-        cleanupAudioResources()
-        const didFallback = hasBrowserSpeechFallback
-          ? speakWithBrowserFallback(text, preset, sessionId, options)
-          : false
-        if (!didFallback) {
-          options?.onError?.()
-          options?.onEnd?.()
+      await audio.play().catch((err) => {
+        console.warn("[TTS] audio.play failed, using fallback:", err);
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) currentAudio = null;
+        if (activeObjectUrl === url) activeObjectUrl = null;
+        if (activeSessionId !== sessionId) return;
+        cleanupAudioResources();
+        if (hasBrowserSpeechFallback) {
+          const did = fallbackSpeak(text, preset, sessionId, options);
+          if (!did) {
+            options?.onError?.();
+            options?.onEnd?.();
+          }
+        } else {
+          options?.onError?.();
+          options?.onEnd?.();
         }
-      })
-    } catch (error) {
-      if (activeSessionId !== sessionId) return
-      const aborted = error instanceof DOMException && error.name === 'AbortError'
+      });
+    } catch (err: unknown) {
+      if (activeSessionId !== sessionId) return;
+      const aborted = err instanceof DOMException && err.name === "AbortError";
       if (!aborted) {
-        const didFallback = hasBrowserSpeechFallback
-          ? speakWithBrowserFallback(text, preset, sessionId, options)
-          : false
-        if (!didFallback) {
-          options?.onError?.()
-          options?.onEnd?.()
+        console.warn("[TTS] error, using fallback:", err);
+        if (hasBrowserSpeechFallback) {
+          const did = fallbackSpeak(text, preset, sessionId, options);
+          if (!did) {
+            options?.onError?.();
+            options?.onEnd?.();
+          }
+        } else {
+          options?.onError?.();
+          options?.onEnd?.();
         }
       }
-      cleanupAudioResources()
+      cleanupAudioResources();
     }
-  })()
+  })();
 
-  return stopChimmyVoice
+  return stopChimmyVoice;
 }
 
 /**
  * Whether TTS is currently playing (best-effort).
  */
 export function isChimmyVoicePlaying(): boolean {
-  if (typeof window === 'undefined') return false
+  if (typeof window === "undefined") return false;
   return (
     activeLoading ||
-    Boolean(activeAudio && !activeAudio.paused && !activeAudio.ended) ||
+    Boolean(currentAudio && !currentAudio.paused && !currentAudio.ended) ||
     Boolean(activeUtterance)
-  )
+  );
 }
