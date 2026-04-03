@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchRIPlayers, fetchRITeams } from '@/lib/players/ri-players-server'
 import { revalidateTag } from 'next/cache'
 
-const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER'])
+const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER', 'PGA'])
 
 export async function POST(req: NextRequest) {
   const sport = (req.nextUrl.searchParams.get('sport') || 'NFL').trim().toUpperCase()

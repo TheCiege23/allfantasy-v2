@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchRIPlayers } from '@/lib/players/ri-players-server'
 import { unstable_cache } from 'next/cache'
 
-const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER'])
+const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER', 'PGA'])
 
 const cacheFetch = (sport: string) =>
   unstable_cache(
