@@ -17,6 +17,7 @@ import { PlayersTab } from './tabs/PlayersTab'
 import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { ScoresTab } from './tabs/ScoresTab'
+import { HistoryTab } from './tabs/HistoryTab'
 import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 
@@ -27,7 +28,7 @@ export type LeagueShellLeague = League & {
   invites: LeagueInvite[]
 }
 
-type LeagueShellTab = 'draft' | 'team' | 'league' | 'players' | 'trend' | 'trades' | 'scores'
+type LeagueShellTab = 'draft' | 'team' | 'league' | 'players' | 'trend' | 'trades' | 'scores' | 'history'
 
 const TABS: { id: LeagueShellTab; label: string }[] = [
   { id: 'draft', label: 'Draft' },
@@ -37,6 +38,7 @@ const TABS: { id: LeagueShellTab; label: string }[] = [
   { id: 'trend', label: 'Trend' },
   { id: 'trades', label: 'Trades' },
   { id: 'scores', label: 'Scores' },
+  { id: 'history', label: 'History' },
 ]
 
 function weekFromLeagueSettings(settings: unknown): number | null {
@@ -222,6 +224,7 @@ export function LeagueShell({
             <TradesTab league={selectedLeague} teams={teamSlots} />
           )}
           {activeTab === 'scores' && <ScoresTab league={selectedLeague} />}
+          {activeTab === 'history' && <HistoryTab league={selectedLeague} />}
         </div>
       </main>
 

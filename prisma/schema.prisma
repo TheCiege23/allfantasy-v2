@@ -3954,6 +3954,7 @@ model League {
   aiCommissionerActionLogs AiCommissionerActionLog[]
   invites                  LeagueInvite[]
   managerClaims            LeagueManagerClaim[]
+  seasons                  LeagueSeason[]
   user               AppUser               @relation(fields: [userId], references: [id], onDelete: Cascade)
   legacyLeague       LegacyLeague?         @relation(fields: [legacyLeagueId], references: [id])
   legacyLeagueId     String?               @unique
@@ -3969,6 +3970,40 @@ model League {
   @@index([status])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+/// Per-season snapshot for a league (Sleeper chain via previous_league_id).
+model LeagueSeason {
+  id               String   @id @default(cuid())
+  leagueId         String
+  league           League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  season           Int
+  /// Sleeper league_id for that season instance
+  platformLeagueId String
+
+  championTeamId String?
+  championTeam   LeagueTeam? @relation("LeagueSeasonChampion", fields: [championTeamId], references: [id], onDelete: SetNull)
+  championName   String?
+  championAvatar String?
+
+  runnerUpName              String?
+  regularSeasonWinnerName   String?
+
+  /// Array of per-team season stats (see LeagueSeasonTeamRecord in app code)
+  teamRecords Json?
+
+  teamCount     Int?
+  scoringFormat String?
+  isDynasty     Boolean  @default(false)
+  status        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, season])
+  @@index([leagueId])
+  @@map("league_seasons")
 }
 
 model LeagueStoryline {
@@ -4492,6 +4527,7 @@ model LeagueTeam {
   performances   TeamPerformance[]
   legacyRoster   LegacyRoster?     @relation(fields: [legacyRosterId], references: [id])
   legacyRosterId String?           @unique
+  seasonChampionships LeagueSeason[] @relation("LeagueSeasonChampion")
 
   @@unique([leagueId, externalId])
   @@index([leagueId, pointsFor])

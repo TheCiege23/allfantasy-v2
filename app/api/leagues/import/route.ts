@@ -12,6 +12,7 @@ import {
 import { upsertPlatformIdentity, isPlatformRankLocked, lockPlatformRank } from "@/lib/platform-identity";
 import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
+import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
 import {
   consumeRateLimit,
   getClientIp,
@@ -177,6 +178,7 @@ export async function POST(req: Request) {
 
     let seasonRows = 0;
     const leagueSummaries: { name: string; sport: string; seasons: string[] }[] = [];
+    const historySyncJobs: { leagueId: string; platformLeagueId: string }[] = [];
 
     for (const [, versions] of byLeagueId) {
       const sorted = [...versions].sort((a, b) => a._year - b._year);
@@ -214,6 +216,22 @@ export async function POST(req: Request) {
         await upsertSleeperLeagueMetadataOnly(rest, userId, _year, sportLabel);
         seasonRows += 1;
       }
+
+      const sleeperPid = String(last.league_id);
+      const row = await prisma.league.findUnique({
+        where: {
+          userId_platform_platformLeagueId_season: {
+            userId,
+            platform: "sleeper",
+            platformLeagueId: sleeperPid,
+            season: _year,
+          },
+        },
+        select: { id: true },
+      });
+      if (row) {
+        historySyncJobs.push({ leagueId: row.id, platformLeagueId: sleeperPid });
+      }
     }
 
     const uniqueLeagues = byLeagueId.size;
@@ -243,6 +261,12 @@ export async function POST(req: Request) {
     }
 
     await refreshUserRankingsContext(userId);
+
+    for (const job of historySyncJobs) {
+      void syncLeagueHistory(job.leagueId, job.platformLeagueId, userId).catch((err) =>
+        console.error(`[leagues/import] History sync failed for ${job.platformLeagueId}:`, err)
+      );
+    }
 
     return NextResponse.json({
       success: true,

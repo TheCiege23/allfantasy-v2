@@ -46,6 +46,8 @@ import { logAiFailure } from '@/lib/error-tracking'
 import { isToolTradeAnalyzerEnabled } from '@/lib/feature-toggle'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
+import { prisma } from '@/lib/prisma'
+import { buildLeagueContext } from '@/lib/league/buildLeagueContext'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 
@@ -839,6 +841,26 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       console.warn('[TradeEval] League decision context build failed (non-blocking):', (ldcErr as Error)?.message)
     }
 
+    let leagueHistoryContext = ''
+    try {
+      if (data.league_id && userId) {
+        const afLeague = await prisma.league.findFirst({
+          where: {
+            userId,
+            platform: 'sleeper',
+            platformLeagueId: String(data.league_id),
+          },
+          orderBy: { season: 'desc' },
+          select: { id: true },
+        })
+        if (afLeague) {
+          leagueHistoryContext = await buildLeagueContext(afLeague.id, data.sender.manager_name)
+        }
+      }
+    } catch (histErr) {
+      console.warn('[TradeEval] League history context failed (non-blocking):', (histErr as Error)?.message)
+    }
+
     const tierImpactA = teamAGives.map(a => `${a.name}: ${a.tier}`).join(', ')
     const tierImpactB = teamAReceives.map(a => `${a.name}: ${a.tier}`).join(', ')
 
@@ -912,6 +934,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
         timeContext: data.asOfDate ? 'AS_OF_DATE' : 'CURRENT',
         ...(data.asOfDate && { asOfDate: data.asOfDate }),
       },
+      ...(leagueHistoryContext && { leagueHistoryContext }),
     }
 
     if (leagueDecisionCtx) {
@@ -1337,7 +1360,13 @@ Fairness score: ${fairnessScore}/100
     if (skipGpt !== 'ok') {
       console.warn(`[trade-evaluator] Skipping GPT: ${skipGpt}`)
     } else {
-      const systemPrompt = STRUCTURED_TRADE_EVAL_SYSTEM_PROMPT + '\n\n' + GPT_NARRATIVE_SYSTEM_PROMPT
+      const systemPrompt =
+        STRUCTURED_TRADE_EVAL_SYSTEM_PROMPT +
+        '\n\n' +
+        GPT_NARRATIVE_SYSTEM_PROMPT +
+        (leagueHistoryContext
+          ? `\n\nLEAGUE HISTORY & MANAGER TIERS (use for negotiation leverage — do not contradict deterministic values):\n${leagueHistoryContext}`
+          : '')
       const narrativePrompt = gptContract ? buildGptUserPrompt(gptContract) : ''
 
       const enrichedPayloadStr = `${narrativePrompt}\n\n${JSON.stringify(gptPayload)}\n\n` +
