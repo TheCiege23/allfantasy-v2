@@ -8,6 +8,7 @@ import { requireVerifiedUser } from "@/lib/auth-guard";
 import { upsertPlatformIdentity, isPlatformRankLocked, lockPlatformRank } from "@/lib/platform-identity";
 import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
+import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
 import {
   processLeague,
   cachedSleeperFetch,
@@ -151,6 +152,16 @@ export async function POST(req: Request) {
       await refreshUserRankingsContext(userId);
     } catch (err) {
       console.error("[import-sleeper] rankings context error:", err);
+    }
+
+    for (let i = 0; i < leaguesData.length; i++) {
+      const row = results[i];
+      if (!row) continue;
+      const platformLeagueId = leaguesData[i]?.league_id?.toString();
+      if (!platformLeagueId) continue;
+      void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
+        console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
+      );
     }
 
     return NextResponse.json({
