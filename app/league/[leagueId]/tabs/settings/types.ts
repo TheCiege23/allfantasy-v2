@@ -7,9 +7,12 @@ export type LeagueTeamBrief = {
   wins?: number
   losses?: number
   pointsFor?: number
+  isCommissioner?: boolean
+  isCoCommissioner?: boolean
 }
 
 export type LeagueSettingsApi = {
+  userRole?: 'commissioner' | 'co_commissioner' | 'member' | null
   league: {
     id: string
     name: string | null

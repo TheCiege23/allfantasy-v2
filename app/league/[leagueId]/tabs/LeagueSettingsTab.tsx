@@ -160,6 +160,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
 
   const patch = useCallback(
     async (partial: Record<string, unknown>) => {
+      if (data?.userRole !== 'commissioner' && data?.userRole !== 'co_commissioner') return
       const res = await fetch('/api/league/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -173,7 +174,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
       const json = (await res.json()) as { settings: RawSettings }
       setData((prev) => (prev ? { ...prev, settings: json.settings } : prev))
     },
-    [leagueId],
+    [leagueId, data?.userRole],
   )
 
   const totalSecondsPick = useMemo(() => {
@@ -252,6 +253,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   }
 
   const handleRandomize = async () => {
+    if (data?.userRole !== 'commissioner' && data?.userRole !== 'co_commissioner') return
     const res = await fetch('/api/league/settings/randomize-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -269,6 +271,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   }
 
   const loadMaxPfOrder = async () => {
+    if (data?.userRole !== 'commissioner' && data?.userRole !== 'co_commissioner') return
     const L = data?.league
     if (!L) return
     const res = await fetch(`/api/league/settings/max-pf?leagueId=${encodeURIComponent(leagueId)}`)
@@ -323,9 +326,39 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
 
   if (!data || !league) return null
 
+  const userRole = data.userRole ?? null
+  const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
+  const isHeadCommissioner = userRole === 'commissioner'
+
+  const setCoCommissioner = async (memberId: string, next: boolean) => {
+    const res = await fetch('/api/league/settings/co-commissioners', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leagueId, memberId, isCoCommissioner: next }),
+    })
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string }
+      toast.error(err.error ?? 'Update failed')
+      return
+    }
+    toast.success(next ? 'Co-commissioner added' : 'Co-commissioner removed')
+    void refresh()
+  }
+
   return (
     <div className="h-full space-y-5 overflow-y-auto px-4 py-4">
-      <LeagueSettingsHeader isDirty={dirty} onSaveAll={() => void saveAll()} />
+      {!canEdit && userRole !== null ? (
+        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+          <span className="text-[16px] text-amber-400" aria-hidden>
+            🔒
+          </span>
+          <p className="text-[12px] text-amber-300/80">
+            You are viewing league settings as a member. Only the commissioner and co-commissioners can make changes.
+          </p>
+        </div>
+      ) : null}
+      <div className={!canEdit ? 'pointer-events-none select-none opacity-[0.88]' : ''}>
+      <LeagueSettingsHeader isDirty={dirty} onSaveAll={() => void saveAll()} canEdit={canEdit} />
       <SettingsNav />
 
       <SettingsSection
@@ -643,6 +676,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
             teams={league.teams}
             method={method}
             locked={Boolean(s?.draftOrderLocked)}
+            readOnly={!canEdit}
             onReorder={handleReorder}
             onAssignSlot={handleAssignSlot}
           />
@@ -798,20 +832,63 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         />
       </SettingsSection>
 
+      {isHeadCommissioner ? (
+        <SettingsSection id="co-commissioners" title="Co-Commissioners">
+          <p className="mb-3 text-[12px] text-white/45">
+            Co-commissioners can change settings but cannot reset the draft or manage other co-commissioners.
+          </p>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03]">
+            {league.teams.map((member) => (
+              <div
+                key={member.id}
+                className="flex items-center justify-between border-b border-white/[0.04] px-3 py-2.5 last:border-0"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                  {member.avatarUrl ? (
+                    <img src={member.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full" />
+                  ) : (
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-bold text-white/50">
+                      {(member.teamName || member.ownerName || '?').slice(0, 2)}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-[12px] font-semibold text-white">{member.ownerName || member.teamName}</p>
+                    {member.isCommissioner ? (
+                      <p className="text-[10px] text-cyan-400">Commissioner</p>
+                    ) : null}
+                  </div>
+                </div>
+                {!member.isCommissioner ? (
+                  <Toggle
+                    checked={Boolean(member.isCoCommissioner)}
+                    onChange={(v) => void setCoCommissioner(member.id, v)}
+                    disabled={!canEdit}
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </SettingsSection>
+      ) : null}
+
       <SettingsSection id="reset" title="Safety & Reset">
-        <div className="rounded-xl border border-red-500/15 bg-red-500/[0.06] p-4">
-          <div className="flex items-start gap-3">
-            <span className="text-[20px]">⚠️</span>
-            <div>
-              <p className="mb-1 text-[14px] font-bold text-red-400">Reset Draft</p>
-              <p className="mb-4 text-[12px] text-white/50">
-                This will clear all picks and return the draft to pre-draft state. Draft settings are preserved. This cannot be
-                undone.
-              </p>
-              <DangerButton onClick={() => setResetOpen(true)}>Reset Draft</DangerButton>
+        {isHeadCommissioner ? (
+          <div className="rounded-xl border border-red-500/15 bg-red-500/[0.06] p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-[20px]">⚠️</span>
+              <div>
+                <p className="mb-1 text-[14px] font-bold text-red-400">Reset Draft</p>
+                <p className="mb-4 text-[12px] text-white/50">
+                  This will clear all picks and return the draft to pre-draft state. Draft settings are preserved. This cannot be
+                  undone.
+                </p>
+                <DangerButton onClick={() => setResetOpen(true)}>Reset Draft</DangerButton>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <p className="text-[12px] text-white/40">Only the head commissioner can reset the draft.</p>
+        )}
       </SettingsSection>
 
       <ResetDraftModal
@@ -821,6 +898,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         onSuccess={() => toast.success('Draft has been reset.')}
       />
       <KeeperModal open={keeperOpen} leagueId={leagueId} teams={league.teams} onClose={() => setKeeperOpen(false)} />
+      </div>
     </div>
   )
 }

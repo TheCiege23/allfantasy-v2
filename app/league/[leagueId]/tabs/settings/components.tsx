@@ -161,9 +161,12 @@ export function DangerButton({
 export function LeagueSettingsHeader({
   isDirty,
   onSaveAll,
+  canEdit = true,
 }: {
   isDirty: boolean
   onSaveAll: () => void
+  /** When false, hide bulk save (view-only member). */
+  canEdit?: boolean
 }) {
   return (
     <div className="mb-5 flex items-center justify-between">
@@ -171,11 +174,12 @@ export function LeagueSettingsHeader({
         <h2 className="text-[17px] font-bold text-white">League Settings</h2>
         <p className="mt-0.5 text-[12px] text-white/40">Commissioner only · Changes save automatically</p>
       </div>
-      {isDirty ? (
+      {isDirty && canEdit ? (
         <button
           type="button"
           onClick={onSaveAll}
-          className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition hover:bg-cyan-400"
+          disabled={!canEdit}
+          className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Save Changes
         </button>

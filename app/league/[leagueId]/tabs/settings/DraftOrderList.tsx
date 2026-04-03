@@ -9,6 +9,8 @@ type DraftOrderListProps = {
   teams: LeagueTeamBrief[]
   method: string
   locked: boolean
+  /** When true, drag/assign are disabled (member view). */
+  readOnly?: boolean
   onReorder: (next: DraftOrderSlotRow[]) => void
   onAssignSlot: (slotIndex: number, teamId: string) => void
 }
@@ -29,10 +31,11 @@ export function DraftOrderList({
   teams,
   method,
   locked,
+  readOnly = false,
   onReorder,
   onAssignSlot,
 }: DraftOrderListProps) {
-  const manual = method === 'manual' && !locked
+  const manual = method === 'manual' && !locked && !readOnly
   const [dragIdx, setDragIdx] = useState<number | null>(null)
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.teamName.localeCompare(b.teamName)), [teams])

@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireCommissionerRole } from "@/lib/league/permissions";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 
 export const maxDuration = 30;
@@ -38,8 +39,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "leagueId required" }, { status: 400 });
     }
 
+    await requireCommissionerRole(leagueId, session.user.id);
+
     const league = await prisma.league.findFirst({
-      where: { id: leagueId, userId: session.user.id },
+      where: { id: leagueId },
     });
 
     if (!league) {
@@ -171,6 +174,7 @@ export async function POST(req: Request) {
             wins: team.wins,
             losses: team.losses,
             pointsFor: team.pointsFor,
+            isCommissioner: team.isCommissioner,
           },
           create: {
             leagueId,
@@ -183,6 +187,8 @@ export async function POST(req: Request) {
             wins: team.wins,
             losses: team.losses,
             pointsFor: team.pointsFor,
+            isCommissioner: team.isCommissioner,
+            isCoCommissioner: false,
           },
         });
         teamsUpserted += 1;
@@ -199,6 +205,7 @@ export async function POST(req: Request) {
       teams: updatedTeams,
     });
   } catch (err: unknown) {
+    if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : "Refresh failed";
     console.error("[league/refresh]", msg);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -3,7 +3,12 @@ import { getServerSession } from 'next-auth'
 import { Prisma } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
+import { assertLeagueMember } from '@/lib/league/league-access'
+import {
+  buildLeagueUpdateFromBody,
+  commissionerLeagueFieldsFromRow,
+} from '@/lib/league/commissioner-league-patch'
+import { getLeagueRole, requireCommissionerRole } from '@/lib/league/permissions'
 import { isValidIanaTimeZone } from '@/lib/timezone'
 import { syncDraftSessionFromLeagueSettings } from '@/lib/league/league-settings-draft-sync'
 
@@ -35,6 +40,42 @@ const TIMER_PRESETS = new Set([
   'custom',
 ])
 
+/** Keys stored on `LeagueSettings` (draft / draft-room row). */
+const LEAGUE_SETTINGS_PATCH_KEYS = new Set([
+  'draftDateUtc',
+  'timezone',
+  'autostart',
+  'slowDraftPause',
+  'slowPauseFrom',
+  'slowPauseUntil',
+  'cpuAutoPick',
+  'aiAutoPick',
+  'draftType',
+  'pickTimerPreset',
+  'pickTimerCustomValue',
+  'rounds',
+  'draftOrderMethod',
+  'randomizeCount',
+  'draftOrderSlots',
+  'draftOrderLocked',
+  'keeperCount',
+  'keeperRoundCost',
+  'keeperSlots',
+  'dynastyCarryover',
+  'playerPool',
+  'alphabeticalSort',
+  'aiQueueSuggestions',
+  'aiBestAvailable',
+  'aiRosterGuidance',
+  'aiScarcityAlerts',
+  'aiDraftGrade',
+  'aiSleeperAlerts',
+  'aiByeAwareness',
+  'aiStackSuggestions',
+  'aiRiskUpsideNotes',
+  'aiScope',
+])
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
@@ -42,6 +83,10 @@ function jsonError(message: string, status: number) {
 function totalRosterSlotsForLeague(rosterSize: number | null): number {
   if (rosterSize != null && rosterSize > 0) return rosterSize
   return 15
+}
+
+function hasLeagueSettingsPatch(body: Record<string, unknown>): boolean {
+  return Object.keys(body).some((k) => LEAGUE_SETTINGS_PATCH_KEYS.has(k))
 }
 
 export async function GET(req: NextRequest) {
@@ -55,25 +100,39 @@ export async function GET(req: NextRequest) {
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return jsonError(gate.status === 404 ? 'League not found' : 'Forbidden', gate.status)
 
-  const league = await prisma.league.findFirst({
-    where: { id: leagueId },
-    include: {
-      teams: { orderBy: { externalId: 'asc' } },
-      leagueSettings: true,
-    },
-  })
+  const [league, userRole, profile] = await Promise.all([
+    prisma.league.findFirst({
+      where: { id: leagueId },
+      include: {
+        teams: { orderBy: { externalId: 'asc' } },
+        leagueSettings: true,
+      },
+    }),
+    getLeagueRole(leagueId, userId),
+    prisma.userProfile.findFirst({
+      where: { userId },
+      select: { afCommissionerSub: true },
+    }),
+  ])
+
   if (!league) return jsonError('League not found', 404)
 
   const ls = league.leagueSettings
   const totalRosterSlots = totalRosterSlotsForLeague(league.rosterSize)
+  const tz = league.timezone ?? ls?.timezone ?? 'America/New_York'
+  const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
+  const comm = commissionerLeagueFieldsFromRow(league)
 
   return NextResponse.json({
+    userRole,
+    hasAfCommissionerSub: profile?.afCommissionerSub ?? false,
+    canEdit,
     league: {
       id: league.id,
       name: league.name,
       sport: league.sport,
       season: league.season,
-      timezone: ls?.timezone ?? 'America/New_York',
+      timezone: tz,
       teamCount: league.leagueSize ?? league.teams.length,
       isDynasty: league.isDynasty,
       rosterSize: league.rosterSize,
@@ -89,7 +148,10 @@ export async function GET(req: NextRequest) {
         wins: t.wins,
         losses: t.losses,
         pointsFor: t.pointsFor,
+        isCommissioner: t.isCommissioner,
+        isCoCommissioner: t.isCoCommissioner,
       })),
+      ...comm,
     },
     settings: ls
       ? {
@@ -118,14 +180,32 @@ export async function PATCH(req: NextRequest) {
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
   if (!leagueId) return jsonError('leagueId required', 400)
 
-  const gate = await assertLeagueCommissioner(leagueId, userId)
-  if (!gate.ok) return jsonError(gate.status === 404 ? 'League not found' : 'Forbidden', gate.status)
+  try {
+    await requireCommissionerRole(leagueId, userId)
+  } catch (err) {
+    if (err instanceof Response) return err
+    console.error('[league/settings PATCH]', err)
+    return jsonError('Server error', 500)
+  }
 
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
     include: { leagueSettings: true, teams: true },
   })
   if (!league) return jsonError('League not found', 404)
+
+  const profile = await prisma.userProfile.findFirst({
+    where: { userId },
+    select: { afCommissionerSub: true },
+  })
+  const hasSub = profile?.afCommissionerSub ?? false
+
+  if (body.playoffTeams != null) {
+    const pt = Number(body.playoffTeams)
+    if ((pt === 7 || pt === 9) && !hasSub) {
+      return jsonError('7- and 9-team playoff brackets require an AF Commissioner subscription.', 403)
+    }
+  }
 
   if (body.timezone != null) {
     const tz = String(body.timezone)
@@ -183,72 +263,112 @@ export async function PATCH(req: NextRequest) {
     if (!Number.isFinite(k) || k < 0 || k > 10) return jsonError('keeperCount must be 0–10', 400)
   }
 
-  const update: Prisma.LeagueSettingsUpdateInput = { updatedBy: userId }
+  const updatedFieldNames: string[] = []
+
+  const { data: leaguePatch, keys: leagueKeys } = buildLeagueUpdateFromBody(body)
+  if (Object.keys(leaguePatch).length > 0) {
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: leaguePatch,
+    })
+    updatedFieldNames.push(...leagueKeys)
+  }
+
+  const lsUpdate: Prisma.LeagueSettingsUpdateInput = { updatedBy: userId }
 
   if (body.draftDateUtc !== undefined) {
-    update.draftDateUtc =
+    lsUpdate.draftDateUtc =
       body.draftDateUtc === null ? null : new Date(String(body.draftDateUtc as string))
   }
-  if (body.timezone !== undefined) update.timezone = body.timezone === null ? null : String(body.timezone)
-  if (body.autostart !== undefined) update.autostart = Boolean(body.autostart)
-  if (body.slowDraftPause !== undefined) update.slowDraftPause = Boolean(body.slowDraftPause)
-  if (body.slowPauseFrom !== undefined) update.slowPauseFrom = body.slowPauseFrom === null ? null : String(body.slowPauseFrom)
+  if (body.timezone !== undefined) {
+    const tz = body.timezone === null ? null : String(body.timezone)
+    lsUpdate.timezone = tz
+  }
+  if (body.autostart !== undefined) lsUpdate.autostart = Boolean(body.autostart)
+  if (body.slowDraftPause !== undefined) lsUpdate.slowDraftPause = Boolean(body.slowDraftPause)
+  if (body.slowPauseFrom !== undefined) lsUpdate.slowPauseFrom = body.slowPauseFrom === null ? null : String(body.slowPauseFrom)
   if (body.slowPauseUntil !== undefined)
-    update.slowPauseUntil = body.slowPauseUntil === null ? null : String(body.slowPauseUntil)
-  if (body.cpuAutoPick !== undefined) update.cpuAutoPick = Boolean(body.cpuAutoPick)
-  if (body.aiAutoPick !== undefined) update.aiAutoPick = Boolean(body.aiAutoPick)
-  if (body.draftType !== undefined) update.draftType = String(body.draftType)
-  if (body.pickTimerPreset !== undefined) update.pickTimerPreset = String(body.pickTimerPreset)
+    lsUpdate.slowPauseUntil = body.slowPauseUntil === null ? null : String(body.slowPauseUntil)
+  if (body.cpuAutoPick !== undefined) lsUpdate.cpuAutoPick = Boolean(body.cpuAutoPick)
+  if (body.aiAutoPick !== undefined) lsUpdate.aiAutoPick = Boolean(body.aiAutoPick)
+  if (body.draftType !== undefined) lsUpdate.draftType = String(body.draftType)
+  if (body.pickTimerPreset !== undefined) lsUpdate.pickTimerPreset = String(body.pickTimerPreset)
   if (body.pickTimerCustomValue !== undefined)
-    update.pickTimerCustomValue =
+    lsUpdate.pickTimerCustomValue =
       body.pickTimerCustomValue === null ? null : Number(body.pickTimerCustomValue)
-  if (body.rounds !== undefined) update.rounds = Number(body.rounds)
-  if (body.draftOrderMethod !== undefined) update.draftOrderMethod = String(body.draftOrderMethod)
+  if (body.rounds !== undefined) lsUpdate.rounds = Number(body.rounds)
+  if (body.draftOrderMethod !== undefined) lsUpdate.draftOrderMethod = String(body.draftOrderMethod)
   if (body.randomizeCount !== undefined)
-    update.randomizeCount = body.randomizeCount === null ? null : Number(body.randomizeCount)
+    lsUpdate.randomizeCount = body.randomizeCount === null ? null : Number(body.randomizeCount)
   if (body.draftOrderSlots !== undefined)
-    update.draftOrderSlots = body.draftOrderSlots === null ? Prisma.JsonNull : (body.draftOrderSlots as Prisma.InputJsonValue)
-  if (body.draftOrderLocked !== undefined) update.draftOrderLocked = Boolean(body.draftOrderLocked)
-  if (body.keeperCount !== undefined) update.keeperCount = Number(body.keeperCount)
-  if (body.keeperRoundCost !== undefined) update.keeperRoundCost = Boolean(body.keeperRoundCost)
+    lsUpdate.draftOrderSlots =
+      body.draftOrderSlots === null ? Prisma.JsonNull : (body.draftOrderSlots as Prisma.InputJsonValue)
+  if (body.draftOrderLocked !== undefined) lsUpdate.draftOrderLocked = Boolean(body.draftOrderLocked)
+  if (body.keeperCount !== undefined) lsUpdate.keeperCount = Number(body.keeperCount)
+  if (body.keeperRoundCost !== undefined) lsUpdate.keeperRoundCost = Boolean(body.keeperRoundCost)
   if (body.keeperSlots !== undefined)
-    update.keeperSlots = body.keeperSlots === null ? Prisma.JsonNull : (body.keeperSlots as Prisma.InputJsonValue)
-  if (body.dynastyCarryover !== undefined) update.dynastyCarryover = Boolean(body.dynastyCarryover)
-  if (body.playerPool !== undefined) update.playerPool = String(body.playerPool)
-  if (body.alphabeticalSort !== undefined) update.alphabeticalSort = Boolean(body.alphabeticalSort)
-  if (body.aiQueueSuggestions !== undefined) update.aiQueueSuggestions = Boolean(body.aiQueueSuggestions)
-  if (body.aiBestAvailable !== undefined) update.aiBestAvailable = Boolean(body.aiBestAvailable)
-  if (body.aiRosterGuidance !== undefined) update.aiRosterGuidance = Boolean(body.aiRosterGuidance)
-  if (body.aiScarcityAlerts !== undefined) update.aiScarcityAlerts = Boolean(body.aiScarcityAlerts)
-  if (body.aiDraftGrade !== undefined) update.aiDraftGrade = Boolean(body.aiDraftGrade)
-  if (body.aiSleeperAlerts !== undefined) update.aiSleeperAlerts = Boolean(body.aiSleeperAlerts)
-  if (body.aiByeAwareness !== undefined) update.aiByeAwareness = Boolean(body.aiByeAwareness)
-  if (body.aiStackSuggestions !== undefined) update.aiStackSuggestions = Boolean(body.aiStackSuggestions)
-  if (body.aiRiskUpsideNotes !== undefined) update.aiRiskUpsideNotes = Boolean(body.aiRiskUpsideNotes)
-  if (body.aiScope !== undefined) update.aiScope = String(body.aiScope)
+    lsUpdate.keeperSlots =
+      body.keeperSlots === null ? Prisma.JsonNull : (body.keeperSlots as Prisma.InputJsonValue)
+  if (body.dynastyCarryover !== undefined) lsUpdate.dynastyCarryover = Boolean(body.dynastyCarryover)
+  if (body.playerPool !== undefined) lsUpdate.playerPool = String(body.playerPool)
+  if (body.alphabeticalSort !== undefined) lsUpdate.alphabeticalSort = Boolean(body.alphabeticalSort)
+  if (body.aiQueueSuggestions !== undefined) lsUpdate.aiQueueSuggestions = Boolean(body.aiQueueSuggestions)
+  if (body.aiBestAvailable !== undefined) lsUpdate.aiBestAvailable = Boolean(body.aiBestAvailable)
+  if (body.aiRosterGuidance !== undefined) lsUpdate.aiRosterGuidance = Boolean(body.aiRosterGuidance)
+  if (body.aiScarcityAlerts !== undefined) lsUpdate.aiScarcityAlerts = Boolean(body.aiScarcityAlerts)
+  if (body.aiDraftGrade !== undefined) lsUpdate.aiDraftGrade = Boolean(body.aiDraftGrade)
+  if (body.aiSleeperAlerts !== undefined) lsUpdate.aiSleeperAlerts = Boolean(body.aiSleeperAlerts)
+  if (body.aiByeAwareness !== undefined) lsUpdate.aiByeAwareness = Boolean(body.aiByeAwareness)
+  if (body.aiStackSuggestions !== undefined) lsUpdate.aiStackSuggestions = Boolean(body.aiStackSuggestions)
+  if (body.aiRiskUpsideNotes !== undefined) lsUpdate.aiRiskUpsideNotes = Boolean(body.aiRiskUpsideNotes)
+  if (body.aiScope !== undefined) lsUpdate.aiScope = String(body.aiScope)
 
-  const { updatedBy: _u, ...createRest } = update
-  const updated = await prisma.leagueSettings.upsert({
-    where: { leagueId },
-    create: {
-      leagueId,
-      updatedBy: userId,
-      ...createRest,
-    },
-    update,
-  })
+  const shouldPatchLs = hasLeagueSettingsPatch(body)
+  let updated = league.leagueSettings
 
-  try {
-    await syncDraftSessionFromLeagueSettings(leagueId, updated, league.leagueSize ?? league.teams.length)
-  } catch (e) {
-    console.warn('[league/settings PATCH] syncDraftSessionFromLeagueSettings', e)
+  if (shouldPatchLs) {
+    const { updatedBy: _u, ...createRest } = lsUpdate
+    updated = await prisma.leagueSettings.upsert({
+      where: { leagueId },
+      create: {
+        leagueId,
+        updatedBy: userId,
+        ...createRest,
+      },
+      update: lsUpdate,
+    })
+    for (const k of LEAGUE_SETTINGS_PATCH_KEYS) {
+      if (body[k] !== undefined) updatedFieldNames.push(k)
+    }
   }
 
+  if (shouldPatchLs && updated) {
+    try {
+      await syncDraftSessionFromLeagueSettings(
+        leagueId,
+        updated,
+        league.leagueSize ?? league.teams.length,
+      )
+    } catch (e) {
+      console.warn('[league/settings PATCH] syncDraftSessionFromLeagueSettings', e)
+    }
+  }
+
+  const fresh = await prisma.league.findFirst({
+    where: { id: leagueId },
+    include: { leagueSettings: true },
+  })
+  const lsOut = fresh?.leagueSettings
+
   return NextResponse.json({
-    settings: {
-      ...updated,
-      draftDateUtc: updated.draftDateUtc?.toISOString() ?? null,
-      updatedAt: updated.updatedAt.toISOString(),
-    },
+    success: true,
+    updatedFields: [...new Set(updatedFieldNames)],
+    settings: lsOut
+      ? {
+          ...lsOut,
+          draftDateUtc: lsOut.draftDateUtc?.toISOString() ?? null,
+          updatedAt: lsOut.updatedAt.toISOString(),
+        }
+      : null,
   })
 }

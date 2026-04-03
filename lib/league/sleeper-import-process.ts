@@ -36,6 +36,8 @@ export type SleeperUser = {
   username?: string;
   display_name?: string;
   avatar?: string | null;
+  /** Sleeper: league commissioner for this user row */
+  is_owner?: boolean;
   metadata?: {
     team_name?: string;
     avatar?: string;
@@ -476,12 +478,6 @@ export async function processLeague(
       const ownerName = owner?.display_name || `Owner ${roster.roster_id ?? "Unknown"}`;
       const teamName = owner?.metadata?.team_name || `${ownerName}'s Team`;
       const externalId = roster.roster_id?.toString() || roster.owner_id?.toString();
-      const coCommissioners = Array.isArray(leagueData.metadata?.co_commissioners)
-        ? leagueData.metadata.co_commissioners.filter(
-            (value): value is string => typeof value === "string"
-          )
-        : [];
-
       if (!externalId) {
         return null;
       }
@@ -494,16 +490,9 @@ export async function processLeague(
       const pointsAgainst =
         (roster.settings?.fpts_against ?? 0) +
         (roster.settings?.fpts_against_decimal ?? 0) / 100;
-      const isCommissioner = ownerId === leagueData.commissioner_id;
-      const isCoCommissioner = !!ownerId && coCommissioners.includes(ownerId);
+      const isTeamCommissioner = owner?.is_owner === true;
       const isOrphan = !ownerId || ownerId === "";
-      const role = isCommissioner
-        ? "commissioner"
-        : isCoCommissioner
-          ? "co_commissioner"
-          : isOrphan
-            ? "orphan"
-            : "member";
+      const role = isTeamCommissioner ? "commissioner" : isOrphan ? "orphan" : "member";
 
       return prisma.leagueTeam.upsert({
         where: {
@@ -526,6 +515,7 @@ export async function processLeague(
           role,
           isOrphan,
           platformUserId: ownerId,
+          isCommissioner: isTeamCommissioner,
         },
         create: {
           leagueId: league.id,
@@ -543,6 +533,8 @@ export async function processLeague(
           role,
           isOrphan,
           platformUserId: ownerId,
+          isCommissioner: isTeamCommissioner,
+          isCoCommissioner: false,
         },
       });
     })

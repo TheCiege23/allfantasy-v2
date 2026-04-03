@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getLeagueRole } from '@/lib/league/permissions'
 import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
@@ -38,7 +39,9 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
   const isOwner = league.userId === userId
   const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
-  const isCommissioner = isOwner || userTeam?.role === 'commissioner'
+  const role = await getLeagueRole(leagueId, userId)
+  const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
+  const isHeadCommissioner = role === 'commissioner'
   if (!isOwner && !userTeam) {
     redirect('/dashboard')
   }
@@ -98,6 +101,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       userTeam={userTeam}
       isOwner={isOwner}
       isCommissioner={isCommissioner}
+      isHeadCommissioner={isHeadCommissioner}
       allLeagues={allLeagues}
       userId={userId}
       userName={session.user.name ?? session.user.email ?? 'Manager'}

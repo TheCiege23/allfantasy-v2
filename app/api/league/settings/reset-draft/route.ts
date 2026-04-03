@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth'
 import { Prisma } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertLeagueCommissioner } from '@/lib/league/league-access'
+import { requireCommissionerOnly } from '@/lib/league/permissions'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
+  try {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) {
@@ -30,12 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Confirmation text must be RESET DRAFT' }, { status: 400 })
   }
 
-  const gate = await assertLeagueCommissioner(leagueId, userId)
-  if (!gate.ok) {
-    return NextResponse.json({ error: gate.status === 404 ? 'League not found' : 'Forbidden' }, {
-      status: gate.status,
-    })
-  }
+  await requireCommissionerOnly(leagueId, userId)
 
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
@@ -85,4 +81,9 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ success: true, clearedPicks })
+  } catch (err) {
+    if (err instanceof Response) return err
+    console.error('[reset-draft]', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
 }

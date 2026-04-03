@@ -104,14 +104,28 @@ export type LeagueSettingsModalProps = {
   userId: string
   userTeam: LeagueTeam | null
   sleeperLeagueId: string | null
+  /** Commissioner or co-commissioner — COMMISH tab */
   isCommissioner: boolean
+  /** Head commissioner — Sleeper-only commish affordances in subpanels */
+  isHeadCommissioner: boolean
   sleeperMemberMap: SleeperMemberMap
   onGoToDraftTab: () => void
 }
 
 export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
-  const { open, onClose, league, displayLeague, userId, userTeam, sleeperLeagueId, isCommissioner, sleeperMemberMap, onGoToDraftTab } =
-    props
+  const {
+    open,
+    onClose,
+    league,
+    displayLeague,
+    userId,
+    userTeam,
+    sleeperLeagueId,
+    isCommissioner,
+    isHeadCommissioner,
+    sleeperMemberMap,
+    onGoToDraftTab,
+  } = props
 
   const [mainTab, setMainTab] = useState<SettingsTabKey>('general')
   const [activePanel, setActivePanel] = useState<string | null>(null)
@@ -145,6 +159,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       sleeperLeagueId,
       platformLeagueId: league.platformLeagueId,
       isCommissioner,
+      isHeadCommissioner,
       sleeperMemberMap,
       onGoToDraftTab,
     }),
@@ -155,6 +170,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       userTeam,
       sleeperLeagueId,
       isCommissioner,
+      isHeadCommissioner,
       sleeperMemberMap,
       onGoToDraftTab,
     ],

@@ -1,23 +1,13 @@
 import { formatDistance } from 'date-fns'
-import { fromZonedTime } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 /** Convert wall-clock date + time in an IANA zone to UTC. */
 export function toUtc(localDateStr: string, localTimeStr: string, tz: string): Date {
-  const [y, m, d] = localDateStr.split('-').map((x) => parseInt(x, 10))
-  const timeParts = localTimeStr.split(':').map((x) => parseInt(x, 10))
-  const h = timeParts[0] ?? 0
-  const min = timeParts[1] ?? 0
-  const sec = timeParts[2] ?? 0
-  const localWall = new Date(y, m - 1, d, h, min, sec)
-  return fromZonedTime(localWall, tz)
+  return fromZonedTime(new Date(`${localDateStr}T${localTimeStr}`), tz)
 }
 
 export function formatInTz(utcDate: Date, tz: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(utcDate)
+  return formatInTimeZone(utcDate, tz, 'MMM d, yyyy h:mm a zzz')
 }
 
 export function formatDistanceUtc(utcDate: Date, base: Date = new Date()): string {
@@ -46,8 +36,8 @@ export function isValidIanaTimeZone(tz: string): boolean {
       'supportedValuesOf' in Intl &&
       typeof (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf ===
         'function'
-      ? (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone')
-      : null
+        ? (Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf('timeZone')
+        : null
     if (supported?.includes(tz)) return true
     Intl.DateTimeFormat(undefined, { timeZone: tz })
     return true

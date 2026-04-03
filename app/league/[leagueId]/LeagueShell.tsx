@@ -80,8 +80,10 @@ export type LeagueShellProps = {
   league: LeagueShellLeague
   userTeam: LeagueTeam | null
   isOwner: boolean
-  /** League owner or team role commissioner — controls ⚙ Settings tab. */
+  /** Head commissioner or co-commissioner — controls ⚙ Settings tab. */
   isCommissioner: boolean
+  /** Head commissioner only (reset draft, co-comm management). */
+  isHeadCommissioner: boolean
   allLeagues: League[]
   userId: string
   userName: string
@@ -98,6 +100,7 @@ export function LeagueShell({
   userTeam,
   isOwner,
   isCommissioner,
+  isHeadCommissioner,
   allLeagues,
   userId,
   userName,
@@ -146,12 +149,6 @@ export function LeagueShell({
       return { ...slot, avatarUrl: su.avatar }
     })
   }, [league.platform, league.teams, league.settings, sleeperUsersByPlatformId])
-
-  const isSleeperCommissioner = Boolean(
-    currentSleeperUserId &&
-      sleeperCommissionerId &&
-      currentSleeperUserId === sleeperCommissionerId,
-  )
 
   const leagueList: UserLeague[] = useMemo(
     () => allLeagues.map((l) => prismaLeagueToUserLeague(l)),
@@ -249,7 +246,8 @@ export function LeagueShell({
               userId={userId}
               userTeam={userTeam}
               sleeperLeagueId={league.platform === 'sleeper' ? league.platformLeagueId ?? null : null}
-              isCommissioner={isSleeperCommissioner}
+              isCommissioner={isCommissioner}
+              isHeadCommissioner={isHeadCommissioner}
               sleeperMemberMap={sleeperUsersByPlatformId}
               onGoToDraftTab={() => {
                 setSettingsOpen(false)

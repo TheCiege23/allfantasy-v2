@@ -33,6 +33,7 @@ export type SubPanelContext = {
   sleeperLeagueId: string | null
   platformLeagueId: string
   isCommissioner: boolean
+  isHeadCommissioner: boolean
   sleeperMemberMap: SleeperMemberMap
   onGoToDraftTab: () => void
 }
@@ -186,7 +187,7 @@ export function SettingsSubPanelBody({
         <LeagueHistoryPanel
           platformLeagueId={ctx.platformLeagueId}
           isCommish={panelId === 'league-history-commish'}
-          isCommissioner={ctx.isCommissioner}
+          isHeadCommissioner={ctx.isHeadCommissioner}
         />
       )
     case 'commish-general':
@@ -521,11 +522,11 @@ function DraftResultsPanel({ draftId, isCommish }: { draftId: string | null; isC
 function LeagueHistoryPanel({
   platformLeagueId,
   isCommish,
-  isCommissioner,
+  isHeadCommissioner,
 }: {
   platformLeagueId: string
   isCommish: boolean
-  isCommissioner: boolean
+  isHeadCommissioner: boolean
 }) {
   const [rows, setRows] = useState<{ season: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -565,7 +566,7 @@ function LeagueHistoryPanel({
           </li>
         ))}
       </ul>
-      {isCommish && isCommissioner ? (
+      {isCommish && isHeadCommissioner ? (
         <button type="button" className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[12px] font-semibold text-amber-100">
           Add Trophy
         </button>

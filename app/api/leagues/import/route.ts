@@ -216,9 +216,12 @@ export async function POST(req: Request) {
     });
 
     const commissionerLeagueCount = commissionerIds.size;
+    const skippedNotCommissioner = [...uniqueCurrentByLeagueId.values()].filter(
+      (l) => !commissionerIds.has(String(l.league_id)),
+    ).length;
 
     console.log(
-      `[import] Filter: historical rows=${historicalLeagues.length}, current-era rows=${currentEraLeagues.length}, commissioner league ids=${commissionerLeagueCount}, import rows=${leaguesToImport.length}`
+      `[import] Filter: historical rows=${historicalLeagues.length}, current-era rows=${currentEraLeagues.length}, commissioner league ids=${commissionerLeagueCount}, skipped not commissioner=${skippedNotCommissioner}, import rows=${leaguesToImport.length}`
     );
 
     const sportCounts: Record<string, number> = {};
@@ -242,6 +245,8 @@ export async function POST(req: Request) {
         (league.settings as Prisma.InputJsonValue) ?? ({} as Prisma.InputJsonValue);
 
       const resolvedAvatarUrl = sleeperAvatarUrl(league.avatar);
+      const isImporterCommissioner =
+        Number.isFinite(season) && season >= currentYear && commissionerIds.has(platformLeagueId);
 
       await prisma.league.upsert({
         where: {
@@ -262,6 +267,7 @@ export async function POST(req: Request) {
           isDynasty,
           sport: sportEnum,
           leagueVariant: isDynasty ? "dynasty" : "redraft",
+          isCommissioner: isImporterCommissioner,
           ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
         },
         create: {
@@ -277,6 +283,7 @@ export async function POST(req: Request) {
           isDynasty,
           status: league.status || "pre_draft",
           settings: settingsJson,
+          isCommissioner: isImporterCommissioner,
           ...(resolvedAvatarUrl ? { avatarUrl: resolvedAvatarUrl } : {}),
         },
       });
@@ -336,6 +343,7 @@ export async function POST(req: Request) {
       displayName: sleeperUser?.display_name || sleeperUser?.username || username,
       skipped: skipped.length,
       commissionerLeagues: commissionerLeagueCount,
+      skippedNotCommissioner,
       historicalLeagues: historicalLeagues.length,
     });
   } catch (err: unknown) {

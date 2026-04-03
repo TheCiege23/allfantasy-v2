@@ -16,6 +16,7 @@ type ImportResult = {
   displayName: string;
   commissionerLeagues?: number;
   historicalLeagues?: number;
+  skippedNotCommissioner?: number;
 };
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
@@ -107,6 +108,8 @@ export default function ImportPage() {
         displayName: data.displayName ?? trimmed,
         commissionerLeagues: typeof data.commissionerLeagues === "number" ? data.commissionerLeagues : undefined,
         historicalLeagues: typeof data.historicalLeagues === "number" ? data.historicalLeagues : undefined,
+        skippedNotCommissioner:
+          typeof data.skippedNotCommissioner === "number" ? data.skippedNotCommissioner : undefined,
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Import failed. Please try again.");
@@ -229,6 +232,12 @@ export default function ImportPage() {
                     <p className="mt-1 text-[12px] text-white/40">
                       Commissioner leagues: {result.commissionerLeagues} current season ·{" "}
                       {result.historicalLeagues} historical seasons included
+                    </p>
+                  ) : null}
+                  {result.skippedNotCommissioner != null && result.skippedNotCommissioner > 0 ? (
+                    <p className="mt-1 text-[11px] text-amber-400/80">
+                      ⚠ {result.skippedNotCommissioner} current-season league
+                      {result.skippedNotCommissioner !== 1 ? "s" : ""} skipped — you are not the commissioner
                     </p>
                   ) : null}
                   <Link
