@@ -174,10 +174,7 @@ export function LeagueShell({
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#07071a] text-white">
-      <aside
-        className="hidden h-full min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex"
-        style={{ width: '45%', maxWidth: '420px', minWidth: '300px' }}
-      >
+      <aside className="hidden h-full w-[35%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
         <LeftChatPanel
           selectedLeague={selectedLeague}
           activeLeagueId={league.id}
@@ -190,7 +187,7 @@ export function LeagueShell({
         />
       </aside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <main className="flex min-h-0 min-w-0 w-[35%] flex-none flex-col overflow-hidden">
         <LeagueHeader
           league={selectedLeague}
           activeTab={activeTab}
@@ -231,7 +228,7 @@ export function LeagueShell({
         </div>
       </main>
 
-      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[200px] md:max-w-[200px] md:flex-shrink-0">
+      <aside className="hidden h-full min-w-0 overflow-hidden md:flex md:w-[30%] md:max-w-[30%] md:flex-shrink-0">
         <RightControlPanel
           leagues={leagueList}
           leaguesLoading={false}

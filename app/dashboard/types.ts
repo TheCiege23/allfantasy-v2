@@ -1,4 +1,4 @@
-/** Legacy pixel defaults; desktop `DashboardShell` uses w-[40%] / w-[35%] / w-[200px] for left/center/right. */
+/** Legacy pixel hints; desktop shells use ~35% / 35% / 30% for left/center/right (see DashboardShell / LeagueShell). */
 export const DASHBOARD_LEFT_PANEL_WIDTH = 280
 export const DASHBOARD_RIGHT_PANEL_WIDTH = 200
 

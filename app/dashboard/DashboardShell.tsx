@@ -228,7 +228,7 @@ export function DashboardShell({
 
   return (
     <div data-dashboard-user-id={userId} className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white">
-      <aside className="hidden h-full w-[40%] flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
+      <aside className="hidden h-full w-[35%] flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
         <LeftChatPanel
           selectedLeague={selectedLeague}
           activeLeagueId={activeLeagueId}
@@ -286,7 +286,7 @@ export function DashboardShell({
         </div>
       </div>
 
-      <aside className="hidden h-full w-[200px] min-w-0 max-w-[200px] flex-shrink-0 overflow-hidden md:flex">
+      <aside className="hidden h-full w-[30%] min-w-0 max-w-[30%] flex-shrink-0 overflow-hidden md:flex">
         <RightControlPanel
           leagues={leagues}
           leaguesLoading={leaguesLoading}
