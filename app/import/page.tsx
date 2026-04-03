@@ -1,25 +1,27 @@
-'use client'
+"use client";
 
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
-import { useEffect, useRef, useState } from "react"
-import EspnImportForm from "@/components/EspnImportForm"
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import EspnImportForm from "@/components/EspnImportForm";
+
+const SLEEPER_LAUNCH_YEAR = 2017;
 
 type ImportResult = {
-  imported: number
-  seasons: number
-  sports: Record<string, number>
-  years: number[]
-  displayName: string
-}
+  imported: number;
+  seasons: number;
+  sports: Record<string, number>;
+  years: number[];
+  displayName: string;
+};
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
   if (data?.error === "VERIFICATION_REQUIRED") {
-    return "Verify your email or phone before importing leagues."
+    return "Verify your email or phone before importing leagues.";
   }
   if (data?.error === "AGE_REQUIRED") {
-    return "Confirm that you are 18+ before importing leagues."
+    return "Confirm that you are 18+ before importing leagues.";
   }
   if (
     data?.error === "UNAUTHENTICATED" ||
@@ -27,66 +29,72 @@ function getImportErrorMessage(data: { error?: string } | null | undefined, fall
     data?.error === "You must be logged in to import" ||
     data?.error === "Authentication required"
   ) {
-    return "Sign in to import leagues."
+    return "Sign in to import leagues.";
   }
-  return data?.error || fallback
+  return data?.error || fallback;
 }
 
 export default function ImportPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<ImportResult | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
+  const [sleeperUsername, setSleeperUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [scanEndYear, setScanEndYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setScanEndYear(new Date().getFullYear() + 1);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.replace("/login?callbackUrl=/import")
+      router.replace("/login?callbackUrl=/import");
     }
-  }, [status, router])
+  }, [status, router]);
 
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-[#0a0a0f] to-[#0f0f1a] text-white/70">
         Loading…
       </div>
-    )
+    );
   }
 
-  if (status === "unauthenticated" || !session?.user?.id) {
-    return null
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  if (!userId) {
+    return null;
   }
 
-  async function handleSleeperImport() {
-    const username = inputRef.current?.value?.trim() || ""
-    if (!username) {
-      setImportError("Please enter your Sleeper username")
-      return
+  async function handleImport() {
+    const trimmed = sleeperUsername.trim();
+    if (!trimmed) {
+      setError("Please enter your Sleeper username");
+      return;
     }
-    setLoading(true)
-    setImportError(null)
-    setResult(null)
+    setLoading(true);
+    setError(null);
+    setResult(null);
 
     try {
       const res = await fetch("/api/leagues/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ username, platform: "sleeper" }),
-      })
+        body: JSON.stringify({ username: trimmed, platform: "sleeper" }),
+      });
 
-      const text = await res.text()
-      let data: ImportResult & { error?: string }
+      const text = await res.text();
+      let data: ImportResult & { error?: string };
       try {
-        data = JSON.parse(text) as ImportResult & { error?: string }
+        data = JSON.parse(text) as ImportResult & { error?: string };
       } catch {
-        throw new Error(`Server error: ${text.slice(0, 200)}`)
+        throw new Error(`Server error: ${text.slice(0, 150)}`);
       }
 
       if (!res.ok) {
-        throw new Error(getImportErrorMessage(data, data.error || `Import failed (HTTP ${res.status})`))
+        throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`));
       }
 
       setResult({
@@ -94,15 +102,32 @@ export default function ImportPage() {
         seasons: data.seasons ?? 0,
         sports: data.sports ?? {},
         years: Array.isArray(data.years) ? data.years : [],
-        displayName: data.displayName ?? username,
-      })
+        displayName: data.displayName ?? trimmed,
+      });
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Import failed. Please try again."
-      setImportError(msg)
+      setError(e instanceof Error ? e.message : "Import failed. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
+
+  const yearLine =
+    scanEndYear !== null ? (
+      <>
+        {SLEEPER_LAUNCH_YEAR} to {scanEndYear}
+      </>
+    ) : (
+      <span suppressHydrationWarning>{SLEEPER_LAUNCH_YEAR} to …</span>
+    );
+
+  const seasonsBullet =
+    scanEndYear !== null ? (
+      <>
+        All seasons ({SLEEPER_LAUNCH_YEAR} → {scanEndYear})
+      </>
+    ) : (
+      <span suppressHydrationWarning>All seasons (2017 → …)</span>
+    );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] to-[#0f0f1a] py-20">
@@ -128,7 +153,7 @@ export default function ImportPage() {
                 <span>Import from Sleeper</span>
               </div>
               <p className="text-xs text-slate-400 sm:text-sm">
-                Connect your Sleeper account to import all your leagues and every season automatically — from 2017 to 2027.
+                Connect your Sleeper account to import all your leagues and every season automatically — from {yearLine}.
               </p>
             </div>
 
@@ -138,66 +163,67 @@ export default function ImportPage() {
                   Sleeper Username
                 </label>
                 <input
-                  ref={inputRef}
                   id="sleeper-username"
                   type="text"
-                  defaultValue=""
+                  value={sleeperUsername}
+                  onChange={(e) => setSleeperUsername(e.target.value)}
+                  disabled={loading}
                   placeholder="e.g. your Sleeper username"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className="w-full rounded-xl border border-white/[0.10] bg-white/[0.06] px-4 py-3 text-[14px] text-white placeholder:text-white/30 transition-colors focus:border-cyan-500/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  autoComplete="username"
+                  className="w-full rounded-xl border border-white/[0.10] bg-white/[0.06] px-4 py-3 text-[13px] text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
 
-              <ul className="mt-2 space-y-1">
-                {["All sports (NFL, NBA)", "All seasons (2017 → 2027)", "Dynasty, redraft, and best ball"].map(
-                  (t) => (
-                    <li key={t} className="flex items-center gap-2 text-[12px] text-white/60">
-                      <span className="text-green-400">✓</span> {t}
-                    </li>
-                  ),
-                )}
+              <ul className="space-y-1 text-sm text-slate-400">
+                <li className="flex gap-2">
+                  <span className="text-emerald-500">✓</span> All sports we scan on Sleeper (NFL, NBA)
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-emerald-500">✓</span> {seasonsBullet}
+                </li>
+                <li className="flex gap-2">
+                  <span className="text-emerald-500">✓</span> Dynasty, redraft, and best ball
+                </li>
               </ul>
 
               <button
                 type="button"
-                onClick={() => void handleSleeperImport()}
-                disabled={loading}
-                className="mt-2 w-full rounded-xl bg-cyan-600 py-3 text-[14px] font-bold text-white transition-all hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void handleImport()}
+                disabled={loading || !sleeperUsername.trim()}
+                className="w-full rounded-xl bg-cyan-600 py-3 text-[14px] font-bold text-white transition-all hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Scanning all seasons... (~20s)
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    Importing... this takes ~20 seconds
                   </span>
                 ) : (
                   "Import All Leagues"
                 )}
               </button>
 
-              {importError ? (
+              {error ? (
                 <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
-                  <p className="text-[13px] text-red-400">⚠ {importError}</p>
+                  <p className="text-[13px] text-red-400">⚠ {error}</p>
                 </div>
               ) : null}
 
               {result ? (
-                <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
-                  <p className="mb-1 text-[15px] font-bold text-green-400">✅ Import Complete!</p>
-                  <p className="text-[13px] text-white/70">
+                <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+                  <p className="mb-1 text-[16px] font-bold text-green-400">✅ Import Complete!</p>
+                  <p className="mb-1 text-[13px] text-white/70">
                     {result.imported} leagues imported across {result.seasons} seasons
                   </p>
                   {Object.keys(result.sports).length > 0 ? (
-                    <p className="mt-1 text-[11px] text-white/40">
+                    <p className="mb-3 text-[11px] text-white/40">
                       {Object.entries(result.sports)
-                        .map(([s, n]) => `${s}: ${n}`)
+                        .map(([s, n]) => `${s}: ${n} league${n !== 1 ? "s" : ""}`)
                         .join(" · ")}
                     </p>
                   ) : null}
                   <Link
                     href="/dashboard"
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
                   >
                     View My Leagues →
                   </Link>
@@ -210,5 +236,5 @@ export default function ImportPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
