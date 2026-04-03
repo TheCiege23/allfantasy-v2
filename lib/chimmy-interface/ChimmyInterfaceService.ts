@@ -18,33 +18,59 @@ export function getDefaultChimmyChips(options?: {
   leagueName?: string
   hasLeagues?: boolean
 }): ChimmySuggestedChip[] {
-  const league = options?.leagueName
+  const league = options?.leagueName?.trim()
   const hasLeagues = options?.hasLeagues ?? !!league
+  const displayLeague = league || 'my league'
+  const short = displayLeague.length > 12 ? `${displayLeague.slice(0, 12)}…` : displayLeague
 
-  const generic: ChimmySuggestedChip[] = [
-    { id: 'start-sit', label: 'Start/sit this week', prompt: 'Who should I start and sit this week?', category: 'lineup' },
-    { id: 'trade-value', label: 'Trade value', prompt: 'How do I value draft picks vs players in a trade?', category: 'trade' },
-    { id: 'waiver-priority', label: 'Waiver priority', prompt: 'What FAAB % or priority should I use on a top waiver pickup?', category: 'waiver' },
-    { id: 'dynasty-value', label: 'Dynasty value', prompt: 'How do I balance win-now vs long-term value in dynasty?', category: 'strategy' },
+  const sixForLeague = (): ChimmySuggestedChip[] => [
+    {
+      id: 'chip-start-sit',
+      label: `Start/sit for ${short}`,
+      prompt: `Help me with my start/sit decisions for ${displayLeague}.`,
+      category: 'lineup',
+    },
+    {
+      id: 'chip-weak',
+      label: `Weak spots in ${short}`,
+      prompt: `What are my weakest positions and roster holes in ${displayLeague}?`,
+      category: 'league',
+    },
+    {
+      id: 'chip-waiver',
+      label: 'Best waiver adds',
+      prompt: hasLeagues
+        ? `Who should I add off waivers in ${displayLeague}?`
+        : 'Who are the best waiver adds for my team this week?',
+      category: 'waiver',
+    },
+    {
+      id: 'chip-trade',
+      label: 'Trade value check',
+      prompt: hasLeagues
+        ? `Analyze a trade for ${displayLeague}.`
+        : 'Help me evaluate a trade and player values.',
+      category: 'trade',
+    },
+    {
+      id: 'chip-injury',
+      label: 'Injury updates',
+      prompt: hasLeagues
+        ? `Analyze injury impacts on my roster in ${displayLeague}.`
+        : 'Summarize injury news and how it affects my lineup.',
+      category: 'lineup',
+    },
+    {
+      id: 'chip-power',
+      label: 'Power rankings',
+      prompt: hasLeagues
+        ? `Give me power rankings for ${displayLeague}.`
+        : 'How does my team stack up in my league?',
+      category: 'league',
+    },
   ]
 
-  if (hasLeagues && league) {
-    const short = league.length > 12 ? `${league.slice(0, 12)}…` : league
-    return [
-      {
-        id: 'start-sit-league',
-        label: `Start/sit for ${short}`,
-        prompt: `Who should I start and sit this week in my "${league}" league?`,
-        category: 'lineup',
-      },
-      { id: 'weak-spots', label: `Weak spots in ${league}`, prompt: `What are my weakest positions in "${league}"?`, category: 'league' },
-      { id: 'trade-targets', label: `Trade targets in ${league}`, prompt: `Who are the best trade targets for my team in "${league}"?`, category: 'league' },
-      { id: 'next-moves', label: `Next moves in ${league}`, prompt: `What moves should I make to improve in "${league}"?`, category: 'league' },
-      ...generic,
-    ]
-  }
-
-  return generic
+  return sixForLeague()
 }
 
 /**

@@ -119,6 +119,8 @@ export default function ChimmyChat({
 
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
 
   const suggestedChips = useMemo(() => {
     const name = chipContextLeagueName?.trim()
@@ -255,8 +257,9 @@ export default function ChimmyChat({
     reader.readAsDataURL(file);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() && !imageFile) return;
+  const sendMessage = async (overrideText?: string) => {
+    const outgoingText = (overrideText !== undefined ? overrideText : input).trim();
+    if (!outgoingText && !imageFile) return;
 
     try {
       const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
@@ -280,17 +283,17 @@ export default function ChimmyChat({
       );
     }
 
+    const fromShortcut = overrideText !== undefined;
     const userMessage: ChatMessage = {
       id: createMessageId(),
       role: 'user',
-      content: input || 'Analyze this screenshot and tell me what to do.',
-      image: imagePreview || null,
+      content: outgoingText || 'Analyze this screenshot and tell me what to do.',
+      image: fromShortcut ? null : imagePreview || null,
     };
 
-    const nextMessages = [...messages, userMessage];
+    const nextMessages = [...messagesRef.current, userMessage];
     setMessages(nextMessages);
 
-    const outgoingText = input;
     setInput('');
     setIsTyping(true);
 
@@ -299,7 +302,7 @@ export default function ChimmyChat({
       const assistantMessageId = createMessageId();
       const result = await sendChimmyMessage({
         message: outgoingText || '',
-        imageFile,
+        imageFile: fromShortcut ? null : imageFile,
         conversation: nextMessages.slice(-10).map((m) => ({
           role: m.role,
           content: m.content,
@@ -359,6 +362,21 @@ export default function ChimmyChat({
       setImageFile(null);
     }
   };
+
+  const sendMessageRef = useRef(sendMessage);
+  sendMessageRef.current = sendMessage;
+
+  useEffect(() => {
+    const onShortcut = (e: Event) => {
+      const detail = (e as CustomEvent<{ prompt?: string }>).detail;
+      const prompt = detail?.prompt?.trim();
+      if (!prompt) return;
+      setInput(prompt);
+      void sendMessageRef.current(prompt);
+    };
+    window.addEventListener('af-chimmy-shortcut', onShortcut);
+    return () => window.removeEventListener('af-chimmy-shortcut', onShortcut);
+  }, []);
 
   const embeddedShell =
     embedded && panelFill
@@ -461,18 +479,20 @@ export default function ChimmyChat({
           <div
             className={
               embedded
-                ? 'flex flex-nowrap gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]'
+                ? 'flex flex-wrap gap-1.5'
                 : 'flex flex-wrap gap-2'
             }
           >
-            {suggestedChips.slice(0, embedded ? 3 : 4).map((chip) => (
+            {suggestedChips.slice(0, 6).map((chip) => (
               <button
                 key={chip.id}
                 type="button"
                 onClick={() => setInput(chip.prompt)}
-                className={`shrink-0 rounded-full border border-slate-600 bg-slate-800 text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700 ${
-                  embedded ? 'px-2 py-1 text-[10px]' : 'px-4 py-2 text-sm'
-                }`}
+                className={
+                  embedded
+                    ? 'cursor-pointer whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-2.5 py-1 text-[10px] text-slate-200 transition-colors hover:bg-white/[0.10]'
+                    : 'shrink-0 rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-200 transition hover:border-cyan-500/50 hover:bg-slate-700'
+                }
               >
                 {chip.label}
               </button>
@@ -599,7 +619,7 @@ export default function ChimmyChat({
           />
 
           <button
-            onClick={sendMessage}
+            onClick={() => void sendMessage()}
             disabled={isTyping}
             className={`flex items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-500 transition hover:scale-105 disabled:opacity-50 ${
               embedded ? 'h-9 w-9' : 'h-14 w-14'

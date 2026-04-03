@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ChecklistStep, UserLeague } from '../types'
+import { AIShortcutsGrid } from './AIShortcutsGrid'
 import { LeagueHubCard } from './LeagueHubCard'
 import { TodayStrip } from './TodayStrip'
 
@@ -108,34 +109,6 @@ function buildReferralUrl(userName: string) {
   if (typeof window === 'undefined') return ''
   const encodedRef = encodeURIComponent(userName.trim().toLowerCase().replace(/\s+/g, '-'))
   return `${window.location.origin}/signup?ref=${encodedRef}`
-}
-
-function QuickShortcutCard({
-  icon,
-  label,
-  description,
-  href,
-}: {
-  icon: string
-  label: string
-  description: string
-  href: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4 transition-all hover:border-white/20"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[24px]">{icon}</div>
-          <p className="mt-3 text-[13px] font-semibold text-white">{label}</p>
-          <p className="mt-1 text-[11px] text-white/45">{description}</p>
-        </div>
-        <ArrowRight className="mt-1 h-4 w-4 text-white/35" />
-      </div>
-    </Link>
-  )
 }
 
 function RankingWidget({
@@ -362,6 +335,12 @@ export function DashboardOverview({
 
   const visibleLeagues = leagues.slice(0, 6)
 
+  const handleAiShortcut = useCallback((_prompt: string) => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
+    window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
+  }, [])
+
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
@@ -498,6 +477,8 @@ export function DashboardOverview({
 
         <TodayStrip leagues={leagues} />
 
+        <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
+
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] font-normal uppercase tracking-widest text-white/30">Your Leagues</p>
@@ -525,36 +506,6 @@ export function DashboardOverview({
 
         <section>
           <RankingWidget leagues={leagues} onTriggerImport={handleImport} />
-        </section>
-
-        <section className="space-y-3">
-          <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">AI Shortcuts</p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <QuickShortcutCard
-              icon="🔄"
-              label="Trade Advisor"
-              description="AI trade analysis and negotiation help"
-              href="/trade-evaluator"
-            />
-            <QuickShortcutCard
-              icon="🌊"
-              label="Waiver Wire"
-              description="Free-agent priorities and FAAB planning"
-              href="/waiver-ai"
-            />
-            <QuickShortcutCard
-              icon="🏆"
-              label="Power Rankings"
-              description="League power rankings and projections"
-              href="/power-rankings"
-            />
-            <QuickShortcutCard
-              icon="🏈"
-              label="Mock Draft"
-              description="Practice your draft with AI opponents"
-              href="/mock-draft"
-            />
-          </div>
         </section>
       </div>
     </div>
