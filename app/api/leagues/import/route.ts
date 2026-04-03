@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { LeagueSport } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
@@ -21,6 +20,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Vercel Pro / Enterprise: extend serverless timeout for multi-year Sleeper scans. */
+export const maxDuration = 60;
 
 const SLEEPER_LAUNCH_YEAR = 2017;
 
@@ -28,11 +29,6 @@ const sportMap: Record<"nfl" | "nba", LeagueSport> = {
   nfl: LeagueSport.NFL,
   nba: LeagueSport.NBA,
 };
-
-const bodySchema = z.object({
-  username: z.string().min(1).max(100).trim(),
-  platform: z.literal("sleeper"),
-});
 
 type SleeperLeagueWithMeta = SleeperLeague & { _year: number; _sport: "nfl" | "nba" };
 
@@ -75,54 +71,43 @@ async function fetchUserLeaguesForYear(
   return rows.map((l) => ({ ...l, _year: year, _sport: sport }));
 }
 
-async function fetchAllSleeperLeaguesBatched(sleeperUserId: string): Promise<SleeperLeagueWithMeta[]> {
+/** All NFL/NBA × years concurrently to stay under Vercel timeouts. */
+async function fetchAllSleeperLeaguesParallel(sleeperUserId: string): Promise<SleeperLeagueWithMeta[]> {
   const years = buildYearRange();
   const sports: ("nfl" | "nba")[] = ["nfl", "nba"];
-  const out: SleeperLeagueWithMeta[] = [];
+  const requests = sports.flatMap((sport) => years.map((year) => ({ sport, year })));
 
-  for (const sport of sports) {
-    for (let i = 0; i < years.length; i += 3) {
-      const batch = years.slice(i, i + 3);
-      const batchResults = await Promise.all(
-        batch.map((year) => fetchUserLeaguesForYear(sleeperUserId, sport, year))
-      );
-      out.push(...batchResults.flat());
-    }
+  const allResults = await Promise.allSettled(
+    requests.map(({ sport, year }) => fetchUserLeaguesForYear(sleeperUserId, sport, year))
+  );
+
+  const flat: SleeperLeagueWithMeta[] = [];
+  for (const r of allResults) {
+    if (r.status === "fulfilled") flat.push(...r.value);
   }
-  return out;
+  return flat;
 }
 
 export async function POST(req: Request) {
   try {
-    const rawBody = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-    console.log("[import] body received:", JSON.stringify(rawBody));
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    console.log("[import] body:", JSON.stringify(body));
 
-    const usernameRaw =
-      (typeof rawBody?.username === "string" ? rawBody.username : null) ??
-      (typeof rawBody?.sleeperUsername === "string" ? rawBody.sleeperUsername : null) ??
-      (typeof rawBody?.sleeper_username === "string" ? rawBody.sleeper_username : null) ??
-      "";
-    const usernameTrimmed = usernameRaw.trim();
-    console.log("[import] username:", usernameTrimmed);
+    const rawUsername = body.username ?? body.sleeperUsername ?? body.sleeper_username;
+    const platform = typeof body.platform === "string" ? body.platform : "sleeper";
 
-    if (!usernameTrimmed) {
-      console.log("[import] ERROR: no username in body");
-      return NextResponse.json({ error: "Username required" }, { status: 400 });
+    if (platform !== "sleeper") {
+      return NextResponse.json({ error: "Only Sleeper imports are supported in this endpoint." }, { status: 400 });
     }
 
-    const parsed = bodySchema.safeParse({
-      username: usernameTrimmed,
-      platform: "sleeper" as const,
-    });
-    if (!parsed.success) {
-      console.log("[import] validation error:", parsed.error.flatten().fieldErrors);
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
-        { status: 400 }
-      );
+    if (!rawUsername || typeof rawUsername !== "string") {
+      return NextResponse.json({ error: "Username is required" }, { status: 400 });
     }
 
-    const { username } = parsed.data;
+    const username = rawUsername.trim();
+    if (!username || username.length > 100) {
+      return NextResponse.json({ error: "Invalid username" }, { status: 400 });
+    }
 
     const auth = await requireVerifiedUser();
     if (!auth.ok) {
@@ -142,26 +127,48 @@ export async function POST(req: Request) {
       return NextResponse.json(buildRateLimit429({ rl }), { status: 429 });
     }
 
-    const sleeperUserUrl = `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`;
-    console.log("[import] fetching Sleeper user:", username);
-    const userRes = await fetch(sleeperUserUrl, {
-      headers: { Accept: "application/json" },
-    });
-    console.log("[import] Sleeper user status:", userRes.status);
-    const sleeperProfile = (await userRes.json().catch(() => null)) as {
+    console.log("[import] Starting for user:", userId, "username:", username);
+
+    const profileUrl = `https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let sleeperProfile: {
       user_id?: string;
       username?: string;
       display_name?: string;
       avatar?: string | null;
-    } | null;
-    console.log("[import] Sleeper user data:", JSON.stringify(sleeperProfile));
+    };
+    try {
+      const sleeperUserRes = await fetch(profileUrl, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!sleeperUserRes.ok) {
+        return NextResponse.json(
+          { error: "Sleeper user not found. Check your username." },
+          { status: 404 }
+        );
+      }
+      sleeperProfile = (await sleeperUserRes.json()) as typeof sleeperProfile;
+    } catch (err: unknown) {
+      clearTimeout(timeout);
+      console.error("[import] Sleeper profile fetch failed:", err);
+      return NextResponse.json(
+        { error: "Could not reach Sleeper. Try again." },
+        { status: 502 }
+      );
+    }
 
     if (!sleeperProfile?.user_id) {
-      console.log("[import] ERROR: Sleeper user not found");
-      return NextResponse.json({ error: "Sleeper username not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Could not find Sleeper account for that username." },
+        { status: 404 }
+      );
     }
 
     const sleeperUserId = sleeperProfile.user_id;
+    console.log("[import] Sleeper user_id:", sleeperUserId);
 
     await prisma.userProfile.upsert({
       where: { userId },
@@ -178,22 +185,31 @@ export async function POST(req: Request) {
       },
     });
 
-    const flat = await fetchAllSleeperLeaguesBatched(sleeperUserId);
+    const flat = await fetchAllSleeperLeaguesParallel(sleeperUserId);
+    console.log("[import] Total leagues found:", flat.length);
+
+    const sportCounts: Record<string, number> = {};
+    for (const l of flat) {
+      const s = (l._sport || "nfl").toUpperCase();
+      sportCounts[s] = (sportCounts[s] || 0) + 1;
+    }
+    const uniqueSeasons = new Set(flat.map((l) => l._year)).size;
+    const yearsList = [...new Set(flat.map((l) => l._year))].sort((a, b) => a - b);
 
     if (flat.length === 0) {
       await refreshUserRankingsContext(userId);
       return NextResponse.json({
         success: true,
         imported: 0,
+        scannedRows: 0,
+        uniqueLeagues: 0,
         seasons: 0,
         years: [] as number[],
-        leagues: [] as { name: string; sport: string; seasons: string[] }[],
         sports: {} as Record<string, number>,
+        leagues: [] as { name: string; sport: string; seasons: string[] }[],
         sleeperUserId,
       });
     }
-
-    const yearsWithData = [...new Set(flat.map((l) => l._year))].sort((a, b) => a - b);
 
     const byLeagueId = new Map<string, SleeperLeagueWithMeta[]>();
     for (const league of flat) {
@@ -296,24 +312,22 @@ export async function POST(req: Request) {
       );
     }
 
-    const sportsCounts: Record<string, number> = {};
-    for (const row of leagueSummaries) {
-      const k = String(row.sport);
-      sportsCounts[k] = (sportsCounts[k] ?? 0) + 1;
-    }
-
     return NextResponse.json({
       success: true,
-      imported: uniqueLeagues,
-      seasons: seasonRows,
-      years: yearsWithData,
+      imported: flat.length,
+      scannedRows: flat.length,
+      uniqueLeagues,
+      seasons: uniqueSeasons,
+      years: yearsList,
+      sports: sportCounts,
+      seasonRows,
       leagues: leagueSummaries,
-      sports: sportsCounts,
       sleeperUserId,
     });
-  } catch (error) {
-    console.error("[leagues/import]", error);
-    const message = error instanceof Error ? error.message : "Import failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Import failed";
+    const stack = err instanceof Error ? err.stack?.slice(0, 300) : undefined;
+    console.error("[import] ERROR:", message, stack);
+    return NextResponse.json({ error: message || "Import failed" }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ const SLEEPER_LAUNCH_YEAR = 2017
 
 export type SleeperImportResult = {
   imported: number
+  uniqueLeagues?: number
   seasons: number
   years?: number[]
   sports?: Record<string, number>
@@ -144,8 +145,9 @@ export default function SleeperImportForm() {
           <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-center">
             <p className="mb-1 text-[16px] font-bold text-green-400">✅ Import Complete!</p>
             <p className="mb-1 text-[13px] text-white/70">
-              {result.imported} league{result.imported !== 1 ? 's' : ''} found across {result.seasons} season
-              {result.seasons !== 1 ? 's' : ''}
+              {(result.uniqueLeagues ?? result.imported) || 0} unique league
+              {(result.uniqueLeagues ?? result.imported) !== 1 ? 's' : ''} ({result.imported} league-season rows) across{' '}
+              {result.seasons} season{result.seasons !== 1 ? 's' : ''}
             </p>
             {result.sports && Object.keys(result.sports).length > 0 ? (
               <p className="mb-3 text-[11px] text-white/40">
