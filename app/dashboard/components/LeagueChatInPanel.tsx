@@ -461,20 +461,12 @@ export function LeagueChatInPanel({
 
       <div className="shrink-0 border-t border-white/[0.07] bg-[#0a0a1f] px-2.5 py-2">
         {error ? <p className="mb-1.5 text-[10px] text-rose-300">{error}</p> : null}
-        <div className="flex items-end gap-2">
-          <ChatComposer
-            leagueId={selectedLeague.id}
-            onSend={handleComposerSend}
-            placeholder="Message league..."
-          />
-          <button
-            type="button"
-            onClick={onAskChimmy}
-            className="shrink-0 rounded-md bg-violet-500/20 px-2 py-1.5 text-[9px] font-bold text-violet-300"
-          >
-            Ask Chimmy
-          </button>
-        </div>
+        <ChatComposer
+          leagueId={selectedLeague.id}
+          onSend={handleComposerSend}
+          placeholder="Message league..."
+          onAskChimmy={onAskChimmy}
+        />
         {sending ? <p className="mt-1 text-[9px] text-white/35">Sending…</p> : null}
       </div>
     </div>

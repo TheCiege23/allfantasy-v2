@@ -1,7 +1,7 @@
 'use client'
 
 import { Send } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AttachmentPreview, type PendingGif, type PollDraft, type UploadedAttachment } from './AttachmentPreview'
 import { EmojiPicker } from './EmojiPicker'
@@ -29,11 +29,18 @@ type ChatComposerProps = {
   leagueId: string
   onSend: (message: LeagueComposerPayload) => void | Promise<void>
   placeholder?: string
+  /** Renders "Ask Chimmy" in the composer toolbar (e.g. league chat left panel). */
+  onAskChimmy?: () => void
 }
 
 type Picker = 'gif' | 'emoji' | 'poll' | null
 
-export function ChatComposer({ leagueId, onSend, placeholder = 'Message league...' }: ChatComposerProps) {
+export function ChatComposer({
+  leagueId,
+  onSend,
+  placeholder = 'Message league...',
+  onAskChimmy,
+}: ChatComposerProps) {
   const [text, setText] = useState('')
   const [activePicker, setActivePicker] = useState<Picker>(null)
   const [isRecording, setIsRecording] = useState(false)
@@ -45,6 +52,17 @@ export function ChatComposer({ leagueId, onSend, placeholder = 'Message league..
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
+
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [])
+
+  useEffect(() => {
+    autoResize()
+  }, [text, autoResize])
 
   const insertChar = useCallback((char: string) => {
     const ta = textareaRef.current
@@ -157,47 +175,25 @@ export function ChatComposer({ leagueId, onSend, placeholder = 'Message league..
       setAttachments([])
       setPollDraft(null)
       setActivePicker(null)
+      queueMicrotask(() => {
+        const el = textareaRef.current
+        if (el) {
+          el.style.height = 'auto'
+          autoResize()
+        }
+      })
     } finally {
       setSending(false)
     }
-  }, [attachments, canSend, onSend, pendingGif, pollDraft, sending, text])
+  }, [attachments, autoResize, canSend, onSend, pendingGif, pollDraft, sending, text])
 
   const toolBtn = (active: boolean) =>
-    `p-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+    `px-1.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
       active ? 'text-cyan-400 bg-cyan-500/10' : 'text-white/40 hover:text-white hover:bg-white/[0.06]'
     }`
 
   return (
     <div className="flex min-w-0 flex-1 flex-col" data-testid="league-chat-composer">
-      {activePicker === 'gif' ? (
-        <GifPicker
-          onSelect={(g) => {
-            setPendingGif({
-              id: g.id,
-              giphyId: g.giphyId,
-              url: g.url,
-              previewUrl: g.previewUrl,
-              title: g.title,
-            })
-            setActivePicker(null)
-          }}
-          onClose={() => setActivePicker(null)}
-        />
-      ) : null}
-      {activePicker === 'emoji' ? (
-        <EmojiPicker onSelect={(c) => insertChar(c)} onClose={() => setActivePicker(null)} />
-      ) : null}
-      {activePicker === 'poll' ? (
-        <PollComposer
-          initial={pollDraft}
-          onCreatePoll={(p) => {
-            setPollDraft(p)
-            setActivePicker(null)
-          }}
-          onCancel={() => setActivePicker(null)}
-        />
-      ) : null}
-
       <AttachmentPreview
         gif={pendingGif}
         attachments={attachments}
@@ -208,118 +204,167 @@ export function ChatComposer({ leagueId, onSend, placeholder = 'Message league..
         onEditPoll={() => setActivePicker('poll')}
       />
 
-      <div className="rounded-lg border border-white/[0.08] bg-white/[0.03]">
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              void handleSend()
-            }
-          }}
-          placeholder={placeholder}
-          rows={2}
-          className="w-full resize-none bg-transparent px-2.5 py-2 text-[11px] text-white outline-none placeholder:text-white/30"
-          data-testid="league-chat-textarea"
-        />
-
-        {isRecording ? (
-          <VoiceRecorder
-            leagueId={leagueId}
-            onComplete={(p) => {
-              setAttachments((a) => [
-                ...a,
-                {
-                  type: 'voice',
-                  url: p.url,
-                  duration: p.duration,
-                  mimeType: p.mimeType,
-                  name: p.name,
-                },
-              ])
-              setIsRecording(false)
-            }}
-            onCancel={() => setIsRecording(false)}
-          />
-        ) : (
-          <div className="flex items-center gap-1 border-t border-white/[0.06] px-2 py-1">
-            <button
-              type="button"
-              className={toolBtn(activePicker === 'gif')}
-              onClick={() => setActivePicker((p) => (p === 'gif' ? null : 'gif'))}
-            >
-              GIF
-            </button>
-            <button
-              type="button"
-              className={toolBtn(activePicker === 'emoji')}
-              onClick={() => setActivePicker((p) => (p === 'emoji' ? null : 'emoji'))}
-              aria-label="Emoji"
-            >
-              😀
-            </button>
-            <button
-              type="button"
-              className={toolBtn(activePicker === 'poll')}
-              onClick={() => setActivePicker((p) => (p === 'poll' ? null : 'poll'))}
-              aria-label="Poll"
-            >
-              📊
-            </button>
-            <button
-              type="button"
-              className={toolBtn(false)}
-              onClick={() => setIsRecording(true)}
-              aria-label="Voice note"
-            >
-              🎤
-            </button>
-            <button
-              type="button"
-              className={toolBtn(false)}
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="Photo"
-            >
-              📷
-            </button>
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              className="hidden"
-              onChange={onImageChange}
+      <div className="relative w-full">
+        {activePicker === 'gif' ? (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
+            <GifPicker
+              onSelect={(g) => {
+                setPendingGif({
+                  id: g.id,
+                  giphyId: g.giphyId,
+                  url: g.url,
+                  previewUrl: g.previewUrl,
+                  title: g.title,
+                })
+                setActivePicker(null)
+              }}
+              onClose={() => setActivePicker(null)}
             />
-            <button
-              type="button"
-              className={toolBtn(false)}
-              onClick={() => videoInputRef.current?.click()}
-              aria-label="Video"
-            >
-              🎥
-            </button>
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              className="hidden"
-              onChange={onVideoChange}
-            />
-
-            <span className="flex-1" />
-            <button
-              type="button"
-              onClick={() => void handleSend()}
-              disabled={!canSend || sending}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-cyan-500 disabled:opacity-40"
-              aria-label="Send league message"
-              data-testid="league-chat-send"
-            >
-              <Send className="h-4 w-4" />
-            </button>
           </div>
-        )}
+        ) : null}
+        {activePicker === 'emoji' ? (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
+            <EmojiPicker onSelect={(c) => insertChar(c)} onClose={() => setActivePicker(null)} />
+          </div>
+        ) : null}
+        {activePicker === 'poll' ? (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-1">
+            <PollComposer
+              initial={pollDraft}
+              onCreatePoll={(p) => {
+                setPollDraft(p)
+                setActivePicker(null)
+              }}
+              onCancel={() => setActivePicker(null)}
+            />
+          </div>
+        ) : null}
+
+        <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleSend()
+              }
+            }}
+            placeholder={placeholder}
+            rows={1}
+            className="w-full resize-none bg-transparent px-3 pb-1 pt-2.5 text-[12px] leading-[1.4] text-white outline-none placeholder:text-white/30 min-h-[36px] max-h-[120px] overflow-y-auto"
+            data-testid="league-chat-textarea"
+          />
+
+          {isRecording ? (
+            <VoiceRecorder
+              leagueId={leagueId}
+              onComplete={(p) => {
+                setAttachments((a) => [
+                  ...a,
+                  {
+                    type: 'voice',
+                    url: p.url,
+                    duration: p.duration,
+                    mimeType: p.mimeType,
+                    name: p.name,
+                  },
+                ])
+                setIsRecording(false)
+              }}
+              onCancel={() => setIsRecording(false)}
+            />
+          ) : (
+            <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5">
+                <button
+                  type="button"
+                  className={toolBtn(activePicker === 'gif')}
+                  onClick={() => setActivePicker((p) => (p === 'gif' ? null : 'gif'))}
+                >
+                  GIF
+                </button>
+                <button
+                  type="button"
+                  className={toolBtn(activePicker === 'emoji')}
+                  onClick={() => setActivePicker((p) => (p === 'emoji' ? null : 'emoji'))}
+                  aria-label="Emoji"
+                >
+                  😀
+                </button>
+                <button
+                  type="button"
+                  className={toolBtn(activePicker === 'poll')}
+                  onClick={() => setActivePicker((p) => (p === 'poll' ? null : 'poll'))}
+                  aria-label="Poll"
+                >
+                  📊
+                </button>
+                <button
+                  type="button"
+                  className={toolBtn(false)}
+                  onClick={() => setIsRecording(true)}
+                  aria-label="Voice note"
+                >
+                  🎤
+                </button>
+                <button
+                  type="button"
+                  className={toolBtn(false)}
+                  onClick={() => imageInputRef.current?.click()}
+                  aria-label="Photo"
+                >
+                  📷
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={onImageChange}
+                />
+                <button
+                  type="button"
+                  className={toolBtn(false)}
+                  onClick={() => videoInputRef.current?.click()}
+                  aria-label="Video"
+                >
+                  🎥
+                </button>
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/mp4,video/webm,video/quicktime"
+                  className="hidden"
+                  onChange={onVideoChange}
+                />
+              </div>
+
+              <div className="flex flex-shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={!canSend || sending}
+                  className="rounded-lg p-1.5 text-white/40 transition-colors hover:bg-cyan-500/10 hover:text-cyan-400 disabled:opacity-40"
+                  aria-label="Send league message"
+                  data-testid="league-chat-send"
+                >
+                  <Send size={14} strokeWidth={2} />
+                </button>
+                {onAskChimmy ? (
+                  <button
+                    type="button"
+                    onClick={onAskChimmy}
+                    className="rounded-md bg-violet-500/20 px-2 py-1.5 text-[9px] font-bold text-violet-300 transition-colors hover:bg-violet-500/30"
+                  >
+                    Ask Chimmy
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
