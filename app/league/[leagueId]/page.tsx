@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueDrafts } from '@/lib/sleeper-client'
+import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function LeaguePage({ params }: { params: Promise<{ leagueId: string }> }) {
   const { leagueId } = await params
   const session = (await getServerSession(authOptions as never)) as {
-    user?: { id?: string; name?: string | null; email?: string | null }
+    user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
   } | null
 
   if (!session?.user?.id) {
@@ -49,6 +50,12 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
     take: 50,
   })
 
+  const dbUser = await prisma.appUser.findUnique({
+    where: { id: userId },
+    select: { avatarUrl: true },
+  })
+  const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
+
   let draftDateIso: string | null = null
   if (league.platform === 'sleeper' && league.platformLeagueId) {
     type SleeperDraftSummary = { start_time?: number | null }
@@ -67,6 +74,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       allLeagues={allLeagues}
       userId={userId}
       userName={session.user.name ?? session.user.email ?? 'Manager'}
+      userImage={userImage}
       draftDateIso={draftDateIso}
     />
   )

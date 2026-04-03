@@ -12,6 +12,8 @@ import type { DashboardConnectedLeague, UserLeague } from './types'
 type DashboardShellProps = {
   userId: string
   userName: string
+  /** Resolved avatar URL (session image or DB avatar; hashes → Sleeper CDN server-side) */
+  userImage?: string | null
   /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
   activeLeagueId?: string | null
 }
@@ -139,7 +141,12 @@ function LeagueCenterContent({
   )
 }
 
-export function DashboardShell({ userId, userName, activeLeagueId = null }: DashboardShellProps) {
+export function DashboardShell({
+  userId,
+  userName,
+  userImage = null,
+  activeLeagueId = null,
+}: DashboardShellProps) {
   const router = useRouter()
   const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
   const [leaguesLoading, setLeaguesLoading] = useState(true)
@@ -283,6 +290,8 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
           selectedId={selectedLeague?.id ?? null}
           onSelectLeague={handleSelectLeague}
           userId={userId}
+          userName={userName}
+          userImage={userImage}
           onImport={handleTriggerImport}
         />
       </aside>
@@ -353,6 +362,8 @@ export function DashboardShell({ userId, userName, activeLeagueId = null }: Dash
                   selectedId={selectedLeague?.id ?? null}
                   onSelectLeague={handleSelectLeague}
                   userId={userId}
+                  userName={userName}
+                  userImage={userImage}
                   onImport={handleTriggerImport}
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
                 />

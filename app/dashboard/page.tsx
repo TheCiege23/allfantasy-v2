@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import DashboardUnavailableState from '@/components/dashboard/DashboardUnavailableState'
 import {
   createDashboardRuntimeIssue,
@@ -30,6 +32,7 @@ export default async function DashboardPage() {
         id?: string
         name?: string | null
         email?: string | null
+        image?: string | null
       }
     } | null
 
@@ -37,10 +40,18 @@ export default async function DashboardPage() {
       redirect('/login?callbackUrl=/dashboard')
     }
 
+    const dbUser = await prisma.appUser.findUnique({
+      where: { id: session.user.id },
+      select: { avatarUrl: true },
+    })
+
+    const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
+
     return (
       <DashboardShell
         userId={session.user.id}
         userName={session.user.name ?? session.user.email ?? 'Manager'}
+        userImage={userImage}
       />
     )
   } catch (error) {

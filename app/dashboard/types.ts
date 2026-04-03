@@ -43,6 +43,12 @@ export type RightControlPanelLayoutProps = {
   selectedId: string | null
   onSelectLeague: (league: UserLeague | null) => void
   userId: string
+  /** Display name (session name / email / Manager) */
+  userName: string
+  /** Resolved avatar URL (optional); hash-only values resolved server-side */
+  userImage?: string | null
+  /** e.g. plan tier; when absent, footer shows "AllFantasy" as subtitle */
+  userSubtitle?: string | null
   onImport: () => void
   onAfterLeagueNavigate?: () => void
 }

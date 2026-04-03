@@ -88,6 +88,7 @@ export type LeagueShellProps = {
   allLeagues: League[]
   userId: string
   userName: string
+  userImage?: string | null
   draftDateIso: string | null
 }
 
@@ -97,7 +98,8 @@ export function LeagueShell({
   isOwner,
   allLeagues,
   userId,
-  userName: _userName,
+  userName,
+  userImage = null,
   draftDateIso,
 }: LeagueShellProps) {
   const router = useRouter()
@@ -196,6 +198,8 @@ export function LeagueShell({
           selectedId={league.id}
           onSelectLeague={handleLeagueSelect}
           userId={userId}
+          userName={userName}
+          userImage={userImage}
           onImport={handleImport}
         />
       </aside>

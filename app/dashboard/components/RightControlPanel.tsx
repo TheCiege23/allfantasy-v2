@@ -1,11 +1,21 @@
 'use client'
 
-import { useState } from 'react'
-import { Bot, MessageCircle, Plus, Users, X } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Settings } from 'lucide-react'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
 
-type AfExpand = 'direct' | 'groups' | 'chimmy' | null
+function profileInitials(name: string): string {
+  const t = name.trim()
+  if (!t) return '?'
+  const at = t.indexOf('@')
+  const base = at > 0 ? t.slice(0, at) : t
+  const parts = base.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+  }
+  return base.slice(0, 2).toUpperCase() || '?'
+}
 
 export function RightControlPanel({
   leagues,
@@ -13,14 +23,18 @@ export function RightControlPanel({
   selectedId,
   onSelectLeague,
   userId,
+  userName,
+  userImage,
+  userSubtitle,
   onImport,
   onAfterLeagueNavigate,
 }: RightControlPanelLayoutProps) {
-  const [afExpanded, setAfExpanded] = useState<AfExpand>(null)
-
-  const toggle = (tab: Exclude<AfExpand, null>) => {
-    setAfExpanded((prev) => (prev === tab ? null : tab))
-  }
+  const subtitle =
+    userSubtitle === ''
+      ? null
+      : userSubtitle != null && userSubtitle !== ''
+        ? userSubtitle
+        : 'AllFantasy'
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
@@ -51,87 +65,44 @@ export function RightControlPanel({
         </div>
       </div>
 
+      {/* Compact AF Chat icon bar (DM / Groups / Chimmy) — retained for future use; replaced by profile footer */}
+      {/*
       <div
         className="flex h-12 max-h-12 min-h-[48px] shrink-0 items-center justify-around border-t border-white/[0.07] bg-[#0a0a1f] px-4 py-2"
         data-af-chat-user-id={userId}
       >
-        <button
-          type="button"
-          onClick={() => toggle('direct')}
-          className={`inline-flex items-center justify-center rounded-lg p-2 transition-colors ${
-            afExpanded === 'direct' ? 'bg-white/[0.08] text-cyan-300' : 'text-white/50 hover:text-white/80'
-          }`}
-          title="Direct messages"
-        >
-          <MessageCircle className="h-5 w-5" aria-hidden />
-          <span className="sr-only">Direct messages</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => toggle('groups')}
-          className={`inline-flex items-center justify-center rounded-lg p-2 transition-colors ${
-            afExpanded === 'groups' ? 'bg-white/[0.08] text-cyan-300' : 'text-white/50 hover:text-white/80'
-          }`}
-          title="Group chats"
-        >
-          <Users className="h-5 w-5" aria-hidden />
-          <span className="sr-only">Group chats</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            toggle('chimmy')
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
-              window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
-            }
-          }}
-          className={`inline-flex items-center justify-center rounded-lg p-2 transition-colors ${
-            afExpanded === 'chimmy' ? 'bg-white/[0.08] text-cyan-300' : 'text-white/50 hover:text-white/80'
-          }`}
-          title="Chimmy"
-        >
-          <Bot className="h-5 w-5" aria-hidden />
-          <span className="sr-only">Chimmy</span>
-        </button>
+        ... MessageCircle, Users, Bot toggles ...
       </div>
+      */}
 
-      {afExpanded ? (
-        <>
-          <button
-            type="button"
-            className="absolute inset-x-0 top-0 bottom-12 z-10 bg-black/45"
-            aria-label="Close panel"
-            onClick={() => setAfExpanded(null)}
-          />
-          <div className="absolute bottom-12 left-0 right-0 z-20 flex max-h-[min(40vh,280px)] min-h-[140px] flex-col border-t border-white/[0.07] bg-[#0c0c1e] shadow-[0_-12px_40px_rgba(0,0,0,0.45)]">
-            <div className="flex flex-shrink-0 items-center justify-between border-b border-white/[0.07] px-3 py-2">
-              <p className="text-xs font-semibold text-white/85">
-                {afExpanded === 'direct'
-                  ? 'Direct messages'
-                  : afExpanded === 'groups'
-                    ? 'Group chats'
-                    : 'Chimmy'}
-              </p>
-              <button
-                type="button"
-                onClick={() => setAfExpanded(null)}
-                className="rounded-lg p-1.5 text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6 text-center text-[13px] text-white/40">
-              {afExpanded === 'direct' ? <p>No direct messages yet</p> : null}
-              {afExpanded === 'groups' ? <p>No group chats yet</p> : null}
-              {afExpanded === 'chimmy' ? (
-                <p>Open the left panel and select the Chimmy tab for the full assistant.</p>
-              ) : null}
-            </div>
-          </div>
-        </>
-      ) : null}
+      <div
+        className="flex h-14 flex-shrink-0 items-center gap-3 border-t border-white/[0.07] bg-[#0a0a1f] px-3"
+        data-dashboard-user-id={userId}
+        data-dashboard-profile-footer
+      >
+        <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-cyan-500 to-blue-600">
+          {userImage ? (
+            <img src={userImage} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-[11px] font-bold uppercase text-white">
+              {profileInitials(userName)}
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold text-white">{userName}</p>
+          {subtitle ? (
+            <p className="truncate text-[10px] text-white/40">{subtitle}</p>
+          ) : null}
+        </div>
+        <Link
+          href="/settings"
+          className="flex flex-shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/[0.06]"
+          aria-label="Settings"
+        >
+          <Settings size={16} className="text-white/40 transition-colors hover:text-white/80" />
+        </Link>
+      </div>
     </div>
   )
 }
