@@ -1,5 +1,8 @@
 /**
  * Team logo URLs by abbreviation + sport (public CDNs).
+ *
+ * Rolling Insights logos (DataFeeds GraphQL, server credentials): use
+ * `getRITeamLogoUrl` from `@/lib/players/ri-team-logos-server` in RSC/API routes only.
  */
 
 /** NBA Stats API / cdn.nba.com numeric team ids */

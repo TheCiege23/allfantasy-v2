@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchRIPlayers, fetchRITeams } from '@/lib/players/ri-players-server'
 import { revalidateTag } from 'next/cache'
-import { fetchRiPlayersUncached } from '@/lib/players/ri-players-server'
 
-const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'PGA', 'SOCCER'])
+const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER'])
 
 export async function POST(req: NextRequest) {
   const sport = (req.nextUrl.searchParams.get('sport') || 'NFL').trim().toUpperCase()
@@ -11,10 +11,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    revalidateTag('ri-players')
-    const map = await fetchRiPlayersUncached(sport)
-    return NextResponse.json({ synced: Object.keys(map).length, sport })
-  } catch {
-    return NextResponse.json({ synced: 0, sport })
+    const [players, teams] = await Promise.all([fetchRIPlayers(sport), fetchRITeams(sport)])
+    revalidateTag(`ri-players-${sport.toLowerCase()}`)
+
+    return NextResponse.json({
+      sport,
+      players: { total: players.length, sample: players[0] ?? null },
+      teams: { total: teams.length, sample: teams[0] ?? null },
+      imageFieldCheck: {
+        playerImg: players[0]?.headshot_url || 'none',
+        teamImg: teams[0]?.logo_url || 'none',
+      },
+    })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
