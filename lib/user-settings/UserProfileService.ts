@@ -4,12 +4,39 @@ import type { ProfileUpdatePayload } from "./types"
 
 /**
  * Updates user profile fields that are editable from Settings.
- * Does not update email/phone/username without verification flows.
+ * Username can be changed here (validated + uniqueness). Email/phone use dedicated flows.
  */
+const USERNAME_RE = /^[a-z0-9_]{3,32}$/
+
 export async function updateUserProfile(
   userId: string,
   payload: ProfileUpdatePayload
 ): Promise<{ ok: boolean; error?: string }> {
+  if (payload.username !== undefined && payload.username !== null) {
+    const normalized = String(payload.username).trim().toLowerCase()
+    if (!USERNAME_RE.test(normalized)) {
+      return {
+        ok: false,
+        error: "Username must be 3–32 characters (lowercase letters, numbers, underscore)",
+      }
+    }
+    const taken = await prisma.appUser.findFirst({
+      where: { username: normalized, NOT: { id: userId } },
+      select: { id: true },
+    })
+    if (taken) {
+      return { ok: false, error: "Username is already taken" }
+    }
+    try {
+      await prisma.appUser.update({
+        where: { id: userId },
+        data: { username: normalized },
+      })
+    } catch {
+      return { ok: false, error: "Failed to update username" }
+    }
+  }
+
   const updateProfile: Record<string, unknown> = {}
   if (payload.displayName !== undefined) updateProfile.displayName = payload.displayName?.trim() || null
   if (payload.preferredLanguage !== undefined) updateProfile.preferredLanguage = payload.preferredLanguage || null
@@ -33,19 +60,27 @@ export async function updateUserProfile(
   }
   if (payload.notificationPreferences !== undefined)
     updateProfile.notificationPreferences = payload.notificationPreferences ?? null
+  if (payload.clearSleeperLink === true) {
+    updateProfile.sleeperUsername = null
+    updateProfile.sleeperLinkedAt = null
+    updateProfile.sleeperUserId = null
+    updateProfile.sleeperVerifiedAt = null
+  }
   if (payload.onboardingStep !== undefined) updateProfile.onboardingStep = payload.onboardingStep ?? null
   if (payload.onboardingCompletedAt !== undefined)
     updateProfile.onboardingCompletedAt = payload.onboardingCompletedAt ?? null
 
   try {
-    await prisma.userProfile.upsert({
-      where: { userId },
-      update: updateProfile as Parameters<typeof prisma.userProfile.upsert>[0]['update'],
-      create: {
-        userId,
-        ...updateProfile,
-      } as Parameters<typeof prisma.userProfile.upsert>[0]['create'],
-    })
+    if (Object.keys(updateProfile).length > 0) {
+      await prisma.userProfile.upsert({
+        where: { userId },
+        update: updateProfile as Parameters<typeof prisma.userProfile.upsert>[0]["update"],
+        create: {
+          userId,
+          ...updateProfile,
+        } as Parameters<typeof prisma.userProfile.upsert>[0]["create"],
+      })
+    }
 
     const appUserUpdate: Record<string, unknown> = {}
     if (payload.displayName !== undefined) {

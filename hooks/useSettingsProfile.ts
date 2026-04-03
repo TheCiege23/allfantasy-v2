@@ -78,7 +78,7 @@ export function useSettingsProfile() {
         const controller = new AbortController()
         const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
         const res = await fetch("/api/user/profile", {
-          method: "PATCH",
+          method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
           signal: controller.signal,

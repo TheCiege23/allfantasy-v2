@@ -108,6 +108,8 @@ export interface PublicProfileDto {
 
 export interface ProfileUpdatePayload {
   displayName?: string | null
+  /** Normalized and validated in `UserProfileService`; updates `AppUser.username`. */
+  username?: string | null
   preferredLanguage?: PreferredLanguage | null
   timezone?: string | null
   themePreference?: ThemePreference | null
@@ -118,6 +120,8 @@ export interface ProfileUpdatePayload {
   notificationPreferences?: Record<string, unknown> | null
   onboardingStep?: string | null
   onboardingCompletedAt?: Date | null
+  /** Clears Sleeper link fields on `UserProfile`. */
+  clearSleeperLink?: boolean
 }
 
 export interface UserSettingsUpdatePayload {
