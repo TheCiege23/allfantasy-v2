@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchRIPlayers } from '@/lib/players/ri-players-server'
 import { unstable_cache } from 'next/cache'
 
+/** Seconds — Vercel Pro/hobby max; avoids timeout while RI REST returns large lists (15–30s). */
+export const maxDuration = 60
+
 const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER', 'PGA'])
 
 const cacheFetch = (sport: string) =>
