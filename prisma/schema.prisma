@@ -4057,6 +4057,25 @@ model League {
   keeperConflictRule   String?  @default("player_chooses")
   keeperMissedDeadlineRule String? @default("auto_no_keepers")
 
+  /// Best ball — standard | private_league | tournament
+  bestBallVariant   String?  @default("standard")
+  bestBallMode      Boolean? @default(false)
+  bbWaiversEnabled  Boolean? @default(false)
+  bbTradesEnabled   Boolean? @default(false)
+  bbFaEnabled       Boolean? @default(false)
+  bbIrEnabled       Boolean? @default(false)
+  bbTaxiEnabled     Boolean? @default(false)
+  bbScoringPeriod   String?  @default("weekly")
+  bbMatchupFormat   String?  @default("h2h")
+  bbTiebreaker      String?  @default("points_for")
+  bbOptimizerTiming String?  @default("period_end")
+  bbContestId       String?
+
+  bbContest                   BestBallContest?           @relation("LeagueBestBallContest", fields: [bbContestId], references: [id], onDelete: SetNull)
+  bestBallOptimizedLineups    BestBallOptimizedLineup[]
+  bestBallRosterValidations   BestBallRosterValidation[]
+  bestBallAIInsights          BestBallAIInsight[]
+
   rosters                     Roster[]
   teams                       LeagueTeam[]
   divisions                   LeagueDivision[]
@@ -8182,6 +8201,7 @@ model RedraftSeason {
   keeperEligibilities KeeperEligibility[]
   keeperPickAdjustments KeeperPickAdjustment[]
   keeperAuditLogs     KeeperAuditLog[]
+  bestBallOptimizedLineups BestBallOptimizedLineup[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8220,6 +8240,7 @@ model RedraftRoster {
   transactions     RedraftLeagueTransaction[]
   aiRosterInsights RedraftAIRosterInsight[]
   keeperRecords    KeeperRecord[]
+  bestBallOptimizedLineups BestBallOptimizedLineup[]
 
   @@unique([seasonId, ownerId])
   @@index([seasonId])
@@ -8565,4 +8586,175 @@ model KeeperAuditLog {
 
   @@index([leagueId, seasonId])
   @@map("keeper_audit_logs")
+}
+
+/// Best ball sport roster / lineup template (per sport × variant).
+model BestBallSportTemplate {
+  id                String   @id @default(cuid())
+  sport             String
+  variant           String   @default("standard")
+  rosterSize        Int
+  startCount        Int
+  lineupSlots       Json
+  scoringPeriod     String
+  scoringWeeks      Int?
+  tiebreaker        String   @default("points_for")
+  lockRule          String   @default("game_start")
+  depthRequirements Json
+  createdAt         DateTime @default(now())
+
+  @@unique([sport, variant])
+  @@map("best_ball_sport_templates")
+}
+
+/// Auto-optimized best ball lineup for a scoring period (league roster or contest entry).
+model BestBallOptimizedLineup {
+  id              String   @id @default(cuid())
+  leagueId        String?
+  league          League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  seasonId        String?
+  season          RedraftSeason? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  rosterId        String?
+  roster          RedraftRoster? @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  contestId       String?
+  contest         BestBallContest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entryId         String?
+  entry           BestBallEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  week            Int
+  scoringPeriod   String   @default("weekly")
+  starterIds      String[]
+  benchIds        String[]
+  totalPoints     Float    @default(0)
+  lineupBreakdown Json
+  alternateExists Boolean  @default(false)
+  alternateLineup Json?
+  optimizerLog    Json?
+  isFinalized     Boolean  @default(false)
+  finalizedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([seasonId, week])
+  @@index([rosterId])
+  @@index([contestId, entryId])
+  @@map("best_ball_optimized_lineups")
+}
+
+model BestBallContest {
+  id                 String   @id @default(cuid())
+  name               String
+  sport              String
+  variant            String   @default("tournament")
+  status             String   @default("open")
+  podSize            Int      @default(12)
+  rosterSize         Int      @default(18)
+  rounds             Int      @default(1)
+  advancersPerPod    Int      @default(1)
+  draftType          String   @default("snake")
+  draftSpeed         String   @default("slow")
+  entryType          String   @default("single")
+  maxEntriesPerUser  Int?
+  totalEntries       Int?
+  scoringPeriod      String   @default("weekly")
+  cumulativeScoring  Boolean  @default(true)
+  resetBetweenRounds Boolean  @default(false)
+  draftStartsAt      DateTime?
+  contestStartsAt    DateTime?
+  contestEndsAt      DateTime?
+
+  pods    BestBallPod[]
+  entries BestBallEntry[]
+  leagues League[]      @relation("LeagueBestBallContest")
+  optimizedLineups BestBallOptimizedLineup[]
+  aiInsights       BestBallAIInsight[]
+
+  createdAt DateTime @default(now())
+
+  @@index([sport, status])
+  @@map("best_ball_contests")
+}
+
+model BestBallPod {
+  id             String          @id @default(cuid())
+  contestId      String
+  contest        BestBallContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  roundNumber    Int             @default(1)
+  podNumber      Int
+  name           String?
+  status         String          @default("forming")
+  draftSessionId String?
+  advancers      String[]
+  entries        BestBallEntry[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([contestId, roundNumber, podNumber])
+  @@index([contestId])
+  @@map("best_ball_pods")
+}
+
+model BestBallEntry {
+  id            String          @id @default(cuid())
+  contestId     String
+  contest       BestBallContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  podId         String?
+  pod           BestBallPod?    @relation(fields: [podId], references: [id], onDelete: SetNull)
+
+  userId        String
+  entryName     String?
+  entryNumber   Int             @default(1)
+  podRank       Int?
+  overallRank   Int?
+  currentRound  Int             @default(1)
+  totalPoints   Float           @default(0)
+  isEliminated  Boolean         @default(false)
+  hasAdvanced   Boolean         @default(false)
+  roster        Json?
+  weeklyScores  Json?
+
+  optimizedLineups BestBallOptimizedLineup[]
+
+  createdAt DateTime @default(now())
+
+  @@index([contestId, podId])
+  @@index([userId])
+  @@map("best_ball_entries")
+}
+
+model BestBallRosterValidation {
+  id             String   @id @default(cuid())
+  leagueId       String
+  league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  seasonId       String?
+  contestId      String?
+  rosterId       String?
+  entryId        String?
+  isValid        Boolean
+  warnings       Json
+  criticalErrors Json
+  checkedAt      DateTime @default(now())
+
+  @@index([seasonId, rosterId])
+  @@index([contestId, entryId])
+  @@map("best_ball_roster_validations")
+}
+
+/// Best ball AI output (AF Commissioner Subscription tier).
+model BestBallAIInsight {
+  id          String   @id @default(cuid())
+  leagueId    String?
+  league      League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  contestId   String?
+  contest     BestBallContest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  rosterId    String?
+  entryId     String?
+  week        Int?
+  type        String
+  content     Json
+  narrative   String?
+  generatedAt DateTime @default(now())
+
+  @@index([leagueId, type])
+  @@index([contestId, type])
+  @@map("best_ball_ai_insights")
 }

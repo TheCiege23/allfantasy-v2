@@ -1,10 +1,12 @@
 import { PrismaClient } from '@prisma/client';
 import { seedSportConfigs } from './seed/sportConfigs';
+import { seedBestBallTemplates } from './seed/bestBallTemplates';
 
 const prisma = new PrismaClient();
 
 async function main() {
   await seedSportConfigs(prisma);
+  await seedBestBallTemplates(prisma);
   await prisma.teamPerformance.deleteMany({ where: { team: { league: { name: { contains: 'Test' } } } } });
   await prisma.leagueTeam.deleteMany({ where: { league: { name: { contains: 'Test' } } } });
   await prisma.roster.deleteMany({ where: { league: { name: { contains: 'Test' } } } });

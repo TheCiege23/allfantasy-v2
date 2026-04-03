@@ -32,6 +32,9 @@ type Props = {
   userName: string
   inviteCode?: string | null
   isCommissioner?: boolean
+  /** When true, show best-ball depth reminder (no behavior change). */
+  bestBallMode?: boolean
+  bestBallSport?: string | null
 }
 
 function mapState(raw: Record<string, unknown>): DraftStatePayload {
@@ -81,6 +84,8 @@ export function DraftShell({
   userName,
   inviteCode,
   isCommissioner = false,
+  bestBallMode = false,
+  bestBallSport = null,
 }: Props) {
   const [state, setState] = useState<DraftStatePayload | null>(null)
   const [picks, setPicks] = useState<DraftPickRecord[]>([])
@@ -249,6 +254,16 @@ export function DraftShell({
           </div>
         }
       />
+
+      {bestBallMode ? (
+        <div
+          className="border-b border-cyan-500/20 bg-[#0a1228]/90 px-3 py-2 text-[11px] text-cyan-100/85"
+          data-testid="draft-bestball-banner"
+        >
+          Best ball: starters auto-optimize each scoring period — build depth at every position (
+          {bestBallSport ?? 'sport'}). Use commissioner AI (AfSub) for live pick suggestions when enabled.
+        </div>
+      ) : null}
 
       <div className="border-b border-white/[0.06] px-3 py-2">
         <DraftTimerBar

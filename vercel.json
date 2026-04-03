@@ -119,6 +119,18 @@
     {
       "path": "/api/keeper/ai/storyline",
       "schedule": "0 12 * * 2"
+    },
+    {
+      "path": "/api/bestball/optimizer-batch",
+      "schedule": "0 6 * * 2"
+    },
+    {
+      "path": "/api/bestball/weekly-winners",
+      "schedule": "30 6 * * 2"
+    },
+    {
+      "path": "/api/bestball/ai/storyline",
+      "schedule": "0 8 * * 2"
     }
   ]
 }

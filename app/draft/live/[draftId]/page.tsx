@@ -45,7 +45,7 @@ export default async function LiveDraftByDraftIdPage({ params }: { params: { dra
 
   const league = await prisma.league.findFirst({
     where: { id: leagueId, ...leagueAccess },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, bestBallMode: true, sport: true },
   })
   if (!league) {
     redirect('/dashboard')
@@ -61,6 +61,8 @@ export default async function LiveDraftByDraftIdPage({ params }: { params: { dra
       userName={session.user.name ?? 'Manager'}
       inviteCode={null}
       isCommissioner={league.userId === uid}
+      bestBallMode={Boolean(league.bestBallMode)}
+      bestBallSport={String(league.sport)}
     />
   )
 }
