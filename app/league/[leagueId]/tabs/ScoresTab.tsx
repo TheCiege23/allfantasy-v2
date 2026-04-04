@@ -39,6 +39,7 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
           </button>
         </div>
         <IDPMatchupView
+          leagueId={league.id}
           yourTeamName="Your team"
           oppTeamName="Opponent"
           week={week}

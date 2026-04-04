@@ -44,6 +44,7 @@ export function IDPPlayerModal({
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           leagueId,
           week,

@@ -1,13 +1,18 @@
 /**
- * IDP Chimmy AI — all entry points call requireAfSubUserIdOrThrow() first (same gate as requireAfSub in routes).
+ * IDP Chimmy AI — all entry points call `requireAfSub()` first (wraps `requireAfSubUserIdOrThrow`, same gate as route `requireAfSub`).
  * Uses roster playerData + deterministic synthetic stats when dedicated IDP stat tables are absent.
  */
 
 import { prisma } from '@/lib/prisma'
 import { requireAfSubUserIdOrThrow } from '@/lib/redraft/ai/requireAfSub'
-import { isIdpLeague, getIdpLeagueConfig } from '@/lib/idp'
+import { isIdpLeague } from '@/lib/idp'
 import { openaiChatText } from '@/lib/openai-client'
 import { isCommissioner } from '@/lib/commissioner/permissions'
+
+/** Lib equivalent of route `requireAfSub()` — must run before any IDP AI work. */
+async function requireAfSub(): Promise<void> {
+  await requireAfSubUserIdOrThrow()
+}
 
 const CHIMMY_IDP_RULE = `You are Chimmy, the AI assistant for IDP fantasy leagues on AllFantasy.
 You explain and recommend using only the deterministic data provided. You never invent scores, injuries, or official playing-time guarantees.
@@ -85,6 +90,15 @@ export type PowerRankingsPost = {
   week: number
   lines: Array<{ rank: number; teamLabel: string; blurb: string }>
   fullText: string
+}
+
+/** Persisted under `League.settings.idpChimmyPrefs` (commissioner + AfSub). */
+export type IdpChimmyPrefs = {
+  startSitRecommendations?: boolean
+  waiverBreakoutAlerts?: boolean
+  matchupAnalysis?: boolean
+  weeklyRankings?: boolean
+  tradeBalanceAnalysis?: boolean
 }
 
 function isIdpPosition(pos: string): boolean {
@@ -210,7 +224,7 @@ export async function getDefenderStartSitRec(
   managerId: string,
   week: number
 ): Promise<DefenderStartSitAnalysis> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const roster = await getRosterForUser(leagueId, managerId)
@@ -260,7 +274,7 @@ export async function getIDPWaiverTargets(
   week: number,
   limit = 5
 ): Promise<IDPWaiverTarget[]> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const pool = await buildMockWaiverPool(leagueId, week, limit)
@@ -305,7 +319,7 @@ export async function getIDPMatchupAnalysis(
   managerId: string,
   week: number
 ): Promise<IDPMatchupReport> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const mine = await getRosterForUser(leagueId, managerId)
@@ -343,13 +357,40 @@ export async function getIDPMatchupAnalysis(
   }
 }
 
+function parseIdpTradeEvalJson(text: string): IDPTradeEval | null {
+  const tryParse = (raw: string): IDPTradeEval | null => {
+    try {
+      const j = JSON.parse(raw) as Record<string, unknown>
+      const fr = j.fairness_rating
+      const bi = j.balance_impact
+      const rec = j.recommendation
+      if (typeof fr === 'string' && typeof bi === 'string' && typeof rec === 'string') {
+        return { fairness_rating: fr, balance_impact: bi, recommendation: rec }
+      }
+    } catch {
+      /* ignore */
+    }
+    return null
+  }
+  const t = text.trim()
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (fence?.[1]) {
+    const p = tryParse(fence[1].trim())
+    if (p) return p
+  }
+  const i0 = t.indexOf('{')
+  const i1 = t.lastIndexOf('}')
+  if (i0 >= 0 && i1 > i0) return tryParse(t.slice(i0, i1 + 1))
+  return null
+}
+
 export async function evaluateIDPTrade(
   leagueId: string,
   managerId: string,
   offeredPlayers: string[],
   receivedPlayers: string[]
 ): Promise<IDPTradeEval> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const roster = await getRosterForUser(leagueId, managerId)
@@ -365,19 +406,29 @@ export async function evaluateIDPTrade(
       {
         role: 'user',
         content: `IDP trade lens. Offered: ${describe(offeredPlayers)}. Receive: ${describe(receivedPlayers)}.
-Evaluate offense vs defense balance, IDP ceiling, positional holes, and fairness. Scoring context: IDP league.
-Return: fairness_rating (fair / slight win / slight loss / risky), balance_impact (1 short paragraph), recommendation (1 short paragraph).`,
+Evaluate offense vs defense balance, IDP scoring ceiling, positional holes, and fairness vs league norms.
+Reply with ONLY a JSON object (no markdown) with keys:
+  "fairness_rating": short label (e.g. "fair", "slight win for you", "slight loss", "risky"),
+  "balance_impact": one paragraph on roster balance after trade (include rough % IDP vs offense if inferable),
+  "recommendation": one paragraph accept/decline/counter guidance.`,
       },
     ],
     temperature: 0.45,
     maxTokens: 600,
   })
   const text = res.ok ? res.text : 'AI unavailable.'
+  const parsed = res.ok ? parseIdpTradeEvalJson(text) : null
+  if (parsed) return parsed
   return {
-    fairness_rating: 'See narrative',
+    fairness_rating: 'unparsed',
     balance_impact: text,
     recommendation: 'Use league trade review tools to confirm roster legality after any acceptance.',
   }
+}
+
+function rankingComposite(pr: ReturnType<typeof syntheticIdpProfile>): number {
+  const snapTrend = pr.trend === 'up' ? 1 : 0.65
+  return 0.4 * pr.seasonAvg + 0.4 * pr.matchupRating + 0.2 * snapTrend * 12
 }
 
 export async function getWeeklyIDPRankings(
@@ -385,26 +436,40 @@ export async function getWeeklyIDPRankings(
   week: number,
   positionFilter?: string
 ): Promise<IDPRankingList> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
-  const pool = await buildMockWaiverPool(leagueId, week, 40)
-  const filtered = positionFilter
-    ? pool.filter((p) => p.position.toUpperCase().includes(positionFilter.toUpperCase()))
-    : pool
-
-  const entries: IDPRankingEntry[] = filtered.slice(0, positionFilter ? 20 : 30).map((p, i) => {
+  const pool = await buildMockWaiverPool(leagueId, week, 100)
+  const scored = pool.map((p) => {
     const pr = syntheticIdpProfile(p.playerId, week)
-    const proj = 0.4 * pr.seasonAvg + 0.4 * pr.matchupRating + 0.2 * (pr.snapShare / 100) * 20
-    return {
-      rank: i + 1,
-      name: p.name,
-      position: p.position,
-      team: p.team,
-      projectedPts: Math.round(proj * 10) / 10,
-      reasoning: `Snap ${pr.snapShare}%, matchup ${pr.matchupRating.toFixed(1)}`,
-    }
+    const proj =
+      0.4 * pr.seasonAvg +
+      0.4 * pr.matchupRating +
+      0.2 * ((pr.snapShare / 100) * 25 + (pr.trend === 'up' ? 2 : 0))
+    return { p, pr, proj, composite: rankingComposite(pr) }
   })
+  scored.sort((a, b) => b.composite - a.composite)
+
+  const matchesPos = (pos: string, filter: string) => {
+    const u = pos.toUpperCase()
+    const f = filter.toUpperCase()
+    if (f === 'DL') return ['DE', 'DT', 'DL'].includes(u)
+    if (f === 'DB') return ['CB', 'S', 'SS', 'FS', 'DB'].includes(u)
+    return u.includes(f) || f.includes(u)
+  }
+
+  const slice = positionFilter
+    ? scored.filter((s) => matchesPos(s.p.position, positionFilter)).slice(0, 20)
+    : scored.slice(0, 30)
+
+  const entries: IDPRankingEntry[] = slice.map((s, i) => ({
+    rank: i + 1,
+    name: s.p.name,
+    position: s.p.position,
+    team: s.p.team,
+    projectedPts: Math.round(s.proj * 10) / 10,
+    reasoning: `Snaps ${s.pr.snapShare}%, matchup ${s.pr.matchupRating.toFixed(1)}, trend ${s.pr.trend}`,
+  }))
 
   const res = await openaiChatText({
     messages: [
@@ -426,21 +491,43 @@ export async function getWeeklyIDPRankings(
 }
 
 export async function getSleeperDefenders(leagueId: string, week: number): Promise<SleeperDefender[]> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
-  const pool = await buildMockWaiverPool(leagueId, week, 15)
+  const pool = await buildMockWaiverPool(leagueId, week, 60)
+  const posKey = (pos: string) =>
+    ['DE', 'DT', 'DL'].includes(pos.toUpperCase()) ? 'DL' : pos.toUpperCase() === 'LB' ? 'LB' : 'DB'
+  const byPos = new Map<string, Array<{ p: IdPlayerRow; score: number }>>()
+  for (const p of pool) {
+    const pr = syntheticIdpProfile(p.playerId, week)
+    const score = startScore(pr)
+    const k = posKey(p.position)
+    const arr = byPos.get(k) ?? []
+    arr.push({ p, score })
+    byPos.set(k, arr)
+  }
+  for (const arr of byPos.values()) {
+    arr.sort((a, b) => b.score - a.score)
+  }
+  const rankAtPos = (p: IdPlayerRow) => {
+    const k = posKey(p.position)
+    const arr = byPos.get(k) ?? []
+    const idx = arr.findIndex((x) => x.p.playerId === p.playerId)
+    return idx < 0 ? 99 : idx + 1
+  }
+
   const out: SleeperDefender[] = []
   for (const p of pool) {
     const pr = syntheticIdpProfile(p.playerId, week)
     const own = (seedFromString(p.playerId) % 28) + 1
-    if (own < 30 && pr.snapShare >= 60 && pr.matchupRating >= 6) {
+    const posRank = rankAtPos(p)
+    if (own < 30 && pr.snapShare >= 60 && pr.matchupRating >= 6 && posRank <= 20) {
       out.push({
         name: p.name,
         position: p.position,
         team: p.team,
         mockOwnershipPct: own,
-        reasoning: `Hidden gem: elevated snap share (${pr.snapShare}%) with a strong matchup rating (${pr.matchupRating.toFixed(1)}).`,
+        reasoning: `Hidden gem: ~${own}% ownership, ${pr.snapShare}% snaps, top-${posRank} ${posKey(p.position)} projection in this pool.`,
       })
     }
     if (out.length >= 5) break
@@ -450,7 +537,7 @@ export async function getSleeperDefenders(leagueId: string, week: number): Promi
 }
 
 export async function getSnapShareInsights(leagueId: string, managerId: string): Promise<SnapShareReport> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const roster = await getRosterForUser(leagueId, managerId)
@@ -480,7 +567,7 @@ export async function getSnapShareInsights(leagueId: string, managerId: string):
 }
 
 export async function getIDPScarcityReport(leagueId: string, week: number): Promise<ScarcityReport> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const pool = await buildMockWaiverPool(leagueId, week, 30)
@@ -513,7 +600,7 @@ export async function getIDPScarcityReport(leagueId: string, week: number): Prom
 }
 
 export async function generateIDPPowerRankings(leagueId: string, week: number): Promise<PowerRankingsPost> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
 
   const rosters = await prisma.roster.findMany({
@@ -556,6 +643,21 @@ export async function generateIDPPowerRankings(leagueId: string, week: number): 
   return { week, lines, fullText }
 }
 
+export async function saveIdpAiPrefs(leagueId: string, commissionerUserId: string, prefs: IdpChimmyPrefs): Promise<void> {
+  await requireAfSub()
+  await assertIdpLeague(leagueId)
+  const ok = await isCommissioner(leagueId, commissionerUserId)
+  if (!ok) throw new Error('Commissioner only')
+  const row = await prisma.league.findUnique({ where: { id: leagueId }, select: { settings: true } })
+  const prev = row?.settings
+  const base =
+    prev && typeof prev === 'object' && !Array.isArray(prev) ? (prev as Record<string, unknown>) : {}
+  await prisma.league.update({
+    where: { id: leagueId },
+    data: { settings: { ...base, idpChimmyPrefs: prefs } },
+  })
+}
+
 export function getIdpChimmyHelpText(): string {
   return [
     '🤖 **IDP @Chimmy commands**',
@@ -580,7 +682,7 @@ export async function getIdpPlayerAiAnalysis(
   week: number,
   playerId: string
 ): Promise<string> {
-  await requireAfSubUserIdOrThrow()
+  await requireAfSub()
   await assertIdpLeague(leagueId)
   const roster = await getRosterForUser(leagueId, managerId)
   const defenders = parseIdpPlayers(roster?.playerData)

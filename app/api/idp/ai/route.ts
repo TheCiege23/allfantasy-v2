@@ -14,6 +14,8 @@ import {
   getIDPScarcityReport,
   generateIDPPowerRankings,
   getIdpPlayerAiAnalysis,
+  saveIdpAiPrefs,
+  type IdpChimmyPrefs,
 } from '@/lib/idp/ai/idpChimmy'
 
 export const dynamic = 'force-dynamic'
@@ -30,6 +32,7 @@ type Action =
   | 'scarcity'
   | 'power_rankings'
   | 'player_analysis'
+  | 'ai_prefs'
 
 export async function POST(req: NextRequest) {
   const gate = await requireAfSub()
@@ -116,6 +119,15 @@ export async function POST(req: NextRequest) {
         if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 })
         const narrative = await getIdpPlayerAiAnalysis(leagueId, managerId, week, playerId)
         return NextResponse.json({ narrative })
+      }
+      case 'ai_prefs': {
+        const raw = body.prefs
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+          return NextResponse.json({ error: 'prefs object required' }, { status: 400 })
+        }
+        const prefs = raw as IdpChimmyPrefs
+        await saveIdpAiPrefs(leagueId, userId, prefs)
+        return NextResponse.json({ ok: true })
       }
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

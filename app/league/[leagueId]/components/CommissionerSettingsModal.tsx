@@ -285,7 +285,7 @@ export function CommissionerSettingsModal({
           ) : activeTab === 'idp_display' ? (
             <IDPDisplayPanel />
           ) : activeTab === 'idp_ai' ? (
-            <IDPAIPanel hasAfSub={hasSub} />
+            <IDPAIPanel leagueId={leagueId} hasAfSub={hasSub} isCommissioner={payload?.canEdit ?? false} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

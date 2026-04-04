@@ -227,7 +227,13 @@ export function SettingsSubPanelBody({
     case 'idp_display':
       return <IDPDisplayPanel />
     case 'idp_ai':
-      return <IDPAIPanel hasAfSub={ctx.hasAfCommissionerSub ?? false} />
+      return (
+        <IDPAIPanel
+          leagueId={ctx.league.id}
+          hasAfSub={ctx.hasAfCommissionerSub ?? false}
+          isCommissioner={ctx.isCommissioner}
+        />
+      )
     default:
       return <p className="text-[13px] text-white/45">Unknown panel.</p>
   }

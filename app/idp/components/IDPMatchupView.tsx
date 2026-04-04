@@ -1,14 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { Lock, Loader2, Sparkles } from 'lucide-react'
 import { IDPPlayerCard } from './IDPPlayerCard'
 import { mockIdpPoints } from './idpPositionUtils'
 import type { PlayerMap } from '@/lib/hooks/useSleeperPlayers'
 import { resolvePlayerName } from '@/lib/hooks/useSleeperPlayers'
+import type { IDPMatchupReport } from '@/lib/idp/ai/idpChimmy'
 
 type Tab = 'OFFENSE' | 'DEFENSE' | 'ALL'
 
 export type LeagueIdpMatchupViewProps = {
+  /** When set, enables Chimmy matchup analysis (POST /api/idp/ai). */
+  leagueId?: string
   yourTeamName: string
   oppTeamName: string
   week: number
@@ -23,6 +28,7 @@ export type LeagueIdpMatchupViewProps = {
 }
 
 export function IDPMatchupView({
+  leagueId,
   yourTeamName,
   oppTeamName,
   week,
@@ -34,8 +40,41 @@ export function IDPMatchupView({
   players,
   live = false,
 }: LeagueIdpMatchupViewProps) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ''
   const [tab, setTab] = useState<Tab>('ALL')
   const [tick, setTick] = useState(false)
+  const [chimmyLoading, setChimmyLoading] = useState(false)
+  const [chimmyLocked, setChimmyLocked] = useState(false)
+  const [chimmyReport, setChimmyReport] = useState<IDPMatchupReport | null>(null)
+
+  const runChimmyMatchup = async () => {
+    if (!leagueId || !userId) return
+    setChimmyLoading(true)
+    setChimmyLocked(false)
+    try {
+      const res = await fetch('/api/idp/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId,
+          week,
+          action: 'matchup_analysis',
+          managerId: userId,
+        }),
+      })
+      if (res.status === 402) {
+        setChimmyLocked(true)
+        setChimmyReport(null)
+        return
+      }
+      const data = (await res.json().catch(() => null)) as IDPMatchupReport | null
+      if (data && typeof data.analysis === 'string') setChimmyReport(data)
+    } finally {
+      setChimmyLoading(false)
+    }
+  }
 
   const yOff = yourOffenseIds.reduce((s, id) => s + mockIdpPoints(id, week).pts * 0.85, 0)
   const oOff = oppOffenseIds.reduce((s, id) => s + mockIdpPoints(id, week).pts * 0.85, 0)
@@ -88,6 +127,20 @@ export function IDPMatchupView({
             </span>
           ) : null}
         </div>
+        {leagueId && userId ? (
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => void runChimmyMatchup()}
+              disabled={chimmyLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-950/30 px-3 py-2 text-[11px] font-semibold text-amber-100 hover:bg-amber-950/45 disabled:opacity-50"
+              data-testid="idp-matchup-chimmy-analysis"
+            >
+              {chimmyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : chimmyLocked ? <Lock className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Chimmy Analysis (AfSub)
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="space-y-3 rounded-xl border border-[color:var(--idp-border)] bg-[color:var(--idp-panel)] p-4">
@@ -121,6 +174,28 @@ export function IDPMatchupView({
           {splitBar(yTot, oTot)}
         </div>
       </div>
+
+      {chimmyLocked ? (
+        <p className="flex items-center justify-center gap-2 text-center text-[11px] text-amber-200/90">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          🔒 This feature requires the AF Commissioner Subscription.
+        </p>
+      ) : null}
+      {chimmyReport ? (
+        <div
+          className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 p-3 text-sm text-white/85"
+          data-testid="idp-matchup-chimmy-panel"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-wide text-cyan-200/90">Chimmy — IDP matchup</p>
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed">{chimmyReport.analysis}</p>
+          {chimmyReport.defensiveHighlights ? (
+            <p className="mt-2 text-xs text-emerald-200/85">{chimmyReport.defensiveHighlights}</p>
+          ) : null}
+          {chimmyReport.opponentAdvantage ? (
+            <p className="mt-1 text-xs text-amber-200/80">Opponent angle: {chimmyReport.opponentAdvantage}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="flex gap-1 rounded-lg border border-white/[0.08] bg-black/20 p-1">
         {(['OFFENSE', 'DEFENSE', 'ALL'] as const).map((t) => (

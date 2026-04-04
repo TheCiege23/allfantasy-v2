@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import { useSession } from 'next-auth/react'
+import { Lock, Loader2, Sparkles } from 'lucide-react'
 import { PlayerImage } from '@/app/components/PlayerImage'
 import type { PlayerMap } from '@/lib/hooks/useSleeperPlayers'
 import {
@@ -13,6 +16,7 @@ import { mockIdpPoints, mockStatPills, idpRoleLabel } from './idpPositionUtils'
 export type IDPPlayerModalProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  leagueId: string
   playerId: string
   name: string
   position: string
@@ -25,6 +29,7 @@ export type IDPPlayerModalProps = {
 export function IDPPlayerModal({
   open,
   onOpenChange,
+  leagueId,
   playerId,
   name,
   position,
@@ -33,6 +38,8 @@ export function IDPPlayerModal({
   week,
   players,
 }: IDPPlayerModalProps) {
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ''
   const p = players[playerId]
   const stats = mockStatPills(playerId)
   const { pts, proj } = mockIdpPoints(playerId, week)
@@ -45,6 +52,39 @@ export function IDPPlayerModal({
       : matchup === 'Tough'
         ? 'text-red-300'
         : 'text-white/50'
+
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiText, setAiText] = useState<string | null>(null)
+  const [aiLocked, setAiLocked] = useState(false)
+
+  const runAiAnalysis = async () => {
+    if (!userId) return
+    setAiLoading(true)
+    setAiLocked(false)
+    setAiText(null)
+    try {
+      const res = await fetch('/api/idp/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          leagueId,
+          week,
+          action: 'player_analysis',
+          managerId: userId,
+          playerId,
+        }),
+      })
+      if (res.status === 402) {
+        setAiLocked(true)
+        return
+      }
+      const data = (await res.json().catch(() => ({}))) as { narrative?: string; error?: string }
+      setAiText(data.narrative ?? data.error ?? 'Could not load analysis.')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,6 +157,20 @@ export function IDPPlayerModal({
           <p className="text-sm text-white/70">Projected IDP pts for remaining schedule: ~{proj + 0.5} / game (UI placeholder).</p>
         </section>
 
+        {aiText || aiLocked ? (
+          <section className="space-y-2 border-t border-white/[0.06] pt-3" data-testid="idp-player-ai-panel">
+            <h4 className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">Chimmy analysis</h4>
+            {aiLocked ? (
+              <p className="flex items-center gap-2 text-xs text-amber-100/95">
+                <Lock className="h-4 w-4 shrink-0" />
+                🔒 This feature requires the AF Commissioner Subscription.
+              </p>
+            ) : (
+              <p className="text-sm leading-relaxed text-white/85">{aiText}</p>
+            )}
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-4">
           <button
             type="button"
@@ -138,8 +192,12 @@ export function IDPPlayerModal({
           </button>
           <button
             type="button"
-            className="rounded-lg border border-amber-500/35 bg-amber-950/35 px-3 py-2 text-xs font-semibold text-amber-100"
+            onClick={() => void runAiAnalysis()}
+            disabled={aiLoading || !userId}
+            className="inline-flex items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-950/35 px-3 py-2 text-xs font-semibold text-amber-100 disabled:opacity-50"
+            data-testid="idp-player-ai-analysis"
           >
+            {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-200/90" />}
             AI Analysis (AfSub)
           </button>
         </div>

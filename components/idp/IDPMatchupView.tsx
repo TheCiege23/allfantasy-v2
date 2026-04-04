@@ -29,6 +29,7 @@ export function IDPMatchupView({
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ leagueId, week, action: 'matchup_analysis' }),
       })
       if (res.status === 402) {

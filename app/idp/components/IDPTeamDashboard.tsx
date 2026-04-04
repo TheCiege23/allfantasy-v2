@@ -311,6 +311,7 @@ export function IDPTeamDashboard({
         <IDPPlayerModal
           open={Boolean(modalId)}
           onOpenChange={(o) => !o && setModalId(null)}
+          leagueId={leagueId}
           playerId={modalId}
           name={modalPlayer.name}
           position={modalPlayer.position || 'LB'}
