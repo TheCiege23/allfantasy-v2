@@ -118,6 +118,17 @@
   --devy-badge-devy: rgba(124, 58, 237, 0.15);
   --devy-badge-taxi: rgba(245, 158, 11, 0.15);
 
+  /* C2C (Campus 2 Canton) — dual-side franchise UI */
+  --c2c-campus: #7c3aed;
+  --c2c-canton: #2563eb;
+  --c2c-campus-glow: 0 0 12px rgba(124, 58, 237, 0.4);
+  --c2c-canton-glow: 0 0 12px rgba(37, 99, 235, 0.4);
+  --c2c-bench: #6b7280;
+  --c2c-taxi: #f59e0b;
+  --c2c-devy: #9333ea;
+  --c2c-panel: #0b0d13;
+  --c2c-creator-glow: 0 0 8px rgba(99, 102, 241, 0.6), 0 0 20px rgba(99, 102, 241, 0.3);
+
   color-scheme: light;
 }
 
@@ -185,6 +196,31 @@
   color: transparent;
   text-shadow: var(--idp-creator-glow);
   animation: idp-creator-pulse 3s ease-in-out infinite;
+}
+
+@keyframes c2c-creator-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.12);
+  }
+}
+
+.c2c-creator-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #6366f1, #7c3aed, #2563eb);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: var(--c2c-creator-glow);
+  animation: c2c-creator-pulse 3s ease-in-out infinite;
 }
 
 .mode-surface {

@@ -38,6 +38,8 @@ import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
+import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
+import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -186,10 +188,37 @@ export function LeagueShell({
   const [devyConfig, setDevyConfig] = useState<Record<string, unknown> | null | 'none'>(null)
   const [devyBucketStats, setDevyBucketStats] = useState({ active: 0, taxi: 0, devy: 0 })
   const [commissionerSettingsOpen, setCommissionerSettingsOpen] = useState(false)
+  const [c2cConfig, setC2cConfig] = useState<C2CConfigClient | null>(null)
+  const [c2cChecked, setC2cChecked] = useState(false)
 
   useEffect(() => {
     setPortalMounted(true)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/c2c?leagueId=${encodeURIComponent(league.id)}`, { credentials: 'include' })
+      .then((r) => {
+        if (cancelled) return
+        setC2cChecked(true)
+        if (!r.ok) {
+          setC2cConfig(null)
+          return
+        }
+        return r.json().then((d: { c2c?: C2CConfigClient }) => {
+          if (!cancelled) setC2cConfig(d.c2c ?? null)
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setC2cChecked(true)
+          setC2cConfig(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
 
   useEffect(() => {
     let cancelled = false
@@ -356,6 +385,8 @@ export function LeagueShell({
             onIdpViewModeChange={setIdpViewMode}
             devyLeagueActive={devyConfig !== null && devyConfig !== 'none'}
             devyBucketStats={devyBucketStats}
+            c2cLeagueActive={c2cConfig !== null}
+            c2cConfig={c2cConfig}
             isCommissioner={isCommissioner}
             onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
             idpCapEnabled={idpCapEnabled}
@@ -391,7 +422,9 @@ export function LeagueShell({
         />
       ) : null}
 
-      {portalMounted && isCommissioner && devyConfig !== null && devyConfig !== 'none'
+      {portalMounted &&
+      isCommissioner &&
+      ((devyConfig !== null && devyConfig !== 'none') || (c2cChecked && c2cConfig !== null))
         ? createPortal(
             <CommissionerSettingsModal
               leagueId={league.id}
@@ -543,6 +576,8 @@ function LeagueHeader({
   onIdpViewModeChange,
   devyLeagueActive = false,
   devyBucketStats = { active: 0, taxi: 0, devy: 0 },
+  c2cLeagueActive = false,
+  c2cConfig = null,
   isCommissioner = false,
   onOpenCommissionerSettings,
   idpCapEnabled = false,
@@ -561,6 +596,8 @@ function LeagueHeader({
   onIdpViewModeChange?: (m: 'offense' | 'defense' | 'full') => void
   devyLeagueActive?: boolean
   devyBucketStats?: { active: number; taxi: number; devy: number }
+  c2cLeagueActive?: boolean
+  c2cConfig?: C2CConfigClient | null
   isCommissioner?: boolean
   onOpenCommissionerSettings?: () => void
   idpCapEnabled?: boolean
@@ -592,6 +629,37 @@ function LeagueHeader({
             <h1 className="truncate text-[15px] font-bold text-white">{league.name}</h1>
             {idpLeagueActive ? (
               <span className="idp-creator-badge flex-shrink-0 whitespace-nowrap">✦ Created by TheCiege</span>
+            ) : null}
+            {c2cLeagueActive && c2cConfig ? (
+              <>
+                {c2cConfig.createdByTheCiege !== false ? (
+                  <span className="c2c-creator-badge flex-shrink-0 whitespace-nowrap" data-testid="c2c-creator-badge">
+                    ✦ Created by TheCiege
+                  </span>
+                ) : null}
+                <span
+                  className="flex h-6 flex-shrink-0 items-stretch overflow-hidden rounded-full border border-white/[0.12] text-[9px] font-bold uppercase tracking-wide"
+                  data-testid="c2c-sport-pair-pill"
+                  title={c2cSportPairShort(c2cConfig.sportPair).label}
+                >
+                  <span className="flex items-center bg-violet-600/45 px-2 text-violet-50">
+                    {c2cSportPairShort(c2cConfig.sportPair).left}
+                  </span>
+                  <span className="flex items-center px-1 text-white/50">↔</span>
+                  <span className="flex items-center bg-blue-600/45 px-2 text-blue-50">
+                    {c2cSportPairShort(c2cConfig.sportPair).right}
+                  </span>
+                </span>
+                <span
+                  className="flex-shrink-0 rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/90"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(124,58,237,0.35), rgba(37,99,235,0.35))',
+                  }}
+                  data-testid="c2c-dynasty-pill"
+                >
+                  Dynasty · C2C
+                </span>
+              </>
             ) : null}
             {devyLeagueActive ? (
               <>
@@ -642,6 +710,14 @@ function LeagueHeader({
           ) : null}
         </div>
         <div className="flex flex-shrink-0 flex-col items-end gap-1">
+          {c2cLeagueActive && c2cConfig ? (
+            <span
+              className="whitespace-nowrap rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-violet-100"
+              data-testid="c2c-score-mode-chip"
+            >
+              {c2cScoreModeChip(c2cConfig)}
+            </span>
+          ) : null}
           {idpCapEnabled && capSummary && capRosterId ? (
             <Link
               href={`/idp/cap/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`}
@@ -716,6 +792,47 @@ function LeagueHeader({
               {label}
             </Link>
           ))}
+        </div>
+      ) : null}
+
+      {c2cLeagueActive ? (
+        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+          {(
+            [
+              ['Roster', `/c2c/${leagueId}/roster`],
+              ['Campus', `/c2c/${leagueId}/campus`],
+              ['Canton', `/c2c/${leagueId}/canton`],
+              ['Matchup', `/c2c/${leagueId}/matchup`],
+              ['Picks', `/c2c/${leagueId}/picks`],
+              ['Chat', `/league/${leagueId}`],
+              ['History', `/league/${leagueId}?view=history`],
+              ['Commissioner', '__commish__'],
+            ] as const
+          ).map(([label, href]) =>
+            href === '__commish__' ? (
+              <button
+                key={`c2c-${label}`}
+                type="button"
+                onClick={() => {
+                  if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
+                  else onOpenSettings()
+                }}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+                data-testid={`c2c-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </button>
+            ) : (
+              <Link
+                key={`c2c-${label}`}
+                href={href}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+                data-testid={`c2c-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </Link>
+            ),
+          )}
         </div>
       ) : null}
 
