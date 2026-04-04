@@ -5,6 +5,7 @@ import type { AutosaveStatus } from '@/lib/hooks/useAutosave'
 
 export type SettingsNavTabId =
   | 'league'
+  | 'sport_config'
   | 'team'
   | 'roster'
   | 'scoring'
@@ -47,9 +48,17 @@ export type SettingsNavTabId =
   | 'devy_drafts'
   | 'devy_import'
   | 'devy_ai'
+  | 'c2c_format'
+  | 'c2c_rosters'
+  | 'c2c_scoring'
+  | 'c2c_taxi'
+  | 'c2c_devy'
+  | 'c2c_drafts'
+  | 'c2c_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'league', label: 'League' },
+  { id: 'sport_config', label: '⚙️ Scoring & Roster' },
   { id: 'team', label: 'Team' },
   { id: 'roster', label: 'Roster' },
   { id: 'scoring', label: 'Scoring' },
@@ -93,6 +102,16 @@ const DEVY_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'devy_ai', label: '🤖 AI Settings' },
 ]
 
+const C2C_NAV: { id: SettingsNavTabId; label: string }[] = [
+  { id: 'c2c_format', label: '🏆 League Format' },
+  { id: 'c2c_rosters', label: '📋 Rosters' },
+  { id: 'c2c_scoring', label: '📊 Scoring' },
+  { id: 'c2c_taxi', label: '🚕 Taxi Rules' },
+  { id: 'c2c_devy', label: '🎓 Devy Rules' },
+  { id: 'c2c_drafts', label: '🎲 Drafts' },
+  { id: 'c2c_ai', label: '🤖 AI Settings' },
+]
+
 const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'survivor_setup', label: '🏝 Survivor Setup' },
   { id: 'survivor_tribes', label: '🔥 Tribes' },
@@ -129,6 +148,10 @@ export function isDevySettingsTab(id: SettingsNavTabId): boolean {
   return id.startsWith('devy_')
 }
 
+export function isC2cSettingsTab(id: SettingsNavTabId): boolean {
+  return id.startsWith('c2c_')
+}
+
 export function SettingsNav({
   activeTab,
   onSelect,
@@ -137,6 +160,7 @@ export function SettingsNav({
   showZombieTabs,
   showIdpTabs,
   showDevyTabs,
+  showC2cTabs,
   className,
 }: {
   activeTab: SettingsNavTabId
@@ -146,6 +170,7 @@ export function SettingsNav({
   showZombieTabs?: boolean
   showIdpTabs?: boolean
   showDevyTabs?: boolean
+  showC2cTabs?: boolean
   className?: string
 }) {
   const hint = statusLabel(saveStatus)
@@ -155,6 +180,7 @@ export function SettingsNav({
     ...(showZombieTabs ? ZOMBIE_NAV : []),
     ...(showIdpTabs ? IDP_NAV : []),
     ...(showDevyTabs ? DEVY_NAV : []),
+    ...(showC2cTabs ? C2C_NAV : []),
   ]
 
   return (

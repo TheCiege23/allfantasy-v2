@@ -76,32 +76,76 @@ export function getRosterSlots(sport: string, activeToggles: string[] = []): Ros
   })
 }
 
+/** Maps category toggles (IDP, SUPERFLEX) to commissioner SettingDef requiresToggle keys (enableIDP, …). */
+export function expandSportConfigToggles(activeToggles: string[]): string[] {
+  const s = new Set(activeToggles)
+  if (s.has('IDP')) {
+    s.add('enableIDP')
+  }
+  if (s.has('SUPERFLEX')) {
+    s.add('enableSuperflex')
+  }
+  if (s.has('TE_PREMIUM')) {
+    s.add('enableTEPremium')
+  }
+  return [...s]
+}
+
 export function getCommissionerSettings(sport: string, activeToggles: string[] = []): SettingDef[] {
   const config = getSportConfig(sport)
+  const expanded = expandSportConfigToggles(activeToggles)
   return config.commissionerSettings.filter((setting) => {
     if (!setting.requiresToggle) return true
-    return activeToggles.includes(setting.requiresToggle)
+    return expanded.includes(setting.requiresToggle)
   })
 }
 
+export type ScheduleDefaults = {
+  seasonWeeks: number
+  playoffStartWeek: number
+  playoffTeams: number
+  matchupPeriodDays: number
+  lineupLockType: string
+}
+
+/** Defaults for schedule + lineup lock — use at league / redraft season creation. */
+export function getScheduleDefaults(sport: string): ScheduleDefaults {
+  const c = getSportConfig(sport)
+  return {
+    seasonWeeks: c.defaultSeasonWeeks,
+    playoffStartWeek: c.defaultPlayoffStartWeek,
+    playoffTeams: c.defaultPlayoffTeams,
+    matchupPeriodDays: c.defaultMatchupPeriodDays,
+    lineupLockType: c.lineupLockType,
+  }
+}
+
 /**
- * Basic validation: each filled slot's player position must be allowed by that slot's eligibility list.
+ * Validates lineup slots vs sport roster config.
+ * If `playerPositions` is set, `lineup` maps slotKey → playerId and positions are resolved from `playerPositions`.
+ * Otherwise `lineup` maps slotKey → position (legacy).
  */
 export function validateLineup(
   sport: string,
   lineup: Record<string, string>,
+  playerPositions: Record<string, string> | undefined,
   activeToggles: string[] = [],
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = []
   const slots = getRosterSlots(sport, activeToggles)
   const slotKeys = new Set(slots.map((s) => s.key))
-  for (const [slotKey, pos] of Object.entries(lineup)) {
-    if (!pos?.trim()) continue
+  for (const [slotKey, raw] of Object.entries(lineup)) {
+    if (!raw?.trim()) continue
     if (!slotKeys.has(slotKey)) {
       errors.push(`Unknown lineup slot "${slotKey}"`)
       continue
     }
     const slot = slots.find((s) => s.key === slotKey)!
+    const pos = playerPositions ? playerPositions[raw] : raw
+    if (!pos?.trim()) {
+      errors.push(`Missing position for player in slot "${slot.label}" (${slotKey})`)
+      continue
+    }
     const ok = slot.eligiblePositions.some((e) => e === pos || e === '*')
     if (!ok) errors.push(`Position "${pos}" is not eligible for slot "${slot.label}" (${slotKey})`)
   }

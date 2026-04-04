@@ -122,6 +122,11 @@ export async function GET(req: NextRequest) {
   const tz = league.timezone ?? ls?.timezone ?? 'America/New_York'
   const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
   const comm = commissionerLeagueFieldsFromRow(league)
+  const rawLeagueSettings = league.settings as Record<string, unknown> | null | undefined
+  const sportConfig =
+    rawLeagueSettings?.sportConfig && typeof rawLeagueSettings.sportConfig === 'object'
+      ? rawLeagueSettings.sportConfig
+      : {}
 
   return NextResponse.json({
     userRole,
@@ -137,6 +142,7 @@ export async function GET(req: NextRequest) {
       isDynasty: league.isDynasty,
       rosterSize: league.rosterSize,
       totalRosterSlots,
+      sportConfig,
       teams: league.teams.map((t) => ({
         id: t.id,
         externalId: t.externalId,
@@ -272,6 +278,24 @@ export async function PATCH(req: NextRequest) {
       data: leaguePatch,
     })
     updatedFieldNames.push(...leagueKeys)
+  }
+
+  if (body.sportConfig !== undefined) {
+    if (body.sportConfig !== null && typeof body.sportConfig !== 'object') {
+      return jsonError('sportConfig must be an object or null', 400)
+    }
+    const prev = (league.settings as Record<string, unknown> | null) ?? {}
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: {
+        settings: {
+          ...prev,
+          sportConfig:
+            body.sportConfig === null ? Prisma.JsonNull : (body.sportConfig as Prisma.InputJsonValue),
+        } as Prisma.InputJsonValue,
+      },
+    })
+    updatedFieldNames.push('sportConfig')
   }
 
   const lsUpdate: Prisma.LeagueSettingsUpdateInput = { updatedBy: userId }

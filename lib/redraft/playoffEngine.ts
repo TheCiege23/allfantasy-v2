@@ -1,5 +1,25 @@
 import type { RedraftRoster } from '@prisma/client'
+import { tryGetSportConfig } from '@/lib/sportConfig'
 import type { PlayoffStructure } from './types'
+
+/** Bracket shape defaults from centralized sport config (commissioner can override). */
+export function getPlayoffDefaults(sport: string): {
+  teamCount: number
+  startWeek: number
+  rounds: number
+  byeCount: number
+} {
+  const c = tryGetSportConfig(sport)
+  if (!c) {
+    return { teamCount: 4, startWeek: 15, rounds: 2, byeCount: 0 }
+  }
+  const teamCount = c.defaultPlayoffTeams
+  const startWeek = c.defaultPlayoffStartWeek
+  const rounds = Math.max(1, Math.ceil(Math.log2(Math.max(2, teamCount))))
+  const nextPow2 = 2 ** rounds
+  const byeCount = Math.max(0, nextPow2 - teamCount)
+  return { teamCount, startWeek, rounds, byeCount }
+}
 
 export function generatePlayoffBracket(
   rosters: RedraftRoster[],

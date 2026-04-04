@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { generateSchedule } from '@/lib/redraft/scheduleEngine'
 import { leagueSportToConfigSport } from '@/lib/redraft/sportKey'
+import { tryGetSportConfig } from '@/lib/sportConfig'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,9 +70,10 @@ export async function POST(req: NextRequest) {
   const sportKey = body.sport
     ? leagueSportToConfigSport(body.sport)
     : leagueSportToConfigSport(String(league.sport))
+  const cfg = tryGetSportConfig(sportKey)
   const seasonYear = body.season ?? league.season
-  const totalWeeks = body.totalWeeks ?? 17
-  const playoffStartWeek = body.playoffStartWeek ?? 15
+  const totalWeeks = body.totalWeeks ?? cfg?.defaultSeasonWeeks ?? 17
+  const playoffStartWeek = body.playoffStartWeek ?? cfg?.defaultPlayoffStartWeek ?? 15
   const medianGame = body.medianGame ?? league.medianGame ?? false
 
   const redraft = await prisma.$transaction(async (tx) => {

@@ -13,6 +13,7 @@ import {
   isZombieSettingsTab,
   isIdpSettingsTab,
   isDevySettingsTab,
+  isC2cSettingsTab,
 } from './settings/SettingsNav'
 import { IDPRosterPanel } from '@/app/idp/components/settings/IDPRosterPanel'
 import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
@@ -47,6 +48,15 @@ import { DevyTaxiPanel } from '@/app/devy/components/settings/DevyTaxiPanel'
 import { DevyDraftsPanel } from '@/app/devy/components/settings/DevyDraftsPanel'
 import { DevyImportPanel } from '@/app/devy/components/settings/DevyImportPanel'
 import { DevyAIPanel } from '@/app/devy/components/settings/DevyAIPanel'
+import { C2CFormatPanel } from '@/app/c2c/components/settings/C2CFormatPanel'
+import { C2CRostersPanel } from '@/app/c2c/components/settings/C2CRostersPanel'
+import { C2CScoringPanel } from '@/app/c2c/components/settings/C2CScoringPanel'
+import { C2CTaxiPanel } from '@/app/c2c/components/settings/C2CTaxiPanel'
+import { C2CDevyPanel } from '@/app/c2c/components/settings/C2CDevyPanel'
+import { C2CDraftsPanel } from '@/app/c2c/components/settings/C2CDraftsPanel'
+import { C2CAIPanel } from '@/app/c2c/components/settings/C2CAIPanel'
+import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
+import { SportConfigSettingsPanel } from './settings/SportConfigSettingsPanel'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -74,6 +84,8 @@ export function CommissionerSettingsModal({
   const [idpLeague, setIdpLeague] = useState(false)
   const [devyMode, setDevyMode] = useState(false)
   const [devyConfig, setDevyConfig] = useState<Record<string, unknown> | null>(null)
+  const [c2cMode, setC2cMode] = useState(false)
+  const [c2cConfig, setC2cConfig] = useState<C2CConfigClient | null>(null)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
 
@@ -109,6 +121,25 @@ export function CommissionerSettingsModal({
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { config?: unknown } | null) => setIdpLeague(Boolean(d?.config)))
       .catch(() => setIdpLeague(false))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
+    if (!isOpen) return
+    fetch(`/api/c2c?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { c2c?: C2CConfigClient } | null) => {
+        if (d?.c2c) {
+          setC2cMode(true)
+          setC2cConfig(d.c2c)
+        } else {
+          setC2cMode(false)
+          setC2cConfig(null)
+        }
+      })
+      .catch(() => {
+        setC2cMode(false)
+        setC2cConfig(null)
+      })
   }, [isOpen, leagueId])
 
   useEffect(() => {
@@ -171,6 +202,12 @@ export function CommissionerSettingsModal({
     }
   }, [devyMode, activeTab])
 
+  useEffect(() => {
+    if (!c2cMode && isC2cSettingsTab(activeTab)) {
+      setActiveTab('league')
+    }
+  }, [c2cMode, activeTab])
+
   if (!isOpen) return null
 
   const canEdit = payload?.canEdit ?? false
@@ -208,6 +245,7 @@ export function CommissionerSettingsModal({
           showZombieTabs={zombieMode}
           showIdpTabs={idpLeague}
           showDevyTabs={devyMode}
+          showC2cTabs={c2cMode}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -250,6 +288,13 @@ export function CommissionerSettingsModal({
               canEdit={canEdit}
               save={save}
               debouncedSave={debouncedSave}
+            />
+          ) : activeTab === 'sport_config' ? (
+            <SportConfigSettingsPanel
+              sport={String((initialData as Record<string, unknown>).sport ?? 'NFL')}
+              leagueSettings={initialData as Record<string, unknown>}
+              canEdit={canEdit}
+              onSportConfigChange={(next) => debouncedSave({ sportConfig: next })}
             />
           ) : activeTab === 'team' ? (
             <PlaceholderPanel title="Team Settings" />
@@ -339,6 +384,20 @@ export function CommissionerSettingsModal({
             <DevyImportPanel leagueId={leagueId} />
           ) : activeTab === 'devy_ai' ? (
             <DevyAIPanel leagueId={leagueId} hasAfSub={hasSub} isCommissioner={canEdit} />
+          ) : activeTab === 'c2c_format' ? (
+            <C2CFormatPanel config={c2cConfig} canEdit={canEdit} />
+          ) : activeTab === 'c2c_rosters' ? (
+            <C2CRostersPanel config={c2cConfig} canEdit={canEdit} />
+          ) : activeTab === 'c2c_scoring' ? (
+            <C2CScoringPanel config={c2cConfig} />
+          ) : activeTab === 'c2c_taxi' ? (
+            <C2CTaxiPanel />
+          ) : activeTab === 'c2c_devy' ? (
+            <C2CDevyPanel config={c2cConfig} />
+          ) : activeTab === 'c2c_drafts' ? (
+            <C2CDraftsPanel config={c2cConfig} />
+          ) : activeTab === 'c2c_ai' ? (
+            <C2CAIPanel hasAfSub={hasSub} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

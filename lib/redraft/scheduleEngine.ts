@@ -1,3 +1,5 @@
+export { getScheduleDefaults } from '@/lib/sportConfig'
+
 /**
  * Regular-season schedule: round-robin with rotation; supports bye weeks for odd team counts.
  * When medianGame is true, emits additional synthetic rows with type "median" (caller may persist separately).

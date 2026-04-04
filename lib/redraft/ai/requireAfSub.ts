@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export {
+  buildLeagueAIContext,
+  formatLeagueAIContextForPrompt,
+  formatLeagueAIContextPromptByLeagueId,
+} from '@/lib/sportConfig/aiContextService'
+
 export async function requireAfSub(): Promise<string | NextResponse> {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {

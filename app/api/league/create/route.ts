@@ -563,6 +563,24 @@ export async function POST(req: Request) {
     // Canonical cross-module keys used by multi-sport services and downstream UIs.
     initialSettings.sport_type = sport;
     initialSettings.league_variant = resolvedVariant ?? null;
+    try {
+      const { tryGetSportConfig } = await import('@/lib/sportConfig');
+      const scfg = tryGetSportConfig(sport as string);
+      if (scfg) {
+        initialSettings.sportConfig = {
+          ...(typeof initialSettings.sportConfig === 'object' && initialSettings.sportConfig !== null
+            ? (initialSettings.sportConfig as object)
+            : {}),
+          scoringPreset: scfg.sport === 'NFL' ? 'PPR' : 'CUSTOM',
+          seasonWeeks: scfg.defaultSeasonWeeks,
+          playoffStartWeek: scfg.defaultPlayoffStartWeek,
+          playoffTeams: scfg.defaultPlayoffTeams,
+          seededFromSportConfigAt: new Date().toISOString(),
+        };
+      }
+    } catch {
+      /* non-fatal */
+    }
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,

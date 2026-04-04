@@ -1,6 +1,8 @@
 import type { ParsedStats, SportAdapter } from './types'
 import { NFL_CONFIG } from '@/lib/sportConfig/configs/nfl'
 
+/** After `parseRawStats`, use `calculateScoreFromSportConfig` from `@/lib/redraft/scoringEngine` for league-aware points. */
+
 /** Canonical scoring stat keys from centralized `SportConfig` (subset may be used per league). */
 export const NFL_SCORING_CATEGORY_KEYS = NFL_CONFIG.scoringCategories.map((c) => c.key)
 
