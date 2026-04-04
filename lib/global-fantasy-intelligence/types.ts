@@ -203,4 +203,6 @@ export interface GlobalFantasyInsights {
   generatedAt: string
   /** Ready-to-paste line for LLM prompts when weather materially moves projections. */
   weatherContextForAI?: string
+  /** Reference player values / rankings docs for Chimmy and downstream AI (sport-filtered when possible). */
+  playerValuesContextForAI?: string
 }

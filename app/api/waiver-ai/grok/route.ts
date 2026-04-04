@@ -5,6 +5,8 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 import { executeSerperWebSearch, executeSerperNewsSearch } from '@/lib/serper';
+import { getPlayerValuesContext } from '@/lib/player-values/playerValuesLoader';
+import { normalizeToSupportedSport } from '@/lib/sport-scope';
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
@@ -327,12 +329,18 @@ export async function POST(req: NextRequest) {
       ? `\n\nREAL-TIME DATA ENABLED: Use your web_search and x_keyword_search tools to find the latest injuries, transactions, signings, coaching changes, rookie draft capital/landing spots, and breaking news. Flag any time-sensitive pickups and note if info has uncertainty.`
       : '';
 
-    const sportLabel = resolvedSport === 'NFL' ? 'football' : resolvedSport === 'NBA' ? 'basketball' : resolvedSport === 'MLB' ? 'baseball' : resolvedSport === 'NHL' ? 'hockey' : resolvedSport === 'NCAAF' ? 'college football' : resolvedSport === 'NCAAB' ? 'college basketball' : 'sports';
+    const resolvedSportKey = normalizeToSupportedSport(String(resolvedSport || 'NFL'));
+    const sportLabel = resolvedSportKey === 'NFL' ? 'football' : resolvedSportKey === 'NBA' ? 'basketball' : resolvedSportKey === 'MLB' ? 'baseball' : resolvedSportKey === 'NHL' ? 'hockey' : resolvedSportKey === 'NCAAF' ? 'college football' : resolvedSportKey === 'NCAAB' ? 'college basketball' : resolvedSportKey === 'SOCCER' ? 'soccer' : 'sports';
+    const playerValuesCtx = getPlayerValuesContext({
+      sport: resolvedSportKey,
+      format: resolvedIsDynasty ? 'dynasty' : 'redraft',
+    })
     const systemPrompt = `You are the #1 Waiver Wire AI for 2026 fantasy ${sportLabel}.
+${playerValuesCtx ? `${playerValuesCtx}\n\nUse these player values when making recommendations, comparisons, and rankings. Prefer these values over your general training knowledge when they conflict.\n\n` : ''}
 Analyze the user's roster, contention window, FAAB budget, and league context to surface the highest-impact waiver targets.
 
 LEAGUE CONTEXT (CRITICAL):
-- Sport: ${resolvedSport}
+- Sport: ${resolvedSportKey}
 - Format: ${resolvedLeagueSize}-team ${resolvedIsDynasty ? 'Dynasty' : 'Redraft'} ${resolvedScoring.toUpperCase()}
 - Contention window: ${userContention}
 - FAAB remaining: ${resolvedFAAB}%${leagueSettings}
@@ -367,8 +375,8 @@ Return 6-8 waiver targets ranked by priority. Output detailed text - synthesis s
       messages: [
         {
           role: 'system',
-          content: `You are a fantasy football waiver wire synthesizer. Given Grok's research and deterministic facts, produce final structured JSON. Output ONLY valid JSON.
-
+          content: `You are a fantasy ${sportLabel} waiver wire synthesizer. Given Grok's research and deterministic facts, produce final structured JSON. Output ONLY valid JSON.
+${playerValuesCtx ? `${playerValuesCtx}\n\nUse these player values when ranking and explaining pickups. Prefer them over general training knowledge when they conflict.\n\n` : ''}
 Required format:
 {
   "suggestions": [

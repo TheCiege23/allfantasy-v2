@@ -37,6 +37,8 @@ export interface PeerReviewRequest {
   dataGapsPrompt?: string;
   mode?: TradeAiMode;
   timeoutMs?: number;
+  /** Appended to peer-review system prompt (e.g. player value reference docs). */
+  referenceContext?: string;
 }
 
 function envStr(name: string, fallback: string): string {
@@ -152,7 +154,7 @@ export async function runPeerReviewAnalysis(
 
   if (mode === "off") return null;
 
-  const systemPrompt = `${PEER_REVIEW_PROMPT_CONTRACT}${req.dataGapsPrompt ? `\n\n${req.dataGapsPrompt}` : ""}`;
+  const systemPrompt = `${PEER_REVIEW_PROMPT_CONTRACT}${req.dataGapsPrompt ? `\n\n${req.dataGapsPrompt}` : ""}${req.referenceContext ? `\n\n${req.referenceContext}\n\nUse these player values when evaluating trade value and rankings. Prefer them over general training knowledge when they conflict.` : ""}`;
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: req.factLayerPrompt },

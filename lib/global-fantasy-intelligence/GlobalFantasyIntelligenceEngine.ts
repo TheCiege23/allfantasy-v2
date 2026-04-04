@@ -19,6 +19,7 @@ import type {
   WaiverStrategyTrend,
 } from '@/lib/strategy-meta-engine'
 import { buildWeatherContextForAI } from '@/lib/weather/weatherContextForAI'
+import { getPlayerValuesContext } from '@/lib/player-values/playerValuesLoader'
 import type {
   DynastyInsights,
   GlobalFantasyActionItem,
@@ -735,6 +736,7 @@ export function buildUnifiedGlobalFantasyInsights(args: {
   weekOrPeriod: number | null
   generatedAt?: string
   weatherContextForAI?: string | null
+  playerValuesContextForAI?: string | null
 }): GlobalFantasyInsights {
   const hasLeagueContext = Boolean(args.leagueId)
   const systemScores = buildSystemScores(args.trend, args.meta, args.dynasty, args.simulation)
@@ -783,6 +785,7 @@ export function buildUnifiedGlobalFantasyInsights(args: {
     sourceStatus,
     generatedAt: args.generatedAt ?? new Date().toISOString(),
     weatherContextForAI: wx || undefined,
+    playerValuesContextForAI: args.playerValuesContextForAI?.trim() || undefined,
   }
 }
 
@@ -1085,6 +1088,9 @@ export async function getGlobalFantasyInsights(
     )
   }
 
+  const playerValuesContextForAI =
+    getPlayerValuesContext(sport ? { sport } : undefined) || null
+
   return buildUnifiedGlobalFantasyInsights({
     trend,
     meta,
@@ -1095,6 +1101,7 @@ export async function getGlobalFantasyInsights(
     season: leagueId ? season : null,
     weekOrPeriod: leagueId ? weekOrPeriod : null,
     weatherContextForAI,
+    playerValuesContextForAI,
   })
 }
 

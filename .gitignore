@@ -55,4 +55,11 @@ prisma/*.db-journal
 # local RI probe (do not commit)
 scripts/ri-import-all.ts
 
+# Player value reference docs (local updates; folder tracked via .gitkeep)
+app/player-values/*.md
+app/player-values/*.txt
+app/player-values/*.csv
+app/player-values/*.json
+!app/player-values/.gitkeep
+
 .vercel

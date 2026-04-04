@@ -4,6 +4,7 @@
  */
 
 import { openaiChatText } from '@/lib/openai-client'
+import { getPlayerValuesContext } from '@/lib/player-values/playerValuesLoader'
 import { getDeterministicRecommendation } from './deterministic-recommenders'
 import type {
   AICoachInput,
@@ -64,6 +65,8 @@ async function buildAIExplanation(
   input: AICoachInput,
   recommendation: CoachRecommendation
 ): Promise<CoachExplanation> {
+  const playerValuesCtx = getPlayerValuesContext()
+
   const prompt = {
     role: 'user' as const,
     content: [
@@ -91,7 +94,10 @@ async function buildAIExplanation(
         role: 'system',
         content:
           'You are a fantasy coach explainer. Never change deterministic recommendation. ' +
-          'Only explain why and what to do next. Return valid JSON only.',
+          'Only explain why and what to do next. Return valid JSON only.' +
+          (playerValuesCtx
+            ? `\n\n${playerValuesCtx}\n\nUse these player values when making recommendations, comparisons, and rankings. Prefer these values over your general training knowledge when they conflict.`
+            : ''),
       },
       prompt,
     ],
