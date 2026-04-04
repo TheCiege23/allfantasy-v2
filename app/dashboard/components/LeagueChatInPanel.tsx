@@ -414,13 +414,14 @@ export function LeagueChatInPanel({
           <div>
             {messages.map((message, index) => {
               const meta = message.metadata
-              const isBbChimmy = meta?.chimmy === true && meta?.bigBrother === true
+              const isChimmyBubble =
+                meta?.chimmy === true && (meta?.bigBrother === true || meta?.idp === true)
               const isVoteProgress = meta?.bbVoteProgress === true
               const urgency = meta?.urgency === true
               const displayName =
-                isBbChimmy ? 'Chimmy' : message.author_display_name
+                isChimmyBubble ? 'Chimmy' : message.author_display_name
               const isSystemLine =
-                !isBbChimmy &&
+                !isChimmyBubble &&
                 !isVoteProgress &&
                 (message.author_display_name === 'AllFantasy' ||
                   message.messageType === 'system' ||
@@ -466,7 +467,7 @@ export function LeagueChatInPanel({
                 )
               }
 
-              if (isBbChimmy) {
+              if (isChimmyBubble) {
                 return (
                   <div key={message.id} className="mt-2 flex items-start gap-2 py-1.5">
                     <div className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-[11px] font-bold text-cyan-200">
@@ -575,6 +576,12 @@ export function LeagueChatInPanel({
           initialDraftText={queryPrefill ?? zombieChimmyPrefill ?? null}
           bigBrotherAutocompleteLeagueId={
             selectedLeague.leagueVariant === 'big_brother' ? selectedLeague.id : null
+          }
+          idpAutocompleteLeagueId={
+            selectedLeague.leagueVariant &&
+            ['idp', 'IDP', 'DYNASTY_IDP', 'dynasty_idp'].includes(selectedLeague.leagueVariant)
+              ? selectedLeague.id
+              : null
           }
         />
         {sending ? <p className="mt-1 text-[11px] text-white/35">Sending…</p> : null}

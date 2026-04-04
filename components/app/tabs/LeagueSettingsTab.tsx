@@ -31,6 +31,7 @@ import { DevySettingsPanel } from '@/components/devy/DevySettingsPanel'
 import { MergedDevyC2CCommissionerSettings } from '@/components/merged-devy-c2c/MergedDevyC2CCommissionerSettings'
 import { BigBrotherSettingsPanel } from '@/components/big-brother/BigBrotherSettingsPanel'
 import { IDPSettingsPanel } from '@/components/idp/IDPSettingsPanel'
+import { IDPAIPanel } from '@/components/idp/settings/IDPAIPanel'
 import DynastySettingsPanel from '@/components/app/settings/DynastySettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
 
@@ -171,7 +172,10 @@ export default function LeagueSettingsTab({
         <BigBrotherSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
       )}
       {active === 'IDP Settings' && isIdp && (
-        <IDPSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+        <div className="space-y-2">
+          <IDPSettingsPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+          <IDPAIPanel leagueId={leagueId} isCommissioner={!!isCommissioner} />
+        </div>
       )}
     </section>
   )

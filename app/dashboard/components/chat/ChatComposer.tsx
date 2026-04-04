@@ -35,6 +35,8 @@ type ChatComposerProps = {
   initialDraftText?: string | null
   /** When set, fetches Big Brother @Chimmy autocomplete for this league. */
   bigBrotherAutocompleteLeagueId?: string | null
+  /** When set, fetches IDP @Chimmy autocomplete for this league (mutually exclusive with BB in practice). */
+  idpAutocompleteLeagueId?: string | null
 }
 
 type Picker = 'gif' | 'emoji' | 'poll' | null
@@ -46,6 +48,7 @@ export function ChatComposer({
   onAskChimmy,
   initialDraftText = null,
   bigBrotherAutocompleteLeagueId = null,
+  idpAutocompleteLeagueId = null,
 }: ChatComposerProps) {
   const [text, setText] = useState('')
   const appliedPrefillKey = useRef<string | null>(null)
@@ -77,15 +80,16 @@ export function ChatComposer({
   }, [leagueId])
 
   useEffect(() => {
-    if (!bigBrotherAutocompleteLeagueId || !text.toLowerCase().includes('@chimmy')) {
+    const leagueForSuggest = bigBrotherAutocompleteLeagueId ?? idpAutocompleteLeagueId
+    if (!leagueForSuggest || !text.toLowerCase().includes('@chimmy')) {
       setBbSuggest(null)
       return
     }
+    const path = bigBrotherAutocompleteLeagueId
+      ? `/api/leagues/${encodeURIComponent(bigBrotherAutocompleteLeagueId)}/big-brother/chimmy-autocomplete?draft=${encodeURIComponent(text)}`
+      : `/api/leagues/${encodeURIComponent(idpAutocompleteLeagueId!)}/idp/chimmy-autocomplete?draft=${encodeURIComponent(text)}`
     const handle = window.setTimeout(() => {
-      void fetch(
-        `/api/leagues/${encodeURIComponent(bigBrotherAutocompleteLeagueId)}/big-brother/chimmy-autocomplete?draft=${encodeURIComponent(text)}`,
-        { cache: 'no-store' },
-      )
+      void fetch(path, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((d: { type?: string; options?: string[] } | null) => {
           if (!d?.options?.length) {
@@ -97,7 +101,7 @@ export function ChatComposer({
         .catch(() => setBbSuggest(null))
     }, 180)
     return () => window.clearTimeout(handle)
-  }, [text, bigBrotherAutocompleteLeagueId])
+  }, [text, bigBrotherAutocompleteLeagueId, idpAutocompleteLeagueId])
 
   useEffect(() => {
     if (!initialDraftText?.trim()) return
@@ -291,7 +295,7 @@ export function ChatComposer({
           {bbSuggest?.options.length ? (
             <div
               className="max-h-36 overflow-y-auto border-b border-white/[0.06] px-2 py-1.5"
-              data-testid="bb-chimmy-autocomplete"
+              data-testid={bigBrotherAutocompleteLeagueId ? 'bb-chimmy-autocomplete' : 'idp-chimmy-autocomplete'}
             >
               {bbSuggest.options.map((opt) => (
                 <button

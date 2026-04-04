@@ -10,6 +10,31 @@ import { LeagueDramaWidget } from '@/components/app/league/LeagueDramaWidget'
 import { ShareLeagueLinkCard } from '@/components/social/ShareLeagueLinkCard'
 import { LeagueStoryModal } from '@/components/league-story/LeagueStoryModal'
 import { IdpScoringStyleCard } from '@/components/idp/IdpScoringStyleCard'
+import { IDPWaiverSection } from '@/components/idp/IDPWaiverSection'
+import { IDPMatchupView } from '@/components/idp/IDPMatchupView'
+import { IDPPlayerModal } from '@/components/idp/IDPPlayerModal'
+import { Button } from '@/components/ui/button'
+
+function pickFirstIdpPlayer(
+  roster: unknown[]
+): { playerId: string; name: string; position: string } | null {
+  for (const row of roster) {
+    if (!row || typeof row !== 'object') continue
+    const o = row as Record<string, unknown>
+    const pos = String(o.position ?? o.pos ?? '').toUpperCase()
+    if (['DE', 'DT', 'DL', 'LB', 'CB', 'S', 'SS', 'FS', 'DB'].includes(pos)) {
+      const id = String(o.player_id ?? o.playerId ?? o.id ?? '')
+      if (id) {
+        return {
+          playerId: id,
+          name: String(o.name ?? o.full_name ?? 'Player'),
+          position: pos,
+        }
+      }
+    }
+  }
+  return null
+}
 
 /**
  * IDP League overview. Offense + IDP combined; scoring style card, education, Chimmy.
@@ -24,7 +49,9 @@ export default function IDPHome({ leagueId, onOpenChimmy }: { leagueId: string; 
   const sport = (data as { sport?: string })?.sport
   const season = (data as { season?: number })?.season
   const week = (data as { week?: number })?.week
+  const weekNum = typeof week === 'number' ? week : 1
   const leagueName = (data as { leagueName?: string })?.leagueName ?? 'League'
+  const sampleIdp = pickFirstIdpPlayer(roster)
 
   useEffect(() => {
     let active = true
@@ -50,6 +77,33 @@ export default function IDPHome({ leagueId, onOpenChimmy }: { leagueId: string; 
           loading={idpConfigLoading}
           onAskChimmy={onOpenChimmy}
         />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <IDPWaiverSection leagueId={leagueId} week={weekNum} />
+          <IDPMatchupView leagueId={leagueId} week={weekNum} />
+        </div>
+        {sampleIdp ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-cyan-500/30 text-cyan-100"
+              onClick={() => setPlayerModalOpen(true)}
+              data-testid="idp-open-player-ai-modal"
+            >
+              AI Analysis — {sampleIdp.name}
+            </Button>
+            <IDPPlayerModal
+              leagueId={leagueId}
+              week={weekNum}
+              playerId={sampleIdp.playerId}
+              playerName={sampleIdp.name}
+              position={sampleIdp.position}
+              open={playerModalOpen}
+              onOpenChange={setPlayerModalOpen}
+            />
+          </div>
+        ) : null}
         <ShareLeagueLinkCard leagueId={leagueId} />
         <button
           type="button"

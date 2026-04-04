@@ -1,3 +1,7 @@
 export { default as IDPHome } from './IDPHome'
 export { IDPSettingsPanel } from './IDPSettingsPanel'
 export type { IdpConfigState } from './IDPSettingsPanel'
+export { IDPPlayerModal } from './IDPPlayerModal'
+export { IDPWaiverSection } from './IDPWaiverSection'
+export { IDPMatchupView } from './IDPMatchupView'
+export { IDPAIPanel } from './settings/IDPAIPanel'

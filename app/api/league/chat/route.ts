@@ -9,6 +9,7 @@ import {
 import { syncOutboundLeagueChat } from '@/lib/discord/sync-outbound'
 import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
 import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyCommandHandler'
+import { processIdpLeagueChatInput } from '@/lib/idp/idpChimmyLeagueChat'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
@@ -168,6 +169,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let idpProcessed: Awaited<ReturnType<typeof processIdpLeagueChatInput>> | null = null
+  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId))) {
+    idpProcessed = await processIdpLeagueChatInput(leagueId, userId, message)
+    if (idpProcessed?.outcome === 'suppress_public') {
+      return NextResponse.json({
+        suppressed: true,
+        privateChimmyNotice: idpProcessed.privateNotice,
+      })
+    }
+  }
+
   const bodyText =
     message ||
     (metadata?.gifUrl || metadata?.giphyId || metadata?.gifId ? '🎬 GIF' : '') ||
@@ -182,21 +194,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
   }
 
+  const chimmyBatch =
+    bbProcessed?.outcome === 'post_user_and_chimmy' && bbProcessed.chimmyMessages.length > 0
+      ? bbProcessed.chimmyMessages
+      : idpProcessed?.outcome === 'post_user_and_chimmy' && idpProcessed.chimmyMessages.length > 0
+        ? idpProcessed.chimmyMessages
+        : []
+
   const extraMessages: ReturnType<typeof toClientMessage>[] = []
-  if (bbProcessed?.outcome === 'post_user_and_chimmy' && bbProcessed.chimmyMessages.length > 0) {
+  if (chimmyBatch.length > 0) {
     const leagueRow = await prisma.league.findUnique({
       where: { id: leagueId },
       select: { userId: true },
     })
     const announcerId = leagueRow?.userId
     if (announcerId) {
-      for (const chimmy of bbProcessed.chimmyMessages) {
+      for (const chimmy of chimmyBatch) {
         const row = await createLeagueChatMessage(leagueId, announcerId, chimmy.text, {
           type: 'system',
           metadata: {
             isSystem: true,
             chimmy: true,
-            bigBrother: true,
+            ...(bbProcessed?.outcome === 'post_user_and_chimmy' ? { bigBrother: true } : {}),
+            ...(idpProcessed?.outcome === 'post_user_and_chimmy' ? { idp: true } : {}),
             ...(chimmy.metadata ?? {}),
           },
         })
