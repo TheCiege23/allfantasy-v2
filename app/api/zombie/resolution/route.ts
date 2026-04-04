@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   if (!z) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const res = await runWeeklyResolution(z.id, week, { force: true })
-  return NextResponse.json({ resolution: res })
+  return NextResponse.json(res)
 }
 
 export async function GET(req: Request) {

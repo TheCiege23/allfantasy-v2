@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { syncWeeklyScores } from '@/lib/survivor/gameStateMachine'
+import { checkAllMatchupsComplete } from '@/lib/zombie/matchupCompletion'
+import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -33,10 +35,26 @@ export async function POST() {
     else survivorBridge.failed++
   }
 
+  const zombieLeagues = await prisma.zombieLeague.findMany({
+    where: { status: 'active' },
+    select: { id: true, leagueId: true, currentWeek: true, season: true },
+  })
+
+  const zombieRes = await Promise.allSettled(
+    zombieLeagues.map(async ({ id, leagueId, currentWeek, season }) => {
+      const week = Math.max(1, currentWeek || 1)
+      const allComplete = await checkAllMatchupsComplete(leagueId, week, season)
+      if (!allComplete) return
+      await runWeeklyResolution(id, week)
+    }),
+  )
+
   return NextResponse.json({
     updated: 0,
     matchupsRecalculated: 0,
     message: 'score-sync stub — connect stats provider',
     survivorBridge,
+    zombieResolutionAttempts: zombieRes.length,
+    zombieResolutionFailed: zombieRes.filter((r) => r.status === 'rejected').length,
   })
 }

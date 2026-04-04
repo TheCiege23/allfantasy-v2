@@ -4,6 +4,7 @@ import { seedBestBallTemplates } from './seed/bestBallTemplates';
 import { seedSurvivorPowerTemplates } from './seed/survivorPowers';
 import { seedSurvivorSeasonArc } from './seed/survivorSeasonArc';
 import { seedSurvivorChallengeTemplates } from './seed/survivorChallenges';
+import { seedZombieRulesTemplates } from './seed/zombieRulesTemplates';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,7 @@ async function main() {
   await seedSurvivorPowerTemplates(prisma);
   await seedSurvivorSeasonArc(prisma);
   await seedSurvivorChallengeTemplates(prisma);
+  await seedZombieRulesTemplates(prisma);
   await prisma.teamPerformance.deleteMany({ where: { team: { league: { name: { contains: 'Test' } } } } });
   await prisma.leagueTeam.deleteMany({ where: { league: { name: { contains: 'Test' } } } });
   await prisma.roster.deleteMany({ where: { league: { name: { contains: 'Test' } } } });

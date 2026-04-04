@@ -1,9 +1,31 @@
 import { prisma } from '@/lib/prisma'
 import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
-import { syncUniverseStats } from '@/lib/zombie/universeStatEngine'
 import { processExpiredBashingDecisionsForAll } from '@/lib/zombie/bashingEngine'
 import { scheduleWeeklyUpdate } from '@/lib/zombie/weeklyUpdateEngine'
 import { deliverPendingAnimations } from '@/lib/zombie/animationEngine'
+
+/**
+ * Mark due scheduled announcements as posted (chat wiring can subscribe later).
+ */
+export async function processZombieAnnouncementQueue(): Promise<number> {
+  const now = new Date()
+  const due = await prisma.zombieAnnouncement.findMany({
+    where: {
+      isPosted: false,
+      scheduledFor: { lte: now },
+    },
+    take: 100,
+  })
+  let n = 0
+  for (const a of due) {
+    await prisma.zombieAnnouncement.update({
+      where: { id: a.id },
+      data: { isPosted: true, postedAt: new Date() },
+    })
+    n += 1
+  }
+  return n
+}
 
 /**
  * Called from score-sync cron or `/api/zombie/automation` to advance weekly horde state.
@@ -12,13 +34,23 @@ export async function runZombieAutomationTick(opts?: { force?: boolean }): Promi
   leaguesProcessed: number
   errors: string[]
   skippedIdempotent: number
+  skippedIncomplete: number
+  announcementsPosted: number
 }> {
   const errors: string[] = []
   let skippedIdempotent = 0
+  let skippedIncomplete = 0
   try {
     await processExpiredBashingDecisionsForAll()
   } catch (e) {
     errors.push(`bashing-expiry: ${e instanceof Error ? e.message : String(e)}`)
+  }
+
+  let announcementsPosted = 0
+  try {
+    announcementsPosted = await processZombieAnnouncementQueue()
+  } catch (e) {
+    errors.push(`announcements: ${e instanceof Error ? e.message : String(e)}`)
   }
 
   const active = await prisma.zombieLeague.findMany({
@@ -38,9 +70,10 @@ export async function runZombieAutomationTick(opts?: { force?: boolean }): Promi
           continue
         }
       }
-      await runWeeklyResolution(z.id, week, { force: opts?.force === true })
-      if (z.universeId) {
-        await syncUniverseStats(z.universeId, week)
+      const result = await runWeeklyResolution(z.id, week, { force: opts?.force === true })
+      if (result.skipped) {
+        skippedIncomplete += 1
+        continue
       }
       await scheduleWeeklyUpdate(z.leagueId).catch((e) =>
         errors.push(`${z.id} weekly-update: ${e instanceof Error ? e.message : String(e)}`),
@@ -54,5 +87,5 @@ export async function runZombieAutomationTick(opts?: { force?: boolean }): Promi
     }
   }
 
-  return { leaguesProcessed, errors, skippedIdempotent }
+  return { leaguesProcessed, errors, skippedIdempotent, skippedIncomplete, announcementsPosted }
 }

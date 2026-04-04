@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { runInfectionForWeek } from '@/lib/zombie/ZombieInfectionEngine'
 import { setRevived } from '@/lib/zombie/ZombieOwnerStatusService'
+import { logAuditEntry } from '@/lib/zombie/auditService'
+import { getLeagueMode } from '@/lib/zombie/zombieLeagueMode'
 
 export type InfectionResolutionResult = {
   zombieLeagueId: string
@@ -18,6 +20,7 @@ export async function resolveWeeklyInfections(
 ): Promise<InfectionResolutionResult> {
   const z = await prisma.zombieLeague.findUnique({ where: { id: zombieLeagueId } })
   if (!z) throw new Error('Zombie league not found')
+  const mode = getLeagueMode(z)
 
   const outcome = await runInfectionForWeek({
     leagueId: z.leagueId,
@@ -53,6 +56,21 @@ export async function resolveWeeklyInfections(
         scoreDifference: 0,
       },
     })
+
+    await logAuditEntry(zombieLeagueId, {
+      category: 'status_change',
+      action: 'SURVIVOR_INFECTED',
+      description:
+        mode === 'paid'
+          ? `Infection recorded (paid mode). Victim → zombie.`
+          : `Infection recorded (free mode; symbolic currency may apply).`,
+      week,
+      actorUserId: infectorUser.platformUserId,
+      targetUserId: victimUser.platformUserId,
+      targetStatus: 'zombie',
+      actorRole: 'zombie',
+      isPublic: true,
+    }).catch(() => {})
   }
 
   return {

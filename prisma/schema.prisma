@@ -6628,6 +6628,9 @@ model ZombieLeague {
   announcements         ZombieAnnouncement[]
   paidConfig            ZombiePaidConfig?
   ambushActions         ZombieAmbushAction[]
+  rulesDocuments        ZombieRulesDocument[]
+  freeRewardConfig      ZombieFreeRewardConfig?
+  auditEntries          ZombieAuditEntry[]
 
   @@index([universeId])
   @@index([levelId])
@@ -6843,9 +6846,13 @@ model ZombieAnnouncement {
   isPosted Boolean   @default(false)
   postedAt DateTime?
 
+  /// When set, post only after this time (cron queue).
+  scheduledFor DateTime?
+
   createdAt DateTime @default(now())
 
   @@index([zombieLeagueId, type])
+  @@index([isPosted, scheduledFor])
   @@map("zombie_announcements")
 }
 
@@ -6894,21 +6901,137 @@ model ZombiePaidConfig {
   @@map("zombie_paid_configs")
 }
 
-/// Per-sport thresholds for bashing, mauling, and weapon awards.
+/// Per-sport thresholds and copy for Zombie mode (7 sports).
 model ZombieRulesTemplate {
-  id                    String  @id @default(cuid())
-  sport                 String  @unique @db.VarChar(12)
-  bashingThreshold      Float   @default(30)
-  maulingThreshold      Float   @default(50)
-  weaponShieldThreshold Float   @default(100)
-  weaponAmbushThreshold Float   @default(120)
-  reviveThreshold       Int     @default(3)
-  serumMaxHold          Int     @default(5)
-  lineupLockDesc        String? @db.Text
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id       String @id @default(cuid())
+  sport    String @unique @db.VarChar(12) // NFL | NBA | MLB | NHL | NCAAFB | NCAABB | SOCCER
+
+  rosterSize   Int @default(15)
+  starterCount Int @default(9)
+  benchCount   Int @default(6)
+  irSlotsDefault Int @default(0)
+
+  lineupFrequency String @default("weekly") // weekly | daily | per_match
+  scoringPeriod   String @default("weekly") // weekly | daily | round_based
+  scoringWindowDesc String @default("") @db.Text
+
+  bashingThreshold      Float @default(30)
+  maulingThreshold      Float @default(50)
+  weaponShieldThreshold Float @default(100)
+  weaponAmbushThreshold Float @default(120)
+
+  serumAwardCondition String @default("")
+  serumAwardDesc      String @default("") @db.Text
+
+  edgeCaseNotes String @default("") @db.Text
+
+  positionList   String[] @default([])
+  lineupLockDesc String?  @db.Text
+
+  reviveThreshold Int @default(3)
+  serumMaxHold    Int @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("zombie_rules_templates")
+}
+
+/// Generated rules document per zombie league (persisted sections).
+model ZombieRulesDocument {
+  id String @id @default(cuid())
+
+  leagueId String
+  league   ZombieLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  sport   String
+  version Int    @default(1)
+  isPaid  Boolean @default(false)
+
+  sectionOverview         String @default("") @db.Text
+  sectionInfection        String @default("") @db.Text
+  sectionWhisperer        String @default("") @db.Text
+  sectionSurvivor         String @default("") @db.Text
+  sectionZombie           String @default("") @db.Text
+  sectionScoring          String @default("") @db.Text
+  sectionRoster           String @default("") @db.Text
+  sectionAmbush           String @default("") @db.Text
+  sectionBashing          String @default("") @db.Text
+  sectionMauling          String @default("") @db.Text
+  sectionSerums           String @default("") @db.Text
+  sectionWeapons          String @default("") @db.Text
+  sectionWinnings         String @default("") @db.Text
+  sectionUniverseMovement String @default("") @db.Text
+  sectionWeeklyTiming     String @default("") @db.Text
+  sectionChimmy           String @default("") @db.Text
+  sectionPaidVsFree       String @default("") @db.Text
+
+  generatedAt   DateTime @default(now())
+  lastUpdatedAt DateTime @updatedAt
+
+  @@unique([leagueId, version])
+  @@index([leagueId])
+  @@map("zombie_rules_documents")
+}
+
+/// Universal audit entries (commissioner + player visibility flags).
+model ZombieAuditEntry {
+  id String @id @default(cuid())
+
+  zombieLeagueId String
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  universeId     String?
+  week           Int?
+
+  category String
+  action   String
+
+  actorUserId   String?
+  actorRole     String?
+  targetUserId  String?
+  targetStatus  String?
+
+  previousState Json?
+  newState      Json?
+
+  amount      Float?
+  description String @db.Text
+
+  isVisibleToCommissioner   Boolean @default(true)
+  isVisibleToAffectedUser     Boolean @default(true)
+  isPublic                    Boolean @default(false)
+  isRevealablePostSeason      Boolean @default(true)
+  cannotBeOverridden          Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([zombieLeagueId, category])
+  @@index([zombieLeagueId, week])
+  @@index([actorUserId])
+  @@map("zombie_audit_entries")
+}
+
+/// Free-mode symbolic rewards (1:1 with ZombieLeague).
+model ZombieFreeRewardConfig {
+  id String @id @default(cuid())
+
+  zombieLeagueId String       @unique
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+
+  currencyLabel   String @default("Outbreak Points")
+  weeklyWinLabel  String @default("Weekly Horde Haul")
+  seasonWinLabel  String @default("Sole Survivor Award")
+  ultimatePotLabel String @default("Last Alive Bonus")
+
+  badgesEnabled         Boolean @default(true)
+  achievementsEnabled   Boolean @default(true)
+
+  symbolicPotTotal   Float @default(0)
+  symbolicWeeklyPool Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@map("zombie_free_reward_configs")
 }
 
 model ZombieAmbushAction {

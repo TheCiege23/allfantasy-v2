@@ -10,7 +10,13 @@ async function run(req: NextRequest) {
     req.nextUrl.searchParams.get('force') === '1' ||
     req.nextUrl.searchParams.get('force') === 'true'
   const result = await runZombieAutomationTick({ force })
-  return NextResponse.json(result)
+  return NextResponse.json({
+    processed: result.leaguesProcessed,
+    errors: result.errors,
+    skippedIdempotent: result.skippedIdempotent,
+    skippedIncomplete: result.skippedIncomplete,
+    announcementsPosted: result.announcementsPosted,
+  })
 }
 
 /** Vercel Cron uses GET; internal jobs may POST with optional `?force=1`. */

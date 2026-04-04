@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { setWhisperer } from '@/lib/zombie/ZombieOwnerStatusService'
 import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
+import { logAuditEntry } from '@/lib/zombie/auditService'
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -171,6 +172,16 @@ export async function applyAmbush(
       week,
     },
   })
+
+  await logAuditEntry(zombieLeagueId, {
+    category: 'ambush_use',
+    action: 'AMBUSH_EXECUTED',
+    description: `Ambush ${ambushType} executed for week ${week}.`,
+    week,
+    actorUserId: whispererUserId,
+    targetUserId,
+    actorRole: 'whisperer',
+  }).catch(() => {})
 
   return { ok: true, ambushesRemaining: left }
 }
