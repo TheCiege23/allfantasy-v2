@@ -14,7 +14,7 @@ export async function buildTournamentAIContext(
   tournamentId: string,
   purpose: 'commissioner' | 'announcement' | 'recap' | 'standings' | 'bracket' | 'draft_prep'
 ): Promise<string> {
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     include: { conferences: { orderBy: { orderIndex: 'asc' } }, rounds: { orderBy: { roundIndex: 'asc' } } },
   })
@@ -56,7 +56,7 @@ export async function buildTournamentAIContext(
   }
 
   if (purpose === 'bracket' || purpose === 'announcement') {
-    const leagues = await prisma.tournamentLeague.findMany({
+    const leagues = await prisma.legacyTournamentLeague.findMany({
       where: { tournamentId },
       include: { league: { select: { id: true, name: true } }, conference: { select: { name: true } } },
       orderBy: [{ roundIndex: 'asc' }, { conferenceId: 'asc' }],
@@ -79,7 +79,7 @@ export async function buildTournamentAIContext(
     lines.push(`Roster rules: qualification ${roundRosters} bench; elimination ${elimRosters} bench. FAAB reset by round: ${settings.faabResetByRound ?? true}.`)
   }
 
-  const participants = await prisma.tournamentParticipant.findMany({
+  const participants = await prisma.legacyTournamentParticipant.findMany({
     where: { tournamentId },
     select: { status: true, eliminatedAtRoundIndex: true },
   })

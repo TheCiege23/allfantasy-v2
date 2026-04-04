@@ -17,7 +17,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true },
   })
@@ -32,7 +32,7 @@ export async function POST(
   }
   const roundIndex = Math.max(0, Number(body.roundIndex ?? 0))
 
-  const round = await prisma.tournamentRound.findUnique({
+  const round = await prisma.legacyTournamentRound.findUnique({
     where: { tournamentId_roundIndex: { tournamentId, roundIndex } },
   })
   if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
@@ -40,7 +40,7 @@ export async function POST(
     return NextResponse.json({ ok: true, message: 'Round already archived', roundIndex })
   }
 
-  await prisma.tournamentRound.update({
+  await prisma.legacyTournamentRound.update({
     where: { tournamentId_roundIndex: { tournamentId, roundIndex } },
     data: { status: 'archived', updatedAt: new Date() },
   })

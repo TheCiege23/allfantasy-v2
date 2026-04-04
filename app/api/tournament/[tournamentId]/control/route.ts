@@ -17,7 +17,7 @@ export async function GET(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, name: true },
   })
@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId },
     include: {
       league: {
@@ -82,7 +82,7 @@ export async function POST(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { creatorId: true },
   })
@@ -102,7 +102,7 @@ export async function POST(
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
 
-  const tl = await prisma.tournamentLeague.findFirst({
+  const tl = await prisma.legacyTournamentLeague.findFirst({
     where: { tournamentId, leagueId },
     include: { league: { select: { id: true, settings: true } } },
   })

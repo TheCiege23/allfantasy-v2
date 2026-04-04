@@ -18,7 +18,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, settings: true, hubSettings: true, status: true },
   })
@@ -46,7 +46,7 @@ export async function POST(
     return NextResponse.json({ error: 'participantUserId required' }, { status: 400 })
   }
 
-  const participant = await prisma.tournamentParticipant.findUnique({
+  const participant = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId, userId: participantUserId } },
     select: { id: true, status: true, currentLeagueId: true, conferenceId: true },
   })
@@ -57,7 +57,7 @@ export async function POST(
 
   // Advance: create roster in next-round league or attach to existing elimination league.
   // Simplified: we only support force-advance from qualification (round 0) into round 1.
-  const round1Leagues = await prisma.tournamentLeague.findMany({
+  const round1Leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex: 1 },
     include: {
       league: { include: { _count: { select: { rosters: true } } } },
@@ -92,7 +92,7 @@ export async function POST(
   })
 
   const bracketLabel = (targetLeague.league.settings as Record<string, unknown>)?.bracketLabel as string ?? null
-  await prisma.tournamentParticipant.update({
+  await prisma.legacyTournamentParticipant.update({
     where: { tournamentId_userId: { tournamentId, userId: participantUserId } },
     data: {
       currentLeagueId: targetLeague.leagueId,

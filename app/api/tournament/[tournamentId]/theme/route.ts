@@ -19,7 +19,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, hubSettings: true },
   })
@@ -51,7 +51,7 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, hubSettings: true },
   })
@@ -76,7 +76,7 @@ export async function PATCH(
   if (typeof body.glowAccent === 'string') hubSettings.glowAccent = body.glowAccent
   if (typeof body.badgeStyle === 'string') hubSettings.badgeStyle = body.badgeStyle
 
-  await prisma.tournament.update({
+  await prisma.legacyTournament.update({
     where: { id: tournamentId },
     data: { hubSettings: hubSettings as object, updatedAt: new Date() },
   })

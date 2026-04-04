@@ -19,7 +19,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true },
   })
@@ -36,7 +36,7 @@ export async function POST(
   const reason = typeof body.reason === 'string' ? body.reason : 'Manual tie resolution'
   if (!winnerUserId) return NextResponse.json({ error: 'winnerUserId required' }, { status: 400 })
 
-  const winner = await prisma.tournamentParticipant.findUnique({
+  const winner = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId, userId: winnerUserId } },
   })
   if (!winner) return NextResponse.json({ error: 'Winner participant not found' }, { status: 404 })

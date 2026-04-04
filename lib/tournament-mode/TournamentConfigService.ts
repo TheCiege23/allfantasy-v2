@@ -20,18 +20,23 @@ export interface TournamentLeagueConfig {
   hubSettings: Record<string, unknown>
 }
 
-/** Detect if league is part of a tournament. */
+/** Detect if league is part of a tournament (legacy shell or TournamentShell). */
 export async function isTournamentLeague(leagueId: string): Promise<boolean> {
-  const tl = await prisma.tournamentLeague.findUnique({
+  const legacy = await prisma.legacyTournamentLeague.findUnique({
     where: { leagueId },
     select: { id: true },
   })
-  return !!tl
+  if (legacy) return true
+  const shellLink = await prisma.tournamentLeague.findUnique({
+    where: { leagueId },
+    select: { id: true },
+  })
+  return !!shellLink
 }
 
 /** Get tournament config for a league (for registry getConfig and UI). */
 export async function getTournamentConfigForLeague(leagueId: string): Promise<TournamentLeagueConfig | null> {
-  const tl = await prisma.tournamentLeague.findUnique({
+  const tl = await prisma.legacyTournamentLeague.findUnique({
     where: { leagueId },
     include: {
       tournament: true,

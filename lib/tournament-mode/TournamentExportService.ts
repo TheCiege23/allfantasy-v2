@@ -21,7 +21,7 @@ export interface TournamentExportRow {
 
 /** Build export rows from TournamentParticipant (all users ever in tournament). */
 export async function buildTournamentExportRows(tournamentId: string): Promise<TournamentExportRow[]> {
-  const participants = await prisma.tournamentParticipant.findMany({
+  const participants = await prisma.legacyTournamentParticipant.findMany({
     where: { tournamentId },
     include: { conference: { select: { name: true } } },
   })

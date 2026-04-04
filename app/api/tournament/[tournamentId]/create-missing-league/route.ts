@@ -23,7 +23,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, name: true, sport: true, settings: true },
   })
@@ -39,7 +39,7 @@ export async function POST(
   const conferenceId = body.conferenceId
   if (!conferenceId) return NextResponse.json({ error: 'conferenceId required' }, { status: 400 })
 
-  const conference = await prisma.tournamentConference.findFirst({
+  const conference = await prisma.legacyTournamentConference.findFirst({
     where: { tournamentId, id: conferenceId },
     select: { id: true, name: true },
   })
@@ -83,7 +83,7 @@ export async function POST(
     console.warn('[tournament] create-missing-league bootstrap non-fatal', err)
   }
 
-  await prisma.tournamentLeague.create({
+  await prisma.legacyTournamentLeague.create({
     data: {
       tournamentId,
       conferenceId: conference.id,

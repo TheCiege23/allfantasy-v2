@@ -18,7 +18,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true },
   })
@@ -40,7 +40,7 @@ export async function POST(
   const targetUserId = body.userId
   if (!targetUserId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
 
-  const participant = await prisma.tournamentParticipant.findUnique({
+  const participant = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
   })
   if (!participant) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
@@ -62,7 +62,7 @@ export async function POST(
     return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
   }
 
-  await prisma.tournamentParticipant.update({
+  await prisma.legacyTournamentParticipant.update({
     where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
     data: updateData as any,
   })

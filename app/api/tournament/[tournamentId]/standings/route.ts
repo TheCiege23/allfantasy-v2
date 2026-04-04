@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, hubSettings: true },
   })
@@ -34,7 +34,7 @@ export async function GET(
   try {
     const [rows, tournamentWithSettings] = await Promise.all([
       getUniversalStandings(tournamentId),
-      prisma.tournament.findUnique({
+      prisma.legacyTournament.findUnique({
         where: { id: tournamentId },
         select: { settings: true },
       }),

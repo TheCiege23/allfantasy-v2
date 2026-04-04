@@ -31,7 +31,7 @@ export async function logTournamentAudit(
     metadata?: Record<string, unknown>
   }
 ): Promise<void> {
-  await prisma.tournamentAuditLog.create({
+  await prisma.legacyTournamentAuditLog.create({
     data: {
       tournamentId,
       actorId: options.actorId ?? null,
@@ -59,7 +59,7 @@ export async function getTournamentAuditLogs(
 > {
   const where: { tournamentId: string; action?: string } = { tournamentId }
   if (options?.action) where.action = options.action
-  const rows = await prisma.tournamentAuditLog.findMany({
+  const rows = await prisma.legacyTournamentAuditLog.findMany({
     where,
     orderBy: { createdAt: 'desc' },
     take: options?.limit ?? 100,

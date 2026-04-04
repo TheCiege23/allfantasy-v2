@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, hubSettings: true, settings: true, name: true },
   })
@@ -45,12 +45,12 @@ export async function GET(
   const advancementPerConf = getAdvancementSlotsPerConference(poolSize)
   const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
 
-  const rounds = await prisma.tournamentRound.findMany({
+  const rounds = await prisma.legacyTournamentRound.findMany({
     where: { tournamentId },
     orderBy: { roundIndex: 'asc' },
   })
 
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId },
     include: {
       league: { select: { id: true, name: true, settings: true } },
@@ -61,7 +61,7 @@ export async function GET(
 
   const [standings, participants] = await Promise.all([
     getUniversalStandings(tournamentId),
-    prisma.tournamentParticipant.findMany({
+    prisma.legacyTournamentParticipant.findMany({
       where: { tournamentId },
       select: { userId: true, status: true, eliminatedAtRoundIndex: true, currentLeagueId: true, bracketLabel: true },
     }),

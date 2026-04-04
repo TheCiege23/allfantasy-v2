@@ -10,7 +10,7 @@ export async function scheduleRedraftForRound(
   tournamentId: string,
   roundIndex: number
 ): Promise<{ scheduled: number; leagueIds: string[] }> {
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex },
     select: { leagueId: true },
   })
@@ -33,7 +33,7 @@ export async function applyFaabResetForRound(
   roundIndex: number,
   faabBudget: number
 ): Promise<void> {
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex },
     select: { leagueId: true },
   })
@@ -51,7 +51,7 @@ export async function applyBenchSpotsForRound(
   roundIndex: number,
   benchSpots: number
 ): Promise<void> {
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex },
     select: { leagueId: true },
   })

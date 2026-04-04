@@ -28,7 +28,7 @@ export interface QualificationAdvancementResult {
  * Call before running advancement so we have participant rows to update.
  */
 export async function syncQualificationParticipants(tournamentId: string): Promise<number> {
-  const feederLeagues = await prisma.tournamentLeague.findMany({
+  const feederLeagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex: 0 },
     include: {
       league: { select: { id: true } },
@@ -75,14 +75,14 @@ export async function syncQualificationParticipants(tournamentId: string): Promi
     for (const r of rosters) {
       const userId = r.platformUserId
       if (!userId) continue
-      const existing = await prisma.tournamentParticipant.findUnique({
+      const existing = await prisma.legacyTournamentParticipant.findUnique({
         where: { tournamentId_userId: { tournamentId, userId } },
       })
       if (existing) continue
       const rWins = wins.get(r.id) ?? 0
       const rGames = games.get(r.id) ?? 0
       const rLosses = Math.max(0, rGames - rWins)
-      await prisma.tournamentParticipant.create({
+      await prisma.legacyTournamentParticipant.create({
         data: {
           tournamentId,
           userId,
@@ -107,13 +107,13 @@ export async function syncQualificationParticipants(tournamentId: string): Promi
  * assign advancing users to new leagues (create Roster), update TournamentParticipant, mark eliminated.
  */
 export async function runQualificationAdvancement(tournamentId: string): Promise<QualificationAdvancementResult> {
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     include: { conferences: { orderBy: { orderIndex: 'asc' } } },
   })
   if (!tournament) throw new Error('Tournament not found')
 
-  const existingRound1 = await prisma.tournamentRound.findUnique({
+  const existingRound1 = await prisma.legacyTournamentRound.findUnique({
     where: { tournamentId_roundIndex: { tournamentId, roundIndex: 1 } },
   })
   if (existingRound1) throw new Error('Elimination round already created; advancement already run.')
@@ -184,7 +184,7 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
         console.warn('[tournament] Bootstrap non-fatal', e)
       }
 
-      const tl = await prisma.tournamentLeague.create({
+      const tl = await prisma.legacyTournamentLeague.create({
         data: {
           tournamentId,
           conferenceId: conf.id,
@@ -210,7 +210,7 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
         const isBubble = row.advancementStatus === 'bubble'
         if (isBubble) bubbleAdvancedCount++
         else advancedCount++
-        await prisma.tournamentParticipant.update({
+        await prisma.legacyTournamentParticipant.update({
           where: { tournamentId_userId: { tournamentId, userId: row.userId } },
           data: {
             currentLeagueId: league.id,
@@ -229,19 +229,19 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
     )
     for (const row of eliminated) {
       if (!row.userId) continue
-      await prisma.tournamentParticipant.updateMany({
+      await prisma.legacyTournamentParticipant.updateMany({
         where: { tournamentId, userId: row.userId },
         data: { status: 'eliminated', eliminatedAtRoundIndex: 0 },
       })
     }
   }
 
-  await prisma.tournamentRound.updateMany({
+  await prisma.legacyTournamentRound.updateMany({
     where: { tournamentId, roundIndex: 0 },
     data: { status: 'completed' },
   })
 
-  await prisma.tournamentRound.create({
+  await prisma.legacyTournamentRound.create({
     data: {
       tournamentId,
       roundIndex: 1,
@@ -258,12 +258,12 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
     },
   })
 
-  await prisma.tournament.update({
+  await prisma.legacyTournament.update({
     where: { id: tournamentId },
     data: { status: 'elimination' },
   })
 
-  const eliminatedCount = await prisma.tournamentParticipant.count({
+  const eliminatedCount = await prisma.legacyTournamentParticipant.count({
     where: { tournamentId, status: 'eliminated' },
   })
 

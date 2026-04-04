@@ -18,7 +18,7 @@ export async function GET(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, hubSettings: true },
   })
@@ -33,7 +33,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const participant = await prisma.tournamentParticipant.findUnique({
+  const participant = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId, userId } },
     select: {
       status: true,

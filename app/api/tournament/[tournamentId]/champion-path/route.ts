@@ -16,7 +16,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true, championUserId: true, hubSettings: true },
   })
@@ -38,7 +38,7 @@ export async function GET(
     })
   }
 
-  const participant = await prisma.tournamentParticipant.findUnique({
+  const participant = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId, userId: participantUserId } },
     select: {
       userId: true,

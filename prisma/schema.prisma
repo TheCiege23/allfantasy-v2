@@ -4569,42 +4569,366 @@ model LegacyTournamentAuditLog {
   @@map("tournament_audit_logs")
 }
 
-/// PROMPT 3: Participant progression — one row per user in a tournament; tracks qualification rank, current league, elimination.
-model TournamentParticipant {
+model LegacyTournamentParticipant {
   id                            String   @id @default(uuid())
   tournamentId                  String
-  userId                        String // AppUser.id (or platform user id that joined)
+  userId                        String
   conferenceId                  String
-  /// Qualification league/roster (feeder).
   qualificationLeagueId         String?
   qualificationRosterId         String?
-  qualificationRankInConference Int? // 1-based within conference
+  qualificationRankInConference Int?
   qualificationWins             Int      @default(0)
   qualificationLosses           Int      @default(0)
   qualificationPointsFor        Float    @default(0)
   qualificationPointsAgainst    Float    @default(0)
-  /// Current league/roster (null if eliminated).
   currentLeagueId               String?
   currentRosterId               String?
-  /// Last round index from which they advanced (0 = from qualification).
   advancedAtRoundIndex          Int      @default(0)
-  /// Set when eliminated; null if still active.
   eliminatedAtRoundIndex        Int?
-  status                        String   @default("active") @db.VarChar(24) // active | eliminated
+  status                        String   @default("active") @db.VarChar(24)
   bubbleAdvanced                Boolean  @default(false)
-  /// For bracket display: which elimination round league (NORTH/SOUTH/EAST/WEST) they were assigned.
   bracketLabel                  String?  @db.VarChar(32)
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 
-  tournament Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  conference TournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  conference LegacyTournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
   @@index([tournamentId])
   @@index([conferenceId])
   @@index([tournamentId, status])
   @@map("tournament_participants")
+}
+
+// ========== Tournament Shell — multi-round connected league ecosystem ==========
+
+model TournamentShell {
+  id                      String   @id @default(cuid())
+  name                    String
+  sport                   String
+
+  status                  String   @default("setup")
+  maxParticipants         Int      @default(120)
+  currentParticipantCount Int      @default(0)
+
+  conferenceCount      Int @default(2)
+  leaguesPerConference Int @default(6)
+  teamsPerLeague       Int @default(10)
+
+  namingMode         String @default("hybrid")
+  currentRoundNumber Int    @default(0)
+  totalRounds        Int    @default(4)
+
+  openingWeekStart Int
+  bubbleWeek       Int?
+  redraftWeek      Int?
+  eliteRedraftWeek Int?
+  championshipWeek Int?
+
+  scoringSystem String @default("ppr")
+  draftType     String @default("snake")
+  waiverType    String @default("faab")
+
+  advancersPerLeague Int     @default(1)
+  wildcardCount      Int     @default(0)
+  bubbleSize         Int     @default(8)
+  bubbleEnabled      Boolean @default(true)
+  bubbleScoringMode  String  @default("cumulative_points")
+
+  openingRosterSize    Int     @default(15)
+  tournamentRosterSize Int     @default(10)
+  eliteRosterSize      Int     @default(8)
+  irEnabled            Boolean @default(false)
+  tradeEnabled         Boolean @default(false)
+  faabResetOnRedraft   Boolean @default(true)
+
+  draftClockSeconds   Int     @default(90)
+  asyncDraft          Boolean @default(false)
+  simultaneousDrafts  Boolean @default(true)
+  tiebreakerMode      String  @default("points_for")
+  standingsVisibility String  @default("conference")
+
+  commissionerId String
+  createdBy      String
+
+  commissioner AppUser @relation("TournamentShellCommissioner", fields: [commissionerId], references: [id], onDelete: Cascade)
+  creator      AppUser @relation("TournamentShellCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  conferences        TournamentConference[]
+  tournamentLeagues  TournamentLeague[]
+  rounds             TournamentRound[]
+  participants       TournamentParticipant[]
+  advancementGroups  TournamentAdvancementGroup[]
+  nameRecords        TournamentNameRecord[]
+  shellAnnouncements TournamentShellAnnouncement[]
+  shellAuditLogs     TournamentShellAuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([commissionerId])
+  @@map("tournament_shells")
+}
+
+model TournamentConference {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  name               String
+  slug               String
+  theme              String?
+  colorHex           String?
+  logoUrl            String?
+  bannerUrl          String?
+  conferenceNumber   Int
+  isActive           Boolean @default(true)
+  standingsCache     Json?
+
+  leagues           TournamentLeague[]
+  advancementGroups TournamentAdvancementGroup[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([tournamentId, conferenceNumber])
+  @@unique([tournamentId, slug])
+  @@index([tournamentId])
+  @@map("tournament_shell_conferences")
+}
+
+model TournamentRound {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  roundNumber Int
+  roundType   String
+  roundLabel  String
+  weekStart   Int
+  weekEnd     Int
+  status      String  @default("pending")
+
+  leagueNamingTheme       String?
+  rosterSizeOverride      Int?
+  irEnabledOverride       Boolean?
+  tradeEnabledOverride    Boolean?
+  waiversEnabledOverride  Boolean?
+
+  draftScheduledAt DateTime?
+  roundStartedAt   DateTime?
+  roundCompletedAt DateTime?
+
+  leagues TournamentLeague[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([tournamentId, roundNumber])
+  @@index([tournamentId])
+  @@map("tournament_shell_rounds")
+}
+
+model TournamentLeague {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  conferenceId String?
+  conference   TournamentConference? @relation(fields: [conferenceId], references: [id], onDelete: SetNull)
+
+  roundId String
+  round   TournamentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  leagueId String? @unique
+  league   League? @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+
+  name             String
+  slug             String
+  logoUrl          String?
+  colorHex         String?
+  leagueNumber     Int
+  teamSlots        Int
+  currentTeamCount Int     @default(0)
+  status           String  @default("forming")
+
+  draftScheduledAt DateTime?
+  draftCompletedAt DateTime?
+  draftSessionId   String?
+
+  advancersCount     Int     @default(1)
+  advancementGroupId String?
+  advancementGroup   TournamentAdvancementGroup? @relation("ShellAdvancementGroupLeagues", fields: [advancementGroupId], references: [id], onDelete: SetNull)
+
+  participants TournamentLeagueParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tournamentId, name])
+  @@unique([tournamentId, slug])
+  @@index([tournamentId, roundId])
+  @@index([conferenceId])
+  @@map("tournament_shell_leagues")
+}
+
+model TournamentParticipant {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  userId      String
+  displayName String
+  avatarUrl   String?
+
+  status String @default("active")
+
+  currentRoundNumber   Int @default(1)
+  furthestRoundReached Int @default(1)
+  totalRoundsPlayed    Int @default(0)
+
+  currentConferenceId  String?
+  originalConferenceId String?
+
+  currentLeagueId String?
+
+  careerWins          Int   @default(0)
+  careerLosses        Int   @default(0)
+  careerPointsFor     Float @default(0)
+  careerPointsAgainst Float @default(0)
+
+  advancementHistory Json?
+  roundRosterIds     Json?
+  roundFaabBalances  Json?
+
+  leagueParticipations TournamentLeagueParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, status])
+  @@index([userId])
+  @@map("tournament_shell_participants")
+}
+
+model TournamentLeagueParticipant {
+  id                 String @id @default(cuid())
+  tournamentLeagueId String
+  league             TournamentLeague @relation(fields: [tournamentLeagueId], references: [id], onDelete: Cascade)
+
+  participantId String
+  participant   TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  userId        String
+
+  wins          Int    @default(0)
+  losses        Int    @default(0)
+  ties          Int    @default(0)
+  pointsFor     Float  @default(0)
+  pointsAgainst Float  @default(0)
+  streak        String?
+
+  leagueRank        Int?
+  conferenceRank  Int?
+  advancementStatus String @default("competing")
+
+  redraftRosterId String?
+  draftSlot       Int?
+  faabBalance     Float   @default(100)
+
+  joinedAt    DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([tournamentLeagueId, participantId])
+  @@index([tournamentLeagueId])
+  @@index([participantId])
+  @@map("tournament_shell_league_participants")
+}
+
+model TournamentAdvancementGroup {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  conferenceId String?
+  conference   TournamentConference? @relation(fields: [conferenceId], references: [id], onDelete: SetNull)
+
+  fromRoundId String
+  toRoundId   String?
+
+  groupType             String
+  participantIds        String[]
+  maxSize               Int
+  isLocked              Boolean  @default(false)
+  isBubbleGroup         Boolean  @default(false)
+  bubbleScoringSnapshot Json?
+  bubbleWinnerIds       String[]
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  nextLeagues TournamentLeague[] @relation("ShellAdvancementGroupLeagues")
+
+  @@index([tournamentId])
+  @@index([conferenceId])
+  @@map("tournament_shell_advancement_groups")
+}
+
+model TournamentNameRecord {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  entityType       String
+  entityId         String
+  generatedName    String
+  finalName        String
+  wasEdited        Boolean  @default(false)
+  namingMode       String
+  generationPrompt String?
+  createdAt        DateTime @default(now())
+
+  @@index([tournamentId, entityType])
+  @@map("tournament_shell_name_records")
+}
+
+model TournamentShellAnnouncement {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  roundNumber  Int?
+  conferenceId String?
+
+  type           String
+  title          String
+  content        String
+  targetAudience String    @default("all")
+  isPosted       Boolean   @default(false)
+  postedAt       DateTime?
+  scheduledFor   DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tournamentId, type])
+  @@map("tournament_shell_announcements")
+}
+
+model TournamentShellAuditLog {
+  id           String          @id @default(cuid())
+  tournamentId String
+  tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  roundNumber Int?
+  action      String
+  actorType   String
+  actorId     String?
+  targetType  String?
+  targetId    String?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  @@index([tournamentId, action])
+  @@map("tournament_shell_audit_logs")
 }
 
 /// Curated GIFs for league chat composer (Giphy-backed).

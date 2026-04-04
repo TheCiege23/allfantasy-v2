@@ -151,6 +151,14 @@
     {
       "path": "/api/survivor/exile",
       "schedule": "0 8 * * 2"
+    },
+    {
+      "path": "/api/tournament/automation",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/tournament/automation",
+      "schedule": "0 8 * * 2"
     }
   ]
 }

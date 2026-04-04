@@ -25,7 +25,7 @@ export async function POST(
   }
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { creatorId: true, settings: true, name: true, sport: true },
   })
@@ -57,7 +57,7 @@ export async function POST(
     } catch {
       // keep static body
     }
-    await prisma.tournamentAnnouncement.create({
+    await prisma.legacyTournamentAnnouncement.create({
       data: {
         tournamentId,
         authorId: userId,

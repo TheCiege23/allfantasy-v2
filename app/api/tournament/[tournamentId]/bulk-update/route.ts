@@ -17,7 +17,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true },
   })
@@ -35,7 +35,7 @@ export async function POST(
   if (body.leagueNames && typeof body.leagueNames === 'object') {
     for (const [leagueId, name] of Object.entries(body.leagueNames)) {
       if (!name || typeof name !== 'string') continue
-      const tl = await prisma.tournamentLeague.findFirst({ where: { tournamentId, leagueId }, select: { id: true } })
+      const tl = await prisma.legacyTournamentLeague.findFirst({ where: { tournamentId, leagueId }, select: { id: true } })
       if (!tl) continue
       await prisma.league.update({
         where: { id: leagueId },
@@ -47,7 +47,7 @@ export async function POST(
   if (body.conferenceThemes && typeof body.conferenceThemes === 'object') {
     for (const [conferenceId, payload] of Object.entries(body.conferenceThemes)) {
       if (!payload || typeof payload !== 'object') continue
-      const conf = await prisma.tournamentConference.findFirst({
+      const conf = await prisma.legacyTournamentConference.findFirst({
         where: { tournamentId, id: conferenceId },
         select: { id: true },
       })
@@ -56,7 +56,7 @@ export async function POST(
       if (typeof payload.theme === 'string') data.theme = payload.theme
       if (payload.themePayload && typeof payload.themePayload === 'object') data.themePayload = payload.themePayload
       if (Object.keys(data).length > 0) {
-        await prisma.tournamentConference.update({
+        await prisma.legacyTournamentConference.update({
           where: { id: conferenceId },
           data: data as any,
         })

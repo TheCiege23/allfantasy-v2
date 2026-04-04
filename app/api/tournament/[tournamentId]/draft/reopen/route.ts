@@ -17,7 +17,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { id: true, creatorId: true },
   })
@@ -33,7 +33,7 @@ export async function POST(
   const leagueId = body.leagueId
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
-  const tl = await prisma.tournamentLeague.findFirst({
+  const tl = await prisma.legacyTournamentLeague.findFirst({
     where: { tournamentId, leagueId },
     select: { id: true },
   })

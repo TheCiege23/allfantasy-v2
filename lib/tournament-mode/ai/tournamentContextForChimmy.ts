@@ -20,7 +20,7 @@ export async function buildTournamentContextForChimmy(
   const config = await getTournamentConfigForLeague(leagueId)
   if (!config) return ''
 
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: config.tournamentId },
     select: { name: true, status: true, settings: true },
   })
@@ -34,11 +34,11 @@ export async function buildTournamentContextForChimmy(
   const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
   const roundRedraftSchedule = (settings.roundRedraftSchedule as number[]) ?? [10]
 
-  const participant = await prisma.tournamentParticipant.findUnique({
+  const participant = await prisma.legacyTournamentParticipant.findUnique({
     where: { tournamentId_userId: { tournamentId: config.tournamentId, userId } },
   })
 
-  const rounds = await prisma.tournamentRound.findMany({
+  const rounds = await prisma.legacyTournamentRound.findMany({
     where: { tournamentId: config.tournamentId },
     orderBy: { roundIndex: 'asc' },
   })

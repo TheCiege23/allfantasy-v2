@@ -48,7 +48,7 @@ export async function getUniversalStandings(tournamentId: string): Promise<Unive
 
 /** Raw per-league standings without cross-conference ranking. Used internally. */
 export async function getUniversalStandingsRaw(tournamentId: string): Promise<UniversalStandingsRow[]> {
-  const leagues = await prisma.tournamentLeague.findMany({
+  const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex: 0 },
     include: {
       league: { select: { id: true, name: true, leagueSize: true } },
@@ -137,7 +137,7 @@ export async function applyConferenceRankingAndCutLine(
   tournamentId: string,
   rows: UniversalStandingsRow[]
 ): Promise<UniversalStandingsRow[]> {
-  const tournament = await prisma.tournament.findUnique({
+  const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { settings: true },
   })
@@ -185,7 +185,7 @@ export async function applyConferenceRankingAndCutLine(
 
   result.sort((a, b) => (a.qualificationRank ?? 0) - (b.qualificationRank ?? 0))
 
-  const participants = await prisma.tournamentParticipant.findMany({
+  const participants = await prisma.legacyTournamentParticipant.findMany({
     where: { tournamentId },
     select: { userId: true, status: true, eliminatedAtRoundIndex: true },
   })

@@ -55,7 +55,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
     themeSeed
   )
 
-  const tournament = await prisma.tournament.create({
+  const tournament = await prisma.legacyTournament.create({
     data: {
       name: input.name.trim(),
       sport,
@@ -68,7 +68,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
     },
   })
 
-  const confARow = await prisma.tournamentConference.create({
+  const confARow = await prisma.legacyTournamentConference.create({
     data: {
       tournamentId: tournament.id,
       name: confA,
@@ -76,7 +76,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
       orderIndex: 0,
     },
   })
-  const confBRow = await prisma.tournamentConference.create({
+  const confBRow = await prisma.legacyTournamentConference.create({
     data: {
       tournamentId: tournament.id,
       name: confB,
@@ -132,7 +132,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
     }
 
     const orderInConference = i < perConference ? i : i - perConference
-    await prisma.tournamentLeague.create({
+    await prisma.legacyTournamentLeague.create({
       data: {
         tournamentId: tournament.id,
         conferenceId: conference.id,
@@ -162,7 +162,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
     })
   }
 
-  await prisma.tournamentRound.create({
+  await prisma.legacyTournamentRound.create({
     data: {
       tournamentId: tournament.id,
       roundIndex: 0,

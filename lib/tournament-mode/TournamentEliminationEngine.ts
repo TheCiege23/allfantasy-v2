@@ -11,7 +11,7 @@ export async function markEliminated(
   rosterIds: string[]
 ): Promise<void> {
   if (rosterIds.length === 0) return
-  await prisma.tournamentParticipant.updateMany({
+  await prisma.legacyTournamentParticipant.updateMany({
     where: { tournamentId, currentRosterId: { in: rosterIds } },
     data: { status: 'eliminated', eliminatedAtRoundIndex: roundIndex, currentLeagueId: null, currentRosterId: null },
   })
@@ -22,7 +22,7 @@ export async function archiveRound(
   tournamentId: string,
   roundIndex: number
 ): Promise<{ archived: boolean }> {
-  const r = await prisma.tournamentRound.updateMany({
+  const r = await prisma.legacyTournamentRound.updateMany({
     where: { tournamentId, roundIndex },
     data: { status: 'archived' },
   })
@@ -34,7 +34,7 @@ export async function getRoundStatus(
   tournamentId: string,
   roundIndex: number
 ): Promise<string | null> {
-  const r = await prisma.tournamentRound.findUnique({
+  const r = await prisma.legacyTournamentRound.findUnique({
     where: { tournamentId_roundIndex: { tournamentId, roundIndex } },
     select: { status: true },
   })
@@ -46,7 +46,7 @@ export async function markRoundCompleted(
   tournamentId: string,
   roundIndex: number
 ): Promise<void> {
-  await prisma.tournamentRound.updateMany({
+  await prisma.legacyTournamentRound.updateMany({
     where: { tournamentId, roundIndex },
     data: { status: 'completed' },
   })
