@@ -1,4 +1,7 @@
 import type { ParsedStats, SportAdapter } from './types'
+import { MLB_CONFIG } from '@/lib/sportConfig/configs/mlb'
+
+export const MLB_SCORING_CATEGORY_KEYS = MLB_CONFIG.scoringCategories.map((c) => c.key)
 
 export const mlbAdapter: SportAdapter = {
   parseRawStats(raw: Record<string, number>): ParsedStats {

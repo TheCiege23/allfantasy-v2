@@ -1,4 +1,7 @@
 import type { ParsedStats, SportAdapter } from './types'
+import { NHL_CONFIG } from '@/lib/sportConfig/configs/nhl'
+
+export const NHL_SCORING_CATEGORY_KEYS = NHL_CONFIG.scoringCategories.map((c) => c.key)
 
 export const nhlAdapter: SportAdapter = {
   parseRawStats(raw: Record<string, number>): ParsedStats {

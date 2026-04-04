@@ -1,5 +1,7 @@
 'use client'
 
+/** Commissioner control primitives. Sport-specific defaults & toggles metadata: `GET /api/sport-config?sport=NFL`. */
+
 import type { ReactNode } from 'react'
 
 export function SettingsSection({

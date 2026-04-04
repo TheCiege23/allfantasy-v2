@@ -1,0 +1,124 @@
+import type { SportConfigFull } from '../types'
+
+export const NBA_CONFIG: SportConfigFull = {
+  sport: 'NBA',
+  displayName: 'NBA Basketball',
+  slug: 'nba',
+  defaultScoringSystem: 'categories',
+  lineupFrequency: 'daily',
+  hasBye: false,
+
+  scoringCategories: [
+    { key: 'pts', label: 'Points', defaultPoints: 1, isToggleable: false, group: 'offense', sport: 'NBA' },
+    { key: 'reb', label: 'Rebounds', defaultPoints: 1.2, isToggleable: false, group: 'boards', sport: 'NBA' },
+    { key: 'ast', label: 'Assists', defaultPoints: 1.5, isToggleable: false, group: 'playmaking', sport: 'NBA' },
+    { key: 'stl', label: 'Steals', defaultPoints: 3, isToggleable: true, group: 'defense', sport: 'NBA' },
+    { key: 'blk', label: 'Blocks', defaultPoints: 3, isToggleable: true, group: 'defense', sport: 'NBA' },
+    { key: 'to', label: 'Turnovers', defaultPoints: -1, isToggleable: true, group: 'negative', sport: 'NBA' },
+    { key: 'threes', label: '3-Pointers Made', defaultPoints: 0.5, isToggleable: true, group: 'offense', sport: 'NBA' },
+    { key: 'fgm', label: 'FG Made', defaultPoints: 0, isToggleable: true, group: 'shooting', sport: 'NBA' },
+    { key: 'ftm', label: 'FT Made', defaultPoints: 0, isToggleable: true, group: 'shooting', sport: 'NBA' },
+    { key: 'dbl_dbl', label: 'Double-Double Bonus', defaultPoints: 1.5, isToggleable: true, group: 'bonus', sport: 'NBA', unit: 'bonus' },
+    { key: 'trpl_dbl', label: 'Triple-Double Bonus', defaultPoints: 3, isToggleable: true, group: 'bonus', sport: 'NBA', unit: 'bonus' },
+  ],
+
+  scoringPresets: [
+    { name: 'Standard Points', categories: [] },
+    { name: 'Category League', categories: [] },
+  ],
+
+  defaultRosterSlots: [
+    { key: 'PG', label: 'Point Guard', eligiblePositions: ['PG'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'SG', label: 'Shooting Guard', eligiblePositions: ['SG'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'SF', label: 'Small Forward', eligiblePositions: ['SF'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'PF', label: 'Power Forward', eligiblePositions: ['PF'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'C', label: 'Center', eligiblePositions: ['C'], defaultCount: 1, minCount: 1, maxCount: 2, isOptional: false },
+    { key: 'G', label: 'Guard', eligiblePositions: ['PG', 'SG'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: true },
+    { key: 'F', label: 'Forward', eligiblePositions: ['SF', 'PF'], defaultCount: 1, minCount: 0, maxCount: 2, isOptional: true },
+    { key: 'UTIL', label: 'Utility', eligiblePositions: ['PG', 'SG', 'SF', 'PF', 'C'], defaultCount: 1, minCount: 0, maxCount: 3, isOptional: true },
+  ],
+
+  defaultBenchSlots: 4,
+  defaultIRSlots: 2,
+  defaultTaxiSlots: 0,
+  defaultDevySlots: 0,
+
+  positionEligibility: {
+    PG: ['PG', 'G', 'UTIL'],
+    SG: ['SG', 'G', 'UTIL'],
+    SF: ['SF', 'F', 'UTIL'],
+    PF: ['PF', 'F', 'UTIL'],
+    C: ['C', 'UTIL'],
+  },
+
+  defaultSeasonWeeks: 22,
+  defaultPlayoffStartWeek: 20,
+  defaultPlayoffTeams: 4,
+  defaultMatchupPeriodDays: 7,
+  lineupLockType: 'daily',
+
+  supportsRedraft: true,
+  supportsDynasty: true,
+  supportsKeeper: true,
+  supportsDevy: false,
+  supportsC2C: true,
+  supportsIDP: false,
+  supportsSuperflex: false,
+  supportsTEPremium: false,
+  supportsPPR: false,
+  supportsCategories: true,
+  supportsDailyLineups: true,
+
+  commissionerSettings: [
+    {
+      key: 'scoringMode',
+      label: 'Scoring Mode',
+      type: 'select',
+      defaultValue: 'points',
+      options: [
+        { value: 'points', label: 'Points League' },
+        { value: 'categories', label: 'Category League (H2H)' },
+      ],
+      section: 'scoring',
+      locksAfterStart: true,
+    },
+    { key: 'enableDailyLineups', label: 'Daily Lineup Changes', type: 'toggle', defaultValue: true, section: 'roster' },
+    { key: 'pgCount', label: 'PG Slots', type: 'number', defaultValue: 1, min: 1, max: 2, section: 'roster' },
+    { key: 'sgCount', label: 'SG Slots', type: 'number', defaultValue: 1, min: 1, max: 2, section: 'roster' },
+    { key: 'sfCount', label: 'SF Slots', type: 'number', defaultValue: 1, min: 1, max: 2, section: 'roster' },
+    { key: 'pfCount', label: 'PF Slots', type: 'number', defaultValue: 1, min: 1, max: 2, section: 'roster' },
+    { key: 'cCount', label: 'C Slots', type: 'number', defaultValue: 1, min: 1, max: 2, section: 'roster' },
+    { key: 'utilCount', label: 'Utility Slots', type: 'number', defaultValue: 1, min: 0, max: 3, section: 'roster' },
+    { key: 'benchSlots', label: 'Bench Slots', type: 'number', defaultValue: 4, min: 2, max: 10, section: 'roster' },
+    { key: 'irSlots', label: 'IR Slots', type: 'number', defaultValue: 2, min: 0, max: 5, section: 'roster' },
+    {
+      key: 'seasonWeeks',
+      label: 'Regular Season Weeks',
+      type: 'number',
+      defaultValue: 19,
+      min: 12,
+      max: 24,
+      section: 'schedule',
+      locksAfterStart: true,
+    },
+    {
+      key: 'playoffTeams',
+      label: 'Playoff Teams',
+      type: 'select',
+      defaultValue: 4,
+      options: [
+        { value: 4, label: '4 teams' },
+        { value: 6, label: '6 teams' },
+      ],
+      section: 'schedule',
+    },
+  ],
+
+  aiMetadata: {
+    scoringStyle: 'categories_or_points',
+    keyPositions: ['PG', 'SG', 'SF', 'PF', 'C'],
+    highValuePositions: ['C', 'PG'],
+    lineupNotes: 'Daily lineup changes — games-played tracking matters',
+    tradeNotes: 'Category league trades require position balance analysis',
+  },
+}
