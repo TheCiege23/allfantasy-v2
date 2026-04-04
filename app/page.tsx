@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import LandingPageClient from '@/components/landing/LandingPageClient'
+
+/** Avoids a Next.js 14 RSC static-generation webpack-runtime error on `/` (module factory undefined during Flight deserialization). */
+export const dynamic = 'force-dynamic'
 import { buildSeoMeta } from '@/lib/seo'
 import { getSoftwareApplicationSchema, getWebPageSchema } from '@/lib/seo'
 import { PageJsonLd } from '@/components/seo/JsonLd'

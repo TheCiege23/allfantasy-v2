@@ -5,7 +5,6 @@ import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
-import { SubscriptionGateRoot } from '@/components/subscription/SubscriptionGateRoot';
 import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
