@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
@@ -640,9 +641,27 @@ export default function MyRankingsPage() {
     <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-8">
+          <Link
+            href="/dashboard"
+            className="group mb-5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-white/35 transition-colors hover:text-cyan-300"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3 transition-transform group-hover:-translate-x-0.5"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Dashboard
+          </Link>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/80">Dashboard</p>
-          <h1 className="mt-2 text-3xl sm:text-4xl font-black text-white">My Rankings</h1>
-          <p className="mt-3 max-w-3xl text-sm sm:text-base text-slate-300">
+          <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">My Rankings</h1>
+          <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
             Your AllFantasy rank, AI grade, import flow, and league access rules in one place.
           </p>
         </div>

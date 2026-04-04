@@ -7,6 +7,7 @@ import type { ChecklistStep, UserLeague } from '../types'
 import { AIShortcutsGrid } from './AIShortcutsGrid'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
+import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -199,16 +200,27 @@ function RankingWidget({
             {payload.rank.careerTier}
           </div>
           <p className="mt-2 text-sm font-semibold text-white/80">{payload.rank.careerTierName}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {connectedPlatforms.map((platform) => (
+              <span
+                key={platform}
+                className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
+              >
+                {getPlatformBadge(platform)}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {connectedPlatforms.map((platform) => (
-            <span
-              key={platform}
-              className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
-            >
-              {getPlatformBadge(platform)}
-            </span>
-          ))}
+        {/* AI GRADE BADGE */}
+        <div className="flex shrink-0 flex-col items-center gap-0.5">
+          <div className="min-w-[56px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
+            <div className="text-2xl font-black leading-none text-violet-300">{payload.rank.aiReportGrade}</div>
+            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
+          </div>
+          <div className="text-center">
+            <span className="text-sm font-bold text-white/80">{payload.rank.aiScore}</span>
+            <span className="text-[10px] text-white/30">/100</span>
+          </div>
         </div>
       </div>
 
@@ -258,7 +270,6 @@ export function DashboardOverview({
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
   const [lineupLoading, setLineupLoading] = useState(false)
-  const [rankingsFaqOpen, setRankingsFaqOpen] = useState(false)
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
@@ -502,59 +513,16 @@ export function DashboardOverview({
 
         <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
 
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-white/40">RANKINGS</p>
-            <button
-              type="button"
-              onClick={() => {
-                handleAiShortcut('Show me how player rankings work for my leagues.')
-                window.dispatchEvent(
-                  new CustomEvent('af-chimmy-shortcut', {
-                    detail: { prompt: 'Show me how player rankings work for my leagues.' },
-                  })
-                )
-              }}
-              className="text-[12px] font-semibold text-cyan-400 transition hover:text-cyan-300"
-            >
-              Ask Chimmy →
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <p className="text-[15px] font-bold text-white">📊 Player Rankings</p>
-            <p className="mt-1 text-[12px] text-white/50">Personalized to your leagues&apos; scoring formats</p>
-            <ul className="mt-3 space-y-1.5 text-[12px] text-white/60">
-              <li>✓ PPR / Half-PPR / Standard rankings</li>
-              <li>✓ Dynasty &amp; Redraft values</li>
-              <li>✓ Waiver wire priority list</li>
-              <li>✓ Updated based on your league history</li>
-            </ul>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <Link
-                href="/dashboard/rankings"
-                className="inline-flex rounded-xl bg-cyan-500/20 px-3 py-1.5 text-[12px] font-medium text-cyan-400 transition hover:bg-cyan-500/30"
-              >
-                View Rankings →
-              </Link>
-              <button
-                type="button"
-                onClick={() => setRankingsFaqOpen((o) => !o)}
-                className="text-[11px] text-white/30 underline transition hover:text-white/60"
-              >
-                How does it work?
-              </button>
-            </div>
-            {rankingsFaqOpen ? (
-              <div className="mt-2 rounded-xl border border-white/[0.05] bg-white/[0.02] p-3 text-[11px] leading-relaxed text-white/50">
-                AllFantasy&apos;s rankings system uses your league history to calibrate player values. It takes into
-                account your scoring format (PPR, half-PPR, standard), league size, and your draft history to show you
-                the most relevant rankings for your leagues. Rankings update daily and are powered by Chimmy, your AI
-                fantasy assistant.
-              </div>
-            ) : null}
-          </div>
-        </section>
+        <RankingsCard
+          onAskChimmy={() => {
+            handleAiShortcut('Show me how player rankings work for my leagues.')
+            window.dispatchEvent(
+              new CustomEvent('af-chimmy-shortcut', {
+                detail: { prompt: 'Show me how player rankings work for my leagues.' },
+              })
+            )
+          }}
+        />
 
         <section>
           <RankingWidget leagues={leagues} onTriggerImport={handleImport} />
