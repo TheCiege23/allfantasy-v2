@@ -14,6 +14,8 @@ import { clearWeeklyImmunity } from '@/lib/survivor/immunityEngine'
 import { postHostMessage } from '@/lib/survivor/hostEngine'
 import { logSurvivorAuditEntry } from '@/lib/survivor/auditEntry'
 import { getSurvivorConfig } from '@/lib/survivor/SurvivorLeagueConfig'
+import { scheduleTribalReminders } from '@/lib/survivor/notificationEngine'
+import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
 
 async function sumRedraftStartersFantasy(
   rosterId: string,
@@ -136,6 +138,7 @@ export async function advancePhase(
     await prisma.league.update({ where: { id: leagueId }, data: { survivorPhase: 'merge' } })
   } else if (toPhase === 'jury') {
     await openJuryPhase(leagueId)
+    await prisma.league.update({ where: { id: leagueId }, data: { survivorPhase: 'jury' } })
     await prisma.survivorGameState.update({
       where: { leagueId },
       data: { phase: 'jury', juryStartedAt: new Date() },
@@ -149,9 +152,18 @@ export async function advancePhase(
       leagueId,
       finalists.length ? finalists.map((f) => f.userId) : [],
     ).catch(() => {})
+    await prisma.league.update({ where: { id: leagueId }, data: { survivorPhase: 'finale' } })
     await prisma.survivorGameState.update({
       where: { leagueId },
       data: { phase: 'finale', finaleStartedAt: new Date() },
+    })
+  } else if (toPhase === 'complete') {
+    const { generateSeasonSnapshot } = await import('@/lib/survivor/snapshotEngine')
+    await generateSeasonSnapshot(leagueId).catch(() => {})
+    await prisma.league.update({ where: { id: leagueId }, data: { survivorPhase: 'complete' } })
+    await prisma.survivorGameState.update({
+      where: { leagueId },
+      data: { phase: 'complete', seasonCompletedAt: new Date() },
     })
   } else {
     await prisma.league.update({ where: { id: leagueId }, data: { survivorPhase: toPhase } })
@@ -299,12 +311,25 @@ export async function finalizeWeeklyScores(leagueId: string, week: number): Prom
   })
 }
 
+function tribalVoteWindowHoursFromLeague(settings: unknown): number {
+  if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
+    const raw = (settings as Record<string, unknown>).survivorTribalVoteWindowHours
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0 && raw <= 168) return raw
+  }
+  return 24
+}
+
 export async function triggerTribalOpen(leagueId: string): Promise<void> {
   const gs = await getOrCreateSurvivorGameState(leagueId)
   const config = await getSurvivorConfig(leagueId)
   if (!config) return
 
-  const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const leagueRow = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { settings: true },
+  })
+  const hours = tribalVoteWindowHoursFromLeague(leagueRow?.settings)
+  const deadline = new Date(Date.now() + hours * 60 * 60 * 1000)
 
   const immune = gs.immuneTribeId
   const tribes = await prisma.survivorTribe.findMany({
@@ -327,6 +352,8 @@ export async function triggerTribalOpen(leagueId: string): Promise<void> {
       needsTribalLock: false,
     },
   })
+
+  await scheduleTribalReminders(leagueId, deadline)
 }
 
 export async function processTribalDeadline(leagueId: string): Promise<void> {
@@ -341,6 +368,148 @@ export async function processTribalDeadline(leagueId: string): Promise<void> {
     where: { leagueId },
     data: { tribalRevealAt: new Date() },
   })
+}
+
+export type PhaseAdvanceSuggestion = {
+  toPhase: string
+  reason: string
+}
+
+/**
+ * Next phase from league rules + game row (read-only). Returns null if no automatic transition applies.
+ */
+export async function computeAutomaticNextPhase(leagueId: string): Promise<PhaseAdvanceSuggestion | null> {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: {
+      survivorMode: true,
+      survivorSwapWeek: true,
+      survivorSwapTrigger: true,
+      survivorMergeWeek: true,
+      survivorMergeTrigger: true,
+      survivorMergeAtCount: true,
+      survivorJuryStart: true,
+      survivorPhase: true,
+    },
+  })
+  if (!league?.survivorMode) return null
+
+  const gs = await getOrCreateSurvivorGameState(leagueId)
+  const phase = gs.phase
+  const week = Math.max(0, gs.currentWeek)
+  const leaguePhase = league.survivorPhase ?? 'pre_draft'
+
+  const active = await prisma.survivorPlayer.count({
+    where: { leagueId, playerState: 'active' },
+  })
+
+  if (phase === 'complete' || leaguePhase === 'complete') return null
+  if (phase === 'pre_draft' || phase === 'drafting') return null
+
+  // Tribe swap
+  if (phase === 'pre_merge' && (leaguePhase === 'pre_merge' || leaguePhase === 'drafting')) {
+    const swapWeek = league.survivorSwapWeek
+    if (swapWeek != null && week >= swapWeek) {
+      return { toPhase: 'post_swap', reason: 'survivor_swap_week' }
+    }
+    const st = league.survivorSwapTrigger ?? 'manual'
+    if (/^\d+$/.test(st)) {
+      const n = parseInt(st, 10)
+      if (active > 0 && active <= n) {
+        return { toPhase: 'post_swap', reason: 'survivor_swap_player_count' }
+      }
+    }
+  }
+
+  // Merge
+  const gsPreMerge = phase === 'pre_merge' || phase === 'post_swap'
+  const leaguePreMerge = leaguePhase === 'pre_merge' || leaguePhase === 'post_swap'
+  if (gsPreMerge && leaguePreMerge) {
+    const mergeWeek = league.survivorMergeWeek ?? 7
+    const mergeAt = league.survivorMergeAtCount ?? 10
+    const trig = league.survivorMergeTrigger ?? 'week'
+    const hitWeek = trig === 'week' && week >= mergeWeek
+    const hitCount = trig === 'player_count' && active > 0 && active <= mergeAt
+    if (hitWeek || hitCount) {
+      return { toPhase: 'merge', reason: hitWeek ? 'merge_week' : 'merge_player_count' }
+    }
+  }
+
+  // First post-merge elimination → jury
+  if (phase === 'post_merge' && leaguePhase === 'merge') {
+    const jMode = league.survivorJuryStart ?? 'post_merge_vote_1'
+    if (jMode !== 'manual') {
+      const closedMerge = await prisma.survivorTribalCouncil.count({
+        where: {
+          leagueId,
+          phase: 'merge',
+          closedAt: { not: null },
+          OR: [{ eliminatedUserId: { not: null } }, { eliminatedRosterId: { not: null } }],
+        },
+      })
+      if (closedMerge >= 1) {
+        return { toPhase: 'jury', reason: 'post_merge_elimination' }
+      }
+    }
+  }
+
+  if ((phase === 'jury' || leaguePhase === 'jury') && active === 3) {
+    return { toPhase: 'finale', reason: 'final_three' }
+  }
+
+  if (phase === 'finale' || leaguePhase === 'finale') {
+    const session = await prisma.jurySession.findUnique({
+      where: { leagueId },
+      select: { winnerId: true },
+    })
+    if (session?.winnerId) {
+      return { toPhase: 'complete', reason: 'jury_winner_revealed' }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Applies `computeAutomaticNextPhase` when it returns a target; clears `needsPhaseAdvance` after a successful advance.
+ */
+export async function tryAutomaticPhaseAdvance(
+  leagueId: string,
+): Promise<{ advanced: boolean; toPhase?: string; reason?: string }> {
+  const suggestion = await computeAutomaticNextPhase(leagueId)
+  if (!suggestion) {
+    return { advanced: false }
+  }
+
+  const gsBefore = await getOrCreateSurvivorGameState(leagueId)
+
+  await advancePhase(leagueId, 'automatic', undefined, {
+    toPhase: suggestion.toPhase,
+    notes: suggestion.reason,
+  })
+
+  await prisma.survivorGameState.update({
+    where: { leagueId },
+    data: { needsPhaseAdvance: false },
+  })
+
+  const gsAfter = await getOrCreateSurvivorGameState(leagueId)
+  const season = await prisma.redraftSeason.findFirst({
+    where: { leagueId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  })
+  if (season) {
+    publishSurvivorRedraftEvent(season.id, {
+      type: 'phase_changed',
+      leagueId,
+      from: gsBefore.phase,
+      to: gsAfter.phase,
+      week: gsAfter.currentWeek,
+    })
+  }
+
+  return { advanced: true, toPhase: suggestion.toPhase, reason: suggestion.reason }
 }
 
 export { scoreExileWeek }

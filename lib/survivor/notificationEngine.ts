@@ -135,8 +135,25 @@ export async function processNotificationQueue(leagueId: string): Promise<{ sent
   return { sent, failed }
 }
 
+const REMINDER_BUFFER_MS = 60_000
+
+async function scheduleIfFuture(
+  leagueId: string,
+  type: string,
+  options: EnqueueNotificationInput,
+): Promise<void> {
+  const when = options.scheduledFor ?? new Date()
+  if (when.getTime() <= Date.now() + REMINDER_BUFFER_MS) {
+    return
+  }
+  await enqueueNotification(leagueId, type, { ...options, scheduledFor: when })
+}
+
+/**
+ * Queues 2h and 30m vote reminders before `deadline`. Skips any slot already in the past.
+ */
 export async function scheduleTribalReminders(leagueId: string, deadline: Date): Promise<void> {
-  await enqueueNotification(leagueId, 'vote_reminder', {
+  await scheduleIfFuture(leagueId, 'vote_reminder', {
     recipientRole: 'active',
     title: '🗳 Vote closes in 2 hours',
     body: 'Tribal Council deadline approaching. Cast your vote via @Chimmy.',
@@ -145,7 +162,7 @@ export async function scheduleTribalReminders(leagueId: string, deadline: Date):
     isSpoilerSafe: true,
     scheduledFor: new Date(deadline.getTime() - 2 * 60 * 60 * 1000),
   })
-  await enqueueNotification(leagueId, 'vote_reminder', {
+  await scheduleIfFuture(leagueId, 'vote_reminder', {
     recipientRole: 'active',
     title: '⚠️ 30 minutes to vote',
     body: 'Tribal Council is closing soon. Have you voted?',

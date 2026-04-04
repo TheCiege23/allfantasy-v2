@@ -8,6 +8,7 @@ import {
   allScoresFinalizedForWeek,
   triggerTribalOpen,
   processTribalDeadline,
+  tryAutomaticPhaseAdvance,
 } from '@/lib/survivor/gameStateMachine'
 import { lockChallengeSubmissions, tallyChallengeResults } from '@/lib/survivor/challengeEngine'
 import { processNotificationQueue } from '@/lib/survivor/notificationEngine'
@@ -73,6 +74,8 @@ async function runAutomation(req: NextRequest) {
       if (phaseAllowsScoreSync(phase) || phaseAllowsScoreSync(leaguePhase)) {
         await syncWeeklyScores(leagueId, week)
       }
+
+      await tryAutomaticPhaseAdvance(leagueId)
 
       let gsMid = await prisma.survivorGameState.findUnique({ where: { leagueId } })
       if (
