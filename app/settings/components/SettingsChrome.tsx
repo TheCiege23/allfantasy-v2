@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Archive,
   Bell,
+  CreditCard,
   FileText,
   Gift,
   Home,
@@ -21,6 +22,7 @@ export type SettingsTabId =
   | 'security'
   | 'notifications'
   | 'connected'
+  | 'billing'
   | 'referral'
   | 'legacy'
   | 'legal'
@@ -38,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'security', label: 'Security', icon: Shield },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'connected', label: 'Connected Accounts', icon: Link2 },
+  { id: 'billing', label: 'Subscription & Billing', icon: CreditCard },
   { id: 'referral', label: 'Referrals', icon: Gift },
   { id: 'legacy', label: 'Legacy Import', icon: Archive },
   { id: 'legal', label: 'Legal & Agreements', icon: FileText },

@@ -3865,6 +3865,10 @@ model UserProfile {
 
   /// AF Commissioner subscription — unlocks premium league AI / playoff options.
   afCommissionerSub Boolean @default(false)
+  /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
+  afProSub           Boolean @default(false)
+  /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
+  afWarRoomSub       Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -9905,6 +9909,7 @@ model UserSubscription {
   @@index([userId])
   @@index([userId, status])
   @@index([subscriptionPlanId, status])
+  @@index([stripeCustomerId])
   @@index([currentPeriodEnd])
   @@index([gracePeriodEnd])
   @@map("user_subscriptions")

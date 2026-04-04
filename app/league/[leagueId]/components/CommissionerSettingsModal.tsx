@@ -58,6 +58,7 @@ import { C2CAIPanel } from '@/app/c2c/components/settings/C2CAIPanel'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { SportConfigSettingsPanel } from './settings/SportConfigSettingsPanel'
 import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
+import { useEntitlements } from '@/hooks/useEntitlements'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -89,6 +90,7 @@ export function CommissionerSettingsModal({
   const [c2cConfig, setC2cConfig] = useState<C2CConfigClient | null>(null)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
+  const { hasCommissioner } = useEntitlements()
 
   useEffect(() => {
     if (!isOpen) return
@@ -212,7 +214,7 @@ export function CommissionerSettingsModal({
   if (!isOpen) return null
 
   const canEdit = payload?.canEdit ?? false
-  const hasSub = payload?.hasAfCommissionerSub ?? false
+  const hasSub = hasCommissioner || (payload?.hasAfCommissionerSub ?? false)
   const initialData = payload?.league as CommissionerSettingsFormData | undefined
 
   const survivorProps = { leagueId, canEdit, hasAfCommissionerSub: hasSub }

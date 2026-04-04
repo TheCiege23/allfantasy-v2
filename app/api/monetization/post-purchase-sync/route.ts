@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { EntitlementResolver } from "@/lib/subscription/EntitlementResolver"
 import { resolveBundleInheritance } from "@/lib/subscription/feature-access"
+import { syncUserProfileFromSubscriptions } from "@/lib/subscription/syncBridge"
 import { TokenBalanceResolver } from "@/lib/tokens/TokenBalanceResolver"
 
 export const dynamic = "force-dynamic"
@@ -57,6 +58,8 @@ export async function GET(req: Request) {
               .catch(() => null)
           : Promise.resolve(null),
       ])
+
+    await syncUserProfileFromSubscriptions(userId).catch(() => null)
 
     const syncStatus: SyncStatus = !sessionId
       ? "no_session"

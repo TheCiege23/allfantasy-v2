@@ -16,6 +16,7 @@ import {
   LegacyImportSettingsSection,
   LegalSettingsSection,
   AccountSettingsSection,
+  BillingSettingsSection,
 } from "./sections"
 
 export type SettingsAppProps = {
@@ -109,6 +110,7 @@ export default function SettingsApp({
       {activeTab === "connected" && (
         <ConnectedAccountsSettingsSection profile={profile} onRefetchProfile={fetchProfile} />
       )}
+      {activeTab === "billing" && <BillingSettingsSection />}
       {activeTab === "referral" && <ReferralSection />}
       {activeTab === "legacy" && <LegacyImportSettingsSection />}
       {activeTab === "legal" && <LegalSettingsSection profile={profile} />}

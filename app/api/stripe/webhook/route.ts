@@ -8,6 +8,14 @@ import {
 } from "@/lib/monetization/catalog"
 import { parseStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 import { TokenSpendService } from "@/lib/tokens/TokenSpendService"
+import { syncUserProfileFromSubscriptions } from "@/lib/subscription/syncBridge"
+import {
+  markSubscriptionAsExpired,
+  markSubscriptionPastDue,
+  refreshSubscriptionPeriod,
+  resolveUserIdFromStripeCustomerId,
+  updateSubscriptionFromStripeEvent,
+} from "@/lib/subscription/webhookHandlers"
 
 export const runtime = "nodejs"
 
@@ -211,6 +219,9 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
   if (SUPPORTED_PURCHASE_TYPES.has(purchaseType)) {
     if (purchaseType === "subscription") {
       await persistSubscriptionEntitlementFromCheckout(session, checkoutContext)
+      if (checkoutContext?.userId) {
+        await syncUserProfileFromSubscriptions(checkoutContext.userId)
+      }
     } else if (purchaseType === "tokens") {
       await persistTokenPurchaseFromCheckout(session, checkoutContext)
     }
@@ -293,6 +304,51 @@ export async function POST(req: NextRequest) {
         case "checkout.session.completed": {
           const session = event.data.object as Stripe.Checkout.Session
           purchaseType = await routeCheckoutSessionCompleted(session)
+          break
+        }
+        case "customer.subscription.updated": {
+          const updatedSub = event.data.object as Stripe.Subscription
+          const customerId =
+            typeof updatedSub.customer === "string" ? updatedSub.customer : null
+          const userId = customerId ? await resolveUserIdFromStripeCustomerId(customerId) : null
+          if (userId) {
+            await updateSubscriptionFromStripeEvent(updatedSub, userId)
+            await syncUserProfileFromSubscriptions(userId)
+          }
+          break
+        }
+        case "customer.subscription.deleted": {
+          const deletedSub = event.data.object as Stripe.Subscription
+          const customerId =
+            typeof deletedSub.customer === "string" ? deletedSub.customer : null
+          const userId = customerId ? await resolveUserIdFromStripeCustomerId(customerId) : null
+          if (userId) {
+            await markSubscriptionAsExpired(deletedSub, userId)
+            await syncUserProfileFromSubscriptions(userId)
+          }
+          break
+        }
+        case "invoice.payment_failed": {
+          const invoice = event.data.object as Stripe.Invoice
+          const customerId = typeof invoice.customer === "string" ? invoice.customer : null
+          const userId = customerId ? await resolveUserIdFromStripeCustomerId(customerId) : null
+          if (userId) {
+            await markSubscriptionPastDue(invoice, userId)
+            await syncUserProfileFromSubscriptions(userId)
+          }
+          break
+        }
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object as Stripe.Invoice
+          const reason = invoice.billing_reason
+          if (reason === "subscription_cycle" || reason === "subscription_create") {
+            const customerId = typeof invoice.customer === "string" ? invoice.customer : null
+            const userId = customerId ? await resolveUserIdFromStripeCustomerId(customerId) : null
+            if (userId) {
+              await refreshSubscriptionPeriod(invoice, userId)
+              await syncUserProfileFromSubscriptions(userId)
+            }
+          }
           break
         }
         default:

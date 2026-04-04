@@ -6,4 +6,5 @@ export { ConnectedAccountsSettingsSection } from "./ConnectedAccountsSettingsSec
 export { LegacyImportSettingsSection } from "./LegacyImportSettingsSection"
 export { LegalSettingsSection } from "./LegalSettingsSection"
 export { AccountSettingsSection } from "./AccountSettingsSection"
+export { BillingSettingsSection } from "./BillingSettingsSection"
 export type { SettingsProfile, SettingsOnSave } from "./settings-types"
