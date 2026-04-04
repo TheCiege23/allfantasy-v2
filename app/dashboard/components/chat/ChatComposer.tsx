@@ -33,6 +33,8 @@ type ChatComposerProps = {
   onAskChimmy?: () => void
   /** One-shot prefill from deep link query `?zombieChimmy=` (e.g. Zombie inventory → league chat). */
   initialDraftText?: string | null
+  /** When set, fetches Big Brother @Chimmy autocomplete for this league. */
+  bigBrotherAutocompleteLeagueId?: string | null
 }
 
 type Picker = 'gif' | 'emoji' | 'poll' | null
@@ -43,6 +45,7 @@ export function ChatComposer({
   placeholder = 'Message league...',
   onAskChimmy,
   initialDraftText = null,
+  bigBrotherAutocompleteLeagueId = null,
 }: ChatComposerProps) {
   const [text, setText] = useState('')
   const appliedPrefillKey = useRef<string | null>(null)
@@ -52,6 +55,7 @@ export function ChatComposer({
   const [pendingGif, setPendingGif] = useState<PendingGif | null>(null)
   const [pollDraft, setPollDraft] = useState<PollDraft | null>(null)
   const [sending, setSending] = useState(false)
+  const [bbSuggest, setBbSuggest] = useState<{ type: string; options: string[] } | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -71,6 +75,29 @@ export function ChatComposer({
   useEffect(() => {
     appliedPrefillKey.current = null
   }, [leagueId])
+
+  useEffect(() => {
+    if (!bigBrotherAutocompleteLeagueId || !text.toLowerCase().includes('@chimmy')) {
+      setBbSuggest(null)
+      return
+    }
+    const handle = window.setTimeout(() => {
+      void fetch(
+        `/api/leagues/${encodeURIComponent(bigBrotherAutocompleteLeagueId)}/big-brother/chimmy-autocomplete?draft=${encodeURIComponent(text)}`,
+        { cache: 'no-store' },
+      )
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { type?: string; options?: string[] } | null) => {
+          if (!d?.options?.length) {
+            setBbSuggest(null)
+            return
+          }
+          setBbSuggest({ type: d.type ?? 'command', options: d.options })
+        })
+        .catch(() => setBbSuggest(null))
+    }, 180)
+    return () => window.clearTimeout(handle)
+  }, [text, bigBrotherAutocompleteLeagueId])
 
   useEffect(() => {
     if (!initialDraftText?.trim()) return
@@ -261,6 +288,36 @@ export function ChatComposer({
         ) : null}
 
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
+          {bbSuggest?.options.length ? (
+            <div
+              className="max-h-36 overflow-y-auto border-b border-white/[0.06] px-2 py-1.5"
+              data-testid="bb-chimmy-autocomplete"
+            >
+              {bbSuggest.options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  className="mb-1 w-full rounded-lg px-2 py-1.5 text-left text-[12px] text-white/85 hover:bg-cyan-500/15"
+                  onClick={() => {
+                    if (bbSuggest.type === 'redirect') {
+                      toast.info(opt)
+                      setBbSuggest(null)
+                      return
+                    }
+                    if (opt.startsWith('@chimmy')) {
+                      setText(`${opt} `)
+                    } else {
+                      setText((prev) => `${prev.replace(/\s+$/, '')} ${opt} `)
+                    }
+                    setBbSuggest(null)
+                    queueMicrotask(() => textareaRef.current?.focus())
+                  }}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <textarea
             ref={textareaRef}
             value={text}

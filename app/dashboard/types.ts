@@ -25,6 +25,8 @@ export interface UserLeague {
   avatarUrl?: string | null
   /** ISO string from league detail / Sleeper draft when available */
   draftDate?: string | null
+  /** Prisma `League.leagueVariant` when provided (e.g. big_brother, zombie). */
+  leagueVariant?: string | null
 }
 
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */

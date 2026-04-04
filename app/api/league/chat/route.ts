@@ -7,6 +7,8 @@ import {
   getLeagueChatMessages,
 } from '@/lib/league-chat/LeagueChatMessageService'
 import { syncOutboundLeagueChat } from '@/lib/discord/sync-outbound'
+import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
+import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyCommandHandler'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
@@ -155,6 +157,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  let bbProcessed: Awaited<ReturnType<typeof processBigBrotherLeagueChatInput>> | null = null
+  if (!hasRich && message.trim() && (await isBigBrotherLeague(leagueId))) {
+    bbProcessed = await processBigBrotherLeagueChatInput(leagueId, userId, message)
+    if (bbProcessed.outcome === 'suppress_public') {
+      return NextResponse.json({
+        suppressed: true,
+        privateChimmyNotice: bbProcessed.privateNotice,
+      })
+    }
+  }
+
   const bodyText =
     message ||
     (metadata?.gifUrl || metadata?.giphyId || metadata?.gifId ? '🎬 GIF' : '') ||
@@ -167,6 +180,42 @@ export async function POST(req: NextRequest) {
   })
   if (!created) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+  }
+
+  const extraMessages: ReturnType<typeof toClientMessage>[] = []
+  if (bbProcessed?.outcome === 'post_user_and_chimmy' && bbProcessed.chimmyMessages.length > 0) {
+    const leagueRow = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { userId: true },
+    })
+    const announcerId = leagueRow?.userId
+    if (announcerId) {
+      for (const chimmy of bbProcessed.chimmyMessages) {
+        const row = await createLeagueChatMessage(leagueId, announcerId, chimmy.text, {
+          type: 'system',
+          metadata: {
+            isSystem: true,
+            chimmy: true,
+            bigBrother: true,
+            ...(chimmy.metadata ?? {}),
+          },
+        })
+        if (row) {
+          extraMessages.push(
+            toClientMessage({
+              id: row.id,
+              senderUserId: row.senderUserId ?? null,
+              senderName: row.senderName ?? 'AllFantasy',
+              senderAvatarUrl: row.senderAvatarUrl ?? null,
+              body: row.body,
+              createdAt: row.createdAt,
+              messageType: row.messageType ?? 'text',
+              metadata: row.metadata ?? null,
+            })
+          )
+        }
+      }
+    }
   }
 
   void syncOutboundLeagueChat({
@@ -189,5 +238,6 @@ export async function POST(req: NextRequest) {
       messageType: created.messageType ?? 'text',
       metadata: created.metadata ?? null,
     }),
+    ...(extraMessages.length > 0 ? { extraMessages } : {}),
   })
 }

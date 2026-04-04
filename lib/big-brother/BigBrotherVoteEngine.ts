@@ -8,6 +8,7 @@ import { getBigBrotherConfig } from './BigBrotherLeagueConfig'
 import { getFinalNomineeRosterIds } from './BigBrotherNominationEngine'
 import { getSeasonPointsFromRosterPerformance } from '@/lib/survivor/SurvivorVoteEngine'
 import type { BigBrotherVoteTally } from './types'
+import { syncBigBrotherVoteProgressChat } from './BigBrotherVoteProgressChat'
 
 export interface SeasonPointsSource {
   getSeasonPointsForRoster(leagueId: string, rosterId: string, throughWeek: number): Promise<number>
@@ -84,6 +85,7 @@ export async function submitEvictionVote(
     create: { cycleId, voterRosterId, targetRosterId },
     update: { targetRosterId },
   })
+  void syncBigBrotherVoteProgressChat(cycle.leagueId, cycleId)
   return { ok: true }
 }
 

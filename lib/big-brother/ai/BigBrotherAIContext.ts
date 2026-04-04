@@ -44,6 +44,8 @@ export interface BigBrotherAIContext {
   nextActionHint: string | null
   /** Sport for challenge theme hints (multi-sport). PROMPT 5. */
   sport: string
+  /** Optional term for `rule_explain` prompts. */
+  explainTerm?: string | null
 }
 
 /**

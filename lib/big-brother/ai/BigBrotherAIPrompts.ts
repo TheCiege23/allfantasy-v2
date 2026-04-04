@@ -16,6 +16,7 @@ export type BigBrotherAIPromptType =
   | 'game_theory'
   | 'social_strategy'
   | 'finale_moderator'
+  | 'rule_explain'
 
 function rosterList(ctx: BigBrotherAIContext, ids: string[], names: Record<string, string>): string {
   return ids.map((id) => names[id] ?? id).join(', ') || 'None'
@@ -71,6 +72,12 @@ export function buildBigBrotherAIPrompt(
     case 'finale_moderator': {
       const system = `You frame the jury finale: present finalist summaries, season narratives, key moves and challenge wins. Jury votes remain private and are tallied by the engine. You set the tone and narrate; you never state the winner. ${DETERMINISM}`
       const user = `${base}\n\nWrite finale moderation: finalist summaries, season narratives, key moves. Do not state who wins.`
+      return { system, user }
+    }
+    case 'rule_explain': {
+      const term = ctx.explainTerm?.trim() || 'rules'
+      const system = `You are Chimmy explaining a Big Brother fantasy league rule term in 2-4 sentences. Be accurate, concise, and friendly. ${DETERMINISM}`
+      const user = `${base}\n\nExplain this term or concept for a manager who asked in chat (term may be informal or misspelled; infer the intent): "${term}"`
       return { system, user }
     }
     default: {

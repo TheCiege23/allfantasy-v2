@@ -77,6 +77,7 @@ function prismaLeagueToUserLeague(
     avatarUrl: l.avatarUrl ?? undefined,
     sleeperLeagueId: l.platform === 'sleeper' ? l.platformLeagueId : undefined,
     draftDate: extra?.draftDate ?? undefined,
+    leagueVariant: l.leagueVariant ?? undefined,
   }
 }
 

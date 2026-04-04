@@ -2646,6 +2646,7 @@ model AppUser {
   tournamentShellsCreatedBy     TournamentShell[]          @relation("TournamentShellCreator")
   zombieUniversesCommissioned   ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
   zombieUniversesCreated        ZombieUniverse[]           @relation("ZombieUniverseCreator")
+  bigBrotherChatCommandLogs     BigBrotherChatCommandLog[]
 
   @@map("app_users")
 }
@@ -6420,6 +6421,8 @@ model BigBrotherCycle {
   voteOpenedAt               DateTime?
   closedAt                   DateTime?
   tieBreakSeasonPoints       Json?
+  /// League chat message id for live-updating vote progress (same row edited in place).
+  voteProgressMessageId      String?                @db.VarChar(64)
   createdAt                  DateTime               @default(now())
   updatedAt                  DateTime               @updatedAt
 
@@ -6485,6 +6488,24 @@ model BigBrotherAuditLog {
   @@index([leagueId, eventType])
   @@index([createdAt])
   @@map("big_brother_audit_logs")
+}
+
+/// Big Brother @Chimmy command attempts and validation (league chat + Chimmy).
+model BigBrotherChatCommandLog {
+  id           String   @id @default(cuid())
+  leagueId     String   @db.VarChar(64)
+  userId       String
+  user         AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycleId      String?  @db.VarChar(64)
+  rawMessage   String   @db.Text
+  isValid      Boolean  @default(false)
+  errorMessage String?  @db.VarChar(128)
+  commandType  String?  @db.VarChar(64)
+  createdAt    DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([userId])
+  @@map("big_brother_chat_command_logs")
 }
 
 // ========== Zombie League Engine (PROMPT 353) ==========

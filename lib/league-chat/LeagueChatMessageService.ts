@@ -141,3 +141,23 @@ export async function createLeagueChatMessage(
   }
   return out
 }
+
+export async function updateLeagueChatMessage(
+  messageId: string,
+  updates: { message?: string; metadata?: Record<string, unknown> }
+): Promise<{ id: string } | null> {
+  const data: { message?: string; metadata?: Record<string, unknown> } = {}
+  if (typeof updates.message === 'string') data.message = updates.message
+  if (updates.metadata && typeof updates.metadata === 'object') data.metadata = updates.metadata
+  if (!Object.keys(data).length) return null
+  try {
+    const row = await prisma.leagueChatMessage.update({
+      where: { id: messageId },
+      data,
+      select: { id: true },
+    })
+    return row
+  } catch {
+    return null
+  }
+}

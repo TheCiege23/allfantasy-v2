@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import type { UserLeague } from '../types'
 import { ChatComposer, type LeagueComposerPayload } from './chat/ChatComposer'
 import { ChatSenderAvatar } from './chat/ChatSenderAvatar'
@@ -229,6 +230,35 @@ export function LeagueChatInPanel({
   }, [loadMessages])
 
   useEffect(() => {
+    if (selectedLeague.leagueVariant !== 'big_brother') return
+    const url = `/api/leagues/${encodeURIComponent(selectedLeague.id)}/big-brother/vote-progress-stream`
+    const es = new EventSource(url)
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as {
+          type?: string
+          message?: { id: string; text: string; metadata?: Record<string, unknown> | null }
+        }
+        if (data.type !== 'vote_progress' || !data.message) return
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === data.message!.id
+              ? {
+                  ...m,
+                  text: data.message!.text,
+                  metadata: { ...m.metadata, ...data.message!.metadata },
+                }
+              : m
+          )
+        )
+      } catch {
+        /* ignore */
+      }
+    }
+    return () => es.close()
+  }, [selectedLeague.id, selectedLeague.leagueVariant])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
     const q = params.get('zombieChimmy')
@@ -337,10 +367,26 @@ export function LeagueChatInPanel({
           throw new Error(toStringValue(resPayload.error, 'Unable to send message'))
         }
 
+        if (resPayload.suppressed === true && typeof resPayload.privateChimmyNotice === 'string') {
+          setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id))
+          toast.info(resPayload.privateChimmyNotice)
+          return
+        }
+
         const serverMessage = mapLeagueApiMessage(resPayload.message)
-        setMessages((current) =>
-          current.map((message) => (message.id === optimisticMessage.id ? serverMessage ?? optimisticMessage : message))
-        )
+        const rawExtras = resPayload.extraMessages
+        const extraParsed = Array.isArray(rawExtras)
+          ? rawExtras
+              .map((m) => mapLeagueApiMessage(m))
+              .filter((m): m is LeagueChatMessage => Boolean(m))
+          : []
+
+        setMessages((current) => {
+          const merged = current.map((message) =>
+            message.id === optimisticMessage.id ? serverMessage ?? optimisticMessage : message
+          )
+          return extraParsed.length ? [...merged, ...extraParsed] : merged
+        })
       } catch (err) {
         setMessages((current) => current.filter((message) => message.id !== optimisticMessage.id))
         showTimedError(err instanceof Error ? err.message : 'Unable to send message')
@@ -368,10 +414,17 @@ export function LeagueChatInPanel({
           <div>
             {messages.map((message, index) => {
               const meta = message.metadata
+              const isBbChimmy = meta?.chimmy === true && meta?.bigBrother === true
+              const isVoteProgress = meta?.bbVoteProgress === true
+              const urgency = meta?.urgency === true
+              const displayName =
+                isBbChimmy ? 'Chimmy' : message.author_display_name
               const isSystemLine =
-                message.author_display_name === 'AllFantasy' ||
-                message.messageType === 'system' ||
-                (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true)
+                !isBbChimmy &&
+                !isVoteProgress &&
+                (message.author_display_name === 'AllFantasy' ||
+                  message.messageType === 'system' ||
+                  (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true))
 
               const gifDisplay = meta ? getGifDisplay(meta) : null
 
@@ -386,6 +439,22 @@ export function LeagueChatInPanel({
                 )
               }
 
+              if (isVoteProgress) {
+                return (
+                  <div
+                    key={message.id}
+                    className={`mx-auto my-1 max-w-[95%] rounded-xl border px-3 py-2 text-center text-[12px] ${
+                      urgency
+                        ? 'border-amber-500/50 bg-amber-950/25 text-amber-100'
+                        : 'border-sky-500/30 bg-[#0a1228]/90 text-sky-100/90'
+                    }`}
+                    data-testid="bb-vote-progress-line"
+                  >
+                    {message.text}
+                  </div>
+                )
+              }
+
               if (isSystemLine) {
                 return (
                   <p
@@ -394,6 +463,27 @@ export function LeagueChatInPanel({
                   >
                     {message.text}
                   </p>
+                )
+              }
+
+              if (isBbChimmy) {
+                return (
+                  <div key={message.id} className="mt-2 flex items-start gap-2 py-1.5">
+                    <div className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-[11px] font-bold text-cyan-200">
+                      C
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-0.5 flex min-w-0 items-baseline">
+                        <span className="text-[13px] font-semibold text-cyan-200/90">{displayName}</span>
+                        <span className="ml-1.5 shrink-0 text-[11px] text-white/30">
+                          {formatChatTime(message.createdAt)}
+                        </span>
+                      </div>
+                      <div className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-cyan-500/20 bg-[#0a1228] px-3 py-2 text-[13px] text-white/90">
+                        {message.text}
+                      </div>
+                    </div>
+                  </div>
                 )
               }
 
@@ -444,7 +534,7 @@ export function LeagueChatInPanel({
                       <ChatSenderAvatar
                         size={26}
                         authorAvatar={message.author_avatar}
-                        authorDisplayName={message.author_display_name}
+                        authorDisplayName={displayName}
                       />
                     )}
                   </div>
@@ -452,7 +542,7 @@ export function LeagueChatInPanel({
                     {threaded ? null : (
                       <div className="mb-0.5 flex min-w-0 items-baseline">
                         <span className="min-w-0 truncate text-[13px] font-semibold text-white/55">
-                          {message.author_display_name}
+                          {displayName}
                         </span>
                         <span className="ml-1.5 shrink-0 text-[11px] text-white/30">
                           {formatChatTime(message.createdAt)}
@@ -483,6 +573,9 @@ export function LeagueChatInPanel({
           placeholder="Message league..."
           onAskChimmy={onAskChimmy}
           initialDraftText={queryPrefill ?? zombieChimmyPrefill ?? null}
+          bigBrotherAutocompleteLeagueId={
+            selectedLeague.leagueVariant === 'big_brother' ? selectedLeague.id : null
+          }
         />
         {sending ? <p className="mt-1 text-[11px] text-white/35">Sending…</p> : null}
       </div>
